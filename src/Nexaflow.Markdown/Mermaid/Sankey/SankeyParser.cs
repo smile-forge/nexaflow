@@ -29,7 +29,7 @@ public sealed class SankeyParser : ITranspile
     }
 
     /// <inheritdoc/>
-    public static ContentChange? Rewrite(ContentChange change) => MermaidParser.Rewrite(change, Spelled);
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// What a name says: what is between its quotes where it has them, with a quote written twice standing for one, and

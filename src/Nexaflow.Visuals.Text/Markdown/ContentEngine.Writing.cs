@@ -603,19 +603,25 @@ public sealed partial class ContentEngine
         var (piece, part, root) = Reached(Landing, _dropOver);
         var move = new ContentMove(ranges, to, Landing, piece, part, root);
 
+        var language = part is null ? null : ContentLanguages.WrittenIn(root);
+
         // A language that falls over being asked is a language that said nothing: a drop nothing can be asked about is
         // still a drop of characters, which is what the default is.
         ContentChange? said;
         try
         {
-            said = (part is null ? null : ContentLanguages.WrittenIn(root)?.Editing.OnMove?.Move(move)) ?? Carrying(move);
+            said = language?.Editing.OnMove?.Move(move) ?? Carrying(move);
         }
         catch
         {
             said = Carrying(move);
         }
 
-        return said;
+        // Words as the reader means them are put into the language's own syntax before any of them is written, exactly as
+        // they are for an edit — and a language whose parser says nothing about writing has nothing written for it.
+        return said is null || !said.Writes.Any(write => write.Meant) ? said
+             : language is null ? null
+             : Spelling(said, _state, language);
     }
 
     /// <summary>
@@ -628,21 +634,27 @@ public sealed partial class ContentEngine
     /// would turn on which of them the engine made first.
     /// </para>
     /// <para>
-    /// Written as the characters they are rather than as words to be spelled: they are already this source's own, and a
-    /// language that wants its spelling applied to what arrives says so by answering the move itself.
+    /// <strong>What arrives from another language arrives as words.</strong> Characters carried within one language are
+    /// already its own source and go in as they stand — dragging <c>\alpha</c> about inside a formula must not spell it
+    /// again. Characters carried in from the prose around it are not its source and have never been put into its syntax,
+    /// so they go in as words for its parser to spell (<see cref="ITranspile"/>), which is what stops a percent sign
+    /// dragged into a formula commenting out the rest of it.
     /// </para>
     /// </summary>
     private static ContentChange Carrying(ContentMove move)
     {
         var carried = move.Text;
         var writes = new List<ContentWrite>(move.Carried.Count + 1);
+        var into = move.Holds ? null : move.Part;
         var dropped = false;
 
         foreach (var range in move.Carried)
         {
             if (!dropped && (move.To == range.Start || move.To == range.End))
             {
-                writes.Add(new ContentWrite(range.Start, range.Length, carried));
+                writes.Add(into is null
+                    ? new ContentWrite(range.Start, range.Length, carried)
+                    : ContentWrite.Words(into, range.Start, range.Length, carried));
                 dropped = true;
                 continue;
             }
@@ -650,7 +662,10 @@ public sealed partial class ContentEngine
             writes.Add(new ContentWrite(range.Start, range.Length, string.Empty));
         }
 
-        if (!dropped) writes.Add(new ContentWrite(move.To, 0, carried));
+        if (!dropped)
+            writes.Add(into is null
+                ? new ContentWrite(move.To, 0, carried)
+                : ContentWrite.Words(into, move.To, 0, carried));
 
         return new ContentChange(writes, Afterwards(writes, move.To) + carried.Length);
     }

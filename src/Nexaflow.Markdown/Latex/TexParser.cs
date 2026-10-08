@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Text;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Markdown.Latex;
 
@@ -17,8 +19,10 @@ namespace Nexaflow.Markdown.Latex;
 /// syntax, and syntax is the part that cannot be wrong without the source coming back different.
 /// </para>
 /// </summary>
-public static class TexParser
+public sealed class TexParser : ITranspile
 {
+    private TexParser() { }
+
     /// <summary>The formula, read.</summary>
     public static ContentNode Parse(string latex)
     {
@@ -26,6 +30,53 @@ public static class TexParser
 
         var reader = new Reader(TexLexer.Scan(latex), depth: 0, from: 0);
         return new BlockNode("latex", reader.Run(Until.Input), Kinds.Sequence, offset: 0);
+    }
+
+    /// <inheritdoc/>
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
+
+    /// <summary>
+    /// Words as LaTeX writes them where they are going, or null where they cannot be written there at all.
+    ///
+    /// <para>
+    /// TeX gives a handful of characters a meaning of its own, and every one of them does damage arriving unspelled: a
+    /// percent comments out the rest of the formula, a dollar closes it, a brace closes a group it was never opened
+    /// inside, an ampersand splits a cell, a backslash makes a command of whatever letters follow it. So each goes in as
+    /// the thing it is — <c>\%</c>, <c>\$</c>, <c>\backslash{}</c> — which is what somebody meaning that character would
+    /// have typed.
+    /// </para>
+    /// <para>
+    /// A line ending is a space. A formula is one expression and a blank line is not something TeX reads inside one, so
+    /// words arriving from a page that wrapped them over three lines arrive as one.
+    /// </para>
+    /// <para>
+    /// Nothing goes into the shape of a grid: <c>\begin{array}{cc}</c> names its columns with a letter each, and words
+    /// written there are not words meaning something else — they are a grid that no longer says how wide it is.
+    /// </para>
+    /// </summary>
+    private static string? Spelled(ContentPart part, string text)
+    {
+        for (var up = part; up is not null; up = up.Parent)
+            if (up.Role == TexRole.Option && up.Parent?.Kind == TexKinds.Environment) return null;
+
+        var said = new StringBuilder(text.Length);
+
+        foreach (var character in text.ReplaceLineEndings(" "))
+            said.Append(character switch
+            {
+                '\\' => @"\backslash{}",
+                '{' => @"\{",
+                '}' => @"\}",
+                '$' => @"\$",
+                '&' => @"\&",
+                '#' => @"\#",
+                '%' => @"\%",
+                '_' => @"\_",
+                '^' => @"\^{}",
+                _ => character.ToString(),
+            });
+
+        return said.ToString();
     }
 
     /// <summary>What brings a run of things to an end, besides running out of input.</summary>

@@ -54,7 +54,7 @@ public sealed class FlowchartParser : ITranspile
     }
 
     /// <inheritdoc/>
-    public static ContentChange? Rewrite(ContentChange change) => MermaidParser.Rewrite(change, Spelled);
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// A change as a chart spells it.

@@ -1,5 +1,6 @@
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -20,7 +21,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// line it was pressed on is the only one there is, and elsewhere Space and Enter write nothing.
 /// </para>
 /// </summary>
-internal sealed class LatexEdits : IOnEdit
+internal sealed class LatexEdits : IOnEdit, IOnMove
 {
     public static LatexEdits Instance { get; } = new();
 
@@ -31,6 +32,14 @@ internal sealed class LatexEdits : IOnEdit
         EditKind.Settling => Settling(edit.State, edit.Text == "\n" ? " " : edit.Text),
         _ => null,
     };
+
+    /// <summary>
+    /// What carrying something about in a formula means: cells of a table moved, where that is what is being carried
+    /// (<see cref="TexMove"/>), and nothing of its own otherwise — a term carried about is characters moving, which is
+    /// what the engine does anyway.
+    /// </summary>
+    public ContentChange? Move(ContentMove move) =>
+        move.Holds ? TexMove.Dropped(move.Root, move.Carried, move.To) : null;
 
     /// <summary>What typing a character does where LaTeX has something to say about it; null everywhere else.</summary>
     private static ContentChange? Typing(EditState state, char character)

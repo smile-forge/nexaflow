@@ -613,42 +613,7 @@ public sealed class MermaidParser : ITranspile
     // a rule of their own are named: a run of words holds words, so what was typed into one goes in as it was typed.
 
     /// <inheritdoc cref="ITranspile.Rewrite"/>
-    public static ContentChange? Rewrite(ContentChange change) => Rewrite(change, Spelled);
-
-    /// <summary>
-    /// The same, spelled by <paramref name="spelled"/> — which is how a diagram with a parser of its own writes back through
-    /// its own syntax while the walk over the writes, and what a write does to the caret, stays said once.
-    /// </summary>
-    internal static ContentChange? Rewrite(ContentChange change, Func<ContentPart, string, string?> spelled)
-    {
-        if (!change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>(change.Writes.Count);
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands once the ones before it have been made, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant) { writes.Add(write); continue; }
-            if (spelled(write.Part!, write.Text) is not { } said) return null;
-
-            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += said.Length - write.Text.Length;
-
-            grown += said.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
-    }
+    public static ContentChange? Rewrite(ContentChange change) => Editing.Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// What <paramref name="text"/> is written as where it is going — itself, wherever the place can hold it — or null where

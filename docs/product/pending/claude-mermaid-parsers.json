@@ -135,14 +135,76 @@
           }
         ]
       }
+    },
+    "latex-grid-move": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexMove.cs",
+          "class": "TexMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
+          "class": "LatexEdits",
+          "method": "Move"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexMoveTests.cs",
+            "class": "TexMoveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/MatrixMoveTests.cs",
+            "class": "MatrixMoveTests"
+          }
+        ]
+      }
+    },
+    "latex-writable-ast": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
+          "class": "LatexEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexParser.cs",
+          "class": "TexParser",
+          "method": "Rewrite"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexEditStateTests.cs",
+            "class": "EditStateTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexTranspileTests.cs",
+            "class": "TexTranspileTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 10,
   "touched_nodes": [
     "abc-editing",
     "content-moving",
+    "latex-grid-move",
     "latex-shown-as-written",
+    "latex-writable-ast",
     "markdown-laid-again"
   ]
 }

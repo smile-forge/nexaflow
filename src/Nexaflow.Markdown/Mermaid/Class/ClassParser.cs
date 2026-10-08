@@ -26,7 +26,7 @@ public sealed class ClassParser : ITranspile
     }
 
     /// <inheritdoc/>
-    public static ContentChange? Rewrite(ContentChange change) => MermaidParser.Rewrite(change, Spelled);
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>A change as a class diagram spells it.</summary>
     private static string? Spelled(ContentPart part, string text) => part.Role switch

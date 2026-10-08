@@ -26,7 +26,7 @@ public sealed class StateParser : ITranspile
     }
 
     /// <inheritdoc/>
-    public static ContentChange? Rewrite(ContentChange change) => MermaidParser.Rewrite(change, Spelled);
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>A change as a state diagram spells it.</summary>
     private static string? Spelled(ContentPart part, string text) =>

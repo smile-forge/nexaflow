@@ -115,6 +115,31 @@ public sealed class TexGrid
         return innermost;
     }
 
+    /// <summary>
+    /// The same, read from a positioned reading: every cell says where it stands in the document holding the formula,
+    /// rather than in the formula's own source.
+    ///
+    /// <para>
+    /// Which is what an edit and a move both need. A formula is read from its own slice of whatever holds it and told
+    /// where that slice begins, so a caret, a selection and a drop are all offsets into the document — and a table whose
+    /// cells were counted from nought could not be compared with any of them.
+    /// </para>
+    /// </summary>
+    public static TexGrid? At(ContentPart root, int offset)
+    {
+        TexGrid? innermost = null;
+
+        foreach (var part in root.SelfAndDescendants())
+        {
+            if (part.Derived || part.Kind != TexKinds.Environment) continue;
+            if (offset < part.Start || offset > part.End()) continue;
+            if (Read(part.Node, part.Start) is not { } grid) continue;
+            if (innermost is null || grid.Length < innermost.Length) innermost = grid;
+        }
+
+        return innermost;
+    }
+
     /// <summary>Every table in this formula, outermost first.</summary>
     public static IEnumerable<TexGrid> In(ContentNode root)
     {

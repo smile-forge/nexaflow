@@ -884,37 +884,8 @@ public sealed class AbcParser : ITranspile
 
     // ── Writing back ────────────────────────────────────────────────────────
 
-    /// <inheritdoc cref="ITranspile.Rewrite"/>
-    public static ContentChange? Rewrite(ContentChange change)
-    {
-        if (!change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>(change.Writes.Count);
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands once the ones before it have been made, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant) { writes.Add(write); continue; }
-            if (Spelled(write.Part!, write.Text) is not { } said) return null;
-
-            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (Spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += said.Length - write.Text.Length;
-
-            grown += said.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
-    }
+    /// <inheritdoc/>
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// What <paramref name="text"/> is written as where it is going, or null where it cannot go there at all.

@@ -462,6 +462,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = new EditedBy(LatexEdits.Instance),
+            Transpile = Transpiles.By<TexParser>(),
             DisplayName = "Formula",
             Icon = IconRef.Fluent("math_formula"),
             DefaultBlock = """
