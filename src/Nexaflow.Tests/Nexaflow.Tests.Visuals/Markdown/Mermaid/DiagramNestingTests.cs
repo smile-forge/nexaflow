@@ -75,6 +75,63 @@ public class DiagramNestingTests
     });
 
     [TestMethod]
+    public void AndItDoesSoThreeLanguagesDeepInADocument() => UiThread.Run(() =>
+    {
+        // The case the whole arrangement has to survive: a markdown document, holding a diagram, holding a
+        // formula on one of its nodes. Three readings, each made from its own slice of source and told where
+        // that slice begins — so what the formula drew has to name characters of the *document*, not of the
+        // label and not of the diagram.
+        const string document = "# Shapes\n\nSome words first.\n\n```mermaid\n" + Src + "```\n\nAnd words after.\n";
+
+        var surface = Settled(document);
+
+        var from = document.IndexOf(Inner, StringComparison.Ordinal);
+        var to = from + Inner.Length;
+
+        Assert.IsTrue(from > 0, "the formula is written somewhere in the document");
+
+        var inside = surface.Shown.Laid.Root.SelfAndDescendants()
+            .Where(piece => piece.Kind == MermaidPiece.Nested)
+            .SelectMany(piece => piece.SelfAndDescendants())
+            .Where(piece => piece.Part is not null && piece.Sits() is { Length: > 0 })
+            .ToList();
+
+        Assert.IsTrue(inside.Count > 0, "the formula drew pieces that stand for source");
+
+        foreach (var piece in inside)
+        {
+            var sits = piece.Sits();
+
+            Assert.IsTrue(sits.Start >= from && sits.Start + sits.Length <= to,
+                          $"{piece.Kind} sits at {sits.Start}+{sits.Length}, outside the label at {from}..{to}");
+        }
+
+        // And sharply: the characters each piece stands for are the ones written there. Every glyph of the
+        // formula is set by the typesetter rather than drawn from a run of words, so what says a piece is in
+        // the right place is the source at its span and nothing else.
+        var spans = inside.Select(piece => piece.Sits())
+                          .Select(sits => (sits.Start, Said: document.Substring(sits.Start, sits.Length)))
+                          .ToList();
+
+        CollectionAssert.Contains(spans, (from, Inner), "one piece stands for the whole formula, where the document holds it");
+        CollectionAssert.Contains(spans, (from, "x"), "and the x it opens with stands on the document's own x");
+        CollectionAssert.Contains(spans, (from + Inner.IndexOf('+', StringComparison.Ordinal), "+"),
+                                  "and the plus in the middle of it");
+    });
+
+    /// <summary>A whole document on a surface, measured and arranged as a reader is shown it.</summary>
+    private static MarkdownSurface Settled(string markdown)
+    {
+        var surface = new MarkdownSurface { Markdown = markdown };
+
+        surface.Measure(new Size(900, 2000));
+        surface.Arrange(new Rect(0, 0, 900, 2000));
+        surface.UpdateLayout();
+
+        return surface;
+    }
+
+    [TestMethod]
     public void AnOrdinaryLabelIsStillJustWords() => UiThread.Run(() =>
     {
         var element = Drawn("graph TD\n  a[\"Plain\"] --> b[\"Next\"]\n");
