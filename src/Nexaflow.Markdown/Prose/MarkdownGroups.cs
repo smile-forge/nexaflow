@@ -81,7 +81,7 @@ internal static class MarkdownGroups
                 else parts.Add(written);
         }
 
-        return new BlockNode(MarkdownParser.Maths, parts, role: paragraph.Role);
+        return new BlockNode(MarkdownParser.Maths, parts, role: paragraph.Role, offset: paragraph.Offset);
     }
 
     // ── Definitions ─────────────────────────────────────────────────────────

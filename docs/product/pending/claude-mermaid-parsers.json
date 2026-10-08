@@ -43,11 +43,50 @@
           }
         ]
       }
+    },
+    "markdown-laid-again": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithUnchanged.cs",
+          "class": "WithUnchanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/LaidBlocks.cs",
+          "class": "Laying",
+          "method": "At"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Whole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutKept.cs",
+          "class": "LayoutKept"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlocks.cs",
+          "class": "MarkdownBlocks",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
+          "class": "ContentNode",
+          "method": "FurtherOn"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 3,
   "touched_nodes": [
-    "abc-editing"
+    "abc-editing",
+    "markdown-laid-again"
   ]
 }

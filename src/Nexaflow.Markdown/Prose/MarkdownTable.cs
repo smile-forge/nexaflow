@@ -25,12 +25,13 @@ namespace Nexaflow.Markdown.Prose;
 public static class MarkdownTable
 {
     /// <summary><paramref name="source"/> as the rows and cells written in it.</summary>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)
+    /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
 
         try
@@ -39,12 +40,12 @@ public static class MarkdownTable
         }
         catch
         {
-            parts.Add(ContentNode.Shown(read.Rest()));
+            parts.Add(read.Unaccounted());
         }
 
         read.Gap(parts, read.Length);
 
-        return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body);
+        return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
     /// <summary>
@@ -103,18 +104,20 @@ public static class MarkdownTable
 
             read.Gap(parts, span.From);
 
+            var stands = read.Here;
+
             var inside = new List<ContentNode>
             {
                 // Held as written: what is in a cell is the same language a paragraph is written in, and
                 // reading it is that reader's business.
-                ContentNode.Leaf(Kinds.Verbatim, read.Text(span.To), Roles.Body),
+                ContentNode.Leaf(Kinds.Verbatim, read.Text(span.To), Roles.Body, offset: stands),
             };
 
             if (Aligned(table, at) is { } how) inside.Add(how);
             if (Covers(cell) is { } spans) inside.Add(spans);
             if (Blocked(cell)) inside.Add(ContentNode.Holding(MarkdownKinds.Blocks, Roles.Derived, true));
 
-            parts.Add(ContentNode.Branch(MarkdownKinds.Cell, inside, Roles.Cell));
+            parts.Add(ContentNode.Branch(MarkdownKinds.Cell, inside, Roles.Cell, stands));
 
             column += Math.Max(cell.ColumnSpan, 1) - 1;
         }

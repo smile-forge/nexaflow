@@ -179,6 +179,36 @@ public class ContentNode
     public ContentNode Saying(string? trouble) =>
         trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, this.Offset, trouble, this.Held));
 
+    /// <summary>
+    /// The same reading, and everything under it, read from <paramref name="by"/> characters further on than it says —
+    /// or further back, where that is negative.
+    ///
+    /// <para>
+    /// What a reading came to depends on the characters it was read from and not on where those characters stood, so one
+    /// kept from last time can be moved along rather than read again. That is what lets a document of a thousand blocks
+    /// cost one reading after a keystroke in the first of them, which moved every block below it along.
+    /// </para>
+    /// <para>
+    /// A piece that says nothing is left saying nothing: it follows whatever is printed in front of it, wherever that is.
+    /// </para>
+    /// </summary>
+    public ContentNode FurtherOn(int by)
+    {
+        if (by == 0) return this;
+
+        var children = this.Children;
+
+        if (children.Count > 0)
+        {
+            var moved = new ContentNode[children.Count];
+            for (var at = 0; at < moved.Length; at++) moved[at] = children[at].FurtherOn(by);
+            children = moved;
+        }
+
+        return this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children,
+                                             this.Offset is { } offset ? offset + by : null, this.Trouble, this.Held));
+    }
+
     // ── Reading them ────────────────────────────────────────────────────────
 
     /// <summary>The first part with this role, or null.</summary>
@@ -320,7 +350,7 @@ public class ContentNode
 
     /// <summary>
     /// Whether this is the same tree as <paramref name="other"/>: the same shape, made of the same pieces,
-    /// each saying the same thing.
+    /// each saying the same thing and each read from the same place.
     ///
     /// <para>
     /// Neither of the two comparisons that come for free will do. Reference equality asks whether they are
@@ -328,6 +358,11 @@ public class ContentNode
     /// Equal printing asks something weaker than it looks: a group and the single thing inside it print
     /// alike and are not the same tree, and telling those two apart is the whole reason an edited tree is
     /// held against what re-reading its source produced.
+    /// </para>
+    /// <para>
+    /// Where a piece was read from is compared, because it is one of the things a piece says. Two trees of the same
+    /// shape standing in different places are two readings of two different stretches of a document, and a reading
+    /// moved along (<see cref="FurtherOn"/>) is held to being what reading it there would have made.
     /// </para>
     /// <para>
     /// <see cref="Width"/> is deliberately not compared. It follows from the rest, so comparing it could
@@ -344,6 +379,7 @@ public class ContentNode
             || this.Kind != other.Kind
             || this.Role != other.Role
             || this.Text != other.Text
+            || this.Offset != other.Offset
             || this.Trouble != other.Trouble
             || this.Children.Count != other.Children.Count) return false;
 

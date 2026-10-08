@@ -48,10 +48,16 @@ internal static class MarkdownClosingLines
         var ending = text.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : text.EndsWith('\n') ? 1 : 0;
         if (ending == 0) return body;
 
-        var closing = ContentNode.Leaf(Kinds.Space, text[^ending..], Roles.Trivia);
+        // Both halves were read from where the body was read from, so each says so — and neither says anything
+        // where the body said nothing.
+        var at = body.Offset;
+        var closing = ContentNode.Leaf(Kinds.Space, text[^ending..], Roles.Trivia, offset: at + (text.Length - ending));
 
         return ContentNode.Branch(body.Kind,
-                                  text.Length > ending ? [ContentNode.Leaf(body.Kind, text[..^ending]), closing] : [closing],
-                                  Roles.Body);
+                                  text.Length > ending
+                                      ? [ContentNode.Leaf(body.Kind, text[..^ending], offset: at), closing]
+                                      : [closing],
+                                  Roles.Body,
+                                  at);
     }
 }

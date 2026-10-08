@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Prose;
 
@@ -92,6 +93,38 @@ public class MarkdownInlineTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void AndEveryPieceSaysWhereItWasReadFrom()
+    {
+        foreach (var (what, source) in Stretches)
+        {
+            var faults = AstOracle.Faults(source, MarkdownInline.Read(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AndItSaysSoCountedInTheDocumentWhenItIsToldWhereItStands()
+    {
+        // A block's words are read from the block's own source, and say where they stand in the document holding
+        // it — which is what lets a paragraph read on its own be put back where it came from.
+        foreach (var (what, source) in Stretches)
+        {
+            var held = $"> {source}";
+            var faults = AstOracle.Faults(held, MarkdownInline.Read(source, at: 2)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in Stretches)
+            Assert.AreEqual(source, AstOracle.Reversed(MarkdownInline.Read(source)).Print(), what);
     }
 
     // ── What each construct is read as ──────────────────────────────────────

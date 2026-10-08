@@ -5,7 +5,7 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// The source a reading is cut from, and how much of it has been accounted for.
+/// The source a reading is cut from, where it stands, and how much of it has been accounted for.
 ///
 /// <para>
 /// Every piece of every markdown tree comes through here, so one place can answer the question the whole
@@ -18,14 +18,26 @@ namespace Nexaflow.Markdown.Prose;
 /// none of it is stripped and none of it is invented, because it is kept as the trivia it is, exactly where
 /// the writer put it. That is the whole of why a reading prints back as what it was read from.
 /// </para>
+/// <para>
+/// And every piece says where it was cut from, counted in the document rather than in the stretch handed over:
+/// a block's words are read from the block's own source, which stands <paramref name="stands"/> characters into
+/// the document that holds it.
+/// </para>
 /// </summary>
-internal sealed class Cut(string source)
+/// <param name="stands">Where this source's first character stands in the document holding it — nought for a document.</param>
+internal sealed class Cut(string source, int stands = 0)
 {
     /// <summary>How much of the source has been accounted for.</summary>
     public int At { get; private set; }
 
     /// <summary>How much of it there is.</summary>
     public int Length => source.Length;
+
+    /// <summary>Where this source begins in the document holding it.</summary>
+    public int From => stands;
+
+    /// <summary>Where the next character to be accounted for stands in that document.</summary>
+    public int Here => stands + this.At;
 
     /// <summary>Where something starts, never behind what has already been taken.</summary>
     public int Starts(MarkdownObject what) => Math.Clamp(what.Span.Start, this.At, source.Length);
@@ -61,8 +73,13 @@ internal sealed class Cut(string source)
 
     public string Between(int from, int to) => source[from..Math.Clamp(to, from, source.Length)];
 
-    /// <summary>Everything not yet accounted for.</summary>
-    public string Rest() => source[this.At..];
+    /// <summary>Everything not yet accounted for, shown as the characters it was written with.</summary>
+    public ContentNode Unaccounted()
+    {
+        var at = this.Here;
+
+        return ContentNode.Shown(this.Text(this.Length), offset: at);
+    }
 
     /// <summary>Whatever has been passed over since the last piece, kept where it was written.</summary>
     public void Gap(List<ContentNode> parts, int stop)
@@ -90,14 +107,15 @@ internal sealed class Cut(string source)
     }
 
     /// <summary>
-    /// The source up to <paramref name="stop"/>, as a piece. Space is space and everything else is a mark,
-    /// unless the caller knows better.
+    /// The source up to <paramref name="stop"/>, as a piece saying where it was cut from. Space is space and
+    /// everything else is a mark, unless the caller knows better.
     /// </summary>
     public ContentNode Take(int stop, string role, string? kind = null)
     {
+        var at = this.Here;
         var text = this.Text(stop);
 
-        return ContentNode.Leaf(kind ?? (text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token), text, role);
+        return ContentNode.Leaf(kind ?? (text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token), text, role, offset: at);
     }
 
     /// <summary>The source up to <paramref name="stop"/>, handed over for somebody else to read.</summary>

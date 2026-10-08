@@ -66,14 +66,26 @@ content is set is a fact about the content. A builder that reads the display, th
 
 ## 2. The AST
 
-**The AST owns its text, and no offset is stored anywhere.** A node knows how wide it is; where it stands is worked out
-by a walk when somebody asks (`ContentReading`, `ContentPart`). An edit that replaces a subtree cannot leave a stale
-position behind, because there were none.
+**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`). Only a
+parser says it, because a parser is the only thing that reads source; a stage that works something out says nothing,
+and what it hangs is derived and stands for no characters at all. Where a part sits in the document is still worked out
+by a walk when somebody asks (`ContentReading`, `ContentPart`), which is what positions a language read from its own
+slice inside the document holding it.
+
+An offset means **where it was read from**, and nothing else. It is not a print position, not a hint, and not
+something an edit updates: an edit names the characters it changes, the engine writes them, and the content is read
+again (§8). What it buys is that a stage may regroup, reorder and share the pieces it was handed and the source still
+comes out as it was written — and that whether a character was copied or made up is a question with an answer.
 
 **R5 — `Print(Parse(s)) == s` for every input, malformed included.** Nothing a reader can type is outside the AST.
 
-**R6 — A parser only ever copies.** Every leaf's text is in the source at the offset the tree puts it at; nothing is
-synthesised, normalised or inserted.
+**R6 — A parser only ever copies, and says where from.** Every leaf standing for characters says where it was read
+from, and what the source holds there is what it prints as; nothing is synthesised, normalised or inserted.
+
+R6's second half is what makes the first half checkable. A round trip cannot tell a piece that knows its own place
+from one that does not, because a tree printed in the order it was built comes out the same either way — so every
+language's corpus is put to an oracle that asks each piece where it was read from and holds the answer against the
+source, and then reverses the parts of every piece and prints it again (`AstOracle`).
 
 R5 alone is weak: a parser returning the whole input as one leaf passes it, and so does one that quietly repairs what
 it read. R6 is what stops recovery from inventing. The temptation on meeting `[CEG` is to close the bracket, and a

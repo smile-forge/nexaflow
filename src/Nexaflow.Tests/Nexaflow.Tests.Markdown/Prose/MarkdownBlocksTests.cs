@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Prose;
 
@@ -109,6 +110,47 @@ public class MarkdownBlocksTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void AndEveryPieceOfItSaysWhereItWasReadFrom()
+    {
+        // The whole document, both passes: the split names the blocks and each block's own reader cuts what is in
+        // it, counted in the document rather than in the stretch the reader was handed.
+        foreach (var (what, source) in Documents)
+        {
+            var faults = AstOracle.Faults(source, Read(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in Documents)
+            Assert.AreEqual(source, AstOracle.Reversed(Read(source)).Print(), what);
+    }
+
+    [TestMethod]
+    public void AndABlockReadBeforeIsMovedAlongRatherThanReadAgain()
+    {
+        // What a block's reading came to depends on its characters and not on where they stood, so the reading is kept and
+        // moved along. Which is only right if moving it is the same answer as reading it there — so: the same two
+        // paragraphs, read once with a character typed in front of them and once without, and nothing between the two
+        // readings but the keystroke.
+        var blocks = MarkdownParser.Parsing();
+
+        const string first = "Alpha beta.\n\nAlpha beta.\n";
+        const string typed = "x\n\nAlpha beta.\n\nAlpha beta.\n";
+
+        blocks(first);
+
+        var remembered = blocks(typed).Tree;
+
+        Assert.AreEqual(typed, remembered.Print(), "the document still prints as what was written");
+        Assert.IsTrue(remembered.Same(MarkdownParser.Parsing()(typed).Tree),
+                      "a reading moved along says the same as one read where it now stands — offsets and all");
     }
 
     // ── What a block turned out to be made of ───────────────────────────────
