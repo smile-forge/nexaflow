@@ -61,6 +61,26 @@ public abstract class MermaidGrammarContract
     }
 
     [TestMethod]
+    public void AndSoDoesEveryStageOnTheWayThere()
+    {
+        // The rule the whole design rests on, stated per stage rather than per pipeline: a stage may throw out and
+        // rebuild every node it was handed, provided what comes back still prints as the source it was read from.
+        // Asserting it only once the pipeline has run lets two stages cancel out one another's damage.
+        foreach (var (what, source) in All)
+            foreach (var holes in new[] { false, true })
+            {
+                var tree = Parsed(source);
+
+                foreach (var stage in MermaidPipeline.Of(tree, holes))
+                {
+                    tree = stage.Run(tree);
+
+                    Assert.AreEqual(source, tree.Print(), $"{what}: after {stage.Name}{(holes ? ", with holes" : "")}");
+                }
+            }
+    }
+
+    [TestMethod]
     public void EveryPrefixOfEveryBlockReadsBackToo()
     {
         foreach (var (what, source) in All)
