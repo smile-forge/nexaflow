@@ -51,7 +51,7 @@ public static class Transpiles
     /// write that is already source goes as it stands.
     /// </para>
     /// </summary>
-    public static ContentChange? Spelling(ContentChange change, Func<ContentPart, string, string?> spelled)
+    public static ContentChange? Spelling(ContentChange change, Func<ContentPart, string, int, string?> spelled)
     {
         if (!change.Writes.Any(write => write.Meant)) return change;
 
@@ -67,12 +67,12 @@ public static class Transpiles
             moved += write.Text.Length - write.Length;
 
             if (!write.Meant) { writes.Add(write); continue; }
-            if (spelled(write.Part!, write.Text) is not { } said) return null;
+            if (spelled(write.Part!, write.Text, write.Start) is not { } said) return null;
 
             writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
 
             if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
+                caret = at + grown + (spelled(write.Part!, write.Text[..(change.Caret - at)], write.Start)?.Length ?? said.Length);
             else if (change.Caret > at + write.Text.Length)
                 caret += said.Length - write.Text.Length;
 
@@ -81,4 +81,16 @@ public static class Transpiles
 
         return change with { Writes = writes, Caret = caret };
     }
+
+    /// <summary>
+    /// The same, for a language whose spelling is the same wherever the words land.
+    ///
+    /// <para>
+    /// Which is almost every one of them: a percent sign comments out a formula wherever it is written, and a quote
+    /// closes a label wherever it is written. Prose is the exception, because the constructs it reads at the start of a
+    /// line it reads nowhere else.
+    /// </para>
+    /// </summary>
+    public static ContentChange? Spelling(ContentChange change, Func<ContentPart, string, string?> spelled) =>
+        Spelling(change, (part, text, _) => spelled(part, text));
 }

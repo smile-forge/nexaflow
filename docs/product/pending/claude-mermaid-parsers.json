@@ -195,16 +195,36 @@
           }
         ]
       }
+    },
+    "markdown-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Rewrite"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownTranspileTests.cs",
+            "class": "MarkdownTranspileTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 12,
   "touched_nodes": [
     "abc-editing",
     "content-moving",
     "latex-grid-move",
     "latex-shown-as-written",
     "latex-writable-ast",
-    "markdown-laid-again"
+    "markdown-laid-again",
+    "markdown-text"
   ]
 }

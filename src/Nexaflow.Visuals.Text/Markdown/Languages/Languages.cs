@@ -74,6 +74,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = MarkdownEdits.Instance,
+            Transpile = Transpiles.By<MarkdownParser>(),
         };
 
     /// <summary>
