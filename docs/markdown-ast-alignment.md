@@ -141,9 +141,10 @@ Editing handlers name an intent — flatten this note, set this value, insert a 
 becomes true, and syntax knowledge exists in exactly one place per language.
 
 **Where it stands.** The read half exists everywhere, and the splice interface now exists too: `ITranspile`, in
-`Nexaflow.Markdown/Editing/`, which a parser implements to be asked about a change before it is written. Three languages
-implement it — `MermaidParser` and `AbcParser`, the pair this section asks the interface to be designed against, and
-`FlowchartParser` — and the engine puts every write marked `ContentWrite.Meant`, words as the reader means them rather
+`Nexaflow.Markdown/Editing/`, which a parser implements to be asked about a change before it is written. Nine languages
+implement it — `MermaidParser` and `AbcParser`, the pair this section asks the interface to be designed against,
+`TexParser`, `FlowchartParser`, and one each for the class, state, sequence, sankey and C4 diagrams — and the engine
+puts every write marked `ContentWrite.Meant`, words as the reader means them rather
 than as the language spells them, to the parser, instead of only words pasted into a part. `ContentChange.Asks` lets a
 handler decline to spell an edit and ask the engine for the one it would make anyway, which is the first step of a
 handler shrinking to an intent.
@@ -173,11 +174,16 @@ What has not started is the migration this section is actually about. The twenty
 syntax themselves, and `PieEdits.Configured` is still the clearest example: it assembles front-matter syntax by
 concatenating delimiters and newlines, and calls `Print()` on the AST to re-emit the rest of the block.
 
-What that costs is already measured, and red, and has not moved.
+What that costs is measured, and the measure is green.
 `DiagramEscapingTests.WhateverIsTypedWhereSomethingIsWrittenTheDiagramStillReads` types every key into every written
-part of every sample diagram and names sixty-two that leave a line the diagram can no longer read — a quote in a C4
-value or a class stereotype, a bracket in a C4 name, a quote in a Sankey label. It is the acceptance test for this
-section: sixty-two when this plan was written, sixty-two now.
+part of every sample diagram and counts the ones that leave a line the diagram can no longer read. It is the acceptance
+test for this section, and it stands at nought: the sixty-two it named — a quote in a C4 value or a class stereotype, a
+bracket in a C4 name, a quote in a Sankey label — are spelled by the diagram's own parser rather than by a handler.
+
+What that does not settle is the reading. A transpiler is handed one part and answers for that part alone, so where a
+character needs the syntax around it rewritten — a bare sankey name promoted to a quoted one, a state or participant id
+given an `as` alias — it can only refuse. Sankey is the proof: the quote it spells in a quoted field is the same quote
+it declines in a bare one.
 
 **Benefit.** Escaping and delimiter bugs stop being a thing each handler can get wrong and become a property of the
 language. `ITranspile`'s rule — where the part cannot hold what was asked for, nothing is written — applies to every
