@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Barcode;
 using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Barcode;
 
@@ -19,6 +20,35 @@ public class BarcodeParserTests
         foreach (var source in new[] { "format: EAN13\nvalue: 590123412345\n", "value:\n# a comment\r\nformat: CODE39", "just prose", "" })
             Assert.AreEqual(source, BarcodeParser.Parse(source).Print());
     }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var source in Sources)
+        {
+            var faults = AstOracle.Faults(source, BarcodeParser.Parse(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{source}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var source in Sources)
+            Assert.AreEqual(source, AstOracle.Reversed(BarcodeParser.Parse(source)).Print(), source);
+    }
+
+    /// <summary>What a barcode block is written as, and the half-written and wrong things it has to hold without losing.</summary>
+    private static readonly string[] Sources =
+    [
+        "format: EAN13\nvalue: 590123412345\n",
+        "value:\n# a comment\r\nformat: CODE39",
+        "just prose",
+        "",
+        "  format:  CODE128  \n  value:  AB-12  \n",
+        "value: 1\nvalue: 22\nvalue: 333",
+    ];
 
     [TestMethod]
     public void TheValueIsOnePiecePerCharacter_AndNothingElseIs()
