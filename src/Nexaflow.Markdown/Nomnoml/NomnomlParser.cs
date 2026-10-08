@@ -85,7 +85,7 @@ public static class NomnomlParser
             var (from, to) = row.Text(source);
             var text = source[from..to];
 
-            if (text.Length > 0 && Depth(text) > 0 && Opened(text) is { } opened)
+            if (text.Length > 0 && Depth(text) > 0 && Opened(text, from) is { } opened)
             {
                 if (Closing(source, row, end, Depth(text)) is { } last)
                 {
@@ -96,9 +96,9 @@ public static class NomnomlParser
                         Line(source, row, from, opened),
                         .. Read(source, row.Stop, last.Start),
                         Line(source, last, start, source[start..stop] == Closes
-                            ? ContentNode.Leaf(Kinds.Token, Closes, Roles.Close)
-                            : Statement(source[start..last.End])),
-                    ]));
+                            ? ContentNode.Leaf(Kinds.Token, Closes, Roles.Close, offset: start)
+                            : Statement(source[start..last.End], start)),
+                    ], offset: row.Start));
 
                     at = last.Stop;
                     continue;
@@ -110,7 +110,7 @@ public static class NomnomlParser
                 continue;
             }
 
-            lines.Add(Line(source, row, from, text.Length == 0 ? null : Statement(source[from..row.End])));
+            lines.Add(Line(source, row, from, text.Length == 0 ? null : Statement(source[from..row.End], from)));
             at = row.Stop;
         }
 
@@ -142,16 +142,16 @@ public static class NomnomlParser
         var pieces = new List<ContentNode>();
         var to = from + (said?.Width ?? 0);
 
-        if (from > row.Start) pieces.Add(Space(source[row.Start..from]));
+        if (from > row.Start) pieces.Add(Space(source[row.Start..from], row.Start));
         if (said is not null) pieces.Add(said);
-        if (row.End > to) pieces.AddRange(After(source[to..row.End]));
-        if (row.Stop > row.End) pieces.Add(Space(source[row.End..row.Stop]));
+        if (row.End > to) pieces.AddRange(After(source[to..row.End], to));
+        if (row.Stop > row.End) pieces.Add(Space(source[row.End..row.Stop], row.End));
 
-        return ContentNode.Branch(NomnomlKinds.Line, pieces);
+        return ContentNode.Branch(NomnomlKinds.Line, pieces, offset: row.Start);
     }
 
     /// <summary>What follows a statement on its line: space, and anything else held as written with the reason.</summary>
-    private static IEnumerable<ContentNode> After(string text)
+    private static IEnumerable<ContentNode> After(string text, int at)
     {
         var lead = 0;
         while (lead < text.Length && char.IsWhiteSpace(text[lead])) lead++;
@@ -159,17 +159,17 @@ public static class NomnomlParser
         var trail = 0;
         while (text.Length - trail > lead && char.IsWhiteSpace(text[text.Length - trail - 1])) trail++;
 
-        if (lead > 0) yield return Space(text[..lead]);
+        if (lead > 0) yield return Space(text[..lead], at);
         if (lead == text.Length) yield break;
 
-        yield return ContentNode.Shown(text[lead..(text.Length - trail)], Beyond);
-        if (trail > 0) yield return Space(text[(text.Length - trail)..]);
+        yield return ContentNode.Shown(text[lead..(text.Length - trail)], Beyond, offset: at + lead);
+        if (trail > 0) yield return Space(text[(text.Length - trail)..], at + text.Length - trail);
     }
 
     /// <summary>What one line says: a comment, a directive, or nodes joined end to end.</summary>
-    private static ContentNode Statement(string text)
+    private static ContentNode Statement(string text, int at)
     {
-        var line = new Cursor(text);
+        var line = new Cursor(text, at);
         line.Space();
 
         if (line.Sees(Slashes))
@@ -206,9 +206,9 @@ public static class NomnomlParser
     /// The line a group opens on: its bracket, what it says it is, its name, and the bar the nodes inside it follow — or
     /// null where the line opens no node. What closes it is on a line of its own, so there is nothing here to close.
     /// </summary>
-    private static ContentNode? Opened(string text)
+    private static ContentNode? Opened(string text, int at)
     {
-        var line = new Cursor(text);
+        var line = new Cursor(text, at);
         line.Space();
         if (!line.Sees(Opens)) return null;
 
@@ -509,7 +509,7 @@ public static class NomnomlParser
         return depth;
     }
 
-    private static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
+    private static ContentNode Space(string text, int at) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia, offset: at);
 
     /// <summary>
     /// A line of the source: what is on it, from <see cref="Start"/> to <see cref="End"/>, and the characters that ended
@@ -545,7 +545,7 @@ public static class NomnomlParser
     /// Where the reading of one line has come to, and the pieces read so far — which is all nomnoml needs to read a line:
     /// space, a token, words to where something ends, and pieces made of pieces.
     /// </summary>
-    private sealed class Cursor(string text)
+    private sealed class Cursor(string text, int at)
     {
         private readonly List<ContentNode> pieces = [];
         private readonly Stack<int> groups = new();
@@ -567,7 +567,7 @@ public static class NomnomlParser
         {
             if (!Sees(token)) return false;
 
-            Add(ContentNode.Leaf(Kinds.Token, token, role));
+            Add(ContentNode.Leaf(Kinds.Token, token, role, offset: at + At));
             return true;
         }
 
@@ -577,7 +577,7 @@ public static class NomnomlParser
             var past = At;
             while (past < Written.Length && char.IsWhiteSpace(Written[past])) past++;
 
-            if (past > At) Add(ContentNode.Leaf(Kinds.Space, Written[At..past], Roles.Trivia));
+            if (past > At) Add(ContentNode.Leaf(Kinds.Space, Written[At..past], Roles.Trivia, offset: at + At));
         }
 
         /// <summary>
@@ -595,15 +595,15 @@ public static class NomnomlParser
             var past = At;
             while (past < text.Length && char.IsWhiteSpace(text[past])) past++;
 
-            if (past > At) Add(ContentNode.Leaf(Kinds.Space, text[At..past], Roles.Trivia));
+            if (past > At) Add(ContentNode.Leaf(Kinds.Space, text[At..past], Roles.Trivia, offset: at + At));
         }
 
         /// <summary>Takes everything still to be read as words.</summary>
-        public void Words(string role) => Add(ContentNode.Leaf(Kinds.Words, Written[At..], role));
+        public void Words(string role) => Add(ContentNode.Leaf(Kinds.Words, Written[At..], role, offset: at + At));
 
         /// <summary>Takes words up to <paramref name="end"/>, less the space before it.</summary>
         public void Words(string role, int end) =>
-            Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role));
+            Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, offset: at + At));
 
         /// <summary>Starts a piece holding what is read from here until <see cref="Close"/>.</summary>
         public void Open() => groups.Push(pieces.Count);
@@ -612,9 +612,10 @@ public static class NomnomlParser
         public void Close(string kind, string role = Roles.Element)
         {
             var from = groups.Pop();
-            var node = ContentNode.Branch(kind, pieces.GetRange(from, pieces.Count - from), role);
+            var parts = pieces.GetRange(from, pieces.Count - from);
+            var node = ContentNode.Branch(kind, parts, role, parts.Count > 0 ? parts[0].Offset : null);
 
-            pieces.RemoveRange(from, pieces.Count - from);
+            pieces.RemoveRange(from, parts.Count);
             pieces.Add(node);
         }
 
@@ -646,10 +647,10 @@ public static class NomnomlParser
         }
 
         /// <summary>What was read, as a <paramref name="kind"/>.</summary>
-        public ContentNode Read(string kind, string role = Roles.Element) => ContentNode.Branch(kind, [.. pieces], role);
+        public ContentNode Read(string kind, string role = Roles.Element) => ContentNode.Branch(kind, [.. pieces], role, at);
 
         /// <summary>The line as written, held with why it could not be read.</summary>
-        public ContentNode Shown(string shape) => ContentNode.Shown(Written, Reason ?? shape);
+        public ContentNode Shown(string shape) => ContentNode.Shown(Written, Reason ?? shape, offset: at);
 
         private void Add(ContentNode piece)
         {
