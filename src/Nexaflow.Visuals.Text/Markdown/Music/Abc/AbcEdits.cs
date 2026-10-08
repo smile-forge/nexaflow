@@ -23,10 +23,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// nothing about them, so what it says nothing about falls through to that.
 /// </para>
 /// <para>
-/// <strong>Read at the tune's own start.</strong> Each gesture is given a reading of the tune's own source from nought,
-/// and what it hands back is where the writing landed in that — so the change is the whole of the tune written again,
-/// moved to where the tune stands in the document. Asking a gesture about a reading made at the tune's offset instead
-/// would mix the document's offsets with the tune's own.
+/// <strong>Told against what was drawn.</strong> Each gesture is given the tune as the engine read and laid it — the
+/// tree its stages worked over, standing where it stands in the document — so a note knows both what it sounds and
+/// which characters it was written with. What comes back is the stretches to write, which the engine writes before
+/// reading the tune again: the one path an edit takes.
 /// </para>
 /// </summary>
 internal sealed class AbcEdits : IContentLanguage, IOnEdit
@@ -81,20 +81,11 @@ internal sealed class AbcEdits : IContentLanguage, IOnEdit
     };
 
     /// <summary>The note a letter spells here, written at the caret: the letter, in the octave and length of the note before it.</summary>
-    private static ContentChange? Noted(ContentEdit edit, char letter)
-    {
-        var (reading, at) = Tune(edit);
-
-        return Written(edit, AbcEdit.NoteAt(reading, at, letter));
-    }
+    private static ContentChange? Noted(ContentEdit edit, char letter) =>
+        Written(edit, AbcEdit.NoteAt(edit.Root, edit.State.Caret, letter));
 
     /// <summary>A pause of a whole note, written at the caret.</summary>
-    private static ContentChange? Paused(ContentEdit edit)
-    {
-        var (reading, _) = Tune(edit);
-
-        return Written(edit, AbcEdit.Pause(reading));
-    }
+    private static ContentChange? Paused(ContentEdit edit) => Written(edit, AbcEdit.Pause(edit.Root));
 
     private static ContentChange? Altered(ContentEdit edit, int by) => Gesture(edit, AbcEdit.Accidental, by);
 
@@ -103,23 +94,13 @@ internal sealed class AbcEdits : IContentLanguage, IOnEdit
     private static ContentChange? Moved(ContentEdit edit, int by) => Gesture(edit, AbcEdit.Octave, by);
 
     /// <summary>
-    /// What <paramref name="gesture"/> makes of the note the caret stands after — the whole tune written again, since a
-    /// gesture hands back the tree it made rather than the characters it changed.
+    /// What <paramref name="gesture"/> makes of the note the caret stands after: the stretch of source that note was
+    /// written in, given the note spelled again, and nothing else touched.
     /// </summary>
     private static ContentChange? Gesture(ContentEdit edit,
-                                          Func<ContentReading, IReadOnlyList<ContentPart>, int, AstWrite?> gesture,
-                                          int by)
-    {
-        var (reading, at) = Tune(edit);
-        if (AbcEdit.Before(reading, at) is not { } note) return null;
-        if (gesture(reading, [note], by) is not { } made) return null;
-
-        return ContentChange.Write(edit.Start, edit.Source.Length, made.Tree.Print(), edit.Start + made.End);
-    }
-
-    /// <summary>The tune read from its own source, and where the caret stands in it.</summary>
-    private static (ContentReading Reading, int At) Tune(ContentEdit edit) =>
-        (ContentReading.Of(AbcParser.Parse(edit.Source), source: edit.Source), edit.State.Caret - edit.Start);
+                                          Func<IReadOnlyList<ContentPart>, int, ContentChange?> gesture,
+                                          int by) =>
+        AbcEdit.Before(edit.Root, edit.State.Caret) is { } note ? gesture([note], by) : null;
 
     /// <summary><paramref name="said"/> written at the caret, as the reader means it — the parser makes it safe.</summary>
     private static ContentChange? Written(ContentEdit edit, string said)

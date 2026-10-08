@@ -112,16 +112,17 @@ Each stage stands on its own and leaves the app working.
 
    Nothing calls it now — typing into a formula is the shared edit handling with `LatexEdits` as its hook, and the matrix drag
    it served is gone — so it was deleted, with `TexWrite`, when the reader moved onto the shared tree. A
-   structured edit, when one is wanted again, is written against `ContentNode` and returns the shared
-   `AstWrite`, as ABC's `AbcEdit` does.
+   structured edit, when one is wanted again, is written against `ContentNode` and answers with a
+   `ContentChange`, as ABC's `AbcEdit` does.
 
-   What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
-   stages between the parser and the builder do not re-derive themselves when a tree is changed
-   underneath them — a filled hole is still flagged a hole, a command whose name has grown is still
-   marked undrawable, a gathered shape may no longer be what gathering would make of it — so an edit
-   prints, and the source it prints as is read back and built from. Which is also why editing the tree
-   is worth the trouble: an edit expressed against a node knows what it touched, so trouble afterwards
-   can be blamed on the keystroke that caused it rather than guessed at by diffing a string.
+   An edit names the characters it changes, and that is the rule the whole thing turns on. The stages
+   between the parser and the builder do not re-derive themselves when a tree is changed underneath them
+   — a filled hole is still flagged a hole, a command whose name has grown is still marked undrawable, a
+   gathered shape may no longer be what gathering would make of it — so no edit hands back a tree for
+   somebody to print: it says which stretches of source to write, the engine writes them, and the
+   formula is read and laid out again. Which is also why reaching for the tree is worth the trouble: an
+   edit named against a node knows what it touched, so trouble afterwards can be blamed on the keystroke
+   that caused it rather than guessed at by diffing a string.
 6. **The solver bridge** — later, and out of scope here. Tree to `Entity`, so that what renders is
    what solves.
 

@@ -1,0 +1,53 @@
+{
+  "branch": "claude/mermaid-parsers",
+  "nodes": {
+    "abc-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcEdit.cs",
+          "class": "AbcEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcRibbon.cs",
+          "class": "AbcRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcEdits.cs",
+          "class": "AbcEdits"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcEditTests.cs",
+            "class": "AbcEditTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentFromABuilderAloneTests.cs",
+            "class": "ContentFromABuilderAloneTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcEditsTests.cs",
+            "class": "AbcEditsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "abc-editing"
+  ]
+}

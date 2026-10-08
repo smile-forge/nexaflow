@@ -251,27 +251,34 @@ under its staff written into as text, its notes written into as notes. Typing `a
 `_` and `#` flatten and sharpen the note before it, Page Up and Page Down move it an octave, `+` and `-` make it longer
 and shorter, and Space puts a pause in.
 
-**Where it stands.** The gestures exist and nothing calls them. `AbcEdit` answers `NoteAt` (what a letter typed at the
-caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and `Length`, each already
-returning an `AstWrite` over the shared tree. `AbcParser` says how words are written back into a tune
-(`ITranspile.Rewrite`): a break becomes a space, a percent on a field's line is held by a backslash, and a character
-that would close an annotation or a decoration is refused.
+**Where it stands.** The handler's half is held, and it is the worked example of the single edit path. `AbcEdits` maps each key to a gesture
+and `Shipped.Abc` declares it as ABC's `Editing`, alongside `Writable` and `Transpile`. `AbcEdit` answers `NoteAt` (what
+a letter typed at the caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and
+`Length`, each given the notes as the engine read and laid them and answering with a `ContentChange` naming the stretch
+of source each note was written in. `AbcParser` says how words are written back into a tune (`ITranspile.Rewrite`): a
+break becomes a space, a percent on a field's line is held by a backslash, and a character that would close an
+annotation or a decoration is refused.
 
-What is missing is the wiring, not the mechanism:
+Three things make that one path rather than two:
 
-- ABC declares no `Editing`, so no key reaches `AbcEdit` — there is no `IOnEdit` mapping a keystroke to a gesture.
-- ABC is not `Writable`, so a tune is laid read-only and the caret never lands in it.
-- `AbcBuilder` draws no piece from a title or from the words under a staff, so a caret put there stands against nothing
-  and no language is asked — the one remaining thing between the rule and the code, and a builder's rather than a
-  handler's.
-- `AbcEdit.Before` — the note in front of the caret, which `_`, `#`, `+`, `-` and the octave keys all need — is private
-  to `AbcEdit`.
+- A gesture is told the **staged** tune, standing where it stands in the document, so a note knows both what it sounds
+  and which characters it was written with. Flattening an F in G major writes `=F` only because a stage put the key
+  signature on the note; on a bare parse it would write a flat the key would sharpen straight back.
+- A gesture answers with the stretches to write and never with a tree. The engine writes them and reads the tune again,
+  so nothing has to hold a tree whose stages no longer describe it. `AstWrite` — a tree handed back to be printed and
+  read — is gone, and with it the second path.
+- What is words as the reader means them goes through `ITranspile` before any of it is written; what a gesture spelled
+  itself is already ABC and goes as it stands.
 
-**Benefit.** The keys a musician expects, on the one language whose gestures are already written and tested. It is also
+What is left is the layout's, not the handler's: nothing yet proves a caret put on a title or on the words under a
+staff lands against a piece and so reaches the engine's default at all. `AbcEdits` says nothing about either, which is
+what hands them over — `AbcEditsTests` asserts that much — but being handed over is only half of it.
+
+**Benefit.** The keys a musician expects, and the shape every other language's handler is written against. It is also
 the cheapest test of whether the engine's default and a language's own handler compose: the title and the words under
 the staff are the default's, the staff is the handler's, and neither needs to know about the other.
 
-**Depends on.** Nothing. The parser's half is done and the gestures predate it.
+**Depends on.** Nothing.
 
 ## Order
 
