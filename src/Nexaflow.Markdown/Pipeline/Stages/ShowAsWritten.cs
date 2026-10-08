@@ -30,8 +30,17 @@ public sealed class ShowAsWritten(int start, int length) : IAstStage
     public static ShowAsWritten? Of((int Start, int Length)? zone) =>
         zone is { Length: > 0 } at ? new ShowAsWritten(at.Start, at.Length) : null;
 
-    public ContentNode Run(ContentNode tree) =>
-        length <= 0 ? tree : Show(tree, 0, start, start + length) ?? tree;
+    public ContentNode Run(ContentNode tree)
+    {
+        if (length <= 0) return tree;
+        if (Show(tree, 0, start, start + length) is not { } shown) return tree;
+
+        // Whatever is shown, the root is still the content the pipeline was handed — the language is on the root,
+        // and a stage that hands back something else is refused (<see cref="AstPipeline"/>). So where the stretch
+        // covers the whole of it, as it does for a formula that is one command being typed, what is shown goes
+        // inside the root rather than in its place.
+        return shown.IsLeaf && !tree.IsLeaf ? tree.With([shown]) : shown;
+    }
 
     /// <summary>
     /// This piece rewritten so that everything between <paramref name="from"/> and <paramref name="to"/>
@@ -42,12 +51,13 @@ public sealed class ShowAsWritten(int start, int length) : IAstStage
         var end = at + node.Width;
         if (to <= at || from >= end) return null;
 
-        // All of this piece is inside the stretch, so this piece is what gets shown.
-        if (from <= at && to >= end) return ContentNode.Shown(node.Print(), role: node.Role);
+        // All of this piece is inside the stretch, so this piece is what gets shown. It is the same
+        // characters from the same place, so it still says where they were read from.
+        if (from <= at && to >= end) return ContentNode.Shown(node.Print(), role: node.Role, offset: Stood(node));
 
         // Part of it, and nothing underneath to be more precise about: a caret inside a word is still
         // editing the word.
-        if (node.IsLeaf) return ContentNode.Shown(node.Text, role: node.Role);
+        if (node.IsLeaf) return ContentNode.Shown(node.Text, role: node.Role, offset: node.Offset);
 
         var starts = new int[node.Children.Count];
         var cursor = at;
@@ -84,11 +94,33 @@ public sealed class ShowAsWritten(int start, int length) : IAstStage
             // their parts — a numerator and the brace after it are not a numerator.
             var text = new StringBuilder();
             for (var i = first; i <= last; i++) node.Children[i].PrintTo(text);
-            rebuilt.Add(ContentNode.Shown(text.ToString(), role: Roles.Element));
+            rebuilt.Add(ContentNode.Shown(text.ToString(), role: Roles.Element, offset: Stood(node.Children[first])));
         }
 
         for (var i = last + 1; i < node.Children.Count; i++) rebuilt.Add(node.Children[i]);
 
         return node.With(rebuilt);
+    }
+
+    /// <summary>
+    /// Where a piece was read from: what it says of itself, or what the first part of it that says anything says.
+    ///
+    /// <para>
+    /// A piece made of parts need not say — a group is a stage's or a parser's bracketing of what it was handed,
+    /// and only a parser reads source — but the characters still came from where its first part's did. Shown as
+    /// written is the same characters from the same place, so it has to be able to say which.
+    /// </para>
+    /// </summary>
+    private static int? Stood(ContentNode node)
+    {
+        if (node.Offset is { } offset) return offset;
+
+        foreach (var child in node.Children)
+        {
+            if (child.IsDerived) continue;
+            if (Stood(child) is { } found) return found;
+        }
+
+        return null;
     }
 }

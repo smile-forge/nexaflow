@@ -6,6 +6,7 @@ using System.Threading;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Code;
@@ -124,44 +125,17 @@ public class CodeLanguageTests
     [TestMethod]
     public void AndEveryPieceOfItSaysWhereItWasReadFrom()
     {
-        // The two things a round trip cannot tell you: that every piece standing for characters says where it was read
-        // from, and that what it says is held against the source. A tree printed in the order it was built comes out the
-        // same whether its pieces know their places or not, so this asks them instead — and then reverses the parts of
-        // every piece, which only still prints as the source if each of them does know.
+        // The two things a round trip cannot tell you: that every piece standing for characters says where it was
+        // read from, and that what it says is held against the source. A tree printed in the order it was built
+        // comes out the same whether its pieces know their places or not, so this asks them instead — and then
+        // reverses the parts of every piece, which only still prints as the source if each of them does know.
         var tree = new CodeLines().Run(CodeParser.Parse(Source, "c-sharp", CodeSpans.Read("c-sharp", Source)));
 
-        var faults = Faults(tree).ToList();
+        var faults = AstOracle.Faults(Source, tree).ToList();
 
         Assert.AreEqual(0, faults.Count, string.Join("\n", faults));
-        Assert.AreEqual(Source, Reversed(tree).Print(), "reversed, which is a stage handing back what it was given in any order");
+        Assert.AreEqual(Source, AstOracle.Reversed(tree).Print(), "reversed, which is a stage handing back what it was given in any order");
     }
-
-    /// <summary>What is wrong with where <paramref name="node"/> says its pieces were read from, pruned at anything derived.</summary>
-    private static IEnumerable<string> Faults(ContentNode node)
-    {
-        if (node.IsDerived) yield break;
-
-        if (node.Offset is not { } at)
-        {
-            if (node.IsLeaf && node.Width > 0) yield return $"{node.Kind} does not say where it was read from";
-        }
-        else if (at < 0 || at + node.Width > Source.Length)
-        {
-            yield return $"{node.Kind} claims {at}+{node.Width} of {Source.Length}";
-        }
-        else if (Source.Substring(at, node.Width) != node.Print())
-        {
-            yield return $"{node.Kind} at {at} is not what the source says";
-        }
-
-        foreach (var child in node.Children)
-            foreach (var fault in Faults(child))
-                yield return fault;
-    }
-
-    /// <summary>The same tree with the parts of every piece in the opposite order.</summary>
-    private static ContentNode Reversed(ContentNode node) =>
-        node.Children.Count == 0 ? node : node.With([.. node.Children.Select(Reversed).Reverse()]);
 
     [TestMethod]
     public void ALineWrittenTwiceIsEachWhereItIsWritten()

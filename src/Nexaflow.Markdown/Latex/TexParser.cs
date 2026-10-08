@@ -24,8 +24,8 @@ public static class TexParser
     {
         ArgumentNullException.ThrowIfNull(latex);
 
-        var reader = new Reader(TexLexer.Scan(latex), depth: 0);
-        return new BlockNode("latex", reader.Run(Until.Input), Kinds.Sequence);
+        var reader = new Reader(TexLexer.Scan(latex), depth: 0, from: 0);
+        return new BlockNode("latex", reader.Run(Until.Input), Kinds.Sequence, offset: 0);
     }
 
     /// <summary>What brings a run of things to an end, besides running out of input.</summary>
@@ -42,7 +42,11 @@ public static class TexParser
     }
 
     /// <param name="depth">How many shorthand names deep this reads — nought for what was written, one for what a name stands for.</param>
-    private sealed class Reader(List<TexToken> tokens, int depth)
+    /// <param name="from">
+    /// Where the first character of what is being read stands in the source holding it — or nothing at all for what a
+    /// shorthand name stands for, which was read out of a definition and so was read from nowhere a reader can point at.
+    /// </param>
+    private sealed class Reader(List<TexToken> tokens, int depth, int? from)
     {
         /// <summary>
         /// How deep what a shorthand name stands for is read: a definition may name another (<c>\iff</c> reaches
@@ -58,6 +62,20 @@ public static class TexParser
         private TexToken Peek => tokens[_at];
 
         private TexToken Take() => tokens[_at++];
+
+        /// <summary>
+        /// Where a token was read from — nothing at all for one scanned out of a definition rather than out of the
+        /// source, which is a place nothing in the document stands at.
+        /// </summary>
+        private int? Stood(TexToken token) => from is { } stands ? stands + token.At : null;
+
+        /// <summary>The next token as a piece of its own, saying where it was read from.</summary>
+        private ContentNode TakenAs(string kind, string role = Roles.Element)
+        {
+            var token = this.Take();
+
+            return ContentNode.Leaf(kind, token.Text, role, offset: this.Stood(token));
+        }
 
         // ── Runs ────────────────────────────────────────────────────────────
 
@@ -112,19 +130,19 @@ public static class TexParser
                     return this.Group(until);
 
                 case TexTokenKind.Space:
-                    return ContentNode.Leaf(Kinds.Space, this.Take().Text);
+                    return this.TakenAs(Kinds.Space);
 
                 case TexTokenKind.Comment:
-                    return ContentNode.Leaf(Kinds.Comment, this.Take().Text);
+                    return this.TakenAs(Kinds.Comment);
 
                 case TexTokenKind.Character:
-                    return ContentNode.Leaf(Kinds.Char, this.Take().Text);
+                    return this.TakenAs(Kinds.Char);
 
                 // Machinery that turned up where content goes: a brace closing nothing, an alignment tab
                 // outside a table. Held rather than read, and rather than thrown.
                 case TexTokenKind.CloseBrace:
                 case TexTokenKind.Ampersand:
-                    return ContentNode.Leaf(Kinds.Verbatim, this.Take().Text);
+                    return this.TakenAs(Kinds.Verbatim);
 
                 case TexTokenKind.Superscript:
                 case TexTokenKind.Subscript:
@@ -232,7 +250,7 @@ public static class TexParser
                 if (this.NextIsMark())
                 {
                     this.Trivia(children);
-                    children.Add(ContentNode.Leaf(Kinds.Char, this.Take().Text, TexRole.Mark));
+                    children.Add(this.TakenAs(Kinds.Char, TexRole.Mark));
                     continue;
                 }
 
@@ -241,7 +259,7 @@ public static class TexParser
                 this.Trivia(children);
 
                 var written = this.Take();
-                children.Add(ContentNode.Leaf(Kinds.Token, written.Text, Roles.Name));
+                children.Add(ContentNode.Leaf(Kinds.Token, written.Text, Roles.Name, offset: this.Stood(written)));
                 var role = written.Kind == TexTokenKind.Superscript
                     ? TexRole.Superscript
                     : TexRole.Subscript;
@@ -257,7 +275,7 @@ public static class TexParser
 
         private ContentNode Group(Until until, bool grid = false)
         {
-            var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Open) };
+            var children = new List<ContentNode> { this.TakenAs(Kinds.Token, Roles.Open) };
 
             // Braces are a fresh context for everything except \end. An & inside them is not a cell
             // boundary, and a \right inside them closes nothing — but an \end still has to be able to
@@ -268,14 +286,15 @@ public static class TexParser
             children.AddRange(grid ? this.Rows(inner) : this.Run(inner));
 
             if (!this.Done && this.Peek.Kind == TexTokenKind.CloseBrace)
-                children.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Close));
+                children.Add(this.TakenAs(Kinds.Token, Roles.Close));
 
             return ContentNode.Branch(TexKinds.Group, children);
         }
 
         private ContentNode Command(Until until)
         {
-            var name = this.Take().Text;
+            var opens = this.Take();
+            var name = opens.Text;
 
             // A starred command is one command, not a command and a times sign — but only where the
             // table says a starred form exists. Absorbing every asterisk after every control word would
@@ -286,15 +305,18 @@ public static class TexParser
                 && TexCommands.Lookup(name + "*") is not null)
                 name += this.Take().Text;
 
-            var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, name, Roles.Name) };
+            var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, name, Roles.Name, offset: this.Stood(opens)) };
 
             // A name the table has no entry for takes no arguments. Where it is shorthand for something (TexMacros), what it
             // stands for is read and hung beneath it as a part nobody wrote here: no characters wide, printing as nothing, so
-            // the command is still what was written and what it stands for is there to be asked.
+            // the command is still what was written and what it stands for is there to be asked. It is read from the
+            // definition rather than from the source, so nothing in it says where it was read from.
             if (TexCommands.Lookup(name) is not { } command)
             {
                 if (depth < Deepest && TexMacros.Lookup(name) is { } definition)
-                    children.Add(ContentNode.Branch(Kinds.Sequence, new Reader(TexLexer.Scan(definition), depth + 1).Run(Until.Input), Roles.Derived));
+                    children.Add(ContentNode.Branch(Kinds.Sequence,
+                                                    new Reader(TexLexer.Scan(definition), depth + 1, from: null).Run(Until.Input),
+                                                    Roles.Derived));
 
                 return ContentNode.Branch(TexKinds.Command, children);
             }
@@ -328,7 +350,7 @@ public static class TexParser
             return token.Kind switch
             {
                 TexTokenKind.OpenBrace => this.Group(until, grid),
-                TexTokenKind.Character => ContentNode.Leaf(Kinds.Char, this.Take().Text),
+                TexTokenKind.Character => this.TakenAs(Kinds.Char),
                 TexTokenKind.ControlWord when token.Text == @"\begin" => this.Environment(until),
                 TexTokenKind.ControlWord when token.Text == @"\left" => this.Fence(until),
                 TexTokenKind.ControlWord or TexTokenKind.ControlSymbol => this.Command(until),
@@ -344,7 +366,7 @@ public static class TexParser
 
             if (!this.IsBracket("[")) { _at = mark; return; }
 
-            var inner = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Open) };
+            var inner = new List<ContentNode> { this.TakenAs(Kinds.Token, Roles.Open) };
 
             while (!this.Done && !this.IsBracket("]") && !this.Stops(until))
             {
@@ -354,7 +376,7 @@ public static class TexParser
             }
 
             if (this.IsBracket("]"))
-                inner.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Close));
+                inner.Add(this.TakenAs(Kinds.Token, Roles.Close));
 
             children.AddRange(trivia);
             children.Add(ContentNode.Branch(TexKinds.Group, inner, role));
@@ -367,9 +389,8 @@ public static class TexParser
         {
             while (!this.Done && this.Peek.IsTrivia)
             {
-                var token = this.Take();
-                var kind = token.Kind == TexTokenKind.Space ? Kinds.Space : Kinds.Comment;
-                into.Add(ContentNode.Leaf(kind, token.Text, Roles.Trivia));
+                var kind = this.Peek.Kind == TexTokenKind.Space ? Kinds.Space : Kinds.Comment;
+                into.Add(this.TakenAs(kind, Roles.Trivia));
             }
         }
 
@@ -438,7 +459,7 @@ public static class TexParser
                 {
                     var cell = this.Run(body);
                     more = !this.Done && this.Peek.Kind == TexTokenKind.Ampersand;
-                    if (more) cell.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Separator));
+                    if (more) cell.Add(this.TakenAs(Kinds.Token, Roles.Separator));
 
                     cells.Add(ContentNode.Branch(TexKinds.Cell, cell, Roles.Cell));
                 }

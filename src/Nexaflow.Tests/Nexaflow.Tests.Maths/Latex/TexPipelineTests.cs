@@ -7,6 +7,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Latex.Stages;
 using Nexaflow.Markdown.Pipeline.Stages;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -40,6 +41,43 @@ public class TexPipelineTests
                 for (var length = 1; start + length <= latex.Length; length++)
                     Assert.AreEqual(latex, new ShowAsWritten(start, length).Run(tree).Print(),
                         $"{what}: showing {start}+{length} changed the source");
+        }
+    }
+
+    [TestMethod]
+    public void AndShowingTheWholeFormulaStillLeavesAFormula()
+    {
+        // The commonest formula there is while somebody is typing one: a single command, all of it being
+        // spelled, so the stretch shown as written covers the lot. What is shown has to go inside the block
+        // rather than in its place — a stage that hands back something that is not the content it was given is
+        // refused by the pipeline, which used to be a thrown formula rather than a drawn one.
+        foreach (var latex in new[] { @"\alpha", @"x", @"\frac{a}{b}", @"\begin{matrix} a \end{matrix}" })
+        {
+            var read = TexPipeline.Of((0, latex.Length)).Run(TexParser.Parse(latex));
+
+            Assert.AreEqual(latex, read.Print(), latex);
+            Assert.IsInstanceOfType<BlockNode>(read, $"{latex}: the root is still the formula");
+        }
+    }
+
+    [TestMethod]
+    public void AndEveryPieceOfAShownStretchStillSaysWhereItWasReadFrom()
+    {
+        // Shown as written is the same characters from the same place, so it says the same about where it came
+        // from. Over every stretch, because the one that matters is whichever one a caret happens to be in.
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var latex = LatexConstructs.Flatten(written);
+            var tree = TexParser.Parse(latex);
+
+            for (var start = 0; start < latex.Length; start++)
+                for (var length = 1; start + length <= latex.Length; length += 3)
+                {
+                    var shown = new ShowAsWritten(start, length).Run(tree);
+                    var faults = AstOracle.Faults(latex, shown).ToList();
+
+                    Assert.AreEqual(0, faults.Count, $"{what}: showing {start}+{length}\n{string.Join("\n", faults)}");
+                }
         }
     }
 
@@ -218,6 +256,29 @@ public class TexPipelineTests
             {
                 tree = stage.Run(tree);
                 Assert.AreEqual(latex, tree.Print(), $"{what}: after {stage.Name}");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AndEveryPieceStillSaysWhereItWasReadFrom()
+    {
+        // A stage may regroup, re-nest and replace what it was handed; what it may not do is leave a piece
+        // standing for characters that cannot say which ones. Asked after every stage, because a stage that
+        // rebuilt a leaf without carrying its place would print the same and be wrong about it.
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var latex = LatexConstructs.Flatten(written);
+            var tree = TexParser.Parse(latex);
+
+            foreach (var stage in TexPipeline.Of(holes: true).Stages)
+            {
+                tree = stage.Run(tree);
+
+                var faults = AstOracle.Faults(latex, tree).ToList();
+
+                Assert.AreEqual(0, faults.Count, $"{what}: after {stage.Name}\n{string.Join("\n", faults)}");
+                Assert.AreEqual(latex, AstOracle.Reversed(tree).Print(), $"{what}: reversed after {stage.Name}");
             }
         }
     }

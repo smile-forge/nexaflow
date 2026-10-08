@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -98,6 +99,58 @@ public class TexRoundTripTests
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
         }
+    }
+
+    [TestMethod]
+    public void AndEveryPieceSaysWhereItWasReadFrom()
+    {
+        // The same claim, asked of the tree instead of worked out from it. Placed() walks the tree to find an
+        // offset, so it agrees with the order the tree is in whether or not any piece knows its own place; this
+        // asks each piece where it was read from and holds the answer against the source.
+        foreach (var (what, latex) in LatexConstructs.Everything)
+        {
+            var flat = LatexConstructs.Flatten(latex);
+            var faults = AstOracle.Faults(flat, TexParser.Parse(flat)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AndItSaysSoForEveryPrefixAndEverySuffixToo()
+    {
+        // Where the half-written formulas are, and so where a piece that does not know its own place would
+        // first be noticed: a brace closing nothing, a command whose argument has not been typed.
+        foreach (var (what, latex) in LatexConstructs.Everything)
+        {
+            var flat = LatexConstructs.Flatten(latex);
+
+            for (var length = 0; length <= flat.Length; length++)
+            {
+                var typed = flat[..length];
+                var faults = AstOracle.Faults(typed, TexParser.Parse(typed)).ToList();
+
+                Assert.AreEqual(0, faults.Count, $"{what}: after {length} character(s)\n{string.Join("\n", faults)}");
+            }
+
+            for (var from = 0; from < flat.Length; from++)
+            {
+                var tail = flat[from..];
+                var faults = AstOracle.Faults(tail, TexParser.Parse(tail)).ToList();
+
+                Assert.AreEqual(0, faults.Count, $"{what}: from {from}\n{string.Join("\n", faults)}");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AndAReversedTreeStillPrintsWhatWasWritten()
+    {
+        // The sharpest form of it, and the one no round trip can make: with the parts of every piece in the
+        // opposite order the source only comes back if each piece knows where it was read from rather than
+        // relying on where it happens to sit.
+        foreach (var (what, latex) in LatexConstructs.Everything)
+            Assert.AreEqual(latex, AstOracle.Reversed(TexParser.Parse(latex)).Print(), what);
     }
 
     [TestMethod]

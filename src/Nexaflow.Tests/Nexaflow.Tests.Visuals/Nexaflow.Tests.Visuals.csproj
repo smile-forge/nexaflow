@@ -47,6 +47,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The AST oracle, compiled in rather than copied. Every suite that reads a tree asks the same two
+         questions of it — where each piece says it was read from, and whether it still prints as the source
+         with the parts of every piece reversed — and one check cannot drift from itself. It lives beside the
+         markdown AST tests because that is where the contract it checks is written down. -->
+    <Compile Include="..\Nexaflow.Tests.Markdown\Ast\AstOracle.cs" Link="Ast\AstOracle.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 

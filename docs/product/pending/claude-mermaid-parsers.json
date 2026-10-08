@@ -81,12 +81,32 @@
           "method": "FurtherOn"
         }
       ]
+    },
+    "latex-shown-as-written": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexLayoutTests.cs",
+            "class": "LatexLayoutTests",
+            "method": "AStretchShownAsWrittenTakesUpRoomInTheFormula"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexPipelineTests.cs",
+            "class": "TexPipelineTests",
+            "method": "AndShowingTheWholeFormulaStillLeavesAFormula"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 4,
   "touched_nodes": [
     "abc-editing",
+    "latex-shown-as-written",
     "markdown-laid-again"
   ]
 }
