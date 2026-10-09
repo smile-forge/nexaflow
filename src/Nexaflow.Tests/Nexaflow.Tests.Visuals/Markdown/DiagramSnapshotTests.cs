@@ -60,7 +60,18 @@ public class DiagramSnapshotTests
     /// </summary>
     private const double HostWidth = 1100;
 
-    private static readonly Regex Fence = new(@"```mermaid\s*\n(.*?)```", RegexOptions.Singleline | RegexOptions.Compiled);
+    /// <summary>
+    /// A mermaid block, closed by a fence standing on a line of its own.
+    ///
+    /// <para>
+    /// Which line it closes on has to be said, because a label may itself be a block of another language — a node
+    /// whose words are a formula is written <c>a["```latex E = mc^2"]</c>. Closing on the first three backticks
+    /// anywhere would end the diagram in the middle of that label, and what gets drawn is the half of a diagram that
+    /// is left, which reads as a diagram with a label nobody closed.
+    /// </para>
+    /// </summary>
+    private static readonly Regex Fence = new(@"^```mermaid[^\n]*\n(.*?\n)^```[ \t\r]*$",
+                                              RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.Compiled);
 
     [TestMethod]
     public void EveryDiagramRendersAsItDidBefore()
