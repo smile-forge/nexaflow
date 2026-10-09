@@ -70,9 +70,9 @@ public class MarkdownLayoutBench
         var inputs = ContentInputs.None;
 
         var rows = new List<Dictionary<string, object>>();
-        var languages = new Dictionary<string, (int Count, double Ms)>();
-        var stages = new Dictionary<string, (int Count, double Ms)>();
-        var kinds = new Dictionary<string, (int Count, double Ms)>();
+        var languages = new Dictionary<string, (int Count, double Ms, double Kb)>();
+        var stages = new Dictionary<string, (int Count, double Ms, double Kb)>();
+        var kinds = new Dictionary<string, (int Count, double Ms, double Kb)>();
 
         foreach (var path in docs)
         {
@@ -90,6 +90,7 @@ public class MarkdownLayoutBench
             ["configuration"] = "Release",
 #endif
             ["machine"] = Environment.MachineName,
+            ["pace"] = Pace(),
             ["when"] = DateTimeOffset.Now.ToString("o"),
             ["runs"] = Runs,
             ["room"] = Room,
@@ -110,9 +111,9 @@ public class MarkdownLayoutBench
 
     /// <summary>One document, step by step.</summary>
     private static Dictionary<string, object> Document(string name, string text, StyleFormat style, ContentInputs inputs,
-                                                       Dictionary<string, (int Count, double Ms)> languages,
-                                                       Dictionary<string, (int Count, double Ms)> stages,
-                                                       Dictionary<string, (int Count, double Ms)> kinds)
+                                                       Dictionary<string, (int Count, double Ms, double Kb)> languages,
+                                                       Dictionary<string, (int Count, double Ms, double Kb)> stages,
+                                                       Dictionary<string, (int Count, double Ms, double Kb)> kinds)
     {
         var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
 
@@ -169,9 +170,9 @@ public class MarkdownLayoutBench
             var (start, length) = ContentNested.Own(body);
             var own = text.Substring(start, length);
 
-            var t = Median(() => Laying.Lay(named, own, Room, style, writing: true, inputs: inputs));
-            nested += t;
-            Add(languages, named, t);
+            var (laying, laidKb) = Cost(() => Laying.Lay(named, own, Room, style, writing: true, inputs: inputs));
+            nested += laying;
+            Add(languages, named, laying, laidKb);
 
             Language(named, own, style, inputs, stages);
         }
@@ -179,7 +180,8 @@ public class MarkdownLayoutBench
         foreach (var block in reading.Root.Children.Where(part => part.Role != Roles.Trivia && !part.Derived))
         {
             var source = block.Print();
-            Add(kinds, block.Kind, Median(() => Laying.Lay(null, source, Room, style, writing: true)));
+            var (blockMs, blockKb) = Cost(() => Laying.Lay(null, source, Room, style, writing: true));
+            Add(kinds, block.Kind, blockMs, blockKb);
         }
 
         // Painting what was just laid, as a keystroke does; and painting the same tree again, as a caret blink or a
@@ -252,7 +254,7 @@ public class MarkdownLayoutBench
 
     /// <summary>A nested language's own parse and each of its stages, and what laying it out costs whole.</summary>
     private static void Language(string language, string source, StyleFormat style, ContentInputs inputs,
-                                 Dictionary<string, (int Count, double Ms)> stages)
+                                 Dictionary<string, (int Count, double Ms, double Kb)> stages)
     {
         try
         {
@@ -268,11 +270,11 @@ public class MarkdownLayoutBench
         }
         catch (Exception ex)
         {
-            Add(stages, $"{language}: threw {ex.GetType().Name}", 0);
+            Add(stages, $"{language}: threw {ex.GetType().Name}", 0, 0);
         }
     }
 
-    private static ContentNode Staged(Dictionary<string, (int Count, double Ms)> into, string language, ContentNode tree,
+    private static ContentNode Staged(Dictionary<string, (int Count, double Ms, double Kb)> into, string language, ContentNode tree,
                                       IEnumerable<IAstStage> pipeline)
     {
         foreach (var stage in pipeline)
@@ -319,25 +321,37 @@ public class MarkdownLayoutBench
         };
     }
 
-    private static List<Dictionary<string, object>> Listed(Dictionary<string, (int Count, double Ms)> totals) =>
+    private static List<Dictionary<string, object>> Listed(Dictionary<string, (int Count, double Ms, double Kb)> totals) =>
         [.. totals.OrderByDescending(entry => entry.Value.Ms).Select(entry => new Dictionary<string, object>
         {
             ["name"] = entry.Key,
             ["count"] = entry.Value.Count,
             ["ms"] = Round(entry.Value.Ms),
+            ["kb"] = Round(entry.Value.Kb),
         })];
 
-    private static T Time<T>(Dictionary<string, (int Count, double Ms)> into, string name, Func<T> run)
+    /// <summary>
+    /// <paramref name="run"/>, with what it costs told to <paramref name="into"/> under <paramref name="name"/>.
+    ///
+    /// <para>
+    /// Both what it takes and what it allocates, because the two answer different questions and only one of them is
+    /// trustworthy on a machine doing anything else: a time is worth comparing only with one taken minutes earlier,
+    /// where an allocation is the same on any machine on any day.
+    /// </para>
+    /// </summary>
+    private static T Time<T>(Dictionary<string, (int Count, double Ms, double Kb)> into, string name, Func<T> run)
     {
         var result = run();
-        Add(into, name, Median(() => result = run()));
+        var (ms, kb) = Cost(() => result = run());
+
+        Add(into, name, ms, kb);
         return result;
     }
 
-    private static void Add(Dictionary<string, (int Count, double Ms)> into, string name, double ms)
+    private static void Add(Dictionary<string, (int Count, double Ms, double Kb)> into, string name, double ms, double kb)
     {
-        var (count, sum) = into.GetValueOrDefault(name);
-        into[name] = (count + 1, sum + ms);
+        var (count, ran, allocated) = into.GetValueOrDefault(name);
+        into[name] = (count + 1, ran + ms, allocated + kb);
     }
 
     private static double Round(double ms) => Math.Round(ms, 3);
@@ -530,5 +544,33 @@ public class MarkdownLayoutBench
                 ["share"] = Math.Round(type.Value * 100.0 / total, 1),
             })];
         }
+    }
+
+    /// <summary>
+    /// How fast this machine is going right now, as a number every run carries.
+    ///
+    /// <para>
+    /// A time is only worth comparing with one taken on the same machine in the same state, and no label can promise the
+    /// state: something updating in the background puts every figure in a run up by more than a tenth, and nothing in
+    /// the run itself says so. This is a fixed amount of arithmetic that allocates nothing, so two runs whose pace
+    /// agrees are worth comparing and one whose pace is high was measured on a machine that was busy.
+    /// </para>
+    /// </summary>
+    private static double Pace()
+    {
+        var times = new double[3];
+
+        for (var at = 0; at < times.Length; at++)
+        {
+            var clock = Stopwatch.StartNew();
+
+            var sum = 0L;
+            for (var spin = 0; spin < 30_000_000; spin++) sum += spin & 15;
+
+            times[at] = sum == 0 ? 0 : clock.Elapsed.TotalMilliseconds;
+        }
+
+        Array.Sort(times);
+        return Round(times[1]);
     }
 }
