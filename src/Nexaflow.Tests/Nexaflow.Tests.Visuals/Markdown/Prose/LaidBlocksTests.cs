@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
+using System.Threading;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
@@ -34,7 +36,7 @@ public class LaidBlocksTests
         {
             var text = File.ReadAllText(path);
             var content = new ContentEngine();
-            content.Lay(null, EditState.For(text), StyleFormat.Dark, Room, false);
+            Settled(content, text, style);
 
             // Typed in the middle, typed before everything so every block moves, taken back near the end, and undone.
             var middle = WordStart(text, text.Length / 2);
@@ -55,6 +57,46 @@ public class LaidBlocksTests
             }
         }
     }
+
+    /// <summary>
+    /// <paramref name="engine"/> having laid <paramref name="text"/>, with any slower reading of it landed and whatever
+    /// was laid without it forgotten — which is what a host does when one lands (<c>ContentElement.OnReread</c> calls
+    /// <c>Refresh</c>, and refreshing is forgetting and laying again).
+    ///
+    /// <para>
+    /// Code is read twice: as written at once, and by its grammar a moment later, away from the thread that draws. A
+    /// layout kept from before the second reading landed is not the layout the same characters make afresh once it has,
+    /// and neither of them is wrong — so comparing the two means letting the reading land first.
+    /// </para>
+    /// </summary>
+    private static void Settled(ContentEngine engine, string text, StyleFormat style)
+    {
+        using var landed = new ManualResetEventSlim();
+
+        void Done(object? sender, EventArgs args) => landed.Set();
+
+        engine.Reread += Done;
+
+        try
+        {
+            engine.Lay(null, EditState.For(text), style, Room, false);
+
+            // Only a document with something slower to read has anything to wait for, so only one waits.
+            if (!Slowly(text) || !landed.Wait(TimeSpan.FromSeconds(10))) return;
+
+            engine.Forget();
+            engine.Lay(null, EditState.For(text), style, Room, false);
+        }
+        finally
+        {
+            engine.Reread -= Done;
+        }
+    }
+
+    /// <summary>Whether a document fences code in a grammar, which is the one thing here that is read a second time.</summary>
+    private static bool Slowly(string text) =>
+        text.Split('\n').Any(line => line.StartsWith("```", StringComparison.Ordinal)
+                                     && CodeGrammars.For(line[3..].Trim()) is not null);
 
     [TestMethod]
     public void ABlockThatReadsAsItDidKeepsItsPicture()
@@ -142,7 +184,7 @@ public class LaidBlocksTests
 
         var want = expected.Root.SelfAndDescendants().ToList();
         var got = actual.Root.SelfAndDescendants().ToList();
-        Assert.AreEqual(want.Count, got.Count, $"{what}: pieces");
+        Assert.AreEqual(want.Count, got.Count, $"{what}: pieces{Diverged(want, got)}");
 
         for (var at = 0; at < want.Count; at++)
         {
@@ -160,6 +202,30 @@ public class LaidBlocksTests
                                   actual.Places.Select(place => (place.Offset, place.Trailing)).ToList(), $"{what}: caret places");
 
         CollectionAssert.AreEquivalent(expected.Trouble.Select(Said).ToList(), actual.Trouble.Select(Said).ToList(), $"{what}: trouble");
+    }
+
+    /// <summary>
+    /// Where two layouts of the same content stop agreeing, for a count that does not match.
+    ///
+    /// <para>
+    /// A count on its own says nothing about which block went wrong, and the two are long: this names the first piece
+    /// they differ on and what each said there, which is enough to find the block that was kept when it should not have
+    /// been.
+    /// </para>
+    /// </summary>
+    private static string Diverged(IReadOnlyList<Piece> want, IReadOnlyList<Piece> got)
+    {
+        for (var at = 0; at < Math.Min(want.Count, got.Count); at++)
+        {
+            if (want[at].Kind == got[at].Kind && Span(want[at].Part) == Span(got[at].Part)) continue;
+
+            return $"\nfirst differ at piece {at}:"
+                 + $"\n  afresh: {want[at].Kind} at {want[at].Bounds} for {Span(want[at].Part)}"
+                 + $"\n  again : {got[at].Kind} at {got[at].Bounds} for {Span(got[at].Part)}"
+                 + $"\n  the piece before: {(at > 0 ? want[at - 1].Kind : "(none)")}";
+        }
+
+        return $"\nthey agree for the first {Math.Min(want.Count, got.Count)} pieces, so one simply has more";
     }
 
     private static (int, int)? Span(ISourcePart? part) => part is null ? null : (part.Start, part.Length);

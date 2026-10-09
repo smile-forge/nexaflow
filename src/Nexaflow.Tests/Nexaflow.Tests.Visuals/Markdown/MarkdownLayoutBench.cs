@@ -99,7 +99,7 @@ public class MarkdownLayoutBench
             ["languages"] = Listed(languages),
             ["languageStages"] = Listed(stages),
             ["blockKinds"] = Listed(kinds),
-            ["memory"] = Memory(File.ReadAllText(docs[^1]), style, inputs),
+            ["memory"] = Memory(File.ReadAllText(Profiled(docs)), style, inputs),
         };
 
         Directory.CreateDirectory(folder!);
@@ -573,4 +573,17 @@ public class MarkdownLayoutBench
         Array.Sort(times);
         return Round(times[1]);
     }
+
+    /// <summary>
+    /// The document the type profile is taken from: the one holding a bit of every language.
+    ///
+    /// <para>
+    /// Which matters more than it sounds. A profile is a list of what was allocated by type, and taken from a document
+    /// of prose alone it names the types prose allocates and no others — so it says nothing about what laying a formula
+    /// or a cloud costs, which is most of what a corpus of documents costs. Reading one of those as though it spoke for
+    /// everything is how an afternoon gets spent in the wrong file.
+    /// </para>
+    /// </summary>
+    private static string Profiled(IReadOnlyList<string> docs) =>
+        docs.FirstOrDefault(path => Path.GetFileName(path) == "mixed-content.md") ?? docs[^1];
 }

@@ -178,6 +178,26 @@ public class CodeLanguageTests
     /// </summary>
     private static string Unread(string source) => $"// {Guid.NewGuid():N}\n{source}";
 
+    [TestMethod]
+    public void TheSpaceBetweenTwoWordsAGrammarNamedIsStillThere()
+    {
+        // A grammar names the words and leaves the space between them unnamed, so a run of spaces is a token of its
+        // own. Measured by what it is set in rather than by how far it moves what follows, such a token comes to
+        // nothing and the words either side of it close up — `public static` set as `publicstatic`.
+        var laid = Landed("csharp", "public static int Of(string text) => text.Length;");
+
+        var along = laid.Root.SelfAndDescendants()
+            .Where(piece => piece.Words is not null)
+            .Select(piece => piece.Bounds.X)
+            .ToList();
+
+        Assert.IsTrue(along.Count > 4, $"the grammar made tokens of it, not {along.Count}");
+
+        for (var at = 1; at < along.Count; at++)
+            Assert.IsTrue(along[at] > along[at - 1],
+                          $"token {at} starts at {along[at]}, which is not past the {along[at - 1]} of the one before it");
+    }
+
     /// <summary><paramref name="source"/> laid out once the grammar has read it, which happens off the way to drawing.</summary>
     private static Laid Landed(string language, string source)
     {

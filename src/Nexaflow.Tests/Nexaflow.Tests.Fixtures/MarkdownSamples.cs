@@ -14,7 +14,7 @@
 /// document showcases several variations, so the fixtures double as a human-readable reference. The
 /// <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
-internal sealed class MarkdownSamples : ISampleSet
+internal sealed partial class MarkdownSamples : ISampleSet
 {
     public string SubDirectory => "markdown";
 
@@ -60,6 +60,9 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("smiles.md",                Smiles),
         SampleFile.Text("wordcloud.md",             WordCloud),
         SampleFile.Text("plots.md",                 Plots),
+
+        // One document holding a bit of all of them — see MarkdownSamples.Mixed.cs.
+        SampleFile.Text("mixed-content.md",         Mixed()),
     ];
 
     private const string LatexMathSymbols =

@@ -67,12 +67,18 @@ public sealed class CodeBuilder : ContentBuilder
 
             var glyphs = Glyphs(token.Text, Ink(token.Kind));
 
+            // How far along the next token starts: what this one is set in AND the space after it. A grammar names
+            // the words and leaves the space between them unnamed, so a run of spaces is a token of its own — and
+            // FormattedText.Width leaves trailing space out, which measures such a token at nothing and closes up
+            // the words either side of it.
+            var along = glyphs.WidthIncludingTrailingWhitespace;
+
             // The piece is called what the grammar called it, so what a reader pressed and what the
             // theme coloured are the same question asked of the same piece.
-            LayoutText.Words(into, glyphs, new Point(x, y), glyphs.Width + 1, TextAlignment.Left,
+            LayoutText.Words(into, glyphs, new Point(x, y), along + 1, TextAlignment.Left,
                              token, token.Kind, maps: true, ink: Ink(token.Kind));
 
-            x += glyphs.Width;
+            x += along;
             wide = Math.Max(wide, x);
         }
 
