@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Globalization;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -171,6 +172,13 @@ public class DiagramSnapshotTests
         Directory.CreateDirectory(folder!);
         var written = new List<string>();
 
+        // The room the page is given, so that a diagram's fit to a narrow column can be looked at as well as its
+        // natural size — which for a diagram that cannot reflow is the only thing that changes about it.
+        var width = Environment.GetEnvironmentVariable(Width) is { Length: > 0 } said
+                    && double.TryParse(said, CultureInfo.InvariantCulture, out var asked) && asked > 0
+            ? asked
+            : DocumentWidth;
+
         UiThread.Run(() =>
         {
             foreach (string path in TestSampleData.Files("markdown").OrderBy(p => p))
@@ -185,7 +193,7 @@ public class DiagramSnapshotTests
                     string one = $"```mermaid\n{fence.Groups[1].Value}```\n";
                     string file = Path.Combine(folder!, $"{stem}-{index}-page.png");
 
-                    File.WriteAllBytes(file, Page(one, DocumentWidth));
+                    File.WriteAllBytes(file, Page(one, width));
                     written.Add(Path.GetFileName(file));
                 }
             }
@@ -193,6 +201,9 @@ public class DiagramSnapshotTests
 
         Assert.Inconclusive($"wrote {written.Count} figure(s) to {folder}");
     }
+
+    /// <summary>Names the room to draw the figures in, where they are wanted in something other than a full page.</summary>
+    private const string Width = "NEXAFLOW_DIAGRAM_SNAPSHOTS_WIDTH";
 
     /// <summary>The width a document is drawn at here — a comfortable window, not a column.</summary>
     private const double DocumentWidth = 1300;

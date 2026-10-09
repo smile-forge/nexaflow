@@ -169,4 +169,36 @@ public sealed record SequenceConfig
             TabHeight = sequence.Number("labelBoxHeight") is { } deep and >= 0 ? deep : TabDeep,
         };
     }
+
+    /// <summary>
+    /// The same settings at a fraction of the size: every length and every text size multiplied, and everything that is
+    /// not a size — where words are set, whether the participants are repeated, whether a loop turns square — as written.
+    ///
+    /// <para>
+    /// For a sequence diagram that will not fit the room it is given. A sequence diagram is the one kind that cannot be
+    /// reflowed to fit: its lifelines stand as far apart as the messages between them are wide, so narrowing it would run
+    /// the words of one message over the next, and the whole drawing is made smaller instead. <see cref="Wrapping"/>
+    /// follows from <see cref="Widest"/> and so comes along on its own.
+    /// </para>
+    /// </summary>
+    public SequenceConfig Scaled(double by) => this with
+    {
+        Bar = Bar * by,
+        Across = Across * by,
+        Downward = Downward * by,
+        Between = Between * by,
+        Widest = Widest * by,
+        Tallest = Tallest * by,
+        Framed = Framed * by,
+        Tabbed = Tabbed * by,
+        Noted = Noted * by,
+        Apartness = Apartness * by,
+        Bottom = Bottom * by,
+        NameText = NameText * by,
+        NoteText = NoteText * by,
+        SaidText = SaidText * by,
+        WrapAir = WrapAir * by,
+        TabWidth = TabWidth * by,
+        TabHeight = TabHeight * by,
+    };
 }

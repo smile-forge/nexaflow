@@ -392,4 +392,41 @@ public class SequenceBuilderTests : MermaidBuilderContract
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1
         && inner.Bottom <= over.Bottom + 1;
+
+    /// <summary>Four long-named participants saying long things to each other, so nothing about it is narrow.</summary>
+    private const string Crowded =
+        "sequenceDiagram\n  participant A as Alpha Centauri Authority\n  participant B as Beta Persei Registry\n"
+        + "  participant C as Gamma Draconis Exchange\n  participant D as Delta Pavonis Clearing\n"
+        + "  A->>B: request the whole ledger for the quarter\n"
+        + "  B->>C: forward the request with everything attached to it\n"
+        + "  C->>D: settle it and say so";
+
+    [TestMethod]
+    public void ADiagramTooWideForItsRoomIsDrawnSmallerUntilItFits() => UiThread.Run(() =>
+    {
+        var roomy = Lay(Crowded, room: 2400);
+        var tight = Lay(Crowded, room: 520);
+
+        Assert.IsTrue(roomy.Size.Width > 520,
+                      $"the diagram wants more room than the narrow one: {roomy.Size.Width:0.#}");
+        Assert.IsTrue(tight.Size.Width <= 520,
+                      $"and is drawn inside it: {tight.Size.Width:0.#} of 520");
+
+        // Laid again smaller rather than clipped or shifted: a participant's own box is shorter too, which only
+        // happens if the words in it were measured again at a smaller size.
+        Assert.IsTrue(Standing(tight)[0].Height < Standing(roomy)[0].Height,
+                      $"drawn smaller, not cut off: a head is {Standing(tight)[0].Height:0.#} deep, was "
+                      + $"{Standing(roomy)[0].Height:0.#}");
+    });
+
+    [TestMethod]
+    public void ADiagramThatFitsItsRoomIsDrawnAtItsOwnSize() => UiThread.Run(() =>
+    {
+        var roomy = Lay(Intro, room: 2400);
+        var enough = Lay(Intro, room: 900);
+
+        Assert.IsTrue(roomy.Size.Width <= 900, $"the diagram fits either room: {roomy.Size.Width:0.#}");
+        Assert.AreEqual(roomy.Size.Width, enough.Size.Width, 0.001, "so nothing about it is scaled");
+        Assert.AreEqual(roomy.Size.Height, enough.Size.Height, 0.001);
+    });
 }
