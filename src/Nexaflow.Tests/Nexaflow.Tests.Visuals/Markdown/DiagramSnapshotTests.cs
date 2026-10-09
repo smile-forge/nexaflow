@@ -151,6 +151,77 @@ public class DiagramSnapshotTests
         Assert.IsTrue(matched.Count > 0, "the sample corpus produced no diagrams at all");
     }
 
+    /// <summary>
+    /// Every diagram of a sample, drawn as a reader meets it — a block among blocks in a document — and written out to
+    /// be looked at.
+    ///
+    /// <para>
+    /// The snapshots above lay each diagram on its own, against a width of their choosing. That is not the page: in a
+    /// document a diagram is laid by the markdown builder, standing as a block, into the room the page has, and what a
+    /// label holds is laid again inside that. A difference between the two is exactly the kind worth seeing, and until
+    /// now nothing here could draw the second one.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void WriteDocumentFigures()
+    {
+        string? folder = Environment.GetEnvironmentVariable(Folder);
+        if (string.IsNullOrWhiteSpace(folder)) Assert.Inconclusive($"set {Folder} to a folder to write the figures to");
+
+        Directory.CreateDirectory(folder!);
+        var written = new List<string>();
+
+        UiThread.Run(() =>
+        {
+            foreach (string path in TestSampleData.Files("markdown").OrderBy(p => p))
+            {
+                string stem = Path.GetFileNameWithoutExtension(path);
+                string text = File.ReadAllText(path);
+                int index = 0;
+
+                foreach (Match fence in Fence.Matches(text))
+                {
+                    index++;
+                    string one = $"```mermaid\n{fence.Groups[1].Value}```\n";
+                    string file = Path.Combine(folder!, $"{stem}-{index}-page.png");
+
+                    File.WriteAllBytes(file, Page(one, DocumentWidth));
+                    written.Add(Path.GetFileName(file));
+                }
+            }
+        });
+
+        Assert.Inconclusive($"wrote {written.Count} figure(s) to {folder}");
+    }
+
+    /// <summary>The width a document is drawn at here — a comfortable window, not a column.</summary>
+    private const double DocumentWidth = 1300;
+
+    /// <summary><paramref name="markdown"/> drawn as the viewer draws it, as a PNG.</summary>
+    private static byte[] Page(string markdown, double width)
+    {
+        var surface = new MarkdownSurface { Markdown = markdown, Width = width };
+
+        surface.Measure(new Size(width, double.PositiveInfinity));
+        surface.Arrange(new Rect(0, 0, width, surface.DesiredSize.Height));
+        surface.UpdateLayout();
+
+        int w = Math.Max(1, (int)Math.Ceiling(width));
+        int h = Math.Max(1, (int)Math.Ceiling(surface.DesiredSize.Height));
+
+        var bitmap = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        var ground = new DrawingVisual();
+        using (var dc = ground.RenderOpen()) dc.DrawRectangle(Brushes.Black, null, new Rect(0, 0, w, h));
+        bitmap.Render(ground);
+        bitmap.Render(surface);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
     /// <summary>Renders one fence at the fixed host width and returns the PNG bytes.</summary>
     private static byte[] Render(string source, StyleFormat palette)
     {

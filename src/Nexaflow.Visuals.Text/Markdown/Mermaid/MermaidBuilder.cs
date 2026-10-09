@@ -490,7 +490,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (part is not { Length: > 0 }) return null;
         if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return Nested(part, room);
+        return Nested(part, double.PositiveInfinity, Style with { Standing = ContentStanding.Inline });
     }
 
     // ── Folding a graph-shaped diagram ──────────────────────────────────────

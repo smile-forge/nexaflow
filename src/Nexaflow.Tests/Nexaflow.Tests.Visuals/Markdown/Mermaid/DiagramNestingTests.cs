@@ -119,6 +119,39 @@ public class DiagramNestingTests
                                   "and the plus in the middle of it");
     });
 
+    [TestMethod]
+    public void AFormulaOnANodeIsAsWideAsTheFormulaRatherThanAsWideAsThePage() => UiThread.Run(() =>
+    {
+        // In a document a fenced diagram stands as a block, and what a label holds inherited that standing — so the
+        // formula centred itself across the room the page gave the whole diagram and came back that wide, the node drawn
+        // round it and the maths against its far edge. A label is a label: laid at its natural size, standing in a line,
+        // as a document lays a formula in a sentence. Only a document shows it; laid on its own a diagram stands Alone
+        // and the branch never runs.
+        const string document = "# Shapes\n\n```mermaid\n" + Src + "```\n";
+
+        var diagram = Settled(document).Shown.Laid.Root.SelfAndDescendants()
+            .First(piece => piece.Kind == MermaidPiece.Diagram);
+
+        Assert.IsTrue(diagram.Bounds.Width < 400,
+                      $"the diagram is as wide as the two small boxes in it — not {diagram.Bounds.Width:N0} of the 900 the page gave it");
+    });
+
+    [TestMethod]
+    public void ALabelPastedWithTheFenceThatClosedItIsStillThatLanguage() => UiThread.Run(() =>
+    {
+        // A block copied out of a document arrives with the fence that closed it. Nothing has to close a label's — what
+        // holds the words does — but somebody pasting one means the same thing either way.
+        const string closed = "graph TD\n a[\"```latex " + Inner + "```\"] --> b[\"Next\"]\n";
+
+        var tree = Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser.Parse(closed);
+
+        var body = tree.SelfAndDescendants().Single(node => node.Kind == Nexaflow.Markdown.Ast.Kinds.Nested);
+        Assert.AreEqual(Inner, body.Text, "the formula is the formula, without the fence that closed it");
+
+        Assert.AreEqual(closed, tree.Print(), "and the fence it was written with is still written");
+        Assert.AreEqual(1, Pieces(Drawn(closed), MermaidPiece.Nested).Count, "and the label is drawn as the formula");
+    });
+
     /// <summary>A whole document on a surface, measured and arranged as a reader is shown it.</summary>
     private static MarkdownSurface Settled(string markdown)
     {

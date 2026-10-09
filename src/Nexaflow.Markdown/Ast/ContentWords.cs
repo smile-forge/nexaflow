@@ -82,8 +82,15 @@ public static class ContentWords
     private static string Stands(ContentPart bound) => bound.Node.Said(Value) ?? bound.Print();
 
     /// <summary>
-    /// A label written in another language: a block in the language the word after its fence names, holding the fence and that
-    /// word, and the characters written in that language — held as written, unread, since reading them is that language's.
+    /// Words that open with a fence naming a language, as the block of that language they are.
+    ///
+    /// <para>
+    /// Nothing has to close it: what holds the words closes it — a label's own bracket, a cell's own edge — so
+    /// <c>a["```latex E = mc^2"]</c> is a formula to the end of the label. A fence that does close it is taken all the
+    /// same, because a block copied from a document arrives with the one that closed it there, and a reader pasting it
+    /// into a node means the same thing either way. It is kept as a piece of its own rather than dropped, so the words
+    /// still print back as they were written.
+    /// </para>
     /// </summary>
     private static ContentNode Block(string text, string kind, string role, int? at)
     {
@@ -95,10 +102,20 @@ public static class ContentWords
 
         if (named == ContentLink.Fence.Length || past >= text.Length) return ContentNode.Leaf(kind, text, role, offset: at);
 
-        return new BlockNode(text[ContentLink.Fence.Length..named],
-            [ContentNode.Leaf(Kinds.Token, text[..past], Roles.Open, offset: at),
-             ContentNode.Leaf(Kinds.Nested, text[past..], Roles.Body, offset: at + past)],
-            role: role);
+    var stop = text.EndsWith(ContentLink.Fence, StringComparison.Ordinal)
+               && text.Length - ContentLink.Fence.Length > past
+        ? text.Length - ContentLink.Fence.Length
+        : text.Length;
+
+        List<ContentNode> parts =
+        [
+            ContentNode.Leaf(Kinds.Token, text[..past], Roles.Open, offset: at),
+            ContentNode.Leaf(Kinds.Nested, text[past..stop], Roles.Body, offset: at + past),
+        ];
+
+        if (stop < text.Length) parts.Add(ContentNode.Leaf(Kinds.Token, text[stop..], Roles.Close, offset: at + stop));
+
+        return new BlockNode(text[ContentLink.Fence.Length..named], parts, role: role);
     }
 
     /// <summary>
