@@ -472,6 +472,18 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassEdits.cs",
           "class": "ClassEdits",
           "method": "Edit"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/classDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
         }
       ]
     },
@@ -632,6 +644,14 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
           "class": "ContentEngine",
           "method": "Pasted"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
         }
       ]
     },
@@ -721,18 +741,517 @@
           }
         ]
       }
+    },
+    "sequence-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs",
+          "class": "SequenceGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs",
+          "class": "ResolveFrames"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs",
+          "class": "SequenceConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceParser.cs",
+          "class": "SequenceParser"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/sequenceDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "er-diagram": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/ErGrammar.cs",
+          "class": "ErGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/Stages/ResolveJoins.cs",
+          "class": "ResolveJoins"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/ErConfig.cs",
+          "class": "ErConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Er/ErBuilder.cs",
+          "class": "ErBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/entityRelationshipDiagram.html"
+        }
+      ]
+    },
+    "requirement-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementGrammar.cs",
+          "class": "RequirementGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementConfig.cs",
+          "class": "RequirementConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Requirement/RequirementBuilder.cs",
+          "class": "RequirementBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/requirementDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "graph-flowchart": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartBuilder.cs",
+          "class": "FlowchartBuilder"
+        },
+        {
+          "type": "node",
+          "target": "graph-expandable-nodes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithDiagramPictures.cs",
+          "class": "WithDiagramPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartPiece.cs",
+          "class": "FlowchartPiece"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/flowchart.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "pie": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieBuilder.cs",
+          "class": "PieBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/pie.html"
+        }
+      ]
+    },
+    "gantt": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Gantt/GanttBuilder.cs",
+          "class": "GanttBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTime.cs",
+          "class": "DiagramTime"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/gantt.html"
+        }
+      ]
+    },
+    "mindmap": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Mindmap/MindmapBuilder.cs",
+          "class": "MindmapBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTree.cs",
+          "class": "DiagramTree"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/mindmap.html"
+        }
+      ]
+    },
+    "kanban": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Kanban/KanbanBuilder.cs",
+          "class": "KanbanBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/kanban.html"
+        }
+      ]
+    },
+    "xy-chart": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Xy/XyBuilder.cs",
+          "class": "XyBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/xyChart.html"
+        }
+      ]
+    },
+    "radar": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Radar/RadarBuilder.cs",
+          "class": "RadarBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/radar.html"
+        }
+      ]
+    },
+    "sankey": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs",
+          "class": "SankeyBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyEdits.cs",
+          "class": "SankeyEdits",
+          "method": "Renamed"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/sankey.html"
+        }
+      ]
+    },
+    "quadrant-graph": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Quadrant/QuadrantBuilder.cs",
+          "class": "QuadrantBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/quadrantChart.html"
+        }
+      ]
+    },
+    "venn": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Venn/VennBuilder.cs",
+          "class": "VennBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Venn/VennLayout.cs",
+          "class": "VennLayout"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/venn.html"
+        }
+      ]
+    },
+    "ishikawa": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Ishikawa/IshikawaBuilder.cs",
+          "class": "IshikawaBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramRoom.cs",
+          "class": "DiagramRoom"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/ishikawa.html"
+        }
+      ]
+    },
+    "nomnoml": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlParser.cs",
+          "class": "NomnomlParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "url",
+          "target": "https://www.nomnoml.com/"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "nomnoml \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "c4-sequence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveFootBoxes.cs",
+          "class": "ResolveFootBoxes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs",
+          "class": "C4SequenceBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://github.com/plantuml-stdlib/C4-PlantUML"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "flowchart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs",
+          "class": "FlowchartGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs",
+          "class": "ResolveLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs",
+          "class": "FlowchartConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs",
+          "class": "ResolveShapes"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartParser.cs",
+          "class": "FlowchartParser"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveChart.cs",
+          "class": "ResolveChart"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs",
+          "class": "MermaidShapes",
+          "method": "Wording"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidDiagram.cs",
+          "class": "MermaidDiagrams",
+          "method": "ParserFor"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
+    },
+    "c4-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs",
+          "class": "C4Builder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Piece.cs",
+          "class": "C4Piece"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 32,
+  "changed_sets": 50,
   "touched_nodes": [
     "abc-editing",
+    "c4-diagram",
+    "c4-sequence",
     "class-diagram",
     "content-moving",
     "diagram-bound-content",
+    "er-diagram",
     "executable-dependency-viewport",
+    "flowchart-ast",
     "flowchart-writing",
+    "gantt",
     "graph-expandable-nodes",
+    "graph-flowchart",
+    "ishikawa",
+    "kanban",
     "latex-editing",
     "latex-grid-move",
     "latex-palette-wrap",
@@ -748,7 +1267,17 @@
     "markdown-paste",
     "markdown-split",
     "markdown-text",
+    "mindmap",
+    "nomnoml",
+    "pie",
     "pie-writing",
-    "postit-content-types"
+    "postit-content-types",
+    "quadrant-graph",
+    "radar",
+    "requirement-diagram",
+    "sankey",
+    "sequence-diagram",
+    "venn",
+    "xy-chart"
   ]
 }
