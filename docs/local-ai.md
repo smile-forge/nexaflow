@@ -29,6 +29,7 @@ policy and scheduling.
 | Where voice lives | **The AI input bar**, in a voice mode: the bar becomes a live line both sides speak into, and anything the assistant produces that is not speech — a diagram, a table, code — opens as an overlay on the current page, so the user keeps working while talking. **The conversation page** is the focused alternative: both sides write into the conversation. |
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
+| Languages | **English, French and German** throughout: recognition, the model, and a Kokoro voice for each (below). |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). |
 
 ## What was measured
@@ -305,6 +306,33 @@ wait; turn detection is where the rest comes from.
 `WhisperModelManager` are replaced by the speech capability; push-to-talk dictation becomes the same streaming ASR
 without the reply.
 
+## Languages: English, French, German
+
+Every stage was measured on all three, with real French and German speech from FLEURS:
+
+| Stage | English | French | German |
+|---|---|---|---|
+| Voice activity (Silero) | language-independent | | |
+| Streaming ASR (Nemotron 3.5) | 1.9% WER | 10.1% WER | 18.5% WER — mostly numbers written as words ("zehntausend" for "10.000") |
+| LLM (Gemma 4 E4B) | ✓ | fluent answers in French; accurate summaries of spoken French | fluent answers in German; accurate summaries of spoken German; answers about images in German |
+| TTS | Kokoro (`af_heart` and others), MisakiSharp G2P | **Kokoro `ff_siwis`**: 307 ms to first audio, 12× real time, 5% WER read back | **Kokoro German fine-tune** (`crane-local-ai/Kokoro-82M-v1.0-German-ONNX`, voice `df_kerstin`): 9–10× real time, 0–11% WER read back |
+
+- **Recognition is one model with a language prompt.** Nemotron's encoder takes a one-hot `lang_id`
+  (`Generator.SetRuntimeOption("lang_id", …)`): en-US 0, fr-FR 8, de-DE 9, `auto` 101 — from NVIDIA's
+  `processor_config.json`; the ONNX export carries no table. `auto` matched the fixed prompt for English and French
+  and was close for German. The model tags sentences with `<xx-XX>` for English and German but not French, so the
+  tags are stripped and do not decide the language.
+- **The reply's language picks the voice.** Gemma answers in the language it was spoken to; the segmenter detects
+  the language of each segment's text and hands it to that language's Kokoro voice.
+- **French and German Kokoro need espeak-ng for G2P.** MisakiSharp covers English only. The German fine-tune was
+  trained on its authors' own German phonemiser, which is not available to us; espeak-ng's German IPA drives it well.
+  espeak-ng is GPL: it stays a separate executable, invoked per phrase (KokoroSharp's own build is one), or a linked
+  library for a pipeline that needs lower latency.
+- **German has one Kokoro voice, from one community fine-tune.** Piper's `de_DE-thorsten-high` (8% WER, 20× real
+  time, more robotic) is the fallback. More German voices mean fine-tuning Kokoro ourselves with the same recipe
+  (kikiri-tts).
+- **Turn detection** — the spike in phase 0 — has to cover all three languages.
+
 ## Generation tools
 
 Each is an `IClientTool` the agent calls (`generate_image`, `speak`, `generate_sound`, …) that runs a generation
@@ -361,7 +389,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 
 | Phase | Delivers | Size |
 |---|---|---|
-| 0. Spikes | a semantic turn detector; AEC on a real microphone and speakers; Qwen 3.8 and Gemma 4 26B-A4B on onnxruntime-genai | small, each |
+| 0. Spikes | a semantic turn detector covering English, French and German; AEC on a real microphone and speakers; Qwen 3.8 and Gemma 4 26B-A4B on onnxruntime-genai | small, each |
 | 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
 | 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
 | 3. Voice | speech in the host; voice session with turn detection and barge-in; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
@@ -377,4 +405,6 @@ Phase 1 is useful on its own — streaming improves the cloud path before any lo
   own P/Invoke layer. The `Generator` API works without it.
 - onnxruntime-genai defects above; exports per execution provider; architecture support lagging releases.
 - Every diffusion and music model needs a hand-written C# pipeline (scheduler, tokenizer, sampler).
-- Licences do not block a non-commercial project. GPL components (espeak-ng, Piper) are avoided by the choices above.
+- Licences do not block a non-commercial project. espeak-ng (GPL) is needed for French and German G2P and stays a
+  separate executable.
+- German speech rests on one community Kokoro fine-tune with one voice.
