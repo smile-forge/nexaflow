@@ -216,6 +216,21 @@ public sealed partial class ExecutableViewModel
     }
 
     /// <summary>
+    /// Opens the module <paramref name="moduleName"/> names in an inspector tab of its own — what two presses on a node
+    /// of the diagram come to, the page having decided that is what they mean. True where there was a module to open:
+    /// an API set, one the loader could not find and one already drawn further up have no file to inspect.
+    /// </summary>
+    public bool OpenModule(string? moduleName)
+    {
+        if (moduleName is not { Length: > 0 } || _dependencyGraph is null) return false;
+
+        var node = Flatten(_dependencyGraph.Root)
+            .FirstOrDefault(one => string.Equals(one.Name, moduleName, StringComparison.OrdinalIgnoreCase));
+
+        return node is not null && OpenDependency(node.Path);
+    }
+
+    /// <summary>
     /// Opens up one module. Walks again rather than grafting onto the existing graph: the walk already owns cycle detection and
     /// the shared-module rules, and walking again is cheap next to keeping a second, subtly different merge path correct.
     /// </summary>

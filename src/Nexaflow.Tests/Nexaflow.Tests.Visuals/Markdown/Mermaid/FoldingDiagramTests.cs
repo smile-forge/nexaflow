@@ -153,6 +153,34 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("diagram-bound-content")]
+    public void AndTwoPressesOnOneSayTheSameNodeAndThatThereWereTwo() => UiThread.Run(() =>
+    {
+        // A node is not a link. The content says which node was pressed and how often, and nothing about what either
+        // comes to: one press on a module of an import tree picks it out and fills the detail pane, two open it in a
+        // tab of its own, and only the page showing it could know that.
+        var surface = Grown(out _);
+
+        ContentSelectionChange? picked = null;
+        ContentSelectionChange? twice = null;
+        surface.Selected      += (_, e) => picked = e.Change;
+        surface.DoubleClicked += (_, e) => twice = e.Change;
+
+        var node = Placed(surface, FlowchartPiece.Node).First(where => Says(surface, where, "lib.dll"));
+
+        Press(surface, node);
+
+        Assert.AreEqual("lib.dll", picked?.Picked.Single(pick => pick.Id is not null).Id, "one press picks it out");
+        Assert.IsNull(twice, "and one press is not two");
+
+        surface.Shown.PointerDoubleClick(Middle(node));
+        Settled(surface);
+
+        Assert.AreEqual("lib.dll", twice?.Picked.Single(pick => pick.Id is not null).Id,
+                        "two presses say the same node, and say that there were two");
+    });
+
+    [TestMethod]
     public void RightClickingOffersWhatThatOneThingCanDo() => UiThread.Run(() =>
     {
         var surface = Shown(Src);

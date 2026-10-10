@@ -996,6 +996,12 @@ picture of the content itself (`CapturePicture`, `MiniMapPicture`) because a gra
 inspector's dependency tab is the one that does this, and it is what makes opening a module safe: the graph can
 double in size and the page still shows all of it.
 
+**A node is not a link.** Written as a Mermaid `click … href` line it is one, and one press on it follows it — which
+is right in a document and wrong for a produced drawing whose every node opens a tab. So the PE inspector's import
+tree carries no `click` lines: the surface says which node was pressed (`Selected`) and says it again when it was
+pressed twice (`DoubleClicked`), and the page picks out on one and opens on two. Neither the renderer nor the diagram
+holds that choice.
+
 **Two things cannot both own one press.** Content claims a press only where it took it, and leaves one it made
 nothing of unhandled and uncaptured for whatever shows it — which is how the viewport knows it may pan from there.
 What settles it is whether the press landed *squarely* on a piece or merely nearest one (`Piece.Squarely`): a press

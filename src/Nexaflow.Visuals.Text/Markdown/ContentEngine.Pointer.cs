@@ -351,13 +351,16 @@ public sealed partial class ContentEngine
         // Two presses on a block show it as it was written, where it can be written in and is not already.
         if (OpenAsWritten(at)) return;
 
-        // Content a binding supplied is picked out whole however often it is pressed — and, as for one press, only
-        // where the press landed squarely on a piece of it rather than merely nearest one.
         var pressed = _laid.PieceAt(at);
 
+        // Content a binding supplied is picked out whole however often it is pressed — and, as for one press, only
+        // where the press landed squarely on a piece of it rather than merely nearest one.
         if (Supplied(pressed))
         {
-            if (pressed.Squarely(at)) PickPressed(pressed);
+            if (!pressed.Squarely(at)) return;
+
+            PickPressed(pressed);
+            this.Events?.OnDoubleClick(WhatIsPickedOut());
             return;
         }
 
@@ -375,6 +378,10 @@ public sealed partial class ContentEngine
         }
         else if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
         else Select(Math.Max(0, here - 1), 1);
+
+        // Said last, so what the page is told is what was picked out by the two presses rather than what was there
+        // before them. Two presses are a thing that happened; the page says what they come to.
+        this.Events?.OnDoubleClick(WhatIsPickedOut());
     }
 
     // ── What a press means ──────────────────────────────────────────────────

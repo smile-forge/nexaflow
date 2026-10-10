@@ -263,7 +263,7 @@ public sealed class ExecutableFeatureTests
     // ── Mermaid output ────────────────────────────────────────────────────────
 
     [TestMethod, TestCategory("Unit")]
-    public void The_diagram_emits_real_mermaid_click_directives()
+    public void What_the_binding_supplies_is_lines_of_a_diagram_and_nothing_else()
     {
         var graph  = new DependencyWalker().Walk(PeFixtures.Notepad);
         var markdown = DependencyMermaid.Build(graph);
@@ -272,9 +272,9 @@ public sealed class ExecutableFeatureTests
         Assert.IsFalse(markdown.Contains("graph LR"), "and has no header: the page's block names the diagram, and the binding supplies lines of it.");
         Assert.IsFalse(markdown.Contains("```"), "and it is the diagram, not a fence round one — the page's markdown holds the fence.");
 
-        // Standard `click id href "…"` rather than a private convention, so the diagram stays
-        // portable if it is pasted anywhere else.
-        Assert.IsTrue(markdown.Contains("click n0 href \""), "The root node should carry a link.");
+        // Written as a click line, a node was a hyperlink, and one press on it opened a tab. What a press comes to is
+        // the page's: it hears which node was pressed and how often, and decides.
+        Assert.IsFalse(markdown.Contains("click "), "no node is written as a link");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -295,12 +295,7 @@ public sealed class ExecutableFeatureTests
 
         Assert.IsFalse(markdown.Contains("+ lib.dll"), "No marker is smuggled into the node label.");
         Assert.IsFalse(markdown.Contains("nexaflow-expand:"), "No private href scheme survives.");
-        Assert.IsFalse(markdown.Contains("nexaflow-open:"), "A node's href is just its path.");
-
-        // Both nodes are real files, so both keep an ordinary click target — a node no longer has to
-        // choose between being openable and being expandable.
-        Assert.IsTrue(markdown.Contains(@"click n0 href ""C:\app\app.exe"""));
-        Assert.IsTrue(markdown.Contains(@"click n1 href ""C:\app\lib.dll"""));
+        Assert.IsFalse(markdown.Contains("click "), "and a node is not written as a link at all.");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -377,17 +372,18 @@ public sealed class ExecutableFeatureTests
         [node, .. node.Children.SelectMany(Flattened)];
 
     [TestMethod, TestCategory("Unit")]
-    public void Unresolvable_modules_get_no_link()
+    public void A_module_that_cannot_be_opened_says_so_by_what_it_is()
     {
+        // No node is a link, so what tells an openable module from one that is not is its kind — drawn as a shape of
+        // its own and said in its detail. The page knows a press on a missing module has nothing to open because it
+        // asks the walk, not because the diagram left an href off.
         var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe");
         root.Children.Add(new DependencyNode("missing.dll", DependencyKind.Missing));
         root.Children.Add(new DependencyNode("api-ms-win-core-x-l1-1-0.dll", DependencyKind.ApiSet));
 
         var markdown = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 1));
 
-        Assert.IsTrue(markdown.Contains("click n0 href"), "The root resolves, so it links.");
-        Assert.IsFalse(markdown.Contains("click n1"), "A missing module has nothing to open.");
-        Assert.IsFalse(markdown.Contains("click n2"), "An API set has no file on disk.");
+        Assert.IsFalse(markdown.Contains("click "), "a node is not a link: one press on it picks it out, two open it");
         Assert.IsTrue(markdown.Contains("not found"));
         Assert.IsTrue(markdown.Contains("API set"));
     }

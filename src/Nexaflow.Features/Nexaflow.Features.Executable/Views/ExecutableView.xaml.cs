@@ -43,8 +43,11 @@ public partial class ExecutableView : UserControl, IPageView
         // moves the overview, which is more layout. So the fit waits for the pass to finish: Loaded outranks it.
         DependencyDiagram.PreRender += (_, _) =>
             Dispatcher.BeginInvoke(Laid, System.Windows.Threading.DispatcherPriority.Loaded);
-        DependencyDiagram.LinkNavigate  += (_, e) => e.Handled = OnDiagramLink(e.Url);
-        DependencyDiagram.Selected      += (_, e) => _vm.SelectDependency(e.Change.Picked.FirstOrDefault(pick => pick.Id is not null)?.Id);
+        // One press on a node picks it out, which fills the detail pane; two open the module in a tab of its own. The
+        // diagram says which node and how often it was pressed, and says nothing about what either should do — a node
+        // is not a link, and opening a tab is this page's to decide and this page's to do.
+        DependencyDiagram.Selected  += (_, e) => _vm.SelectDependency(Pressed(e.Change));
+        DependencyDiagram.DoubleClicked += (_, e) => e.Handled = _vm.OpenModule(Pressed(e.Change));
 
         vm.PropertyChanged              += OnViewModelPropertyChanged;
         vm.ScrollToHitRequested         += OnScrollToHit;
@@ -79,7 +82,13 @@ public partial class ExecutableView : UserControl, IPageView
     /// had selected and where it was zoomed to — leaving the reader zoomed into a corner of a graph
     /// that no longer exists would be the one thing the button was meant to undo.
     /// </summary>
-    private void OnDependencyViewReset() => DependencyDiagram.ResetDiagramViews();
+    private void OnDependencyViewReset()
+    {
+        // Starting over means the next laying is a first sight of it again, and so is fitted rather than compared
+        // against an extent belonging to a graph that no longer exists.
+        _spread = null;
+        DependencyDiagram.ResetDiagramViews();
+    }
 
     /// <summary>How much room the diagram came out needing, for the viewport to fit and to draw its overview against.</summary>
     private CanvasBounds? Spread() =>
@@ -104,27 +113,38 @@ public partial class ExecutableView : UserControl, IPageView
     /// The diagram has been laid out again — a module opened up, or the pane resized.
     ///
     /// <para>
-    /// It is refitted only where it has outgrown the viewport, which is the case opening a module makes: the graph
-    /// grows past the edges and what the reader wants is to see what they just asked for. While it still fits, their
-    /// zoom is left alone — refitting under somebody who has zoomed in on one corner throws away where they were, and
-    /// where they were is almost certainly the thing they were reading.
+    /// Only the first sight of it is fitted. After that the reader's zoom is theirs: opening a module is a question
+    /// about one part of the graph, not a request to see the whole of it from further away, and refitting answered a
+    /// question nobody asked by shrinking everything. So the view keeps its scale and moves the least that brings what
+    /// appeared onto the page — which is the part they asked for.
     /// </para>
     /// </summary>
     private void Laid()
     {
         _overview = null;
 
-        if (Spread() is not { } spread) return;
+        if (Spread() is not { } now) return;
 
-        var (scale, _, _) = DependencyViewport.View;
+        var before = _spread;
+        _spread = now;
 
-        if (scale <= 0
-            || spread.Width * scale > DependencyViewport.ActualWidth
-            || spread.Height * scale > DependencyViewport.ActualHeight)
-            DependencyViewport.FitToContent();
-        else
-            DependencyViewport.RefreshOverview();
+        if (before is not { } was) { DependencyViewport.FitToContent(); return; }
+
+        if (Appeared(was, now) is { } appeared) DependencyViewport.Reveal(appeared);
+        else                                    DependencyViewport.RefreshOverview();
     }
+
+    /// <summary>
+    /// The band the drawing gained, or null where it did not grow. Reckoned from its own extent rather than from which
+    /// node was opened: whatever the reader did, what they want to see is the part that was not there before.
+    /// </summary>
+    private static CanvasBounds? Appeared(CanvasBounds was, CanvasBounds now) =>
+        now.MaxY > was.MaxY + 1 ? new CanvasBounds(now.MinX, was.MaxY, now.MaxX, now.MaxY)
+      : now.MaxX > was.MaxX + 1 ? new CanvasBounds(was.MaxX, now.MinY, now.MaxX, now.MaxY)
+      : null;
+
+    /// <summary>How much room the drawing took when it was last laid out, so the next laying says what it gained.</summary>
+    private CanvasBounds? _spread;
 
     /// <summary>
     /// Brings a search hit into view. A tinted row three thousand entries down a virtualised list is
@@ -200,21 +220,9 @@ public partial class ExecutableView : UserControl, IPageView
         ManifestEditor.Options.HighlightCurrentLine = false;
     }
 
-    /// <summary>
-    /// A dependency node's body was clicked: open that module as its own inspector tab. Returning
-    /// true tells the markdown renderer the link was handled in-app, so it does not hand it to the OS.
-    /// </summary>
-    private bool OnDiagramLink(string href)
-    {
-        if (string.IsNullOrWhiteSpace(href)) return false;
-
-        // Tolerate a file: URI in case one is ever produced.
-        string path = Uri.TryCreate(href, UriKind.Absolute, out var uri) && uri.IsFile
-            ? uri.LocalPath
-            : href;
-
-        return File.Exists(path) && _vm.OpenDependency(path);
-    }
+    /// <summary>The module a press on the diagram landed on, under the name the walk gave it.</summary>
+    private static string? Pressed(ContentSelectionChange change) =>
+        change.Picked.FirstOrDefault(pick => pick.Id is not null)?.Id;
 
     /// <summary>
     /// The tree and the diagram are two views of one thing, so picking a row means the same as

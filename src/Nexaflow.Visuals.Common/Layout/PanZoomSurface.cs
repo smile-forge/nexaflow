@@ -314,6 +314,40 @@ public sealed class PanZoomSurface : UserControl
         _fitPending = false;
     }
 
+    /// <summary>
+    /// Brings a part of the content into view without touching the zoom — for a host whose content has grown somewhere
+    /// the reader asked it to. They asked for that part, not for a different view of everything, so the view moves the
+    /// least that will show it. Where the part is larger than the viewport, its near corner is what is shown, that
+    /// being the end of it next to whatever they pressed.
+    /// </summary>
+    public void Reveal(CanvasBounds what)
+    {
+        if (_surface is null || ActualWidth <= 0 || ActualHeight <= 0) return;
+        if (_scale.ScaleX <= 0 || what.Width <= 0 || what.Height <= 0) return;
+
+        var scale = _scale.ScaleX;
+        var tx = Shifted(_translate.X, what.MinX * scale, what.MaxX * scale, ActualWidth);
+        var ty = Shifted(_translate.Y, what.MinY * scale, what.MaxY * scale, ActualHeight);
+
+        if (tx.Equals(_translate.X) && ty.Equals(_translate.Y)) { SyncMiniMap(); return; }
+
+        Apply(scale, tx, ty);
+        _fitPending = false;
+    }
+
+    /// <summary>
+    /// Where the view sits along one axis so that the stretch from <paramref name="from"/> to <paramref name="to"/> is
+    /// on the page: unmoved where it already is, its near edge where it is too long to fit, and otherwise nudged by
+    /// however much was hanging off the end.
+    /// </summary>
+    private static double Shifted(double at, double from, double to, double room)
+    {
+        if (from + at >= 0 && to + at <= room) return at;
+        if (to - from >= room) return -from;
+
+        return from + at < 0 ? -from : room - to;
+    }
+
     /// <summary>Zooms about the centre of the viewport (what the +/− buttons do).</summary>
     public void ZoomBy(double factor) => ZoomAt(factor, new Point(ActualWidth / 2, ActualHeight / 2));
 

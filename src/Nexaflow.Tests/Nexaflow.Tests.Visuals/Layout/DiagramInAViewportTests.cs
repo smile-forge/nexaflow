@@ -128,4 +128,39 @@ public class DiagramInAViewportTests
 
         Assert.IsTrue(asked > 0, "asked for as the view moves, rather than the overview drawing boxes");
     });
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void AndRevealingAPartOfItLeavesTheZoomAlone() => UiThread.Run(() =>
+    {
+        // What opening a module comes to: the reader asked about one part of the graph, not to see the whole of it
+        // from further away. So the scale they were at is kept and the view moves the least that shows the part.
+        var (viewport, diagram) = Shown(Fanned(12));
+        var laid = diagram.Shown.Laid.Size;
+        var fitted = viewport.View.Scale;
+
+        // Well off the bottom of what is on screen, as a graph that has just grown downward is.
+        var band = new CanvasBounds(0, laid.Height * 4, laid.Width, (laid.Height * 4) + 200);
+
+        viewport.Reveal(band);
+
+        var (scale, _, down) = viewport.View;
+
+        Assert.AreEqual(fitted, scale, 1e-9, "the zoom is the reader's and is not touched");
+        Assert.IsTrue((band.MinY * scale) + down >= -1 && (band.MaxY * scale) + down <= Panel.Height + 1,
+                      $"and the band is on the page: {(band.MinY * scale) + down}..{(band.MaxY * scale) + down}");
+    });
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void AndRevealingWhatIsAlreadyOnScreenMovesNothing() => UiThread.Run(() =>
+    {
+        var (viewport, diagram) = Shown(Fanned(12));
+        var laid = diagram.Shown.Laid.Size;
+        var was = viewport.View;
+
+        viewport.Reveal(new CanvasBounds(0, 0, laid.Width / 4, laid.Height / 4));
+
+        Assert.AreEqual(was, viewport.View, "nothing to do, so nothing is done");
+    });
 }

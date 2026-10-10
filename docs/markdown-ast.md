@@ -414,8 +414,15 @@ reader is.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
 changed, and whether it was written, taken back or put there), `Selected` (what is picked out — words, a note, a box in
-a flowchart, each with the language it is written in and the id the drawing gives it), `PreRender` (laid out, not yet
-shown) and `LinkNavigate` (a link out of the content, handled where the page took it).
+a flowchart, each with the language it is written in and the name the drawing knows it by), `DoubleClicked` (the same,
+said of two presses rather than one), `PreRender` (laid out, not yet shown) and `LinkNavigate` (a link out of the
+content, handled where the page took it).
+
+**What a press comes to is the page's.** The content says what was pressed and how often; it cannot know that opening
+a module costs a tab while following a link costs nothing, so it decides neither. A link is the one exception, and
+only because a link says in its own syntax that it leads somewhere: one press follows it. Anything else — one press
+picks a thing out, two say so again — is reported and left alone, which is why a page that wants a node pressed once
+to select and twice to open needs no say from the renderer at all.
 
 **A whole document is one element** — the prose, the diagrams and the tunes are pieces of one layout tree, so a drag
 runs from a word into a chart with nothing forwarding gestures between controls.

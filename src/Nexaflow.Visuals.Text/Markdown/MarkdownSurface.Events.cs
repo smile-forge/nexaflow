@@ -38,6 +38,25 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(SelectedEvent, value);
     }
 
+    /// <summary>
+    /// Raised when two presses land on the content, carrying what they landed on exactly as <see cref="Selected"/>
+    /// carries what one press picked out. Handled where the page took them.
+    ///
+    /// <para>
+    /// Two presses are a thing that happened, and what they come to is the page's: one press on a module of an import
+    /// tree picks it out and two open it in a tab of its own. A link is a different thing and goes on being one
+    /// (<see cref="LinkNavigate"/>) — one press follows a link, here as in a help page.
+    /// </para>
+    /// </summary>
+    public static readonly RoutedEvent DoubleClickedEvent = EventManager.RegisterRoutedEvent(
+        nameof(DoubleClicked), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentSelectedEventArgs> DoubleClicked
+    {
+        add => AddHandler(DoubleClickedEvent, value);
+        remove => RemoveHandler(DoubleClickedEvent, value);
+    }
+
     /// <summary>Raised once the content has been laid out, before it is shown — for a page reading what was laid.</summary>
     public static readonly RoutedEvent PreRenderEvent = EventManager.RegisterRoutedEvent(
         nameof(PreRender), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
@@ -114,6 +133,14 @@ public sealed partial class MarkdownSurface
     /// <inheritdoc/>
     void IContentEvents.OnSelect(ContentSelectionChange change) =>
         RaiseEvent(new ContentSelectedEventArgs(SelectedEvent, change) { Source = this });
+
+    bool IContentEvents.OnDoubleClick(ContentSelectionChange change)
+    {
+        var asked = new ContentSelectedEventArgs(DoubleClickedEvent, change) { Source = this };
+        RaiseEvent(asked);
+
+        return asked.Handled;
+    }
 
     /// <summary>A link out of the content, offered to the page. True where it took it.</summary>
     private bool OpenLink(string url)
