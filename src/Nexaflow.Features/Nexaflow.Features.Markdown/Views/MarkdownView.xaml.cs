@@ -245,13 +245,27 @@ public partial class MarkdownView : UserControl, IPageView
     /// <summary>Whether a half is being put where the other one stands, so its own report is not read as the reader moving.</summary>
     private bool _pairing;
 
-    /// <summary>The character the raw box's top line starts at, or -1 before it has a line to be on.</summary>
+    /// <summary>
+    /// The character the raw box's first whole line starts at, or -1 before it has a line to be on. The line the
+    /// top edge cuts through is not it: a drag of the scrollbar comes to rest anywhere, so half the line above is
+    /// usually still showing, and answering with it has the other half display the whole of what this one has all
+    /// but scrolled past.
+    /// </summary>
     private int SourceTop()
     {
         var line = SourceBox.GetFirstVisibleLineIndex();
+        if (line < 0) return -1;
 
-        return line < 0 ? -1 : SourceBox.GetCharacterIndexFromLineIndex(line);
+        var at = SourceBox.GetCharacterIndexFromLineIndex(line);
+        if (line + 1 < SourceBox.LineCount
+            && SourceBox.GetRectFromCharacterIndex(at) is { IsEmpty: false, Top: var top } && top < SourceBox.Padding.Top - Hair)
+            at = SourceBox.GetCharacterIndexFromLineIndex(line + 1);
+
+        return at;
     }
+
+    /// <summary>Closer than this and two places on the page are the one place.</summary>
+    private const double Hair = 0.5;
 
     /// <summary>Puts the line the character at <paramref name="offset"/> is on at the top of the raw box.</summary>
     private void ShowSourceFrom(int offset)

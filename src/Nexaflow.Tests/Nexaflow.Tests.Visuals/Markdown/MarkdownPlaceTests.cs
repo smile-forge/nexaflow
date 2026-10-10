@@ -168,6 +168,49 @@ public class MarkdownPlaceTests
 
     [TestMethod]
     [CoversNode("markdown-surface")]
+    public void AndItNeverSaysALineItIsOnlyHalfShowing() => UiThread.Run(() =>
+    {
+        // A page comes to rest wherever the reader lets go of the scrollbar, which is never on a line boundary. What
+        // it then says it stands at must be a line wholly on it: naming the one the top edge cuts through had a
+        // second showing of the document display the whole of a paragraph this one had all but scrolled past, which
+        // in a split reads as a block of daylight between the two halves.
+        var doc = Drawn(out _, out _);
+
+        MarkdownEditorHarness.Run(doc, editor =>
+        {
+            var page = MarkdownEditorHarness.Drawn<System.Windows.Controls.ScrollViewer>(editor)!;
+
+            foreach (var to in new[] { 137.0, 441.5, 802.3 })
+            {
+                page.ScrollToVerticalOffset(to);
+                editor.UpdateLayout();
+
+                var standing = editor.ShownFrom;
+                Assert.IsTrue(standing >= 0, $"the page stands somewhere at {to}");
+
+                Assert.IsTrue(editor.ShowFrom(standing), $"and can be put where it says it is: {to}");
+                editor.UpdateLayout();
+
+                // Down to the next whole line, or nowhere. Never up — up means it named a line it was cutting.
+                Assert.IsTrue(page.VerticalOffset >= to - Hair,
+                    $"it went back up to {page.VerticalOffset} from {to}, so it named a line it was only half showing");
+
+                Assert.AreEqual(standing, editor.ShownFrom, $"and it stands at the place it named: {to}");
+
+                var settled = page.VerticalOffset;
+                Assert.IsTrue(editor.ShowFrom(editor.ShownFrom));
+                editor.UpdateLayout();
+
+                Assert.AreEqual(settled, page.VerticalOffset, Hair, $"and is settled there: {to}");
+            }
+        });
+    });
+
+    /// <summary>Closer than this and two places on the page are the one place.</summary>
+    private const double Hair = 0.5;
+
+    [TestMethod]
+    [CoversNode("markdown-surface")]
     public void AndADrawingTallerThanThePageIsNotOneItShowsWhole() => UiThread.Run(() =>
     {
         // What a second showing of the document needs in order to know when following a line is pointless: a

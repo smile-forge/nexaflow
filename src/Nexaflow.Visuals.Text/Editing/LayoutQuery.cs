@@ -612,13 +612,16 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The first place in the document the page has not scrolled past: the earliest thing still drawn at or below
-    /// <paramref name="above"/>, wherever across the page it stands. -1 where nothing is drawn below that line.
+    /// The first place in the document that stands wholly below <paramref name="above"/>, wherever across the page
+    /// it is. -1 where nothing does.
     ///
     /// <para>
-    /// What a page answers when asked where it stands. The nearest thing to its top-left corner is not it: a
-    /// centred diagram node is as much on the top row as a paragraph's first word, and taking the nearest named
-    /// the paragraph above instead, a block too early.
+    /// What a page answers when asked where it stands, and both halves of it matter. The nearest thing to the
+    /// top-left corner is not it: a centred diagram node is as much on the top row as a paragraph's first word, and
+    /// taking the nearest named the paragraph above instead. Nor is anything the line merely crosses: a page comes
+    /// to rest wherever the reader lets go of it, so the last line of the paragraph above is usually still half on
+    /// the page, and answering with that paragraph has a second showing of the document display the whole of what
+    /// this one has all but scrolled past.
     /// </para>
     /// </summary>
     public static int StopBelow(this Piece root, double above)
@@ -627,7 +630,7 @@ public static class LayoutQuery
         {
             var where = place.Against.Bounds;
 
-            if (!where.IsEmpty && where.Bottom > above) return place.Offset;
+            if (!where.IsEmpty && where.Top >= above - Hair) return place.Offset;
         }
 
         return -1;
