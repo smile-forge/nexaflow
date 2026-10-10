@@ -288,13 +288,108 @@
           }
         ]
       }
+    },
+    "graph-expandable-nodes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs",
+          "class": "DiagramExpansion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/NexaflowConfig.cs",
+          "class": "NexaflowConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramChip.cs",
+          "class": "DiagramChip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutActions"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support",
+            "Nodes that fold (graph-family diagrams)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs",
+          "class": "DiagramSpill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithFolds.cs",
+          "class": "WithFolds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Folded"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs",
+          "class": "DiagramExpansion",
+          "method": "KeyOf"
+        }
+      ]
+    },
+    "diagram-bound-content": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/IBoundContent.cs",
+          "class": "IBoundContent"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/BoundGraph.cs",
+          "class": "BoundGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser",
+          "method": "Bind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Binding.cs",
+          "class": "ContentEngine",
+          "method": "Rebind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Supplied.cs",
+          "class": "ContentEngine",
+          "method": "PickWhole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Binding.cs",
+          "class": "ContentEngine",
+          "method": "Expand"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 18,
   "touched_nodes": [
     "abc-editing",
     "content-moving",
+    "diagram-bound-content",
+    "graph-expandable-nodes",
     "latex-grid-move",
     "latex-shown-as-written",
     "latex-writable-ast",

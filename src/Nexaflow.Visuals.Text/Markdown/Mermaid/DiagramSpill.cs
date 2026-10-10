@@ -25,8 +25,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal sealed class DiagramSpill
 {
-    /// <summary>One node's leftovers: what the node offering them says, the cell it was given, and the line to it.</summary>
-    private sealed record Over(string Id, DiagramWords Says, DiagramCell Cell, DiagramJoin Join);
+    /// <summary>
+    /// One node's leftovers: the key a press on the node offering them opens, what it says, the cell it was given, and
+    /// the line to it. The key is the parent's own name said differently, so opening what is left of its children and
+    /// opening the parent are two different things to be remembered.
+    /// </summary>
+    private sealed record Over(string Key, DiagramWords Says, DiagramCell Cell, DiagramJoin Join);
 
     private readonly IReadOnlyList<Over> _over;
 
@@ -61,7 +65,7 @@ internal sealed class DiagramSpill
                 Shape = DiagramShape.Rounded,
             };
 
-            over.Add(new Over(id, said, cell, new DiagramJoin(from, cell)));
+            over.Add(new Over(folding.KeyOf(NexaflowConfig.More + id), said, cell, new DiagramJoin(from, cell)));
         }
 
         return over.Count == 0 ? None : new DiagramSpill(over);
@@ -90,7 +94,7 @@ internal sealed class DiagramSpill
                                fill, stroke, one.Says, MermaidPiece.Words,
                                acts: new LayoutActions
                                {
-                                   Click = new LayoutIntent(LayoutVerbs.Expand, NexaflowConfig.More + one.Id, one.Says.Says),
+                                   Click = new LayoutIntent(LayoutVerbs.Expand, one.Key, one.Says.Says),
                                });
         }
     }

@@ -21,17 +21,27 @@ Each needs what the flowchart has: match the node by the name it holds (`Mermaid
 under — a link's ends name their nodes under roles of their own — and read the address from inside its quotes, where the words
 carry the role.
 
-## Nothing answers a fold
+## A fold is answered by the engine
 
-A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) still pins `LayoutVerbs.Expand` or
-`LayoutVerbs.Collapse` to itself, and `FlowchartBuilder` still pins `LayoutVerbs.Select` to a node where folds are
-configured. Nothing answers any of the three, so pressing a chip does nothing.
+A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) pins `LayoutVerbs.Expand` or
+`LayoutVerbs.Collapse` to itself, and `ContentEngine.Folded` answers it: the opening goes into the block's view state
+(`Opened`) first, because whatever supplied the diagram answers by handing back a larger graph that is read into the
+block again, and an opening recorded after that would be recorded against a reading already thrown away. Then whatever
+supplied it is told (`Expand`), found from the piece pressed upwards — a diagram in a fence is a tree of its own, and
+the block holding it holds only the characters it was written as. Where nothing supplied it, that one block is read
+again and the diagram opens the node out of its own source, which is what makes an ordinary flowchart with a
+`defaultExpansion` explorable with no host behind it at all.
 
-Every part of the answer is already the engine's: the view state it would write the opening into (`Opened`), the bound
-object it would then tell (`Expand`), and the reading again that draws what is now shown. What is missing is the way a
-language says what a press on one of its own pieces comes to — a fold changes how content is shown rather than what it
-says, and `IOnEdit` answers with source writes. `ContentChange.Asks` is the shape that fits: a chip's press would ask the
-engine for the fold it already knows how to make.
+**What a press names is the producer's own name for a node, never the diagram's id.** An id is positional: a host
+re-emitting its graph with one more node in it renumbers every one of them, so an opening or a selection remembered by
+id would land on whatever moved into that slot. `DiagramExpansion.KeyOf` is the one translation, and the chip, the node
+offering what is left of an over-wide set of children, and the `LayoutVerbs.Select` a node body carries all go through
+it. The node offering leftovers is the drawing's own invention — nobody wrote it, so no producer has a name for it and
+none is told.
+
+A fold changes how content is shown rather than what it says, so none of this goes through `IOnEdit`, which answers
+with source writes. What a language has no say in yet is what a press on one of its *own* pieces comes to beyond the
+shared verbs; `ContentChange.Asks` is the shape that would fit, and nothing needs it yet.
 
 ## What already holds
 

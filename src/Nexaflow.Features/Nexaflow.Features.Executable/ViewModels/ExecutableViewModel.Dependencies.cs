@@ -25,7 +25,6 @@ public sealed partial class ExecutableViewModel
     {
         if (_dependenciesRequested || _image is null) return;
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
 
         Dependencies.Walk();
     }
@@ -52,13 +51,21 @@ public sealed partial class ExecutableViewModel
     /// <summary>
     /// One walk, as a task in the shell's activity area. The walk opens and parses every module it resolves; what it walks is
     /// only what the reader opened, so the graph only ever grows where they pointed.
+    ///
+    /// <para>
+    /// Every walk starts here, whoever asked for one — the tab being looked at, a button, or a chip pressed in the diagram,
+    /// which the renderer answers by telling the bound graph without passing through this view-model. So this is where the
+    /// tab is told it is mapping, rather than each of those saying so for itself and the chip forgetting to.
+    /// </para>
     /// </summary>
     private Task<DependencyGraph> Walk(IReadOnlySet<string> opened, CancellationToken ct)
     {
         var walked = new TaskCompletionSource<DependencyGraph>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => walked.TrySetCanceled(ct));
 
+        _ = _shell.RunOnUiAsync(() => DependenciesLoading = true);
         _shell.QueueBackgroundTask(new DependencyTask(this, opened, walked), ct: ct);
+
         return walked.Task;
     }
 
@@ -216,7 +223,6 @@ public sealed partial class ExecutableViewModel
     {
         if (string.IsNullOrWhiteSpace(moduleName) || IsModuleExpanded(moduleName)) return;
 
-        DependenciesLoading = true;
         Dependencies.Expand(moduleName, open: true);
     }
 
@@ -239,7 +245,6 @@ public sealed partial class ExecutableViewModel
         if (_image is null) return;
 
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
         Dependencies.Reset();
     }
 
@@ -248,7 +253,6 @@ public sealed partial class ExecutableViewModel
     {
         if (string.IsNullOrWhiteSpace(moduleName) || !IsModuleExpanded(moduleName)) return;
 
-        DependenciesLoading = true;
         Dependencies.Expand(moduleName, open: false);
     }
 
@@ -307,7 +311,6 @@ public sealed partial class ExecutableViewModel
         if (_image is null) return;
 
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
         Dependencies.Walk();
     }
 

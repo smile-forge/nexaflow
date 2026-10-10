@@ -11,6 +11,8 @@ using System;
 using Nexaflow.Markdown.Binding;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using Nexaflow.Visuals.Text.Markdown.Prose;
+using System.Text;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -51,8 +53,15 @@ public class FoldingDiagramTests
         return Settled(surface);
     }
 
+    /// <summary>
+    /// The page measured, arranged and settled. Pumped first: a producer answering a press says so on whatever thread
+    /// it answered on, and the element moves that onto this one — so without pumping, the page is read back before
+    /// anything a press set in motion has reached it.
+    /// </summary>
     private static MarkdownSurface Settled(MarkdownSurface surface)
     {
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+
         surface.Measure(new Size(900, 900));
         surface.Arrange(new Rect(0, 0, 900, 900));
         surface.UpdateLayout();
@@ -216,5 +225,196 @@ public class FoldingDiagramTests
 
         Assert.IsNull(offering.Part, "it stands for no part of the source, because there is none to stand for");
         Assert.AreEqual(LayoutVerbs.Expand, offering.Acts?.Click?.Verb, "and a press on it means what every chip means");
+    });
+
+    // ── Pressing one ────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void PressingAChipShowsWhatIsFoldedBehindIt() => UiThread.Run(() =>
+    {
+        var surface = Shown(Src);
+        Assert.IsFalse(Words(surface).Contains("Hidden"), "it starts folded, or there is nothing to open");
+
+        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
+
+        Assert.IsTrue(Words(surface).Contains("Hidden"),
+                      "a diagram nobody supplied opens the node out of its own source");
+    });
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void AndPressingItAgainFoldsItAway() => UiThread.Run(() =>
+    {
+        var surface = Shown(Src);
+
+        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
+        Assert.IsTrue(Words(surface).Contains("Hidden"));
+
+        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
+
+        Assert.IsFalse(Words(surface).Contains("Hidden"), "the same chip closes what it opened");
+    });
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void AndEverythingElseOnThePageIsLeftWhereItWas() => UiThread.Run(() =>
+    {
+        var surface = new MarkdownSurface { Markdown = "Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n" };
+        Settled(surface);
+
+        var before = Placed(surface, MarkdownPieces.Whole)[0];
+
+        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
+
+        Assert.IsTrue(Words(surface).Contains("Hidden"), "the diagram opened");
+        Assert.AreEqual(before, Placed(surface, MarkdownPieces.Whole)[0],
+                        "and the paragraph above it was not laid out again");
+    });
+
+    // ── Pressing one where something supplied the diagram ───────────────────
+
+    /// <summary>
+    /// A producer that grows its graph a node at a time, as the PE inspector's import walk does: the lines of the
+    /// diagram and the front matter saying which of them hold a subtree the lines do not carry, both written again
+    /// whenever one is opened — so every id moves, and only the names it gave stay still.
+    /// </summary>
+    private sealed class Walker : IBoundContent
+    {
+        /// <summary>What is behind each module, under the name this producer knows it by.</summary>
+        private static readonly Dictionary<string, string[]> Behind = new(StringComparer.Ordinal)
+        {
+            ["app.exe"] = ["lib.dll", "other.dll", "third.dll", "fourth.dll"],
+            ["lib.dll"] = ["deep.dll"],
+        };
+
+        private const string Root = "app.exe";
+
+        /// <summary>How many of a module's imports are drawn before the rest go behind one node offering them.</summary>
+        private const int FanOut = 2;
+
+        private readonly HashSet<string> _opened = new(StringComparer.Ordinal) { Root };
+
+        /// <summary>Every key it was told of, in the order it was told — what a press actually hands a producer.</summary>
+        public List<(string Key, bool Open)> Told { get; } = [];
+
+        public string Text { get; private set; }
+
+        public event EventHandler? Changed;
+
+        public Walker() => Text = Written();
+
+        public void Expand(string key, bool open)
+        {
+            Told.Add((key, open));
+
+            if (!(open ? _opened.Add(key) : _opened.Remove(key))) return;
+
+            Text = Written();
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>The graph as far as it has been opened, said the way <c>DependencyMermaid</c> says one.</summary>
+        private string Written()
+        {
+            var ids = new Dictionary<string, string>(StringComparer.Ordinal);
+            var body = new StringBuilder();
+            var folded = new List<string>();
+            var open = new List<string>();
+
+            string IdOf(string module) =>
+                ids.TryGetValue(module, out var had) ? had : ids[module] = "n" + ids.Count;
+
+            void Emit(string module)
+            {
+                var id = IdOf(module);
+                body.Append("  ").Append(id).Append("[\"").Append(module).Append("\"]\n");
+
+                // The root is always open and can never be closed, so it is offered no chip — the same exception the
+                // import walk makes for the binary being inspected.
+                if (!_opened.Contains(module) && Behind.ContainsKey(module)) folded.Add($"{id}: \"{module}\"");
+                else if (_opened.Contains(module) && module != Root)         open.Add($"{id}: \"{module}\"");
+
+                if (!_opened.Contains(module)) return;
+
+                foreach (var child in Behind.GetValueOrDefault(module, []))
+                {
+                    body.Append("  ").Append(id).Append(" --> ").Append(IdOf(child)).Append('\n');
+                    Emit(child);
+                }
+            }
+
+            Emit(Root);
+
+            var said = new StringBuilder($"---\nconfig:\n  nexaflow:\n    maxFanOut: {FanOut}\n");
+            Section(said, "collapsed", folded);
+            Section(said, "expanded", open);
+
+            return said.Append("---\n").Append(body).ToString();
+        }
+
+        private static void Section(StringBuilder said, string name, List<string> lines)
+        {
+            if (lines.Count == 0) return;
+
+            said.Append("    ").Append(name).Append(":\n");
+            foreach (var line in lines) said.Append("      ").Append(line).Append('\n');
+        }
+    }
+
+    /// <summary>The diagram one of those supplies the whole body of, as the PE inspector's dependency tab is.</summary>
+    private static MarkdownSurface Grown(out Walker walker)
+    {
+        var walking = new Walker();
+        walker = walking;
+
+        return Shown("graph LR\n{{Imports}}", host => host.DataSource = new ReflectionDataContext(new { Imports = walking }));
+    }
+
+    /// <summary>What a producer was told, in order, so a test that is wrong about it says what it got.</summary>
+    private static string Said(Walker walker) =>
+        string.Join(", ", walker.Told.Select(one => $"{one.Key} {(one.Open ? "opened" : "folded")}"));
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void AChipOnASuppliedDiagramTellsWhateverSuppliedIt() => UiThread.Run(() =>
+    {
+        var surface = Grown(out var walker);
+        Assert.IsFalse(Words(surface).Contains("deep.dll"), "what is behind the module has not been fetched yet");
+
+        Press(surface, Placed(surface, MermaidPiece.Chip).Single());
+
+                Assert.AreEqual("lib.dll opened", Said(walker),
+                                  "the producer is told the name it gave the module, never the diagram's own id");
+        Assert.IsTrue(Words(surface).Contains("deep.dll"), "and what it then supplied is drawn");
+    });
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void AndTheNodeOfferingWhatIsLeftOverOpensWithoutTellingAnybody() => UiThread.Run(() =>
+    {
+        var surface = Grown(out var walker);
+        Assert.IsFalse(Words(surface).Contains("fourth.dll"), "what is past the width it draws at is not drawn");
+
+        Press(surface, Placed(surface, MermaidPiece.More).Single());
+
+        Assert.IsTrue(Words(surface).Contains("fourth.dll"), "it opens out of what the diagram already holds");
+        Assert.AreEqual(0, walker.Told.Count,
+                        "nobody wrote that node, so no producer has a name for it and none is sent to fetch anything");
+    });
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void APressOnASuppliedNodeSaysTheNameItsProducerGaveIt() => UiThread.Run(() =>
+    {
+        var surface = Grown(out _);
+
+        ContentSelectionChange? told = null;
+        surface.Selected += (_, e) => told = e.Change;
+
+        Press(surface, Placed(surface, FlowchartPiece.Node).First(where => Says(surface, where, "lib.dll")));
+
+        Assert.AreEqual("lib.dll", told?.Picked.Single(pick => pick.Id is not null).Id,
+                        "what the page hears is the producer's own name for the node, which is what it can resolve");
     });
 }

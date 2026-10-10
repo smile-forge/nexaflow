@@ -32,6 +32,7 @@ public static class DependencyMermaid
         var styled    = new List<string>();
         var collapsed = new List<(string id, string module)>();
         var expanded  = new List<(string id, string module)>();
+        var named     = new List<(string id, string module)>();
         int counter   = 0;
 
         string IdOf(DependencyNode node)
@@ -57,6 +58,11 @@ public static class DependencyMermaid
             if (node.CanExpand)                                    collapsed.Add((id, node.Name));
             else if (node.IsExpanded && !ReferenceEquals(node, graph.Root)) expanded.Add((id, node.Name));
 
+            // Every node carries its name back whatever it does about folding, because a press on one is how the reader
+            // asks what it is — and the ids here are positional, so a press that could only hand one back would name
+            // nothing this feature knows. The root and the modules that can never be walked have only this.
+            named.Add((id, node.Name));
+
             if (node.Path is { Length: > 0 } path &&
                 node.Kind is DependencyKind.Resolved or DependencyKind.Cycle)
                 clicks.Add($"  click {id} href \"{Escape(path)}\" \"Inspect {Escape(node.Name)}\"");
@@ -76,7 +82,7 @@ public static class DependencyMermaid
         Emit(graph.Root);
 
         var builder = new StringBuilder();
-        AppendFrontMatter(builder, collapsed, expanded);
+        AppendFrontMatter(builder, collapsed, expanded, named);
         builder.Append(body);
 
         // classDef lines carry no colour: the renderer themes nodes, and a hard-coded fill here
@@ -95,7 +101,8 @@ public static class DependencyMermaid
     private static void AppendFrontMatter(
         StringBuilder builder,
         List<(string id, string module)> collapsed,
-        List<(string id, string module)> expanded)
+        List<(string id, string module)> expanded,
+        List<(string id, string module)> named)
     {
         builder.AppendLine("---");
         builder.AppendLine("config:");
@@ -103,6 +110,7 @@ public static class DependencyMermaid
         builder.AppendLine($"    maxFanOut: {MaxFanOut}");
         AppendSection(builder, "collapsed", collapsed);
         AppendSection(builder, "expanded",  expanded);
+        AppendSection(builder, "names",     named);
         builder.AppendLine("---");
     }
 

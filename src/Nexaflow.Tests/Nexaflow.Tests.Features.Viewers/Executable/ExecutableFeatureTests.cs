@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.Features.Common;
@@ -335,6 +336,45 @@ public sealed class ExecutableFeatureTests
         Assert.AreEqual("shut.dll", cfg.Collapsed["n2"], "an unopened one can be opened");
         Assert.AreEqual(DependencyMermaid.MaxFanOut, cfg.MaxFanOut, "how many of a module's imports are drawn at once");
     }
+
+    [TestMethod, TestCategory("Unit")]
+    public void Every_key_a_press_can_hand_back_names_a_module_the_tab_can_find()
+    {
+        // The junction between the two halves: the diagram numbers its nodes n0, n1, n2 — positional names that move
+        // the moment the graph grows — while the tab finds a module by the name the walk gave it. So every node drawn
+        // has to carry its name back, whether or not it is one that folds: an API set, a module the loader would not
+        // find and one already shown above are all nodes a reader clicks to find out what they are.
+        var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
+        var opened = new DependencyNode("lib.dll", DependencyKind.Resolved, @"C:\app\lib.dll") { Walked = true };
+        opened.Children.Add(new DependencyNode("shut.dll", DependencyKind.Resolved, @"C:\app\shut.dll"));
+        root.Children.Add(opened);
+        root.Children.Add(new DependencyNode("api-ms-win-core-synch-l1-2-0.dll", DependencyKind.ApiSet, null));
+        root.Children.Add(new DependencyNode("gone.dll", DependencyKind.Missing, null));
+
+        var source = DependencyMermaid.Build(new DependencyGraph(root, 5, false, 2));
+        var config = NexaflowConfig.Read(MermaidBlock.Read(source).Config);
+
+        foreach (var node in Flattened(root))
+        {
+            var id = Drawn(source, node.Name);
+
+            Assert.IsNotNull(id, $"'{node.Name}' is in the graph, so the diagram draws it");
+            Assert.AreEqual(node.Name, config.KeyFor(id),
+                            $"a press on '{node.Name}' hands back '{config.KeyFor(id)}', which names no module the tab can find");
+        }
+    }
+
+    /// <summary>
+    /// The id the diagram drew a module under, read back off its own source: the id, then the brackets that give the
+    /// node its shape, then the label, which opens with the module's name and may go on to say more about it.
+    /// </summary>
+    private static string? Drawn(string source, string module) =>
+        Regex.Match(source, @"^\s*(\w+)[\[({]{1,2}""" + Regex.Escape(module), RegexOptions.Multiline) is { Success: true } hit
+            ? hit.Groups[1].Value
+            : null;
+
+    private static IEnumerable<DependencyNode> Flattened(DependencyNode node) =>
+        [node, .. node.Children.SelectMany(Flattened)];
 
     [TestMethod, TestCategory("Unit")]
     public void Unresolvable_modules_get_no_link()

@@ -526,7 +526,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     {
         if (Folding.FoldOf(id) is not { } fold) return;
 
-        DiagramChip.Draw(build, DiagramChip.On(bounds), part, fold, id, label,
+        DiagramChip.Draw(build, DiagramChip.On(bounds), part, fold, KeyFor(id), label,
                          Worked(DiagramChip.Says(fold), part as ContentPart, DiagramChip.TextSize, Palette.Text),
                          Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1));
     }

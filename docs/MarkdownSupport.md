@@ -925,6 +925,8 @@ config:
     collapsed: [n3, n7]     # ids owning a folded subtree — or a keyed block, below
     expanded:
       n0: app.exe           # id → the producer's own name, echoed back on the expand request
+    names:
+      n2: shlwapi.dll       # id → the producer's own name, with nothing said about folding
 ---
 ```
 
@@ -948,6 +950,14 @@ nothing to fold and a leaf never grows a chip. The one exception is a node a `co
 producer saying it owns a subtree the source does not carry — the PE inspector's unwalked imports — and the chip on it
 is what offers to fetch them.
 
+**Every node a producer knows is named, folding or not.** An id in one of these blocks is positional: a producer that
+re-emits its graph with one more node in it renumbers every one of them, so what a press hands back is the name beside
+the id and never the id itself. `collapsed:` and `expanded:` carry that name for the nodes that fold; `names:` carries
+it for the rest — the one the whole graph hangs from, a name the loader resolves for itself, one it could not find, one
+already drawn further up. Those are nodes a reader presses to find out what they are, and declaring them `expanded:`
+instead would grow a `[−]` chip on any of them with children. A node nobody named is known by its id, which is all
+there is to call it.
+
 *Breadth* is the other problem: some nodes have hundreds of children, and all of them at once is a wall rather than a
 picture. `maxFanOut` draws the first of them and hangs one node off the parent offering the rest — `+7 more`
 ([`DiagramSpill`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs)). **That node is layout only**: nobody
@@ -960,9 +970,9 @@ orphan it, and neither is one something else visible also points at, since it is
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
 function and cannot close over a host's state;
 the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
-the routed `Selected` that anything picked out raises — with the node's id — and
-[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers `expand`/`collapse` for the diagram it
-was pressed in: the engine's view state for that diagram, and whatever its content is bound to
+the routed `Selected` that anything picked out raises — under the producer's own name for it — and
+[`ContentEngine.Folded`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs) answers `expand`/`collapse` for
+the diagram it was pressed in: the engine's view state for that diagram, and whatever its content is bound to
 ([bound content](#bound-content-a-diagrams-lines-or-the-whole-of-it)). A chip writes its opening down **before** bound
 content is told, because what that content supplies is read into the diagram again once it has walked (the PE inspector
 walks one module further) and an opening made here has to survive that; where nothing is bound, the diagram lays itself
