@@ -91,8 +91,13 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
             Focusable = false,
         };
 
-        // The document is told which part of it is on screen, so only what is near that is painted.
-        _scroller.ScrollChanged += (_, _) => Shows(_shown);
+        // The document is told which part of it is on screen, so only what is near that is painted, and the page
+        // above is told it moved.
+        _scroller.ScrollChanged += (_, _) =>
+        {
+            Shows(_shown);
+            Moved();
+        };
 
         _shown = Made(string.Empty);
 

@@ -4,8 +4,8 @@ using System.Windows;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// What happened to the content, said to the page it is on: what was written, what was picked out, that it was laid out, and
-/// a link out of it being followed.
+/// What happened to the content, said to the page it is on: what was written, what was picked out, that it was laid out, that
+/// the page moved under the reader, and a link out of it being followed.
 ///
 /// <para>
 /// <strong>Routed, so a page says what it wants once.</strong> Every one of them bubbles, and is attached in the page's XAML
@@ -70,6 +70,19 @@ public sealed partial class MarkdownSurface
     public bool Rereading => _engine.Rereading;
 
     /// <summary>
+    /// Raised when the page has moved under the reader — scrolled, or laid out taller or shorter than it was.
+    /// <see cref="ShownFrom"/> says where it now stands.
+    /// </summary>
+    public static readonly RoutedEvent PlaceChangedEvent = EventManager.RegisterRoutedEvent(
+        nameof(PlaceChanged), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+
+    public event RoutedEventHandler PlaceChanged
+    {
+        add => AddHandler(PlaceChangedEvent, value);
+        remove => RemoveHandler(PlaceChangedEvent, value);
+    }
+
+    /// <summary>
     /// Raised to follow a link out of the content. Handled where the page took it; unhandled leaves it to open as links do.
     /// A link into the content is never raised — it is answered by the content, which is the only thing that knows where it
     /// goes.
@@ -93,6 +106,9 @@ public sealed partial class MarkdownSurface
     /// </summary>
     private void Landed(object? sender, EventArgs args) =>
         Dispatcher.BeginInvoke(() => RaiseEvent(new RoutedEventArgs(RereadEvent, this)));
+
+    /// <summary>Says to the page that the document has moved under it.</summary>
+    private void Moved() => RaiseEvent(new RoutedEventArgs(PlaceChangedEvent, this));
 
     /// <summary>Says to the page what is picked out now.</summary>
     /// <inheritdoc/>

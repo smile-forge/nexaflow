@@ -611,6 +611,28 @@ public static class LayoutQuery
         return stops;
     }
 
+    /// <summary>
+    /// The first place in the document the page has not scrolled past: the earliest thing still drawn at or below
+    /// <paramref name="above"/>, wherever across the page it stands. -1 where nothing is drawn below that line.
+    ///
+    /// <para>
+    /// What a page answers when asked where it stands. The nearest thing to its top-left corner is not it: a
+    /// centred diagram node is as much on the top row as a paragraph's first word, and taking the nearest named
+    /// the paragraph above instead, a block too early.
+    /// </para>
+    /// </summary>
+    public static int StopBelow(this Piece root, double above)
+    {
+        foreach (var place in Index(root))
+        {
+            var where = place.Against.Bounds;
+
+            if (!where.IsEmpty && where.Bottom > above) return place.Offset;
+        }
+
+        return -1;
+    }
+
 
 
     /// <summary>
