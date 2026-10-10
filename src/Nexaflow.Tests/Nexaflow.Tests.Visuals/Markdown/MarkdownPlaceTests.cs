@@ -227,4 +227,24 @@ public class MarkdownPlaceTests
             Assert.IsTrue(editor.ShowsWhole(editor.BlockAt(after)), "and a sentence is not");
         });
     });
+
+    [TestMethod]
+    [CoversNode("markdown-surface")]
+    public void AndItNamesWhatComesAfterTheBlockAPlaceIsIn() => UiThread.Run(() =>
+    {
+        // Past the first line of a drawing's source the drawing is behind the reader, and nowhere in it answers to
+        // where they have got to — a line of mermaid is not a row of the picture. What both showings of the document
+        // can still mean is the block after it.
+        var doc = Drawn(out var fence, out var after);
+
+        MarkdownEditorHarness.Run(doc, editor =>
+        {
+            var inside = fence + "```mermaid".Length;
+
+            Assert.AreEqual(fence, editor.BlockAt(inside).Start, "a line down the fence is still the fence");
+            Assert.AreEqual(after, editor.BlockAfter(inside).Start, "and what follows it is the paragraph below");
+
+            Assert.AreEqual(0, editor.BlockAfter(doc.Length - 1).Length, "nothing follows the last block");
+        });
+    });
 }

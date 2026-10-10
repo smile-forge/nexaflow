@@ -185,6 +185,27 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
+    /// The block after the one holding <paramref name="offset"/>, or null where none follows it. What a second
+    /// showing of the document means when this one is partway through a block whose insides it cannot answer for.
+    /// </summary>
+    internal ContentPart? BlockedAfter(int offset)
+    {
+        if (_named is not null) return null;
+
+        var passed = false;
+
+        foreach (var block in ReadRoot.Children)
+        {
+            if (block.Derived || block.Role == Roles.Trivia) continue;
+            if (passed) return block;
+
+            passed = offset >= block.Start && offset < block.End;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Where a block came out: the whole of what it drew, from its top to its bottom and across as much of the page as it
     /// reaches — which is what a picture of the block is, and so is the block's own width and not the page's.
     ///

@@ -269,6 +269,13 @@ public sealed partial class MarkdownSurface
 
         return !where.IsEmpty && where.Height * _shown.Zoom <= _scroller.ViewportHeight;
     }
+
+    /// <summary>
+    /// The stretch of source the block after the one holding <paramref name="offset"/> was written as, or nothing
+    /// where none follows it. See <see cref="ShowsWhole"/> for when a page wants it rather than the block itself.
+    /// </summary>
+    public (int Start, int Length) BlockAfter(int offset) =>
+        _engine.BlockedAfter(offset) is { } block ? (block.Start, block.Length) : default;
 }
 
 /// <summary>

@@ -222,14 +222,24 @@ public partial class MarkdownView : UserControl, IPageView
             if (at < 0) return;
 
             var block = Editor.BlockAt(at);
-            var moved = fromSource ? SourceShowsWhole(block) : Editor.ShowsWhole(block);
-            var following = fromSource ? Editor.ShowsWhole(block) : SourceShowsWhole(block);
+            var mine = fromSource ? SourceShowsWhole(block) : Editor.ShowsWhole(block);
+            var theirs = fromSource ? Editor.ShowsWhole(block) : SourceShowsWhole(block);
 
-            // Lines carry across while both halves show the block as lines. Where the half that moved cannot show
-            // the whole of its own drawing of the block and the other can, they do not: a diagram drawn a page and
-            // a half tall was written in ten lines, and what the reader wants beside it is those ten lines, however
-            // far into the picture they have read. So the other half is given the block rather than the line.
-            if (!moved && following) at = block.Start;
+            // Lines carry across while both halves show the block as lines. Where one of them draws it far bigger
+            // than the other writes it — a diagram a page and a half tall from ten lines of source — no place
+            // inside it answers to a place inside the other, and only its edges mean anything to both.
+            if (!mine && theirs)
+            {
+                // What the reader wants beside a drawing they are partway down is the whole of the short source it
+                // was made from, however far into it they have read.
+                at = block.Start;
+            }
+            else if (mine && !theirs && at > block.Start)
+            {
+                // And the other way about: past the first line of that source, the drawing it makes is behind the
+                // reader, so what both halves can still mean is the block after it.
+                if (Editor.BlockAfter(at) is { Length: > 0 } next) at = next.Start;
+            }
 
             if (fromSource) Editor.ShowFrom(at);
             else            ShowSourceFrom(at);
