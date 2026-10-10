@@ -111,8 +111,8 @@ public class DiagramInAViewportTests
         Assert.IsNotNull(picture, "the whole document, painted small — a graph is known by its shape");
         Assert.IsTrue(picture.Width <= 169 && picture.Height <= 113,
                       $"no bigger than it was asked for: {picture.Width} x {picture.Height}");
-        Assert.AreEqual(laid.Width / laid.Height, picture.Width / picture.Height, 0.05,
-                        "and the same shape as the graph it is a picture of");
+        Assert.AreEqual(picture.Width * laid.Height / laid.Width, picture.Height, 1.0,
+                        $"and the same shape as the graph it is a picture of: {picture.Width} x {picture.Height}");
     });
 
     [TestMethod]
