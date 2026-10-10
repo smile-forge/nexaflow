@@ -50,6 +50,12 @@ public class LaidBlocksTests
 
             foreach (var edited in edits)
             {
+                // Both sides have to be laid from the same reading of these characters. What a slower reading comes to is
+                // kept for every engine by the language, the stage and the characters, so letting it land once here on an
+                // engine of its own means both lays below find it kept and neither waits on anything — while the one being
+                // laid again keeps the blocks whose reuse is the point of the test.
+                Settled(new ContentEngine(), edited, style);
+
                 var again = content.Lay(null, EditState.For(edited), StyleFormat.Dark, Room, false);
                 var fresh = new ContentEngine().Lay(null, EditState.For(edited), style, Room, false);
 
@@ -59,17 +65,22 @@ public class LaidBlocksTests
     }
 
     /// <summary>
-    /// <paramref name="engine"/> having laid <paramref name="text"/>, with any slower reading of it landed and whatever
-    /// was laid without it forgotten — which is what a host does when one lands (<c>ContentElement.OnReread</c> calls
-    /// <c>Refresh</c>, and refreshing is forgetting and laying again).
+    /// <paramref name="engine"/> having laid <paramref name="text"/>, with every slower reading of it landed and
+    /// whatever was laid without them forgotten — which is what a host does when one lands (<c>ContentElement.OnReread</c>
+    /// calls <c>Refresh</c>, and refreshing is forgetting and laying again).
     ///
     /// <para>
     /// Code is read twice: as written at once, and by its grammar a moment later, away from the thread that draws. A
     /// layout kept from before the second reading landed is not the layout the same characters make afresh once it has,
-    /// and neither of them is wrong — so comparing the two means letting the reading land first.
+    /// and neither of them is wrong — so comparing the two means letting every reading land first.
+    /// </para>
+    /// <para>
+    /// Waits on <see cref="ContentEngine.Rereading"/> rather than on the <c>Reread</c> event, because the event says one
+    /// reading landed and not whether more are coming: a document fencing several grammars is read several times over,
+    /// and waiting for the first of them settles only part of it.
     /// </para>
     /// </summary>
-    private static void Settled(ContentEngine engine, string text, StyleFormat style)
+    private static Laid Settled(ContentEngine engine, string text, StyleFormat style)
     {
         using var landed = new ManualResetEventSlim();
 
@@ -79,13 +90,18 @@ public class LaidBlocksTests
 
         try
         {
-            engine.Lay(null, EditState.For(text), style, Room, false);
+            var laid = engine.Lay(null, EditState.For(text), style, Room, false);
 
-            // Only a document with something slower to read has anything to wait for, so only one waits.
-            if (!Slowly(text) || !landed.Wait(TimeSpan.FromSeconds(10))) return;
+            for (var settling = 0; settling < Readings && (engine.Rereading || landed.IsSet); settling++)
+            {
+                if (engine.Rereading) landed.Wait(Patience);
 
-            engine.Forget();
-            engine.Lay(null, EditState.For(text), style, Room, false);
+                landed.Reset();
+                engine.Forget();
+                laid = engine.Lay(null, EditState.For(text), style, Room, false);
+            }
+
+            return laid;
         }
         finally
         {
@@ -93,10 +109,29 @@ public class LaidBlocksTests
         }
     }
 
-    /// <summary>Whether a document fences code in a grammar, which is the one thing here that is read a second time.</summary>
-    private static bool Slowly(string text) =>
-        text.Split('\n').Any(line => line.StartsWith("```", StringComparison.Ordinal)
-                                     && CodeGrammars.For(line[3..].Trim()) is not null);
+    /// <summary>How many times a document is laid again while its slower readings land, before waiting is given up on.</summary>
+    private const int Readings = 8;
+
+    /// <summary>How long one slower reading is waited for.</summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+    [TestMethod]
+    public void ADocumentSaysWhenEverySlowerReadingOfItHasLanded()
+    {
+        // The sample that fences the most languages at once, so it is read a second time more than once over.
+        var path = TestSampleData.Files("markdown").First(file => Path.GetFileName(file) == "mixed-content.md");
+        var text = File.ReadAllText(path);
+
+        var engine = new ContentEngine();
+        var settled = Settled(engine, text, StyleFormat.Dark);
+
+        Assert.IsFalse(engine.Rereading, "nothing of it is still being read a second time");
+
+        // And nothing left to land is what makes the two sides of the test above comparable at all: the same
+        // characters laid afresh now find every reading kept, so they come out piece for piece the same.
+        Same(settled, new ContentEngine().Lay(null, EditState.For(text), StyleFormat.Dark, Room, false),
+             "mixed-content.md");
+    }
 
     [TestMethod]
     public void ABlockThatReadsAsItDidKeepsItsPicture()
