@@ -66,7 +66,7 @@ public class ContentElement : FrameworkElement
 
         _engine.Show(language, palette);
         _engine.Start(source ?? string.Empty);
-        _engine.Actions = actions;
+        _engine.Answers(actions);
 
         _engine.Changed += OnChanged;
         _engine.PreRender += OnLaid;
@@ -403,13 +403,19 @@ public class ContentElement : FrameworkElement
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement) => BeginPointerSelect(pointInElement, ModifierKeys.None);
 
-    /// <summary>A press at a point on this content, held with <paramref name="modifiers"/> — taken by the engine as what it means there.</summary>
-    public void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
+    /// <summary>
+    /// A press at a point on this content, held with <paramref name="modifiers"/> — taken by the engine as what it means
+    /// there. True where the content took it; false where the press landed on nothing of it, which whatever shows the
+    /// content may want for itself.
+    /// </summary>
+    public bool BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
     {
         _pressedAt = pointInElement;
-        _pressing = true;
 
-        _engine.Input(new ContentPress(Unscaled(pointInElement), 1, modifiers));
+        if (!_engine.Input(new ContentPress(Unscaled(pointInElement), 1, modifiers))) return false;
+
+        _pressing = true;
+        return true;
     }
 
     /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
@@ -538,6 +544,12 @@ public class ContentElement : FrameworkElement
     /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
     protected LayoutAct? Offered(Point at, LayoutGesture gesture) => _engine.Offered(at, gesture);
 
+    /// <summary>Whether the host answered the gesture, which is the end of it.</summary>
+    protected bool Answered(LayoutAct act) => _engine.Answered(act);
+
+    /// <summary>What the host offers where a gesture landed, beside what the content itself offers.</summary>
+    protected IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _engine.Hosted(act);
+
     /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
     protected IReadOnlyList<LayoutIntent> Asked(Point at) => _engine.Asked(at);
 
@@ -551,8 +563,25 @@ public class ContentElement : FrameworkElement
         Tip(null);
         if (e.ClickCount == 2) { PointerDoubleClick(e.GetPosition(this)); return; }
 
-        BeginPointerSelect(e.GetPosition(this));
+        // Claimed only where the content took the press, so a press it made nothing of is left unhandled and uncaptured
+        // for whatever shows the content — which is how a viewport knows it may pan from there. Capturing regardless and
+        // then losing it to the host is what left the drag going with no button-up ever coming to end it.
+        if (!BeginPointerSelect(e.GetPosition(this), ModifierKeys.None)) return;
+
         CaptureMouse();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The capture taken away, by a host that has decided the gesture is its own after all. The press is over as far as
+    /// this content goes: the button-up will be delivered to whoever holds the capture, so without this the drag would
+    /// run on and every later move would extend a selection nobody started.
+    /// </summary>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+
+        if (_pressing) EndPointerSelect();
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -691,9 +720,14 @@ public class ContentElement : FrameworkElement
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
         if (state.HasSelection) dc.DrawGeometry(_wash, null, laid.Root.Wash(state.Selection, WashPad));
 
-        // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece.
+        // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece —
+        // over the shape it stands in where it has one, as a range of source is (see RangeRegions). A box is right
+        // for a box, and wrong for an arrow: the box round a diagonal one is mostly not the arrow.
         foreach (var picked in _engine.PickedWhole)
-            if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink, WashPad, WashPad));
+        {
+            if (picked.OnPage() is { } standing) dc.DrawGeometry(_wash, null, standing);
+            else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink, WashPad, WashPad));
+        }
 
         Waves(dc, laid);
 

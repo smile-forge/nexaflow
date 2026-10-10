@@ -127,4 +127,32 @@ public class LayoutRegionTests
         Assert.IsTrue(wash.FillContains(new Point(280, 120)), "washed where it landed");
         Assert.IsFalse(wash.FillContains(new Point(80, 80)), "not where it was built");
     }
+
+    [TestMethod]
+    public void TheShapeAPieceStandsInIsAnsweredWhereItSitsOnThePage()
+    {
+        // What a wash is drawn over, and the reason it is not the box: the corner of the lower wedge's box is in the
+        // upper wedge, so washing the box would paint over a piece the reader did not pick.
+        var wedges = Wedges().Root.Children.ToList();
+
+        Assert.IsNull(wedges[0].Parent.OnPage(), "a piece that stands in its box answers with no shape at all");
+
+        foreach (var wedge in wedges)
+        {
+            var standing = wedge.OnPage();
+
+            Assert.IsNotNull(standing, "a wedge stands in its own shape");
+            Assert.IsTrue(standing.FillContains(Middle(wedge.Region!.Bounds, wedge.Anchor)),
+                          "answered where the piece sits, not in the shape's own frame");
+            Assert.IsTrue(standing.Bounds.Width <= wedge.Bounds.Width + 1 && standing.Bounds.Height <= wedge.Bounds.Height + 1,
+                          "and never wider than the box it was cut from");
+        }
+
+        Assert.IsFalse(wedges[1].OnPage()!.FillContains(new Point(20, 20)),
+                       "the corner of the lower wedge's box is no part of the lower wedge");
+    }
+
+    /// <summary>The middle of a shape's own bounds, said where the piece carrying it sits.</summary>
+    private static Point Middle(Rect bounds, Vector anchor) =>
+        new(bounds.X + (bounds.Width / 2) + anchor.X, bounds.Y + (bounds.Height / 2) + anchor.Y);
 }

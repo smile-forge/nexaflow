@@ -4,8 +4,8 @@ using System.Windows;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// What happened to the content, said to the page it is on: what was written, what was picked out, that it was laid out, and
-/// a link out of it being followed.
+/// What happened to the content, said to the page it is on: what was written, what was picked out, that it was laid out, that
+/// the page moved under the reader, and a link out of it being followed.
 ///
 /// <para>
 /// <strong>Routed, so a page says what it wants once.</strong> Every one of them bubbles, and is attached in the page's XAML
@@ -36,6 +36,25 @@ public sealed partial class MarkdownSurface
     {
         add => AddHandler(SelectedEvent, value);
         remove => RemoveHandler(SelectedEvent, value);
+    }
+
+    /// <summary>
+    /// Raised when two presses land on the content, carrying what they landed on exactly as <see cref="Selected"/>
+    /// carries what one press picked out. Handled where the page took them.
+    ///
+    /// <para>
+    /// Two presses are a thing that happened, and what they come to is the page's: one press on a module of an import
+    /// tree picks it out and two open it in a tab of its own. A link is a different thing and goes on being one
+    /// (<see cref="LinkNavigate"/>) — one press follows a link, here as in a help page.
+    /// </para>
+    /// </summary>
+    public static readonly RoutedEvent DoubleClickedEvent = EventManager.RegisterRoutedEvent(
+        nameof(DoubleClicked), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentSelectedEventArgs> DoubleClicked
+    {
+        add => AddHandler(DoubleClickedEvent, value);
+        remove => RemoveHandler(DoubleClickedEvent, value);
     }
 
     /// <summary>Raised once the content has been laid out, before it is shown — for a page reading what was laid.</summary>
@@ -70,6 +89,19 @@ public sealed partial class MarkdownSurface
     public bool Rereading => _engine.Rereading;
 
     /// <summary>
+    /// Raised when the page has moved under the reader — scrolled, or laid out taller or shorter than it was.
+    /// <see cref="ShownFrom"/> says where it now stands.
+    /// </summary>
+    public static readonly RoutedEvent PlaceChangedEvent = EventManager.RegisterRoutedEvent(
+        nameof(PlaceChanged), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+
+    public event RoutedEventHandler PlaceChanged
+    {
+        add => AddHandler(PlaceChangedEvent, value);
+        remove => RemoveHandler(PlaceChangedEvent, value);
+    }
+
+    /// <summary>
     /// Raised to follow a link out of the content. Handled where the page took it; unhandled leaves it to open as links do.
     /// A link into the content is never raised — it is answered by the content, which is the only thing that knows where it
     /// goes.
@@ -94,10 +126,21 @@ public sealed partial class MarkdownSurface
     private void Landed(object? sender, EventArgs args) =>
         Dispatcher.BeginInvoke(() => RaiseEvent(new RoutedEventArgs(RereadEvent, this)));
 
+    /// <summary>Says to the page that the document has moved under it.</summary>
+    private void Moved() => RaiseEvent(new RoutedEventArgs(PlaceChangedEvent, this));
+
     /// <summary>Says to the page what is picked out now.</summary>
     /// <inheritdoc/>
     void IContentEvents.OnSelect(ContentSelectionChange change) =>
         RaiseEvent(new ContentSelectedEventArgs(SelectedEvent, change) { Source = this });
+
+    bool IContentEvents.OnDoubleClick(ContentSelectionChange change)
+    {
+        var asked = new ContentSelectedEventArgs(DoubleClickedEvent, change) { Source = this };
+        RaiseEvent(asked);
+
+        return asked.Handled;
+    }
 
     /// <summary>A link out of the content, offered to the page. True where it took it.</summary>
     private bool OpenLink(string url)

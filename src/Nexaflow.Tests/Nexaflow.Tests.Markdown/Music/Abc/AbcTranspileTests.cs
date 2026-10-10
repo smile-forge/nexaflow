@@ -18,7 +18,7 @@ namespace Nexaflow.Tests.Markdown.Music.Abc;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("music-abc")]
+[CoversNode("abc-editing")]
 public class AbcTranspileTests
 {
     private const string Tune = "X:1\nT:Reel\nM:4/4\nK:C\n\"^up\" C D !trill! E F |\n";

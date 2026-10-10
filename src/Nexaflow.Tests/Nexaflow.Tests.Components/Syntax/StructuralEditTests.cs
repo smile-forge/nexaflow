@@ -663,7 +663,7 @@ public class StructuralEditTests
     /// spanning two lines used to fail — and the refusal said "not in the part of this declaration the edit
     /// covers" about a file. It looked like a XAML problem because the views were where it was tried.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("Value=\"10,5\"/>\n<Setter Property=\"Margin\"",             "flush-left, beginning and ending part-way along a line")]
     [DataRow("Value=\"10,5\"/>\n            <Setter Property=\"Margin\"", "exactly as the file has it, but with LF breaks")]
     public void Substitute_MultiLineLfFind_MatchesACrlfFile(string find, string shape)
@@ -749,7 +749,7 @@ public class StructuralEditTests
     /// lines after it. Placing the replacement at that line's depth moved an attribute aligned under the first
     /// one back to the element's own indentation.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("Background=\"Red\"\nPadding=\"4\">", "Background=\"Blue\"\nPadding=\"4\"\nMargin=\"2\">", "flush-left")]
     [DataRow("Background=\"Red\"\n        Padding=\"4\">", "Background=\"Blue\"\n        Padding=\"4\"\n        Margin=\"2\">", "as copied")]
     public void Substitute_MidLineFragment_KeepsAlignedContinuations(string find, string replace, string written)
@@ -1194,7 +1194,7 @@ public class StructuralEditTests
     /// changed in the next diff. Asserting on the *counts* rather than on a sample line is what makes it a
     /// test — one stray CR is exactly what a spot check misses.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("\n",   "\n")]
     [DataRow("\n",   "\r\n")]
     [DataRow("\r\n", "\n")]

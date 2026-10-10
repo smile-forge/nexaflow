@@ -19,7 +19,7 @@ public static class UiThread
             try { action(); }
             catch (Exception ex) { caught = ex; }
         });
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        if (OperatingSystem.IsWindows()) thread.SetApartmentState(System.Threading.ApartmentState.STA);
         thread.Start();
         thread.Join();
         // Rethrow with the STA thread's own stack intact — a bare `throw caught` resets it to this
@@ -70,7 +70,7 @@ public static class UiThread
                 }
             });
 
-            threads[i].SetApartmentState(System.Threading.ApartmentState.STA);
+            if (OperatingSystem.IsWindows()) threads[i].SetApartmentState(System.Threading.ApartmentState.STA);
             threads[i].Start();
         }
 

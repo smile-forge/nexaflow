@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using System.Windows.Threading;
 
 using Nexaflow.Features.Common.Search;
@@ -194,6 +195,87 @@ public sealed partial class MarkdownSurface
             start = found + blocks[at].Length;
         }
     }
+
+    /// <summary>
+    /// Where the page stands: the character of the source that the first thing it has not scrolled past was drawn
+    /// from, or -1 before there is a laid-out page to be anywhere in. A page showing one document twice keeps its
+    /// halves together by this, since a place in the source is the one thing both of them can say.
+    /// </summary>
+    public int ShownFrom
+    {
+        get
+        {
+            if (_scroller.ViewportHeight <= 0) return -1;
+
+            var top = _scroller.TranslatePoint(new Point(0, 0), _shown).Y;
+
+            return _shown.Laid.Root.StopBelow(top / _shown.Zoom);
+        }
+    }
+
+    /// <summary>
+    /// Puts the character at <paramref name="offset"/> at the top of the page, which is what <see cref="ShownFrom"/>
+    /// then reads back.
+    ///
+    /// <para>
+    /// Not the same as going to something that was found. That brings a place onto the page and leaves the page
+    /// where it is when the place is already on it, which is right for a search and wrong here: what matters is
+    /// where the page stands, not whether the character can be seen from it.
+    /// </para>
+    /// </summary>
+    public bool ShowFrom(int offset)
+    {
+        if (offset < 0 || _scroller.ViewportHeight <= 0) return false;
+
+        var root = _shown.Laid.Root;
+
+        // Where the page can stand from that character on. The character itself is often one the page draws
+        // nothing for — a heading's hashes, the line a fence opens with — and a caret put there stands at the end
+        // of whatever came before it, which is a line or a whole paragraph too early.
+        var drawn = root.CaretStops().FirstOrDefault(stop => stop >= offset, -1);
+        if (drawn < 0) return false;
+
+        var at = root.CaretRect(drawn);
+        if (at.IsEmpty) return false;
+
+        // How far below the top of the page it stands now, which is how much further down the document to stand.
+        var below = _shown.TranslatePoint(new Point(0, at.Y * _shown.Zoom), _scroller).Y;
+
+        _scroller.ScrollToVerticalOffset(_scroller.VerticalOffset + below);
+
+        return true;
+    }
+
+    /// <summary>
+    /// The stretch of source the block holding <paramref name="offset"/> was written as, or nothing where no block
+    /// holds it. Two showings of a document agree about blocks whatever else they disagree about, so it is what a
+    /// page holding both of them pairs them by.
+    /// </summary>
+    public (int Start, int Length) BlockAt(int offset) =>
+        _engine.Blocked(offset) is { } block ? (block.Start, block.Length) : default;
+
+    /// <summary>
+    /// Whether the whole of this page's drawing of <paramref name="block"/> stands on the page at once. False for a
+    /// diagram drawn taller than the page: no one line of such a drawing answers to a line of its source, so a
+    /// second showing of the document does better to hold the whole of that source beside it than to follow a line
+    /// into it.
+    /// </summary>
+    public bool ShowsWhole((int Start, int Length) block)
+    {
+        if (block.Length <= 0 || _scroller.ViewportHeight <= 0) return false;
+        if (_engine.Blocked(block.Start) is not { } part) return false;
+
+        var where = _engine.Where(part);
+
+        return !where.IsEmpty && where.Height * _shown.Zoom <= _scroller.ViewportHeight;
+    }
+
+    /// <summary>
+    /// The stretch of source the block after the one holding <paramref name="offset"/> was written as, or nothing
+    /// where none follows it. See <see cref="ShowsWhole"/> for when a page wants it rather than the block itself.
+    /// </summary>
+    public (int Start, int Length) BlockAfter(int offset) =>
+        _engine.BlockedAfter(offset) is { } block ? (block.Start, block.Length) : default;
 }
 
 /// <summary>

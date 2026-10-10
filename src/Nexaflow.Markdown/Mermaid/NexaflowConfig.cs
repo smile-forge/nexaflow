@@ -23,6 +23,8 @@ namespace Nexaflow.Markdown.Mermaid;
 ///       n3: KERNEL32.dll
 ///     expanded:               # ids already open
 ///       n0: app.exe
+///     names:                  # ids the producer knows a name for and has no folding to declare
+///       n2: api-ms-win-core-synch-l1-2-0.dll
 /// ---
 /// </code>
 /// </summary>
@@ -42,18 +44,30 @@ namespace Nexaflow.Markdown.Mermaid;
 
 /// <param name="Collapsed">Ids that own a folded subtree: id → the producer's own name for it.</param>
 /// <param name="Expanded">Ids already open: id → the producer's own name for it.</param>
+/// <param name="Names">
+/// Ids named and nothing more: id → the producer's own name for it, saying nothing about whether it folds.
+///
+/// <para>
+/// What a producer uses for the nodes it has no folding to declare — the one the whole graph hangs from, a name the
+/// loader resolves for itself, one it could not find, one already drawn further up. A reader presses those to find out
+/// what they are, and without a name here the press could only hand back the positional id, which names nothing the
+/// producer knows. Declaring them open instead would be a lie, and would grow a chip on anything with children.
+/// </para>
+/// </param>
 public sealed record NexaflowConfig(
     int? DefaultExpansion,
     int MaxFanOut,
     IReadOnlyDictionary<string, string> Collapsed,
-    IReadOnlyDictionary<string, string> Expanded)
+    IReadOnlyDictionary<string, string> Expanded,
+    IReadOnlyDictionary<string, string> Names)
 {
     /// <summary>The section it is written under.</summary>
     private const string Name = "nexaflow";
 
     /// <summary>What is written where nothing asks for any of this, which is nearly every diagram there is.</summary>
     public static NexaflowConfig None { get; } =
-        new(null, 0, new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string>(StringComparer.Ordinal));
+        new(null, 0, new Dictionary<string, string>(StringComparer.Ordinal),
+            new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string>(StringComparer.Ordinal));
 
     /// <summary>What a block's front matter says, or <see cref="None"/>.</summary>
     public static NexaflowConfig Read(string? yaml) => Of(MermaidConfig.Read(yaml));
@@ -68,24 +82,31 @@ public sealed record NexaflowConfig(
         var fan = Levels(said, "maxFanOut") ?? 0;
         var collapsed = Named(said, "collapsed");
         var expanded = Named(said, "expanded");
+        var names = Named(said, "names");
 
-        return depth is null && fan <= 0 && collapsed.Count == 0 && expanded.Count == 0
+        return depth is null && fan <= 0 && collapsed.Count == 0 && expanded.Count == 0 && names.Count == 0
             ? None
-            : new NexaflowConfig(depth, fan, collapsed, expanded);
+            : new NexaflowConfig(depth, fan, collapsed, expanded, names);
     }
 
-    /// <summary>True where nothing here asks for folding, so the diagram draws exactly as it would without it.</summary>
+    /// <summary>
+    /// True where nothing here asks for folding, so the diagram draws exactly as it would without it. A config that
+    /// only names its nodes is one of those: naming them says what a press on one comes to, not what is drawn.
+    /// </summary>
     public bool IsEmpty => DefaultExpansion is null && MaxFanOut <= 0 && Collapsed.Count == 0 && Expanded.Count == 0;
 
+    /// <summary>True where it says nothing at all — neither how the diagram folds, nor what anything in it is called.</summary>
+    public bool SaysNothing => IsEmpty && Names.Count == 0;
+
     /// <summary>
-    /// This and <paramref name="more"/> together: every node either says is folded away or opened, and the first of the two to
-    /// say how deep a diagram opens and how many children it draws at once.
+    /// This and <paramref name="more"/> together: every node either says is folded away, opened or merely named, and the first of
+    /// the two to say how deep a diagram opens and how many children it draws at once.
     /// </summary>
     public NexaflowConfig And(NexaflowConfig more) =>
-        more.IsEmpty ? this
-        : IsEmpty ? more
-        : new NexaflowConfig(DefaultExpansion ?? more.DefaultExpansion, MaxFanOut > 0 ? MaxFanOut : more.MaxFanOut,
-                             Merged(Collapsed, more.Collapsed), Merged(Expanded, more.Expanded));
+        more.SaysNothing ? this
+      : SaysNothing ? more
+      : new NexaflowConfig(DefaultExpansion ?? more.DefaultExpansion, MaxFanOut > 0 ? MaxFanOut : more.MaxFanOut,
+                           Merged(Collapsed, more.Collapsed), Merged(Expanded, more.Expanded), Merged(Names, more.Names));
 
     private static IReadOnlyDictionary<string, string> Merged(IReadOnlyDictionary<string, string> first, IReadOnlyDictionary<string, string> then)
     {
@@ -126,6 +147,7 @@ public sealed record NexaflowConfig(
         MoreOf(id) is { } offers ? More + KeyFor(offers)
       : Collapsed.TryGetValue(id, out var folded) && folded.Length > 0 ? folded
       : Expanded.TryGetValue(id, out var open) && open.Length > 0 ? open
+      : Names.TryGetValue(id, out var named) && named.Length > 0 ? named
       : id;
 
     /// <summary>A whole number of levels, where the key says one that is not negative.</summary>
@@ -134,7 +156,8 @@ public sealed record NexaflowConfig(
 
     /// <summary>
     /// The ids under a key, each with the producer's name for it: <c>n3: KERNEL32.dll</c> names one, and a plain list
-    /// (<c>- n3</c>, or <c>[n1, n2]</c>) names each id after itself.
+    /// (<c>- n3</c>, or <c>[n1, n2]</c>) names each id after itself — which is as good as naming none of them, since an
+    /// id is what a press falls back to anyway.
     /// </summary>
     private static IReadOnlyDictionary<string, string> Named(MermaidConfig said, string key)
     {

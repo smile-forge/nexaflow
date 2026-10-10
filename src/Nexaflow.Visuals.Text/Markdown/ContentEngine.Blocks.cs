@@ -185,6 +185,27 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
+    /// The block after the one holding <paramref name="offset"/>, or null where none follows it. What a second
+    /// showing of the document means when this one is partway through a block whose insides it cannot answer for.
+    /// </summary>
+    internal ContentPart? BlockedAfter(int offset)
+    {
+        if (_named is not null) return null;
+
+        var passed = false;
+
+        foreach (var block in ReadRoot.Children)
+        {
+            if (block.Derived || block.Role == Roles.Trivia) continue;
+            if (passed) return block;
+
+            passed = offset >= block.Start && offset < block.End;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Where a block came out: the whole of what it drew, from its top to its bottom and across as much of the page as it
     /// reaches — which is what a picture of the block is, and so is the block's own width and not the page's.
     ///
@@ -440,7 +461,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private bool Acted(LayoutAct act) => act.Intent.Verb switch
     {
-    LayoutVerbs.Navigate => Followed(act),
+        LayoutVerbs.Navigate => Followed(act),
 
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
             this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
@@ -448,13 +469,53 @@ public sealed partial class ContentEngine
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
             this.Events?.OnCopy(CopyOf(block)) == true,
 
-    LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+        LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+
+        // A chip pressed on a diagram, or the node offering what is left of an over-wide set of its children.
+        LayoutVerbs.Expand   => Folded(act, open: true),
+        LayoutVerbs.Collapse => Folded(act, open: false),
 
         // Whatever the language offering it makes of it, which for a paste is to ask for the engine's own.
         LayoutVerbs.Paste => Choose(LayoutVerbs.Paste, act.At),
 
         _ => false,
     };
+
+    /// <summary>
+    /// Shows what is folded behind the node the press names, or folds it away again. True wherever the press landed on
+    /// a block of content, so a chip is answered here and never goes further.
+    ///
+    /// <para>
+    /// <strong>The opening is written down before anything is told of it.</strong> Whatever supplied the diagram
+    /// answers by handing back a larger graph, which is read into the block again; an opening recorded after that would
+    /// be recorded against a reading already thrown away, and the node would spring shut as it opened.
+    /// </para>
+    /// <para>
+    /// Where nothing supplied it, the diagram opens the node out of its own source — which is what makes an ordinary
+    /// flowchart with a <c>defaultExpansion</c> explorable with no host behind it at all. Only that block is read
+    /// again; every other block on the page stands as it was laid.
+    /// </para>
+    /// </summary>
+    private bool Folded(LayoutAct act, bool open)
+    {
+        if (act.Intent.Target is not { Length: > 0 } key) return false;
+        if (Blocked(act.At) is not { } block || Opened(block) is not { } view) return false;
+
+        view.Expansion[key] = open;
+
+        // A diagram written in a fence is a tree of its own, and the block holding it holds only the characters it was
+        // written as — so whatever supplied the diagram is reached from the piece pressed upwards, never from the block
+        // the press landed in. A node the drawing invented stands for no part at all, and nothing supplied that either.
+        var diagram = act.Part as ContentPart;
+        while (diagram?.Parent is { } holder) diagram = holder;
+
+        if (diagram is not null && Expand(diagram, key, open)) return true;
+
+        _unchanged.Forget(held => ReferenceEquals(held, block.Node));
+        Relay();
+
+        return true;
+    }
 
     /// <summary>
     /// A press on something that leads somewhere: the language it was written in has first say, and failing that whoever hosts the

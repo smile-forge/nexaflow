@@ -28,10 +28,11 @@ public static class DependencyMermaid
     {
         var body      = new StringBuilder();
         var ids       = new Dictionary<DependencyNode, string>();
-        var clicks    = new List<string>();
+        
         var styled    = new List<string>();
         var collapsed = new List<(string id, string module)>();
         var expanded  = new List<(string id, string module)>();
+        var named     = new List<(string id, string module)>();
         int counter   = 0;
 
         string IdOf(DependencyNode node)
@@ -47,8 +48,11 @@ public static class DependencyMermaid
             string id = IdOf(node);
             body.AppendLine($"  {id}{Shape(node)}");
 
-            // The two actions are now two hit regions, so a node no longer has to choose: an opened
-            // module still opens as its own tab, and its chip closes it again.
+            // A node says what it is and nothing about what pressing it does. It is not a link: one press on it
+            // picks it out and fills the detail pane, and two open the module in its own tab, which the page
+            // decides and the page does. Written as a click line it was a hyperlink, and one press opened a tab.
+            //
+            // The chip is the node's second hit region, so a node never has to choose between the two.
             //
             // The root is the exception, and gets no chip at all: the walk always opens the binary
             // you are inspecting, so there is no state in which it is closed. Offering to close it
@@ -57,9 +61,12 @@ public static class DependencyMermaid
             if (node.CanExpand)                                    collapsed.Add((id, node.Name));
             else if (node.IsExpanded && !ReferenceEquals(node, graph.Root)) expanded.Add((id, node.Name));
 
-            if (node.Path is { Length: > 0 } path &&
-                node.Kind is DependencyKind.Resolved or DependencyKind.Cycle)
-                clicks.Add($"  click {id} href \"{Escape(path)}\" \"Inspect {Escape(node.Name)}\"");
+            // Every node carries its name back whatever it does about folding, because a press on one is how the reader
+            // asks what it is — and the ids here are positional, so a press that could only hand one back would name
+            // nothing this feature knows. The root and the modules that can never be walked have only this.
+            named.Add((id, node.Name));
+
+
 
             if (StyleClass(node) is { } css) styled.Add($"  class {id} {css}");
 
@@ -76,7 +83,7 @@ public static class DependencyMermaid
         Emit(graph.Root);
 
         var builder = new StringBuilder();
-        AppendFrontMatter(builder, collapsed, expanded);
+        AppendFrontMatter(builder, collapsed, expanded, named);
         builder.Append(body);
 
         // classDef lines carry no colour: the renderer themes nodes, and a hard-coded fill here
@@ -84,7 +91,6 @@ public static class DependencyMermaid
         builder.AppendLine("  classDef apiset stroke-dasharray: 4 3");
         builder.AppendLine("  classDef missing stroke-width: 2px");
         foreach (var line in styled) builder.AppendLine(line);
-        foreach (var line in clicks) builder.AppendLine(line);
 
         return builder.ToString();
     }
@@ -95,7 +101,8 @@ public static class DependencyMermaid
     private static void AppendFrontMatter(
         StringBuilder builder,
         List<(string id, string module)> collapsed,
-        List<(string id, string module)> expanded)
+        List<(string id, string module)> expanded,
+        List<(string id, string module)> named)
     {
         builder.AppendLine("---");
         builder.AppendLine("config:");
@@ -103,6 +110,7 @@ public static class DependencyMermaid
         builder.AppendLine($"    maxFanOut: {MaxFanOut}");
         AppendSection(builder, "collapsed", collapsed);
         AppendSection(builder, "expanded",  expanded);
+        AppendSection(builder, "names",     named);
         builder.AppendLine("---");
     }
 

@@ -37,15 +37,15 @@ internal static class DiagramChip
     /// Draws the chip, a press on which means the node <paramref name="key"/> names folds the other way.
     /// </summary>
     /// <param name="part">What the chip stands for — the node's own part, the chip itself being written nowhere.</param>
-    /// <param name="id">The node, as the diagram names it.</param>
+    /// <param name="key">The node, under the name an opening of it is remembered by — never the diagram's own positional id.</param>
     /// <param name="label">What the node says, for a host that wants to name it in a message.</param>
-    public static void Draw(LayoutBuilder build, Rect where, ISourcePart? part, DiagramFold fold, string id,
+    public static void Draw(LayoutBuilder build, Rect where, ISourcePart? part, DiagramFold fold, string key,
                             string? label, DiagramWords said, Brush fill, DiagramStroke stroke)
     {
         build.Open(MermaidPiece.Chip, part, stops: Stops.None);
         build.Acts(new LayoutActions
         {
-            Click = new LayoutIntent(fold.Open ? LayoutVerbs.Collapse : LayoutVerbs.Expand, id, label),
+            Click = new LayoutIntent(fold.Open ? LayoutVerbs.Collapse : LayoutVerbs.Expand, key, label),
         });
 
         var box = new RectangleGeometry(where, Corner, Corner);

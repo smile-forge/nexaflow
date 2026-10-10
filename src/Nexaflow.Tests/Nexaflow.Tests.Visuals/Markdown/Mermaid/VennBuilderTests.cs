@@ -44,12 +44,6 @@ public class VennBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
-        laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
-
-    private static string Written(string source, ISourcePart? part) =>
-        part is null ? "" : source.Substring(part.Start, part.Length);
-
     /// <summary>A circle's centre and radius, from the circle it is drawn as.</summary>
     private static (Point Centre, double Radius) Round(Piece circle)
     {
@@ -61,7 +55,7 @@ public class VennBuilderTests : MermaidBuilderContract
         return default;
     }
 
-    private static Brush? Fill(Piece piece)
+    private static Brush? Paint(Piece piece)
     {
         foreach (var mark in piece.Marks)
             if (mark is GeometryMark { Fill: { } fill }) return fill;
@@ -193,9 +187,9 @@ public class VennBuilderTests : MermaidBuilderContract
         var laid = Build("---\nconfig:\n  themeVariables:\n    venn2: \"#00ff00\"\n---\nvenn-beta\n  set A\n  set B\n  style A fill:#ff0000, fill-opacity:1");
         var circles = Pieces(laid, VennPiece.Circle).ToList();
 
-        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)Fill(circles[0])!).Color);
-        Assert.AreEqual(1, Fill(circles[0])!.Opacity, "as solid as the style asks");
-        Assert.AreEqual(Color.FromRgb(0, 0xFF, 0), ((SolidColorBrush)Fill(circles[1])!).Color, "venn2 for the second set");
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)Paint(circles[0])!).Color);
+        Assert.AreEqual(1, Paint(circles[0])!.Opacity, "as solid as the style asks");
+        Assert.AreEqual(Color.FromRgb(0, 0xFF, 0), ((SolidColorBrush)Paint(circles[1])!).Color, "venn2 for the second set");
     });
 
     [TestMethod]
@@ -295,7 +289,7 @@ public class VennBuilderTests : MermaidBuilderContract
     {
         var sets = string.Join('\n', Enumerable.Range(1, 9).Select(at => $"  set S{at}"));
         var circles = Pieces(Build($"---\nconfig:\n  themeVariables:\n    venn1: \"#ff0000\"\n    venn3: green\n---\nvenn-beta\n{sets}"), VennPiece.Circle)
-            .Select(circle => ((SolidColorBrush)Fill(circle)!).Color).ToList();
+            .Select(circle => ((SolidColorBrush)Paint(circle)!).Color).ToList();
 
         Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), circles[0]);
         Assert.AreEqual(Colors.Green, circles[2]);

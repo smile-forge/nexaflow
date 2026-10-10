@@ -38,7 +38,7 @@ public class SourceFileTests
     private static string Lines(string ending, params string[] lines) =>
         string.Join(ending, lines) + ending;
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("\n")]
     [DataRow("\r\n")]
     public void NewFile_TakesTheEndingItsNeighboursUse(string ending)
@@ -97,7 +97,7 @@ public class SourceFileTests
 
     /// <summary>An existing file is written back byte-identical apart from the edit — the guard the whole
     /// type exists for, restated for the ending rather than the byte-order mark.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("\n")]
     [DataRow("\r\n")]
     public void ReadAndWrite_RoundTripsAFilesEndingsUntouched(string ending)

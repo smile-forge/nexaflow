@@ -234,6 +234,15 @@ public class FormulaEditingTests
         Assert.AreEqual(@"\frac{y}{2}", formula.Latex);
     });
 
+    [TestMethod]
+    public void APaletteKeyTakesWhatIsSelectedInsteadOfReplacingIt() => InFormula("3+7", (editor, formula) =>
+    {
+        formula.Select(formula.Origin, 3);
+        editor.Shown.Insert(@"\frac{}{}", caretBack: 3);
+
+        Assert.AreEqual(@"\frac{3+7}{}", formula.Latex, "what was picked out went into the slot the key would have typed into");
+    });
+
     // ── Walking it ──────────────────────────────────────────────────────────
 
     [TestMethod]

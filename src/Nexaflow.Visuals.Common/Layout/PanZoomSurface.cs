@@ -160,6 +160,18 @@ public sealed class PanZoomSurface : UserControl
     public Func<IEnumerable<MiniMapItem>>? MiniMapItems { get; set; }
 
     /// <summary>
+    /// A picture of the content for the overview, no larger than the size it is asked for — for content whose shape is
+    /// its drawing rather than a set of boxes, which is every diagram. Null, the default, draws
+    /// <see cref="MiniMapItems"/> instead.
+    ///
+    /// <para>
+    /// Asked for whenever the view moves, so a host whose picture costs anything to make keeps one and lets go of it
+    /// when the <em>content</em> changes rather than when the view does.
+    /// </para>
+    /// </summary>
+    public Func<Size, ImageSource?>? MiniMapPicture { get; set; }
+
+    /// <summary>
     /// The extent pan, zoom and the minimap are reckoned against, for content that has no fixed size — a
     /// board of post-its or a scattered collage, whose bounds move as the items do and whose origin is
     /// wherever the user happened to drag things, negative included. Null (the default) uses the size
@@ -300,6 +312,40 @@ public sealed class PanZoomSurface : UserControl
         if (_surface is null || Extent is not { } bounds) return;
         Apply(1, (ActualWidth - bounds.Width) / 2 - bounds.MinX, 8 - bounds.MinY);
         _fitPending = false;
+    }
+
+    /// <summary>
+    /// Brings a part of the content into view without touching the zoom — for a host whose content has grown somewhere
+    /// the reader asked it to. They asked for that part, not for a different view of everything, so the view moves the
+    /// least that will show it. Where the part is larger than the viewport, its near corner is what is shown, that
+    /// being the end of it next to whatever they pressed.
+    /// </summary>
+    public void Reveal(CanvasBounds what)
+    {
+        if (_surface is null || ActualWidth <= 0 || ActualHeight <= 0) return;
+        if (_scale.ScaleX <= 0 || what.Width <= 0 || what.Height <= 0) return;
+
+        var scale = _scale.ScaleX;
+        var tx = Shifted(_translate.X, what.MinX * scale, what.MaxX * scale, ActualWidth);
+        var ty = Shifted(_translate.Y, what.MinY * scale, what.MaxY * scale, ActualHeight);
+
+        if (tx.Equals(_translate.X) && ty.Equals(_translate.Y)) { SyncMiniMap(); return; }
+
+        Apply(scale, tx, ty);
+        _fitPending = false;
+    }
+
+    /// <summary>
+    /// Where the view sits along one axis so that the stretch from <paramref name="from"/> to <paramref name="to"/> is
+    /// on the page: unmoved where it already is, its near edge where it is too long to fit, and otherwise nudged by
+    /// however much was hanging off the end.
+    /// </summary>
+    private static double Shifted(double at, double from, double to, double room)
+    {
+        if (from + at >= 0 && to + at <= room) return at;
+        if (to - from >= room) return -from;
+
+        return from + at < 0 ? -from : room - to;
     }
 
     /// <summary>Zooms about the centre of the viewport (what the +/− buttons do).</summary>
@@ -452,14 +498,26 @@ public sealed class PanZoomSurface : UserControl
 
         var accent = AccentBrush ?? Brushes.SteelBlue;
 
-        // The items themselves, so the minimap shows the shape of the content rather than one blank
-        // rectangle you cannot navigate by.
-        var items = MiniMapItems?.Invoke()
-                 ?? [new MiniMapItem(bounds.MinX, bounds.MinY, bounds.Width, bounds.Height)];
-        foreach (var item in items)
+        // The content itself, so the overview shows what the reader is looking at rather than one blank rectangle they
+        // cannot navigate by: a picture of it where the host can paint one, and the boxes of what is on it otherwise.
+        if (MiniMapPicture?.Invoke(new Size(MiniW, MiniH)) is { } picture)
         {
-            var (x, y, w, h) = PanZoomMiniMap.Box(m, item.X, item.Y, item.Width, item.Height, minSize: 1.5);
-            _mini.Children.Add(Box(x, y, w, h, item.Fill ?? Fade(accent, 0xAA), null));
+            var (px, py, pw, ph) = PanZoomMiniMap.Box(m, bounds.MinX, bounds.MinY, bounds.Width, bounds.Height, minSize: 1.5);
+            var shown = new Image { Source = picture, Width = pw, Height = ph, Stretch = Stretch.Fill };
+
+            Canvas.SetLeft(shown, px);
+            Canvas.SetTop(shown, py);
+            _mini.Children.Add(shown);
+        }
+        else
+        {
+            var items = MiniMapItems?.Invoke()
+                     ?? [new MiniMapItem(bounds.MinX, bounds.MinY, bounds.Width, bounds.Height)];
+            foreach (var item in items)
+            {
+                var (x, y, w, h) = PanZoomMiniMap.Box(m, item.X, item.Y, item.Width, item.Height, minSize: 1.5);
+                _mini.Children.Add(Box(x, y, w, h, item.Fill ?? Fade(accent, 0xAA), null));
+            }
         }
 
         var onChrome = OnChromeBrush ?? Brushes.White;

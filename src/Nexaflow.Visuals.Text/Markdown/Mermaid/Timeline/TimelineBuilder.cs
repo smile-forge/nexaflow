@@ -188,17 +188,17 @@ internal sealed class TimelineBuilder : MermaidBuilder
     private sealed record Happening(Phrase Event, IReadOnlyList<DiagramWords> Lines, Size Size);
 
     /// <summary>One period as it is drawn: its words, its events, the section it is in, and the colour slot it takes.</summary>
-    private sealed record Shown(Period Period, IReadOnlyList<DiagramWords> Lines, Size Words,
+    private sealed record Sized(Period Period, IReadOnlyList<DiagramWords> Lines, Size Words,
                                 IReadOnlyList<Happening> Events, Section Section, int Slot);
 
     /// <summary>
     /// Every period in the order it is written, measured and given the colour slot Mermaid's rule gives it: with sections,
     /// its section's; without, one of its own.
     /// </summary>
-    private IReadOnlyList<Shown> Measured(TimelineConfig config, IReadOnlyList<Section> sections, bool sectioned, double pad)
+    private IReadOnlyList<Sized> Measured(TimelineConfig config, IReadOnlyList<Section> sections, bool sectioned, double pad)
     {
         var width = Math.Max(20, Column - (pad * 2));
-        var shown = new List<Shown>();
+        var shown = new List<Sized>();
 
         foreach (var section in sections)
         {
@@ -215,7 +215,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
                     })
                     .ToList();
 
-                shown.Add(new Shown(period, lines, DiagramWords.Taken(lines), events, section, slot));
+                shown.Add(new Sized(period, lines, DiagramWords.Taken(lines), events, section, slot));
             }
         }
 
@@ -224,7 +224,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
 
     // ── Across the page ─────────────────────────────────────────────────────
 
-    private void Across(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
+    private void Across(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Sized> said, double pad, DiagramRoom room)
     {
         var banded = sectioned ? Band + Gap : 0;
         var tall = Math.Max(Least, said.Max(shown => shown.Words.Height) + (pad * 2));
@@ -256,7 +256,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
 
     // ── Down the page ───────────────────────────────────────────────────────
 
-    private void Down(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
+    private void Down(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Sized> said, double pad, DiagramRoom room)
     {
         var left = sectioned ? Strip + Gap : 0;
         var boxes = new List<Rect>();
@@ -293,7 +293,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
     // ── Layers ──────────────────────────────────────────────────────────────
 
     /// <summary>A band over each run of periods the same section groups — <paramref name="over"/> saying where it goes.</summary>
-    private void Bands(LayoutBuilder build, TimelineConfig config, IReadOnlyList<Shown> said, IReadOnlyList<Rect> boxes,
+    private void Bands(LayoutBuilder build, TimelineConfig config, IReadOnlyList<Sized> said, IReadOnlyList<Rect> boxes,
                        Func<Rect, Rect> over, double pad, DiagramRoom room)
     {
         build.Open(TimelinePiece.Sections, part: null, stops: Stops.None);
@@ -327,7 +327,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
     }
 
     /// <summary>One period: its box on the spine, what leads from it to its events, and the events themselves.</summary>
-    private void Placed(LayoutBuilder build, Shown shown, TimelineConfig config, bool down, Rect box, IReadOnlyList<Rect> events, Point from,
+    private void Placed(LayoutBuilder build, Sized shown, TimelineConfig config, bool down, Rect box, IReadOnlyList<Rect> events, Point from,
                         double pad, DiagramRoom room)
     {
         var colour = Colour(config, shown.Slot);

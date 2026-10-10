@@ -327,6 +327,26 @@ public class MarkdownSurfaceTests
         return surface;
     }
 
+    [TestMethod]
+    public void TheCaretWalksFromProseIntoAFormulaAndOutTheOtherSide() => UiThread.Run(() =>
+    {
+        // The formula is pieces of the same laid tree as the words either side of it, so the arrow steps into it as
+        // it steps from one word to the next: one walk, each step further on, with nothing handing the caret over.
+        const string document = "Area $x^2$ of it.\n";
+        var surface = Shown(document);
+        var opens = document.IndexOf('$');
+        var closes = document.LastIndexOf('$');
+
+        surface.Shown.TakeCaret(0);
+
+        var walked = new List<int> { surface.Shown.Caret };
+        for (var step = 0; step < 100 && surface.Shown.MoveCaret(forward: true); step++) walked.Add(surface.Shown.Caret);
+
+        Assert.IsTrue(walked.Contains(opens + 1), $"into the formula's first character: {string.Join(",", walked)}");
+        Assert.IsTrue(walked.Contains(closes + 1), $"and out again past its last: {string.Join(",", walked)}");
+        CollectionAssert.AreEqual(walked.OrderBy(at => at).ToList(), walked, "each step further on than the last");
+    });
+
     /// <summary>
     /// The middle of whatever piece shows <paramref name="words"/>, which is where a pointer resting on it
     /// would be.

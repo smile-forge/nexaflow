@@ -126,6 +126,27 @@ public class DiagramExpansionTests
         Assert.IsTrue(folding.Draws("g0"), "opened under the name the host thinks in");
     }
 
+    [TestMethod, TestCategory("Unit")]
+    public void A_node_the_producer_only_named_keeps_that_name_and_grows_no_chip()
+    {
+        // What a producer says about the nodes it has no folding to declare: the one the whole graph hangs from, and
+        // the ones it could never open. Calling them expanded instead would be a lie that grows a [-] chip on anything
+        // with children, and saying nothing at all leaves a press on them handing back the positional id.
+        var config = Asked("    names:\n      root: app.exe\n      c0: KERNEL32.dll\n");
+
+        Assert.AreEqual("app.exe", config.KeyFor("root"));
+        Assert.AreEqual("KERNEL32.dll", config.KeyFor("c0"));
+        Assert.AreEqual("c1", config.KeyFor("c1"), "a node nobody named is still known by its id");
+        Assert.IsTrue(config.IsEmpty, "naming a node asks for no folding");
+        Assert.IsFalse(config.SaysNothing, "but it is not nothing, and the names have to survive");
+
+        var folding = DiagramExpansion.Of(config, Tree(2));
+
+        Assert.IsTrue(folding.Draws("root") && folding.Draws("g0"), "every node is still drawn, to any depth");
+        Assert.IsNull(folding.FoldOf("root"), "and the one the graph hangs from grows no chip");
+        Assert.AreEqual("app.exe", folding.KeyOf("root"), "while a press on it still names what the producer calls it");
+    }
+
     // ── Chips only where something asked for them ───────────────────────────
 
     [TestMethod, TestCategory("Unit")]
