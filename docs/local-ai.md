@@ -261,22 +261,44 @@ A model keeps what it has read as a KV cache, and each token's entry depends on 
 prefix can be reused, but changing anything invalidates everything after it. Re-reading the whole conversation each
 turn is what makes a large local model slow to answer: Qwen 3.8 27B takes 1.3–1.9 s to read a 4k-token prompt.
 
-So each conversation keeps one live `Generator`, and its context only ever grows:
+So each conversation keeps one live `Generator`, and its context only ever grows. Measured over a ten-turn
+conversation on a ~3k-token page context, appended against re-read every turn:
+
+| | Appended, per turn | Re-read, per turn | Rewind |
+|---|---|---|---|
+| Gemma 4 E4B (our adapted export, 6.6 GB) | 24–71 ms; replies identical to the re-read | 225–272 ms | crashes |
+| Gemma 4 E4B (native GenAI export, 13.7 GB) | 29–80 ms; identical on all ten turns | 242–495 ms | works |
+| Qwen 3.8 27B | ~110 ms; a 1,400-token page change 411 ms | 1.1–1.6 s | **wrong**: the DeltaNet layers' state is not rolled back |
+| Gemma 4 26B-A4B | 140–215 ms | 210–370 ms | works |
+
+Appending is exact: the next-token scores after a prompt read in pieces match a single read to rounding (cosine
+≥ 0.99997) on every model; where live replies drift from a re-read, it is greedy decoding branching on that rounding.
 
 - **Ordered from most to least stable**: system prompt and tool definitions, then the page context the conversation
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
-  tool results, images and audio are appended like any other turn. A turn costs a prefill of only what is new.
-- **`RewindTo` is the one way back**: a barge-in rewinds to what was actually heard, a cancelled tool call to before
-  it.
-- **Tokens are kept as generated.** A chat template that re-renders history differently (dropping past reasoning, for
-  one) would rewrite the prefix; new turns are rendered as deltas against the tokens already in the cache.
+  tool results and audio are appended like any other turn.
+- **Appending is the one mechanism.** `RewindTo` cannot be relied on — it is wrong on hybrid recurrent models and
+  crashes on exports whose cache grows by concatenation — so a barge-in cancels generation and appends what the user
+  actually heard as a note. Where an export rewinds correctly it may rewind instead, and always appends before
+  generating again: a bare rewind skips the next token.
+- **New turns are rendered as deltas against the cache.** Templates re-render history differently from what the
+  model read (Gemma 4 26B-A4B's adds an empty thought block to the generation prompt and strips it from history), so
+  a turn appends the template's closing for the last reply — its end token mapped by id, since decoding it returns
+  nothing usable — then the new turn and generation prompt. What was read stays as it was read.
+- **An image rebuilds the context.** onnxruntime-genai 0.17.1 does not take media on a continuing generator: the
+  native E4B export silently ignored the image ("I cannot see any failure stages in the screenshot") and the adapted
+  one crashed. An image turn re-reads the conversation — E4B in ~0.25–0.5 s, Qwen in ~1–1.6 s.
+- **First-use costs are warmed at load.** Each new append length cost Qwen ~750 ms once, gone with the CUDA option
+  `sdpa_kernel=1` (as for Whisper); Gemma 4 26B-A4B's MoE kernels cost 1–3.4 s the first time a token count is seen.
 - **The window ends in a summary**: when the log reaches the model's budget, older turns are summarised and the
   cache is rebuilt once from the summary.
 
 This saves time, not memory — the cache grows with the context either way (Qwen 3.8 27B: ~0.5 GB at 8k tokens;
-Gemma 4 26B-A4B: ~1.8 GB). What it buys toward 24 GB is a short window: a log that summarises can run at 8k instead
-of 32k. The weights are the rest of the way.
+Gemma 4 26B-A4B: ~1.8 GB), and with a shared buffer it is allocated for the whole window up front. What it buys
+toward 24 GB is a short window: a log that summarises can run at 8k instead of 32k. The weights are the rest of the
+way. The default E4B stays on the adapted export: appending works there, and the native export that can rewind costs
+twice the VRAM.
 
 ## Routing
 
@@ -506,7 +528,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 
 | Phase | Delivers | Size |
 |---|---|---|
-| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#. Open: the append-only context across turns (prefill saved per turn, `RewindTo` on barge-in, images in history); a 24 GB build of the larger models | small, each |
+| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
 | 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
 | 3. Voice | speech in the host; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
@@ -520,7 +542,9 @@ Phase 1 is useful on its own — streaming improves the cloud path before any lo
   NVIDIA's library versions are ours to do — the price of choosing when.
 - onnxruntime-genai's Engine (paged KV, prefix caching, continuous batching) is in its C API only; C# would need our
   own P/Invoke layer. The `Generator` API works without it.
-- onnxruntime-genai defects above; exports per execution provider; architecture support lagging releases.
+- onnxruntime-genai defects above; exports per execution provider; architecture support lagging releases. Media on a
+  continuing generator is unsupported in 0.17.1 (an image mid-conversation is dropped without an error) — worth an
+  upstream issue, with the Whisper builder's turbo fix as an upstream PR.
 - Every diffusion and music model needs a hand-written C# pipeline (scheduler, tokenizer, sampler).
 - Licences do not block a non-commercial project. espeak-ng (GPL) runs only in our build; whether its generated
   pronunciations may ship as data is worth confirming — Wiktionary's IPA (CC BY-SA, as Crane uses for German) is the
