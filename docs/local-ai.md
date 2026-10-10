@@ -11,7 +11,7 @@ The test beds behind every number here live outside the repository, in `D:\coded
 1. **Voice conversation.** Press once to start listening; the session stays open until the user (or the
    assistant) ends it. The user speaks, the assistant answers aloud, either side can interrupt, and tools and page
    context work as they do in the input bar.
-2. **A local LLM** for machines with a 24 GB GPU — for users with no subscription, who want nothing to leave the
+2. **A local LLM** for machines with a capable GPU — for users with no subscription, who want nothing to leave the
    machine, or who want the cheap, frequent calls kept off the API bill. Weaker than a frontier model; far better
    than nothing.
 3. **Generation as agent tools**: images, speech, sounds and music; video if it ever becomes practical.
@@ -29,7 +29,8 @@ policy and scheduling.
 | Where voice lives | **The AI input bar**, in a voice mode: the bar becomes a live line both sides speak into, and anything the assistant produces that is not speech — a diagram, a table, code — opens as an overlay on the current page, so the user keeps working while talking. **The conversation page** is the focused alternative: both sides write into the conversation. |
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
-| Languages | **English, French and German** throughout: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three (below). |
+| Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
+| GPU minimum | **24 GB** for the default resident model (Gemma 4 E4B) with voice; **32 GB** for the larger models (Qwen 3.8 27B, Gemma 4 26B-A4B) with voice. Bringing the larger models to 24 GB is the longer-term goal: their own exports, and a context that never re-reads what it has already read (below). |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). |
 
 ## What was measured
@@ -254,6 +255,29 @@ The host owns:
 encode (~100 ms) and a prefill chunk (bounded by `chunk_size`). Barge-in does not wait on any of them: playback stops
 at once, and cancellation only frees the GPU.
 
+### The context as an append-only log
+
+A model keeps what it has read as a KV cache, and each token's entry depends on every token before it — so a cached
+prefix can be reused, but changing anything invalidates everything after it. Re-reading the whole conversation each
+turn is what makes a large local model slow to answer: Qwen 3.8 27B takes 1.3–1.9 s to read a 4k-token prompt.
+
+So each conversation keeps one live `Generator`, and its context only ever grows:
+
+- **Ordered from most to least stable**: system prompt and tool definitions, then the page context the conversation
+  started on, then the turns.
+- **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
+  tool results, images and audio are appended like any other turn. A turn costs a prefill of only what is new.
+- **`RewindTo` is the one way back**: a barge-in rewinds to what was actually heard, a cancelled tool call to before
+  it.
+- **Tokens are kept as generated.** A chat template that re-renders history differently (dropping past reasoning, for
+  one) would rewrite the prefix; new turns are rendered as deltas against the tokens already in the cache.
+- **The window ends in a summary**: when the log reaches the model's budget, older turns are summarised and the
+  cache is rebuilt once from the summary.
+
+This saves time, not memory — the cache grows with the context either way (Qwen 3.8 27B: ~0.5 GB at 8k tokens;
+Gemma 4 26B-A4B: ~1.8 GB). What it buys toward 24 GB is a short window: a log that summarises can run at 8k instead
+of 32k. The weights are the rest of the way.
+
 ## Routing
 
 The workspace's choice comes first: a cloud workspace never starts the host. Within a workspace, the ability grid
@@ -365,9 +389,10 @@ Every stage was measured on all three, with real French and German speech from F
   given it: detecting it alone misreads short German words.
 - **The reply's language picks the voice.** Gemma answers in the language it was spoken to; the segmenter detects
   the language of each segment's text and hands it to that language's Kokoro voice.
-- **German has one Kokoro voice, from one community fine-tune**, and it is the weakest of the three. A better German
-  voice means fine-tuning Kokoro ourselves with the same recipe (kikiri-tts, Apache-2.0). Piper's voices were
-  measured and rejected on listening.
+- **German has one Kokoro voice, from one community fine-tune**, and it is the weakest of the three — good enough to
+  start, since English and French come first. Fed misaki-form phonemes it keeps a better rhythm than with plain
+  espeak output. A better German voice, or a Swiss or regional one, means fine-tuning Kokoro ourselves with the same
+  recipe (kikiri-tts, Apache-2.0). Piper's voices were measured and rejected on listening.
 
 ### Phonemes for French and German
 
@@ -454,7 +479,7 @@ Candidates for a 24 GB card:
   export of our own: a vision-aware decoder, unquantized router, prepacked experts, sliding-window KV.
 - **On 24 GB, the voice stack and either model do not fit together** (a ~20 GB budget for the model). The reductions
   that would get there — a quantized embedding table (Qwen's is 2.5 GB at fp16), a text-only build, sliding-window KV
-  for Gemma — are untested. Until then this tier means 32 GB with voice, or 24 GB without it.
+  for Gemma — are untested. Until they are, this tier asks for 32 GB with voice.
 - GenAI 0.17.1's Minja chat-template engine needed Gemma's template patched for tools (`['function']` and `upper`);
   the catalog's adapter step covers that.
 | speech | Nemotron streaming + Whisper large-v3-turbo + Kokoro + Silero + Smart Turn | ~6–7 GB (the two recognisers 5.4 GB together); Silero and Smart Turn on CPU | verified |
@@ -481,7 +506,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 
 | Phase | Delivers | Size |
 |---|---|---|
-| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B. Whisper large-v3-turbo from C#. Open: a 24 GB build of the larger models | small, each |
+| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#. Open: the append-only context across turns (prefill saved per turn, `RewindTo` on barge-in, images in history); a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
 | 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
 | 3. Voice | speech in the host; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
