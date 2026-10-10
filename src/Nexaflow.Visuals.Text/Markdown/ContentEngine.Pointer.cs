@@ -140,7 +140,11 @@ public sealed partial class ContentEngine
         // Pressing on what is already selected is how a move begins — the reader is picking the term up, not starting a new
         // selection over it. The selection is kept until the button comes back up, so a press that turns out to be an
         // ordinary click can still fall through to placing the caret.
-        if (Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
+        //
+        // Carrying content is a write, and every other write asks this first. A document only read has nothing to
+        // carry: a generated drawing is the case that showed it, where the offsets a move would be spelled against
+        // describe no stretch anybody could write, and laying out the drop threw rather than doing nothing.
+        if (!Unwritable && Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
 
         ClearSelection();
 
@@ -349,9 +353,11 @@ public sealed partial class ContentEngine
 
         // Content a binding supplied is picked out whole however often it is pressed — and, as for one press, only
         // where the press landed squarely on a piece of it rather than merely nearest one.
-        if (Supplied(_laid.PieceAt(at)))
+        var pressed = _laid.PieceAt(at);
+
+        if (Supplied(pressed))
         {
-            if (_laid.PieceAt(at).Squarely(at)) PickPressed(_laid.PieceAt(at));
+            if (pressed.Squarely(at)) PickPressed(pressed);
             return;
         }
 

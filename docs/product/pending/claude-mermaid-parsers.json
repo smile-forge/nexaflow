@@ -411,10 +411,38 @@
           }
         ]
       }
+    },
+    "layout-regions": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
+          "class": "LayoutBuilder",
+          "method": "Occupies"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "RangeRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "OnPage"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 20,
+  "changed_sets": 21,
   "touched_nodes": [
     "abc-editing",
     "content-moving",
@@ -424,6 +452,7 @@
     "latex-grid-move",
     "latex-shown-as-written",
     "latex-writable-ast",
+    "layout-regions",
     "markdown-laid-again",
     "markdown-links",
     "markdown-split",

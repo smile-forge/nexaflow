@@ -486,4 +486,33 @@ public class FoldingDiagramTests
 
         Assert.IsNull(after, "the press is over, so moving the pointer chooses nothing");
     });
+
+    [TestMethod]
+    [CoversNode("diagram-bound-content")]
+    public void AndNothingIsCarriedAcrossADrawingNobodyMayWriteIn() => UiThread.Run(() =>
+    {
+        // What crashed the inspector. A drawing is only read, and most of this one was never written here at all: the
+        // lines came from a binding. Picking out the header — which *is* written — and then pressing on that and
+        // dragging over the supplied lines began a move, and the place it would be dropped is no offset of the source,
+        // so spelling the move threw rather than coming to nothing.
+        var surface = Grown(out _);
+        var header = Placed(surface, MermaidPiece.Words).FirstOrDefault(where => Says(surface, where, "graph"));
+
+        var written = surface.Shown.Source;
+
+        surface.Shown.BeginPointerSelect(new Point(header.X + 1, header.Y + (header.Height / 2)),
+                                         System.Windows.Input.ModifierKeys.None);
+        surface.Shown.ExtendPointerSelect(new Point(header.Right - 1, header.Y + (header.Height / 2)));
+        surface.Shown.EndPointerSelect();
+
+        // Pressed on what was picked out, then carried out over the drawing.
+        var over = Placed(surface, FlowchartPiece.Node).Last();
+        surface.Shown.BeginPointerSelect(new Point(header.X + 2, header.Y + (header.Height / 2)),
+                                         System.Windows.Input.ModifierKeys.None);
+        surface.Shown.ExtendPointerSelect(Middle(over));
+        surface.Shown.EndPointerSelect();
+        Settled(surface);
+
+        Assert.AreEqual(written, surface.Shown.Source, "not a character of it is written");
+    });
 }

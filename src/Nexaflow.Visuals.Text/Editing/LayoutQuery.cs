@@ -337,7 +337,15 @@ public static class LayoutQuery
             var resolved = piece.Selectable();
             if (!resolved.Exists) continue;
 
-            var distance = piece.Region is null ? DistanceTo(where, point) : DistanceTo(piece, point);
+            // The box round what a piece stands in is a floor on the distance to the shape inside it, and the box
+            // costs nothing to measure while the shape has to be flattened first — which is the whole cost of this
+            // scan. So a piece whose box is already further off than the best so far is skipped by arithmetic, and
+            // once anything has been landed on squarely nothing else is flattened at all.
+            var around = piece.Region is { } shape ? Rect.Offset(shape.Bounds, piece.Anchor) : where;
+            var floor = DistanceTo(around, point);
+            if (floor > bestDistance) continue;
+
+            var distance = piece.Region is null ? floor : DistanceTo(piece, point);
             if (distance > bestDistance) continue;
 
             var depth = piece.Depth;
