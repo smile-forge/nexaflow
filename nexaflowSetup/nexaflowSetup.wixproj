@@ -4,6 +4,12 @@
     <!-- ICE61 is the expected, benign companion of MajorUpgrade/@AllowSameVersionUpgrades. -->
     <SuppressIces>ICE61</SuppressIces>
     <!--
+      WIX1101 says a versioned file was given its language by the project rather than by the file. That is the
+      point for the fonts, which are the only files given one (see HarvestCoreOutput): a font has no language to
+      state, and 0, neutral, is the honest answer — the warning has nothing left to tell.
+    -->
+    <SuppressSpecificWarnings>1101</SuppressSpecificWarnings>
+    <!--
       The payload is built by BuildAppPayload and HarvestToolsOutput below, not by anything Visual Studio can
       see, so its fast up-to-date check would skip this project whenever only Core's sources changed. MSBuild's
       own incrementality is what decides here.
@@ -208,7 +214,7 @@
     </PropertyGroup>
 
     <Error Condition="'$(_CoreTargetPath)' == '' or !Exists('$(_CoreOutDir)')"
-           Text="Could not resolve Nexaflow.Core's build output. GetTargetPath returned '$(_CoreTargetPath)', resolved dir '$(_CoreOutDir)' does not exist. Cannot harvest the installer payload." />
+           Text="Could not resolve Nexaflow.Core's build output. Its build returned '$(_CoreTargetPath)', resolved dir '$(_CoreOutDir)' does not exist. Cannot harvest the installer payload." />
 
     <MakeDir Directories="$(IntermediateOutputPath)" />
 
@@ -279,13 +285,23 @@
       Generate one <Component> per file.
       Root-level files use no Subdirectory attribute.
       Files in subdirs use Subdirectory="path\to\subdir" (trailing backslash stripped via regex).
+      A font is the one kind of file here with a version and no language: WiX reads the version from the font
+      itself (Bravura 1.392), and a font states no language because it has none. MSI holds a versioned file that is
+      not in the system Font table to having a language (ICE60), and the app's fonts are private — IconFonts\ and
+      MusicFonts\, loaded from the install folder, never registered. So fonts are given the neutral language, 0,
+      which is the true one. Only fonts: WiX reports DefaultLanguage on an unversioned file as a warning of its own.
     -->
     <ItemGroup>
+      <_CoreFile Condition="'%(Extension)' == '.ttf' or '%(Extension)' == '.otf' or '%(Extension)' == '.ttc'">
+        <FileAttributes>DefaultLanguage=&quot;0&quot; </FileAttributes>
+      </_CoreFile>
+    </ItemGroup>
+    <ItemGroup>
       <_WxsComp Include="@(_CoreFile)" Condition="'%(_CoreFile.RecursiveDir)' == ''">
-        <Line>      &lt;Component&gt;&lt;File Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+        <Line>      &lt;Component&gt;&lt;File %(_CoreFile.FileAttributes)Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
       </_WxsComp>
       <_WxsComp Include="@(_CoreFile)" Condition="'%(_CoreFile.RecursiveDir)' != ''">
-        <Line>      &lt;Component Subdirectory=&quot;$([System.Text.RegularExpressions.Regex]::Replace('%(_CoreFile.RecursiveDir)', '\\$', ''))&quot;&gt;&lt;File Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+        <Line>      &lt;Component Subdirectory=&quot;$([System.Text.RegularExpressions.Regex]::Replace('%(_CoreFile.RecursiveDir)', '\\$', ''))&quot;&gt;&lt;File %(_CoreFile.FileAttributes)Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
       </_WxsComp>
     </ItemGroup>
 
