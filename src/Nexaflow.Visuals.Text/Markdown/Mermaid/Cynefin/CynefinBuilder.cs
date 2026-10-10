@@ -62,7 +62,7 @@ internal sealed class CynefinBuilder : MermaidBuilder
     private const double Snug = 4;
 
     /// <summary>The clear air round the words in a card, and between a movement's line and its label.</summary>
-    private const double Inset = 6;
+    private const double Air = 6;
     private const double Beside = 3;
 
     /// <summary>How wide an item's words are set before they wrap, and the least they are squeezed to in a narrow column.</summary>
@@ -308,7 +308,7 @@ internal sealed class CynefinBuilder : MermaidBuilder
     private sealed record Card(Item Item, IReadOnlyList<DiagramWords> Lines, Size Size);
 
     /// <summary>What a domain shows, stacked from its outer corner: its word, how it is worked, and a card for each item in it.</summary>
-    private sealed record Shown(DiagramWords? Name, IReadOnlyList<DiagramWords> About, IReadOnlyList<Card> Cards)
+    private sealed record Sized(DiagramWords? Name, IReadOnlyList<DiagramWords> About, IReadOnlyList<Card> Cards)
     {
         /// <summary>How much room it all takes, the gaps between included.</summary>
         public Size Taken => new(
@@ -316,7 +316,7 @@ internal sealed class CynefinBuilder : MermaidBuilder
             (Name?.Height ?? 0) + (About.Count == 0 ? 0 : DiagramWords.Taken(About).Height + Snug) + Cards.Sum(card => card.Size.Height + Gap));
     }
 
-    private Shown Stacked(Grid diagram, CynefinDomain domain, double wrap)
+    private Sized Stacked(Grid diagram, CynefinDomain domain, double wrap)
     {
         var config = diagram.Config;
         var items = diagram.ItemsIn(domain);
@@ -339,14 +339,14 @@ internal sealed class CynefinBuilder : MermaidBuilder
         var cards = items.Select(item =>
         {
             var lines = Wrapped(item.Says.Says, item.Says.Hole, said, ink, wrap);
-            return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, DiagramWords.Taken(lines), Inset));
+            return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, DiagramWords.Taken(lines), Air));
         });
 
-        return new Shown(name, about, [.. cards]);
+        return new Sized(name, about, [.. cards]);
     }
 
     /// <summary>What disorder shows, line by line: its word, how it is worked, and what each item in it says.</summary>
-    private static IReadOnlyList<(DiagramWords Words, string Kind)> Lines(Shown shown)
+    private static IReadOnlyList<(DiagramWords Words, string Kind)> Lines(Sized shown)
     {
         var lines = new List<(DiagramWords Words, string Kind)>();
 
@@ -519,7 +519,7 @@ internal sealed class CynefinBuilder : MermaidBuilder
         foreach (var (card, bounds, left) in cards)
         {
             var at = Rect.Offset(bounds, shift);
-            var inside = Rect.Inflate(DiagramShapes.Inside(DiagramShape.Rounded, at), -Inset, -Inset);
+            var inside = Rect.Inflate(DiagramShapes.Inside(DiagramShape.Rounded, at), -Air, -Air);
             var words = DiagramWords.Placed(card.Lines, inside, CynefinPiece.Says, left ? TextAlignment.Left : TextAlignment.Right);
 
             DiagramShapes.Draw(build, CynefinPiece.Item, card.Item.Part, DiagramShape.Rounded, at, Palette.CodeBg, stroke, words);

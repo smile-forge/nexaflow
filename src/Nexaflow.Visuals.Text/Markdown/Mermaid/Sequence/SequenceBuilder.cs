@@ -284,7 +284,7 @@ internal partial class SequenceBuilder : MermaidBuilder
         {
             switch (item)
             {
-                case Message message when At(plan, message.From) is { } from && At(plan, message.To) is { } to:
+                case Message message when ColumnOf(plan, message.From) is { } from && ColumnOf(plan, message.To) is { } to:
                     var wide = DiagramWords.Taken(Saying(message, config)).Width;
 
                     if (from == to) right[from] = Math.Max(right[from], Loop + wide + Air);
@@ -321,7 +321,7 @@ internal partial class SequenceBuilder : MermaidBuilder
     /// <summary>The room a note asks for: between two lifelines where it spans them, and past one where it sits beside it.</summary>
     private void Spaced(SequenceConfig config, Plan plan, Note note, double[] gaps, double[] left, double[] right)
     {
-        var over = note.Over.Select(id => At(plan, id)).OfType<int>().ToList();
+        var over = note.Over.Select(id => ColumnOf(plan, id)).OfType<int>().ToList();
         if (over.Count == 0) return;
 
         var room = DiagramWords.Taken(Noting(note, config)).Width + (config.Noted * 2);
@@ -510,7 +510,7 @@ internal partial class SequenceBuilder : MermaidBuilder
     {
         var words = Noting(note, config);
         var taken = DiagramWords.Taken(words);
-        var over = note.Over.Select(id => At(plan, id)).OfType<int>().ToList();
+        var over = note.Over.Select(id => ColumnOf(plan, id)).OfType<int>().ToList();
 
         if (over.Count == 0)
         {
@@ -1061,7 +1061,7 @@ internal partial class SequenceBuilder : MermaidBuilder
         _ => TextAlignment.Center,
     };
 
-    private static int? At(Plan plan, string id) =>
+    private static int? ColumnOf(Plan plan, string id) =>
         plan.Named.TryGetValue(id, out var column) ? plan.Columns.IndexOf(column) : null;
 
     private static Rect Inside(Rect bounds, double pad) =>

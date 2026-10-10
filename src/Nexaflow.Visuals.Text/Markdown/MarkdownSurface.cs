@@ -265,7 +265,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     public ILayoutActions? Host
     {
         get => _host;
-        set { _host = value; _engine.Actions = value; }
+        set { _host = value; _engine.Answers(value); }
     }
 
     private ILayoutActions? _host;

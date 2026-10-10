@@ -558,7 +558,7 @@ public class XmlPathTests
         Assert.IsFalse(At("//PackageReference", StructuralEdit.Op.Replace, "<X/>", all: true).Ok);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("Project")]
     [DataRow("/Project[")]
     [DataRow("/Project[@Sdk=x]")]

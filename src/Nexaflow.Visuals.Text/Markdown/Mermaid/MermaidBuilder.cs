@@ -328,7 +328,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (Pieces.Of(words.Node) is not { } pieces)
             return [words.Node.IsLeaf ? new Line(words.Text, words, Maps: true) : new Line(string.Empty, words, Maps: false)];
 
-        var writing = Writing(words);
+        var writing = WritingIn(words);
         var lines = new List<Line>();
         var from = 0;
 
@@ -386,7 +386,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
         // A line broken where it was written is set as the lines it was broken into, and pressed rather than typed into, since
         // what it shows is no longer the characters written.
-        var lines = Lines(part, breaks: !Writing(part));
+        var lines = Lines(part, breaks: !WritingIn(part));
 
         // Words that are words share one letter to be measured against, a letter for each size and colour: every label in a
         // diagram asks how tall a line of it is, and a letter made for each would be shaped once for each.
@@ -447,7 +447,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     private const double Hair = 0.01;
 
     /// <summary>Whether the reader is writing inside <paramref name="part"/>, where it is shown exactly as typed.</summary>
-    private bool Writing(ContentPart part) => State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End;
+    private bool WritingIn(ContentPart part) => State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End;
 
     /// <summary>Words the diagram works out rather than anybody writing (a share, a total): pressed as
     /// the <paramref name="part"/> they stand for, no caret. See <see cref="DiagramWords"/>.</summary>

@@ -196,7 +196,7 @@ public class CallerRelativePathTests
     /// shell converts nothing, and the path a Git Bash user types arrives as <c>/d/…</c>. Windows reads that
     /// as rooted on the current drive, so every <c>--file</c> was "not found" until it was wrapped in cygpath.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("/")]
     [DataRow("/cygdrive/")]
     [DataRow("/mnt/")]

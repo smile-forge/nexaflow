@@ -66,7 +66,7 @@ public class ContentElement : FrameworkElement
 
         _engine.Show(language, palette);
         _engine.Start(source ?? string.Empty);
-        _engine.Actions = actions;
+        _engine.Answers(actions);
 
         _engine.Changed += OnChanged;
         _engine.PreRender += OnLaid;
@@ -543,6 +543,12 @@ public class ContentElement : FrameworkElement
 
     /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
     protected LayoutAct? Offered(Point at, LayoutGesture gesture) => _engine.Offered(at, gesture);
+
+    /// <summary>Whether the host answered the gesture, which is the end of it.</summary>
+    protected bool Answered(LayoutAct act) => _engine.Answered(act);
+
+    /// <summary>What the host offers where a gesture landed, beside what the content itself offers.</summary>
+    protected IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _engine.Hosted(act);
 
     /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
     protected IReadOnlyList<LayoutIntent> Asked(Point at) => _engine.Asked(at);

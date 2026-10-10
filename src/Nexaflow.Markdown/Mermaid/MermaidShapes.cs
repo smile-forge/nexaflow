@@ -279,7 +279,8 @@ public static class MermaidShapes
 
     /// <summary>
     /// The name an <c>@{ shape: … }</c> writes a shape by — the first of the names <see cref="Named"/> reads it from, so what is
-    /// written is read back as the shape it was written for. Null for <see cref="MermaidShape.None"/>, which is no shape to write.
+    /// written is read back as the shape it was written for. Null for <see cref="MermaidShape.None"/>, which is no shape to write, and for anything that is not a shape at
+    /// all. Every shape having a name of its own is held by MermaidShapesTests, which writes each of them and reads it back.
     /// </summary>
     public static string? Wording(MermaidShape shape) => shape switch
     {
@@ -337,5 +338,6 @@ public static class MermaidShapes
         MermaidShape.Cloud => "cloud",
         MermaidShape.Bang => "bang",
         MermaidShape.Text => "text",
+        _ => null,
     };
 }

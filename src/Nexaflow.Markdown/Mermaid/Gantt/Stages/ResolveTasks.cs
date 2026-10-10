@@ -84,24 +84,25 @@ public sealed class ResolveTasks(GanttConfig config) : IAstStage
     {
         var format = days.DateFormat;
 
-        DateTime? start;
+        DateTime start;
         if (task.After is { } after)
         {
             var known = after.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
             if (known.Any(other => other.End is null)) return;
-            start = known.Count == 0 ? today : known.Max(other => other.End);
+            start = known.Count == 0 ? today : known.Max(other => other.End!.Value);
         }
         else if (task.StartText is { } text)
         {
-            start = (format is "x" or "X" && text.All(char.IsAsciiDigit) && text.Length > 0 ? (DateTime?)MermaidDate.FromMilliseconds(double.Parse(text, CultureInfo.InvariantCulture)) : null)
-                    ?? MermaidDate.Read(text, format, today) ?? (ResolveSchedule.Starts(text, format) ? MermaidDate.Loosely(text) : null);
-            if (start is null) { task.Workable = false; return; }
+            var written = (format is "x" or "X" && text.All(char.IsAsciiDigit) && text.Length > 0 ? (DateTime?)MermaidDate.FromMilliseconds(double.Parse(text, CultureInfo.InvariantCulture)) : null)
+                          ?? MermaidDate.Read(text, format, today) ?? (ResolveSchedule.Starts(text, format) ? MermaidDate.Loosely(text) : null);
+            if (written is null) { task.Workable = false; return; }
+            start = written.Value;
         }
         else
         {
             if (task.Previous is not { } previous) { task.Workable = false; return; }
             if (previous.End is null) { if (!previous.Workable) task.Workable = false; return; }
-            start = previous.End;
+            start = previous.End.Value;
         }
 
         DateTime end;
@@ -117,7 +118,7 @@ public sealed class ResolveTasks(GanttConfig config) : IAstStage
         }
         else
         {
-            end = MermaidDuration.Read(task.EndText) is { } length ? MermaidDuration.After(start.Value, length) : start.Value;
+            end = MermaidDuration.Read(task.EndText) is { } length ? MermaidDuration.After(start, length) : start;
         }
 
         task.Start = start;
@@ -129,7 +130,7 @@ public sealed class ResolveTasks(GanttConfig config) : IAstStage
         DateTime? shown = null;
         var excluded = false;
         var limit = end.AddDays(10_000);
-        for (var at = start.Value.AddDays(1); at <= end && end < limit; at = at.AddDays(1))
+        for (var at = start.AddDays(1); at <= end && end < limit; at = at.AddDays(1))
         {
             if (!excluded) shown = end;
             excluded = days.Excluded(at);

@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// <strong>A press means what the piece it lands on says it means, before it means a place.</strong> A piece that answers to
 /// a gesture (<see cref="LayoutActions"/>) is asked first: a box ticked is written, a link into the content is followed here,
-/// and anything else is the host's (<see cref="Actions"/>). Only a press nothing answers puts the caret down or picks
+/// and anything else is the host's (<see cref="Answered"/>). Only a press nothing answers puts the caret down or picks
 /// something out — and which of those is decided by whether it landed squarely on a thing or at a stop beside it.
 /// </para>
 /// </summary>
@@ -41,7 +41,16 @@ public sealed partial class ContentEngine
     private const double CaretReach = 3.0;
 
     /// <summary>What answers what the pieces of the content mean by a gesture — the host — or null where nothing does.</summary>
-    internal ILayoutActions? Actions { get; set; }
+    private ILayoutActions? _answers;
+
+    /// <summary>Takes what answers a gesture on the content's behalf, from whatever holds this engine.</summary>
+    internal void Answers(ILayoutActions? actions) => _answers = actions;
+
+    /// <summary>Whether the host answered the gesture, which is the end of it.</summary>
+    internal bool Answered(LayoutAct act) => _answers?.Invoke(act) == true;
+
+    /// <summary>What the host offers where a gesture landed, beside what the content itself offers.</summary>
+    internal IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _answers?.Menu(act) ?? [];
 
     /// <summary>Raised to bring a stretch of the laid content into view — the heading a link into the content goes to.</summary>
     internal event EventHandler<Rect>? Revealing;
@@ -364,7 +373,7 @@ public sealed partial class ContentEngine
             return;
         }
 
-        if (Offered(at, LayoutGesture.DoubleClick) is { } act && Actions?.Invoke(act) == true) return;
+        if (Offered(at, LayoutGesture.DoubleClick) is { } act && Answered(act)) return;
 
         var here = _laid.OffsetAt(at);
 
@@ -417,7 +426,7 @@ public sealed partial class ContentEngine
     /// What a press on a piece answering to it comes to, and whether it was taken on: what the content answers itself — a box
     /// ticked, a link into it followed — and then whatever the host says.
     /// </summary>
-    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Acted(act) || Actions?.Invoke(act) == true;
+    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Acted(act) || Answered(act);
 
     /// <summary>
     /// A press on a task's box: the mark between its brackets written over as the press means — an edit like any other,
@@ -458,6 +467,6 @@ public sealed partial class ContentEngine
     /// <summary>A piece was picked by a press at <paramref name="at"/>. It is chosen either way; this is only the telling.</summary>
     private void Picked(Point at)
     {
-        if (Offered(at, LayoutGesture.Select) is { } act) Actions?.Invoke(act);
+        if (Offered(at, LayoutGesture.Select) is { } act) Answered(act);
     }
 }

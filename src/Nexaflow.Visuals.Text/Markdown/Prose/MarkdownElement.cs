@@ -112,14 +112,11 @@ public sealed class MarkdownElement : LinkedElement
     {
         if (!looking) return null;
 
-        var pen = new Pen(Palette.Accent, Math.Max(1, Style.TextSize / 13.5));
+        var pen = new Pen(Palette.Accent, Math.Max(1, Palette.TextSize / 13.5));
         pen.Freeze();
 
         return pen;
     }
-
-    /// <summary>What this is drawn in, which a host may swap for another theme.</summary>
-    private StyleFormat Style => Palette;
 
     /// <summary>
     /// Brings a stretch of the source into view and picks it out.

@@ -439,23 +439,316 @@
           "method": "OnPage"
         }
       ]
+    },
+    "class-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs",
+          "class": "ClassGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs",
+          "class": "ResolveMembers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
+          "class": "ClassConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassParser.cs",
+          "class": "ClassParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassEdits.cs",
+          "class": "ClassEdits",
+          "method": "Edit"
+        }
+      ]
+    },
+    "flowchart-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
+          "class": "FlowchartEdits",
+          "method": "Escaping"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
+          "class": "FlowchartEdits",
+          "method": "Offers"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
+          "class": "FlowchartEdits",
+          "method": "Chosen"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
+          "class": "FlowchartEdits",
+          "method": "Edit"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        }
+      ]
+    },
+    "markdown-block-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "IContentLanguage",
+          "method": "Corner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "CapturePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Cornered"
+        }
+      ]
+    },
+    "markdown-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowContextRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement",
+          "method": "BuildRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Offers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Started"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "Insertable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped",
+          "method": "Starting"
+        }
+      ]
+    },
+    "markdown-paste": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/HtmlToMarkdown.cs",
+          "class": "HtmlToMarkdown",
+          "method": "Convert"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "ReadBestMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.History.cs",
+          "class": "MarkdownSurface",
+          "method": "OnPaste"
+        }
+      ]
+    },
+    "pie-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieEdits.cs",
+          "class": "PieEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Asked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieEdits.cs",
+          "class": "PieEdits",
+          "method": "Pasted"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "Pasted"
+        }
+      ]
+    },
+    "postit-content-types": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/ScratchpadView.xaml.cs",
+          "class": "ScratchpadView",
+          "method": "HandleDrop"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/PostItControl.xaml.cs",
+          "class": "PostItControl",
+          "method": "Markdowned"
+        }
+      ]
+    },
+    "latex-editing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexEditStateTests.cs",
+            "class": "EditStateTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/SingleFormulaEditorTests.cs",
+            "class": "SingleFormulaEditorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/FormulaEditingTests.cs",
+            "class": "FormulaEditingTests"
+          }
+        ]
+      }
+    },
+    "latex-palette-wrap": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/FormulaEditingTests.cs",
+            "class": "FormulaEditingTests",
+            "method": "APaletteKeyTakesWhatIsSelectedInsteadOfReplacingIt"
+          }
+        ]
+      }
+    },
+    "markdown-drop-text": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownDropTests.cs",
+            "class": "MarkdownDropTests",
+            "method": "TextDraggedInFromAnotherWindowLandsWhereItWasLetGo"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownDropTests.cs",
+            "class": "MarkdownDropTests",
+            "method": "AHostThatClaimsADropKeepsIt"
+          }
+        ]
+      }
+    },
+    "markdown-caret-crossing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSurfaceTests.cs",
+            "class": "MarkdownSurfaceTests",
+            "method": "TheCaretWalksFromProseIntoAFormulaAndOutTheOtherSide"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 21,
+  "changed_sets": 32,
   "touched_nodes": [
     "abc-editing",
+    "class-diagram",
     "content-moving",
     "diagram-bound-content",
     "executable-dependency-viewport",
+    "flowchart-writing",
     "graph-expandable-nodes",
+    "latex-editing",
     "latex-grid-move",
+    "latex-palette-wrap",
     "latex-shown-as-written",
     "latex-writable-ast",
     "layout-regions",
+    "markdown-block-picture",
+    "markdown-caret-crossing",
+    "markdown-context-menu",
+    "markdown-drop-text",
     "markdown-laid-again",
     "markdown-links",
+    "markdown-paste",
     "markdown-split",
-    "markdown-text"
+    "markdown-text",
+    "pie-writing",
+    "postit-content-types"
   ]
 }

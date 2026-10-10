@@ -39,7 +39,7 @@ public class LatexSyntaxTests
         }
     });
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(@"a\ b")]
     [DataRow(@"x\hspace{1em}y")]
     [DataRow(@"\frac{1}{2}")]
