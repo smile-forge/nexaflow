@@ -38,15 +38,15 @@ public sealed class CynefinGrammar : IMermaidGrammar
     private const string Saying = "An item is what it says, in quotes: \"Investigate root cause\".";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (MermaidLine.Keyword(line.Written, MermaidLine.TitleWord) is not null) return line.Title();
         if (MermaidLine.Keyword(line.Written, Letter, [.. Domains]) is { } word && Opens(line, word) is { } read) return read;
 
         // Anything else on a line is what it says, in the domain opened above it — the reading starts again, having taken nothing.
-        return Item(MermaidLine.Of(text));
+        return Item(MermaidLine.Of(text, at));
     }
 
     /// <inheritdoc/>

@@ -49,5 +49,5 @@ public static class SettingLines
     }
 
     /// <summary>Space held where the writer put it, which is what keeps a block printing back as it was written.</summary>
-    public static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
+    public static ContentNode Space(string text, int at) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia, offset: at);
 }

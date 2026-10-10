@@ -26,8 +26,11 @@ public static class CodeParser
         source ??= string.Empty;
 
         return new BlockNode(language,
-            [spans is null || source.Length == 0 ? ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body) : Tokens(source, spans)],
-            CodeKinds.Code);
+            [spans is null || source.Length == 0
+                ? ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: 0)
+                : Tokens(source, spans)],
+            CodeKinds.Code,
+            offset: 0);
     }
 
     private static ContentNode Tokens(string text, IReadOnlyList<HighlightSpan> spans)
@@ -48,10 +51,10 @@ public static class CodeParser
             if (at == text.Length || called[at] != called[from])
             {
                 // What the grammar had no name for is held as written, which is what it looks like: text.
-                parts.Add(ContentNode.Leaf(called[from] ?? Kinds.Verbatim, text[from..at]));
+                parts.Add(ContentNode.Leaf(called[from] ?? Kinds.Verbatim, text[from..at], offset: from));
                 from = at;
             }
 
-        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body);
+        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body, offset: 0);
     }
 }

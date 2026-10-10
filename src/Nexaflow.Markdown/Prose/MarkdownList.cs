@@ -23,12 +23,13 @@ namespace Nexaflow.Markdown.Prose;
 public static class MarkdownList
 {
     /// <summary><paramref name="source"/> as the items written in it.</summary>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)
+    /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
 
         MarkdownNumbering? counting = null;
@@ -42,7 +43,7 @@ public static class MarkdownList
         }
         catch
         {
-            parts.Add(ContentNode.Shown(read.Rest()));
+            parts.Add(read.Unaccounted());
         }
 
         read.Gap(parts, read.Length);
@@ -50,7 +51,7 @@ public static class MarkdownList
         if (counting is not null)
             parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
 
-        return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body);
+        return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
     /// <summary>

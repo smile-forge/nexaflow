@@ -38,13 +38,13 @@ public static class ContentWords
     /// <param name="kind">What this language calls a run of words — the kind its own readers look for.</param>
     /// <param name="role">What the run is to whatever holds it.</param>
     /// <param name="trouble">What is wrong with it, where anything is; a run with something wrong is left whole.</param>
-    public static ContentNode Of(string text, string kind, string role, string? trouble = null)
+    public static ContentNode Of(string text, string kind, string role, string? trouble = null, int? at = null)
     {
-        if (trouble is not null) return ContentNode.Leaf(kind, text, role, trouble);
-        if (ContentLink.Opens(text)) return Block(text, kind, role);
-        if (BoundText.Binds(text)) return Bound(text, kind, role);
+        if (trouble is not null) return ContentNode.Leaf(kind, text, role, trouble, at);
+        if (ContentLink.Opens(text)) return Block(text, kind, role, at);
+        if (BoundText.Binds(text)) return Bound(text, kind, role, at);
 
-        return ContentNode.Leaf(kind, text, role);
+        return ContentNode.Leaf(kind, text, role, offset: at);
     }
 
     /// <summary>
@@ -82,72 +82,92 @@ public static class ContentWords
     private static string Stands(ContentPart bound) => bound.Node.Said(Value) ?? bound.Print();
 
     /// <summary>
-    /// A label written in another language: a block in the language the word after its fence names, holding the fence and that
-    /// word, and the characters written in that language — held as written, unread, since reading them is that language's.
+    /// Words that open with a fence naming a language, as the block of that language they are.
+    ///
+    /// <para>
+    /// Nothing has to close it: what holds the words closes it — a label's own bracket, a cell's own edge — so
+    /// <c>a["```latex E = mc^2"]</c> is a formula to the end of the label. A fence that does close it is taken all the
+    /// same, because a block copied from a document arrives with the one that closed it there, and a reader pasting it
+    /// into a node means the same thing either way. It is kept as a piece of its own rather than dropped, so the words
+    /// still print back as they were written.
+    /// </para>
     /// </summary>
-    private static ContentNode Block(string text, string kind, string role)
+    private static ContentNode Block(string text, string kind, string role, int? at)
     {
         var named = ContentLink.Fence.Length;
         while (named < text.Length && !char.IsWhiteSpace(text[named])) named++;
 
-        var at = named;
-        while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
+        var past = named;
+        while (past < text.Length && char.IsWhiteSpace(text[past])) past++;
 
-        if (named == ContentLink.Fence.Length || at >= text.Length) return ContentNode.Leaf(kind, text, role);
+        if (named == ContentLink.Fence.Length || past >= text.Length) return ContentNode.Leaf(kind, text, role, offset: at);
 
-        return new BlockNode(text[ContentLink.Fence.Length..named],
-            [ContentNode.Leaf(Kinds.Token, text[..at], Roles.Open), ContentNode.Leaf(Kinds.Nested, text[at..], Roles.Body)],
-            role: role);
+    var stop = text.EndsWith(ContentLink.Fence, StringComparison.Ordinal)
+               && text.Length - ContentLink.Fence.Length > past
+        ? text.Length - ContentLink.Fence.Length
+        : text.Length;
+
+        List<ContentNode> parts =
+        [
+            ContentNode.Leaf(Kinds.Token, text[..past], Roles.Open, offset: at),
+            ContentNode.Leaf(Kinds.Nested, text[past..stop], Roles.Body, offset: at + past),
+        ];
+
+        if (stop < text.Length) parts.Add(ContentNode.Leaf(Kinds.Token, text[stop..], Roles.Close, offset: at + stop));
+
+        return new BlockNode(text[ContentLink.Fence.Length..named], parts, role: role);
     }
 
     /// <summary>
     /// A run with bindings in it, split into the stretches that are themselves and the ones that stand for a value.
     /// A pair of braces naming nothing stands for nothing, so it stays the characters it is.
     /// </summary>
-    private static ContentNode Bound(string text, string kind, string role)
+    private static ContentNode Bound(string text, string kind, string role, int? at)
     {
         List<ContentNode> parts = [];
         var from = 0;
-        var at = 0;
+        var past = 0;
 
-        while (at < text.Length)
+        while (past < text.Length)
         {
-            var opens = text.IndexOf(BoundText.Opens, at, StringComparison.Ordinal);
+            var opens = text.IndexOf(BoundText.Opens, past, StringComparison.Ordinal);
             if (opens < 0) break;
 
             var shuts = text.IndexOf(BoundText.Shuts, opens + BoundText.Opens.Length, StringComparison.Ordinal);
             if (shuts < 0) break;
 
-            at = shuts + BoundText.Shuts.Length;
+            past = shuts + BoundText.Shuts.Length;
 
             var inner = text[(opens + BoundText.Opens.Length)..shuts];
             if (inner.Trim().Length == 0) continue;
 
-            if (opens > from) parts.Add(ContentNode.Leaf(kind, text[from..opens], Roles.Element));
-            parts.Add(Binding(inner, kind));
-            from = at;
+            if (opens > from) parts.Add(ContentNode.Leaf(kind, text[from..opens], Roles.Element, offset: at + from));
+            parts.Add(Binding(inner, kind, at + opens));
+            from = past;
         }
 
-        if (parts.Count == 0) return ContentNode.Leaf(kind, text, role);
-        if (from < text.Length) parts.Add(ContentNode.Leaf(kind, text[from..], Roles.Element));
+        if (parts.Count == 0) return ContentNode.Leaf(kind, text, role, offset: at);
+        if (from < text.Length) parts.Add(ContentNode.Leaf(kind, text[from..], Roles.Element, offset: at + from));
 
-        return ContentNode.Branch(kind, parts, role);
+        return ContentNode.Branch(kind, parts, role, at);
     }
 
     /// <summary>One binding: the braces, the path it names, and whatever space the writer left round it.</summary>
-    private static ContentNode Binding(string inner, string kind)
+    private static ContentNode Binding(string inner, string kind, int? at)
     {
         var path = inner.Trim();
         var lead = inner.Length - inner.TrimStart().Length;
+        var opened = at + BoundText.Opens.Length;
 
-        List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, BoundText.Opens, Roles.Trivia)];
+        List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, BoundText.Opens, Roles.Trivia, offset: at)];
 
-        if (lead > 0) parts.Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia));
-        parts.Add(ContentNode.Leaf(kind, path, Roles.Name));
-        if (inner.Length > lead + path.Length) parts.Add(ContentNode.Leaf(Kinds.Space, inner[(lead + path.Length)..], Roles.Trivia));
+        if (lead > 0) parts.Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia, offset: opened));
+        parts.Add(ContentNode.Leaf(kind, path, Roles.Name, offset: opened + lead));
+        if (inner.Length > lead + path.Length)
+            parts.Add(ContentNode.Leaf(Kinds.Space, inner[(lead + path.Length)..], Roles.Trivia, offset: opened + lead + path.Length));
 
-        parts.Add(ContentNode.Leaf(Kinds.Token, BoundText.Shuts, Roles.Trivia));
+        parts.Add(ContentNode.Leaf(Kinds.Token, BoundText.Shuts, Roles.Trivia, offset: opened + inner.Length));
 
-        return ContentNode.Branch(Kinds.Bound, parts, Roles.Element);
+        return ContentNode.Branch(Kinds.Bound, parts, Roles.Element, at);
     }
 }

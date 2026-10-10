@@ -141,9 +141,10 @@ Editing handlers name an intent — flatten this note, set this value, insert a 
 becomes true, and syntax knowledge exists in exactly one place per language.
 
 **Where it stands.** The read half exists everywhere, and the splice interface now exists too: `ITranspile`, in
-`Nexaflow.Markdown/Editing/`, which a parser implements to be asked about a change before it is written. Three languages
-implement it — `MermaidParser` and `AbcParser`, the pair this section asks the interface to be designed against, and
-`FlowchartParser` — and the engine puts every write marked `ContentWrite.Meant`, words as the reader means them rather
+`Nexaflow.Markdown/Editing/`, which a parser implements to be asked about a change before it is written. Nine languages
+implement it — `MermaidParser` and `AbcParser`, the pair this section asks the interface to be designed against,
+`TexParser`, `FlowchartParser`, and one each for the class, state, sequence, sankey and C4 diagrams — and the engine
+puts every write marked `ContentWrite.Meant`, words as the reader means them rather
 than as the language spells them, to the parser, instead of only words pasted into a part. `ContentChange.Asks` lets a
 handler decline to spell an edit and ask the engine for the one it would make anyway, which is the first step of a
 handler shrinking to an intent.
@@ -157,15 +158,32 @@ and the words in it one run. Read line by line it was silently a node called `Ha
 language is this one — its own `Parse` and its own `Rewrite`, over shared helpers — not one parser every diagram has to
 fit.
 
+**The copied frame loop is deliberate.** A diagram with its own parser copies that loop rather than sharing one, and
+that duplication is the point: it is what lets one diagram's editing change without touching any other. Editing is
+where the diagrams genuinely differ — a statement, an id, a label and a style line each mean something different per
+diagram — so a diagram owns the reading of its own statements and pays about sixty copied lines for the frame around
+them. Those lines are not debt, and consolidating them is not an improvement. Rendering is the opposite case: shared
+structure works there, and stays.
+
+**What is shared is the check, not the code.** `MermaidDiagrams.ParserFor` is the single place naming the parser a
+diagram is read by; `Shipped.Diagram` and the test helpers both ask it. `MermaidGrammarContract` reads each block
+through it, so every parser — not only the shared one — is held to printing back exactly what was written, and a
+diagram takes its own parser into its tests the moment it has one.
+
 What has not started is the migration this section is actually about. The twenty-four `IOnEdit` handlers still compose
 syntax themselves, and `PieEdits.Configured` is still the clearest example: it assembles front-matter syntax by
 concatenating delimiters and newlines, and calls `Print()` on the AST to re-emit the rest of the block.
 
-What that costs is already measured, and red, and has not moved.
+What that costs is measured, and the measure is green.
 `DiagramEscapingTests.WhateverIsTypedWhereSomethingIsWrittenTheDiagramStillReads` types every key into every written
-part of every sample diagram and names sixty-two that leave a line the diagram can no longer read — a quote in a C4
-value or a class stereotype, a bracket in a C4 name, a quote in a Sankey label. It is the acceptance test for this
-section: sixty-two when this plan was written, sixty-two now.
+part of every sample diagram and counts the ones that leave a line the diagram can no longer read. It is the acceptance
+test for this section, and it stands at nought: the sixty-two it named — a quote in a C4 value or a class stereotype, a
+bracket in a C4 name, a quote in a Sankey label — are spelled by the diagram's own parser rather than by a handler.
+
+What that does not settle is the reading. A transpiler is handed one part and answers for that part alone, so where a
+character needs the syntax around it rewritten — a bare sankey name promoted to a quoted one, a state or participant id
+given an `as` alias — it can only refuse. Sankey is the proof: the quote it spells in a quoted field is the same quote
+it declines in a bare one.
 
 **Benefit.** Escaping and delimiter bugs stop being a thing each handler can get wrong and become a property of the
 language. `ITranspile`'s rule — where the part cannot hold what was asked for, nothing is written — applies to every
@@ -239,27 +257,34 @@ under its staff written into as text, its notes written into as notes. Typing `a
 `_` and `#` flatten and sharpen the note before it, Page Up and Page Down move it an octave, `+` and `-` make it longer
 and shorter, and Space puts a pause in.
 
-**Where it stands.** The gestures exist and nothing calls them. `AbcEdit` answers `NoteAt` (what a letter typed at the
-caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and `Length`, each already
-returning an `AstWrite` over the shared tree. `AbcParser` says how words are written back into a tune
-(`ITranspile.Rewrite`): a break becomes a space, a percent on a field's line is held by a backslash, and a character
-that would close an annotation or a decoration is refused.
+**Where it stands.** The handler's half is held, and it is the worked example of the single edit path. `AbcEdits` maps each key to a gesture
+and `Shipped.Abc` declares it as ABC's `Editing`, alongside `Writable` and `Transpile`. `AbcEdit` answers `NoteAt` (what
+a letter typed at the caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and
+`Length`, each given the notes as the engine read and laid them and answering with a `ContentChange` naming the stretch
+of source each note was written in. `AbcParser` says how words are written back into a tune (`ITranspile.Rewrite`): a
+break becomes a space, a percent on a field's line is held by a backslash, and a character that would close an
+annotation or a decoration is refused.
 
-What is missing is the wiring, not the mechanism:
+Three things make that one path rather than two:
 
-- ABC declares no `Editing`, so no key reaches `AbcEdit` — there is no `IOnEdit` mapping a keystroke to a gesture.
-- ABC is not `Writable`, so a tune is laid read-only and the caret never lands in it.
-- `AbcBuilder` draws no piece from a title or from the words under a staff, so a caret put there stands against nothing
-  and no language is asked — the one remaining thing between the rule and the code, and a builder's rather than a
-  handler's.
-- `AbcEdit.Before` — the note in front of the caret, which `_`, `#`, `+`, `-` and the octave keys all need — is private
-  to `AbcEdit`.
+- A gesture is told the **staged** tune, standing where it stands in the document, so a note knows both what it sounds
+  and which characters it was written with. Flattening an F in G major writes `=F` only because a stage put the key
+  signature on the note; on a bare parse it would write a flat the key would sharpen straight back.
+- A gesture answers with the stretches to write and never with a tree. The engine writes them and reads the tune again,
+  so nothing has to hold a tree whose stages no longer describe it. `AstWrite` — a tree handed back to be printed and
+  read — is gone, and with it the second path.
+- What is words as the reader means them goes through `ITranspile` before any of it is written; what a gesture spelled
+  itself is already ABC and goes as it stands.
 
-**Benefit.** The keys a musician expects, on the one language whose gestures are already written and tested. It is also
+What is left is the layout's, not the handler's: nothing yet proves a caret put on a title or on the words under a
+staff lands against a piece and so reaches the engine's default at all. `AbcEdits` says nothing about either, which is
+what hands them over — `AbcEditsTests` asserts that much — but being handed over is only half of it.
+
+**Benefit.** The keys a musician expects, and the shape every other language's handler is written against. It is also
 the cheapest test of whether the engine's default and a language's own handler compose: the title and the words under
 the staff are the default's, the staff is the handler's, and neither needs to know about the other.
 
-**Depends on.** Nothing. The parser's half is done and the gestures predate it.
+**Depends on.** Nothing.
 
 ## Order
 

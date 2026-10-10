@@ -53,7 +53,7 @@ public static class PlotParser
             var end = newline < 0 ? source.Length : newline;
             if (end > at && source[end - 1] == '\r') end--;
 
-            lines.Add(Line(source[at..end], source[end..stop], ref settings));
+            lines.Add(Line(source[at..end], source[end..stop], ref settings, at));
             at = stop;
         }
 
@@ -65,7 +65,7 @@ public static class PlotParser
     /// line, so a setting is only its key, its colon and its value, and a row only its cells and what
     /// stands between them.
     /// </summary>
-    private static ContentNode Line(string body, string terminator, ref bool settings)
+    private static ContentNode Line(string body, string terminator, ref bool settings, int at)
     {
         var pieces = new List<ContentNode>();
 
@@ -73,7 +73,7 @@ public static class PlotParser
         var trail = SettingLines.Trailing(body, lead);
         var text = body[lead..(body.Length - trail)];
 
-        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead]));
+        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead], at));
 
         if (text.Length == 0)
         {
@@ -81,27 +81,27 @@ public static class PlotParser
         }
         else if (text[0] == '#')
         {
-            pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia));
+            pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: at + lead));
         }
         else if (settings && text.Equals(DataWord, StringComparison.OrdinalIgnoreCase))
         {
             settings = false;
-            pieces.Add(ContentNode.Leaf(PlotKinds.Data, text, Roles.Name));
+            pieces.Add(ContentNode.Leaf(PlotKinds.Data, text, Roles.Name, offset: at + lead));
         }
         else if (settings && SettingLines.Colon(text) is var colon and > 0 && PlotSetting.Is(Named(text, colon)))
         {
-            pieces.Add(Setting(text, colon));
+            pieces.Add(Setting(text, colon, at + lead));
         }
         else
         {
             settings = false;
-            pieces.Add(Row(text));
+            pieces.Add(Row(text, at + lead));
         }
 
-        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..]));
-        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator));
+        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..], at + body.Length - trail));
+        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator, at + body.Length));
 
-        return ContentNode.Branch(PlotKinds.Line, pieces);
+        return ContentNode.Branch(PlotKinds.Line, pieces, offset: at);
     }
 
     /// <summary>What a line names, without the space between it and its colon.</summary>
@@ -115,28 +115,28 @@ public static class PlotParser
     /// A setting and what it is set to: the key, the colon, and every character after it held whole.
     /// What those characters amount to depends on the key, so it belongs to the reader rather than here.
     /// </summary>
-    private static ContentNode Setting(string text, int colon)
+    private static ContentNode Setting(string text, int colon, int at)
     {
         var key = text[..colon];
         var keyEnd = key.Length - SettingLines.Trailing(key, 0);
 
         var pieces = new List<ContentNode>
         {
-            ContentNode.Leaf(PlotKinds.Key, key[..keyEnd], Roles.Name),
+            ContentNode.Leaf(PlotKinds.Key, key[..keyEnd], Roles.Name, offset: at),
         };
 
-        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..]));
+        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..], at + keyEnd));
 
-        pieces.Add(ContentNode.Leaf(Kinds.Token, text[colon..(colon + 1)], Roles.Separator));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, text[colon..(colon + 1)], Roles.Separator, offset: at + colon));
 
         var rest = text[(colon + 1)..];
         var gap = SettingLines.Leading(rest);
-        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap]));
+        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap], at + colon + 1));
 
         if (gap < rest.Length)
-            pieces.Add(ContentNode.Leaf(PlotKinds.Value, rest[gap..], PlotRoles.Value));
+            pieces.Add(ContentNode.Leaf(PlotKinds.Value, rest[gap..], PlotRoles.Value, offset: at + colon + 1 + gap));
 
-        return ContentNode.Branch(PlotKinds.Setting, pieces);
+        return ContentNode.Branch(PlotKinds.Setting, pieces, offset: at);
     }
 
     /// <summary>
@@ -148,7 +148,7 @@ public static class PlotParser
     /// up with is theirs, and this is where it lives.
     /// </para>
     /// </summary>
-    private static ContentNode Row(string text)
+    private static ContentNode Row(string text, int from)
     {
         var pieces = new List<ContentNode>();
 
@@ -158,11 +158,11 @@ public static class PlotParser
             {
                 var space = at;
                 while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
-                pieces.Add(SettingLines.Space(text[space..at]));
+                pieces.Add(SettingLines.Space(text[space..at], from + space));
             }
             else if (text[at] == ',')
             {
-                pieces.Add(ContentNode.Leaf(Kinds.Token, text[at..(at + 1)], Roles.Separator));
+                pieces.Add(ContentNode.Leaf(Kinds.Token, text[at..(at + 1)], Roles.Separator, offset: from + at));
                 at++;
             }
             else
@@ -177,11 +177,11 @@ public static class PlotParser
                     at++;
                 }
 
-                pieces.Add(Cell(text[start..at]));
+                pieces.Add(Cell(text[start..at], from + start));
             }
         }
 
-        return ContentNode.Branch(PlotKinds.Row, pieces, Roles.Row);
+        return ContentNode.Branch(PlotKinds.Row, pieces, Roles.Row, from);
     }
 
     /// <summary>
@@ -193,16 +193,16 @@ public static class PlotParser
     /// the line still prints back as it was written.
     /// </para>
     /// </summary>
-    private static ContentNode Cell(string written)
+    private static ContentNode Cell(string written, int at)
     {
         if (written.Length < 2 || written[0] != '\"' || written[^1] != '\"')
-            return ContentNode.Leaf(PlotKinds.Cell, written, Roles.Cell);
+            return ContentNode.Leaf(PlotKinds.Cell, written, Roles.Cell, offset: at);
 
         return ContentNode.Branch(PlotKinds.Cell,
         [
-            ContentNode.Leaf(Kinds.Token, written[..1], Roles.Open),
-            ContentNode.Leaf(PlotKinds.Cell, written[1..^1], Roles.Cell),
-            ContentNode.Leaf(Kinds.Token, written[^1..], Roles.Close),
-        ], Roles.Cell);
+            ContentNode.Leaf(Kinds.Token, written[..1], Roles.Open, offset: at),
+            ContentNode.Leaf(PlotKinds.Cell, written[1..^1], Roles.Cell, offset: at + 1),
+            ContentNode.Leaf(Kinds.Token, written[^1..], Roles.Close, offset: at + written.Length - 1),
+        ], Roles.Cell, at);
     }
 }

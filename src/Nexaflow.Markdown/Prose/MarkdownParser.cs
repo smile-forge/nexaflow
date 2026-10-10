@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+using System.Linq;
+using System.Text;
 using Markdig;
 using Markdig.Extensions.AutoIdentifiers;
 using Markdig.Extensions.Tables;
@@ -8,6 +10,7 @@ using Markdig.Renderers.Html;
 using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Prose;
@@ -34,8 +37,11 @@ namespace Nexaflow.Markdown.Prose;
 /// falls between two blocks kept as the trivia it is.
 /// </para>
 /// </summary>
-public static class MarkdownParser
+public sealed class MarkdownParser : ITranspile
 {
+    private MarkdownParser()
+    {
+    }
     /// <summary>
     /// The pipeline used where a caller names none: everything a document can hold.
     ///
@@ -109,12 +115,13 @@ public static class MarkdownParser
         {
             // A reader that threw has said nothing about the text, which is not the same as the text being
             // wrong. What is left of it is shown as it was typed.
-            parts.Add(ContentNode.Shown(read.Rest()));
+            parts.Add(read.Unaccounted());
         }
 
         read.Gap(parts, read.Length);
 
-        var whole = new BlockNode(Language, Checked(Kinds.Block, parts, text, Roles.Element).Children);
+        var whole = new BlockNode(Language, Checked(Kinds.Block, parts, text, Roles.Element, read.From).Children,
+                                  offset: read.From);
 
         // Seen only by reading the whole document, and wanted by every block's words — see MarkdownDefinitions.
         return defined is null ? whole : whole.Holding(MarkdownKinds.Definitions, Roles.Derived, defined);
@@ -135,12 +142,13 @@ public static class MarkdownParser
     /// under a new name, which is a reading that learned nothing.
     /// </para>
     /// </summary>
-    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null)
+    /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null, int at = 0)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
 
         try
@@ -157,12 +165,12 @@ public static class MarkdownParser
         }
         catch
         {
-            parts.Add(ContentNode.Shown(read.Rest()));
+            parts.Add(read.Unaccounted());
         }
 
         read.Gap(parts, read.Length);
 
-        return Checked(Kinds.Sequence, parts, text, Roles.Body);
+        return Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
     /// <summary>Whether a block is the whole of what was handed over rather than a part of it.</summary>
@@ -219,7 +227,9 @@ public static class MarkdownParser
         if (to == from) return;
 
         read.Gap(parts, from);
-        parts.Add(Block(block, read.Text(to)));
+
+        // Where it stands is asked for before the characters are taken, which is what moves the cut along.
+        parts.Add(Block(block, read.Here, read.Text(to)));
     }
 
     /// <summary>
@@ -228,31 +238,33 @@ public static class MarkdownParser
     /// <para>
     /// Checked rather than trusted: a tree that does not print back as what it was read from is not a reading
     /// of it, whatever else it is. What is handed back instead is the source shown as it was typed — which is
-    /// what the body held before anybody read it, and what every builder already knows how to draw.
+    /// what the body held before anybody read it, and what every builder already knows how to draw. Either way
+    /// it says where it was read from, because either way that is where it was read from.
     /// </para>
     /// </summary>
-    internal static ContentNode Checked(string kind, IReadOnlyList<ContentNode> parts, string text, string role)
+    /// <param name="at">Where <paramref name="text"/>'s first character stands in the document holding it.</param>
+    internal static ContentNode Checked(string kind, IReadOnlyList<ContentNode> parts, string text, string role, int at)
     {
-        var node = ContentNode.Branch(kind, parts, role);
+        var node = ContentNode.Branch(kind, parts, role, at);
 
-        return node.Prints(text) ? node : ContentNode.Branch(kind, [ContentNode.Shown(text)], role);
+        return node.Prints(text) ? node : ContentNode.Branch(kind, [ContentNode.Shown(text, offset: at)], role, at);
     }
 
     /// <summary>
-    /// One block: what kind it is, and its own source held as written. Nothing is read out of the body here,
-    /// because what is inside is a different language with a different grammar, and reading it is its own
-    /// parser's business — which happens a pass later, in <see cref="MarkdownBlocks"/>.
+    /// One block: what kind it is, where it was read from, and its own source held as written. Nothing is read
+    /// out of the body here, because what is inside is a different language with a different grammar, and
+    /// reading it is its own parser's business — which happens a pass later, in <see cref="MarkdownBlocks"/>.
     /// </summary>
-    private static ContentNode Block(Block block, string source)
+    private static ContentNode Block(Block block, int at, string source)
     {
         // A maths block IS a fenced block — Markdig derives one from the other — and it reads the same way: a
         // delimiter, a body in another language, a delimiter. What differs is only that nobody writes the
         // language after the fence, because the $$ is what says it.
-        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, source, isMaths: true);
+        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, at, source, isMaths: true);
 
-        if (block is FencedCodeBlock fence) return Fenced(fence, source, isMaths: false);
+        if (block is FencedCodeBlock fence) return Fenced(fence, at, source, isMaths: false);
 
-        var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
+        var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
 
         // The name a link can point at. Taken here rather than worked out later, because it is the reading of
         // the whole document that settles it: two headings saying the same thing are told apart by their
@@ -271,12 +283,13 @@ public static class MarkdownParser
     /// A fence: a block in the language the word after it names — or maths, which a <c>$$</c> says by being one — holding the
     /// fence line, the characters written in that language (<see cref="Kinds.Nested"/>, unread), and the closing fence.
     /// </summary>
-    private static ContentNode Fenced(FencedCodeBlock fence, string source, bool isMaths)
+    private static ContentNode Fenced(FencedCodeBlock fence, int at, string source, bool isMaths)
     {
         var opens = 0;
         while (opens < source.Length && source[opens] == fence.FencedChar) opens++;
 
-        if (opens == 0) return ContentNode.Branch(MarkdownKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
+        if (opens == 0)
+            return ContentNode.Branch(MarkdownKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
 
         var named = opens;
         while (named < source.Length && !char.IsWhiteSpace(source[named])) named++;
@@ -297,14 +310,16 @@ public static class MarkdownParser
 
         var language = isMaths ? Maths : source[opens..named].Trim();
 
-        List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, source[..body], Roles.Open)];
+        List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, source[..body], Roles.Open, offset: at)];
 
         // Held as written and nothing read out of it: what is in there is a different language — or, where the fence names none, the
         // document's own code, as indented code is.
-        if (shut > body) parts.Add(ContentNode.Leaf(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source[body..shut], Roles.Body));
-        if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close));
+        if (shut > body) parts.Add(ContentNode.Leaf(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source[body..shut], Roles.Body, offset: at + body));
+        if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close, offset: at + shut));
 
-        return language.Length > 0 ? new BlockNode(language, parts) : ContentNode.Branch(MarkdownKinds.Code, parts);
+    return language.Length > 0
+            ? new BlockNode(language, parts, offset: at)
+            : ContentNode.Branch(MarkdownKinds.Code, parts, offset: at);
     }
 
     /// <summary>Which language reads a block's body.</summary>
@@ -330,4 +345,180 @@ public static class MarkdownParser
         ParagraphBlock => MarkdownKinds.Paragraph,
         _ => Kinds.Verbatim,
     };
+
+    /// <summary>
+    /// How prose spells words written into it: every character markdown would read as markup goes in as itself.
+    ///
+    /// <para>
+    /// Prose is the one language here that keeps the lines it was given. Every other collapses them — a formula is one
+    /// expression, a diagram's title is one line — and that disposes of every construct which only means something at the
+    /// start of a line. A paragraph dragged into a document is meant to stay a paragraph, so those constructs are live
+    /// here, and whether a character starts one depends on where it lands: a <c>#</c> is a heading at the start of a line
+    /// and a hash everywhere else. Which is why this is asked where the words go, and nothing else is.
+    /// </para>
+    /// </summary>
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
+
+    /// <summary>A change as prose spells it, or null where what holds the words is not prose at all.</summary>
+    private static string? Spelled(ContentPart part, string text, int at)
+    {
+        if (Unread(part)) return null;
+
+        var table = Within(part, MarkdownKinds.Table) || Within(part, MarkdownKinds.Row) || Within(part, MarkdownKinds.Cell);
+        var begins = Begins(part, at);
+
+        // Words meant as text belong in a run of text, and in front of nothing. Put at the front of a piece that is a
+        // construct's own punctuation they separate what holds it together — a link's brackets from its target — and put
+        // at the front of a line they push whatever opened it off the start, so a heading becomes a paragraph about a
+        // hash. Both are where the words land rather than what they say, and no spelling of them prevents either.
+        if (at == part.Start && !Worded(part)) return null;
+        if (at == part.Start && begins && part.Print() is { Length: > 0 } ahead && Marked(ahead, 0, true, table)) return null;
+
+        var said = new StringBuilder(text.Length);
+        var from = 0;
+
+        while (true)
+        {
+            var stop = text.IndexOf('\n', from);
+
+            said.Append(Written(stop < 0 ? text[from..] : text[from..stop], begins, table));
+
+            if (stop < 0) return said.ToString();
+
+            // Whatever follows a break stands where a line starts, whether or not the words began at one.
+            said.Append('\n');
+            from = stop + 1;
+            begins = true;
+        }
+    }
+
+    /// <summary>One line of them, every character read as markup given the backslash that makes it a character.</summary>
+    private static string Written(string line, bool begins, bool table)
+    {
+        var said = new StringBuilder(line.Length);
+
+        for (var at = 0; at < line.Length; at++)
+        {
+            if (Marked(line, at, begins, table)) said.Append('\\');
+            said.Append(line[at]);
+        }
+
+        return said.ToString();
+    }
+
+    /// <summary>Whether the character at <paramref name="at"/> would be read as markup where it stands.</summary>
+    private static bool Marked(string line, int at, bool begins, bool table) => line[at] switch
+    {
+        // Emphasis, code, a link and a strikethrough are read wherever they are written. So are an entity and a tag,
+        // which are only markup when something closes them — but what closes one can be the document's own next
+        // character rather than anything written here, and a run of words cannot see past its own end. A less-than that
+        // opens a link's target is the case that proves it: nothing follows it in the words at all.
+        '\\' or '`' or '*' or '_' or '[' or ']' or '~' or '&' or '<' => true,
+
+        // A pipe divides cells in a table and is a pipe anywhere else.
+        '|' => table,
+
+        // And these only where a line starts, which is the one thing a part cannot say about itself.
+        '#' or '>' or '-' or '+' or '=' or ':' => begins && Opening(line, at),
+        '.' or ')' => begins && Numbered(line, at),
+
+        _ => false,
+    };
+
+    /// <summary>Whether nothing but space stands in front of <paramref name="at"/> on its line.</summary>
+    private static bool Opening(string line, int at) => line.AsSpan(0, at).IsWhiteSpace();
+
+    /// <summary>Whether <paramref name="at"/> is what would make a numbered item of the digits in front of it.</summary>
+    private static bool Numbered(string line, int at)
+    {
+        var from = at;
+        while (from > 0 && char.IsAsciiDigit(line[from - 1])) from--;
+
+        return from < at && line.AsSpan(0, from).IsWhiteSpace();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="at"/> stands where a line starts, asked of the smallest part holding the character in
+    /// front of it.
+    ///
+    /// <para>
+    /// Nothing here holds the source, and nothing needs to: a part prints the characters it was read from, so the one
+    /// just before a position is found by printing whichever part is small enough to hold it — a word, usually. Where no
+    /// part holds anything in front of it, the words are at the start of everything, which is the start of a line.
+    /// </para>
+    /// </summary>
+    private static bool Begins(ContentPart part, int at)
+    {
+        for (var up = part; up is not null; up = up.Parent)
+        {
+            if (up.Derived) continue;
+
+            var into = at - up.Start;
+            if (into <= 0) continue;
+
+            var text = up.Print();
+            if (into > text.Length) continue;
+
+            // The line started further back than this piece, so what holds it is the one that can see the start.
+            var line = text.LastIndexOf('\n', into - 1);
+            if (line < 0 && up.Parent is not null) continue;
+
+            return Opens(text[(line + 1)..into]);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether nothing stands between the start of a line and a position but what opens the blocks already holding it.
+    ///
+    /// <para>
+    /// Which is not the same as standing at the start of a line. Inside a quote or a list item the line starts after that
+    /// block's own mark, so a <c>&gt;</c> written straight after a <c>&gt;</c> opens a quote inside a quote, and a mark
+    /// written straight after a bullet opens a list inside a list. Everything a container writes in front of its content
+    /// counts as the start for whatever would open next.
+    /// </para>
+    /// </summary>
+    private static bool Opens(string before)
+    {
+        foreach (var character in before)
+            if (!char.IsWhiteSpace(character) && !char.IsAsciiDigit(character)
+                && character is not ('>' or '-' or '+' or '*' or '.' or ')')) return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether what holds the words is something prose does not spell: code, raw HTML, front matter, a formula, or a
+    /// block nothing has read.
+    ///
+    /// <para>
+    /// A backslash is a literal backslash in every one of them, so there is no spelling that would make a character safe
+    /// there — and widening a fence until it could hold one is more than the run of words this is asked about.
+    /// </para>
+    /// <para>
+    /// Trivia is refused for a different reason: it is the gap between two blocks rather than anywhere inside one, so
+    /// words put there do not join a block, they make or break one. That is where the words go rather than how they are
+    /// spelled, and it is settled before this is asked.
+    /// </para>
+    /// </summary>
+    private static bool Unread(ContentPart part) =>
+        Within(part, MarkdownKinds.Code) || Within(part, MarkdownKinds.Html) || Within(part, MarkdownKinds.FrontMatter)
+        || Within(part, MarkdownKinds.Formula) || Within(part, Kinds.Verbatim)
+        || part.Role == Roles.Trivia || part.Ancestors().Any(up => up.Role == Roles.Trivia);
+
+    /// <summary>Whether a part is, or is written inside, a <paramref name="kind"/>.</summary>
+    private static bool Within(ContentPart part, string kind) =>
+        part.Kind == kind || part.Ancestors().Any(up => up.Kind == kind);
+
+    /// <summary>
+    /// Whether a piece is a run of text, rather than a construct's own punctuation.
+    ///
+    /// <para>
+    /// Said by the role and not the kind: a link's closing bracket is a token exactly as a word is, and what separates
+    /// them is what each is for. Only what a block holds as its own words takes words in front of it.
+    /// </para>
+    /// </summary>
+    private static bool Worded(ContentPart part) =>
+        part.Role == Roles.Element && part.Kind is MarkdownKinds.Word or Kinds.Token or Kinds.Space;
 }

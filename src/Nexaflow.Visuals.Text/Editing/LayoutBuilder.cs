@@ -43,20 +43,31 @@ public sealed class LayoutBuilder
     private readonly Stack<Frame> _open = new();
     private readonly Stack<Frame> _spare = new();
 
+    /// <summary>
+    /// A builder with room for <paramref name="pieces"/> pieces, or for <see cref="Fewest"/> where a caller cannot say.
+    /// </summary>
     /// <param name="pieces">
-    /// About how many pieces the tree will hold, where that is known — a document laid again is about as many as last time — so
-    /// its lists are made that size once rather than grown to it.
+    /// How many pieces this will hold, where that is known — a block laid again knows what it came to last time. Room is
+    /// all it buys: being wrong costs nothing but the growing it would have done anyway.
     /// </param>
     public LayoutBuilder(int pieces = 0)
     {
-        _pieces = new(pieces);
-        _parts = new(pieces);
-        _kinds = new(pieces);
-        _paints = new(pieces);
-        _regions = new(pieces);
-        _words = new(pieces);
-        _marks = new(pieces);
+        // Seven lists growing from four reallocate three times before they hold a piece worth drawing, and a floor skips
+        // those. Only those: what a list copies growing to any size is about that size again, and starting higher saves
+        // the first few steps rather than a share of it — so a caller that knows its count should say so instead.
+        var room = Math.Max(pieces, Fewest);
+
+        _pieces = new(room);
+        _parts = new(room);
+        _kinds = new(room);
+        _paints = new(room);
+        _regions = new(room);
+        _words = new(room);
+        _marks = new(room);
     }
+
+    /// <summary>The room a builder starts with, told nothing — enough that a small tree never grows at all.</summary>
+    private const int Fewest = 32;
 
     /// <summary>
     /// A piece being built: where it is, what it has drawn so far, and how far that reaches. Marks are held

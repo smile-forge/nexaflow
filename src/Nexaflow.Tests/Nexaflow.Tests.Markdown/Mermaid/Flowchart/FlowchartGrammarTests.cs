@@ -128,6 +128,8 @@ public class FlowchartGrammarTests : MermaidGrammarContract
         ("a long dotted link", "flowchart LR\n  a -..-> b"),
         ("a long thick link", "flowchart LR\n  a ====> b"),
         ("a label in quotes holding a bracket", "flowchart LR\n  a[\"A ] in it\"] --> b"),
+        ("a label written across two lines", "flowchart LR\n  a[\"Line one\nLine two\"] --> b"),
+        ("a quote never closed, which costs its own line", "flowchart LR\n  a[\"Unclosed\n  b --> c"),
         ("a label on a link holding a dash", "flowchart LR\n  a -- \"a-b\" --> b"),
         ("a node written again to say more about it", "flowchart LR\n  a --> b\n  a[\"Said later\"]"),
         ("a subgraph with nothing after the word", "flowchart TB\n  subgraph\n    a\n  end"),
@@ -191,6 +193,22 @@ public class FlowchartGrammarTests : MermaidGrammarContract
         Assert.AreEqual("a", Said("flowchart LR\n  a==>b"));
         Assert.AreEqual("a", Said("flowchart LR\n  a~~~b"));
         Assert.AreEqual("a-b", Said("flowchart LR\n  a-b --> c"));
+    }
+
+    [TestMethod]
+    public void ALabelWrittenAcrossTwoLinesIsOneLabel()
+    {
+        // Why a chart reads its own source instead of being handed rows: a statement ends at a line ending, and a quote is
+        // where that stops being true. Handed one row at a time, this label is two halves with a boundary through it.
+        const string source = "flowchart LR\n  a[\"Line one\nLine two\"] --> b";
+
+        var said = Written(source).SelectMany(node => node.SelfAndDescendants())
+                                  .Select(part => part.Words()?.Text)
+                                  .OfType<string>()
+                                  .ToList();
+
+        CollectionAssert.Contains(said, "Line one\nLine two",
+                                  $"the label is one run of words, which only the chart's own parser reads: {string.Join(" | ", said)}");
     }
 
     [TestMethod]

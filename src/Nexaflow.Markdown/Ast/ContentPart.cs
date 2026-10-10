@@ -19,21 +19,28 @@ public sealed class ContentPart : ISourcePart
     /// <summary>The span this part reports instead of its own, or nothing where it was written.</summary>
     private readonly int? _derived;
 
-    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived, int order = 0)
+    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived, int shift, int order = 0)
     {
         this.Order = order;
-        // Anything derived, and everything under it, stands for no source: it begins where the piece it
-        // was hung under begins and is no characters long, which is the only answer that keeps a part's
+
+        // A piece the parser said the place of stands for those characters wherever it hangs, which is what lets the very
+        // node a reader types in hang under something derived rather than a copy of its text.
+        var stood = node.Offset is { } offset ? offset + shift : (int?)null;
+
+        // Anything derived, and everything under it that says no place of its own, stands for no source: it begins where
+        // the piece it was hung under begins and is no characters long, which is the only answer that keeps a part's
         // span and what it prints as the same thing. Selecting the whole of what it explains still works
         // — the piece drawn from it carries the *written* part, which does have a span.
-        var inherited = derived ?? (node.Role is Roles.Derived or Roles.Supplied && parent is not null
-            ? parent.Start
-            : (int?)null);
+        var inherited = stood is not null
+            ? null
+            : derived ?? (node.Role is Roles.Derived or Roles.Supplied && parent is not null
+                ? parent.Start
+                : (int?)null);
 
         this.Node = node;
         this.Parent = parent;
         this._derived = inherited;
-        this.Start = inherited ?? start;
+        this.Start = stood ?? inherited ?? start;
 
         var at = this.Start;
         this._children = node.Children.Count == 0 ? [] : new ContentPart[node.Children.Count];
@@ -42,8 +49,8 @@ public sealed class ContentPart : ISourcePart
         {
             var child = node.Children[index];
 
-            this._children[index] = new ContentPart(child, at, this, inherited, index);
-            if (inherited is null) at += child.Width;
+            this._children[index] = new ContentPart(child, at, this, inherited, shift, index);
+            if (inherited is null) at = (child.Offset is { } begins ? begins + shift : at) + child.Width;
         }
     }
 
@@ -57,7 +64,7 @@ public sealed class ContentPart : ISourcePart
     /// was actually written as, in the document a reader is selecting and editing.
     /// </para>
     /// </summary>
-    public static ContentPart Of(ContentNode root, int at = 0) => new(root, at, null, null);
+    public static ContentPart Of(ContentNode root, int at = 0) => new(root, at, null, null, at - (root.Offset ?? 0));
 
     /// <summary>The piece this part is a positioned view of.</summary>
     public ContentNode Node { get; }

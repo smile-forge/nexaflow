@@ -37,18 +37,28 @@ it.** Turn that around and they all go.
 
 A concrete syntax tree, in the Roslyn sense — lossless, immutable, text-owning.
 
-**Nodes own their text; the source is a projection.** A leaf carries characters. A node carries
-children. There are no offsets stored anywhere. `Print` concatenates the leaves; an offset is computed
-by a walk when the editor asks for one. That is what makes "the source is a serialization format"
-literally true rather than aspirational: a tree that has never been printed is still the whole truth,
-and printing is a fold.
+**Nodes own their text, and each says where that text was read from.** A leaf carries characters. A
+node carries children. `Print` puts the pieces back in the order they were read, and where a part sits
+in the document is still worked out by a walk when the editor asks (`ContentPart`), which is what
+positions a formula read from its own slice of a document. That is what makes "the source is a
+serialization format" literally true rather than aspirational: a tree that has never been printed is
+still the whole truth, and printing is a fold.
 
-**Two invariants, and the second is the one that holds the first up:**
+An offset means **where it was read from**, and nothing else — so only the parser says it, a stage that
+works something out says nothing, and what a shorthand name stands for says nothing either, being read
+from a definition rather than from the document.
+
+**Three invariants, and the later ones hold the first up:**
 
 1. `Print(Parse(s)) == s` — for every input, including malformed input. Nothing the reader can type is
    outside the tree.
 2. **The parser only ever copies.** Every leaf's text appears in the source at the offset the tree puts
    it at; nothing is synthesized, normalized or inserted. Checked at every leaf of every parse.
+3. **And every piece says which characters it copied.** A round trip cannot tell a piece that knows its
+   own place from one that does not, because a tree printed in the order it was built comes out the same
+   either way. So the corpus is put to an oracle that asks each piece where it was read from and holds
+   the answer against the source, and then reverses the parts of every piece and prints it again
+   (`AstOracle`) — over every construct, every prefix and every suffix, and after every stage.
 
 The first is the headline and is the weaker claim — a parser that returned the whole input as one
 verbatim leaf would pass it, and so would one that quietly repaired what it read. The second is what
@@ -112,16 +122,17 @@ Each stage stands on its own and leaves the app working.
 
    Nothing calls it now — typing into a formula is the shared edit handling with `LatexEdits` as its hook, and the matrix drag
    it served is gone — so it was deleted, with `TexWrite`, when the reader moved onto the shared tree. A
-   structured edit, when one is wanted again, is written against `ContentNode` and returns the shared
-   `AstWrite`, as ABC's `AbcEdit` does.
+   structured edit, when one is wanted again, is written against `ContentNode` and answers with a
+   `ContentChange`, as ABC's `AbcEdit` does.
 
-   What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
-   stages between the parser and the builder do not re-derive themselves when a tree is changed
-   underneath them — a filled hole is still flagged a hole, a command whose name has grown is still
-   marked undrawable, a gathered shape may no longer be what gathering would make of it — so an edit
-   prints, and the source it prints as is read back and built from. Which is also why editing the tree
-   is worth the trouble: an edit expressed against a node knows what it touched, so trouble afterwards
-   can be blamed on the keystroke that caused it rather than guessed at by diffing a string.
+   An edit names the characters it changes, and that is the rule the whole thing turns on. The stages
+   between the parser and the builder do not re-derive themselves when a tree is changed underneath them
+   — a filled hole is still flagged a hole, a command whose name has grown is still marked undrawable, a
+   gathered shape may no longer be what gathering would make of it — so no edit hands back a tree for
+   somebody to print: it says which stretches of source to write, the engine writes them, and the
+   formula is read and laid out again. Which is also why reaching for the tree is worth the trouble: an
+   edit named against a node knows what it touched, so trouble afterwards can be blamed on the keystroke
+   that caused it rather than guessed at by diffing a string.
 6. **The solver bridge** — later, and out of scope here. Tree to `Entity`, so that what renders is
    what solves.
 

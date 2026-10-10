@@ -15,8 +15,10 @@ public class BlockNode : ContentNode
 {
     /// <param name="language">The word naming the language — as the content was called, or as its own header names it.</param>
     /// <param name="kind">What the language calls its whole; <see cref="Kinds.Block"/> for a block holding another language.</param>
-    public BlockNode(string language, IReadOnlyList<ContentNode> children, string kind = Kinds.Block, string role = Roles.Element)
-        : this(ContentNode.Branch(kind, children, role), language) { }
+    /// <param name="offset">Where its first character was read from, where the parser says — see <see cref="ContentNode.Offset"/>.</param>
+    public BlockNode(string language, IReadOnlyList<ContentNode> children, string kind = Kinds.Block, string role = Roles.Element,
+                     int? offset = null)
+        : this(ContentNode.Branch(kind, children, role, offset), language) { }
 
     /// <summary>A block standing for exactly what <paramref name="shape"/> stands for, in <paramref name="language"/>.</summary>
     private BlockNode(ContentNode shape, string language) : base(shape) => this.Language = language;

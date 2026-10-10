@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.WordCloud;
 using Nexaflow.Markdown.WordCloud.Stages;
 using Nexaflow.Tests.Fixtures;
@@ -47,8 +48,20 @@ public class WordCloudStagesTests
     [TestMethod]
     public void TheStagesPrintAsWhatWasWritten()
     {
+        // Each stage on its own, not the pair of them: a stage may throw out and rebuild every node it was handed,
+        // provided what comes back still prints as the source. Asserting it only at the end lets two stages cancel
+        // out one another's damage.
         foreach (var source in new[] { "WPF: 40\nXAML: lots\n", "shape: blob\nWPF: 40", "", "colour: #f00\n\"shape\": 4\r\n# note" })
-            Assert.AreEqual(source, Staged(source).Print());
+        {
+            var tree = WordCloudParser.Parse(source);
+
+            foreach (var stage in new IAstStage[] { new ResolveCloud(), new ResolveWords() })
+            {
+                tree = stage.Run(tree);
+
+                Assert.AreEqual(source, tree.Print(), $"{source}: after {stage.Name}");
+            }
+        }
     }
 
     // ── The words ──────────────────────────────────────────────────────────

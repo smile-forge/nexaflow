@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Plot;
 
@@ -82,6 +83,24 @@ public class PlotParserTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in Blocks)
+        {
+            var faults = AstOracle.Faults(source, PlotParser.Parse(language: "scatter", source: source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in Blocks)
+            Assert.AreEqual(source, AstOracle.Reversed(PlotParser.Parse(language: "scatter", source: source)).Print(), what);
     }
 
     /// <summary>

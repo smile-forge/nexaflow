@@ -47,4 +47,16 @@ public class RequirementEditingTests : MermaidEditing
                            "a dash would read as the line of a relation");
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingARequirementCarriesToWhatSatisfiesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // A requirement is named where it is written and again by the relation that reaches it.
+            PressPast(diagram, "test_req");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "requirement test_reqs {", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "satisfies -> test_reqs", "the relation names the requirement it named: " + editor.Markdown);
+        }));
 }

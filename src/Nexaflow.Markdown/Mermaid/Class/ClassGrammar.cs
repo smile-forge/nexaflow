@@ -96,18 +96,18 @@ public sealed class ClassGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: a class diagram is laid out by a <c>direction</c> line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
-        return ContentNode.Shown(arguments, "Nothing follows classDiagram — direction LR lays it out.", MermaidRoles.Arguments);
+        return ContentNode.Shown(arguments, "Nothing follows classDiagram — direction LR lays it out.", MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Written.Trim() is Closing or Closing + ";") return Shut(line, ClassKinds.Ends);
         if (line.Sees(Opens)) return Annotated(line);
@@ -343,17 +343,18 @@ public sealed class ClassGrammar : IMermaidGrammar
     // ── The members between the braces ──────────────────────────────────────
 
     /// <summary>A <c>class</c> line whose members are written on the lines under it.</summary>
-    private static ContentNode? Begun(string text) =>
-        MermaidLine.Keyword(text, Bare, ClassWord) is not null && Declared(MermaidLine.Of(text)) is { Kind: ClassKinds.Opens } opened
+    private static ContentNode? Begun(string text, int at) =>
+        MermaidLine.Keyword(text, Bare, ClassWord) is not null && Declared(MermaidLine.Of(text, at)) is { Kind: ClassKinds.Opens } opened
             ? opened
             : null;
 
-    private static bool Shutting(string text) => MermaidLine.Of(text).Written.Trim() is Closing or Closing + ";";
+    // Only what the line says is asked for, and nothing read from it is kept, so it stands nowhere.
+    private static bool Shutting(string text) => MermaidLine.Of(text, 0).Written.Trim() is Closing or Closing + ";";
 
     /// <summary>A line between the braces: an annotation, and otherwise a member, whatever it would read as on its own.</summary>
-    private static ContentNode Within(string text)
+    private static ContentNode Within(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
         line.Room();
 
         if (line.Sees(Opens))
@@ -365,7 +366,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         return line.Read(ClassKinds.Member, ClassRoles.Member);
     }
 
-    private static ContentNode Shutter(string text) => Shut(MermaidLine.Of(text), ClassKinds.Shut);
+    private static ContentNode Shutter(string text, int at) => Shut(MermaidLine.Of(text, at), ClassKinds.Shut);
 
     // ── The pieces a line is made of ────────────────────────────────────────
 

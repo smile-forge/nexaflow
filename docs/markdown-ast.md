@@ -66,14 +66,26 @@ content is set is a fact about the content. A builder that reads the display, th
 
 ## 2. The AST
 
-**The AST owns its text, and no offset is stored anywhere.** A node knows how wide it is; where it stands is worked out
-by a walk when somebody asks (`ContentReading`, `ContentPart`). An edit that replaces a subtree cannot leave a stale
-position behind, because there were none.
+**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`). Only a
+parser says it, because a parser is the only thing that reads source; a stage that works something out says nothing,
+and what it hangs is derived and stands for no characters at all. Where a part sits in the document is still worked out
+by a walk when somebody asks (`ContentReading`, `ContentPart`), which is what positions a language read from its own
+slice inside the document holding it.
+
+An offset means **where it was read from**, and nothing else. It is not a print position, not a hint, and not
+something an edit updates: an edit names the characters it changes, the engine writes them, and the content is read
+again (§8). What it buys is that a stage may regroup, reorder and share the pieces it was handed and the source still
+comes out as it was written — and that whether a character was copied or made up is a question with an answer.
 
 **R5 — `Print(Parse(s)) == s` for every input, malformed included.** Nothing a reader can type is outside the AST.
 
-**R6 — A parser only ever copies.** Every leaf's text is in the source at the offset the tree puts it at; nothing is
-synthesised, normalised or inserted.
+**R6 — A parser only ever copies, and says where from.** Every leaf standing for characters says where it was read
+from, and what the source holds there is what it prints as; nothing is synthesised, normalised or inserted.
+
+R6's second half is what makes the first half checkable. A round trip cannot tell a piece that knows its own place
+from one that does not, because a tree printed in the order it was built comes out the same either way — so every
+language's corpus is put to an oracle that asks each piece where it was read from and holds the answer against the
+source, and then reverses the parts of every piece and prints it again (`AstOracle`).
 
 R5 alone is weak: a parser returning the whole input as one leaf passes it, and so does one that quietly repairs what
 it read. R6 is what stops recovery from inventing. The temptation on meeting `[CEG` is to close the bracket, and a
@@ -144,6 +156,8 @@ nothing is better than characters spliced into a syntax nothing vouched for.
 A language within a kit may own its parser: a flowchart is read by `FlowchartParser` rather than by the shared
 `MermaidParser`, reusing its internals for the frame every Mermaid block shares and reading its own statements, because
 a flowchart's statement does not end where a line does — a quoted value spans lines and is one run of words.
+`MermaidDiagrams.ParserFor` names the parser a diagram is read by and is the only place that choice is made, so the
+shipped language and the tests read a block the same way.
 
 **A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
 change.
@@ -364,9 +378,19 @@ ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surfac
 own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the
 application's, and hands the words to the language the caret is in as a pasting edit. What a copy holds is the engine's
 too — only it knows what is picked out and what language that was written in, so a whole block copied carries the picture
-it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
-a null answer moves the text as anywhere. While whole pieces are chosen — a slice, a node — there is no caret
-(`ContentEngine.ChoseWhole`).
+it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked.
+While whole pieces are chosen — a slice, a node — there is no caret (`ContentEngine.ChoseWhole`).
+
+**A move is its own seam.** Carrying what is picked out and letting it go somewhere else is the engine's gesture — the
+press, the drag, the content laid out as it would read after the drop, and letting go settling exactly what was on
+screen (`ContentEngine.Moving`, `BuildPreview`, `Release`). What it comes to by default is the characters carried,
+emptied from where they were and written in at the drop, which is right for everything whose source is what a reader
+sees. A language says otherwise through **`IOnMove`** (`IContentLanguage.OnMove`), told what is carried and where it is
+being let go (`ContentMove`) rather than left to work either out from the selection — because the case that needs it is
+the one where the stretches carried are not next to one another and what they stand for is a place in a structure: a
+slice of a pie, a column of a matrix, a note of a tune. It answers with a `ContentChange` like every other edit, so
+there is still one path from a gesture to the source. Text arriving from outside is an edit rather than a move, and
+stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Mermaid;
 
@@ -32,8 +33,8 @@ public abstract class MermaidGrammarContract
     protected IMermaidGrammar Grammar => MermaidDiagrams.Grammar(Diagram)
                                          ?? throw new AssertFailedException($"{Diagram} has no grammar: MermaidDiagrams.Grammar names none.");
 
-    /// <summary>A block parsed as this grammar reads it.</summary>
-    private ContentNode Parsed(string source) => MermaidParser.Parse(source);
+    /// <summary>A block read by the parser its diagram is read by, which for most diagrams is the shared one.</summary>
+    private ContentNode Parsed(string source) => MermaidDiagrams.ParserFor(Diagram)(source);
 
     /// <summary>A block parsed and run through its stages, as this grammar reads it.</summary>
     private ContentNode Reading(string source, bool holes = false) => MermaidStaged.Read(source, holes);
@@ -60,6 +61,26 @@ public abstract class MermaidGrammarContract
     }
 
     [TestMethod]
+    public void AndSoDoesEveryStageOnTheWayThere()
+    {
+        // The rule the whole design rests on, stated per stage rather than per pipeline: a stage may throw out and
+        // rebuild every node it was handed, provided what comes back still prints as the source it was read from.
+        // Asserting it only once the pipeline has run lets two stages cancel out one another's damage.
+        foreach (var (what, source) in All)
+            foreach (var holes in new[] { false, true })
+            {
+                var tree = Parsed(source);
+
+                foreach (var stage in MermaidPipeline.Of(tree, holes))
+                {
+                    tree = stage.Run(tree);
+
+                    Assert.AreEqual(source, tree.Print(), $"{what}: after {stage.Name}{(holes ? ", with holes" : "")}");
+                }
+            }
+    }
+
+    [TestMethod]
     public void EveryPrefixOfEveryBlockReadsBackToo()
     {
         foreach (var (what, source) in All)
@@ -79,6 +100,27 @@ public abstract class MermaidGrammarContract
                 if (!place.Node.IsLeaf) continue;
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in All)
+        {
+    foreach (var (stage, tree) in new[] { ("read", Parsed(source)), ("after the stages", Reading(source)) })
+    {
+        var faults = AstOracle.Faults(source, tree).ToList();
+
+        Assert.AreEqual(0, faults.Count, $"{what}, {stage}\n{string.Join("\n", faults)}");
+    }
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in All)
+            Assert.AreEqual(source, AstOracle.Reversed(Parsed(source)).Print(), what);
     }
 
     [TestMethod]

@@ -10,7 +10,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Requirement;
 internal sealed class RequirementEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, RequirementRoles.Id);
+    }
 
     /// <summary>
     /// A field's value runs to the end of its line and holds anything but a comment. A name and a class are written bare — in quotes,

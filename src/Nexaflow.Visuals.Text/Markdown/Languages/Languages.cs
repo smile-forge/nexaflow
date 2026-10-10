@@ -74,6 +74,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = MarkdownEdits.Instance,
+            Transpile = Transpiles.By<MarkdownParser>(),
         };
 
     /// <summary>
@@ -108,22 +109,19 @@ internal static class Shipped
     {
         var (name, icon, block) = Starting(diagram);
 
-        // A chart reads its own source: a label written between quotes runs to its closing quote wherever that stands, which
-        // nothing handed its lines one at a time can see. Every other diagram is read by the shared reader.
-        var chart = diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane;
+        // Which parser reads this diagram, and which writes back into it, are MermaidDiagrams' to say and nobody else's.
+        var reads = MermaidDiagrams.ParserFor(diagram);
 
         return new(
             Reads: word => !string.IsNullOrWhiteSpace(word) && MermaidDiagrams.Named(word.Trim()) == diagram,
-            Parser: chart
-                ? static () => static source => ContentParse.Of(Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser.Parse(source))
-                : static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
+            Parser: () => source => ContentParse.Of(reads(source)),
             Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
             Builder: builder)
             {
                 Writable = true,
                 Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
-                Transpile = chart ? Transpiles.By<Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser>() : Transpiles.By<MermaidParser>(),
+                Transpile = MermaidDiagrams.TranspilerFor(diagram),
                 DisplayName = name,
                 Icon = icon,
                 DefaultBlock = block,
@@ -465,6 +463,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = new EditedBy(LatexEdits.Instance),
+            Transpile = Transpiles.By<TexParser>(),
             DisplayName = "Formula",
             Icon = IconRef.Fluent("math_formula"),
             DefaultBlock = """
@@ -625,6 +624,9 @@ internal static class Shipped
 internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
 {
     public IOnEdit? OnEdit => onEdit;
+
+    /// <summary>And its moves too, where the same handler says anything about one.</summary>
+    public IOnMove? OnMove => onEdit as IOnMove;
 }
 
 /// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>

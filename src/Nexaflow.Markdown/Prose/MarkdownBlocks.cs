@@ -69,7 +69,15 @@ internal sealed class MarkdownBlocks
         return moved ? document.With(seen) : document;
     }
 
-    /// <summary>What a block written as this one is was read as last time — each handed out once.</summary>
+    /// <summary>
+    /// What a block written as this one is was read as last time, moved along to where this one now stands — each handed
+    /// out once.
+    ///
+    /// <para>
+    /// How far it has moved is the two written blocks' own offsets, not the reading's: a reading is a tree of pieces that
+    /// each say where they were read from, and the piece at the top of one need not say anything at all.
+    /// </para>
+    /// </summary>
     private ContentNode? Remembered(string written, ContentNode block)
     {
         if (!_before.TryGetValue(written, out var alike)) return null;
@@ -78,9 +86,10 @@ internal sealed class MarkdownBlocks
         {
             if (!Alike(alike[at].Written, block)) continue;
 
-            var read = alike[at].Read;
+            var (was, read) = alike[at];
             alike.RemoveAt(at);
-            return read;
+
+            return was.Offset is { } stood && block.Offset is { } now ? read.FurtherOn(now - stood) : read;
         }
 
         return null;
@@ -89,6 +98,13 @@ internal sealed class MarkdownBlocks
     /// <summary>
     /// Whether two blocks say the same: the same characters in the same shape, and the same things the parser worked out
     /// about them — a heading's name, which moves when another heading is written above it, is not in its characters.
+    ///
+    /// <para>
+    /// Where a block stands is deliberately none of it. What a reading came to depends on the characters, so the same
+    /// words further down the page were read the same way, and the reading kept from last time is moved along to where
+    /// this block stands on the way out (<see cref="ContentNode.FurtherOn"/>) rather than read again. Counting the
+    /// offsets here would make every block below a keystroke a block nothing remembers.
+    /// </para>
     /// </summary>
     private static bool Alike(ContentNode was, ContentNode now)
     {
@@ -108,8 +124,9 @@ internal sealed class MarkdownBlocks
     }
 
     /// <summary>
-    /// Which parser reads this block, where one reads it. A kind that is not here is a kind nothing can read
-    /// yet, and what it holds stays exactly as it was typed.
+    /// Which parser reads this block, where one reads it, and told where the block's source stands in the
+    /// document so every piece it reads says where it was read from. A kind that is not here is a kind nothing
+    /// can read yet, and what it holds stays exactly as it was typed.
     ///
     /// <para>
     /// Asked of the node rather than of its kind alone, because one kind is read two ways: a cell of a pipe
@@ -118,19 +135,19 @@ internal sealed class MarkdownBlocks
     /// </para>
     /// </summary>
     /// <param name="besides">What the document defines, which the words of a block are read beside.</param>
-    private static Func<string, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
+    private static Func<string, int, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
     {
-        MarkdownKinds.Cell when Holds(node) => source => MarkdownParser.Inside(source),
+        MarkdownKinds.Cell when Holds(node) => static (source, at) => MarkdownParser.Inside(source, at: at),
 
         MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
             or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            source => MarkdownInline.Read(source, besides: besides).As(Roles.Body),
+            (source, at) => MarkdownInline.Read(source, besides: besides, at: at).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
-            or MarkdownKinds.Figure or MarkdownKinds.Footer => source => MarkdownParser.Inside(source),
+            or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at) => MarkdownParser.Inside(source, at: at),
 
-        MarkdownKinds.List => source => MarkdownList.Read(source),
-        MarkdownKinds.Table => source => MarkdownTable.Read(source),
+        MarkdownKinds.List => static (source, at) => MarkdownList.Read(source, at: at),
+        MarkdownKinds.Table => static (source, at) => MarkdownTable.Read(source, at: at),
 
         _ => null,
     };
@@ -150,8 +167,11 @@ internal sealed class MarkdownBlocks
     {
         if (node.IsLeaf) return node;
 
+        // The reader is told where the body's characters stand, which is what the body itself says — the split that
+        // named this block cut them out of the document and said so. A body that says nothing is read from nought,
+        // which is the only answer left and the one the oracle over every corpus is there to catch.
         if (Reader(node, besides) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
-            && reader(body.Text) is { } read && !Circles(node, body, read))
+            && reader(body.Text, body.Offset ?? 0) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
         ContentNode[]? seen = null;

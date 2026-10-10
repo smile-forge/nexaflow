@@ -70,18 +70,18 @@ public sealed class ErGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: an ER diagram is laid out by a <c>direction</c> line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
-        return ContentNode.Shown(arguments, "Nothing follows erDiagram — direction LR lays it out.", MermaidRoles.Arguments);
+        return ContentNode.Shown(arguments, "Nothing follows erDiagram — direction LR lays it out.", MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Written.Trim() is Closing or Closing + ";") return line.Shown(StrayShape);
 
@@ -196,18 +196,19 @@ public sealed class ErGrammar : IMermaidGrammar
     // ── The attributes between the braces ───────────────────────────────────
 
     /// <summary>A line opening an entity's attributes, which is what says the lines under it are one statement with it.</summary>
-    private static ContentNode? Begun(string text) =>
+    private static ContentNode? Begun(string text, int at) =>
         MermaidLine.Keyword(text, Bare, [SubgraphWord, EndWord, DirectionWord, .. MermaidStyling.Words]) is null
-        && Joined(MermaidLine.Of(text)) is { Kind: ErKinds.Opens } opened
+        && Joined(MermaidLine.Of(text, at)) is { Kind: ErKinds.Opens } opened
             ? opened
             : null;
 
-    private static bool Shutting(string text) => MermaidLine.Of(text).Written.Trim() is Closing or Closing + ";";
+    // Only what the line says is asked for, and nothing read from it is kept, so it stands nowhere.
+    private static bool Shutting(string text) => MermaidLine.Of(text, 0).Written.Trim() is Closing or Closing + ";";
 
     /// <summary>A line between the braces: what the attribute holds, what it is called, the keys it is, and what it is for.</summary>
-    private static ContentNode Within(string text)
+    private static ContentNode Within(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
         line.Room();
 
         // A line with nothing written on it yet is one an attribute is still to be written on.
@@ -227,9 +228,9 @@ public sealed class ErGrammar : IMermaidGrammar
         return line.Closed(ErKinds.Attribute, AttributeShape);
     }
 
-    private static ContentNode Shutter(string text)
+    private static ContentNode Shutter(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         line.Room();
         line.Token(Closing, Roles.Close);

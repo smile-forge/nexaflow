@@ -150,7 +150,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         var drawn = placed.Count == 0 ? new Rect(0, 0, width, height) : Covered(placed);
         var shift = new Vector(-drawn.X, -drawn.Y);
 
-        var build = new LayoutBuilder();
+        // A word is a piece, and the cloud holding them is one more.
+        var build = new LayoutBuilder(placed.Count + 1);
         build.Open(WordCloudPiece.Cloud);
 
         var picture = new Rect(drawn.Size);

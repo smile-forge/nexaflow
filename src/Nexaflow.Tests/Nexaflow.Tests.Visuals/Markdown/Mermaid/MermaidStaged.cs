@@ -13,7 +13,10 @@ internal static class MermaidStaged
     /// <param name="holes">Whether somebody is writing in the block.</param>
     public static ContentPart Read(string source, bool holes = false)
     {
-        var tree = MermaidParser.Parse(source);
+        // Read by whatever parser the diagram's header names, so a test holds the parser the app actually uses for it.
+        var named = MermaidParser.Heading(source)?.Header.Part(Roles.Name)?.Text;
+        var tree = MermaidDiagrams.ParserFor(MermaidDiagrams.Named(named))(source);
+
         return ContentReading.Of(new AstPipeline(MermaidPipeline.Of(tree, holes)).Run(tree)).Root;
     }
 

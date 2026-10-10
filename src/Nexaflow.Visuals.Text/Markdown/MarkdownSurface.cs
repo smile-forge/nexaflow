@@ -70,6 +70,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         _engine.SourceChanged += (_, change) => Written(change);
 
         _engine.PreRender += Laid;
+        _engine.Reread += Landed;
 
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.
         _engine.Events = this;

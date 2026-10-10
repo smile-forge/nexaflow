@@ -189,7 +189,7 @@ public sealed class MermaidParser : ITranspile
 
         if (text.StartsWith("%%", StringComparison.Ordinal))
         {
-            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia)], to, row));
+            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: from)], to, row));
             return row.Stop;
         }
 
@@ -200,8 +200,8 @@ public sealed class MermaidParser : ITranspile
         {
             lines.Add(Line(source, row.Start, from,
                 [reading.Headed
-                    ? ContentNode.Leaf(Kinds.BoundContent, text)
-                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.")],
+                    ? ContentNode.Leaf(Kinds.BoundContent, text, offset: from)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.", offset: from)],
                 to, row));
             return row.Stop;
         }
@@ -209,7 +209,7 @@ public sealed class MermaidParser : ITranspile
         if (!reading.Headed)
         {
             reading.Headed = true;
-            lines.Add(Line(source, row.Start, from, [Header(text, reading)], to, row));
+            lines.Add(Line(source, row.Start, from, [Header(text, from, reading)], to, row));
             return row.Stop;
         }
 
@@ -220,10 +220,10 @@ public sealed class MermaidParser : ITranspile
 
         // What a line says is its diagram's own grammar, handed the line to the end of its row: as much of it as the grammar
         // reads is what was written, and the rest is the line's. A type without one keeps its lines whole.
-        if (reading.Grammar?.Statement(source[from..row.End]) is { } said)
+        if (reading.Grammar?.Statement(source[from..row.End], from) is { } said)
             lines.Add(Line(source, row.Start, from, [said], from + said.Width, row));
         else
-            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Statement, text)], to, row));
+            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Statement, text, offset: from)], to, row));
         return row.Stop;
     }
 
@@ -235,7 +235,7 @@ public sealed class MermaidParser : ITranspile
     {
         foreach (var stretch in grammar.Stretches)
         {
-            if (stretch.Opens(source[from..to]) is not { } opened) continue;
+            if (stretch.Opens(source[from..to], from) is not { } opened) continue;
 
             var pieces = new List<ContentNode> { opened };
             var end = to;
@@ -245,24 +245,25 @@ public sealed class MermaidParser : ITranspile
                 var (start, stop) = next.Text(source);
                 var text = source[start..stop];
 
-                pieces.Add(Space(source[end..start]));
+                pieces.Add(Space(source[end..start], end));
                 end = stop;
 
                 if (text.Length == 0) continue;
 
                 if (!stretch.Ends(text))
                 {
-                    pieces.Add(stretch.Inside(text));
+                    pieces.Add(stretch.Inside(text, start));
                     continue;
                 }
 
-                pieces.Add(stretch.Ended(text));
-                lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, pieces)], stop, next));
+                pieces.Add(stretch.Ended(text, start));
+                lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, pieces, offset: from)], stop, next));
                 return next.Stop;
             }
 
             // Nothing ends it, so what opened it is a statement on its own, said to be never closed.
-            lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, [opened]).Saying(stretch.Unclosed)], to, row));
+            lines.Add(Line(source, row.Start, from,
+                [ContentNode.Branch(stretch.Kind, [opened], offset: from).Saying(stretch.Unclosed)], to, row));
             return row.Stop;
         }
 
@@ -282,28 +283,29 @@ public sealed class MermaidParser : ITranspile
     {
         var pieces = new List<ContentNode>();
 
-        if (from > start) pieces.Add(Space(source[start..from]));
+        if (from > start) pieces.Add(Space(source[start..from], start));
         pieces.AddRange(content);
-        if (last.End > to) pieces.AddRange(After(source[to..last.End]));
-        if (last.Stop > last.End) pieces.Add(Space(source[last.End..last.Stop]));
+        if (last.End > to) pieces.AddRange(After(source[to..last.End], to));
+        if (last.Stop > last.End) pieces.Add(Space(source[last.End..last.Stop], last.End));
 
-        return ContentNode.Branch(MermaidKinds.Line, pieces);
+        return ContentNode.Branch(MermaidKinds.Line, pieces, offset: start);
     }
 
     /// <summary>
     /// What follows a construct on the line it ends on. Space is the line's; anything else has no reading, since a
     /// directive or a description closes its line.
     /// </summary>
-    internal static IEnumerable<ContentNode> After(string text)
+    internal static IEnumerable<ContentNode> After(string text, int at)
     {
         var lead = Leading(text);
         var trail = Trailing(text, lead);
 
-        if (lead > 0) yield return Space(text[..lead]);
+        if (lead > 0) yield return Space(text[..lead], at);
         if (lead == text.Length) yield break;
 
-        yield return ContentNode.Shown(text[lead..(text.Length - trail)], "Nothing else is read on the line this ends on.");
-        if (trail > 0) yield return Space(text[(text.Length - trail)..]);
+        yield return ContentNode.Shown(text[lead..(text.Length - trail)], "Nothing else is read on the line this ends on.",
+                                       offset: at + lead);
+        if (trail > 0) yield return Space(text[(text.Length - trail)..], at + text.Length - trail);
     }
 
     // ── The header ──────────────────────────────────────────────────────────
@@ -316,12 +318,12 @@ public sealed class MermaidParser : ITranspile
     /// so a block whose first line names nothing reads as a diagram of no known type rather than as one with no header.
     /// </para>
     /// </summary>
-    internal static ContentNode Header(string text, Reading reading)
+    internal static ContentNode Header(string text, int at, Reading reading)
     {
         if (!char.IsAsciiLetter(text[0]))
             return ContentNode.Branch(MermaidKinds.Header, [ContentNode.Shown(text, text == Fence
                 ? "`---` opens front matter only as the first line of a block, and needs another `---` to close it."
-                : "A Mermaid diagram starts with the name of its type: flowchart, sequenceDiagram, pie….")]);
+                : "A Mermaid diagram starts with the name of its type: flowchart, sequenceDiagram, pie….", offset: at)], offset: at);
 
         var length = 1;
         while (length < text.Length && (char.IsAsciiLetterOrDigit(text[length]) || text[length] is '-' or '_')) length++;
@@ -333,16 +335,16 @@ public sealed class MermaidParser : ITranspile
             ? $"'{keyword}' is not a Mermaid diagram type."
             : null;
 
-        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Keyword, keyword, Roles.Name, trouble) };
+        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Keyword, keyword, Roles.Name, trouble, at) };
 
         var rest = text[length..];
         var gap = Leading(rest);
-        if (gap > 0) pieces.Add(Space(rest[..gap]));
+        if (gap > 0) pieces.Add(Space(rest[..gap], at + length));
         if (gap < rest.Length)
-            pieces.Add(reading.Grammar?.Header(rest[gap..])
-                       ?? ContentNode.Leaf(Kinds.Verbatim, rest[gap..], MermaidRoles.Arguments));
+            pieces.Add(reading.Grammar?.Header(rest[gap..], at + length + gap)
+                       ?? ContentNode.Leaf(Kinds.Verbatim, rest[gap..], MermaidRoles.Arguments, offset: at + length + gap));
 
-        return ContentNode.Branch(MermaidKinds.Header, pieces);
+        return ContentNode.Branch(MermaidKinds.Header, pieces, offset: at);
     }
 
     /// <summary>
@@ -369,16 +371,16 @@ public sealed class MermaidParser : ITranspile
         if (close < 0)
         {
             lines.Add(Line(source, row.Start, from,
-                [ContentNode.Shown(source[from..to], "This directive is never closed with `}%%`.")], to, row));
+                [ContentNode.Shown(source[from..to], "This directive is never closed with `}%%`.", offset: from)], to, row));
             return row.Stop;
         }
 
-        var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "%%{", Roles.Open) };
-        if (close > from + 3) pieces.Add(ContentNode.Leaf(Kinds.Verbatim, source[(from + 3)..close], Roles.Body));
-        pieces.Add(ContentNode.Leaf(Kinds.Token, "}%%", Roles.Close));
+        var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "%%{", Roles.Open, offset: from) };
+        if (close > from + 3) pieces.Add(ContentNode.Leaf(Kinds.Verbatim, source[(from + 3)..close], Roles.Body, offset: from + 3));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "}%%", Roles.Close, offset: close));
 
         var last = Row.Containing(source, close);
-        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Directive, pieces)], close + 3, last));
+        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Directive, pieces, offset: from)], close + 3, last));
         return last.Stop;
     }
 
@@ -398,15 +400,15 @@ public sealed class MermaidParser : ITranspile
         while (gap < to && char.IsWhiteSpace(source[gap])) gap++;
         if (gap >= to) return null;
 
-        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name) };
-        if (gap > from + name.Length) pieces.Add(Space(source[(from + name.Length)..gap]));
+        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name, offset: from) };
+        if (gap > from + name.Length) pieces.Add(Space(source[(from + name.Length)..gap], from + name.Length));
 
         if (source[gap] == ':')
         {
-            pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
-            pieces.AddRange(Padded(source[(gap + 1)..to]));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator, offset: gap));
+            pieces.AddRange(Padded(source[(gap + 1)..to], gap + 1));
 
-            lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces)], to, row));
+            lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces, offset: from)], to, row));
             return row.Stop;
         }
 
@@ -416,16 +418,16 @@ public sealed class MermaidParser : ITranspile
         if (close < 0)
         {
             lines.Add(Line(source, row.Start, from,
-                [ContentNode.Shown(source[from..to], "This description is never closed with `}`.")], to, row));
+                [ContentNode.Shown(source[from..to], "This description is never closed with `}`.", offset: from)], to, row));
             return row.Stop;
         }
 
-        pieces.Add(ContentNode.Leaf(Kinds.Token, "{", Roles.Open));
-        pieces.AddRange(Padded(source[(gap + 1)..close]));
-        pieces.Add(ContentNode.Leaf(Kinds.Token, "}", Roles.Close));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "{", Roles.Open, offset: gap));
+        pieces.AddRange(Padded(source[(gap + 1)..close], gap + 1));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "}", Roles.Close, offset: close));
 
         var last = Row.Containing(source, close);
-        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces)], close + 1, last));
+        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces, offset: from)], close + 1, last));
         return last.Stop;
     }
 
@@ -442,14 +444,15 @@ public sealed class MermaidParser : ITranspile
     }
 
     /// <summary>A value with the space either side of it as trivia — and no value at all where it is only space.</summary>
-    private static IEnumerable<ContentNode> Padded(string text)
+    private static IEnumerable<ContentNode> Padded(string text, int at)
     {
         var lead = Leading(text);
         var trail = Trailing(text, lead);
 
-        if (lead > 0) yield return Space(text[..lead]);
-        if (lead < text.Length) yield return ContentNode.Leaf(MermaidKinds.Value, text[lead..(text.Length - trail)], MermaidRoles.Value);
-        if (trail > 0) yield return Space(text[(text.Length - trail)..]);
+        if (lead > 0) yield return Space(text[..lead], at);
+        if (lead < text.Length)
+            yield return ContentNode.Leaf(MermaidKinds.Value, text[lead..(text.Length - trail)], MermaidRoles.Value, offset: at + lead);
+        if (trail > 0) yield return Space(text[(text.Length - trail)..], at + text.Length - trail);
     }
 
     // ── Front matter ────────────────────────────────────────────────────────
@@ -483,7 +486,7 @@ public sealed class MermaidParser : ITranspile
         for (var row = Row.At(source, open.Stop); row.Start < close.Start; row = Row.At(source, row.Stop))
         {
             var (from, to) = row.Text(source);
-            var line = new Nested(from - row.Start, Line(source, row.Start, from, from == to ? [] : [Yaml(source[from..to])], to, row));
+            var line = new Nested(from - row.Start, Line(source, row.Start, from, from == to ? [] : [Yaml(source[from..to], from)], to, row));
 
             if (from != to)
                 while (under.Count > 0 && under[^1].Indent >= line.Indent) under.RemoveAt(under.Count - 1);
@@ -493,7 +496,8 @@ public sealed class MermaidParser : ITranspile
         }
 
         return ContentNode.Branch(MermaidKinds.FrontMatter,
-            [FenceLine(source, open, Roles.Open), .. top.Select(line => line.Built()), FenceLine(source, close, Roles.Close)]);
+            [FenceLine(source, open, Roles.Open), .. top.Select(line => line.Built()), FenceLine(source, close, Roles.Close)],
+            offset: open.Start);
     }
 
     /// <summary>A line of front matter while it is read, how far it is indented, and the lines found under it so far.</summary>
@@ -505,13 +509,15 @@ public sealed class MermaidParser : ITranspile
 
         /// <summary>The line, holding the lines under it after its own.</summary>
         public ContentNode Built() =>
-            this.Under.Count == 0 ? line : ContentNode.Branch(line.Kind, [.. line.Children, .. this.Under.Select(nested => nested.Built())], line.Role);
+            this.Under.Count == 0
+                ? line
+                : ContentNode.Branch(line.Kind, [.. line.Children, .. this.Under.Select(nested => nested.Built())], line.Role, line.Offset);
     }
 
     private static ContentNode FenceLine(string source, Row row, string role)
     {
         var (from, to) = row.Text(source);
-        return Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Fence, source[from..to], role)], to, row);
+        return Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Fence, source[from..to], role, offset: from)], to, row);
     }
 
     /// <summary>
@@ -519,26 +525,26 @@ public sealed class MermaidParser : ITranspile
     /// written. Its indentation is the line's, so a field nested under <c>config:</c> is the same shape as one that is
     /// not; which it is, is whether its line starts with space.
     /// </summary>
-    private static ContentNode Yaml(string text)
+    private static ContentNode Yaml(string text, int at)
     {
-        if (text[0] == '#') return ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia);
-        if (text[0] == '-' || text.IndexOf(':') is not (var colon and > 0)) return ContentNode.Leaf(MermaidKinds.Yaml, text);
+        if (text[0] == '#') return ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: at);
+        if (text[0] == '-' || text.IndexOf(':') is not (var colon and > 0)) return ContentNode.Leaf(MermaidKinds.Yaml, text, offset: at);
 
         var key = text[..colon];
         var keyEnd = key.Length - Trailing(key, 0);
 
-        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Key, key[..keyEnd], Roles.Name) };
-        if (keyEnd < key.Length) pieces.Add(Space(key[keyEnd..]));
+        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Key, key[..keyEnd], Roles.Name, offset: at) };
+        if (keyEnd < key.Length) pieces.Add(Space(key[keyEnd..], at + keyEnd));
 
-        pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
-        pieces.AddRange(Padded(text[(colon + 1)..]));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator, offset: at + colon));
+        pieces.AddRange(Padded(text[(colon + 1)..], at + colon + 1));
 
-        return ContentNode.Branch(MermaidKinds.Field, pieces);
+        return ContentNode.Branch(MermaidKinds.Field, pieces, offset: at);
     }
 
     // ── Characters ──────────────────────────────────────────────────────────
 
-    internal static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
+    internal static ContentNode Space(string text, int at) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia, offset: at);
 
     internal static int Leading(string text)
     {
@@ -607,42 +613,7 @@ public sealed class MermaidParser : ITranspile
     // a rule of their own are named: a run of words holds words, so what was typed into one goes in as it was typed.
 
     /// <inheritdoc cref="ITranspile.Rewrite"/>
-    public static ContentChange? Rewrite(ContentChange change) => Rewrite(change, Spelled);
-
-    /// <summary>
-    /// The same, spelled by <paramref name="spelled"/> — which is how a diagram with a parser of its own writes back through
-    /// its own syntax while the walk over the writes, and what a write does to the caret, stays said once.
-    /// </summary>
-    internal static ContentChange? Rewrite(ContentChange change, Func<ContentPart, string, string?> spelled)
-    {
-        if (!change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>(change.Writes.Count);
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands once the ones before it have been made, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant) { writes.Add(write); continue; }
-            if (spelled(write.Part!, write.Text) is not { } said) return null;
-
-            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += said.Length - write.Text.Length;
-
-            grown += said.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
-    }
+    public static ContentChange? Rewrite(ContentChange change) => Editing.Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// What <paramref name="text"/> is written as where it is going — itself, wherever the place can hold it — or null where
@@ -650,8 +621,10 @@ public sealed class MermaidParser : ITranspile
     /// </summary>
     internal static string? Spelled(ContentPart part, string text) => part.Kind switch
     {
-        // In quotes a quote is its entity code, and a line break is the mark this language writes one with.
-        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
+        // In quotes a quote is its entity code, and a line break is the mark this language writes one with. Asked of what
+        // holds it as well as of itself: the words between a pair of quotes are a run of their own inside them, and it is
+        // that run a key is written into.
+        _ when WrittenInQuotes(part) => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
 
         // A title is one line, however many the reader pasted.
         MermaidKinds.Title => text.ReplaceLineEndings(" "),
@@ -663,4 +636,13 @@ public sealed class MermaidParser : ITranspile
 
         _ => text,
     };
+
+    /// <summary>Whether what is written here stands between quotes, which is what makes a quote in it the end of it.</summary>
+    private static bool WrittenInQuotes(ContentPart part)
+    {
+        for (var at = part; at is not null; at = at.Parent)
+            if (at.Kind == MermaidKinds.Quoted) return true;
+
+        return false;
+    }
 }

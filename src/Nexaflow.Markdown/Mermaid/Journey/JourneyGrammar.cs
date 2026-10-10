@@ -31,9 +31,9 @@ public sealed class JourneyGrammar : IMermaidGrammar
     private const string Grouping = "A section names the tasks it groups: section Go to work.";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord, SectionWord) switch
         {

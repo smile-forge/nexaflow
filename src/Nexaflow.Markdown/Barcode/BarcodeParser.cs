@@ -23,5 +23,8 @@ public static class BarcodeParser
         && string.Equals(node.Children.FirstOrDefault(child => child.Role == Roles.Name)?.Text, "value", StringComparison.OrdinalIgnoreCase);
 
     private static ContentNode Spelled(ContentNode value) =>
-        ContentNode.Branch(value.Kind, [.. value.Text.Select(letter => ContentNode.Leaf(BarcodeKinds.Character, letter.ToString()))], value.Role);
+        ContentNode.Branch(value.Kind,
+                           [.. value.Text.Select((letter, index) =>
+                               ContentNode.Leaf(BarcodeKinds.Character, letter.ToString(), offset: value.Offset + index))],
+                           value.Role, value.Offset);
 }

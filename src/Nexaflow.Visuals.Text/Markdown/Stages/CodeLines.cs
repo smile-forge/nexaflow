@@ -33,11 +33,18 @@ public sealed class CodeLines : IAstStage
 
         if (!cut) return tree;
 
-        var lined = ContentNode.Branch(Kinds.Sequence, pieces, Roles.Body);
+        var lined = ContentNode.Branch(Kinds.Sequence, pieces, Roles.Body, body.Offset);
         return tree.With([.. tree.Children.Select(child => ReferenceEquals(child, body) ? lined : child)]);
     }
 
-    /// <summary>Adds a token to <paramref name="into"/>, cut at every line end in it; whether it had one.</summary>
+    /// <summary>
+    /// Adds a token to <paramref name="into"/>, cut at every line end in it; whether it had one.
+    ///
+    /// <para>
+    /// Each piece was read from where the token was read from, so many characters along — which is a fact this knows
+    /// exactly, being the one cutting the token up, and says so rather than leaving it to be worked out from the order.
+    /// </para>
+    /// </summary>
     private static bool Cut(ContentNode token, List<ContentNode> into)
     {
         var text = token.Text;
@@ -51,14 +58,14 @@ public sealed class CodeLines : IAstStage
             // A return before the line feed is the line end's, not the line's.
             var end = at > from && text[at - 1] == '\r' ? at - 1 : at;
 
-            if (end > from) into.Add(ContentNode.Leaf(token.Kind, text[from..end], role));
-            into.Add(ContentNode.Leaf(CodeKinds.LineEnd, text[end..(at + 1)], Roles.Separator));
+            if (end > from) into.Add(ContentNode.Leaf(token.Kind, text[from..end], role, offset: token.Offset + from));
+            into.Add(ContentNode.Leaf(CodeKinds.LineEnd, text[end..(at + 1)], Roles.Separator, offset: token.Offset + end));
 
             (from, cut) = (at + 1, true);
         }
 
         if (from == 0) into.Add(token);
-        else if (from < text.Length) into.Add(ContentNode.Leaf(token.Kind, text[from..], role));
+        else if (from < text.Length) into.Add(ContentNode.Leaf(token.Kind, text[from..], role, offset: token.Offset + from));
 
         return cut;
     }

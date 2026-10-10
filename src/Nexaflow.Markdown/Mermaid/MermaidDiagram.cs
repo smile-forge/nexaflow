@@ -112,6 +112,43 @@ public static class MermaidDiagrams
         _ => null,
     };
 
+    /// <summary>
+    /// What reads a block of this type: the diagram's own parser where it has one, and the shared <see cref="MermaidParser"/>
+    /// otherwise. A flowchart and a swimlane have their own, because a quoted label runs past the end of the line it starts
+    /// on, and a reader handed one line at a time cannot see that.
+    ///
+    /// <para>
+    /// This is the only place that choice is made. The shipped language reads a diagram with what this gives, and so do the
+    /// tests that hold a parser to printing back what was written, so a diagram taking up a parser of its own is read by it
+    /// everywhere at once rather than in the places somebody remembered.
+    /// </para>
+    /// </summary>
+    public static Func<string?, Ast.ContentNode> ParserFor(MermaidDiagram diagram) =>
+        diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane
+            ? Flowchart.FlowchartParser.Parse
+            : MermaidParser.Parse;
+
+    /// <summary>
+    /// What writes back into a block of this type: the diagram's own transpiler where it has one, and the shared
+    /// <see cref="MermaidParser"/> otherwise.
+    ///
+    /// <para>
+    /// A diagram owns this as soon as a name in it has to be spelled a particular way for the rest of the block to still
+    /// read, which is every diagram whose lines reach a thing by an id. Owning a transpiler is separate from owning a
+    /// reader: a diagram may need one, the other, or both.
+    /// </para>
+    /// </summary>
+    public static Func<Editing.ContentChange, Editing.ContentChange?> TranspilerFor(MermaidDiagram diagram) => diagram switch
+    {
+        MermaidDiagram.Flowchart or MermaidDiagram.Swimlane => Editing.Transpiles.By<Flowchart.FlowchartParser>(),
+        MermaidDiagram.State => Editing.Transpiles.By<State.StateParser>(),
+        MermaidDiagram.Sequence => Editing.Transpiles.By<Sequence.SequenceParser>(),
+        MermaidDiagram.Class => Editing.Transpiles.By<Class.ClassParser>(),
+        MermaidDiagram.Sankey => Editing.Transpiles.By<Sankey.SankeyParser>(),
+        MermaidDiagram.C4 or MermaidDiagram.C4Sequence => Editing.Transpiles.By<C4.C4Parser>(),
+        _ => Editing.Transpiles.By<MermaidParser>(),
+    };
+
     private static readonly Pie.PieGrammar Pies = new();
 
     private static readonly Flowchart.FlowchartGrammar Flowcharts = new();

@@ -107,8 +107,8 @@ public sealed record StyleFormat
 
     private static readonly FontFamily DefaultMonoFont = new("Consolas, Courier New");
 
-    /// <summary>The size this document's typography was designed against: every other size in it is a multiple of this.</summary>
-    private const double DefaultTextSize = 13.5;
+    /// <summary>The size body text is set at unless a surface says another — what a length written as a plain number is written at.</summary>
+    public const double DefaultTextSize = 13.5;
 
     private static readonly Brush DefaultQrDark  = Frozen(0x0B, 0x0B, 0x0F);
     private static readonly Brush DefaultQrLight = Frozen(0xFF, 0xFF, 0xFF);

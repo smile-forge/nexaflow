@@ -64,4 +64,16 @@ public class GitEditingTests : MermaidEditing
 
         Assert.AreEqual("gitGraph\n   commit id: \"Alpha#quot;\"", MermaidStaged.Written(source, writing));
     }
+
+    [TestMethod]
+    public void AndRenamingABranchCarriesToWhatMergesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // A branch is named where it is made and again where it is merged, and nothing else ties the two together.
+            PressPast(diagram, "develop");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "branch develops", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "merge develops", "the merge names the branch it named: " + editor.Markdown);
+        }));
 }

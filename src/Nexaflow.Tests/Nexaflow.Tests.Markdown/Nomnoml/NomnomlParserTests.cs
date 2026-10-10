@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Nomnoml;
 
@@ -112,6 +113,24 @@ public class NomnomlParserTests
             foreach (var place in NomnomlParser.Parse(source).Placed())
                 if (place.Node.IsLeaf)
                     Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in All)
+        {
+            var faults = AstOracle.Faults(source, NomnomlParser.Parse(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in All)
+            Assert.AreEqual(source, AstOracle.Reversed(NomnomlParser.Parse(source)).Print(), what);
     }
 
     [TestMethod, TestCategory("Unit")]

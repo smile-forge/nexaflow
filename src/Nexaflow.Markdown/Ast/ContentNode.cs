@@ -36,13 +36,14 @@ public class ContentNode
 {
     private static readonly ContentNode[] Childless = [];
 
-    private ContentNode(string kind, string role, string text, IReadOnlyList<ContentNode> children, string? trouble,
-                        object? held = null)
+    private ContentNode(string kind, string role, string text, IReadOnlyList<ContentNode> children, int? offset,
+                        string? trouble, object? held = null)
     {
         this.Kind = kind;
         this.Role = role;
         this.Text = text;
         this.Children = children;
+        this.Offset = offset;
         this.Trouble = trouble;
         this.Held = held;
 
@@ -59,7 +60,7 @@ public class ContentNode
 
     /// <summary>A language's own node, standing for exactly what <paramref name="shape"/> stands for.</summary>
     protected ContentNode(ContentNode shape)
-        : this(shape.Kind, shape.Role, shape.Text, shape.Children, shape.Trouble, shape.Held) { }
+        : this(shape.Kind, shape.Role, shape.Text, shape.Children, shape.Offset, shape.Trouble, shape.Held) { }
 
     /// <summary>
     /// What a rewrite of this node makes of <paramref name="shape"/> — this node rebuilt with another role, other parts or
@@ -82,6 +83,19 @@ public class ContentNode
 
     /// <summary>How many characters this piece prints as, itself and everything under it.</summary>
     public int Width { get; }
+
+    /// <summary>
+    /// Where this piece begins in the source the parser read it from, or null for one that stands for no source — a piece a
+    /// stage worked out, or one read by a parser that does not say yet.
+    ///
+    /// <para>
+    /// A width alone says what a piece prints as, and only in the order it is printed in. This says <em>where</em>, so a stage
+    /// may regroup, reorder and share the pieces it was handed and the source still comes out as it was written. A piece that
+    /// says nothing follows the one printed before it, which is what a tree of them did before any of them said anything.
+    /// Only a parser says it, because a parser is the only thing that reads source.
+    /// </para>
+    /// </summary>
+    public int? Offset { get; }
 
     /// <summary>
     /// What is wrong with this piece, where anything is — the reason a reader would want a line drawn
@@ -129,17 +143,17 @@ public class ContentNode
 
     /// <summary>A piece holding something worked out that is not text — see <see cref="Held"/>.</summary>
     public static ContentNode Holding(string kind, string role, object held) =>
-        new(kind, role, string.Empty, Childless, null, held);
+        new(kind, role, string.Empty, Childless, null, null, held);
 
     // ── Making them ─────────────────────────────────────────────────────────
 
-    /// <summary>A piece that stands for characters.</summary>
-    public static ContentNode Leaf(string kind, string text, string role = Roles.Element, string? trouble = null) =>
-        new(kind, role, text, Childless, trouble);
+    /// <summary>A piece that stands for characters, beginning where <paramref name="offset"/> says the parser read them.</summary>
+    public static ContentNode Leaf(string kind, string text, string role = Roles.Element, string? trouble = null, int? offset = null) =>
+        new(kind, role, text, Childless, offset, trouble);
 
-    /// <summary>A piece made of parts.</summary>
-    public static ContentNode Branch(string kind, IReadOnlyList<ContentNode> children, string role = Roles.Element) =>
-        new(kind, role, string.Empty, children, null);
+    /// <summary>A piece made of parts, beginning where <paramref name="offset"/> says the parser read them.</summary>
+    public static ContentNode Branch(string kind, IReadOnlyList<ContentNode> children, string role = Roles.Element, int? offset = null) =>
+        new(kind, role, string.Empty, children, offset, null);
 
     /// <summary>
     /// A stretch shown as the characters it is written with rather than read, and what is wrong with it
@@ -150,20 +164,50 @@ public class ContentNode
     /// stretch somebody is in the middle of typing.
     /// </para>
     /// </summary>
-    public static ContentNode Shown(string text, string? trouble = null, string role = Roles.Element) =>
-        new(Kinds.Verbatim, role, text, Childless, trouble);
+    public static ContentNode Shown(string text, string? trouble = null, string role = Roles.Element, int? offset = null) =>
+        new(Kinds.Verbatim, role, text, Childless, offset, trouble);
 
     /// <summary>The same piece, meaning something else to whatever holds it.</summary>
     public ContentNode As(string role) =>
-        role == this.Role ? this : this.Reshaped(new ContentNode(this.Kind, role, this.Text, this.Children, this.Trouble, this.Held));
+        role == this.Role ? this : this.Reshaped(new ContentNode(this.Kind, role, this.Text, this.Children, this.Offset, this.Trouble, this.Held));
 
     /// <summary>The same piece, made of different parts.</summary>
     public ContentNode With(IReadOnlyList<ContentNode> children) =>
-        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, this.Trouble, this.Held));
+        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, this.Offset, this.Trouble, this.Held));
 
     /// <summary>The same piece, with something to say about it.</summary>
     public ContentNode Saying(string? trouble) =>
-        trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, trouble, this.Held));
+        trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, this.Offset, trouble, this.Held));
+
+    /// <summary>
+    /// The same reading, and everything under it, read from <paramref name="by"/> characters further on than it says —
+    /// or further back, where that is negative.
+    ///
+    /// <para>
+    /// What a reading came to depends on the characters it was read from and not on where those characters stood, so one
+    /// kept from last time can be moved along rather than read again. That is what lets a document of a thousand blocks
+    /// cost one reading after a keystroke in the first of them, which moved every block below it along.
+    /// </para>
+    /// <para>
+    /// A piece that says nothing is left saying nothing: it follows whatever is printed in front of it, wherever that is.
+    /// </para>
+    /// </summary>
+    public ContentNode FurtherOn(int by)
+    {
+        if (by == 0) return this;
+
+        var children = this.Children;
+
+        if (children.Count > 0)
+        {
+            var moved = new ContentNode[children.Count];
+            for (var at = 0; at < moved.Length; at++) moved[at] = children[at].FurtherOn(by);
+            children = moved;
+        }
+
+        return this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children,
+                                             this.Offset is { } offset ? offset + by : null, this.Trouble, this.Held));
+    }
 
     // ── Reading them ────────────────────────────────────────────────────────
 
@@ -220,63 +264,85 @@ public class ContentNode
         return text.ToString();
     }
 
-    /// <summary>The source this tree stands for, appended to <paramref name="text"/>.</summary>
+    /// <summary>
+    /// The source this tree stands for, appended to <paramref name="text"/>.
+    ///
+    /// <para>
+    /// The pieces go in the order they were read — by what each says of itself, and a piece that says nothing straight after
+    /// the piece it follows in the tree. So a stage may hand back what it was given in any order it likes and the source still
+    /// comes out as it was written, and a piece written into a tree still goes in where it was put rather than being stood on
+    /// by whatever used to be there.
+    /// </para>
+    /// </summary>
     public void PrintTo(StringBuilder text)
     {
-        if (this.IsDerived) return;
-        if (this.IsLeaf) { text.Append(this.Text); return; }
-
-        for (var at = 0; at < this.Children.Count; at++) this.Children[at].PrintTo(text);
+        foreach (var leaf in this.Printed()) text.Append(leaf.Text);
     }
 
     /// <summary>
-    /// Whether this tree prints as <paramref name="text"/> — what comparing <see cref="Print"/> with it says, found without
-    /// printing it, so asking of a whole document costs no copy of it.
+    /// The pieces this tree prints as, in the order they print. A piece saying where it was read from is ordered by that; one
+    /// saying nothing keeps its place behind whatever came before it, which is what makes an insertion land where it was put.
     /// </summary>
-    public bool Prints(string text)
+    private List<ContentNode> Printed()
     {
-        var at = 0;
+        var pieces = new List<(int At, int Order, ContentNode Leaf)>();
+        var order = 0;
+        var last = int.MinValue;
 
-        return this.Matches(text, ref at) && at == text.Length;
-    }
+        Walked(this);
 
-    /// <summary>Whether what this piece prints stands in <paramref name="text"/> at <paramref name="at"/>, which it moves past it.</summary>
-    private bool Matches(string text, ref int at)
-    {
-        if (this.IsDerived) return true;
+        pieces.Sort((left, right) => left.At != right.At ? left.At.CompareTo(right.At) : left.Order.CompareTo(right.Order));
 
-        if (this.IsLeaf)
+        return [.. pieces.Select(piece => piece.Leaf)];
+
+        void Walked(ContentNode node)
         {
-            if (!text.AsSpan(at).StartsWith(this.Text, StringComparison.Ordinal)) return false;
+            if (node.IsDerived) return;
 
-            at += this.Text.Length;
-            return true;
+            if (node.Offset is { } offset) last = offset;
+
+            if (!node.IsLeaf)
+            {
+                for (var child = 0; child < node.Children.Count; child++) Walked(node.Children[child]);
+                return;
+            }
+
+            if (node.Text.Length > 0) pieces.Add((last, order, node));
+            order++;
         }
-
-        for (var child = 0; child < this.Children.Count; child++)
-            if (!this.Children[child].Matches(text, ref at)) return false;
-
-        return true;
     }
+
+    /// <summary>Whether this tree prints as <paramref name="text"/>.</summary>
+    public bool Prints(string text) => string.Equals(this.Print(), text, StringComparison.Ordinal);
 
     // ── Finding out where they landed ───────────────────────────────────────
 
     /// <summary>
-    /// This piece and everything under it, each with where it starts — outermost first, then left to
-    /// right, which is the order they print in. A derived node is skipped: it prints nothing, so there is
-    /// nowhere for it to start.
+    /// This piece and everything under it, each with where it starts — outermost first, then left to right. A piece that says
+    /// where it begins starts there; one that says nothing follows the piece before it. A derived node is skipped: it prints
+    /// nothing, so there is nowhere for it to start.
     /// </summary>
     public IEnumerable<ContentPlace> Placed(int start = 0)
     {
-        if (this.IsDerived) yield break;
+        var shift = start - (this.Offset ?? 0);
 
-        yield return new ContentPlace(this, start);
+        return Walked(this, start);
 
-        var at = start;
-        foreach (var child in this.Children)
+        IEnumerable<ContentPlace> Walked(ContentNode node, int after)
         {
-            foreach (var place in child.Placed(at)) yield return place;
-            at += child.Width;
+            if (node.IsDerived) yield break;
+
+            var stands = node.Offset is { } offset ? offset + shift : after;
+
+            yield return new ContentPlace(node, stands);
+
+            var at = stands;
+            foreach (var child in node.Children)
+            {
+                foreach (var place in Walked(child, at)) yield return place;
+
+                at = (child.Offset is { } begins ? begins + shift : at) + child.Width;
+            }
         }
     }
 
@@ -284,7 +350,7 @@ public class ContentNode
 
     /// <summary>
     /// Whether this is the same tree as <paramref name="other"/>: the same shape, made of the same pieces,
-    /// each saying the same thing.
+    /// each saying the same thing and each read from the same place.
     ///
     /// <para>
     /// Neither of the two comparisons that come for free will do. Reference equality asks whether they are
@@ -292,6 +358,11 @@ public class ContentNode
     /// Equal printing asks something weaker than it looks: a group and the single thing inside it print
     /// alike and are not the same tree, and telling those two apart is the whole reason an edited tree is
     /// held against what re-reading its source produced.
+    /// </para>
+    /// <para>
+    /// Where a piece was read from is compared, because it is one of the things a piece says. Two trees of the same
+    /// shape standing in different places are two readings of two different stretches of a document, and a reading
+    /// moved along (<see cref="FurtherOn"/>) is held to being what reading it there would have made.
     /// </para>
     /// <para>
     /// <see cref="Width"/> is deliberately not compared. It follows from the rest, so comparing it could
@@ -308,6 +379,7 @@ public class ContentNode
             || this.Kind != other.Kind
             || this.Role != other.Role
             || this.Text != other.Text
+            || this.Offset != other.Offset
             || this.Trouble != other.Trouble
             || this.Children.Count != other.Children.Count) return false;
 

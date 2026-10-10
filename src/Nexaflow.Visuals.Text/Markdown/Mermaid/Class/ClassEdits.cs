@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
@@ -12,7 +13,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
 internal sealed class ClassEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, ClassRoles.Id);
+    }
 
     /// <summary>
     /// A member and what is written on a relation run to the end of their line and hold anything but a comment. An id and a class

@@ -54,7 +54,7 @@ public sealed class FlowchartParser : ITranspile
     }
 
     /// <inheritdoc/>
-    public static ContentChange? Rewrite(ContentChange change) => MermaidParser.Rewrite(change, Spelled);
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// A change as a chart spells it.
@@ -114,7 +114,8 @@ public sealed class FlowchartParser : ITranspile
 
         if (text.StartsWith("%%", StringComparison.Ordinal))
         {
-            lines.Add(MermaidParser.Line(source, row.Start, from, [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia)], to, row));
+            lines.Add(MermaidParser.Line(source, row.Start, from,
+                                         [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: from)], to, row));
             return row.Stop;
         }
 
@@ -124,8 +125,8 @@ public sealed class FlowchartParser : ITranspile
         {
             lines.Add(MermaidParser.Line(source, row.Start, from,
                 [headed
-                    ? ContentNode.Leaf(Kinds.BoundContent, text)
-                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.")],
+                    ? ContentNode.Leaf(Kinds.BoundContent, text, offset: from)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.", offset: from)],
                 to, row));
             return row.Stop;
         }
@@ -133,7 +134,8 @@ public sealed class FlowchartParser : ITranspile
         if (!headed)
         {
             headed = true;
-            lines.Add(MermaidParser.Line(source, row.Start, from, [MermaidParser.Header(text, new MermaidParser.Reading())], to, row));
+            lines.Add(MermaidParser.Line(source, row.Start, from,
+                                         [MermaidParser.Header(text, from, new MermaidParser.Reading())], to, row));
             return row.Stop;
         }
 
@@ -142,12 +144,12 @@ public sealed class FlowchartParser : ITranspile
         // The statement, which is as much of the source as it takes rather than as much as the row holds. As much of that as
         // the chart reads is what was written, and the rest is the line's.
         var end = Ended(source, from);
-        var said = Chart.Statement(source[from..end]);
+        var said = Chart.Statement(source[from..end], from);
         var took = said is null ? end : from + said.Width;
         var last = MermaidParser.Row.Containing(source, Math.Max(from, took - 1));
 
         lines.Add(MermaidParser.Line(source, row.Start, from,
-                                     [said ?? ContentNode.Leaf(MermaidKinds.Statement, source[from..end])], took, last));
+                                     [said ?? ContentNode.Leaf(MermaidKinds.Statement, source[from..end], offset: from)], took, last));
 
         return last.Stop;
     }

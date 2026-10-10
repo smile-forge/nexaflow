@@ -304,6 +304,9 @@ internal partial class SequenceBuilder
 
         public Participant? Find(string id) =>
             Participants.FirstOrDefault(one => string.Equals(one.Id, id, StringComparison.Ordinal));
+
+        /// <summary>The same diagram, to be laid at other metrics — see <see cref="SequenceBuilder.Fitted"/>.</summary>
+        public Diagram Sized(SequenceConfig config) => new(config, Participants, Items, Boxes, Legend);
     }
 
     /// <summary>What the block draws, as its reader reads it off the tree.</summary>

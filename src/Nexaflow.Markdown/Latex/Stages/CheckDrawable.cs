@@ -61,23 +61,25 @@ public sealed class CheckDrawable : IAstStage
 
         foreach (var child in node.Children)
         {
+            // Each of these says the same characters and adds what is wrong with them, so each keeps saying
+            // where it was read from: nothing moved and nothing was made up.
             if (unreadable && ReferenceEquals(child, name))
             {
-                rebuilt.Add(ContentNode.Shown(child.Text, $"there is no {child.Text} to draw", Roles.Name));
+                rebuilt.Add(ContentNode.Shown(child.Text, $"there is no {child.Text} to draw", Roles.Name, child.Offset));
                 moved = true;
                 continue;
             }
 
             if (ReferenceEquals(child, unclosed))
             {
-                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"this {child.Text} is never closed"));
+                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"this {child.Text} is never closed", child.Offset));
                 moved = true;
                 continue;
             }
 
             if (missing is not null && ReferenceEquals(child, name))
             {
-                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"{child.Text} has no {missing}"));
+                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"{child.Text} has no {missing}", child.Offset));
                 moved = true;
                 continue;
             }

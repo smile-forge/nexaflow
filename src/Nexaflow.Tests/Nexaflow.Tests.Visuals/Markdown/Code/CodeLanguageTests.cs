@@ -1,15 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Visuals.Text.Markdown.Stages;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Code;
 
@@ -120,6 +123,21 @@ public class CodeLanguageTests
     }
 
     [TestMethod]
+    public void AndEveryPieceOfItSaysWhereItWasReadFrom()
+    {
+        // The two things a round trip cannot tell you: that every piece standing for characters says where it was
+        // read from, and that what it says is held against the source. A tree printed in the order it was built
+        // comes out the same whether its pieces know their places or not, so this asks them instead — and then
+        // reverses the parts of every piece, which only still prints as the source if each of them does know.
+        var tree = new CodeLines().Run(CodeParser.Parse(Source, "c-sharp", CodeSpans.Read("c-sharp", Source)));
+
+        var faults = AstOracle.Faults(Source, tree).ToList();
+
+        Assert.AreEqual(0, faults.Count, string.Join("\n", faults));
+        Assert.AreEqual(Source, AstOracle.Reversed(tree).Print(), "reversed, which is a stage handing back what it was given in any order");
+    }
+
+    [TestMethod]
     public void ALineWrittenTwiceIsEachWhereItIsWritten()
     {
         // Reported from the app: the caret in the second of two identical lines landed in the first, because each line was
@@ -159,6 +177,26 @@ public class CodeLanguageTests
     /// nothing has read yet is content nobody has written before.
     /// </summary>
     private static string Unread(string source) => $"// {Guid.NewGuid():N}\n{source}";
+
+    [TestMethod]
+    public void TheSpaceBetweenTwoWordsAGrammarNamedIsStillThere()
+    {
+        // A grammar names the words and leaves the space between them unnamed, so a run of spaces is a token of its
+        // own. Measured by what it is set in rather than by how far it moves what follows, such a token comes to
+        // nothing and the words either side of it close up — `public static` set as `publicstatic`.
+        var laid = Landed("csharp", "public static int Of(string text) => text.Length;");
+
+        var along = laid.Root.SelfAndDescendants()
+            .Where(piece => piece.Words is not null)
+            .Select(piece => piece.Bounds.X)
+            .ToList();
+
+        Assert.IsTrue(along.Count > 4, $"the grammar made tokens of it, not {along.Count}");
+
+        for (var at = 1; at < along.Count; at++)
+            Assert.IsTrue(along[at] > along[at - 1],
+                          $"token {at} starts at {along[at]}, which is not past the {along[at - 1]} of the one before it");
+    }
 
     /// <summary><paramref name="source"/> laid out once the grammar has read it, which happens off the way to drawing.</summary>
     private static Laid Landed(string language, string source)

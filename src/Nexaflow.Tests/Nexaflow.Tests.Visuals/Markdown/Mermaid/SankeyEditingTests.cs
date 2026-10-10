@@ -39,4 +39,16 @@ public class SankeyEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "\"Homes,\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingANodeCarriesToEveryFlowThatNamesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // Grid is written on both flows, and what joins them is that the two names are the same word.
+            PressPast(diagram, "Grid");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "Wind,Grids,42", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Grids,Homes,30", "the flow out of it names the node it named: " + editor.Markdown);
+        }));
 }

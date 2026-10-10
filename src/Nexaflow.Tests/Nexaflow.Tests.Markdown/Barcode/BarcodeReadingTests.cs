@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Barcode;
 using Nexaflow.Markdown.Barcode.Stages;
 using Nexaflow.Markdown.Matrix;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Settings;
 using Nexaflow.Tests.Fixtures;
 
@@ -132,14 +133,28 @@ public class BarcodeReadingTests
         Assert.AreEqual("A:B:C", Value(Read("format: CODE128\nvalue: A:B:C")));
 
     [TestMethod]
-    public void TheStagePrintsAsWhatWasWritten()
+    public void TheStagesPrintAsWhatWasWritten()
     {
+        // Each stage on its own, and the pair a block being written in is read by: holding the value is a stage too,
+        // and one that printed as something else would be as wrong there as anywhere.
         foreach (var (source, writing) in new[]
                  {
                      ("format: EAN13\nvalue: 590123412345\n", false), ("format: ISBN\nvalue: 978-1-56581-231-4 90000", false),
                      ("format: EAN13\nvalue: 590", true), ("format: CODE39\nvalue:", true), ("format: CODE39\nnonsense", false),
                  })
-            Assert.AreEqual(source, Encoded(source, writing).Print(), source);
+        {
+            var tree = BarcodeParser.Parse(source);
+            var stages = writing
+                ? new IAstStage[] { new HoldValue(), new EncodeBarcode(writing: true) }
+                : new IAstStage[] { new EncodeBarcode(writing: false) };
+
+            foreach (var stage in stages)
+            {
+                tree = stage.Run(tree);
+
+                Assert.AreEqual(source, tree.Print(), $"{source}: after {stage.Name}");
+            }
+        }
     }
 
     // ── What stops it being read, and where ────────────────────────────────

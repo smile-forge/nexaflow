@@ -96,25 +96,30 @@ public sealed class StateGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: a state diagram is laid out by a <c>direction</c> line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
-        return ContentNode.Shown(arguments, "Nothing follows stateDiagram — direction LR lays it out.", MermaidRoles.Arguments);
+        return ContentNode.Shown(arguments, "Nothing follows stateDiagram — direction LR lays it out.", MermaidRoles.Arguments, at);
     }
 
+    /// <summary>
+    /// The words a line is read by, matched against the first word of one, ignoring case. A name that is one of these
+    /// cannot be a state's: the line would be read as that kind of line instead of as what was meant.
+    /// </summary>
+    public static readonly string[] Keywords =
+        [StateWord, NoteWord, EndWord, DirectionWord, ClickWord, HideWord, ScaleWord, .. MermaidStyling.Words];
+
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Past == '}') return Shut(line);
         if (line.Written.Trim() == Divider) return Divided(line);
 
-        return MermaidLine.Keyword(line.Written, Bare,
-                                   [StateWord, NoteWord, EndWord, DirectionWord, ClickWord, HideWord, ScaleWord,
-                                    .. MermaidStyling.Words]) switch
+        return MermaidLine.Keyword(line.Written, Bare, Keywords) switch
         {
             StateWord => Stated(line),
             NoteWord => Noted(line),
@@ -136,19 +141,20 @@ public sealed class StateGrammar : IMermaidGrammar
         [new MermaidStretch(StateKinds.Note, Noting, Ending, Within, Ended, "This note is never closed: end note closes it.")];
 
     /// <summary>A <c>note</c> line saying nothing on its own, which opens a note written on the lines under it.</summary>
-    private static ContentNode? Noting(string text) =>
-        MermaidLine.Keyword(text, Bare, NoteWord) is not null && Noted(MermaidLine.Of(text)) is { Kind: StateKinds.NoteOpens } note
+    private static ContentNode? Noting(string text, int at) =>
+        MermaidLine.Keyword(text, Bare, NoteWord) is not null && Noted(MermaidLine.Of(text, at)) is { Kind: StateKinds.NoteOpens } note
             ? note
             : null;
 
-    private static bool Ending(string text) => Ended(text).Kind == StateKinds.NoteEnds;
+    // Only what the line reads as is asked for, and nothing read from it is kept, so it stands nowhere.
+    private static bool Ending(string text) => Ended(text, 0).Kind == StateKinds.NoteEnds;
 
     /// <summary>A line inside a note: what the note says, whatever it would read as on its own.</summary>
-    private static ContentNode Within(string text) =>
-        ContentNode.Branch(StateKinds.NoteText, [ContentNode.Leaf(Kinds.Words, text, StateRoles.Label)], StateRoles.Label);
+    private static ContentNode Within(string text, int at) =>
+        ContentNode.Branch(StateKinds.NoteText, [ContentNode.Leaf(Kinds.Words, text, StateRoles.Label, offset: at)], StateRoles.Label, at);
 
     /// <inheritdoc cref="Ended(MermaidLine)"/>
-    private static ContentNode Ended(string text) => Ended(MermaidLine.Of(text));
+    private static ContentNode Ended(string text, int at) => Ended(MermaidLine.Of(text, at));
 
     /// <inheritdoc/>
     /// <remarks>

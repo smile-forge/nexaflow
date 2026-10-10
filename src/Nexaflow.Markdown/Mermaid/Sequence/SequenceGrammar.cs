@@ -72,6 +72,9 @@ public sealed class SequenceGrammar : IMermaidGrammar
     /// <summary>What ends a name wherever one is written, besides the characters of an arrow.</summary>
     private const string Stops = ":,;<>+@";
 
+    /// <summary>Whether a character carries a name on, which is every one that does not end one.</summary>
+    public static bool Bare(char character) => !Stops.Contains(character, StringComparison.Ordinal);
+
     private const string ParticipantShape = "A participant is written participant A, participant A as Alice, or actor A.";
     private const string LifetimeShape = "A participant is made by create participant B, and ended by destroy B.";
     private const string TurnShape = "A bar is started by activate A and ended by deactivate A.";
@@ -87,19 +90,19 @@ public sealed class SequenceGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: everything a sequence diagram says, it says on a line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
         return ContentNode.Shown(arguments, "Nothing follows sequenceDiagram — it is written on a line of its own.",
-                                 MermaidRoles.Arguments);
+                                 MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.Letter,
                 [MermaidLine.TitleWord, ParticipantWord, ActorWord, CreateWord, DestroyWord, ActivateWord, DeactivateWord,

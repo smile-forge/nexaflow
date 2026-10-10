@@ -35,12 +35,13 @@ public static class MarkdownInline
     /// definitions written elsewhere in the document it belongs to, so a <c>[text][name]</c> link and an abbreviation
     /// mean what the document says they do. Nothing of those is read into what comes back.
     /// </summary>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null)
+    /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null, int at = 0)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(Kinds.Words, []);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Words, [], offset: at);
 
-        var read = new Cut(text);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
 
         try
@@ -51,12 +52,12 @@ public static class MarkdownInline
         }
         catch
         {
-            parts.Add(ContentNode.Shown(read.Rest()));
+            parts.Add(read.Unaccounted());
         }
 
         read.Gap(parts, read.Length);
 
-        return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element);
+        return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element, at);
     }
 
     /// <summary>
@@ -221,6 +222,7 @@ public static class MarkdownInline
     private static ContentNode Formula(Markdig.Extensions.Mathematics.MathInline maths, Cut read, int end)
     {
         var from = read.At;
+        var stands = read.Here;
         var opens = Math.Clamp(maths.Content.Start, from, end);
         var shuts = Math.Clamp(maths.Content.End + 1, opens, end);
 
@@ -232,7 +234,7 @@ public static class MarkdownInline
         parts.Add(read.Take(shuts, Roles.Body, Kinds.Nested));
         if (end > shuts) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
 
-        return new BlockNode(MarkdownParser.Maths, parts);
+        return new BlockNode(MarkdownParser.Maths, parts, offset: stands);
     }
 
     /// <summary>

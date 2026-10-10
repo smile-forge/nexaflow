@@ -24,66 +24,7 @@ internal sealed partial class FlowchartEdits : IOnEdit
 
         var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
 
-        return change is null ? null : Renamed(edit, change);
-    }
-
-    /// <summary>
-    /// A name changed wherever it is written, rather than only where a reader typed.
-    ///
-    /// <para>
-    /// What a node or a subgraph is called is how every other line says which one it means: a link joins it by name, and a
-    /// <c>class</c>, a <c>style</c>, a <c>click</c> line and an <c>id@{ … }</c> line are each about a name. Changed in one place
-    /// alone, every one of those would be about something that is not there — the links would join nothing and the chart would
-    /// come apart. So the change a reader made in one of them is made in all of them, as one edit, which is also one undo.
-    /// </para>
-    /// <para>
-    /// A name emptied is left alone. Writing nothing into every mention of it would take the chart apart just as surely, and what
-    /// a reader means by backing over the last letter of a name is not something to guess at.
-    /// </para>
-    /// </summary>
-    private static ContentChange Renamed(ContentEdit edit, ContentChange change)
-    {
-        // The run being written into, which is not always the one the piece under the caret was drawn from: a node with a label
-        // draws its label and never its name, so a reader typing in the name is typing where nothing is drawn.
-        if (OrdinaryEdits.Written(edit) is not { Role: FlowchartRoles.Id, Kind: Kinds.Words } named) return change;
-        if (named.Text is not { Length: > 0 } was || Called(named, change) is not { Length: > 0 } now || now == was) return change;
-
-        var writes = new List<ContentWrite>(change.Writes);
-        var caret = change.Caret;
-
-        foreach (var mention in edit.Root.SelfAndDescendants())
-        {
-            if (mention.Kind != Kinds.Words || mention.Role != FlowchartRoles.Id) continue;
-            if (mention.Start == named.Start || mention.Derived || mention.Text != was) continue;
-
-            writes.Add(new ContentWrite(mention.Start, mention.Length, now));
-
-            // What is written before the caret moves it, and the caret is in the name the reader is typing.
-            if (mention.Start < named.Start) caret += now.Length - was.Length;
-        }
-
-        return writes.Count == change.Writes.Count ? change : change with { Writes = writes, Caret = caret };
-    }
-
-    /// <summary>What a name says once a change is made, or null where the change writes nothing into it.</summary>
-    private static string? Called(ContentPart named, ContentChange change)
-    {
-        var said = named.Text;
-        var moved = 0;
-        var written = false;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            if (write.Start < named.Start || write.Start + write.Length > named.End) continue;
-
-            var at = write.Start - named.Start + moved;
-
-            said = said[..at] + write.Text + said[(at + write.Length)..];
-            moved += write.Text.Length - write.Length;
-            written = true;
-        }
-
-        return written ? said : null;
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, FlowchartRoles.Id);
     }
 
     /// <summary>

@@ -1,31 +1,32 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Music.Abc.Stages;
 
 namespace Nexaflow.Markdown.Music.Abc;
 
 /// <summary>
-/// Changing a tune by changing its tree.
+/// Changing a tune by respelling one part of one note.
 ///
 /// <para>
 /// Every gesture here rewrites <em>one part of one note</em>, and that is not a coincidence — it is what
 /// ABC's own shape gives us. An accidental is a prefix, a length is a suffix, and an octave is the
-/// letter's case plus a run of marks after it, so sharpening a note replaces its accidental leaf and
-/// touches nothing else. A tune somebody lined up by hand still reads that way afterwards, which a string
-/// splice cannot promise and a reformat certainly cannot.
+/// letter's case plus a run of marks after it, so sharpening a note writes over that note and touches
+/// nothing else. A tune somebody lined up by hand still reads that way afterwards, which reprinting the
+/// tune cannot promise.
 /// </para>
 /// <para>
-/// <strong>What comes back is provisional.</strong> The stages between the parser and the builder do not
-/// re-derive themselves when a tree is changed underneath them — a note whose accidental has just changed
-/// still carries the pitch that was worked out for the old one — so an edit is printed, and the source it
-/// prints as is read back and built from. Which is also why editing the tree is worth the trouble: an edit
-/// expressed against a part knows what it touched, so trouble afterwards can be blamed on the keystroke
-/// that caused it rather than guessed at by diffing a string.
+/// <strong>What comes back is the change, not a tree.</strong> A gesture is given the notes as they were
+/// read, each knowing the stretch of source it stands in, and hands back that stretch with the note spelled
+/// again. The engine writes it and reads the tune afresh, which is what keeps one answer: a tree rewritten
+/// in place carries the pitch worked out for the note before the change, so nothing could say truthfully
+/// what it prints as. An edit named against a part still knows what it touched, so trouble afterwards can
+/// be blamed on the keystroke that caused it rather than guessed at by diffing a string.
 /// </para>
 /// <para>
 /// Plain typing is not here. A letter inserted at the caret needs no reshaping — ABC has no construct that
-/// has to be bracketed when it grows — so the caller splices it, exactly as the formula editor splices a
-/// character its own tree did not have to reshape. What <see cref="NoteAt"/> offers is only the question a
-/// splice cannot answer for itself: which octave the new note belongs in.
+/// has to be bracketed when it grows — so the caller writes it where the caret is, exactly as the formula
+/// editor does with a character its own tree did not have to reshape. What <see cref="NoteAt"/> offers is
+/// only the question a write cannot answer for itself: which octave the new note belongs in.
 /// </para>
 /// </summary>
 public static class AbcEdit
@@ -39,8 +40,8 @@ public static class AbcEdit
     /// Moves each of <paramref name="notes"/> <paramref name="by"/> octaves, rewriting the letter's case
     /// and its marks: <c>C,</c> → <c>C</c> → <c>c</c> → <c>c'</c>.
     /// </summary>
-    public static AstWrite? Octave(ContentReading reading, IReadOnlyList<ContentPart> notes, int by) =>
-        by == 0 ? null : Rewrite(reading, notes, note => Moved(note, by));
+    public static ContentChange? Octave(IReadOnlyList<ContentPart> notes, int by) =>
+        by == 0 ? null : Respelled(notes, note => Moved(note, by));
 
     /// <summary>
     /// Raises or lowers each of <paramref name="notes"/> by a semitone, writing the accidental out.
@@ -52,16 +53,16 @@ public static class AbcEdit
     /// signature to sharpen it again. The stage worked the sounding pitch out already, so this asks it.
     /// </para>
     /// </summary>
-    public static AstWrite? Accidental(ContentReading reading, IReadOnlyList<ContentPart> notes, int by) =>
-        by == 0 ? null : Rewrite(reading, notes, note => Altered(note, by));
+    public static ContentChange? Accidental(IReadOnlyList<ContentPart> notes, int by) =>
+        by == 0 ? null : Respelled(notes, note => Altered(note, by));
 
     /// <summary>
     /// Doubles or halves the written length of each of <paramref name="notes"/>: <c>A</c> → <c>A2</c> →
     /// <c>A4</c>, and back down through <c>A/2</c>, <c>A/4</c>. Dots survive, because the multiplier is
     /// scaled rather than replaced — <c>A3/2</c> doubles to <c>A3</c> and halves to <c>A3/4</c>.
     /// </summary>
-    public static AstWrite? Length(ContentReading reading, IReadOnlyList<ContentPart> notes, int steps) =>
-        steps == 0 ? null : Rewrite(reading, notes, note => Stretched(note, steps));
+    public static ContentChange? Length(IReadOnlyList<ContentPart> notes, int steps) =>
+        steps == 0 ? null : Respelled(notes, note => Stretched(note, steps));
 
     /// <summary>
     /// What to type for a new note of <paramref name="letter"/> at <paramref name="caret"/>: the letter, in
@@ -79,11 +80,11 @@ public static class AbcEdit
     /// the writer wanted the shortest note the header allows; what they were just looking at does.
     /// </para>
     /// </summary>
-    public static string NoteAt(ContentReading reading, int caret, char letter)
+    public static string NoteAt(ContentPart tune, int caret, char letter)
     {
         if (!AbcParser.IsNoteLetter(letter)) return letter.ToString();
 
-        var previous = Before(reading, caret)?.Node;
+        var previous = Before(tune, caret)?.Node;
 
         var octave = previous is { } sounding ? Sounding(sounding) : 5;
         var step = Pitch.Letters.IndexOf(char.ToUpperInvariant(letter));
@@ -184,11 +185,11 @@ public static class AbcEdit
             : null;
 
     /// <summary>The note the caret stands after, which is the one a key changing a note changes.</summary>
-    internal static ContentPart? Before(ContentReading reading, int caret)
+    internal static ContentPart? Before(ContentPart tune, int caret)
     {
         ContentPart? best = null;
 
-        foreach (var part in reading.Root.SelfAndDescendants())
+        foreach (var part in tune.SelfAndDescendants())
         {
             if (part.Kind != AbcKinds.Note || part.Derived) continue;
             if (part.Part(AbcRoles.Letter) is null) continue;
@@ -202,70 +203,39 @@ public static class AbcEdit
     // ── Rewriting the tree ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Applies <paramref name="change"/> to every note in <paramref name="notes"/>, and says where in the
-    /// new source the writing landed.
+    /// What <paramref name="change"/> makes of every note in <paramref name="notes"/>, as the stretch of source
+    /// each note stands in given that note spelled again, and the caret after the last of them.
     /// <para>
     /// Null when nothing changed — a caller with rules of its own about plain typing wants to know, and a
-    /// gesture that could not be carried out should not push an undo step.
+    /// gesture that could not be carried out should not push an undo step. A note whose new spelling is the one
+    /// already written changed nothing, so it is no write.
     /// </para>
     /// </summary>
-    private static AstWrite? Rewrite(ContentReading reading, IReadOnlyList<ContentPart> notes,
-                                     Func<ContentNode, ContentNode?> change)
+    private static ContentChange? Respelled(IReadOnlyList<ContentPart> notes, Func<ContentNode, ContentNode?> change)
     {
-        var root = reading.Root.Node;
-        var touched = new List<(ContentNode Node, int Start)>();
-        var moved = false;
+        var writes = new List<ContentWrite>();
 
-        // Right to left, so an earlier note's offsets are still true when a later one has already grown.
-        foreach (var note in notes.Where(Editable).OrderByDescending(n => n.Start))
+        foreach (var note in notes.Where(Editable).OrderBy(note => note.Start))
         {
-            if (change(note.Node) is not { } replacement) continue;
-            if (replacement.Same(note.Node)) continue;
+            if (change(note.Node) is not { } respelled) continue;
 
-            root = Swap(root, note.Node, replacement);
-            touched.Add((replacement, note.Start));
-            moved = true;
+            var spelling = respelled.Print();
+            if (string.Equals(spelling, note.Print(), StringComparison.Ordinal)) continue;
+
+            writes.Add(new ContentWrite(note, spelling));
         }
 
-        if (!moved) return null;
+        if (writes.Count == 0) return null;
 
-        // Where the writing ended up, taken from the tree that now holds it rather than worked out from
-        // the shape of a change nobody made in one piece.
-        var start = touched.Min(t => t.Start);
-        var end = 0;
+        // The caret stands in the source as it reads afterwards, so what the writes in front of it grew by counts.
+        var grown = writes.Take(writes.Count - 1).Sum(write => write.Text.Length - write.Length);
 
-        foreach (var place in root.Placed())
-            if (touched.Any(t => ReferenceEquals(t.Node, place.Node)))
-                end = Math.Max(end, place.End);
-
-        return new AstWrite(root, start, Math.Max(0, end - start), Reshaped: true);
+        return new ContentChange(writes, writes[^1].Start + grown + writes[^1].Text.Length);
     }
 
     /// <summary>A note somebody wrote, with a letter to act on.</summary>
     private static bool Editable(ContentPart part) =>
         part.Kind == AbcKinds.Note && !part.Derived && part.Part(AbcRoles.Letter) is not null;
-
-    /// <summary>
-    /// The tree with one piece replaced. Every subtree that was not on the way to it is the object it
-    /// already was, so an edit costs the spine and nothing else.
-    /// </summary>
-    private static ContentNode Swap(ContentNode node, ContentNode target, ContentNode replacement)
-    {
-        if (ReferenceEquals(node, target)) return replacement;
-        if (node.IsLeaf) return node;
-
-        var rebuilt = new List<ContentNode>(node.Children.Count);
-        var moved = false;
-
-        foreach (var child in node.Children)
-        {
-            var seen = Swap(child, target, replacement);
-            moved |= !ReferenceEquals(seen, child);
-            rebuilt.Add(seen);
-        }
-
-        return moved ? node.With(rebuilt) : node;
-    }
 
     /// <summary>
     /// The note with the part playing <paramref name="role"/> set to <paramref name="piece"/> — added where it had
@@ -305,9 +275,9 @@ public static class AbcEdit
     /// How a pause of a whole note is written in this tune: a <c>z</c>, and the multiplier that makes it a whole note
     /// against the length everything else in the tune is written in multiples of.
     /// </summary>
-    internal static string Pause(ContentReading reading)
+    internal static string Pause(ContentPart tune)
     {
-        var unit = Unit(reading);
+        var unit = Unit(tune);
 
         return "z" + Suffix(Duration.Of(unit.Denominator, unit.Numerator));
     }
@@ -316,17 +286,17 @@ public static class AbcEdit
     /// The length a tune's notes are written in multiples of: what its <c>L:</c> says, or what its <c>M:</c> implies where it
     /// says nothing, or the eighth ABC falls back to where it has neither.
     /// </summary>
-    private static Duration Unit(ContentReading reading)
+    private static Duration Unit(ContentPart tune)
     {
-        if (Figures(reading, "L:") is [var over, var under] && under > 0) return Duration.Of(over, under);
-        if (Figures(reading, "M:") is [var beats, var unit] && unit > 0) return AbcTheory.UnitFor(beats, unit);
+        if (Figures(tune, "L:") is [var over, var under] && under > 0) return Duration.Of(over, under);
+        if (Figures(tune, "M:") is [var beats, var unit] && unit > 0) return AbcTheory.UnitFor(beats, unit);
 
         return Duration.Of(1, 8);
     }
 
-    /// <summary>The numbers written on the first <paramref name="field"/> line of <paramref name="reading"/>.</summary>
-    private static int[] Figures(ContentReading reading, string field) =>
-        [.. reading.Root.SelfAndDescendants()
+    /// <summary>The numbers written on the first <paramref name="field"/> line of <paramref name="tune"/>.</summary>
+    private static int[] Figures(ContentPart tune, string field) =>
+        [.. tune.SelfAndDescendants()
                 .Where(part => part.Kind == AbcKinds.Field && part.Part(Roles.Name)?.Text == field)
                 .Take(1)
                 .SelectMany(line => line.SelfAndDescendants())

@@ -1,0 +1,230 @@
+{
+  "branch": "claude/mermaid-parsers",
+  "nodes": {
+    "abc-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcEdit.cs",
+          "class": "AbcEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcRibbon.cs",
+          "class": "AbcRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcEdits.cs",
+          "class": "AbcEdits"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcEditTests.cs",
+            "class": "AbcEditTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentFromABuilderAloneTests.cs",
+            "class": "ContentFromABuilderAloneTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcEditsTests.cs",
+            "class": "AbcEditsTests"
+          }
+        ]
+      }
+    },
+    "markdown-laid-again": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithUnchanged.cs",
+          "class": "WithUnchanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/LaidBlocks.cs",
+          "class": "Laying",
+          "method": "At"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Whole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutKept.cs",
+          "class": "LayoutKept"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlocks.cs",
+          "class": "MarkdownBlocks",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
+          "class": "ContentNode",
+          "method": "FurtherOn"
+        }
+      ]
+    },
+    "latex-shown-as-written": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexLayoutTests.cs",
+            "class": "LatexLayoutTests",
+            "method": "AStretchShownAsWrittenTakesUpRoomInTheFormula"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexPipelineTests.cs",
+            "class": "TexPipelineTests",
+            "method": "AndShowingTheWholeFormulaStillLeavesAFormula"
+          }
+        ]
+      }
+    },
+    "content-moving": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnMove.cs",
+          "class": "IOnMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnMove.cs",
+          "class": "ContentMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "Moving"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentMoveTests.cs",
+            "class": "ContentMoveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/PieEditingTests.cs",
+            "class": "PieEditingTests",
+            "method": "DraggingAChosenSliceOntoAnotherRowPutsItThere"
+          }
+        ]
+      }
+    },
+    "latex-grid-move": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexMove.cs",
+          "class": "TexMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
+          "class": "LatexEdits",
+          "method": "Move"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexMoveTests.cs",
+            "class": "TexMoveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/MatrixMoveTests.cs",
+            "class": "MatrixMoveTests"
+          }
+        ]
+      }
+    },
+    "latex-writable-ast": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
+          "class": "LatexEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexParser.cs",
+          "class": "TexParser",
+          "method": "Rewrite"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexEditStateTests.cs",
+            "class": "EditStateTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexTranspileTests.cs",
+            "class": "TexTranspileTests"
+          }
+        ]
+      }
+    },
+    "markdown-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Rewrite"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownTranspileTests.cs",
+            "class": "MarkdownTranspileTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 12,
+  "touched_nodes": [
+    "abc-editing",
+    "content-moving",
+    "latex-grid-move",
+    "latex-shown-as-written",
+    "latex-writable-ast",
+    "markdown-laid-again",
+    "markdown-text"
+  ]
+}

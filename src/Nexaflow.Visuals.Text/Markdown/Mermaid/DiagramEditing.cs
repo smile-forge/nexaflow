@@ -15,6 +15,9 @@ internal sealed class DiagramEditing(IOnEdit? onEdit) : IContentLanguage
     /// <inheritdoc/>
     public IOnEdit? OnEdit => onEdit;
 
+    /// <inheritdoc/>
+    public IOnMove? OnMove => onEdit as IOnMove;
+
     /// <summary>
     /// A diagram draws a picture of what its source meant, so a caret rests in far more places than a reader can write in:
     /// on an axis, a connector, a wedge, the space between two rows. Only its runs of words are written in.

@@ -29,39 +29,81 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 /// </summary>
 internal partial class SequenceBuilder : MermaidBuilder
 {
+    /// <summary>
+    /// The lengths a sequence diagram is drawn with at its own size. Read through the properties below rather than
+    /// directly, so that a diagram too wide for the room it is given can be drawn smaller — see <see cref="Fitted"/>.
+    /// </summary>
+    private static class Metric
+    {
+        public const double Air = 8;
+        public const double Clear = 6;
+        public const double Loop = 40;
+        public const double Ending = 7;
+        public const double Thick = 1.5;
+        public const double Counting = 10;
+        public const double Titled = 60;
+    }
+
     /// <summary>The air kept round what is written inside a participant's box.</summary>
-    private const double Air = 8;
+    private double Air => Metric.Air * this.scale;
 
     /// <summary>The air between what a message says and the line it is written over.</summary>
-    private const double Clear = 6;
+    private double Clear => Metric.Clear * this.scale;
 
     /// <summary>How far a message to a participant itself runs out from its own lifeline.</summary>
-    private const double Loop = 40;
+    private double Loop => Metric.Loop * this.scale;
 
     /// <summary>How big the cross where a lifeline ends is drawn.</summary>
-    private const double Ending = 7;
+    private double Ending => Metric.Ending * this.scale;
 
     /// <summary>How thick a box, a frame and a message are drawn.</summary>
-    private const double Thick = 1.5;
+    private double Thick => Metric.Thick * this.scale;
 
     /// <summary>How big the number against a message is drawn.</summary>
-    private const double Counting = 10;
+    private double Counting => Metric.Counting * this.scale;
 
     /// <summary>The least room across the middle of a frame its title is set in, clear of the tab either side.</summary>
-    private const double Titled = 60;
+    private double Titled => Metric.Titled * this.scale;
 
     /// <summary>How much of a box's or a wash's colour is laid over what is behind it.</summary>
     private const double Wash = 0.14;
+
+    /// <summary>How big a participant's standing figure is drawn, and the little icon on a plain participant's box.</summary>
+    private double Figuring => SequenceGlyphs.Size * this.scale;
+    private double Icon => SequenceGlyphs.Icon * this.scale;
+
+    /// <summary>
+    /// The fraction of its own size the diagram is drawn at — one, until it turns out not to fit the room it was
+    /// given. Set by <see cref="Fitted"/>, and read by every length above.
+    /// </summary>
+    private double scale = 1;
+
+    /// <summary>
+    /// How big the page sets body text, against the size the lengths above are written at. One at the reader's
+    /// default, and what the zoom chip moves (TextZoom.FontSize, MarkdownSurface.BaseFontSize, StyleFormat.TextSize).
+    ///
+    /// <para>
+    /// Prose works every length it draws out from the body size — its gaps, indents, pads and rules are all multiples
+    /// of it — so a diagram ignoring it is the one thing on the page that does not answer the zoom.
+    /// </para>
+    /// </summary>
+    private double Page => Style.TextSize / StyleFormat.DefaultTextSize;
 
     internal SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-        var diagram = Read(Reading.Root, Configured(SequenceConfig.Default));
+        // Laid at the size the page is set at, so it grows and shrinks with the words around it.
+        this.scale = Page;
+
+        var diagram = Read(Reading.Root, Configured(SequenceConfig.Default).Scaled(Page));
         var plan = Laid(diagram);
 
         // A diagram with nobody in it is the source: what the reader wants back is their own lines.
         if (plan.Columns.Count == 0) return AsWritten(build);
+
+        // Drawn at whatever size it takes to fit the room, which is the only way a sequence diagram can fit one.
+        (diagram, plan) = Fitted(diagram, plan);
 
         Grouped(build, diagram, plan);
         Lifelines(build, diagram, plan);
@@ -88,6 +130,60 @@ internal partial class SequenceBuilder : MermaidBuilder
         return plan;
     }
 
+    /// <summary>How many times the diagram is laid again to fit the room before it is drawn as it last came out.</summary>
+    private const int Fittings = 4;
+
+    /// <summary>
+    /// The diagram at the size it fits the room in, with the plan it was laid to.
+    ///
+    /// <para>
+    /// Every other kind of diagram too wide for its room is reflowed into it — its boxes narrow, its rows wrap. A
+    /// sequence diagram cannot be: its lifelines stand exactly as far apart as the messages between them are wide (see
+    /// <see cref="Spread"/>), so taking the room away would run the words of one message over the next. What will not
+    /// fit is therefore drawn smaller instead.
+    /// </para>
+    /// <para>
+    /// Laid again at the smaller size rather than drawn scaled, so that every word is measured and hinted at the size it
+    /// is set in and the names break where they fall at that size. Laid again more than once, because the second lay is
+    /// not the first one multiplied: words at a smaller size are not proportionally narrower, and a name that wrapped may
+    /// now stand on one line. So each pass takes its scale from what the one before it actually came to.
+    /// </para>
+    /// </summary>
+    private (Diagram Diagram, Plan Plan) Fitted(Diagram whole, Plan plan)
+    {
+        if (double.IsInfinity(Space)) return (whole, plan);
+
+        var diagram = whole;
+
+        // What it has been narrowed by so far. Kept apart from the size the page is set at, which the diagram handed
+        // in is already drawn at: the two multiply, and only this one is worked out again each pass.
+        var fit = 1.0;
+
+        for (var attempt = 0; attempt < Fittings && plan.Size.Width > Space; attempt++)
+        {
+            var was = (Fit: fit, Scale: this.scale);
+
+            fit *= Space / plan.Size.Width;
+            this.scale = Page * fit;
+
+            var smaller = whole.Sized(whole.Config.Scaled(fit));
+            var laid = Laid(smaller);
+
+            // Kept only if it came out narrower: a diagram held to a least width by what is written in it stays that
+            // wide however small the scale, and another pass would come to the same thing. The scale goes back to the
+            // one the plan being kept was laid at, since every length the drawing reads is taken from it.
+            if (laid.Columns.Count == 0 || laid.Size.Width >= plan.Size.Width)
+            {
+                (fit, this.scale) = was;
+                break;
+            }
+
+            (diagram, plan) = (smaller, laid);
+        }
+
+        return (diagram, plan);
+    }
+
     /// <summary>Every participant's own box, measured for what is written in it.</summary>
     private void Measured(Diagram diagram, SequenceConfig config, Plan plan)
     {
@@ -97,7 +193,7 @@ internal partial class SequenceBuilder : MermaidBuilder
             var taken = DiagramWords.Taken(words);
             var carded = one.Card?.Shape;
             var figured = carded is null && SequenceGlyphs.Figured(one.Kind);
-            var marked = carded is null && SequenceGlyphs.Iconed(one.Kind) ? SequenceGlyphs.Icon + Air : 0;
+            var marked = carded is null && SequenceGlyphs.Iconed(one.Kind) ? Icon + Air : 0;
 
             var column = new Column
             {
@@ -106,9 +202,9 @@ internal partial class SequenceBuilder : MermaidBuilder
                 Links = [.. one.Links.Select(link => (link, Naming(link, config)))],
                 Carded = carded,
                 Width = Math.Max(taken.Width + (Air * 2) + marked + (carded is { } wide ? DiagramCard.Wider(wide) : 0),
-                                 figured ? SequenceGlyphs.Size + Air : Air * 4),
+                                 figured ? Figuring + Air : Air * 4),
                 Deep = figured
-                    ? SequenceGlyphs.Size + taken.Height + Air
+                    ? Figuring + taken.Height + Air
                     : taken.Height + (Air * 2) + (carded is { } deep ? DiagramCard.Deeper(deep) : 0),
                 Figured = figured,
                 Marked = marked > 0,
@@ -658,7 +754,7 @@ internal partial class SequenceBuilder : MermaidBuilder
 
         if (column.Figured)
         {
-            var glyph = new Rect(column.Centre - (SequenceGlyphs.Size / 2), bounds.Y, SequenceGlyphs.Size, SequenceGlyphs.Size);
+            var glyph = new Rect(column.Centre - (Figuring / 2), bounds.Y, Figuring, Figuring);
             var room = new Rect(bounds.X, glyph.Bottom, bounds.Width, Math.Max(0, bounds.Bottom - glyph.Bottom));
             var placed = DiagramWords.Placed(column.Words, room, MermaidPiece.Words);
 
@@ -675,7 +771,7 @@ internal partial class SequenceBuilder : MermaidBuilder
                 ? DiagramCard.Outline(carded, bounds)
                 : SequenceGlyphs.Shape(bounds);
 
-            var mark = new Rect(bounds.X + Air, bounds.Y + ((bounds.Height - SequenceGlyphs.Icon) / 2), SequenceGlyphs.Icon, SequenceGlyphs.Icon);
+            var mark = new Rect(bounds.X + Air, bounds.Y + ((bounds.Height - Icon) / 2), Icon, Icon);
             var room = column.Carded is { } inner ? DiagramCard.Inside(inner, bounds)
                 : column.Marked ? new Rect(mark.Right, bounds.Y, Math.Max(0, bounds.Right - mark.Right), bounds.Height)
                 : bounds;
@@ -1035,7 +1131,7 @@ internal partial class SequenceBuilder : MermaidBuilder
         column.Born = Math.Max(0, row.Arrow - (deep / 2));
     }
 
-    private static void Ended(Plan plan, HashSet<string> going, string id, double y)
+    private void Ended(Plan plan, HashSet<string> going, string id, double y)
     {
         if (!going.Remove(id) || !plan.Named.TryGetValue(id, out var column)) return;
 

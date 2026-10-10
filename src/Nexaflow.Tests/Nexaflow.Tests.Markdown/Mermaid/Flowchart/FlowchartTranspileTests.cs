@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Flowchart;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("mermaid-flowchart")]
+[CoversNode("flowchart-ast")]
 public class FlowchartTranspileTests
 {
     private const string Chart = "flowchart LR\n  a[\"Start\"] --> b\n  a@{ label: \"Begun\" }\n";

@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Music.Abc;
 
@@ -79,6 +80,24 @@ public class AbcRoundTripTests
                 Assert.AreEqual(abc.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, abc) in AbcConstructs.Everything)
+        {
+            var faults = AstOracle.Faults(abc, AbcParser.Parse(abc)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, abc) in AbcConstructs.Everything)
+            Assert.AreEqual(abc, AstOracle.Reversed(AbcParser.Parse(abc)).Print(), what);
     }
 
     [TestMethod]

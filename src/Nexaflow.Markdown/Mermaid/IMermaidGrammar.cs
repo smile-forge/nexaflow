@@ -24,7 +24,8 @@ public interface IMermaidGrammar
     /// What follows the keyword on the header line, read — or null to hold it as written. The text never has space at
     /// either end: the line's own space belongs to the line.
     /// </summary>
-    ContentNode? Header(string arguments) => null;
+    /// <param name="at">Where the first character of <paramref name="arguments"/> stands in the source.</param>
+    ContentNode? Header(string arguments, int at) => null;
 
     /// <summary>
     /// One line of the diagram, read — or null to hold it whole, as a statement.
@@ -36,7 +37,8 @@ public interface IMermaidGrammar
     /// its colon has its value to come, after the space a reader leaves for it.
     /// </para>
     /// </summary>
-    ContentNode? Statement(string text);
+    /// <param name="at">Where the first character of <paramref name="text"/> stands in the source, which every piece read from it is said to begin at.</param>
+    ContentNode? Statement(string text, int at);
 
     /// <summary>
     /// The statements this type writes across several lines rather than one — a note written until its <c>end note</c>. The parser

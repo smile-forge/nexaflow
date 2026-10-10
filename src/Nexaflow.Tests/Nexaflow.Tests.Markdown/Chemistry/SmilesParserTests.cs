@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Chemistry;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Chemistry;
 
@@ -52,6 +53,34 @@ public class SmilesParserTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                                 $"{what}: {place.Node.Kind} at {place.Start}");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in SmilesConstructs.Blocks)
+        {
+            var faults = AstOracle.Faults(source, SmilesParser.Parse(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+
+        foreach (var (what, smiles) in SmilesConstructs.Molecules)
+        {
+            var faults = AstOracle.Faults(smiles, SmilesParser.Molecule(smiles)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in SmilesConstructs.Blocks)
+            Assert.AreEqual(source, AstOracle.Reversed(SmilesParser.Parse(source)).Print(), what);
+
+        foreach (var (what, smiles) in SmilesConstructs.Molecules)
+            Assert.AreEqual(smiles, AstOracle.Reversed(SmilesParser.Molecule(smiles)).Print(), what);
     }
 
     [TestMethod]

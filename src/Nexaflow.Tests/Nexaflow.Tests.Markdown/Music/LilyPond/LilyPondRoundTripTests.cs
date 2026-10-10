@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Music.LilyPond;
 
@@ -63,6 +64,24 @@ public class LilyPondRoundTripTests
                 Assert.AreEqual(ly.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, ly) in LilyPondConstructs.Everything)
+        {
+            var faults = AstOracle.Faults(ly, LilyPondParser.Parse(ly)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, ly) in LilyPondConstructs.Everything)
+            Assert.AreEqual(ly, AstOracle.Reversed(LilyPondParser.Parse(ly)).Print(), what);
     }
 
     [TestMethod]

@@ -10,7 +10,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Git;
 internal sealed class GitEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, GitRoles.Name);
+    }
 
     /// <summary>
     /// A quote typed into a value written in quotes goes in as the entity code standing for it, and a branch name is put in quotes

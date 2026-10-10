@@ -49,6 +49,27 @@ public sealed partial class MarkdownSurface
     }
 
     /// <summary>
+    /// Raised when a slower reading of something on the page has landed — code read by its grammar, a spelling
+    /// checked — and the content has been laid again for it. <see cref="Rereading"/> says whether any more are still
+    /// to come, which one of these on its own cannot.
+    /// </summary>
+    public static readonly RoutedEvent RereadEvent = EventManager.RegisterRoutedEvent(
+        nameof(Reread), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+
+    public event RoutedEventHandler Reread
+    {
+        add => AddHandler(RereadEvent, value);
+        remove => RemoveHandler(RereadEvent, value);
+    }
+
+    /// <summary>
+    /// Whether a slower reading of something on the page is still to land. False once every reading asked for has come
+    /// back, whether or not it came to anything — so a page that must act on the content as it finally reads, rather
+    /// than as it first appeared, waits for <see cref="Reread"/> to leave this false instead of counting events.
+    /// </summary>
+    public bool Rereading => _engine.Rereading;
+
+    /// <summary>
     /// Raised to follow a link out of the content. Handled where the page took it; unhandled leaves it to open as links do.
     /// A link into the content is never raised — it is answered by the content, which is the only thing that knows where it
     /// goes.
@@ -64,6 +85,14 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Says to the page that the engine laid the content out.</summary>
     private void Laid(object? sender, EventArgs args) => RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
+
+    /// <summary>
+    /// Says to the page that a slower reading landed. Raised on this control's own thread, since the reading lands on
+    /// whatever thread read it, and after the content has been laid again for it — the element shown here answers the
+    /// same event by laying it out again, and does so first.
+    /// </summary>
+    private void Landed(object? sender, EventArgs args) =>
+        Dispatcher.BeginInvoke(() => RaiseEvent(new RoutedEventArgs(RereadEvent, this)));
 
     /// <summary>Says to the page what is picked out now.</summary>
     /// <inheritdoc/>

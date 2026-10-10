@@ -40,6 +40,21 @@ public sealed partial class ContentEngine
     /// </summary>
     internal event EventHandler? Reread;
 
+    /// <summary>How many second readings this engine has asked for and has not yet been told the end of.</summary>
+    private int _reading;
+
+    /// <summary>
+    /// Whether a second reading this content asked for is still to land — code fenced in a grammar, a spelling being
+    /// checked. False once every reading asked for has come back, whether or not it came to anything.
+    ///
+    /// <para>
+    /// What <see cref="Reread"/> cannot say on its own: that event says one reading landed, not whether more are
+    /// coming. Something that must act on the content as it finally reads — measuring it, printing it, photographing
+    /// it, comparing it with the same source laid afresh — waits on this rather than counting events.
+    /// </para>
+    /// </summary>
+    public bool Rereading { get { lock (Slow) return _reading > 0; } }
+
     /// <summary>
     /// <paramref name="text"/>, read: by the language's second reading where it has landed, and otherwise by
     /// <paramref name="parse"/> — starting the second reading where the language has one and nobody has asked for it yet.
@@ -66,11 +81,12 @@ public sealed partial class ContentEngine
 
             if (Waiting.TryGetValue(key, out var waiting))
             {
-                if (!waiting.Contains(this)) waiting.Add(this);
+                if (!waiting.Contains(this)) { waiting.Add(this); _reading++; }
                 return null;
             }
 
             Waiting[key] = [this];
+            _reading++;
         }
 
         ThreadPool.QueueUserWorkItem(static job => Land(job.Key, job.Work), (Key: key, Work: work), preferLocal: false);
@@ -96,6 +112,11 @@ public sealed partial class ContentEngine
         lock (Slow)
         {
             Waiting.Remove(key, out told);
+
+            // Asked for and answered, whatever it came to: an engine is no longer reading this even where the work
+            // failed and there is nothing new to tell it about.
+            foreach (var engine in told ?? []) engine._reading--;
+
             if (done is null) return;
 
             Landed[key] = done;

@@ -40,7 +40,7 @@ public static class WordCloudParser
             var end = newline < 0 ? source.Length : newline;
             if (end > at && source[end - 1] == '\r') end--;
 
-            lines.Add(Line(source[at..end], source[end..stop], ref settings));
+            lines.Add(Line(source[at..end], source[end..stop], ref settings, at));
             at = stop;
         }
 
@@ -51,7 +51,7 @@ public static class WordCloudParser
     /// One line and the characters that ended it. The space either side of what it says is trivia of the
     /// line, so a word or a setting is only its key, its colon and its value.
     /// </summary>
-    private static ContentNode Line(string body, string terminator, ref bool settings)
+    private static ContentNode Line(string body, string terminator, ref bool settings, int at)
     {
         var pieces = new List<ContentNode>();
 
@@ -59,19 +59,19 @@ public static class WordCloudParser
         var trail = SettingLines.Trailing(body, lead);
         var text = body[lead..(body.Length - trail)];
 
-        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead]));
+        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead], at));
 
         if (text.Length == 0) { }
-        else if (text[0] == '#') pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia));
-        else if (SettingLines.Colon(text) is var colon and > 0) pieces.Add(Pair(text, colon, ref settings));
+        else if (text[0] == '#') pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: at + lead));
+        else if (SettingLines.Colon(text) is var colon and > 0) pieces.Add(Pair(text, colon, ref settings, at + lead));
         else
             pieces.Add(ContentNode.Shown(
-                text, $"'{text}' is not a `word: weight` line."));
+                text, $"'{text}' is not a `word: weight` line.", offset: at + lead));
 
-        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..]));
-        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator));
+        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..], at + body.Length - trail));
+        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator, at + body.Length));
 
-        return ContentNode.Branch(WordCloudKinds.Line, pieces);
+        return ContentNode.Branch(WordCloudKinds.Line, pieces, offset: at);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public static class WordCloudParser
     /// setting.
     /// </para>
     /// </summary>
-    private static ContentNode Pair(string text, int colon, ref bool settings)
+    private static ContentNode Pair(string text, int colon, ref bool settings, int at)
     {
         var key = text[..colon];
         var keyEnd = key.Length - SettingLines.Trailing(key, 0);
@@ -102,24 +102,24 @@ public static class WordCloudParser
         var pieces = new List<ContentNode>
         {
             setting
-                ? ContentNode.Leaf(WordCloudKinds.Key, written, Roles.Name)
-                : Word(written),
+                ? ContentNode.Leaf(WordCloudKinds.Key, written, Roles.Name, offset: at)
+                : Word(written, at),
         };
 
-        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..]));
+        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..], at + keyEnd));
 
-        pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator, offset: at + colon));
 
         var rest = text[(colon + 1)..];
         var gap = SettingLines.Leading(rest);
-        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap]));
+        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap], at + colon + 1));
 
         if (gap < rest.Length)
             pieces.Add(setting
-                ? ContentNode.Leaf(WordCloudKinds.Value, rest[gap..], WordCloudRoles.Value)
-                : ContentNode.Leaf(WordCloudKinds.Weight, rest[gap..], WordCloudRoles.Weight));
+                ? ContentNode.Leaf(WordCloudKinds.Value, rest[gap..], WordCloudRoles.Value, offset: at + colon + 1 + gap)
+                : ContentNode.Leaf(WordCloudKinds.Weight, rest[gap..], WordCloudRoles.Weight, offset: at + colon + 1 + gap));
 
-        return ContentNode.Branch(setting ? WordCloudKinds.Setting : WordCloudKinds.Entry, pieces);
+        return ContentNode.Branch(setting ? WordCloudKinds.Setting : WordCloudKinds.Entry, pieces, offset: at);
     }
 
     /// <summary>
@@ -131,16 +131,16 @@ public static class WordCloudParser
     /// them, while the line still prints back as it was written.
     /// </para>
     /// </summary>
-    private static ContentNode Word(string written)
+    private static ContentNode Word(string written, int at)
     {
         if (written.Length < 2 || written[0] != '"' || written[^1] != '"')
-            return ContentNode.Leaf(WordCloudKinds.Word, written, WordCloudRoles.Word);
+            return ContentNode.Leaf(WordCloudKinds.Word, written, WordCloudRoles.Word, offset: at);
 
         return ContentNode.Branch(WordCloudKinds.Word,
         [
-            ContentNode.Leaf(Kinds.Token, "\"", Roles.Open),
-            ContentNode.Leaf(WordCloudKinds.Word, written[1..^1], WordCloudRoles.Word),
-            ContentNode.Leaf(Kinds.Token, "\"", Roles.Close),
-        ], WordCloudRoles.Word);
+            ContentNode.Leaf(Kinds.Token, "\"", Roles.Open, offset: at),
+            ContentNode.Leaf(WordCloudKinds.Word, written[1..^1], WordCloudRoles.Word, offset: at + 1),
+            ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: at + written.Length - 1),
+        ], WordCloudRoles.Word, at);
     }
 }

@@ -111,7 +111,7 @@ public static class LilyPondParser
             if (char.IsWhiteSpace(s[_at]))
             {
                 while (_at < s.Length && char.IsWhiteSpace(s[_at])) _at++;
-                return ContentNode.Leaf(Kinds.Space, s[from.._at], Roles.Trivia);
+                return ContentNode.Leaf(Kinds.Space, s[from.._at], Roles.Trivia, offset: from);
             }
 
             if (s[_at] != '%') return null;
@@ -127,13 +127,14 @@ public static class LilyPondParser
                 _at = end < 0 ? s.Length : end;
             }
 
-            return ContentNode.Leaf(Kinds.Comment, s[from.._at], Roles.Trivia);
+            return ContentNode.Leaf(Kinds.Comment, s[from.._at], Roles.Trivia, offset: from);
         }
 
         /// <summary>A bracketed group and everything in it, read by <paramref name="mode"/>'s lexer.</summary>
         private ContentNode Group(string kind, string open, string close, Mode mode)
         {
-            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, open, Roles.Open) };
+            var opens = _at;
+            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, open, Roles.Open, offset: opens) };
             _at += open.Length;
 
             _closers.Add(close);
@@ -143,11 +144,11 @@ public static class LilyPondParser
             // A group still open at the end is what somebody halfway through typing it has written.
             if (At(close))
             {
-                parts.Add(ContentNode.Leaf(Kinds.Token, close, Roles.Close));
+                parts.Add(ContentNode.Leaf(Kinds.Token, close, Roles.Close, offset: _at));
                 _at += close.Length;
             }
 
-            return ContentNode.Branch(kind, parts);
+            return ContentNode.Branch(kind, parts, offset: opens);
         }
 
         // ── Music ───────────────────────────────────────────────────────────
@@ -169,13 +170,14 @@ public static class LilyPondParser
 
             if (!IsWordChar(s[_at])) return Held(1, $"nothing here reads '{s[_at]}'");
 
+            var from = _at;
             var word = Run(IsWordChar);
 
             // A word with an = after it is a name being defined, whatever it would otherwise have been — a
             // variable can perfectly well be called a.
-            if (Assigning()) return Assignment(ContentNode.Leaf(LilyPondKinds.Word, word), Mode.Music);
+            if (Assigning()) return Assignment(ContentNode.Leaf(LilyPondKinds.Word, word, offset: from), Mode.Music);
 
-            return Event(word) ?? ContentNode.Leaf(LilyPondKinds.Word, word);
+            return Event(word, from) ?? ContentNode.Leaf(LilyPondKinds.Word, word, offset: from);
         }
 
         /// <summary>
@@ -184,7 +186,8 @@ public static class LilyPondParser
         /// </summary>
         private ContentNode Chord()
         {
-            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "<", Roles.Open) };
+            var opens = _at;
+            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "<", Roles.Open, offset: opens) };
             _at++;
 
             _closers.Add(">");
@@ -192,9 +195,9 @@ public static class LilyPondParser
                 parts.Add(member.Kind == LilyPondKinds.Note ? member.As(LilyPondRoles.Note) : member);
             _closers.RemoveAt(_closers.Count - 1);
 
-            if (_at >= s.Length || s[_at] != '>') return ContentNode.Branch(LilyPondKinds.Chord, parts);
+            if (_at >= s.Length || s[_at] != '>') return ContentNode.Branch(LilyPondKinds.Chord, parts, offset: opens);
 
-            parts.Add(ContentNode.Leaf(Kinds.Token, ">", Roles.Close));
+            parts.Add(ContentNode.Leaf(Kinds.Token, ">", Roles.Close, offset: _at));
             _at++;
 
             var end = _at;
@@ -203,13 +206,13 @@ public static class LilyPondParser
             var tail = new List<ContentNode>();
             var at = 0;
             var word = s[_at..end];
-            if (word.Length > 0 && Tail(word, ref at, tail))
+            if (word.Length > 0 && Tail(word, ref at, tail, _at))
             {
                 parts.AddRange(tail);
                 _at = end;
             }
 
-            return ContentNode.Branch(LilyPondKinds.Chord, parts);
+            return ContentNode.Branch(LilyPondKinds.Chord, parts, offset: opens);
         }
 
         /// <summary>
@@ -218,31 +221,31 @@ public static class LilyPondParser
         /// </summary>
         private ContentNode Directed()
         {
+            var from = _at;
             var c = s[_at];
             var next = _at + 1 < s.Length ? s[_at + 1] : '\0';
 
             if (next is '"' or '\\')
             {
-                var direction = ContentNode.Leaf(Kinds.Token, s[_at..(_at + 1)], Roles.Name);
+                var direction = ContentNode.Leaf(Kinds.Token, s[_at..(_at + 1)], Roles.Name, offset: from);
                 _at++;
 
                 var target = next == '"' ? QuotedText() : Backslash(Mode.Music);
-                return ContentNode.Branch(LilyPondKinds.Script, [direction, target]);
+                return ContentNode.Branch(LilyPondKinds.Script, [direction, target], offset: from);
             }
 
             if ((c == '-' && next is '.' or '>' or '-' or '_' or '!' or '^' or '+')
                 || (c is '^' or '_' && next is '.' or '>' or '-' or '!' or '+' or '^' or '_'))
             {
                 _at += 2;
-                return ContentNode.Leaf(LilyPondKinds.Articulation, s[(_at - 2).._at]);
+                return ContentNode.Leaf(LilyPondKinds.Articulation, s[(_at - 2).._at], offset: from);
             }
 
             if (char.IsAsciiDigit(next))
             {
-                var from = _at;
                 _at++;
                 while (_at < s.Length && char.IsAsciiDigit(s[_at])) _at++;
-                return ContentNode.Leaf(LilyPondKinds.Articulation, s[from.._at]);
+                return ContentNode.Leaf(LilyPondKinds.Articulation, s[from.._at], offset: from);
             }
 
             return Held(1, $"a '{c}' puts something on a note, and nothing follows it");
@@ -251,13 +254,14 @@ public static class LilyPondParser
         // ── Words ───────────────────────────────────────────────────────────
 
         /// <summary>A note, a rest or a repeated chord, or null where the word is none of them.</summary>
-        private static ContentNode? Event(string word) => NoteOf(word) ?? RestOf(word);
+        /// <param name="at">Where the first character of <paramref name="word"/> stands in the source.</param>
+        private static ContentNode? Event(string word, int at) => NoteOf(word, at) ?? RestOf(word, at);
 
         /// <summary>
         /// A note — its name, octave marks, a forced accidental, a duration and a tremolo, each a leaf — or
         /// null where the word is not one. Strict, so that <c>bass</c> or <c>default</c> stays a word.
         /// </summary>
-        private static ContentNode? NoteOf(string word, bool durations = true)
+        private static ContentNode? NoteOf(string word, int from, bool durations = true)
         {
             if (word.Length == 0 || word[0] is < 'a' or > 'g') return null;
 
@@ -267,31 +271,31 @@ public static class LilyPondParser
 
             var parts = new List<ContentNode>(5)
             {
-                ContentNode.Leaf(LilyPondKinds.NoteName, word[..at], LilyPondRoles.NoteName),
+                ContentNode.Leaf(LilyPondKinds.NoteName, word[..at], LilyPondRoles.NoteName, offset: from),
             };
 
-            var from = at;
+            var mark = at;
             while (at < word.Length && word[at] is '\'' or ',') at++;
-            if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Octave, word[from..at], LilyPondRoles.Octave));
+            if (at > mark) parts.Add(ContentNode.Leaf(LilyPondKinds.Octave, word[mark..at], LilyPondRoles.Octave, offset: from + mark));
 
-            from = at;
+            mark = at;
             while (at < word.Length && word[at] is '!' or '?') at++;
-            if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Force, word[from..at], LilyPondRoles.Force));
+            if (at > mark) parts.Add(ContentNode.Leaf(LilyPondKinds.Force, word[mark..at], LilyPondRoles.Force, offset: from + mark));
 
-            if (!durations) return at == word.Length ? ContentNode.Branch(LilyPondKinds.Note, parts) : null;
-            return Tail(word, ref at, parts) ? ContentNode.Branch(LilyPondKinds.Note, parts) : null;
+            if (!durations) return at == word.Length ? ContentNode.Branch(LilyPondKinds.Note, parts, offset: from) : null;
+            return Tail(word, ref at, parts, from) ? ContentNode.Branch(LilyPondKinds.Note, parts, offset: from) : null;
         }
 
         /// <summary>A rest — <c>r</c>, <c>R</c>, <c>s</c> — or a repeated chord <c>q</c>, with its duration.</summary>
-        private static ContentNode? RestOf(string word)
+        private static ContentNode? RestOf(string word, int from)
         {
             if (word.Length == 0 || word[0] is not ('r' or 'R' or 's' or 'q')) return null;
 
-            var parts = new List<ContentNode>(3) { ContentNode.Leaf(Kinds.Token, word[..1], Roles.Name) };
+            var parts = new List<ContentNode>(3) { ContentNode.Leaf(Kinds.Token, word[..1], Roles.Name, offset: from) };
             var at = 1;
 
-            return Tail(word, ref at, parts)
-                ? ContentNode.Branch(word[0] == 'q' ? LilyPondKinds.ChordRepeat : LilyPondKinds.Rest, parts)
+            return Tail(word, ref at, parts, from)
+                ? ContentNode.Branch(word[0] == 'q' ? LilyPondKinds.ChordRepeat : LilyPondKinds.Rest, parts, offset: from)
                 : null;
         }
 
@@ -299,24 +303,25 @@ public static class LilyPondParser
         /// A duration and a tremolo, as leaves, from where <paramref name="at"/> is to the end of the word —
         /// or false where what is left of the word is not those.
         /// </summary>
-        private static bool Tail(string word, ref int at, List<ContentNode> parts)
+        /// <param name="from">Where the first character of <paramref name="word"/> stands in the source.</param>
+        private static bool Tail(string word, ref int at, List<ContentNode> parts, int from)
         {
-            var from = at;
-            while (at < word.Length && (char.IsAsciiDigit(word[at]) || (at > from && word[at] is '.' or '*' or '/')))
+            var mark = at;
+            while (at < word.Length && (char.IsAsciiDigit(word[at]) || (at > mark && word[at] is '.' or '*' or '/')))
                 at++;
 
-            if (at > from)
+            if (at > mark)
             {
-                if (LilyPondTheory.Length(word[from..at]) is null) return false;
-                parts.Add(ContentNode.Leaf(LilyPondKinds.Duration, word[from..at], LilyPondRoles.Duration));
+                if (LilyPondTheory.Length(word[mark..at]) is null) return false;
+                parts.Add(ContentNode.Leaf(LilyPondKinds.Duration, word[mark..at], LilyPondRoles.Duration, offset: from + mark));
             }
 
             if (at < word.Length && word[at] == ':')
             {
-                from = at;
+                mark = at;
                 at++;
                 while (at < word.Length && char.IsAsciiDigit(word[at])) at++;
-                parts.Add(ContentNode.Leaf(LilyPondKinds.Tremolo, word[from..at], LilyPondRoles.Tremolo));
+                parts.Add(ContentNode.Leaf(LilyPondKinds.Tremolo, word[mark..at], LilyPondRoles.Tremolo, offset: from + mark));
             }
 
             return at == word.Length;
@@ -330,10 +335,11 @@ public static class LilyPondParser
         /// </summary>
         private ContentNode Lyric()
         {
+            var from = _at;
             var word = Run(c => !char.IsWhiteSpace(c) && c is not ('{' or '}' or '"' or '\\' or '%' or '#'));
             if (word.Length == 0) return Held(1, $"nothing here reads '{s[_at]}'");
 
-            if (word is "--" or "__" or "_") return ContentNode.Leaf(LilyPondKinds.LyricMark, word, Roles.Separator);
+            if (word is "--" or "__" or "_") return ContentNode.Leaf(LilyPondKinds.LyricMark, word, Roles.Separator, offset: from);
 
             // A duration written after the words — `Twin4.` — is a part of its own: digits, then any dots. Dots with no digits
             // before them are the words', as a full stop is.
@@ -345,8 +351,10 @@ public static class LilyPondParser
 
             return end < digits && end > 0
                 ? ContentNode.Branch(LilyPondKinds.Syllable,
-                                     [ContentNode.Leaf(LilyPondKinds.Word, word[..end]), ContentNode.Leaf(LilyPondKinds.Duration, word[end..], LilyPondRoles.Duration)])
-                : ContentNode.Leaf(LilyPondKinds.Syllable, word);
+                                     [ContentNode.Leaf(LilyPondKinds.Word, word[..end], offset: from),
+                                      ContentNode.Leaf(LilyPondKinds.Duration, word[end..], LilyPondRoles.Duration, offset: from + end)],
+                                     offset: from)
+                : ContentNode.Leaf(LilyPondKinds.Syllable, word, offset: from);
         }
 
         /// <summary>
@@ -358,18 +366,19 @@ public static class LilyPondParser
             if (s[_at] == '|') return One(LilyPondKinds.BarCheck);
             if (s[_at] == '~') return One(LilyPondKinds.Tie);
 
+            var from = _at;
             var word = Run(c => !char.IsWhiteSpace(c)
                                 && c is not ('{' or '}' or '<' or '>' or '|' or '"' or '\\' or '%' or '#' or '~'));
             if (word.Length == 0) return Held(1, $"nothing here reads '{s[_at]}'");
 
-            return RestOf(word) ?? ChordOf(word) ?? ContentNode.Leaf(LilyPondKinds.Word, word);
+            return RestOf(word, from) ?? ChordOf(word, from) ?? ContentNode.Leaf(LilyPondKinds.Word, word, offset: from);
         }
 
         /// <summary>
         /// A chord's name as its parts: the root, its octave marks, the duration, and what kind of chord it is —
         /// <c>:m7</c>, <c>/f</c> — each a leaf, so how long it lasts can be hung on it and what it is read off it.
         /// </summary>
-        private static ContentNode? ChordOf(string word)
+        private static ContentNode? ChordOf(string word, int from)
         {
             if (word.Length == 0 || word[0] is < 'a' or > 'g') return null;
 
@@ -379,20 +388,20 @@ public static class LilyPondParser
 
             var parts = new List<ContentNode>(4)
             {
-                ContentNode.Leaf(LilyPondKinds.NoteName, word[..at], LilyPondRoles.NoteName),
+                ContentNode.Leaf(LilyPondKinds.NoteName, word[..at], LilyPondRoles.NoteName, offset: from),
             };
 
-            var from = at;
+            var mark = at;
             while (at < word.Length && word[at] is '\'' or ',') at++;
-            if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Octave, word[from..at], LilyPondRoles.Octave));
+            if (at > mark) parts.Add(ContentNode.Leaf(LilyPondKinds.Octave, word[mark..at], LilyPondRoles.Octave, offset: from + mark));
 
             // A slash here is the bass, not a fraction, so a duration in a chord's name stops short of one.
-            from = at;
-            while (at < word.Length && (char.IsAsciiDigit(word[at]) || (at > from && word[at] is '.' or '*'))) at++;
-            if (at > from)
+            mark = at;
+            while (at < word.Length && (char.IsAsciiDigit(word[at]) || (at > mark && word[at] is '.' or '*'))) at++;
+            if (at > mark)
             {
-                if (LilyPondTheory.Length(word[from..at]) is null) return null;
-                parts.Add(ContentNode.Leaf(LilyPondKinds.Duration, word[from..at], LilyPondRoles.Duration));
+                if (LilyPondTheory.Length(word[mark..at]) is null) return null;
+                parts.Add(ContentNode.Leaf(LilyPondKinds.Duration, word[mark..at], LilyPondRoles.Duration, offset: from + mark));
             }
 
             if (at < word.Length && word[at] is not (':' or '/')) return null;
@@ -400,25 +409,25 @@ public static class LilyPondParser
             // What kind of chord: a colon, and the modifiers after it as far as a slash.
             if (at < word.Length && word[at] == ':')
             {
-                parts.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
-                from = ++at;
+                parts.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator, offset: from + at));
+                mark = ++at;
                 while (at < word.Length && word[at] != '/') at++;
-                if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[from..at], LilyPondRoles.Quality));
+                if (at > mark) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[mark..at], LilyPondRoles.Quality, offset: from + mark));
             }
 
             // Its bass: a slash — with a plus, adding the note rather than turning the chord onto it — and the note's name.
             if (at < word.Length)
             {
                 var slash = word.AsSpan(at).StartsWith("/+") ? 2 : 1;
-                parts.Add(ContentNode.Leaf(Kinds.Token, word.Substring(at, slash), Roles.Separator));
-                from = at += slash;
+                parts.Add(ContentNode.Leaf(Kinds.Token, word.Substring(at, slash), Roles.Separator, offset: from + at));
+                mark = at += slash;
 
                 while (at < word.Length && char.IsAsciiLetterLower(word[at])) at++;
-                if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[from..at], LilyPondRoles.Bass));
-                if (at < word.Length) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[at..]));
+                if (at > mark) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[mark..at], LilyPondRoles.Bass, offset: from + mark));
+                if (at < word.Length) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[at..], offset: from + at));
             }
 
-            return ContentNode.Branch(LilyPondKinds.ChordName, parts);
+            return ContentNode.Branch(LilyPondKinds.ChordName, parts, offset: from);
         }
 
         // ── Strings and Scheme ──────────────────────────────────────────────
@@ -433,23 +442,24 @@ public static class LilyPondParser
         /// <summary>A quoted string: its quotes, and each character between them — an escape, <c>\"</c> or <c>\\</c>, being the one character it writes.</summary>
         private ContentNode QuotedText()
         {
+            var opens = _at;
             var at = _at + 1;
-            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open) };
+            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open, offset: opens) };
 
             while (at < s.Length && s[at] is not ('"' or '\n'))
             {
                 var escaped = s[at] == '\\' && at + 1 < s.Length && s[at + 1] != '\n';
                 var width = escaped ? 2 : 1;
 
-                pieces.Add(ContentNode.Leaf(escaped ? LilyPondKinds.Escape : LilyPondKinds.Letter, s.Substring(at, width)));
+                pieces.Add(ContentNode.Leaf(escaped ? LilyPondKinds.Escape : LilyPondKinds.Letter, s.Substring(at, width), offset: at));
                 at += width;
             }
 
             if (at >= s.Length || s[at] != '"') return Held(1, "this quotation is never closed");
 
-            pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: at));
             _at = at + 1;
-            return ContentNode.Branch(LilyPondKinds.Quoted, pieces);
+            return ContentNode.Branch(LilyPondKinds.Quoted, pieces, offset: opens);
         }
 
         /// <summary>
@@ -471,13 +481,13 @@ public static class LilyPondParser
                 {
                     var end = s.IndexOf('\n', from);
                     _at = end < 0 ? s.Length : end;
-                    return ContentNode.Shown(s[from.._at], "this ( is never closed");
+                    return ContentNode.Shown(s[from.._at], "this ( is never closed", offset: from);
                 }
             }
             else if (_at < s.Length && s[_at] == '"')
             {
                 var inner = QuotedText();
-                if (inner.Kind != LilyPondKinds.Quoted) return ContentNode.Shown(s[from.._at], inner.Trouble);
+                if (inner.Kind != LilyPondKinds.Quoted) return ContentNode.Shown(s[from.._at], inner.Trouble, offset: from);
             }
             else if (_at < s.Length && s[_at] == '{')
             {
@@ -490,7 +500,7 @@ public static class LilyPondParser
                     _at++;
             }
 
-            return ContentNode.Leaf(LilyPondKinds.Scheme, s[from.._at]);
+            return ContentNode.Leaf(LilyPondKinds.Scheme, s[from.._at], offset: from);
         }
 
         /// <summary>Steps over a balanced parenthesis from here, strings and comments inside it included.</summary>
@@ -536,13 +546,13 @@ public static class LilyPondParser
             if (next == '\\')
             {
                 _at += 2;
-                return ContentNode.Leaf(LilyPondKinds.VoiceSeparator, s[from.._at]);
+                return ContentNode.Leaf(LilyPondKinds.VoiceSeparator, s[from.._at], offset: from);
             }
 
             if (next is '(' or ')')
             {
                 _at += 2;
-                return ContentNode.Leaf(next == '(' ? LilyPondKinds.SlurOpen : LilyPondKinds.SlurClose, s[from.._at]);
+                return ContentNode.Leaf(next == '(' ? LilyPondKinds.SlurOpen : LilyPondKinds.SlurClose, s[from.._at], offset: from);
             }
 
             if (next == '"')
@@ -557,7 +567,8 @@ public static class LilyPondParser
                     return Held(2, "this quotation is never closed");
                 }
 
-                return ContentNode.Branch(LilyPondKinds.Command, [ContentNode.Leaf(Kinds.Token, "\\", Roles.Open), quoted.As(Roles.Name)]);
+                return ContentNode.Branch(LilyPondKinds.Command,
+                    [ContentNode.Leaf(Kinds.Token, "\\", Roles.Open, offset: from), quoted.As(Roles.Name)], offset: from);
             }
 
             if (char.IsAsciiLetter(next))
@@ -571,7 +582,8 @@ public static class LilyPondParser
 
             // \< \> \! and their kind: a command whose name is one character of punctuation.
             _at += 2;
-            return ContentNode.Branch(LilyPondKinds.Command, [ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name)]);
+            return ContentNode.Branch(LilyPondKinds.Command,
+                [ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name, offset: from)], offset: from);
         }
 
         /// <summary>
@@ -580,7 +592,7 @@ public static class LilyPondParser
         /// </summary>
         private ContentNode Command(string name, Mode mode, int from)
         {
-            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name) };
+            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name, offset: from) };
 
             switch (name)
             {
@@ -705,7 +717,7 @@ public static class LilyPondParser
                     break;
             }
 
-            return ContentNode.Branch(LilyPondKinds.Command, parts);
+            return ContentNode.Branch(LilyPondKinds.Command, parts, offset: from);
         }
 
         /// <summary>
@@ -742,11 +754,13 @@ public static class LilyPondParser
         }
 
         /// <summary>A pitch given to a command — <c>\relative c'</c>, <c>\key g</c> — which is not a note played.</summary>
-        private ContentNode? Pitch() => Taken(IsWordChar, w => NoteOf(w, durations: false))?.As(LilyPondRoles.Argument);
+        private ContentNode? Pitch() =>
+            Taken(IsWordChar, (word, at) => NoteOf(word, at, durations: false))?.As(LilyPondRoles.Argument);
 
         /// <summary>A word given to a command, where <paramref name="fits"/> says it is the right kind.</summary>
         private ContentNode? Word(Func<string, bool> fits, Func<char, bool>? takes = null) =>
-            Taken(takes ?? IsWordChar, w => fits(w) ? ContentNode.Leaf(LilyPondKinds.Word, w, LilyPondRoles.Argument) : null);
+            Taken(takes ?? IsWordChar,
+                  (word, at) => fits(word) ? ContentNode.Leaf(LilyPondKinds.Word, word, LilyPondRoles.Argument, offset: at) : null);
 
         /// <summary>A quoted string given to a command.</summary>
         private ContentNode? QuotedArg() => s[_at] == '"' ? QuotedText().As(LilyPondRoles.Argument) : null;
@@ -756,8 +770,9 @@ public static class LilyPondParser
         {
             if (s[_at] != '=' || At("==")) return null;
 
+            var from = _at;
             _at++;
-            return ContentNode.Leaf(Kinds.Token, "=", LilyPondRoles.Assign);
+            return ContentNode.Leaf(Kinds.Token, "=", LilyPondRoles.Assign, offset: from);
         }
 
         /// <summary>A <c>\with { … }</c> block given to a context.</summary>
@@ -775,7 +790,7 @@ public static class LilyPondParser
             var from = _at;
             _at = end;
             return ContentNode.Branch(LilyPondKinds.Command,
-                [ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name)], LilyPondRoles.Argument);
+                [ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name, offset: from)], LilyPondRoles.Argument, from);
         }
 
         /// <summary>A property's path — <c>Staff.TimeSignature.break-visibility</c> — which may hold a hyphen.</summary>
@@ -819,13 +834,13 @@ public static class LilyPondParser
             _at++;
             while (_at < s.Length && (char.IsAsciiLetter(s[_at]) || (s[_at] == '-' && IsLetter(_at + 1)))) _at++;
 
-            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name) };
-            if (s[(from + 1).._at] == "default") return ContentNode.Branch(LilyPondKinds.Command, parts);
+            var parts = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name, offset: from) };
+            if (s[(from + 1).._at] == "default") return ContentNode.Branch(LilyPondKinds.Command, parts, offset: from);
 
             while (Arg(parts, () => s[_at] is '#' or '$' ? Scheme().As(LilyPondRoles.Argument) : null)) { }
             Arg(parts, () => s[_at] is '"' or '{' or '\\' ? Markup() : null);
 
-            return ContentNode.Branch(LilyPondKinds.Command, parts);
+            return ContentNode.Branch(LilyPondKinds.Command, parts, offset: from);
         }
 
         // ── Definitions ─────────────────────────────────────────────────────
@@ -844,11 +859,11 @@ public static class LilyPondParser
             var parts = new List<ContentNode> { name.As(Roles.Name) };
             while (Trivia() is { } trivia) parts.Add(trivia);
 
-            parts.Add(ContentNode.Leaf(Kinds.Token, "=", LilyPondRoles.Assign));
+            parts.Add(ContentNode.Leaf(Kinds.Token, "=", LilyPondRoles.Assign, offset: _at));
             _at++;
 
             Arg(parts, () => Item(mode).As(LilyPondRoles.Value));
-            return ContentNode.Branch(LilyPondKinds.Assignment, parts);
+            return ContentNode.Branch(LilyPondKinds.Assignment, parts, offset: name.Offset);
         }
 
         // ── Small helpers ───────────────────────────────────────────────────
@@ -868,14 +883,14 @@ public static class LilyPondParser
         }
 
         /// <summary>
-        /// The word here, made into a node by <paramref name="make"/> — or, where it makes nothing, nothing
-        /// read, so the word is left for whatever reads next.
+        /// The word here, made into a node by <paramref name="make"/> — told where that word stands — or, where it
+        /// makes nothing, nothing read, so the word is left for whatever reads next.
         /// </summary>
-        private ContentNode? Taken(Func<char, bool> takes, Func<string, ContentNode?> make)
+        private ContentNode? Taken(Func<char, bool> takes, Func<string, int, ContentNode?> make)
         {
             var end = _at;
             while (end < s.Length && takes(s[end])) end++;
-            if (end == _at || make(s[_at..end]) is not { } node) return null;
+            if (end == _at || make(s[_at..end], _at) is not { } node) return null;
 
             _at = end;
             return node;
@@ -884,7 +899,7 @@ public static class LilyPondParser
         private ContentNode One(string kind)
         {
             _at++;
-            return ContentNode.Leaf(kind, s[(_at - 1).._at]);
+            return ContentNode.Leaf(kind, s[(_at - 1).._at], offset: _at - 1);
         }
 
         /// <summary>
@@ -893,9 +908,10 @@ public static class LilyPondParser
         /// </summary>
         private ContentNode Held(int length, string trouble)
         {
+            var from = _at;
             var text = s.Substring(_at, Math.Min(length, s.Length - _at));
             _at += text.Length;
-            return ContentNode.Shown(text, trouble);
+            return ContentNode.Shown(text, trouble, offset: from);
         }
     }
 }

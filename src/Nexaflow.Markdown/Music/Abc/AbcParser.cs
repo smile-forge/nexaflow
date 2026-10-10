@@ -72,7 +72,7 @@ public sealed class AbcParser : ITranspile
             if (stop < source.Length && source[stop] == '\n') stop++;
             var terminator = source[end..stop];
 
-            lines.Add(Line(body, terminator));
+            lines.Add(Line(body, terminator, at));
             at = stop;
         }
 
@@ -90,7 +90,7 @@ public sealed class AbcParser : ITranspile
     /// node rather than two edits either side of a character nobody owns.
     /// </para>
     /// </summary>
-    private static ContentNode Line(string body, string terminator)
+    private static ContentNode Line(string body, string terminator, int from)
     {
         var pieces = new List<ContentNode>();
         var kind = AbcKinds.Line;
@@ -101,39 +101,40 @@ public sealed class AbcParser : ITranspile
 
             // The name is the letter and its colon: what makes it a field, and what an edit changing the
             // key replaces nothing of.
-            pieces.Add(ContentNode.Leaf(Kinds.Token, body[..2], Roles.Name));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, body[..2], Roles.Name, offset: from));
 
             var value = body[2..];
             var comment = CommentAt(value);
             if (comment < 0)
             {
-                if (value.Length > 0) pieces.Add(Value(value, kind, letter));
+                if (value.Length > 0) pieces.Add(Value(value, kind, letter, from + 2));
             }
             else
             {
-                if (comment > 0) pieces.Add(Value(value[..comment], kind, letter));
-                pieces.Add(ContentNode.Leaf(Kinds.Comment, value[comment..], Roles.Trivia));
+                if (comment > 0) pieces.Add(Value(value[..comment], kind, letter, from + 2));
+                pieces.Add(ContentNode.Leaf(Kinds.Comment, value[comment..], Roles.Trivia, offset: from + 2 + comment));
             }
         }
         else if (body.StartsWith('%'))
         {
             // Not music, and saying so is what keeps a leading `%%directive` from ending the header.
             kind = AbcKinds.Blank;
-            pieces.Add(ContentNode.Leaf(Kinds.Comment, body, Roles.Trivia));
+            pieces.Add(ContentNode.Leaf(Kinds.Comment, body, Roles.Trivia, offset: from));
         }
         else if (body.Trim().Length == 0)
         {
             kind = AbcKinds.Blank;
-            if (body.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Space, body, Roles.Trivia));
+            if (body.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Space, body, Roles.Trivia, offset: from));
         }
         else
         {
-            Music(body, pieces);
+            Music(body, pieces, from);
         }
 
-        if (terminator.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Space, terminator, Roles.Trivia));
+        if (terminator.Length > 0)
+            pieces.Add(ContentNode.Leaf(Kinds.Space, terminator, Roles.Trivia, offset: from + body.Length));
 
-        return ContentNode.Branch(kind, pieces);
+        return ContentNode.Branch(kind, pieces, offset: from);
     }
 
     /// <summary>
@@ -141,16 +142,16 @@ public sealed class AbcParser : ITranspile
     /// <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> is its words — a key, figures, <c>key=value</c> settings — and every other
     /// field is prose, held as the one run of words it is.
     /// </summary>
-    private static ContentNode Value(string value, string kind, char letter) =>
-        kind == AbcKinds.LyricLine ? ContentNode.Branch(Kinds.Words, Sung(value), AbcRoles.Value)
-        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(Kinds.Words, Words(value, letter), AbcRoles.Value)
-        : ContentNode.Leaf(Kinds.Words, value, AbcRoles.Value);
+    private static ContentNode Value(string value, string kind, char letter, int from) =>
+        kind == AbcKinds.LyricLine ? ContentNode.Branch(Kinds.Words, Sung(value, from), AbcRoles.Value, from)
+        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(Kinds.Words, Words(value, letter, from), AbcRoles.Value, from)
+        : ContentNode.Leaf(Kinds.Words, value, AbcRoles.Value, offset: from);
 
     /// <summary>
     /// The words of a <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> value and the space between them. A word runs to the next
     /// space outside double quotes, so <c>name="Tenor Solo"</c> is one word.
     /// </summary>
-    private static List<ContentNode> Words(string value, char letter)
+    private static List<ContentNode> Words(string value, char letter, int start)
     {
         var pieces = new List<ContentNode>();
         var at = 0;
@@ -163,7 +164,7 @@ public sealed class AbcParser : ITranspile
             if (char.IsWhiteSpace(value[at]))
             {
                 while (at < value.Length && char.IsWhiteSpace(value[at])) at++;
-                pieces.Add(ContentNode.Leaf(Kinds.Space, value[from..at], Roles.Trivia));
+                pieces.Add(ContentNode.Leaf(Kinds.Space, value[from..at], Roles.Trivia, offset: start + from));
                 continue;
             }
 
@@ -174,7 +175,7 @@ public sealed class AbcParser : ITranspile
                 at++;
             }
 
-            pieces.Add(Word(value[from..at], letter, first));
+            pieces.Add(Word(value[from..at], letter, first, start + from));
             first = false;
         }
 
@@ -191,28 +192,30 @@ public sealed class AbcParser : ITranspile
     /// explicit natural glued to it rather than a setting called <c>AMix</c>.
     /// </para>
     /// </summary>
-    private static ContentNode Word(string word, char letter, bool first)
+    private static ContentNode Word(string word, char letter, bool first, int from)
     {
-        if (letter == 'K' && first && word[0] is >= 'A' and <= 'G') return Key(word);
+        if (letter == 'K' && first && word[0] is >= 'A' and <= 'G') return Key(word, from);
 
         var equals = word.IndexOf('=');
-        if (equals > 0 && word[..equals].IndexOf('"') < 0) return Setting(word, equals);
+        if (equals > 0 && word[..equals].IndexOf('"') < 0) return Setting(word, equals, from);
 
-        if (letter is 'M' or 'L' && (char.IsAsciiDigit(word[0]) || word[0] == '(')) return ContentNode.Branch(AbcKinds.Figures, Figures(word));
+        if (letter is 'M' or 'L' && (char.IsAsciiDigit(word[0]) || word[0] == '('))
+            return ContentNode.Branch(AbcKinds.Figures, Figures(word, from), offset: from);
 
-        return ContentNode.Leaf(AbcKinds.Word, word);
+        return ContentNode.Leaf(AbcKinds.Word, word, offset: from);
     }
 
     /// <summary><c>clef=bass</c>, <c>name="Soprano"</c>: its name, the equals sign, and what it is set to.</summary>
-    private static ContentNode Setting(string word, int equals)
+    private static ContentNode Setting(string word, int equals, int from)
     {
         List<ContentNode> pieces =
         [
-            ContentNode.Leaf(AbcKinds.Word, word[..equals], Roles.Name),
-            ContentNode.Leaf(Kinds.Token, "=", Roles.Separator),
+            ContentNode.Leaf(AbcKinds.Word, word[..equals], Roles.Name, offset: from),
+            ContentNode.Leaf(Kinds.Token, "=", Roles.Separator, offset: from + equals),
         ];
 
         var set = word[(equals + 1)..];
+        var at = from + equals + 1;
 
         if (set.Length > 0 && set[0] == '"')
         {
@@ -220,47 +223,48 @@ public sealed class AbcParser : ITranspile
             var close = set.IndexOf('"', 1);
             var inner = close < 0 ? set[1..] : set[1..close];
 
-            List<ContentNode> quoted = [ContentNode.Leaf(Kinds.Token, "\"", Roles.Open)];
-            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(Kinds.Words, inner, Roles.Body));
-            if (close >= 0) quoted.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
-            if (close >= 0 && close + 1 < set.Length) quoted.Add(ContentNode.Leaf(Kinds.Token, set[(close + 1)..]));
+            List<ContentNode> quoted = [ContentNode.Leaf(Kinds.Token, "\"", Roles.Open, offset: at)];
+            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(Kinds.Words, inner, Roles.Body, offset: at + 1));
+            if (close >= 0) quoted.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: at + close));
+            if (close >= 0 && close + 1 < set.Length)
+                quoted.Add(ContentNode.Leaf(Kinds.Token, set[(close + 1)..], offset: at + close + 1));
 
-            pieces.Add(ContentNode.Branch(Kinds.Words, quoted, AbcRoles.Value));
+            pieces.Add(ContentNode.Branch(Kinds.Words, quoted, AbcRoles.Value, at));
         }
         else if (set.Length > 0)
         {
-            pieces.Add(ContentNode.Leaf(AbcKinds.Word, set, AbcRoles.Value));
+            pieces.Add(ContentNode.Leaf(AbcKinds.Word, set, AbcRoles.Value, offset: at));
         }
 
-        return ContentNode.Branch(AbcKinds.Setting, pieces);
+        return ContentNode.Branch(AbcKinds.Setting, pieces, offset: from);
     }
 
     /// <summary>
     /// The key a <c>K:</c> opens with — <c>Bbm</c>, <c>F#mix</c>, <c>G</c> — as its tonic, the sharps or flats written on it, and
     /// the letters of its mode written straight after.
     /// </summary>
-    private static ContentNode Key(string word)
+    private static ContentNode Key(string word, int from)
     {
-        List<ContentNode> pieces = [ContentNode.Leaf(AbcKinds.Tonic, word[..1], Roles.Name)];
+        List<ContentNode> pieces = [ContentNode.Leaf(AbcKinds.Tonic, word[..1], Roles.Name, offset: from)];
 
         var at = 1;
         while (at < word.Length && word[at] is '#' or 'b') at++;
-        if (at > 1) pieces.Add(ContentNode.Leaf(Kinds.Token, word[1..at], AbcRoles.Accidental));
+        if (at > 1) pieces.Add(ContentNode.Leaf(Kinds.Token, word[1..at], AbcRoles.Accidental, offset: from + 1));
 
         var mode = at;
         while (at < word.Length && char.IsLetter(word[at])) at++;
-        if (at > mode) pieces.Add(ContentNode.Leaf(AbcKinds.Mode, word[mode..at], AbcRoles.Mode));
+        if (at > mode) pieces.Add(ContentNode.Leaf(AbcKinds.Mode, word[mode..at], AbcRoles.Mode, offset: from + mode));
 
-        if (at < word.Length) pieces.Add(ContentNode.Leaf(Kinds.Token, word[at..]));
+        if (at < word.Length) pieces.Add(ContentNode.Leaf(Kinds.Token, word[at..], offset: from + at));
 
-        return ContentNode.Branch(AbcKinds.Key, pieces);
+        return ContentNode.Branch(AbcKinds.Key, pieces, offset: from);
     }
 
     /// <summary>
     /// Figures as their numbers and the marks between them, each mark on its own: a meter's or a unit length's —
     /// <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c> — and a note's length suffix.
     /// </summary>
-    private static List<ContentNode> Figures(string word)
+    private static List<ContentNode> Figures(string word, int? start)
     {
         var pieces = new List<ContentNode>();
         var at = 0;
@@ -272,12 +276,12 @@ public sealed class AbcParser : ITranspile
             if (char.IsAsciiDigit(word[at]))
             {
                 while (at < word.Length && char.IsAsciiDigit(word[at])) at++;
-                pieces.Add(ContentNode.Leaf(Kinds.Number, word[from..at]));
+                pieces.Add(ContentNode.Leaf(Kinds.Number, word[from..at], offset: start + from));
                 continue;
             }
 
             at++;
-            pieces.Add(ContentNode.Leaf(Kinds.Token, word[from..at]));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, word[from..at], offset: start + from));
         }
 
         return pieces;
@@ -295,7 +299,7 @@ public sealed class AbcParser : ITranspile
     /// its pieces rather than out of its characters. A syllable with neither is the one leaf of its words.
     /// </para>
     /// </summary>
-    private static List<ContentNode> Sung(string value)
+    private static List<ContentNode> Sung(string value, int start)
     {
         var pieces = new List<ContentNode>();
         var syllable = new List<ContentNode>();
@@ -305,7 +309,7 @@ public sealed class AbcParser : ITranspile
         // The words written since `run`, as a piece of the syllable being read.
         void Take(int to)
         {
-            if (to > run) syllable.Add(ContentNode.Leaf(Kinds.Words, value[run..to]));
+            if (to > run) syllable.Add(ContentNode.Leaf(Kinds.Words, value[run..to], offset: start + run));
             run = to;
         }
 
@@ -315,8 +319,8 @@ public sealed class AbcParser : ITranspile
             if (syllable.Count == 0) return;
 
             pieces.Add(syllable is [{ Kind: Kinds.Words } words]
-                ? ContentNode.Leaf(AbcKinds.Syllable, words.Text)
-                : ContentNode.Branch(AbcKinds.Syllable, [.. syllable]));
+                ? ContentNode.Leaf(AbcKinds.Syllable, words.Text, offset: words.Offset)
+                : ContentNode.Branch(AbcKinds.Syllable, [.. syllable], offset: syllable[0].Offset));
             syllable.Clear();
         }
 
@@ -327,7 +331,7 @@ public sealed class AbcParser : ITranspile
             if (c == '\\' && at + 1 < value.Length && value[at + 1] == '-')
             {
                 Take(at);
-                syllable.Add(ContentNode.Leaf(Kinds.Token, "\\", AbcRoles.Escape));
+                syllable.Add(ContentNode.Leaf(Kinds.Token, "\\", AbcRoles.Escape, offset: start + at));
                 run = at + 1;
                 at += 2;
                 continue;
@@ -336,7 +340,7 @@ public sealed class AbcParser : ITranspile
             if (c == '~')
             {
                 Take(at);
-                syllable.Add(ContentNode.Leaf(Kinds.Token, "~", AbcRoles.Joined));
+                syllable.Add(ContentNode.Leaf(Kinds.Token, "~", AbcRoles.Joined, offset: start + at));
                 run = ++at;
                 continue;
             }
@@ -355,7 +359,7 @@ public sealed class AbcParser : ITranspile
             if (c is ' ' or '\t')
                 while (at + 1 < value.Length && value[at + 1] is ' ' or '\t') at++;
 
-            pieces.Add(ContentNode.Leaf(AbcKinds.LyricMark, value[from..(at + 1)], Roles.Separator));
+            pieces.Add(ContentNode.Leaf(AbcKinds.LyricMark, value[from..(at + 1)], Roles.Separator, offset: start + from));
             run = ++at;
         }
 
@@ -388,7 +392,7 @@ public sealed class AbcParser : ITranspile
 
     // ── A line of music ─────────────────────────────────────────────────────
 
-    private static void Music(string s, List<ContentNode> into)
+    private static void Music(string s, List<ContentNode> into, int from)
     {
         var i = 0;
         while (i < s.Length)
@@ -397,13 +401,14 @@ public sealed class AbcParser : ITranspile
 
             if (char.IsWhiteSpace(c))
             {
-                into.Add(ContentNode.Leaf(Kinds.Space, Run(s, ref i, char.IsWhiteSpace), Roles.Trivia));
+                var space = i;
+                into.Add(ContentNode.Leaf(Kinds.Space, Run(s, ref i, char.IsWhiteSpace), Roles.Trivia, offset: from + space));
                 continue;
             }
 
             if (c == '%')
             {
-                into.Add(ContentNode.Leaf(Kinds.Comment, s[i..], Roles.Trivia));
+                into.Add(ContentNode.Leaf(Kinds.Comment, s[i..], Roles.Trivia, offset: from + i));
                 return;
             }
 
@@ -411,10 +416,10 @@ public sealed class AbcParser : ITranspile
             // one of these four, and telling them apart needs the next character or two.
             if (c is '|' or ':' or '[' or ']')
             {
-                if (Barline(s, ref i) is { } bar) { into.Add(bar); continue; }
-                if (c == '[' && Bracketed(s, ref i) is { } bracketed) { into.Add(bracketed); continue; }
+                if (Barline(s, ref i, from) is { } bar) { into.Add(bar); continue; }
+                if (c == '[' && Bracketed(s, ref i, from) is { } bracketed) { into.Add(bracketed); continue; }
 
-                into.Add(Held(s, ref i, $"there is nothing a '{c}' can mean here"));
+                into.Add(Held(s, ref i, $"there is nothing a '{c}' can mean here", from));
                 continue;
             }
 
@@ -424,70 +429,71 @@ public sealed class AbcParser : ITranspile
                 case '_':
                 case '=':
                     // An accidental in front of nothing is not a note, and is held rather than dropped.
-                    into.Add(Note(s, ref i));
+                    into.Add(Note(s, ref i, from));
                     continue;
 
                 case '"':
-                    into.Add(Quoted(s, ref i));
+                    into.Add(Quoted(s, ref i, from));
                     continue;
 
                 case '!':
-                    into.Add(Bang(s, ref i));
+                    into.Add(Bang(s, ref i, from));
                     continue;
 
                 case '{':
-                    into.Add(Grace(s, ref i));
+                    into.Add(Grace(s, ref i, from));
                     continue;
 
                 case '(':
-                    into.Add(OpenParen(s, ref i));
+                    into.Add(OpenParen(s, ref i, from));
                     continue;
 
                 case ')':
-                    into.Add(One(s, ref i, AbcKinds.SlurClose));
+                    into.Add(One(s, ref i, AbcKinds.SlurClose, from));
                     continue;
 
                 case '-':
-                    into.Add(One(s, ref i, AbcKinds.Tie));
+                    into.Add(One(s, ref i, AbcKinds.Tie, from));
                     continue;
 
                 case '>':
                 case '<':
-                    into.Add(ContentNode.Leaf(AbcKinds.Broken, Run(s, ref i, ch => ch == c)));
+                    var broken = i;
+                    into.Add(ContentNode.Leaf(AbcKinds.Broken, Run(s, ref i, ch => ch == c), offset: from + broken));
                     continue;
 
                 case '&':
-                    into.Add(One(s, ref i, AbcKinds.Overlay));
+                    into.Add(One(s, ref i, AbcKinds.Overlay, from));
                     continue;
 
                 case 'y':
-                    into.Add(Spacer(s, ref i));
+                    into.Add(Spacer(s, ref i, from));
                     continue;
 
                 case '\\':
-                    into.Add(One(s, ref i, AbcKinds.Continuation, Roles.Trivia));
+                    into.Add(One(s, ref i, AbcKinds.Continuation, from, Roles.Trivia));
                     continue;
             }
 
             if (Decorations.Contains(c))
             {
-                into.Add(One(s, ref i, AbcKinds.Decoration));
+                into.Add(One(s, ref i, AbcKinds.Decoration, from));
                 continue;
             }
 
             if (c is 'z' or 'x' or 'Z')
             {
-                into.Add(Rest(s, ref i));
+                into.Add(Rest(s, ref i, from));
                 continue;
             }
 
             if (IsNoteLetter(c))
             {
-                into.Add(Note(s, ref i));
+                into.Add(Note(s, ref i, from));
                 continue;
             }
 
-            into.Add(Held(s, ref i, $"nothing here reads '{c}'"));
+            into.Add(Held(s, ref i, $"nothing here reads '{c}'", from));
         }
     }
 
@@ -511,92 +517,103 @@ public sealed class AbcParser : ITranspile
     /// typing.
     /// </para>
     /// </summary>
-    private static ContentNode Note(string s, ref int i)
+    private static ContentNode Note(string s, ref int i, int from)
     {
+        var begins = i;
         var pieces = new List<ContentNode>(4);
 
         if (s[i] is '^' or '_' or '=')
         {
             var mark = s[i];
+            var at = i;
             var text = mark == '=' ? One(s, ref i) : Run(s, ref i, ch => ch == mark);
-            pieces.Add(ContentNode.Leaf(AbcKinds.Accidental, text, AbcRoles.Accidental));
+            pieces.Add(ContentNode.Leaf(AbcKinds.Accidental, text, AbcRoles.Accidental, offset: from + at));
         }
 
         if (i < s.Length && IsNoteLetter(s[i]))
         {
-            pieces.Add(ContentNode.Leaf(AbcKinds.Letter, One(s, ref i), AbcRoles.Letter));
+            var letter = i;
+            pieces.Add(ContentNode.Leaf(AbcKinds.Letter, One(s, ref i), AbcRoles.Letter, offset: from + letter));
 
+            var octave = i;
             var marks = Run(s, ref i, ch => ch is ',' or '\'');
-            if (marks.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Octave, marks, AbcRoles.Octave));
+            if (marks.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Octave, marks, AbcRoles.Octave, offset: from + octave));
 
-            AddLength(s, ref i, pieces);
+            AddLength(s, ref i, pieces, from);
         }
 
-        return ContentNode.Branch(AbcKinds.Note, pieces);
+        return ContentNode.Branch(AbcKinds.Note, pieces, offset: from + begins);
     }
 
-    private static ContentNode Rest(string s, ref int i)
+    private static ContentNode Rest(string s, ref int i, int from)
     {
+        var begins = i;
         var pieces = new List<ContentNode>(2)
         {
-            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Name),
+            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Name, offset: from + begins),
         };
 
-        AddLength(s, ref i, pieces);
-        return ContentNode.Branch(AbcKinds.Rest, pieces);
+        AddLength(s, ref i, pieces, from);
+        return ContentNode.Branch(AbcKinds.Rest, pieces, offset: from + begins);
     }
 
     /// <summary>
     /// An ABC length suffix: digits, then slashes, then digits. What it multiplies the unit note length by is a
     /// later stage's answer, because the unit note length is not written here.
     /// </summary>
-    private static void AddLength(string s, ref int i, List<ContentNode> pieces)
+    private static void AddLength(string s, ref int i, List<ContentNode> pieces, int from)
     {
         var start = i;
         while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
         while (i < s.Length && s[i] == '/') i++;
         while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
 
-        if (Length(s[start..i]) is { } length) pieces.Add(length);
+        if (Length(s[start..i], from + start) is { } length) pieces.Add(length);
     }
 
     /// <summary>
     /// A length suffix as its numbers and its slashes, each slash on its own — <c>3/2</c>, <c>/</c>, <c>//</c> — or null for
     /// none. Internal because a length gesture writes one too.
     /// </summary>
-    internal static ContentNode? Length(string suffix) =>
-        suffix.Length == 0 ? null : ContentNode.Branch(AbcKinds.Length, Figures(suffix), AbcRoles.Length);
+    /// <param name="from">
+    /// Where the first character of <paramref name="suffix"/> stands in the source — or null for one a gesture writes, which
+    /// was read from no source and so follows whatever is printed before it.
+    /// </param>
+    internal static ContentNode? Length(string suffix, int? from = null) =>
+        suffix.Length == 0 ? null : ContentNode.Branch(AbcKinds.Length, Figures(suffix, from), AbcRoles.Length, from);
 
     /// <summary>
     /// What a <c>[</c> opens once it is not a bar line: an inline field, or a chord.
     /// Null when it opens neither, which leaves the caller to hold the bracket as written.
     /// </summary>
-    private static ContentNode? Bracketed(string s, ref int i)
+    private static ContentNode? Bracketed(string s, ref int i, int from)
     {
         var close = s.IndexOf(']', i);
         if (close <= i) return null;
+
+        var begins = i;
 
         // An inline field: [K:G], [M:3/4]. The letter and the colon are what say so.
         if (i + 2 < s.Length && char.IsLetter(s[i + 1]) && s[i + 2] == ':')
         {
             var pieces = new List<ContentNode>(4)
             {
-                ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open),
-                ContentNode.Leaf(Kinds.Token, s[(i + 1)..(i + 3)], Roles.Name),
+                ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open, offset: from + i),
+                ContentNode.Leaf(Kinds.Token, s[(i + 1)..(i + 3)], Roles.Name, offset: from + i + 1),
             };
 
-            if (close > i + 3) pieces.Add(Value(s[(i + 3)..close], AbcKinds.InlineField, s[i + 1]));
-            pieces.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close));
+            if (close > i + 3) pieces.Add(Value(s[(i + 3)..close], AbcKinds.InlineField, s[i + 1], from + i + 3));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close, offset: from + close));
 
             i = close + 1;
-            return ContentNode.Branch(AbcKinds.InlineField, pieces);
+            return ContentNode.Branch(AbcKinds.InlineField, pieces, offset: from + begins);
         }
 
         // A chord. Its members are notes, read the same way as anywhere else, and the length after the
         // closing bracket belongs to the chord rather than to its last note.
         var members = new List<ContentNode>
         {
-            ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open),
+            ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open, offset: from + i),
         };
 
         var inner = i + 1;
@@ -606,37 +623,38 @@ public sealed class AbcParser : ITranspile
             if (c is '^' or '_' or '=' || IsNoteLetter(c))
             {
                 var scan = inner;
-                var note = Note(s, ref scan);
+                var note = Note(s, ref scan, from);
                 if (scan > inner) { members.Add(note.As(AbcRoles.Note)); inner = scan; continue; }
             }
 
             var held = inner;
-            members.Add(Held(s, ref held, $"nothing here reads '{c}' inside a chord"));
+            members.Add(Held(s, ref held, $"nothing here reads '{c}' inside a chord", from));
             inner = held;
         }
 
-        members.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close));
+        members.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close, offset: from + close));
         i = close + 1;
 
-        AddLength(s, ref i, members);
-        return ContentNode.Branch(AbcKinds.Chord, members);
+        AddLength(s, ref i, members, from);
+        return ContentNode.Branch(AbcKinds.Chord, members, offset: from + begins);
     }
 
     /// <summary>Grace notes: <c>{gAG}</c>, or <c>{/g}</c> for a slashed acciaccatura.</summary>
-    private static ContentNode Grace(string s, ref int i)
+    private static ContentNode Grace(string s, ref int i, int from)
     {
         var close = s.IndexOf('}', i);
-        if (close < 0) return Held(s, ref i, "this { is never closed");
+        if (close < 0) return Held(s, ref i, "this { is never closed", from);
 
+        var begins = i;
         var pieces = new List<ContentNode>
         {
-            ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open),
+            ContentNode.Leaf(Kinds.Token, s[i..(i + 1)], Roles.Open, offset: from + i),
         };
 
         var inner = i + 1;
         if (inner < close && s[inner] == '/')
         {
-            pieces.Add(ContentNode.Leaf(Kinds.Token, s[inner..(inner + 1)], Roles.Name));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, s[inner..(inner + 1)], Roles.Name, offset: from + inner));
             inner++;
         }
 
@@ -646,18 +664,18 @@ public sealed class AbcParser : ITranspile
             if (c is '^' or '_' or '=' || IsNoteLetter(c))
             {
                 var scan = inner;
-                var note = Note(s, ref scan);
+                var note = Note(s, ref scan, from);
                 if (scan > inner) { pieces.Add(note.As(AbcRoles.Note)); inner = scan; continue; }
             }
 
             var held = inner;
-            pieces.Add(Held(s, ref held, $"nothing here reads '{c}' among grace notes"));
+            pieces.Add(Held(s, ref held, $"nothing here reads '{c}' among grace notes", from));
             inner = held;
         }
 
-        pieces.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close, offset: from + close));
         i = close + 1;
-        return ContentNode.Branch(AbcKinds.Grace, pieces);
+        return ContentNode.Branch(AbcKinds.Grace, pieces, offset: from + begins);
     }
 
     /// <summary>
@@ -665,91 +683,100 @@ public sealed class AbcParser : ITranspile
     /// numbers, each in the role its place gives it — <c>(p:q:r</c> — with the colons between them; a number left
     /// out, as in <c>(3::2</c>, is simply not there.
     /// </summary>
-    private static ContentNode OpenParen(string s, ref int i)
+    private static ContentNode OpenParen(string s, ref int i, int from)
     {
-        if (i + 1 >= s.Length || !char.IsAsciiDigit(s[i + 1])) return One(s, ref i, AbcKinds.SlurOpen);
+        if (i + 1 >= s.Length || !char.IsAsciiDigit(s[i + 1])) return One(s, ref i, AbcKinds.SlurOpen, from);
+
+        var begins = i;
+        var digits = i + 1;
 
         var pieces = new List<ContentNode>(6)
         {
-            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Open),
-            ContentNode.Leaf(Kinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
+            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Open, offset: from + begins),
+            ContentNode.Leaf(Kinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled, offset: from + digits),
         };
 
         foreach (var role in AfterTheColons)
         {
             if (i >= s.Length || s[i] != ':') break;
-            pieces.Add(ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Separator));
 
-            var digits = Run(s, ref i, char.IsAsciiDigit);
-            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Number, digits, role));
+            var colon = i;
+            pieces.Add(ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Separator, offset: from + colon));
+
+            var next = i;
+            var more = Run(s, ref i, char.IsAsciiDigit);
+            if (more.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Number, more, role, offset: from + next));
         }
 
-        return ContentNode.Branch(AbcKinds.Tuplet, pieces);
+        return ContentNode.Branch(AbcKinds.Tuplet, pieces, offset: from + begins);
     }
 
     /// <summary>What the numbers after a tuplet's first and second colon are.</summary>
     private static readonly string[] AfterTheColons = [AbcRoles.InTimeOf, AbcRoles.Covers];
 
     /// <summary>A <c>y</c> and its length: room on the page, and no time.</summary>
-    private static ContentNode Spacer(string s, ref int i)
+    private static ContentNode Spacer(string s, ref int i, int from)
     {
+        var begins = i;
         var pieces = new List<ContentNode>(2)
         {
-            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Name),
+            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Name, offset: from + begins),
         };
 
-        AddLength(s, ref i, pieces);
-        return ContentNode.Branch(AbcKinds.Spacer, pieces);
+        AddLength(s, ref i, pieces, from);
+        return ContentNode.Branch(AbcKinds.Spacer, pieces, offset: from + begins);
     }
 
     /// <summary>
     /// A double-quoted run — a chord symbol, or text placed by its first character — as its quotes, that
     /// character where it is one of the five that place, and the words.
     /// </summary>
-    private static ContentNode Quoted(string s, ref int i)
+    private static ContentNode Quoted(string s, ref int i, int from)
     {
         var close = s.IndexOf('"', i + 1);
-        if (close < 0) return Held(s, ref i, "this quotation is never closed");
+        if (close < 0) return Held(s, ref i, "this quotation is never closed", from);
 
-        var pieces = new List<ContentNode>(4) { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open) };
+        var begins = i;
+        var pieces = new List<ContentNode>(4) { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open, offset: from + i) };
 
         var inner = i + 1;
         if (inner < close && s[inner] is '^' or '_' or '<' or '>' or '@')
         {
-            pieces.Add(ContentNode.Leaf(Kinds.Token, s[inner..(inner + 1)], AbcRoles.Placement));
+            pieces.Add(ContentNode.Leaf(Kinds.Token, s[inner..(inner + 1)], AbcRoles.Placement, offset: from + inner));
             inner++;
         }
 
-        if (close > inner) pieces.Add(ContentNode.Leaf(Kinds.Words, s[inner..close], Roles.Body));
-        pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+        if (close > inner) pieces.Add(ContentNode.Leaf(Kinds.Words, s[inner..close], Roles.Body, offset: from + inner));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: from + close));
 
         i = close + 1;
-        return ContentNode.Branch(AbcKinds.Annotation, pieces);
+        return ContentNode.Branch(AbcKinds.Annotation, pieces, offset: from + begins);
     }
 
     /// <summary>
     /// A named decoration — <c>!trill!</c>, <c>!fermata!</c> — as its bangs, the name between them, and any space
     /// either side of the name.
     /// </summary>
-    private static ContentNode Bang(string s, ref int i)
+    private static ContentNode Bang(string s, ref int i, int start)
     {
         var close = s.IndexOf('!', i + 1);
-        if (close < 0) return Held(s, ref i, "this ! is never closed");
+        if (close < 0) return Held(s, ref i, "this ! is never closed", start);
 
-        var pieces = new List<ContentNode>(5) { ContentNode.Leaf(Kinds.Token, "!", Roles.Open) };
+        var begins = i;
+        var pieces = new List<ContentNode>(5) { ContentNode.Leaf(Kinds.Token, "!", Roles.Open, offset: start + i) };
 
         var from = i + 1;
         var to = close;
         while (from < to && char.IsWhiteSpace(s[from])) from++;
         while (to > from && char.IsWhiteSpace(s[to - 1])) to--;
 
-        if (from > i + 1) pieces.Add(ContentNode.Leaf(Kinds.Space, s[(i + 1)..from], Roles.Trivia));
-        if (to > from) pieces.Add(ContentNode.Leaf(Kinds.Words, s[from..to], Roles.Name));
-        if (close > to) pieces.Add(ContentNode.Leaf(Kinds.Space, s[to..close], Roles.Trivia));
-        pieces.Add(ContentNode.Leaf(Kinds.Token, "!", Roles.Close));
+        if (from > i + 1) pieces.Add(ContentNode.Leaf(Kinds.Space, s[(i + 1)..from], Roles.Trivia, offset: start + i + 1));
+        if (to > from) pieces.Add(ContentNode.Leaf(Kinds.Words, s[from..to], Roles.Name, offset: start + from));
+        if (close > to) pieces.Add(ContentNode.Leaf(Kinds.Space, s[to..close], Roles.Trivia, offset: start + to));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "!", Roles.Close, offset: start + close));
 
         i = close + 1;
-        return ContentNode.Branch(AbcKinds.Decoration, pieces);
+        return ContentNode.Branch(AbcKinds.Decoration, pieces, offset: start + begins);
     }
 
     // ── Bar lines ───────────────────────────────────────────────────────────
@@ -765,7 +792,7 @@ public sealed class AbcParser : ITranspile
     /// can grow into the bar.
     /// </para>
     /// </summary>
-    private static ContentNode? Barline(string s, ref int i)
+    private static ContentNode? Barline(string s, ref int i, int from)
     {
         var start = i;
         var c = s[i];
@@ -812,26 +839,30 @@ public sealed class AbcParser : ITranspile
                 return null;
         }
 
-        var line = start == i ? null : ContentNode.Leaf(AbcKinds.Barline, s[start..i], Roles.Separator);
+        var line = start == i ? null : ContentNode.Leaf(AbcKinds.Barline, s[start..i], Roles.Separator, offset: from + start);
 
-        var volta = start;
-        volta = i;
+        var volta = i;
         while (volta < s.Length && (char.IsAsciiDigit(s[volta]) || s[volta] is ',' or '-')) volta++;
 
         if (volta == i) return line;
 
-        var label = ContentNode.Leaf(AbcKinds.Volta, s[i..volta]);
+        var label = ContentNode.Leaf(AbcKinds.Volta, s[i..volta], offset: from + i);
         i = volta;
 
-        return line is null ? label : ContentNode.Branch(AbcKinds.Barline, [line.As(Roles.Name), label]);
+        return line is null
+            ? label
+            : ContentNode.Branch(AbcKinds.Barline, [line.As(Roles.Name), label], offset: from + start);
     }
 
     // ── Small helpers ───────────────────────────────────────────────────────
 
     private static string One(string s, ref int i) => s[i..++i];
 
-    private static ContentNode One(string s, ref int i, string kind, string role = Roles.Element) =>
-        ContentNode.Leaf(kind, One(s, ref i), role);
+    private static ContentNode One(string s, ref int i, string kind, int from, string role = Roles.Element)
+    {
+        var at = i;
+        return ContentNode.Leaf(kind, One(s, ref i), role, offset: from + at);
+    }
 
     private static string Run(string s, ref int i, Func<char, bool> takes)
     {
@@ -845,42 +876,16 @@ public sealed class AbcParser : ITranspile
     /// and never dropped: an editor holds half-finished input all day, and a tree that could not hold it
     /// would be empty every other keystroke.
     /// </summary>
-    private static ContentNode Held(string s, ref int i, string trouble) =>
-        ContentNode.Shown(One(s, ref i), trouble);
+    private static ContentNode Held(string s, ref int i, string trouble, int from)
+    {
+        var at = i;
+        return ContentNode.Shown(One(s, ref i), trouble, offset: from + at);
+    }
 
     // ── Writing back ────────────────────────────────────────────────────────
 
-    /// <inheritdoc cref="ITranspile.Rewrite"/>
-    public static ContentChange? Rewrite(ContentChange change)
-    {
-        if (!change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>(change.Writes.Count);
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands once the ones before it have been made, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant) { writes.Add(write); continue; }
-            if (Spelled(write.Part!, write.Text) is not { } said) return null;
-
-            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (Spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += said.Length - write.Text.Length;
-
-            grown += said.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
-    }
+    /// <inheritdoc/>
+    public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
     /// What <paramref name="text"/> is written as where it is going, or null where it cannot go there at all.

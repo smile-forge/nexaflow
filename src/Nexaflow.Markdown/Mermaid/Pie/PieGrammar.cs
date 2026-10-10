@@ -21,21 +21,21 @@ public sealed class PieGrammar : IMermaidGrammar
     public const string ShowData = "showData";
 
     /// <inheritdoc/>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments, comments: false);
+        var line = MermaidLine.Of(arguments, at, comments: false);
         if (line.Word(ShowData, PieKinds.ShowData)) line.Space();
 
-        if (!line.Done && !line.Then(rest => MermaidLine.Of(rest, comments: false).Title()))
+        if (!line.Done && !line.Then((rest, from) => MermaidLine.Of(rest, from, comments: false).Title()))
             line.Held("A pie takes showData and a title after it: pie showData title Key elements.");
 
         return line.Empty ? null : line.Read(PieKinds.Options, MermaidRoles.Arguments);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord) is not null ? line.Title() : Slice(line);
     }
 

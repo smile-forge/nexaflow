@@ -101,13 +101,29 @@ public sealed partial class ContentEngine
     /// </summary>
     private static ContentEdit Walked(EditKind kind, string text, Landing landing, Piece from = default)
     {
+        var (piece, part, root) = Reached(landing, from);
+
+        return new ContentEdit(kind, text, landing, piece, part, root);
+    }
+
+    /// <summary>
+    /// What a gesture reached: the piece it applied to — <paramref name="from"/>, or else the one the caret stands against — the
+    /// first part named on the way up the layout from it, and the root of that part's tree, which names the language.
+    ///
+    /// <para>
+    /// Every tree a language reads is its own and only the layout is one tree, so the layout is the only way from one language to
+    /// another. An edit and a move both find their language this way, which is why the walk is here rather than in either.
+    /// </para>
+    /// </summary>
+    private static (Piece Piece, ContentPart? Part, ContentPart Root) Reached(Landing landing, Piece from)
+    {
         var piece = from.Exists ? from : Against(landing);
 
         for (var up = piece; up.Exists; up = up.Parent)
             if (Drawn(up.Part) is { } part)
-                return new ContentEdit(kind, text, landing, piece, part, part.Ancestors().LastOrDefault() ?? part);
+                return (piece, part, part.Ancestors().LastOrDefault() ?? part);
 
-        return new ContentEdit(kind, text, landing, piece, null, NothingRead);
+        return (piece, null, NothingRead);
     }
 
     /// <summary>

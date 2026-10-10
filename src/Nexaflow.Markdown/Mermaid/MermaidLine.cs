@@ -25,14 +25,16 @@ public sealed class MermaidLine
     /// <summary>The word a title line starts with, in every diagram that has one — see <see cref="Title"/>.</summary>
     public const string TitleWord = "title";
 
+    private readonly int _at;
     private readonly string _text;
     private readonly string _body;
     private readonly int _comment;
     private readonly List<ContentNode> _pieces = [];
     private readonly Stack<int> _groups = new();
 
-    private MermaidLine(string text, bool comments)
+    private MermaidLine(string text, int at, bool comments)
     {
+        _at = at;
         _text = text;
         _comment = comments ? Comment(text) : -1;
         _body = _comment < 0 ? text : text[.._comment];
@@ -40,14 +42,21 @@ public sealed class MermaidLine
     }
 
     /// <summary>Reads a line handed to a grammar — to the end of its row — or what follows a header's keyword.</summary>
+    /// <param name="at">Where the first character of <paramref name="text"/> stands in the source, which is what every piece read from it says of itself.</param>
     /// <param name="comments">Whether a <c>%%</c> outside quotes starts a comment closing the line, as it may on a diagram's own lines.</param>
-    public static MermaidLine Of(string text, bool comments = true) => new(text, comments);
+    public static MermaidLine Of(string text, int at, bool comments = true) => new(text, at, comments);
 
     /// <summary>What is read: the line up to any comment closing it, less the space after it.</summary>
     public string Written { get; }
 
     /// <summary>How far into <see cref="Written"/> the reading has come.</summary>
     public int At { get; private set; }
+
+    /// <summary>
+    /// Where in the source whatever is read next begins — what a grammar building a piece of its own says of it, so a piece
+    /// handed to <see cref="Add"/> stands where it was read from like every piece the line reads itself.
+    /// </summary>
+    public int Begins => _at + At;
 
     /// <summary>Whether everything written has been read.</summary>
     public bool Done => At >= Written.Length;
@@ -119,7 +128,7 @@ public sealed class MermaidLine
     {
         if (Keyword(Rest, letter ?? Letter, word) is null) return false;
 
-        Add(ContentNode.Leaf(kind, Written.Substring(At, word.Length), role));
+        Add(ContentNode.Leaf(kind, Written.Substring(At, word.Length), role, offset: _at + At));
         return true;
     }
 
@@ -128,7 +137,7 @@ public sealed class MermaidLine
     {
         if (!Sees(token)) return false;
 
-        Add(ContentNode.Leaf(Kinds.Token, token, role));
+        Add(ContentNode.Leaf(Kinds.Token, token, role, offset: _at + At));
         return true;
     }
 
@@ -138,7 +147,7 @@ public sealed class MermaidLine
         var past = At;
         while (past < Written.Length && char.IsWhiteSpace(Written[past])) past++;
 
-        if (past > At) Add(ContentNode.Leaf(Kinds.Space, Written[At..past], Roles.Trivia));
+        if (past > At) Add(ContentNode.Leaf(Kinds.Space, Written[At..past], Roles.Trivia, offset: _at + At));
         return this;
     }
 
@@ -153,7 +162,7 @@ public sealed class MermaidLine
         var past = At;
         while (past < _body.Length && char.IsWhiteSpace(_body[past])) past++;
 
-        if (past > At) Add(ContentNode.Leaf(Kinds.Space, _body[At..past], Roles.Trivia));
+        if (past > At) Add(ContentNode.Leaf(Kinds.Space, _body[At..past], Roles.Trivia, offset: _at + At));
         return this;
     }
 
@@ -173,7 +182,8 @@ public sealed class MermaidLine
     public ContentNode Close(string kind, string role = Roles.Element, string? trouble = null)
     {
         var from = _groups.Pop();
-        var node = ContentNode.Branch(kind, _pieces.GetRange(from, _pieces.Count - from), role).Saying(trouble);
+        var parts = _pieces.GetRange(from, _pieces.Count - from);
+        var node = ContentNode.Branch(kind, parts, role, parts.Count > 0 ? parts[0].Offset : null).Saying(trouble);
 
         _pieces.RemoveRange(from, _pieces.Count - from);
         _pieces.Add(node);
@@ -287,7 +297,7 @@ public sealed class MermaidLine
 
         var name = Written[At..end];
         Open();
-        Add(ContentNode.Leaf(Kinds.Words, name, role, trouble?.Invoke(name)));
+        Add(ContentNode.Leaf(Kinds.Words, name, role, trouble?.Invoke(name), _at + At));
         Close(MermaidKinds.Name);
         return true;
     }
@@ -380,11 +390,13 @@ public sealed class MermaidLine
             var words = inner.Trim();
             var lead = inner.Length - inner.TrimStart().Length;
 
-            if (lead > 0) Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia));
+            if (lead > 0) Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia, offset: _at + At));
 
             Add(ContentWords.Of(words, Kinds.Words, role,
-                                words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null));
-            if (inner.Length > lead + words.Length) Add(ContentNode.Leaf(Kinds.Space, inner[(lead + words.Length)..], Roles.Trivia));
+                                words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null,
+                                _at + At));
+            if (inner.Length > lead + words.Length)
+                Add(ContentNode.Leaf(Kinds.Space, inner[(lead + words.Length)..], Roles.Trivia, offset: _at + At));
         }
 
         Token(close, Roles.Close);
@@ -405,7 +417,7 @@ public sealed class MermaidLine
         var number = Upto(until, stop);
 
         Open();
-        Add(ContentNode.Leaf(Kinds.Number, number, role, number.Length == 0 ? null : trouble(number)));
+        Add(ContentNode.Leaf(Kinds.Number, number, role, number.Length == 0 ? null : trouble(number), _at + At));
         Close(MermaidKinds.Amount);
     }
 
@@ -417,7 +429,7 @@ public sealed class MermaidLine
     public void Setting(string role, Func<string, string?> trouble, string? until = null)
     {
         var value = Upto(until);
-        Add(ContentNode.Leaf(MermaidKinds.Setting, value, role, value.Length == 0 ? null : trouble(value)));
+        Add(ContentNode.Leaf(MermaidKinds.Setting, value, role, value.Length == 0 ? null : trouble(value), _at + At));
     }
 
     /// <summary>What is written from here to the first of <paramref name="until"/> or <paramref name="stop"/>, or to the end, less the space before it.</summary>
@@ -460,7 +472,8 @@ public sealed class MermaidLine
             Add(ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name,
                                  known is null || known.Contains(name, StringComparer.OrdinalIgnoreCase)
                                      ? null
-                                     : $"{what} sets {string.Join(", ", known.SkipLast(1))} or {known.Last()}, not '{name}'."));
+                                     : $"{what} sets {string.Join(", ", known.SkipLast(1))} or {known.Last()}, not '{name}'.",
+                                 _at + At));
             Space();
             Token(":");
             Space();
@@ -470,7 +483,7 @@ public sealed class MermaidLine
             // What an icon key is set to names an icon, whichever diagram writes it.
             var icon = name.Equals(IconKey, StringComparison.OrdinalIgnoreCase);
             if (icon) Open();
-            Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
+            Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value), _at + At));
             if (icon) Close(MermaidKinds.Icon, MermaidRoles.Value);
             Space();
             Close(MermaidKinds.Property);
@@ -494,7 +507,7 @@ public sealed class MermaidLine
     /// <paramref name="stop"/>, less the space before it, where either is given and written.
     /// </summary>
     public void Words(string role, string? trouble = null, string? until = null, string? stop = null) =>
-        Add(ContentNode.Leaf(Kinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
+        Add(ContentNode.Leaf(Kinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble, _at + At));
 
     /// <summary>
     /// What is written from here to <paramref name="end"/>, as what it says, less the space before it — where a rule of the
@@ -502,15 +515,18 @@ public sealed class MermaidLine
     /// depending on what is written after it.
     /// </summary>
     public void Words(string role, int end, string? trouble = null) =>
-        Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, trouble));
+        Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, trouble, _at + At));
 
     /// <summary>Everything left on the line, held as written with the reason — the rest of a line whose start could be read.</summary>
-    public void Held(string reason) => Add(ContentNode.Shown(Rest, reason));
+    public void Held(string reason) => Add(ContentNode.Shown(Rest, reason, offset: _at + At));
 
-    /// <summary>Everything left on the line, read by <paramref name="read"/> — or false, taking nothing, where it reads nothing.</summary>
-    public bool Then(Func<string, ContentNode?> read)
+    /// <summary>
+    /// Everything left on the line, read by <paramref name="read"/> — handed where it stands, so whatever it reads says so
+    /// too — or false, taking nothing, where it reads nothing.
+    /// </summary>
+    public bool Then(Func<string, int, ContentNode?> read)
     {
-        if (read(Rest) is not { } node) return false;
+        if (read(Rest, _at + At) is not { } node) return false;
 
         Add(node);
         return true;
@@ -537,7 +553,7 @@ public sealed class MermaidLine
     // ── What comes of it ────────────────────────────────────────────────────
 
     /// <summary>What was read, as a <paramref name="kind"/> — with the comment closing the line, where one does, kept inside it.</summary>
-    public ContentNode Read(string kind, string role = Roles.Element) => Commented(ContentNode.Branch(kind, [.. _pieces], role));
+    public ContentNode Read(string kind, string role = Roles.Element) => Commented(ContentNode.Branch(kind, [.. _pieces], role, _at));
 
     /// <summary>
     /// What was read as a <paramref name="kind"/>, once the semicolon and the space a line may end with are taken — and the line
@@ -556,7 +572,7 @@ public sealed class MermaidLine
     /// The line as written, held with why it could not be read: <see cref="Reason"/> where a read gave one, and otherwise
     /// <paramref name="shape"/> — the grammar's words for what a line of this kind looks like.
     /// </summary>
-    public ContentNode Shown(string shape) => Commented(ContentNode.Shown(Written, Reason ?? shape));
+    public ContentNode Shown(string shape) => Commented(ContentNode.Shown(Written, Reason ?? shape, offset: _at));
 
     // ── Characters ──────────────────────────────────────────────────────────
 
@@ -571,9 +587,9 @@ public sealed class MermaidLine
     /// </summary>
     private void Quotes(int close, string role)
     {
-        Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Open));
-        Add(ContentWords.Of(Written[At..close], Kinds.Words, role));
-        Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+        Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Open, offset: _at + At));
+        Add(ContentWords.Of(Written[At..close], Kinds.Words, role, at: _at + At));
+        Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: _at + At));
     }
 
     private bool Failed(Mark mark, string? reason)
@@ -589,11 +605,12 @@ public sealed class MermaidLine
         if (_comment < 0) return read;
 
         var pieces = new List<ContentNode>();
-        if (_comment > read.Width) pieces.Add(ContentNode.Leaf(Kinds.Space, _text[read.Width.._comment], Roles.Trivia));
-        pieces.Add(ContentNode.Leaf(Kinds.Comment, _text[_comment..].TrimEnd(), Roles.Trivia));
+        if (_comment > read.Width)
+            pieces.Add(ContentNode.Leaf(Kinds.Space, _text[read.Width.._comment], Roles.Trivia, offset: _at + read.Width));
+        pieces.Add(ContentNode.Leaf(Kinds.Comment, _text[_comment..].TrimEnd(), Roles.Trivia, offset: _at + _comment));
 
         return read.IsLeaf
-            ? ContentNode.Branch(Kinds.Sequence, [read, .. pieces])
+            ? ContentNode.Branch(Kinds.Sequence, [read, .. pieces], offset: read.Offset)
             : read.With([.. read.Children, .. pieces]);
     }
 

@@ -21,13 +21,15 @@ internal enum TexTokenKind
     Comment,
 }
 
-/// <summary>A token, holding the very characters it was cut from.</summary>
+/// <summary>A token, holding the very characters it was cut from and where it was cut from.</summary>
+/// <param name="At">Where its first character stands in the source it was scanned out of.</param>
 /// <remarks>
 /// Carrying the text rather than a span is what makes "the parser only ever copies" structural: there is
 /// nowhere for a synthesized character to come from, because the parser never sees the source — only
-/// pieces of it.
+/// pieces of it. Carrying where it came from as well is what lets every piece the parser makes say so,
+/// which is the other half of the same claim and the half a round trip cannot check.
 /// </remarks>
-internal readonly record struct TexToken(TexTokenKind Kind, string Text)
+internal readonly record struct TexToken(TexTokenKind Kind, string Text, int At)
 {
     /// <summary>Whether this is the control word <paramref name="name"/> — <c>\end</c>, say.</summary>
     public bool Is(string name) => this.Kind == TexTokenKind.ControlWord && this.Text == name;
@@ -56,11 +58,11 @@ internal static class TexLexer
 
             switch (c)
             {
-                case '{': tokens.Add(new TexToken(TexTokenKind.OpenBrace, "{")); at++; continue;
-                case '}': tokens.Add(new TexToken(TexTokenKind.CloseBrace, "}")); at++; continue;
-                case '&': tokens.Add(new TexToken(TexTokenKind.Ampersand, "&")); at++; continue;
-                case '^': tokens.Add(new TexToken(TexTokenKind.Superscript, "^")); at++; continue;
-                case '_': tokens.Add(new TexToken(TexTokenKind.Subscript, "_")); at++; continue;
+                case '{': tokens.Add(new TexToken(TexTokenKind.OpenBrace, "{", at)); at++; continue;
+                case '}': tokens.Add(new TexToken(TexTokenKind.CloseBrace, "}", at)); at++; continue;
+                case '&': tokens.Add(new TexToken(TexTokenKind.Ampersand, "&", at)); at++; continue;
+                case '^': tokens.Add(new TexToken(TexTokenKind.Superscript, "^", at)); at++; continue;
+                case '_': tokens.Add(new TexToken(TexTokenKind.Subscript, "_", at)); at++; continue;
             }
 
             if (c == '\\')
@@ -69,7 +71,7 @@ internal static class TexLexer
                 // it is what every command looks like a keystroke before it is one.
                 if (at + 1 >= latex.Length)
                 {
-                    tokens.Add(new TexToken(TexTokenKind.ControlSymbol, "\\"));
+                    tokens.Add(new TexToken(TexTokenKind.ControlSymbol, "\\", at));
                     at++;
                     continue;
                 }
@@ -78,12 +80,12 @@ internal static class TexLexer
                 {
                     var end = at + 1;
                     while (end < latex.Length && char.IsLetter(latex[end])) end++;
-                    tokens.Add(new TexToken(TexTokenKind.ControlWord, latex[at..end]));
+                    tokens.Add(new TexToken(TexTokenKind.ControlWord, latex[at..end], at));
                     at = end;
                     continue;
                 }
 
-                tokens.Add(new TexToken(TexTokenKind.ControlSymbol, latex.Substring(at, 2)));
+                tokens.Add(new TexToken(TexTokenKind.ControlSymbol, latex.Substring(at, 2), at));
                 at += 2;
                 continue;
             }
@@ -92,7 +94,7 @@ internal static class TexLexer
             {
                 var end = at;
                 while (end < latex.Length && latex[end] is not ('\n' or '\r')) end++;
-                tokens.Add(new TexToken(TexTokenKind.Comment, latex[at..end]));
+                tokens.Add(new TexToken(TexTokenKind.Comment, latex[at..end], at));
                 at = end;
                 continue;
             }
@@ -101,12 +103,12 @@ internal static class TexLexer
             {
                 var end = at;
                 while (end < latex.Length && char.IsWhiteSpace(latex[end])) end++;
-                tokens.Add(new TexToken(TexTokenKind.Space, latex[at..end]));
+                tokens.Add(new TexToken(TexTokenKind.Space, latex[at..end], at));
                 at = end;
                 continue;
             }
 
-            tokens.Add(new TexToken(TexTokenKind.Character, latex.Substring(at, 1)));
+            tokens.Add(new TexToken(TexTokenKind.Character, latex.Substring(at, 1), at));
             at++;
         }
 

@@ -10,7 +10,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.State;
 internal sealed class StateEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, StateRoles.Id);
+    }
 
     /// <summary>
     /// What is written on a state or a transition runs to the end of its line and holds anything but a comment. An id, a class and a

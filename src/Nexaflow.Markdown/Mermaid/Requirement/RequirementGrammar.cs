@@ -99,18 +99,18 @@ public sealed class RequirementGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: a requirement diagram is laid out by a <c>direction</c> line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
-        return ContentNode.Shown(arguments, "Nothing follows requirementDiagram — direction LR lays it out.", MermaidRoles.Arguments);
+        return ContentNode.Shown(arguments, "Nothing follows requirementDiagram — direction LR lays it out.", MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Written.Trim() is Closing or Closing + ";") return line.Shown(StrayShape);
 
@@ -202,18 +202,19 @@ public sealed class RequirementGrammar : IMermaidGrammar
     // ── The fields between the braces ───────────────────────────────────────
 
     /// <summary>A line opening a block, which is what says the lines under it are one statement with it.</summary>
-    private static ContentNode? Begun(string text) =>
+    private static ContentNode? Begun(string text, int at) =>
         MermaidLine.Keyword(text, Bare, Boxes) is { } word
-        && Declared(MermaidLine.Of(text), word) is { Kind: RequirementKinds.Opens } opened
+        && Declared(MermaidLine.Of(text, at), word) is { Kind: RequirementKinds.Opens } opened
             ? opened
             : null;
 
-    private static bool Shutting(string text) => MermaidLine.Of(text).Written.Trim() is Closing or Closing + ";";
+    // Only what the line says is asked for, and nothing read from it is kept, so it stands nowhere.
+    private static bool Shutting(string text) => MermaidLine.Of(text, 0).Written.Trim() is Closing or Closing + ";";
 
     /// <summary>A line between the braces: one of the fields a requirement or an element holds, and what it is set to.</summary>
-    private static ContentNode Within(string text)
+    private static ContentNode Within(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
         line.Room();
 
         // A line with nothing written on it yet is one a field is still to be written on.
@@ -234,9 +235,9 @@ public sealed class RequirementGrammar : IMermaidGrammar
         return line.Done ? line.Read(RequirementKinds.Field) : line.Shown(FieldShape);
     }
 
-    private static ContentNode Shutter(string text)
+    private static ContentNode Shutter(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         line.Room();
         line.Token(Closing, Roles.Close);
