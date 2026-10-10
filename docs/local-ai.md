@@ -59,7 +59,8 @@ its q4f16 build was the best configuration found.
 
 onnxruntime-genai defects hit along the way, each a reason to keep native inference out of the WPF process: an
 access violation when the embedding model runs on CPU and the decoder on CUDA; DirectML failing on quantized
-gathers; two images in one prompt failing; CUDA graph capture producing garbage on this export.
+gathers; two images in one prompt failing; CUDA graph capture producing garbage on this export; a process that hung
+at exit, unkillable, when it had not held an `OgaHandle` for its lifetime.
 
 ### Voice round trip
 
@@ -81,6 +82,25 @@ instead." arrived as "Wait, stop") — turn detection needs more than a silence 
 
 TTS compared through sherpa-onnx on CPU (8 threads): Kokoro 267 ms to first audio at 10–12× real time; Pocket TTS
 422 ms at 6×; ZipVoice ~1 s at 3–4×. All three read back verbatim through ASR; Kokoro sounded clearly best.
+
+### In a real room
+
+Monitor speakers with a webcam microphone mounted just above them, normal volume; two speakers — native English
+with accented French and basic German, and native French with B2 German:
+
+| | Measured |
+|---|---|
+| Echo, assistant talking for 114 s, nobody else | raw microphone: the ASR transcribed 286 of the assistant's words and the VAD fired 20 times. **Communications capture: 0 words, 0 triggers** — about 50 dB removed from the first second, in all three languages |
+| What Windows applies to a communications stream | echo cancellation, noise suppression, gain control (reported through `IAudioEffectsManager`); the echo reference set to the playback endpoint through `IAcousticEchoCancellationControl` |
+| Interruptions | 14 of 14 caught, **96–236 ms** after the person started (median ~110 ms, a 96 ms speech rule included); 14–43 ms from the frame to the stop; the speaker 6 dB down ~50 ms later |
+| Talking over the assistant | not suppressed — recognised as well as single-talk ("White stop, can you say that more simply", "Attends, arrête, tu peux dire ça plus simplement") |
+| Backchannels ("mm-hm… yeah", "mm… oui", "ja… mhm") | the VAD fires on most (a native speaker's natural ones: 6 in French, 9 in German); **the ASR returns no words for any** |
+| Typing and clicking while it talks | no triggers |
+| Hesitations inside a turn ("um", "euh", "ähm"), 0.26–2.4 s | a 600 ms silence timer ends the turn at the first one; **Smart Turn waited through 21 of 22** |
+| Ends of turns | Smart Turn recognised 24 of 28; it missed turns longer than its 8 s window |
+| Smart Turn v3.2 on its own test set, in C# | English 95.9 % (human speech), French 93.7 %, German 95.8 %; 8 ms per decision on 4 CPU threads |
+| Recognition, native speakers | English: every utterance right; French: 6 of 7 exact |
+| **Short utterances** | Nemotron returns **nothing** for an isolated "No.", "Nein." or "Stopp." (clean synthetic speech), and for a B2 speaker's "Nein, nicht das" and "Entschuldigung — kurze Frage". **Whisper large-v3-turbo got every one** — from C# on onnxruntime-genai, 17 ms for a one-word turn, 23 ms for 3 s, 52–59 ms for 8 s, 3.3 GB of VRAM; it is also better on accented French. Gemma 4 E4B, asked to transcribe, got the English but not reliably the German |
 
 ### Runtime provisioning
 
@@ -263,25 +283,42 @@ Moshi and Qwen-Omni have no ONNX Runtime path.
 
 ```mermaid
 flowchart LR
-    mic[Microphone<br/>communications-mode AEC] --> vad[VAD] --> asr[Streaming ASR]
-    asr --> turn[End of turn] --> loop[Agent loop, streaming]
+    mic[Microphone<br/>communications capture, AEC] --> vad[VAD] --> asr[Streaming ASR<br/>partials]
+    vad --> turn
+    asr --> turn[End of turn<br/>Smart Turn + transcript] --> final[Final pass<br/>Whisper large-v3-turbo] --> loop[Agent loop, streaming]
     loop --> seg[Segmenter<br/>first clause, then sentences] --> tts[Kokoro] --> out[Playback]
-    vad -. speech during playback .-> barge[Barge-in: stop playback, cancel generation]
+    vad -. speech during playback .-> barge[Barge-in: pause playback]
+    asr -. words .-> cancel[Cancel generation,<br/>keep what was heard]
 ```
 
-- **ASR**: Nemotron streaming through onnxruntime-genai's `StreamingProcessor`.
+- **ASR in two passes.** Nemotron streams partials through onnxruntime-genai's `StreamingProcessor` — what the input
+  bar shows as the user speaks, and the words that confirm a barge-in. When the turn ends, **Whisper large-v3-turbo**
+  transcribes the whole utterance once, and that text goes to the agent. Nemotron alone loses short utterances — an
+  isolated "No", "Nein", "Stopp" — which a conversation that asks for confirmation cannot lose; Whisper got every one
+  measured. It is a model type onnxruntime-genai runs natively (exported with its builder, which needs a three-line fix
+  for turbo's 4-layer decoder), shares the process with Nemotron (5.4 GB for both), and costs ~11 ms of encoder plus
+  ~1 ms per token — 17–59 ms per turn, run while the turn detector decides. Two settings are required: the session's
+  language forced in the prompt (`<|startoftranscript|><|de|><|transcribe|><|notimestamps|>` — left to detect, it heard
+  "Nein." as "9."), and the CUDA option `sdpa_kernel=1` with one warm-up call at load (otherwise each new output length
+  costs ~150 ms the first time).
 - **TTS**: Kokoro through KokoroSharp, whose G2P is MisakiSharp — no espeak-ng.
-- **Turn detection** is its own stage: VAD silence plus a semantic end-of-turn check, with a longer hold after a
-  barge-in. A fixed silence timer cut a measured interruption in half, and its 600 ms was the largest single item
-  in the round trip.
+- **Turn detection** is its own stage: [Smart Turn v3](https://huggingface.co/pipecat-ai/smart-turn-v3) (BSD-2,
+  8 MB, Whisper-tiny encoder judging the audio of the last 8 s) in C#, on the communications capture, asked after
+  200 ms of silence and again every ~300 ms while it answers "not finished", up to a ceiling longer than real thinking
+  pauses (2.4 s was measured). The transcript is the second signal — a turn longer than 8 s, a filler at the end, a
+  clause still missing its verb ("…die ich gestern"), which the audio alone judged finished. After a barge-in, a
+  fragment judged complete ("Wait, stop —") is held ~1 s for the rest of the sentence.
 - **The agent loop is the same one**: a voice turn goes through `RunAgentAsync` with page context and tools, in a
   "spoken reply" style. This needs streaming through the harness — today `LlmStreamRunner` accumulates the whole
   reply before anything returns.
 - **Segmenter**: the first segment ends at a clause boundary, later ones at sentences.
-- **Barge-in**: VAD onset during playback stops playback and cancels generation; the history keeps **only what was
-  heard** — the measured run recorded "Garbage collectors track which —", not the unspoken rest of the answer.
-- **Echo cancellation**: Windows communications-mode capture with the playback device as the AEC reference;
-  WebRTC APM as the fallback where the driver offers none. Without it the assistant interrupts itself.
+- **Barge-in**: VAD onset (96 ms of speech) during playback **pauses** playback at once; the ASR decides. Words →
+  generation is cancelled and the history keeps **only what was heard** — the measured run recorded "Garbage
+  collectors track which —", not the unspoken rest of the answer. No words within ~500 ms — a backchannel, a cough —
+  → playback resumes where it paused. A VAD-only rule would stop the assistant at every "mm-hm".
+- **Echo cancellation**: Windows communications capture, with the playback endpoint set as its echo reference
+  (`IAcousticEchoCancellationControl`) and the stream's effects checked through `IAudioEffectsManager`. WebRTC APM is
+  the fallback for a device that reports no echo cancellation. Without it the assistant interrupts itself.
 - **Tool approvals by voice** need a spoken confirm/deny path through `IAIResponseHandler`.
 - **Ending the session**: the user's stop button, or a client tool the assistant calls when the conversation is
   over.
@@ -289,7 +326,8 @@ flowchart LR
   another, for cloud workspaces.
 
 Target: under a second from the user stopping to the assistant speaking, local. Measured 1.3 s with a 600 ms silence
-wait; turn detection is where the rest comes from.
+wait; replacing that wait with Smart Turn at 200 ms of silence (~10 ms to decide, with Whisper's final pass started
+at the same moment) puts a complete turn at about 0.9 s.
 
 ### In the shell
 
@@ -313,15 +351,18 @@ Every stage was measured on all three, with real French and German speech from F
 | Stage | English | French | German |
 |---|---|---|---|
 | Voice activity (Silero) | language-independent | | |
+| Turn detection (Smart Turn v3.2) | 95.9 % on its test set | 93.7 % | 95.8 % |
 | Streaming ASR (Nemotron 3.5) | 1.9% WER | 10.1% WER | 18.5% WER — mostly numbers written as words ("zehntausend" for "10.000") |
+| Final pass (Whisper large-v3-turbo) | short answers Nemotron lost ("No.") | 1.6% WER; better on accented speech | 5.5% WER; short answers Nemotron lost ("Nein.", "Stopp.", "Nein, nicht das") |
 | LLM (Gemma 4 E4B) | ✓ | fluent answers in French; accurate summaries of spoken French | fluent answers in German; accurate summaries of spoken German; answers about images in German |
 | TTS | Kokoro (`af_heart` and others), MisakiSharp G2P | **Kokoro `ff_siwis`**: 307 ms to first audio, 12× real time, 5% WER read back | **Kokoro German fine-tune** (`crane-local-ai/Kokoro-82M-v1.0-German-ONNX`, voice `df_kerstin`): 9–10× real time, 0–11% WER read back |
 
-- **Recognition is one model with a language prompt.** Nemotron's encoder takes a one-hot `lang_id`
+- **Both recognisers take the session's language.** Nemotron's encoder takes a one-hot `lang_id`
   (`Generator.SetRuntimeOption("lang_id", …)`): en-US 0, fr-FR 8, de-DE 9, `auto` 101 — from NVIDIA's
   `processor_config.json`; the ONNX export carries no table. `auto` matched the fixed prompt for English and French
   and was close for German. The model tags sentences with `<xx-XX>` for English and German but not French, so the
-  tags are stripped and do not decide the language.
+  tags are stripped and do not decide the language. Whisper takes the language token in its prompt, and must be
+  given it: detecting it alone misreads short German words.
 - **The reply's language picks the voice.** Gemma answers in the language it was spoken to; the segmenter detects
   the language of each segment's text and hands it to that language's Kokoro voice.
 - **German has one Kokoro voice, from one community fine-tune**, and it is the weakest of the three. A better German
@@ -337,19 +378,28 @@ as a process per phrase it cost 65–300 ms on the voice path.
 
 So espeak-ng is a **build-time tool, not a shipped one**:
 
-- **Lexicons, generated here.** espeak-ng is run over large French and German word lists in our build, and its IPA
-  — normalised to Kokoro's vocabulary — ships as a `word → phonemes` lexicon per language. The convention matches what
-  the voices were trained on because it is espeak's own output.
-- **A C# phonemiser at runtime**: per-language text normalisation (numbers, dates, units, abbreviations), lexicon
-  lookup, and a fallback for words the lexicon lacks — names, new words, German compounds — then mapping to Kokoro's
-  tokens. Lookup costs microseconds instead of a process start.
-- **The fallback** follows [Crane](https://github.com/lucasjinreal/Crane)'s G2P (MIT, Rust): German rules, compound
-  splitting and numerals to port, and a small ONNX model for out-of-vocabulary words. French needs the same shape,
-  with liaison handled across word boundaries.
-
-How often the fallback runs — lexicon coverage on real replies — decides how good it has to be; that is a phase-0
-spike.
-- **Turn detection** — the spike in phase 0 — has to cover all three languages.
+- **Lexicons, generated in CI.** espeak-ng runs over merged frequency lists (hermitdave/OpenSubtitles, Leipzig news
+  and Wikipedia) with `--tie`, and its output goes through misaki's post-processing — the form both voices were
+  trained on: language-switch flags removed, affricates and diphthongs as single tokens (`t^s`→`ʦ`, `a^ɪ`→`I`), and
+  for German kikiri's `ʏ`→`y`. Plain `--ipa` output is wrong input for these voices: `ʏ` is not in Kokoro's
+  vocabulary ("fünf" loses its vowel), and untied pairs arrive as two tokens. About 200k keys for French and
+  200k–400k for German: 1.6–3.8 MB compressed, under a minute to build. Keys whose case changes the pronunciation
+  (German `Weg`/`weg`) stay separate, so lookup is case-sensitive.
+- **A C# phonemiser at runtime**, in this order: normalisation, lookup, context rules, fallback. Lookup costs
+  ~0.15 µs a word; espeak as a process costs ~54 ms a phrase.
+- **Normalisation is the larger job** — 6.6–6.9% of the words in measured replies never reach the lexicon: numbers
+  with their contextual forms (un/une, ein/eins/einen, ordinals), times (15h30, 14:30 Uhr), dates, versions, IP
+  addresses, units (Go → gigaoctets), a spell-or-read list for acronyms (USB, JSON, IA), abbreviations (z. B., etc.),
+  slash pairs, and dropping emoji, LaTeX, markdown and code. espeak itself gets much of this wrong in context.
+- **Context rules.** Looked up word by word, German loses nothing; French loses liaison (5% of words, more than half
+  of sentences), number voicing (six, dix) and a few homographs. Both lose phrase stress on function words, which a
+  closed list of ~50 words restores.
+- **The fallback** runs rarely in spoken replies — with 200k keys, in 12% of French and 39% of German replies, under
+  one word each — and in most assistant-style replies, where what it meets is mostly English: product names, camelCase
+  brands, tech terms. So it is, in order: a product lexicon (Nexaflow, app names), camelCase splitting, an English
+  path (an English lexicon mapped to Kokoro's symbols), a guarded German compound splitter (better than espeak's own
+  guess in about 60% of disagreements, but it must not split suffixes or English words), and only then letter-to-sound
+  rules. A port of [Crane](https://github.com/lucasjinreal/Crane)'s German G2P (MIT) covers the last step for German.
 
 ## Generation tools
 
@@ -382,8 +432,32 @@ Candidates for a 24 GB card:
 | Role | Model | VRAM | Notes |
 |---|---|---|---|
 | resident, default | Gemma 4 E4B q4f16 | ~7–11 GB with KV and transients | verified; sees and hears |
-| resident, user's pick | Qwen 3.8, Gemma 4 26B-A4B, gpt-oss-20b, Qwen 3.5 9B | ~10–20 GB | Qwen reasons before every answer and spends budget on it |
-| speech | Nemotron streaming + Kokoro + Silero | ~1–3 GB, or CPU | verified |
+| resident, user's pick | Qwen 3.8 27B, Gemma 4 26B-A4B | 19–21 GB loaded, 21–23 GB with a 4k prompt | verified (below); neither fits beside the voice stack on 24 GB as published |
+| resident, user's pick | gpt-oss-20b, Qwen 3.5 9B | ~10–20 GB | not measured here |
+
+**The larger models, measured** (RTX PRO 6000, onnxruntime-genai 0.17.1 CUDA, uncontended):
+
+| | Qwen 3.8 27B | Gemma 4 26B-A4B |
+|---|---|---|
+| Source | AMD's int4 export, unchanged but for the provider | the kibitz-coach text decoder with its MoE experts re-packed, AMD's embedding and vision |
+| Download / loaded / with a 4k prompt | 16.9 GB / 19.3 GB / 21.3 GB | 19.2 GB / 21.3 GB / 23.3 GB |
+| Decode / prefill 4k | 46 tok/s / 1.3–1.9 s | 80–100 tok/s / 0.29 s |
+| Tool calls (7 requests, English, French, German) | 7 of 7 | 7 of 7 |
+| Thinking | `enable_thinking=false` stops it (prefixed as a template variable; `/no_think` is ignored) | off by default; on, it fixed a task it otherwise got wrong |
+| French and German | fluent | fluent |
+| Images | read a table and caught its wrong total | none in this form — the text decoder attends causally inside an image |
+
+- **Qwen 3.8 27B is the strongest** and runs from a published export; it is the only Qwen 3.8 size under 360 GB.
+- **Gemma 4 26B-A4B is twice as fast**, but every published export is wrong on CUDA until its experts are re-packed
+  (ORT's CUDA `QMoE` reads unpacked weights as packed), AMD's export degrades the model (router softmaxed twice, SiLU
+  for GELU, int4 router) and its KV cache grows without bound, and the working assembly has no vision. It needs an
+  export of our own: a vision-aware decoder, unquantized router, prepacked experts, sliding-window KV.
+- **On 24 GB, the voice stack and either model do not fit together** (a ~20 GB budget for the model). The reductions
+  that would get there — a quantized embedding table (Qwen's is 2.5 GB at fp16), a text-only build, sliding-window KV
+  for Gemma — are untested. Until then this tier means 32 GB with voice, or 24 GB without it.
+- GenAI 0.17.1's Minja chat-template engine needed Gemma's template patched for tools (`['function']` and `upper`);
+  the catalog's adapter step covers that.
+| speech | Nemotron streaming + Whisper large-v3-turbo + Kokoro + Silero + Smart Turn | ~6–7 GB (the two recognisers 5.4 GB together); Silero and Smart Turn on CPU | verified |
 
 ## Delivery
 
@@ -407,7 +481,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 
 | Phase | Delivers | Size |
 |---|---|---|
-| 0. Spikes | a semantic turn detector covering English, French and German; French and German lexicon coverage on real model replies; AEC on a real microphone and speakers; Qwen 3.8 and Gemma 4 26B-A4B on onnxruntime-genai | small, each |
+| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B. Whisper large-v3-turbo from C#. Open: a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
 | 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
 | 3. Voice | speech in the host; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
@@ -425,5 +499,7 @@ Phase 1 is useful on its own — streaming improves the cloud path before any lo
 - Every diffusion and music model needs a hand-written C# pipeline (scheduler, tokenizer, sampler).
 - Licences do not block a non-commercial project. espeak-ng (GPL) runs only in our build; whether its generated
   pronunciations may ship as data is worth confirming — Wiktionary's IPA (CC BY-SA, as Crane uses for German) is the
-  alternative source.
+  alternative source. The hermitdave word list is CC BY-SA and Leipzig's CC BY: the lexicon files carry attribution.
 - German speech rests on one community Kokoro fine-tune with one voice, the weakest of the three.
+- **Recognition rests on two models.** Nemotron for partials, Whisper large-v3-turbo for the final text; native
+  German speech is measured only as read speech (FLEURS) and through a B2 speaker.
