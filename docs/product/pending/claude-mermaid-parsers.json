@@ -381,14 +381,39 @@
           "method": "Expand"
         }
       ]
+    },
+    "executable-dependency-viewport": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs",
+          "class": "PanZoomSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml.cs",
+          "class": "ExecutableView",
+          "method": "Laid"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Layout/DiagramInAViewportTests.cs",
+            "class": "DiagramInAViewportTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 20,
   "touched_nodes": [
     "abc-editing",
     "content-moving",
     "diagram-bound-content",
+    "executable-dependency-viewport",
     "graph-expandable-nodes",
     "latex-grid-move",
     "latex-shown-as-written",

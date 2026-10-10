@@ -417,4 +417,6 @@ public class FoldingDiagramTests
         Assert.AreEqual("lib.dll", told?.Picked.Single(pick => pick.Id is not null).Id,
                         "what the page hears is the producer's own name for the node, which is what it can resolve");
     });
+
+    // ── Room ────────────────────────────────────────────────────────────────
 }

@@ -986,8 +986,17 @@ each diagram, barcode and QR-style symbol, tune, formula, chemical structure, pl
 ranks, then an ordering that keeps crossings down, then each node pulled toward the middle of its neighbours so a child
 sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
-**Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
-minimap.
+**A graph pays no attention to the room it is given**, and there is no honest way to wrap one into a panel: measured
+at 300, at 900 or at no width at all, a twelve-way fan comes out the same size. So a host showing nothing but a graph
+stops making the panel hold it and puts the surface on the shared
+[`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) instead — the one the scratchpad's
+corkboard and the image viewer's collage use. The surface asks for its layout's full size, the viewport fits that
+(scaling down, never past 1:1), and the reader zooms with the wheel, recentres from the overview and pans with the
+middle button. The PE inspector's dependency tab is the one that does this, and it is what makes opening a module
+safe: the graph can double in size and the page still shows all of it.
+
+**Still to come.** A diagram *inside a document* has no viewport of its own — the page is one layout and a diagram in
+it is part of that, so there is nothing per-diagram to pan. It gets whatever the page gets.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives
