@@ -3,6 +3,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 
@@ -428,5 +429,31 @@ public class SequenceBuilderTests : MermaidBuilderContract
         Assert.IsTrue(roomy.Size.Width <= 900, $"the diagram fits either room: {roomy.Size.Width:0.#}");
         Assert.AreEqual(roomy.Size.Width, enough.Size.Width, 0.001, "so nothing about it is scaled");
         Assert.AreEqual(roomy.Size.Height, enough.Size.Height, 0.001);
+    });
+
+    [TestMethod]
+    public void TheDiagramIsDrawnAtTheSizeThePageSetsItsWords() => UiThread.Run(() =>
+    {
+        // Room enough that nothing is fitted into it, so the only thing moving is how big the page sets its words.
+        var ordinary = Laying.Lay(Language, Intro, double.PositiveInfinity,
+                                  StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize });
+        var zoomed = Laying.Lay(Language, Intro, double.PositiveInfinity,
+                                StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize * 2 });
+
+        Assert.IsTrue(zoomed.Size.Width > ordinary.Size.Width * 1.7 && zoomed.Size.Width < ordinary.Size.Width * 2.3,
+                      $"body text at twice the size draws the diagram about twice as wide: {ordinary.Size.Width:0.#} "
+                      + $"then {zoomed.Size.Width:0.#}");
+
+        Assert.IsTrue(zoomed.Size.Height > ordinary.Size.Height * 1.7 && zoomed.Size.Height < ordinary.Size.Height * 2.3,
+                      $"and about twice as deep: {ordinary.Size.Height:0.#} then {zoomed.Size.Height:0.#}");
+    });
+
+    [TestMethod]
+    public void APageSetLargerStillFitsItsDiagramToTheRoom() => UiThread.Run(() =>
+    {
+        // The two scales multiply rather than fight: the page sets it larger, and the room takes it back down.
+        var zoomed = Laying.Lay(Language, Crowded, 520, StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize * 2 });
+
+        Assert.IsTrue(zoomed.Size.Width <= 520, $"drawn inside the room it has: {zoomed.Size.Width:0.#} of 520");
     });
 }

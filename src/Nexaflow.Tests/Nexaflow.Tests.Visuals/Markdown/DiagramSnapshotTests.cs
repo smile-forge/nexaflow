@@ -176,8 +176,13 @@ public class DiagramSnapshotTests
         // natural size — which for a diagram that cannot reflow is the only thing that changes about it.
         var width = Environment.GetEnvironmentVariable(Width) is { Length: > 0 } said
                     && double.TryParse(said, CultureInfo.InvariantCulture, out var asked) && asked > 0
-            ? asked
-            : DocumentWidth;
+                ? asked
+                : DocumentWidth;
+
+            var setting = Environment.GetEnvironmentVariable(Setting) is { Length: > 0 } set
+                       && double.TryParse(set, CultureInfo.InvariantCulture, out var size) && size > 0
+                ? size
+                : double.NaN;
 
         UiThread.Run(() =>
         {
@@ -193,7 +198,7 @@ public class DiagramSnapshotTests
                     string one = $"```mermaid\n{fence.Groups[1].Value}```\n";
                     string file = Path.Combine(folder!, $"{stem}-{index}-page.png");
 
-                    File.WriteAllBytes(file, Page(one, width));
+                    File.WriteAllBytes(file, Page(one, width, setting));
                     written.Add(Path.GetFileName(file));
                 }
             }
@@ -205,13 +210,16 @@ public class DiagramSnapshotTests
     /// <summary>Names the room to draw the figures in, where they are wanted in something other than a full page.</summary>
     private const string Width = "NEXAFLOW_DIAGRAM_SNAPSHOTS_WIDTH";
 
+    /// <summary>Names the size the page sets body text at, for looking at what a diagram does when the reader zooms.</summary>
+    private const string Setting = "NEXAFLOW_DIAGRAM_SNAPSHOTS_TEXT";
+
     /// <summary>The width a document is drawn at here — a comfortable window, not a column.</summary>
     private const double DocumentWidth = 1300;
 
     /// <summary><paramref name="markdown"/> drawn as the viewer draws it, as a PNG.</summary>
-    private static byte[] Page(string markdown, double width)
+    private static byte[] Page(string markdown, double width, double text)
     {
-        var surface = new MarkdownSurface { Markdown = markdown, Width = width };
+        var surface = new MarkdownSurface { Markdown = markdown, Width = width, BaseFontSize = text };
 
         surface.Measure(new Size(width, double.PositiveInfinity));
         surface.Arrange(new Rect(0, 0, width, surface.DesiredSize.Height));

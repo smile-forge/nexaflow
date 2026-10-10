@@ -78,11 +78,25 @@ internal partial class SequenceBuilder : MermaidBuilder
     /// </summary>
     private double scale = 1;
 
+    /// <summary>
+    /// How big the page sets body text, against the size the lengths above are written at. One at the reader's
+    /// default, and what the zoom chip moves (TextZoom.FontSize, MarkdownSurface.BaseFontSize, StyleFormat.TextSize).
+    ///
+    /// <para>
+    /// Prose works every length it draws out from the body size — its gaps, indents, pads and rules are all multiples
+    /// of it — so a diagram ignoring it is the one thing on the page that does not answer the zoom.
+    /// </para>
+    /// </summary>
+    private double Page => Style.TextSize / StyleFormat.DefaultTextSize;
+
     internal SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-        var diagram = Read(Reading.Root, Configured(SequenceConfig.Default));
+        // Laid at the size the page is set at, so it grows and shrinks with the words around it.
+        this.scale = Page;
+
+        var diagram = Read(Reading.Root, Configured(SequenceConfig.Default).Scaled(Page));
         var plan = Laid(diagram);
 
         // A diagram with nobody in it is the source: what the reader wants back is their own lines.
@@ -141,12 +155,18 @@ internal partial class SequenceBuilder : MermaidBuilder
 
         var diagram = whole;
 
+        // What it has been narrowed by so far. Kept apart from the size the page is set at, which the diagram handed
+        // in is already drawn at: the two multiply, and only this one is worked out again each pass.
+        var fit = 1.0;
+
         for (var attempt = 0; attempt < Fittings && plan.Size.Width > Space; attempt++)
         {
-            var was = this.scale;
-            this.scale *= Space / plan.Size.Width;
+            var was = (Fit: fit, Scale: this.scale);
 
-            var smaller = whole.Sized(whole.Config.Scaled(this.scale));
+            fit *= Space / plan.Size.Width;
+            this.scale = Page * fit;
+
+            var smaller = whole.Sized(whole.Config.Scaled(fit));
             var laid = Laid(smaller);
 
             // Kept only if it came out narrower: a diagram held to a least width by what is written in it stays that
@@ -154,7 +174,7 @@ internal partial class SequenceBuilder : MermaidBuilder
             // one the plan being kept was laid at, since every length the drawing reads is taken from it.
             if (laid.Columns.Count == 0 || laid.Size.Width >= plan.Size.Width)
             {
-                this.scale = was;
+                (fit, this.scale) = was;
                 break;
             }
 
