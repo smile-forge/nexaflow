@@ -4,32 +4,36 @@
     <!-- ICE61 is the expected, benign companion of MajorUpgrade/@AllowSameVersionUpgrades. -->
     <SuppressIces>ICE61</SuppressIces>
     <!--
-      NexaflowSetup.slnx deliberately contains ONLY the two wixprojs — Nexaflow.Core and everything under
-      it arrive transitively through the ProjectReference below. During a *solution* build MSBuild unsets
-      the parent's Configuration/Platform before building a ProjectReference whose project is not a member
-      of the solution, so Core fell back to its own default (Debug) while this project stayed Release. The
-      harvest targets then queried Release, found nothing, and failed — or, on a machine holding a stale
-      bin\x64\Release from an older build, silently packaged THAT. Keeping the parent's configuration makes
-      `dotnet build NexaflowSetup.slnx -c Release` mean Release for the whole graph, which is the only way
-      this solution is ever built. Building the wixproj directly was always unaffected.
+      The payload is built by BuildAppPayload and HarvestToolsOutput below, not by anything Visual Studio can
+      see, so its fast up-to-date check would skip this project whenever only Core's sources changed. MSBuild's
+      own incrementality is what decides here.
     -->
-    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
     <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
     <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
     <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\src\Nexaflow.Core\Nexaflow.Core.csproj" />
-    <!--
-      Build-order edge only (ReferenceOutputAssembly=false → not part of the MSI payload): guarantees the
-      snaplink validator exists before ValidateSnaplinks runs, and — crucially — that it is built inside THIS
-      MSBuild graph. A `dotnet run` here would spawn a second, concurrent build of Syntax/IO.Common and race
-      the Core build on the same obj/bin (the CS2012 hazard documented in HarvestCoreOutput below).
-    -->
-    <ProjectReference Include="..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj"
-                      ReferenceOutputAssembly="false" />
-  </ItemGroup>
+  <!--
+    What the MSI carries is built from this project's targets, never through a ProjectReference, because what a
+    ProjectReference builds depends on who is building:
+
+      • A solution build hands every project beneath it the solution's configuration map, and NexaflowSetup.slnx
+        names only the two wixprojs. A project missing from that map has its references' Configuration unset, so
+        Core came out Release and every feature, provider and library under it came out Debug — and the MSI
+        shipped those Debug assemblies beside a Release Nexaflow.exe.
+      • Visual Studio builds only the projects in the solution and passes BuildProjectReferences=false to each, so
+        Core and the CLI were not built at all. The harvest read whatever an earlier Nexaflow.slnx build had left
+        behind, and a checkout without one stopped at the snaplink check, looking for an nfi.dll nothing built.
+
+    So the payload is built the way the command line builds one project on its own: Configuration and Platform
+    passed down, references built, and the solution's map and the IDE's flags taken away. Both builds use the
+    same set, so a later query of either project lands on the instance that built it.
+  -->
+  <PropertyGroup>
+    <_PayloadBuildProperties>Configuration=$(Configuration);Platform=$(Platform);BuildProjectReferences=true</_PayloadBuildProperties>
+    <_PayloadContextProperties>CurrentSolutionConfigurationContents;BuildingSolutionFile;BuildingInsideVisualStudio;SolutionDir;SolutionExt;SolutionFileName;SolutionName;SolutionPath</_PayloadContextProperties>
+  </PropertyGroup>
 
   <ItemGroup>
     <!--
@@ -69,28 +73,19 @@
     gitignored working state, so a clean CI checkout has no tree: the CLI exits 0 with "nothing to validate"
     rather than failing. Exit 1 = broken snaplinks → the release build stops here.
   -->
-  <Target Name="ValidateSnaplinks" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
+  <!--
+    The validator is the nfi.exe this installer ships, published by HarvestToolsOutput — so the tree is checked by
+    exactly the binary a user gets, and there is no second build of the CLI to keep in step with the first.
+    HarvestToolsOutput fails before this runs if that nfi.exe is missing, so an exit code here is the validator's
+    own: 1 means the tree has issues, anything else that it could not run.
+  -->
+  <Target Name="ValidateSnaplinks" DependsOnTargets="HarvestToolsOutput" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <_RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</_RepoRoot>
-      <_CliProj>$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj</_CliProj>
     </PropertyGroup>
 
-    <MSBuild Projects="$(_CliProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
-      <Output TaskParameter="TargetOutputs" ItemName="_SnaplinkCli" />
-    </MSBuild>
-
-    <!--
-      Prove the validator is actually there before running it. `dotnet <missing>.dll` exits 1 — the SAME
-      code the CLI uses for "broken snaplinks" — so without this guard a validator that never launched is
-      indistinguishable from one that found real breakage, and the Error below blames the product tree for
-      a build-wiring problem. That misdiagnosis cost real time: the Product tab reported a clean tree while
-      the build insisted snaplinks were broken. Fail here instead, naming the true cause.
-    -->
-    <Error Condition="!Exists('@(_SnaplinkCli)')"
-           Text="Snaplink validator not found at '@(_SnaplinkCli)' — Nexaflow.Services.Initiatives.Cli was not built for $(Configuration)|$(Platform). This is a build-wiring problem, NOT a snaplink failure: the product tree has not been checked at all. Confirm the tree separately with `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate .`" />
-
     <Message Importance="high" Text="Validating product snaplinks in $(_RepoRoot)…" />
-    <Exec Command="dotnet &quot;@(_SnaplinkCli)&quot; validate &quot;$(_RepoRoot)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(_ToolsStage)nfi.exe&quot; validate &quot;$(_RepoRoot)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_SnaplinkExit" />
     </Exec>
 
@@ -114,12 +109,12 @@
     output is ~618 MB of linux/osx/arm payload we would otherwise put in the MSI. A win-x64 publish
     prunes that to ~73 MB. SelfContained=false because the bundle already installs the .NET 10 runtime.
 
-    Invoked through the MSBuild task, not Exec("dotnet publish"): a raw Exec would spawn a second,
-    concurrent build of Syntax/IO.Common and race the ProjectReference build on the same obj/bin — the
-    CS2012 hazard documented in HarvestCoreOutput below. AfterTargets=ResolveProjectReferences means the
-    CLI's non-RID build has already finished; the RID-specific publish writes to its own obj/bin subpath.
+    Invoked through the MSBuild task, not Exec("dotnet publish"): a raw Exec would spawn a second build
+    process of Syntax/IO.Common racing this one on the same obj/bin (the CS2012 hazard described at
+    BuildAppPayload). Removing BuildingInsideVisualStudio also keeps the CLI's NfiPublishViaScript hook, which
+    is for Visual Studio's Publish button, out of this publish.
   -->
-  <Target Name="HarvestToolsOutput" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
+  <Target Name="HarvestToolsOutput" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <_ToolsCliProj>$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj</_ToolsCliProj>
       <_ToolsStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)tools-payload'))\</_ToolsStage>
@@ -129,7 +124,8 @@
     <Message Importance="high" Text="Publishing nfi.exe (win-x64) for the optional Tools feature…" />
 
     <MSBuild Projects="$(_ToolsCliProj)" Targets="Publish"
-             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=win-x64;SelfContained=false;PublishDir=$(_ToolsStage)" />
+             Properties="$(_PayloadBuildProperties);RuntimeIdentifier=win-x64;SelfContained=false;PublishDir=$(_ToolsStage)"
+             RemoveProperties="$(_PayloadContextProperties)" />
 
     <Error Condition="!Exists('$(_ToolsStage)nfi.exe')"
            Text="Tools payload is missing: expected nfi.exe in $(_ToolsStage) after publishing Nexaflow.Services.Initiatives.Cli for win-x64. Check the CLI project's AssemblyName and RuntimeIdentifiers." />
@@ -183,38 +179,29 @@
   </Target>
 
   <!--
-    Generate AppComponents.wxs at build time from all files in the Core output directory.
-    This replaces the old hand-authored AppComponents.wxs which only listed Nexacore.exe.
+    Builds Nexaflow.Core and, through its references, every feature, provider, language pack and library the app
+    ships, all in $(Configuration)|$(Platform). Core's Build target returns the path it built, and that path is
+    what HarvestCoreOutput harvests: the exact output of this build, never a folder guessed from the
+    configuration name (which is how a stale folder once shipped without the Gemini provider).
+
+    Exactly one build of Core happens. A second MSBuild call with a different set of global properties is a
+    separate instance that runs beside the first and races it on Nexaflow.dll — under parallel MSBuild that
+    surfaces as file-lock CS2012, a half-done WPF markup compile, or an incomplete harvest — which is why the
+    property sets above are shared, and why nothing else here builds Core.
   -->
-  <Target Name="HarvestCoreOutput" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
-    <!--
-      Harvest from the EXACT directory MSBuild built Nexaflow.Core into. The old code hardcoded
-      bin\$(Configuration)\net10.0-windows\win-x64 — which silently shipped a stale/leftover folder
-      whenever Core's output was out of date, and that is how the Gemini provider DLL went missing
-      from the installer with no error. So instead we ask Core for its own TargetPath.
-
-      Core is ALREADY built here: this target runs AfterTargets=ResolveProjectReferences, which builds
-      the <ProjectReference> to Core above. Do NOT build it again with a nested <MSBuild Targets="Build">
-      — a second build with a different global-property set (e.g. dropping Platform) is a *separate*
-      MSBuild instance that runs concurrently with the ProjectReference build and races it on
-      Nexaflow.dll: under parallel MSBuild that surfaces as file-lock CS2012, a half-done WPF markup
-      compile ("tag does not exist in namespace" warnings), or an incomplete harvest → the bundle can't
-      find nexaflowSetup.msi. We only *query* the path, passing the same Configuration+Platform so it
-      resolves the very output the ProjectReference produced (win-x64 comes from Core's RuntimeIdentifier;
-      the x64 obj segment comes from the Platform global property — omit it and the path is wrong).
-      GetTargetPath returns a path relative to Core's project, so root it at Core's dir (Path.Combine
-      ignores the base when the returned path is already absolute, so this is correct either way).
-    -->
-    <PropertyGroup>
-      <_CoreProjDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core'))</_CoreProjDir>
-    </PropertyGroup>
-
-    <MSBuild Projects="$(_CoreProjDir)\Nexaflow.Core.csproj" Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)">
+  <Target Name="BuildAppPayload">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj" Targets="Build"
+             Properties="$(_PayloadBuildProperties)" RemoveProperties="$(_PayloadContextProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CoreRef" />
     </MSBuild>
+  </Target>
 
+  <!--
+    Generate AppComponents.wxs at build time from all files in the Core output directory.
+  -->
+  <Target Name="HarvestCoreOutput" DependsOnTargets="BuildAppPayload" BeforeTargets="CoreCompile">
     <PropertyGroup>
+      <_CoreProjDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core'))</_CoreProjDir>
       <_CoreTargetPath>@(_CoreRef)</_CoreTargetPath>
       <_CoreOutDir>$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::Combine('$(_CoreProjDir)', '$(_CoreTargetPath)'))))\</_CoreOutDir>
       <_HarvestWxs>$(IntermediateOutputPath)AppComponents.wxs</_HarvestWxs>
