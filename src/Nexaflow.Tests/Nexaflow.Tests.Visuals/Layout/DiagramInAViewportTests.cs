@@ -98,4 +98,34 @@ public class DiagramInAViewportTests
 
         Assert.AreEqual(fitted, viewport.View.Scale, 1e-9, "and back out again lands where it started");
     });
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void AndTheOverviewIsAPictureOfIt() => UiThread.Run(() =>
+    {
+        var (_, diagram) = Shown(Fanned(12));
+        var laid = diagram.Shown.Laid.Size;
+
+        var picture = diagram.CapturePicture(new Size(168, 112));
+
+        Assert.IsNotNull(picture, "the whole document, painted small — a graph is known by its shape");
+        Assert.IsTrue(picture.Width <= 169 && picture.Height <= 113,
+                      $"no bigger than it was asked for: {picture.Width} x {picture.Height}");
+        Assert.AreEqual(laid.Width / laid.Height, picture.Width / picture.Height, 0.05,
+                        "and the same shape as the graph it is a picture of");
+    });
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void AndTheViewportDrawsItsOverviewFromThatPicture() => UiThread.Run(() =>
+    {
+        var (viewport, diagram) = Shown(Fanned(12));
+
+        var asked = 0;
+        viewport.MiniMapPicture = within => { asked++; return diagram.CapturePicture(within); };
+
+        viewport.ZoomBy(1.15);
+
+        Assert.IsTrue(asked > 0, "asked for as the view moves, rather than the overview drawing boxes");
+    });
 }

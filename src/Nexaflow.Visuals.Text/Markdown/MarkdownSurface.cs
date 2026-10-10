@@ -447,12 +447,29 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// A picture of one block as it is on the page, for a host keeping one of what a corner button was pressed on —
     /// painted from the page's own tree, cut to where the block came out, so nothing is read again to make it.
     /// </summary>
-    public System.Windows.Media.Imaging.BitmapSource? CapturePicture(ContentPart block, Brush? ground = null)
-    {
-        var box = _engine.Where(block);
-        if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) return null;
+    public System.Windows.Media.Imaging.BitmapSource? CapturePicture(ContentPart block, Brush? ground = null) =>
+        Pictured(_engine.Where(block), _shown.Zoom, ground);
 
-        var scale = _shown.Zoom;
+    /// <summary>
+    /// A picture of the whole document as it stands, no bigger than <paramref name="within"/> — for a host showing an
+    /// overview of content too big to see at once, which is what a diagram on a viewport of its own needs. Never
+    /// enlarged past the size it was laid out at.
+    /// </summary>
+    public System.Windows.Media.Imaging.BitmapSource? CapturePicture(Size within, Brush? ground = null)
+    {
+        var size = _shown.Laid.Size;
+        if (within.Width <= 0 || within.Height <= 0 || size.Width <= 0 || size.Height <= 0) return null;
+
+        var fit = Math.Min(1, Math.Min(within.Width / size.Width, within.Height / size.Height));
+
+        return Pictured(new Rect(size), fit * _shown.Zoom, ground);
+    }
+
+    /// <summary>What a picture of <paramref name="box"/> of the page comes to, drawn at <paramref name="scale"/>.</summary>
+    private System.Windows.Media.Imaging.BitmapSource? Pictured(Rect box, double scale, Brush? ground)
+    {
+        if (box.IsEmpty || box.Width <= 0 || box.Height <= 0 || scale <= 0) return null;
+
         var visual = new DrawingVisual();
 
         using (var dc = visual.RenderOpen())

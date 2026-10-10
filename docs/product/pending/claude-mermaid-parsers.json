@@ -394,6 +394,12 @@
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml.cs",
           "class": "ExecutableView",
           "method": "Laid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
         }
       ],
       "concerns": {

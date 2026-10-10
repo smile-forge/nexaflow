@@ -419,4 +419,71 @@ public class FoldingDiagramTests
     });
 
     // ── Room ────────────────────────────────────────────────────────────────
+
+    // ── Whose press it is ───────────────────────────────────────────────────
+
+    /// <summary>A point inside the drawing that nothing drawn covers — the empty part of it.</summary>
+    private static Point Nowhere(MarkdownSurface surface)
+    {
+        var drawn = surface.Shown.Laid.Tree.Root.Placed()
+                           .Where(at => at.Piece.Region is not null || at.Piece.Words is not null)
+                           .Select(at => at.Where).ToList();
+        var size = surface.Shown.Laid.Size;
+
+        for (var down = 3.0; down < size.Height; down += 4)
+            for (var across = 3.0; across < size.Width; across += 4)
+            {
+                var at = new Point(across, down);
+                if (!drawn.Any(where => where.Contains(at))) return at;
+            }
+
+        return default;
+    }
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void APressOnTheEmptyPartOfADrawingIsNotTheDrawings() => UiThread.Run(() =>
+    {
+        var surface = Grown(out _);
+
+        ContentSelectionChange? told = null;
+        surface.Selected += (_, e) => told = e.Change;
+
+        var node = Placed(surface, FlowchartPiece.Node).First();
+        Assert.IsTrue(surface.Shown.BeginPointerSelect(Middle(node), System.Windows.Input.ModifierKeys.None),
+                      "a press on a node is the drawing's");
+        surface.Shown.EndPointerSelect();
+        Assert.IsNotNull(told, "and it says what was picked out");
+
+        told = null;
+        var nowhere = Nowhere(surface);
+        Assert.AreNotEqual(default, nowhere, "there is somewhere in it nothing was drawn");
+
+        Assert.IsFalse(surface.Shown.BeginPointerSelect(nowhere, System.Windows.Input.ModifierKeys.None),
+                       $"a press at {nowhere} landed on nothing anybody drew, so it is not the drawing's");
+        Assert.IsNull(told, "nothing is picked out by it, and nothing is said about a selection");
+    });
+
+    [TestMethod]
+    [CoversNode("executable-dependency-viewport")]
+    public void AndTheDrawingLetsGoOfAPressWhoseCaptureIsTakenAway() => UiThread.Run(() =>
+    {
+        // What left a selection following the pointer about: a host that decides the gesture is its own takes the
+        // capture, so the button-up goes to it and never reaches the content.
+        var surface = Grown(out _);
+        var node = Placed(surface, FlowchartPiece.Node).First();
+
+        Assert.IsTrue(surface.Shown.BeginPointerSelect(Middle(node), System.Windows.Input.ModifierKeys.None));
+
+        surface.Shown.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
+        {
+            RoutedEvent = System.Windows.UIElement.LostMouseCaptureEvent,
+        });
+
+        ContentSelectionChange? after = null;
+        surface.Selected += (_, e) => after = e.Change;
+        surface.Shown.ExtendPointerSelect(new Point(Middle(node).X + 80, Middle(node).Y + 80));
+
+        Assert.IsNull(after, "the press is over, so moving the pointer chooses nothing");
+    });
 }

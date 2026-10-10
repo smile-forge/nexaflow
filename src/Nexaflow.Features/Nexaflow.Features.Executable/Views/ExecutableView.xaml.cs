@@ -36,7 +36,8 @@ public partial class ExecutableView : UserControl, IPageView
 
         // The viewport has no size of its own to reckon against: what it is showing is a graph laid out as the graph
         // it is, so it asks the diagram how big that came out each time it needs to know.
-        DependencyViewport.ContentExtent = Spread;
+        DependencyViewport.ContentExtent   = Spread;
+        DependencyViewport.MiniMapPicture  = Overview;
 
         // The diagram says it has been laid out from inside the layout pass that laid it, and fitting the viewport
         // moves the overview, which is more layout. So the fit waits for the pass to finish: Loaded outranks it.
@@ -87,6 +88,19 @@ public partial class ExecutableView : UserControl, IPageView
             : null;
 
     /// <summary>
+    /// A picture of the import tree for the viewport's overview: the graph itself, shrunk, rather than a box standing
+    /// for it — a dependency graph is recognised by its shape, which is the whole of what an overview is for.
+    /// </summary>
+    private ImageSource? Overview(Size within) => _overview ??= DependencyDiagram.CapturePicture(within);
+
+    /// <summary>
+    /// The last picture taken of it. The overview asks for one every time the view moves, and painting the whole graph
+    /// on every notch of the wheel would cost more than the zoom does — so it is taken once per laying out, which is
+    /// the only thing that changes what the picture would show.
+    /// </summary>
+    private ImageSource? _overview;
+
+    /// <summary>
     /// The diagram has been laid out again — a module opened up, or the pane resized.
     ///
     /// <para>
@@ -98,6 +112,8 @@ public partial class ExecutableView : UserControl, IPageView
     /// </summary>
     private void Laid()
     {
+        _overview = null;
+
         if (Spread() is not { } spread) return;
 
         var (scale, _, _) = DependencyViewport.View;

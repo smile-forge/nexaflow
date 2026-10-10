@@ -62,8 +62,7 @@ public sealed partial class ContentEngine
                 return true;
 
             case ContentPress press:
-                Press(press.At, press.Modifiers);
-                return true;
+                return Press(press.At, press.Modifiers);
 
             case ContentDrag drag:
                 Drag(drag.At);
@@ -84,21 +83,25 @@ public sealed partial class ContentEngine
 
     // ── A press ─────────────────────────────────────────────────────────────
 
-    private void Press(Point at, ModifierKeys modifiers)
+    /// <summary>
+    /// A press, taken as what it means where it landed. True where the content took it; false is a press that landed on
+    /// nothing of the content, which whatever shows it may want for itself.
+    /// </summary>
+    private bool Press(Point at, ModifierKeys modifiers)
     {
         _pressedAt = at;
         _moving = false;
 
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
-        if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return;
+        if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return true;
 
         // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
         if (modifiers.HasFlag(ModifierKeys.Control))
         {
             _dragging = false;
             Toggle(at);
-            return;
+            return true;
         }
 
         // From where the choosing started to the press, as a drag from there would choose — from the caret, where nothing is
@@ -113,21 +116,31 @@ public sealed partial class ContentEngine
 
             _dragging = true;
             ChooseTo(at);
-            return;
+            return true;
         }
 
         Anchor = _laid.OffsetAt(at);
         _anchorNode = _laid.PieceAt(at);
 
-        // Content a binding supplied has nowhere to put the caret: a press on it picks out what was pressed, whole.
-        if (Supplied(_anchorNode)) { PickPressed(_anchorNode); Picked(at); return; }
+        // Content a binding supplied has nowhere to put the caret: a press on it picks out what was pressed, whole. And
+        // nowhere to put a selection either, so a press that landed on none of it is not a press on this content at
+        // all — the nearest piece still answers for an empty corner of a drawing, and picking that would be picking
+        // something the reader never pointed at.
+        if (Supplied(_anchorNode))
+        {
+            if (!_anchorNode.Squarely(at)) return false;
+
+            PickPressed(_anchorNode);
+            Picked(at);
+            return true;
+        }
 
         _dragging = true;
 
         // Pressing on what is already selected is how a move begins — the reader is picking the term up, not starting a new
         // selection over it. The selection is kept until the button comes back up, so a press that turns out to be an
         // ordinary click can still fall through to placing the caret.
-        if (Covers(Anchor)) { _moving = true; _dropAt = Anchor; return; }
+        if (Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
 
         ClearSelection();
 
@@ -136,11 +149,12 @@ public sealed partial class ContentEngine
         // edge is a caret put down beside it. A run of text is written in rather than picked up, so a press inside one is a
         // caret between two of its letters — including the press that has to show it as written before there is anywhere to
         // put one.
-        if (Writing(_anchorNode, at)) return;
+        if (Writing(_anchorNode, at)) return true;
 
-        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return; }
+        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return true; }
 
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
+        return true;
     }
 
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
@@ -333,8 +347,13 @@ public sealed partial class ContentEngine
         // Two presses on a block show it as it was written, where it can be written in and is not already.
         if (OpenAsWritten(at)) return;
 
-        // Content a binding supplied is picked out whole however often it is pressed.
-        if (Supplied(_laid.PieceAt(at))) { PickPressed(_laid.PieceAt(at)); return; }
+        // Content a binding supplied is picked out whole however often it is pressed — and, as for one press, only
+        // where the press landed squarely on a piece of it rather than merely nearest one.
+        if (Supplied(_laid.PieceAt(at)))
+        {
+            if (_laid.PieceAt(at).Squarely(at)) PickPressed(_laid.PieceAt(at));
+            return;
+        }
 
         if (Offered(at, LayoutGesture.DoubleClick) is { } act && Actions?.Invoke(act) == true) return;
 

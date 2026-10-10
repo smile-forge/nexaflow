@@ -991,9 +991,18 @@ at 300, at 900 or at no width at all, a twelve-way fan comes out the same size. 
 stops making the panel hold it and puts the surface on the shared
 [`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) instead — the one the scratchpad's
 corkboard and the image viewer's collage use. The surface asks for its layout's full size, the viewport fits that
-(scaling down, never past 1:1), and the reader zooms with the wheel, recentres from the overview and pans with the
-middle button. The PE inspector's dependency tab is the one that does this, and it is what makes opening a module
-safe: the graph can double in size and the page still shows all of it.
+(scaling down, never past 1:1), and the reader zooms with the wheel and recentres from the overview, which is a
+picture of the content itself (`CapturePicture`, `MiniMapPicture`) because a graph is recognised by its shape. The PE
+inspector's dependency tab is the one that does this, and it is what makes opening a module safe: the graph can
+double in size and the page still shows all of it.
+
+**Two things cannot both own one press.** Content claims a press only where it took it, and leaves one it made
+nothing of unhandled and uncaptured for whatever shows it — which is how the viewport knows it may pan from there.
+What settles it is whether the press landed *squarely* on a piece or merely nearest one (`Piece.Squarely`): a press
+between shapes means the nearer one however far off it is, which is what makes nodes easy to hit, but out in the
+empty part of a drawing it landed on nothing anybody drew. Capturing a press regardless and then losing the capture
+to a host is what leaves a drag running with no button-up ever coming to end it, so content that loses its capture
+lets go of the press (`OnLostMouseCapture`).
 
 **Still to come.** A diagram *inside a document* has no viewport of its own — the page is one layout and a diagram in
 it is part of that, so there is nothing per-diagram to pan. It gets whatever the page gets.

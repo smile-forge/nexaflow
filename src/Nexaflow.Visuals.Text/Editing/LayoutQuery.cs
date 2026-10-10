@@ -788,8 +788,12 @@ public static class LayoutQuery
     private static bool Touches(Piece piece, Rect area) =>
         OnPage(piece) is not { } region || region.FillContainsWithDetail(new RectangleGeometry(area)) != IntersectionDetail.Empty;
 
-    /// <summary>The shape a piece stands in, where it sits on the page, or null for a piece that stands in its box.</summary>
-    private static Geometry? OnPage(Piece piece)
+    /// <summary>
+    /// The shape a piece stands in, where it sits on the page — or null for a piece that stands in its box, which is
+    /// nearly all of them. What a press is tested against, and what a wash is drawn over: the box round a diagonal
+    /// arrow is mostly not the arrow.
+    /// </summary>
+    public static Geometry? OnPage(this Piece piece)
     {
         if (piece.Region is not { } region) return null;
 
@@ -802,6 +806,19 @@ public static class LayoutQuery
         placed.Freeze();
         return placed;
     }
+
+    /// <summary>
+    /// Whether <paramref name="at"/> is in <paramref name="piece"/> rather than merely nearest it.
+    ///
+    /// <para>
+    /// A press between shapes means the nearer one however far off it is, which is what makes a diagram's nodes easy to
+    /// hit and what <c>PieceAt</c> answers with — in an empty corner of a drawing it still names the node across the
+    /// page. But that press landed on nothing anybody drew, and whatever shows the content may have its own use for it:
+    /// a viewport pans from there.
+    /// </para>
+    /// </summary>
+    public static bool Squarely(this Piece piece, Point at) =>
+        piece.Exists && piece.Bounds.Contains(at) && Inside(piece, at);
 
     /// <summary>
     /// How far a point is from the shape a piece stands in, squared like the distance to a box: nought inside it, and
