@@ -53,6 +53,14 @@ public interface IAIResponseHandler
     /// </summary>
     Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct);
 
+    /// <summary>
+    /// The page's contents are high-risk, and the models that would read them — named by provider in
+    /// <paramref name="destinations"/> — send what they read off this machine. Asks whether to send them: true sends
+    /// them, false runs the request without them. Default: false — a handler that cannot ask keeps them here.
+    /// </summary>
+    Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+        => Task.FromResult(false);
+
     /// <summary>Renders the model's final answer (and, for a conversation, persists the exchange).</summary>
     void ShowFinal(string finalMarkdown);
 

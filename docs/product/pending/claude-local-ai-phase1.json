@@ -83,13 +83,135 @@
           }
         ]
       }
+    },
+    "opt-ai-ability-grid": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/AiAbilityGridControl.xaml",
+          "class": "AiAbilityGridControl"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/AiAbilityGridViewModel.cs",
+          "class": "AiAbilityGridViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/AbilityChain.cs",
+          "class": "AbilityChain"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/AiAbilityGridViewModelTests.cs",
+            "class": "AiAbilityGridViewModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/AbilityChainTests.cs",
+            "class": "AbilityChainTests"
+          }
+        ]
+      }
+    },
+    "aibar-context-residency": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "PickFor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/DataResidency.cs",
+          "class": "EndpointResidency"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "RequestContextReleaseAsync"
+        }
+      ],
+      "concerns": {
+        "i18n": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "AHighRiskPage_GoesToTheModelWhoseDataStaysHere_WithoutAsking"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "AHighRiskPage_WithOnlyACloudModel_IsSentWhenTheUserAgrees"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "AHighRiskPage_TheUserKeepsHere_IsAnsweredWithoutItsContentsOrTools"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "AChain_PassesOverAModelThatIsNotAvailable"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/EndpointResidencyTests.cs",
+            "class": "EndpointResidencyTests"
+          }
+        ]
+      }
+    },
+    "aichat-context-chips": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AddContextItem_Duplicate_FlashesTheExistingChip"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AddContextItem_SameKindDifferentParams_BothPinned"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AConversation_IsAsHighRiskAsTheRiskiestPagePinnedInIt"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 10,
   "touched_nodes": [
+    "aibar-context-residency",
     "aibar-reply-draft",
+    "aichat-context-chips",
     "aichat-thread",
+    "opt-ai-ability-grid",
     "providers-common"
   ]
 }

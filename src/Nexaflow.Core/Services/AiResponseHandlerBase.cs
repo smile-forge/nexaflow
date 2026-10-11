@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -125,6 +126,18 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
         AiToolApprovalSummary = $"Approve plan: {plan.Title}";
+        return ShowApprovalAndWait(ct);
+    }
+
+    public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+    {
+        if (!_ui.CheckAccess())
+            return _ui.Invoke(() => RequestContextReleaseAsync(destinations, ct));
+
+        SyncAiName();
+        var to = string.Join(", ", destinations);
+        AiResponseText        = Str.Format("Shell.AiResponse.ContextRelease.Explanation", to);
+        AiToolApprovalSummary = Str.Format("Shell.AiResponse.ContextRelease.Question", to);
         return ShowApprovalAndWait(ct);
     }
 

@@ -36,19 +36,88 @@ public sealed class AIService : IAIService
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
     /// <summary>
-    /// Returns the model-bound execution provider assigned to <paramref name="ability"/>, or null if
-    /// none is configured or its column has no registered provider.
+    /// The providers that can serve <paramref name="ability"/> now, in its chain's order: each column the chain
+    /// names whose provider is registered and available. Unavailability moves a chain on; a request that fails
+    /// does not — it has cost its whole latency already.
     /// </summary>
-    private ILlmProvider? GetProvider(AiAbility ability)
+    private IEnumerable<ILlmProvider> Candidates(AiAbility ability)
     {
-        if (_abilityConfig is null) return null;
+        if (_abilityConfig is null || !_abilityConfig.Assignments.TryGetValue(ability.ToString(), out var chain))
+            yield break;
 
-        var key = ability.ToString();
-        if (!_abilityConfig.Assignments.TryGetValue(key, out var columnId)
-            || string.IsNullOrEmpty(columnId))
-            return null;
+        foreach (var columnId in chain.ColumnIds)
+            if (_providers.TryGetValue(columnId, out var p) && p.IsAvailable)
+                yield return p;
+    }
 
-        return _providers.TryGetValue(columnId, out var p) ? p : null;
+    /// <summary>The provider that serves <paramref name="ability"/>: the first available in its chain, or null.</summary>
+    private ILlmProvider? GetProvider(AiAbility ability) => Candidates(ability).FirstOrDefault();
+
+    /// <summary>
+    /// The provider to give a request whose page context carries <paramref name="risk"/>. High-risk context is held
+    /// to the first provider in the chain whose data stays on this machine; when the chain has none, the first
+    /// available is picked and marked as one that would take the context off the machine — the user decides.
+    /// </summary>
+    private ProviderPick? PickFor(AiAbility ability, ContextSecurityRisk risk)
+    {
+        var candidates = Candidates(ability).ToList();
+        if (candidates.Count == 0) return null;
+        if (risk < ContextSecurityRisk.High) return new(candidates[0], ReleasesContext: false);
+
+        var onMachine = candidates.FirstOrDefault(p => p.Residency == DataResidency.StaysOnMachine);
+        return onMachine is not null ? new(onMachine, ReleasesContext: false) : new(candidates[0], ReleasesContext: true);
+    }
+
+    /// <param name="ReleasesContext">Sending the request to <paramref name="Provider"/> takes high-risk page
+    /// context off this machine.</param>
+    private sealed record ProviderPick(ILlmProvider Provider, bool ReleasesContext);
+
+    /// <summary>What a run offers the model of the page it was asked on.</summary>
+    private enum PageShare
+    {
+        /// <summary>The page's contents and tools.</summary>
+        Included,
+        /// <summary>Nothing — the request was made without page context.</summary>
+        Absent,
+        /// <summary>Nothing, because the contents are high-risk and the user kept them on this machine.</summary>
+        Withheld,
+    }
+
+    /// <summary>
+    /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
+    /// app ships) when <paramref name="includeShell"/>, and the page's own as <paramref name="share"/> says.
+    /// </summary>
+    private (string Context, List<IClientTool> Tools) GatherContext(IPageViewModel? page, bool includeShell, PageShare share)
+    {
+        var pageContext = share switch
+        {
+            PageShare.Included => page?.GetContext() ?? "No specific context.",
+            PageShare.Withheld => "The page's contents were withheld: they hold system information the user chose to " +
+                                  "keep on this machine. Answer without them, and say so if the question needs them.",
+            _                  => "No specific context.",
+        };
+        var tools = new List<IClientTool>(share == PageShare.Included ? page?.GetClientTools() ?? [] : []);
+
+        // A searchable page gets its search tools automatically — declaring ISearchable is the whole
+        // opt-in, so no feature has to remember to hand them out in GetClientTools.
+        if (share == PageShare.Included && page is ISearchable searchable)
+            tools.AddRange(new SearchClientTools(searchable).Tools);
+
+        if (!includeShell) return (pageContext, tools);
+
+        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
+        // openable pages, and the shell tools) alongside the active page's.
+        var shellCtx = new ShellAi.ShellAiContext(_workspace);
+        tools.AddRange(shellCtx.BuildTools());
+
+        // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
+        // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
+        // No language pack means no help to offer — which is the case in a unit test of this loop, and the
+        // same way BuildTools above yields nothing without a shell.
+        if (LanguageManager.TryInstance is not null)
+            tools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
+
+        return (shellCtx.BuildContext() + "\n---\n" + pageContext, tools);
     }
 
     /// <summary>
@@ -310,32 +379,44 @@ public sealed class AIService : IAIService
         IPageViewModel? page, string input, bool includeContext,
         IAIResponseHandler approval, CancellationToken ct = default)
     {
-        var provider = GetProvider(AiAbility.Conversation);
-        if (provider is null) return null;
+        // A page whose contents are high-risk keeps them on this machine: the models that read them are the first in
+        // each chain whose data stays here, and where a chain has none, the user is asked before they leave.
+        var risk         = includeContext ? page?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low : ContextSecurityRisk.Low;
+        var conversation = PickFor(AiAbility.Conversation, risk);
+        if (conversation is null) return null;
+        var provider = conversation.Provider;
 
-        var pageContext = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
-        var pageTools   = new List<IClientTool>(includeContext ? page?.GetClientTools() ?? [] : []);
+        var share = includeContext ? PageShare.Included : PageShare.Absent;
+        var (context, pageTools) = GatherContext(page, includeContext, share);
+        var ranker = pageTools.Count > MaxUnfilteredTools ? PickFor(AiAbility.Disambiguation, risk) : null;
 
-        // A searchable page gets its search tools automatically — declaring ISearchable is the whole
-        // opt-in, so no feature has to remember to hand them out in GetClientTools.
-        if (includeContext && page is ISearchable searchable)
-            pageTools.AddRange(new SearchClientTools(searchable).Tools);
-
-        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
-        // openable pages, and the shell tools) alongside the active page's.
-        var context = pageContext;
-        if (includeContext)
+        // The risk the rest of the run still holds to: none once the contents may leave, or once they are not sent.
+        var heldRisk = risk;
+        var releasing = new[] { conversation, ranker }
+            .OfType<ProviderPick>().Where(p => p.ReleasesContext)
+            .Select(p => p.Provider.Name).Distinct().ToList();
+        if (releasing.Count > 0)
         {
-            var shellCtx = new ShellAi.ShellAiContext(_workspace);
-            context = shellCtx.BuildContext() + "\n---\n" + pageContext;
-            pageTools.AddRange(shellCtx.BuildTools());
+            bool released;
+            try { released = await approval.RequestContextReleaseAsync(releasing, ct); }
+            catch (OperationCanceledException) { return null; }
 
-            // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
-            // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
-            // No language pack means no help to offer — which is the case in a unit test of this loop, and the
-            // same way BuildTools above yields nothing without a shell.
-            if (LanguageManager.TryInstance is not null)
-                pageTools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
+            if (released)
+            {
+                heldRisk = ContextSecurityRisk.Low;
+            }
+            else
+            {
+                // Each model that would have taken the contents away goes without them: the conversation answers
+                // without the page, and tools are not ranked by a model that would have read it.
+                if (conversation.ReleasesContext)
+                {
+                    share = PageShare.Withheld;
+                    (context, pageTools) = GatherContext(page, includeContext, share);
+                    heldRisk = ContextSecurityRisk.Low;
+                }
+                if (ranker is { ReleasesContext: true }) ranker = null;
+            }
         }
 
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
@@ -346,15 +427,12 @@ public sealed class AIService : IAIService
         IReadOnlyList<IClientTool> exposed;
         try
         {
-            if (pageTools.Count > MaxUnfilteredTools)
-            {
-                var ranked = await RankToolsAsync(input, pageTools, context, ct);
-                exposed = [.. ranked, getCommands];
-            }
-            else
-            {
+            if (pageTools.Count <= MaxUnfilteredTools)
                 exposed = fullCatalog;
-            }
+            else if (ranker is null)
+                exposed = [.. pageTools.Take(MaxUnfilteredTools), getCommands];
+            else
+                exposed = [.. await RankToolsAsync(ranker.Provider, input, pageTools, context, ct), getCommands];
         }
         catch (OperationCanceledException) { return null; }
 
@@ -499,7 +577,7 @@ public sealed class AIService : IAIService
                 var toolImages = results.SelectMany(x => x.Result.Images ?? []).ToList();
                 if (toolImages.Count > 0)
                 {
-                    var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, approval, ct);
+                    var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, heldRisk, approval, ct);
                     toolImageAttachments = atts;
                     if (note is not null) toolResultsText += "\n\n" + note;
                 }
@@ -649,16 +727,18 @@ public sealed class AIService : IAIService
     /// Returns the attachments to carry on the message (or null), plus an optional note to append to the text.
     /// </summary>
     private async Task<(IReadOnlyList<LlmAttachment>? Attachments, string? Note)> ResolveToolImagesAsync(
-        ILlmProvider convProvider, IReadOnlyList<ContextImage> images,
+        ILlmProvider convProvider, IReadOnlyList<ContextImage> images, ContextSecurityRisk heldRisk,
         IAIResponseHandler approval, CancellationToken ct)
     {
         var atts = images
             .Select(i => new LlmAttachment(i.Label ?? "image", i.MimeType, i.Bytes))
             .ToList();
 
-        // GetProvider returns the SAME pooled instance for two abilities on the same (config, model),
-        // so reference equality means "the image model and the conversation model are the same model".
-        var imageProvider = GetProvider(AiAbility.ImageRecognition);
+        // The SAME pooled instance serves two abilities on the same (config, model), so reference equality
+        // means "the image model and the conversation model are the same model". An image model that would
+        // take a high-risk page's images off this machine is passed over, as if none were set.
+        var imagePick     = PickFor(AiAbility.ImageRecognition, heldRisk);
+        var imageProvider = imagePick is { ReleasesContext: false } ? imagePick.Provider : null;
 
         if (imageProvider is null || ReferenceEquals(imageProvider, convProvider))
         {
@@ -713,11 +793,9 @@ public sealed class AIService : IAIService
     /// Asks the Disambiguation-ability model to pick the most relevant page tools for the request.
     /// Falls back to the first <see cref="MaxUnfilteredTools"/> when no ranker is configured.
     /// </summary>
-    private async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
-        string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
+    private static async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
+        ILlmProvider provider, string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
     {
-        var provider = GetProvider(AiAbility.Disambiguation);
-        if (provider is null) return [.. tools.Take(MaxUnfilteredTools)];
 
         var list   = string.Join('\n', tools.Select((t, i) => $"{i + 1}. {t.Name} — {t.Description}"));
         var system = "You select the tools most relevant to a user request. Reply with the numbers of up to " +

@@ -14,6 +14,9 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
     public const  string ProviderName = "Aria";
     public string Name => ProviderName;
 
+    /// <summary>The Aria service runs on this machine and keeps what it is sent here.</summary>
+    public DataResidency Residency => DataResidency.StaysOnMachine;
+
     private readonly AriaClientService          _client;
     private readonly IBackgroundActivityManager _activityManager;
 

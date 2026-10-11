@@ -473,7 +473,7 @@ public sealed class WorkspaceManager
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>
     private static IReadOnlyList<ProviderModelPair> AssignedColumns(AiConfig cfg)
     {
-        var assigned = cfg.Assignments.Values.Where(v => !string.IsNullOrEmpty(v)).ToHashSet();
+        var assigned = cfg.AssignedColumnIds();
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
     }
 

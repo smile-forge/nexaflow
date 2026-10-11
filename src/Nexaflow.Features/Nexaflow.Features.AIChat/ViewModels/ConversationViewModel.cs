@@ -13,6 +13,7 @@ using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -431,6 +432,14 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
         => RequestApproval(plan.Title, $"Approve plan: {plan.Title}?", ct);
 
+    public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+    {
+        var to = string.Join(", ", destinations);
+        return RequestApproval(
+            Str.Format("AIChat.Conversation.ContextRelease.Explanation", to),
+            Str.Format("AIChat.Conversation.ContextRelease.Question", to), ct);
+    }
+
     private Task<bool> RequestApproval(string explanation, string summary, CancellationToken ct)
         => _shell.RunOnUiAsync(() =>
         {
@@ -812,6 +821,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
                 source.PropertyChanged -= handler;
         _riskSubscriptions.Clear();
     }
+
+    /// <summary>A conversation's context is as high-risk as the riskiest page pinned in it — those pages' contents
+    /// are what the model reads.</summary>
+    public ContextSecurityRisk GetContextSecurityRisk()
+        => ContextItems.Select(c => c.Page.SecurityRisk).DefaultIfEmpty(ContextSecurityRisk.Low).Max();
 
     private static void UpdateRisk(Page page)
         => page.SecurityRisk = (page.Content as IPageView)?.ViewModel?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low;

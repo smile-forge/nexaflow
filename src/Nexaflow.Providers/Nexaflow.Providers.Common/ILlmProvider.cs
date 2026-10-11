@@ -24,6 +24,18 @@ public interface ILlmProvider
     bool SupportsImages => false;
 
     /// <summary>
+    /// Where a request's content goes. A page whose context is high-risk is held to providers whose data stays
+    /// on this machine, unless the user agrees to send it.
+    /// </summary>
+    DataResidency Residency { get; }
+
+    /// <summary>
+    /// Whether this instance can take a request now. An ability's chain of models passes over an unavailable
+    /// one to the next — unavailability, not a failed request, is what moves a chain on. Default: available.
+    /// </summary>
+    bool IsAvailable => true;
+
+    /// <summary>
     /// Sends an ordered list of messages to this provider's bound model and streams its reply as it is written.
     /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt; subsequent
     /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>. A message may

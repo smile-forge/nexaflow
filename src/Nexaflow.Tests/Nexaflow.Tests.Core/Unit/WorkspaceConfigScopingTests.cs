@@ -135,7 +135,7 @@ public class WorkspaceConfigScopingTests
         var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
-        p.AiConfig.Assignments["Disambiguation"] = "c1";
+        p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
 
         Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
     }
@@ -146,7 +146,7 @@ public class WorkspaceConfigScopingTests
         var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
-        p.AiConfig.Assignments["Disambiguation"] = "c1";
+        p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "sk-123" });
 
         Assert.IsTrue(SetupWizardViewModel.IsWorkspaceConfigured(p));
@@ -158,7 +158,7 @@ public class WorkspaceConfigScopingTests
         var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
-        p.AiConfig.Assignments["Disambiguation"] = "c1";
+        p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "" });
 
         Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));

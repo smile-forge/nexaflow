@@ -1,6 +1,7 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phase 1 under way.** Replies stream through the agent harness; the rest is not built yet. This records
+**Status: phase 1 under way.** Replies stream through the agent harness, and each ability is served by a chain of
+models that holds high-risk context on this machine; the rest is not built yet. This records
 what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
 type, check for collisions before introducing it.
 
@@ -26,7 +27,8 @@ policy and scheduling.
 
 | Question | Decision |
 |---|---|
-| Local or cloud | Chosen when a workspace is set up. **Cloud**: cloud models only, and nothing local is downloaded or loaded. **Local**: the resident model — Gemma 4 E4B by default, or whichever model the user picks — serves the workspace. **Mixing** both stays possible through the per-role grid. |
+| Whose harness | What a workspace chooses is not where a model runs but **who runs its harness** — the prompt, the chat template, the context cache. **Bridged**: Nexaflow is a client of a harness that is not its own — Claude, OpenAI, Gemini, but also Ollama and Aria, though they run on this machine — and nothing for the AI host is downloaded or loaded. **Owned**: Nexaflow is the whole harness, through the AI host — Gemma 4 E4B by default, or whichever model the user picks. Chosen when a workspace is set up, once an owned model exists to choose; **mixing** both stays possible through the grid's chains. |
+| Where data goes | A second, separate property of each provider: whether a request's content **stays on this machine**. Ollama on `localhost` does though it is bridged. A page whose context is high-risk is held to providers whose data stays here, and asks before it goes anywhere else. |
 | Where voice lives | **The AI input bar**, in a voice mode: the bar becomes a live line both sides speak into, and anything the assistant produces that is not speech — a diagram, a table, code — opens as an overlay on the current page, so the user keeps working while talking. **The conversation page** is the focused alternative: both sides write into the conversation. |
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
@@ -232,16 +234,16 @@ arrive later as one more kind of event, for a provider that opts in. Beside it, 
 | audio generation | job: prompt in, audio file out, progress (sound effects, music) |
 | video generation | job; cloud only for now |
 
-Every capability has local and cloud implementations — OpenAI and Gemini already do speech and images — so a cloud
-workspace gets voice and generation without a GPU, and a local workspace gets them on the machine. A provider
-declares what it offers: input and output kinds, streaming, tools, context window, **on-device or cloud**, and a
-cost class.
+Every capability has owned and bridged implementations — OpenAI and Gemini already do speech and images — so a
+bridged workspace gets voice and generation without a GPU, and an owned one gets them on the machine. A provider
+declares what it offers: input and output kinds, streaming, tools, context window, **whose harness and where its
+data goes**, and a cost class.
 
 ### Scheduling and the VRAM budget
 
 The host owns:
 
-- **A resident set** — the model a local workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
+- **A resident set** — the model an owned workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
   to reload is too slow between turns).
 - **One generation slot** — image, music or a second LLM, loaded on demand and disposed afterwards. Generation
   takes seconds anyway, so a load is acceptable there.
@@ -303,19 +305,24 @@ twice the VRAM.
 
 ## Routing
 
-The workspace's choice comes first: a cloud workspace never starts the host. Within a workspace, the ability grid
-maps roles to models, and changes in three ways:
+The workspace's choice comes first: a bridged workspace never starts the host. Within a workspace, the ability grid
+maps roles to models:
 
-| Today | Proposed |
-|---|---|
-| Seven rows, all text; `ImageGeneration` and `AudioRecognition` are read by nothing | **Reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and **media capabilities** (speech in, speech out, image, audio, video) |
-| A cell is one provider + model | A cell is an **ordered chain** when a workspace mixes local and cloud: local Gemma, then Claude |
-| Resources invisible | The resident set and its VRAM shown; assignments that cannot coexist on the card are refused at configuration time |
+- **Each cell is an ordered chain** of models, set by clicking cells in the order they should be tried: owned Gemma,
+  then Claude. A chain advances on unavailability — a provider not available (no API key; for the host, model not
+  downloaded, host down, budget refused) — not on "try one, retry the next" for every request: a failed attempt has
+  cost its whole latency already.
+- **High-risk context stays here.** A request whose context reports a high `GetContextSecurityRisk` goes to the first
+  model in the chain whose data stays on this machine (marked in the grid's column header). When the chain has none,
+  the user is asked before the contents leave; a refusal runs the request without the page's contents and tools.
+- **Rows become reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
+  **media capabilities** (speech in, speech out, image, audio, video) — the media rows arrive with the capability
+  contracts they route; today's `ImageGeneration` and `AudioRecognition` rows are read by nothing.
+- **Resources become visible**: the resident set and its VRAM shown; assignments that cannot coexist on the card are
+  refused at configuration time.
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
-to local, which is where API cost actually goes. A chain advances on unavailability (model not downloaded, host down,
-budget refused), not on "try local, retry cloud" for every request — a failed local attempt costs its whole latency
-first. A request whose context reports a high `GetContextSecurityRisk` is held to on-device entries.
+to the owned model, which is where API cost actually goes.
 
 Prompt-convention tools are an advantage here: with the chat template coming from the model itself
 (`Tokenizer.ApplyChatTemplate`), a new local model needs no per-family harness — the part PR #74 had to write by
@@ -370,7 +377,7 @@ flowchart LR
 - **Ending the session**: the user's stop button, or a client tool the assistant calls when the conversation is
   over.
 - The voice session is one implementation of a contract; a cloud realtime API (OpenAI Realtime, Gemini Live) can be
-  another, for cloud workspaces.
+  another, for bridged workspaces.
 
 Target: under a second from the user stopping to the assistant speaking, local. Measured 1.3 s with a 600 ms silence
 wait; replacing that wait with Smart Turn at 200 ms of silence (~10 ms to decide, with Whisper's final pass started
@@ -514,7 +521,7 @@ every payload a second time under Package Cache, the standard bootstrapper canno
 per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
 `InstallTools` — that the app reads on first run.
 
-- **The host** ships in the base install or downloads with the first local workspace; without the CUDA pack it is
+- **The host** ships in the base install or downloads with the first owned workspace; without the CUDA pack it is
   about 30 MB (ONNX Runtime, onnxruntime-genai, Windows ML's bootstrap).
 - **Execution providers**: our CUDA pack (~1.1 GB) for NVIDIA, hosted on our GitHub releases and versioned with the
   host; Windows ML's providers for other vendors and NPUs, downloaded by Windows itself.

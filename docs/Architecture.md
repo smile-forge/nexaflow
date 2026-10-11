@@ -110,7 +110,7 @@ A `Workspace` (`Core/Models/Workspace.cs`) is a named, themed, saved configurati
 
 | Member on `Workspace` | What it scopes | On disk |
 |-----------------------|----------------|---------|
-| `AiConfig` | The ability → provider/model **assignments** + configured columns. Shared, so an edit shows in every runtime on this workspace | `ai-abilities/` |
+| `AiConfig` | The configured provider/model columns + each ability's **chain** of them (`AbilityChain`, tried in order). Shared, so an edit shows in every runtime on this workspace | `ai-abilities/` |
 | `Persona` | The assistant persona (name + system prompt) | `ai-persona/` |
 | `ProviderConfigs` | The provider configs (API keys / subscriptions) used to build provider instances | provider config folders |
 | `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/runtime on this workspace observes to reload live | `ribbon.json` |
@@ -161,7 +161,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); execution instances warm/cool with their pool lifetime |
 | `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
 | `Services/AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
-| `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
+| `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + each ability's `AbilityChain` of columns in `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
 | `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
@@ -240,6 +240,14 @@ the first event). The set of events is closed and grows by a record: a consumer 
 understands, so usage figures or native tool calls arrive as new events without breaking anyone. A caller
 that acts on a finished answer — tool ranking, image descriptions, analysis — reads the stream to its end
 with the `CompleteAsync` extension. Aria answers whole and yields one event.
+
+Each provider also says **where a request's content goes** (`Residency`: it leaves this machine, or stays on it —
+read from the endpoint for Ollama and for an OpenAI- or Claude-compatible base URL) and whether it **can take a
+request now** (`IsAvailable`; the API-key providers are not without a key). `AIService` walks an ability's chain to
+the first available provider. A page whose `GetContextSecurityRisk` is `High` — a conversation is as high-risk as
+the riskiest page pinned in it — is held to the first provider in the chain whose data stays on this machine; when
+the chain has none, `IAIResponseHandler.RequestContextReleaseAsync` asks the user, and a refusal runs the request
+without the page's contents and tools.
 
 Tool use is **prompt-convention**: the agent loop asks the model for fenced ```` ```client_tool ```` blocks
 and parses them out of the text — no provider sends native function-calling schemas. This keeps every

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;
@@ -15,17 +16,18 @@ public sealed class AiColumnViewModel
     public string ProviderName     { get; }
     public string Model            { get; }
     public string AssemblyFileName { get; }
-    public bool   IsNone           => Id == string.Empty;
 
-    public AiColumnViewModel(string id, string providerName, string model, string assemblyFileName = "")
+    /// <summary>What this column's model is sent stays on this machine — so it can read high-risk pages.</summary>
+    public bool StaysOnMachine { get; }
+
+    public AiColumnViewModel(string id, string providerName, string model, string assemblyFileName, bool staysOnMachine)
     {
         Id               = id;
         ProviderName     = providerName;
         Model            = model;
         AssemblyFileName = assemblyFileName;
+        StaysOnMachine   = staysOnMachine;
     }
-
-    public static AiColumnViewModel None { get; } = new(string.Empty, "None", string.Empty);
 }
 
 // ── Cell (one per row×column intersection) ────────────────────────────────────
@@ -36,23 +38,24 @@ public partial class AiAbilityCellViewModel : ObservableObject
 
     public AiColumnViewModel Column { get; }
 
-    public string GroupName => _row.Ability.ToString();
+    /// <summary>Where this column stands in the row's chain, from 1; 0 when the row does not use it.</summary>
+    public int Position => _row.Chain.IndexOf(Column.Id) + 1;
 
-    public bool IsSelected => _row.SelectedColumnId == Column.Id;
+    public bool IsInChain => Position > 0;
 
-    public IRelayCommand SelectCommand { get; }
+    public IRelayCommand ToggleCommand { get; }
 
     public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column)
     {
         _row   = row;
         Column = column;
 
-        SelectCommand = new RelayCommand(() => _row.SelectedColumnId = Column.Id);
+        ToggleCommand = new RelayCommand(() => _row.Toggle(Column.Id));
 
-        _row.PropertyChanged += (_, e) =>
+        _row.Chain.CollectionChanged += (_, _) =>
         {
-            if (e.PropertyName == nameof(AiAbilityRowViewModel.SelectedColumnId))
-                OnPropertyChanged(nameof(IsSelected));
+            OnPropertyChanged(nameof(Position));
+            OnPropertyChanged(nameof(IsInChain));
         };
     }
 }
@@ -64,15 +67,26 @@ public partial class AiAbilityRowViewModel : ObservableObject
     public AiAbility Ability     { get; }
     public string    AbilityName { get; }
 
-    [ObservableProperty] private string _selectedColumnId = string.Empty;
+    /// <summary>The columns that serve this ability, in order of preference.</summary>
+    public ObservableCollection<string> Chain { get; } = [];
 
     public ObservableCollection<AiAbilityCellViewModel> Cells { get; } = [];
 
-    public AiAbilityRowViewModel(AiAbility ability)
+    public AiAbilityRowViewModel(AiAbility ability, AbilityChain saved)
     {
         Ability     = ability;
         AbilityName = AiAbilityNames.Friendly(ability);
+        foreach (var id in saved.ColumnIds) Chain.Add(id);
     }
+
+    /// <summary>A column not in the chain joins it at the end; one already in it leaves, and those after it
+    /// move up.</summary>
+    public void Toggle(string columnId)
+    {
+        if (!Chain.Remove(columnId)) Chain.Add(columnId);
+    }
+
+    public AbilityChain ToChain() => new(Chain);
 }
 
 // ── Root grid view model ──────────────────────────────────────────────────────
@@ -117,27 +131,18 @@ public partial class AiAbilityGridViewModel : ObservableObject
         // WorkspaceConfigViewModel before the grid is shown; we read it via _config.Providers.
         RebuildAvailableProviders();
 
-        // Build column list: None first, then saved pairs
-        Columns.Add(AiColumnViewModel.None);
         foreach (var pair in config.Columns)
-            Columns.Add(new AiColumnViewModel(pair.Id, pair.ProviderName, pair.Model, pair.AssemblyFileName));
+            Columns.Add(NewColumn(pair.Id, pair.ProviderName, pair.Model, pair.AssemblyFileName));
 
-        // Build rows for every defined ability
+        // Build rows for every defined ability, keeping only the saved chain's columns that still exist.
+        var known = Columns.Select(c => c.Id).ToHashSet();
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
         {
-            var row = new AiAbilityRowViewModel(ability);
+            var saved = config.Assignments.GetValueOrDefault(ability.ToString()) ?? AbilityChain.Empty;
+            var row   = new AiAbilityRowViewModel(ability, new AbilityChain(saved.ColumnIds.Where(known.Contains)));
 
             foreach (var col in Columns)
                 row.Cells.Add(new AiAbilityCellViewModel(row, col));
-
-            // Restore saved assignment; default to None if missing or provider gone
-            var key = ability.ToString();
-            if (config.Assignments.TryGetValue(key, out var colId)
-                && !string.IsNullOrEmpty(colId)
-                && Columns.Any(c => c.Id == colId))
-            {
-                row.SelectedColumnId = colId;
-            }
 
             Rows.Add(row);
         }
@@ -145,11 +150,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         // Wire change tracking after all rows are populated
         Columns.CollectionChanged += (_, _) => RecheckChanges();
         foreach (var row in Rows)
-            row.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(AiAbilityRowViewModel.SelectedColumnId))
-                    RecheckChanges();
-            };
+            row.Chain.CollectionChanged += (_, _) => RecheckChanges();
 
         OpenAddPanelCommand = new RelayCommand(() =>
         {
@@ -172,7 +173,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         RemoveColumnCommand = new RelayCommand<object>(
             obj => RemoveColumn(obj as AiColumnViewModel),
-            obj => obj is AiColumnViewModel col && !col.IsNone);
+            obj => obj is AiColumnViewModel);
     }
 
     // ── Provider changed — reload model suggestions ───────────────────────
@@ -238,12 +239,21 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     // ── Add / remove columns ──────────────────────────────────────────────
 
+    /// <summary>A column, with where its provider sends what it is asked — read from the provider as this workspace
+    /// configures it (an Ollama server's address, an OpenAI-compatible base URL).</summary>
+    private AiColumnViewModel NewColumn(string id, string providerName, string model, string assemblyFileName)
+    {
+        var staysOnMachine = _config.Providers?.Providers.GetValueOrDefault(providerName) is { } provider
+                             && provider.Residency == DataResidency.StaysOnMachine;
+        return new AiColumnViewModel(id, providerName, model, assemblyFileName, staysOnMachine);
+    }
+
     private void AddColumn()
     {
         if (string.IsNullOrWhiteSpace(NewProviderName) || string.IsNullOrWhiteSpace(NewModelName))
             return;
 
-        var colVm = new AiColumnViewModel(
+        var colVm = NewColumn(
             Guid.NewGuid().ToString("N"), NewProviderName, NewModelName,
             _config.Providers?.GetAssemblyFileName(NewProviderName) ?? string.Empty);
 
@@ -260,7 +270,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private void RemoveColumn(AiColumnViewModel? col)
     {
-        if (col is null || col.IsNone) return;
+        if (col is null) return;
 
         Columns.Remove(col);
 
@@ -268,8 +278,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         {
             var cell = row.Cells.FirstOrDefault(c => c.Column.Id == col.Id);
             if (cell is not null) row.Cells.Remove(cell);
-            if (row.SelectedColumnId == col.Id)
-                row.SelectedColumnId = string.Empty;
+            row.Chain.Remove(col.Id);
         }
     }
 
@@ -277,34 +286,9 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private void RecheckChanges()
     {
-        // Compare current columns (excluding None) against saved config
-        var currentCols = Columns.Where(c => !c.IsNone).ToList();
-        if (currentCols.Count != _config.Columns.Count)
-        {
-            HasChanges = true;
-            return;
-        }
-        for (int i = 0; i < currentCols.Count; i++)
-        {
-            if (currentCols[i].Id != _config.Columns[i].Id)
-            {
-                HasChanges = true;
-                return;
-            }
-        }
-
-        // Compare current ability assignments against saved config
-        foreach (var row in Rows)
-        {
-            _config.Assignments.TryGetValue(row.Ability.ToString(), out var saved);
-            if ((saved ?? string.Empty) != row.SelectedColumnId)
-            {
-                HasChanges = true;
-                return;
-            }
-        }
-
-        HasChanges = false;
+        HasChanges = !Columns.Select(c => c.Id).SequenceEqual(_config.Columns.Select(c => c.Id))
+                     || Rows.Any(row => !row.ToChain().SameAs(
+                            _config.Assignments.GetValueOrDefault(row.Ability.ToString()) ?? AbilityChain.Empty));
     }
 
     // ── Apply (write back to config at Save time) ─────────────────────────
@@ -312,13 +296,12 @@ public partial class AiAbilityGridViewModel : ObservableObject
     public void Apply()
     {
         _config.Columns = Columns
-            .Where(c => !c.IsNone)
             .Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, AssemblyFileName = c.AssemblyFileName })
             .ToList();
 
         _config.Assignments.Clear();
         foreach (var row in Rows)
-            _config.Assignments[row.Ability.ToString()] = row.SelectedColumnId;
+            _config.Assignments[row.Ability.ToString()] = row.ToChain();
 
         // Note: the AIService reload is handled by WorkspaceConfigViewModel.Apply() after this control's
         // ICustomConfigApply.Apply() has written back to the config object.

@@ -14,6 +14,11 @@ public sealed class OpenAILlmProvider : ILlmProvider
     /// models (embeddings, audio, images, legacy 3.5/instruct) don't.</summary>
     public bool SupportsImages => ModelSupportsVision(_model);
 
+    /// <summary>OpenAI's API, unless the base URL points at an OpenAI-compatible server on this machine.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.BaseUrl, DataResidency.LeavesMachine);
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly OpenAIConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;

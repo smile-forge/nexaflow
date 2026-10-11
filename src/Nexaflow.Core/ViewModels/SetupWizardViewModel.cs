@@ -232,7 +232,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
         _ctx.Workspace.AiConfig.Columns = [pair];
         _ctx.Workspace.AiConfig.Assignments.Clear();
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
-            _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = pair.Id;
+            _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
@@ -463,9 +463,8 @@ public partial class SetupWizardViewModel : ObservableObject
     public static bool IsWorkspaceConfigured(Workspace p)
     {
         var ai = p.AiConfig;
-        if (ai.Assignments.Values.All(string.IsNullOrEmpty)) return false;
-
-        var assignedColumnIds = ai.Assignments.Values.Where(v => !string.IsNullOrEmpty(v)).ToHashSet();
+        var assignedColumnIds = ai.AssignedColumnIds();
+        if (assignedColumnIds.Count == 0) return false;
         var byName = p.ProviderConfigs.ToDictionary(c => c.FriendlyName);
         return ai.Columns
             .Where(c => assignedColumnIds.Contains(c.Id))

@@ -25,12 +25,20 @@ public class AgentLoopTests
         private readonly Queue<string> _responses = new(responses);
         public List<string> SystemPrompts { get; } = [];
 
-        public string Name => "fake";
+        /// <summary>Every request this model was sent, tool ranking included.</summary>
+        public int Calls { get; private set; }
+
+        public string        ProviderName { get; init; } = "fake";
+        public DataResidency Residency    { get; init; } = DataResidency.LeavesMachine;
+        public bool          IsAvailable  { get; init; } = true;
+
+        public string Name => ProviderName;
 
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
             IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
+            Calls++;
             var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User)?.Text ?? string.Empty;
             if (lastUser.Contains("Most relevant tool numbers"))
                 return Streamed(rankReply, ct);
@@ -67,6 +75,12 @@ public class AgentLoopTests
         /// <summary>Every draft shown, in order, and how each draft ended.</summary>
         public List<string> Drafts { get; } = [];
         public List<bool>   DraftEnds { get; } = [];
+
+        public bool ContextReleaseResult;
+        public List<IReadOnlyList<string>> ContextReleaseRequests { get; } = [];
+
+        public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+        { ContextReleaseRequests.Add(destinations); return Task.FromResult(ContextReleaseResult); }
 
         public void BeginResponse(string userText) { }
         public Task<bool> RequestToolBatchApprovalAsync(string explanation, IReadOnlyList<ToolCall> batch, CancellationToken ct)
@@ -105,6 +119,16 @@ public class AgentLoopTests
         public IReadOnlyList<IClientTool> GetClientTools() => tools;
     }
 
+    /// <summary>A page whose contents are as sensitive as <paramref name="risk"/> says — a process list, say.</summary>
+    private sealed class RiskyPage(ContextSecurityRisk risk, params IClientTool[] tools) : IPageViewModel
+    {
+        public const string Contents = "PROCESS LIST: lsass.exe 712";
+
+        public string GetContext() => Contents;
+        public IReadOnlyList<IClientTool> GetClientTools() => tools;
+        public ContextSecurityRisk GetContextSecurityRisk() => risk;
+    }
+
     // Records the attachments handed to each completion turn, and reports an image capability.
     private sealed class AttachmentRecordingProvider(IEnumerable<string> responses, bool supportsImages) : ILlmProvider
     {
@@ -114,6 +138,7 @@ public class AgentLoopTests
 
         public string Name => "fake";
         public bool SupportsImages => supportsImages;
+        public DataResidency Residency => DataResidency.LeavesMachine;
 
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
             IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
@@ -158,6 +183,7 @@ public class AgentLoopTests
         public List<LlmAttachment> Seen { get; } = [];
         public string Name => "img";
         public bool SupportsImages => true;
+        public DataResidency Residency => DataResidency.LeavesMachine;
 
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
@@ -201,7 +227,12 @@ public class AgentLoopTests
         {
             Columns = [new ProviderModelPair { Id = "c1", ProviderName = "conv", Model = "m" },
                        new ProviderModelPair { Id = "c2", ProviderName = "img",  Model = "v" }],
-            Assignments = { ["Conversation"] = "c1", ["Disambiguation"] = "c1", ["ImageRecognition"] = "c2" }
+            Assignments =
+            {
+                ["Conversation"]     = AbilityChain.Of("c1"),
+                ["Disambiguation"]   = AbilityChain.Of("c1"),
+                ["ImageRecognition"] = AbilityChain.Of("c2"),
+            }
         });
         return svc;
     }
@@ -213,7 +244,23 @@ public class AgentLoopTests
         svc.LoadAbilityConfig(new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "fake", Model = "m" }],
-            Assignments = { ["Conversation"] = "c1", ["Disambiguation"] = "c1" }
+            Assignments = { ["Conversation"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") }
+        });
+        return svc;
+    }
+
+    /// <summary>A service whose Conversation and Disambiguation abilities are both served by
+    /// <paramref name="chain"/>, in that order.</summary>
+    private static AIService BuildChainService(params (string Id, ILlmProvider Provider)[] chain)
+    {
+        var svc = NewServiceOnAWiredRuntime();
+        foreach (var (id, provider) in chain) svc.Register(id, provider);
+
+        var ids = chain.Select(c => c.Id).ToArray();
+        svc.LoadAbilityConfig(new AiConfig
+        {
+            Columns     = [.. chain.Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.Provider.Name, Model = "m" })],
+            Assignments = { ["Conversation"] = AbilityChain.Of(ids), ["Disambiguation"] = AbilityChain.Of(ids) }
         });
         return svc;
     }
@@ -294,6 +341,79 @@ public class AgentLoopTests
 
         CollectionAssert.AreEqual(new[] { false }, approver.DraftEnds);
         Assert.AreEqual("Answered.", approver.Final);
+    }
+
+    // ── Chains and where a page's contents go ─────────────────────────────
+
+    [TestMethod]
+    public async Task AChain_PassesOverAModelThatIsNotAvailable()
+    {
+        var first  = new ScriptedLlmProvider(["from the first"])  { IsAvailable = false };
+        var second = new ScriptedLlmProvider(["from the second"]);
+
+        var res = await BuildChainService(("c1", first), ("c2", second))
+            .RunAgentAsync(new TestPage(), "q", true, new FakeApprover(), default);
+
+        Assert.AreEqual("from the second", res!.Text);
+        Assert.AreEqual(0, first.Calls);
+    }
+
+    [TestMethod]
+    public async Task AHighRiskPage_GoesToTheModelWhoseDataStaysHere_WithoutAsking()
+    {
+        var cloud    = new ScriptedLlmProvider(["from the cloud"]) { ProviderName = "Claude" };
+        var local    = new ScriptedLlmProvider(["from here"]) { ProviderName = "Ollama", Residency = DataResidency.StaysOnMachine };
+        var approver = new FakeApprover();
+
+        var res = await BuildChainService(("c1", cloud), ("c2", local))
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
+
+        Assert.AreEqual("from here", res!.Text);
+        Assert.AreEqual(0, cloud.Calls, "the cloud model was sent something");
+        Assert.AreEqual(0, approver.ContextReleaseRequests.Count, "nothing was leaving, so nothing needed asking");
+    }
+
+    [TestMethod]
+    public async Task AHighRiskPage_WithOnlyACloudModel_IsSentWhenTheUserAgrees()
+    {
+        var cloud    = new ScriptedLlmProvider(["answer"]) { ProviderName = "Claude" };
+        var approver = new FakeApprover { ContextReleaseResult = true };
+
+        await BuildChainService(("c1", cloud))
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
+
+        CollectionAssert.AreEqual(new[] { "Claude" }, approver.ContextReleaseRequests.Single().ToArray());
+        StringAssert.Contains(cloud.SystemPrompts.Single(), RiskyPage.Contents);
+    }
+
+    [TestMethod]
+    public async Task AHighRiskPage_TheUserKeepsHere_IsAnsweredWithoutItsContentsOrTools()
+    {
+        var tool     = new RecordingTool("end_process", ToolSafety.RequiresApproval);
+        var cloud    = new ScriptedLlmProvider(["answer"]) { ProviderName = "Claude" };
+        var approver = new FakeApprover { ContextReleaseResult = false };
+
+        var res = await BuildChainService(("c1", cloud))
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High, tool), "q", true, approver, default);
+
+        var prompt = cloud.SystemPrompts.Single();
+        Assert.IsFalse(prompt.Contains(RiskyPage.Contents), "the page's contents left the machine");
+        Assert.IsFalse(prompt.Contains("end_process"), "the page's tools were offered without its contents");
+        StringAssert.Contains(prompt, "withheld", "the model is not told why it cannot see the page");
+        Assert.AreEqual("answer", res!.Text, "the request still runs");
+    }
+
+    [TestMethod]
+    public async Task APageThatIsNotHighRisk_IsNeverAskedAbout()
+    {
+        var cloud    = new ScriptedLlmProvider(["answer"]) { ProviderName = "Claude" };
+        var approver = new FakeApprover();
+
+        await BuildChainService(("c1", cloud))
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.Medium), "q", true, approver, default);
+
+        Assert.AreEqual(0, approver.ContextReleaseRequests.Count);
+        StringAssert.Contains(cloud.SystemPrompts.Single(), RiskyPage.Contents);
     }
 
     [TestMethod]

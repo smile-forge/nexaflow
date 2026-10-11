@@ -16,6 +16,9 @@ public sealed class OllamaLlmProvider : ILlmProvider
     /// <summary>Vision is model-bound (llava/moondream/…-vision variants accept images).</summary>
     public bool SupportsImages => ModelSupportsVision(_model);
 
+    /// <summary>On this machine when the Ollama server is; a server elsewhere takes requests off it.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.Url, DataResidency.StaysOnMachine);
+
     private readonly OllamaConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;

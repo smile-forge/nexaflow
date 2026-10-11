@@ -23,8 +23,11 @@ public sealed class AiConfig : IProviderConfig
     public List<ProviderModelPair> Columns { get; set; } = [];
 
     /// <summary>
-    /// Maps AiAbility.ToString() → ProviderModelPair.Id.
-    /// Empty/missing value means no provider assigned (None).
+    /// Maps AiAbility.ToString() → the chain of columns that serve it. A missing or empty chain means no model.
     /// </summary>
-    public Dictionary<string, string> Assignments { get; set; } = [];
+    public Dictionary<string, AbilityChain> Assignments { get; set; } = [];
+
+    /// <summary>Every column some ability's chain names — the ones a workspace needs providers for.</summary>
+    public IReadOnlySet<string> AssignedColumnIds()
+        => Assignments.Values.SelectMany(c => c.ColumnIds).ToHashSet();
 }

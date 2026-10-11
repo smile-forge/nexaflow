@@ -128,6 +128,7 @@ public class LlmStreamRunnerTests
     private sealed class Provider(string[] pieces) : ILlmProvider
     {
         public string Name => "p";
+        public DataResidency Residency => DataResidency.LeavesMachine;
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
             => Texts(pieces, ct: ct);
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)

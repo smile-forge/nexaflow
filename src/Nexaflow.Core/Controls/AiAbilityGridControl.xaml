@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
-             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
+             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter       x:Key="BoolVis"/>
@@ -66,20 +67,22 @@
             </Setter>
         </Style>
 
-        <!-- Cell DataTemplate -->
+        <!-- Cell DataTemplate: an empty ring, or the column's place in the row's chain -->
         <DataTemplate x:Key="CellTemplate" DataType="{x:Type vm:AiAbilityCellViewModel}">
             <Button Style="{StaticResource CellButton}"
-                    Command="{Binding SelectCommand}"
+                    Command="{Binding ToggleCommand}"
+                    ToolTip="{loc:Str Shell.Config.AiGrid.CellTip}"
                     AutomationProperties.AutomationId="AiGrid_Cell">
-                <!-- Selection indicator: outer ring + filled dot -->
-                <Grid Width="18" Height="18">
-                    <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"/>
-                    <Ellipse Width="10" Height="10"
-                             Visibility="{Binding IsSelected, Converter={StaticResource BoolVis}}">
-                        <Ellipse.Fill>
-                            <StaticResource ResourceKey="AccentBrush"/>
-                        </Ellipse.Fill>
-                    </Ellipse>
+                <Grid Width="20" Height="20">
+                    <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
+                             Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
+                    <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
+                        <Ellipse Fill="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="{Binding Position}"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource OnAccentBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
                 </Grid>
             </Button>
         </DataTemplate>
@@ -141,6 +144,12 @@
                 <TextBlock Text="+ Add Provider / Model" FontSize="12"/>
             </Button>
         </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{loc:Str Shell.Config.AiGrid.ChainHint}"
+                   FontSize="11" TextWrapping="Wrap"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   Margin="0,0,0,10"/>
 
         <!-- ── Add-column inline panel ── -->
         <Border DockPanel.Dock="Top"
@@ -246,7 +255,7 @@
                 <Border BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1"
                         Background="{StaticResource SurfaceBrush}"
-                        Height="52">
+                        Height="60">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Blank space matching ability-name column -->
                         <TextBlock Width="170"/>
@@ -260,7 +269,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:AiColumnViewModel}">
-                                    <Grid Width="130" Margin="0,4">
+                                    <Grid Width="130" Margin="0,2">
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <TextBlock Text="{Binding ProviderName}"
                                                        FontSize="12" FontWeight="SemiBold"
@@ -269,13 +278,16 @@
                                             <TextBlock Text="{Binding Model}"
                                                        FontSize="10"
                                                        Foreground="{StaticResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{loc:Str Shell.Config.AiGrid.StaysOnMachine}"
+                                                       ToolTip="{loc:Str Shell.Config.AiGrid.StaysOnMachineTip}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource SuccessBrush}"
                                                        HorizontalAlignment="Center"
-                                                       Visibility="{Binding IsNone, Converter={StaticResource InverseBoolVis}}"/>
+                                                       Visibility="{Binding StaysOnMachine, Converter={StaticResource BoolVis}}"/>
                                         </StackPanel>
-                                        <!-- Remove button — hidden for the None column -->
                                         <Button Style="{StaticResource RemoveColumnButton}"
                                                 Margin="0,2,4,0"
-                                                Visibility="{Binding IsNone, Converter={StaticResource InverseBoolVis}}"
                                                 Command="{Binding DataContext.RemoveColumnCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"

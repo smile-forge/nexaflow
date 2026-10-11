@@ -12,6 +12,10 @@ public sealed class GeminiLlmProvider : ILlmProvider
     /// <summary>Gemini models are multimodal; image attachments are sent as inline data parts.</summary>
     public bool SupportsImages => true;
 
+    public DataResidency Residency => DataResidency.LeavesMachine;
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly GeminiConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;

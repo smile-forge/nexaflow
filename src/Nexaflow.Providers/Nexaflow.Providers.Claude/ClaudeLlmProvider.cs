@@ -14,6 +14,11 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     /// <summary>Every Claude model in the current catalogue (Claude 3 and later) accepts image input.</summary>
     public bool SupportsImages => true;
 
+    /// <summary>Anthropic's API, unless the base URL points at a server on this machine.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.BaseUrl, DataResidency.LeavesMachine);
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
