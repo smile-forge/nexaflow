@@ -204,7 +204,7 @@ public sealed class DeclarationAnchors
                 }
                 Walk(root);
                 return (IReadOnlyList<string>)found;
-            });
+            }) ?? [];
         }
         catch { return []; }
     }

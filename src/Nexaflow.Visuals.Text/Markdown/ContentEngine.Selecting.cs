@@ -24,12 +24,19 @@ public sealed partial class ContentEngine
     {
         if (SelectionChanged is null && this.Events is null) return;
 
-        var ranges = _state.Selection.Select(range => (range.Start, range.Length)).ToList();
-        var selection = ContentSelection.Over(_laid.Root, ranges);
-        var change = new ContentSelectionChange(selection, Picks(selection));
+        var change = WhatIsPickedOut();
 
         SelectionChanged?.Invoke(this, change);
         this.Events?.OnSelect(change);
+    }
+
+    /// <summary>What is picked out, said as whoever follows the content is told it.</summary>
+    private ContentSelectionChange WhatIsPickedOut()
+    {
+        var ranges = _state.Selection.Select(range => (range.Start, range.Length)).ToList();
+        var selection = ContentSelection.Over(_laid.Root, ranges);
+
+        return new ContentSelectionChange(selection, Picks(selection));
     }
 
     /// <summary>Each thing picked out, in the order written: the whole pieces chosen, and the characters of a stretch chosen inside one.</summary>

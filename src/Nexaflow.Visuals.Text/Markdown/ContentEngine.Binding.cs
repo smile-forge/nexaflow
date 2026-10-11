@@ -4,6 +4,7 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -102,6 +103,11 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Expand(ContentPart diagram, string key, bool open)
     {
+        // A node the drawing invented — the one offering what is left of an over-wide set of children — is known by a
+        // name of its own that no producer could have given it, so telling one would only send it off to fetch the
+        // graph it has already handed over. Nothing is told, and the drawing opens that node out of what it already has.
+        if (NexaflowConfig.MoreOf(key) is not null) return false;
+
         var told = false;
 
         foreach (var node in diagram.Node.SelfAndDescendants())

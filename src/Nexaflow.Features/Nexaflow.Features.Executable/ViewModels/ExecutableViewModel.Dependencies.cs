@@ -25,7 +25,6 @@ public sealed partial class ExecutableViewModel
     {
         if (_dependenciesRequested || _image is null) return;
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
 
         Dependencies.Walk();
     }
@@ -52,13 +51,21 @@ public sealed partial class ExecutableViewModel
     /// <summary>
     /// One walk, as a task in the shell's activity area. The walk opens and parses every module it resolves; what it walks is
     /// only what the reader opened, so the graph only ever grows where they pointed.
+    ///
+    /// <para>
+    /// Every walk starts here, whoever asked for one — the tab being looked at, a button, or a chip pressed in the diagram,
+    /// which the renderer answers by telling the bound graph without passing through this view-model. So this is where the
+    /// tab is told it is mapping, rather than each of those saying so for itself and the chip forgetting to.
+    /// </para>
     /// </summary>
     private Task<DependencyGraph> Walk(IReadOnlySet<string> opened, CancellationToken ct)
     {
         var walked = new TaskCompletionSource<DependencyGraph>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => walked.TrySetCanceled(ct));
 
+        _ = _shell.RunOnUiAsync(() => DependenciesLoading = true);
         _shell.QueueBackgroundTask(new DependencyTask(this, opened, walked), ct: ct);
+
         return walked.Task;
     }
 
@@ -209,6 +216,21 @@ public sealed partial class ExecutableViewModel
     }
 
     /// <summary>
+    /// Opens the module <paramref name="moduleName"/> names in an inspector tab of its own — what two presses on a node
+    /// of the diagram come to, the page having decided that is what they mean. True where there was a module to open:
+    /// an API set, one the loader could not find and one already drawn further up have no file to inspect.
+    /// </summary>
+    public bool OpenModule(string? moduleName)
+    {
+        if (moduleName is not { Length: > 0 } || _dependencyGraph is null) return false;
+
+        var node = Flatten(_dependencyGraph.Root)
+            .FirstOrDefault(one => string.Equals(one.Name, moduleName, StringComparison.OrdinalIgnoreCase));
+
+        return node is not null && OpenDependency(node.Path);
+    }
+
+    /// <summary>
     /// Opens up one module. Walks again rather than grafting onto the existing graph: the walk already owns cycle detection and
     /// the shared-module rules, and walking again is cheap next to keeping a second, subtly different merge path correct.
     /// </summary>
@@ -216,7 +238,6 @@ public sealed partial class ExecutableViewModel
     {
         if (string.IsNullOrWhiteSpace(moduleName) || IsModuleExpanded(moduleName)) return;
 
-        DependenciesLoading = true;
         Dependencies.Expand(moduleName, open: true);
     }
 
@@ -239,7 +260,6 @@ public sealed partial class ExecutableViewModel
         if (_image is null) return;
 
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
         Dependencies.Reset();
     }
 
@@ -248,7 +268,6 @@ public sealed partial class ExecutableViewModel
     {
         if (string.IsNullOrWhiteSpace(moduleName) || !IsModuleExpanded(moduleName)) return;
 
-        DependenciesLoading = true;
         Dependencies.Expand(moduleName, open: false);
     }
 
@@ -307,7 +326,6 @@ public sealed partial class ExecutableViewModel
         if (_image is null) return;
 
         _dependenciesRequested = true;
-        DependenciesLoading    = true;
         Dependencies.Walk();
     }
 

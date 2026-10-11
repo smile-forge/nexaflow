@@ -78,12 +78,12 @@ internal sealed class MatrixBuilder : ContentBuilder
     /// </summary>
     private static void LayParts(LayoutBuilder into, MatrixSymbolNode symbol, Point at, double cell, double row, Brush ink)
     {
-        for (int part = 0; part <= symbol.Parts.Count; part++)
+        for (int part = 0; part <= symbol.PartNames.Count; part++)
         {
             var geometry = Geometry(symbol, part, cell, row);
             if (geometry is null) continue;
 
-            into.Open(part < symbol.Parts.Count ? symbol.Parts[part] : MatrixPiece.Modules, part: null, at);
+            into.Open(part < symbol.PartNames.Count ? symbol.PartNames[part] : MatrixPiece.Modules, part: null, at);
             into.Draw(GeometryMark.Filled(geometry, ink));
             into.Close();
         }

@@ -177,7 +177,7 @@ internal sealed class MindmapBuilder : MermaidBuilder
         foreach (var node in nodes)
         {
             var shape = Shaped(node.Shape);
-            var pad = Room(node.Shape, padding);
+            var pad = RoomFor(node.Shape, padding);
             var paint = Paint(config, node);
             var title = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
 
@@ -250,7 +250,7 @@ internal sealed class MindmapBuilder : MermaidBuilder
     };
 
     /// <summary>How much clear air a shape holds its words in — twice as much for a hexagon, whose points take the rest.</summary>
-    private static double Room(Brackets shape, double padding) => shape switch
+    private static double RoomFor(Brackets shape, double padding) => shape switch
     {
         Brackets.Hexagon => padding * 2,
         Brackets.Cloud or Brackets.Bang => padding + 2,

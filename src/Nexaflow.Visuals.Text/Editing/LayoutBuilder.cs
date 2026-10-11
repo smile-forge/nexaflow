@@ -203,8 +203,32 @@ public sealed class LayoutBuilder
     /// since the shape drawn isn't always the shape meant (a note head is drawn as an outline, but a press between its
     /// strokes still means the note). Asked of the piece that draws — a leaf — whose box is still what it drew.
     /// </summary>
-    public void Occupies(Geometry region) =>
-        _regions[_open.Peek().At] = region.IsFrozen ? region : (Geometry)region.GetAsFrozen();
+    public void Occupies(Geometry region) => _regions[_open.Peek().At] = Resolved(region);
+
+    /// <summary>
+    /// A shape made cheap to ask about, because it is asked about thousands of times: once per piece on every press,
+    /// and on every move of the pointer.
+    ///
+    /// <para>
+    /// A shape built by combining others — a box less the words drawn over it, which is what nearly every diagram's
+    /// node stands in — is worked out lazily by WPF and cached nowhere, so every bounds, every containment test and
+    /// every flattening does the boolean again: measured at 0.037ms a time against 0.00007ms for a plain path, and far
+    /// worse for a node whose label is cleared out of a shape with any detail to it. Resolving it here costs about a
+    /// fortieth of a millisecond, once, and is the difference between a drawing that answers the pointer and one that
+    /// cannot keep up with it. A shape that is already a path is only frozen.
+    /// </para>
+    /// </summary>
+    private static Geometry Resolved(Geometry region)
+    {
+        if (region is CombinedGeometry or GeometryGroup)
+        {
+            var path = PathGeometry.CreateFromGeometry(region);
+            path.Freeze();
+            return path;
+        }
+
+        return region.IsFrozen ? region : (Geometry)region.GetAsFrozen();
+    }
 
     /// <summary>
     /// Says the piece being built is a run of text, with a caret position between any two of its letters — see

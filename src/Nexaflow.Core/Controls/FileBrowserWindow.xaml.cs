@@ -13,73 +13,52 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nexaflow.Visuals.Common.Layout;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Core.Controls;
 
 // ── Per-node view model ──────────────────────────────────────────────────────
 
-internal sealed partial class FileNodeViewModel : ObservableObject
+internal sealed class FileNodeViewModel : PickerNode<FileNodeViewModel>
 {
-    private static readonly FileNodeViewModel _placeholder = new("", "", isDirectory: true, null);
+    private static readonly FileNodeViewModel Placeholder = new("", "", isDirectory: true, null);
 
     private readonly IReadOnlyList<string>? _extensions;  // null/empty = any file
 
-    public string FullPath    { get; }
-    public string DisplayName { get; }
-    public bool   IsDirectory { get; }
+    public bool IsDirectory { get; }
 
     /// <summary>Leading icon; a provided root supplies its own so a cloud location reads as one.</summary>
     public string Glyph => _glyphOverride ?? (IsDirectory ? "📁 " : "📄 ");
     private readonly string? _glyphOverride;
 
-    public ObservableCollection<FileNodeViewModel> Children { get; } = [];
-
-    [ObservableProperty] private bool _isExpanded;
-    [ObservableProperty] private bool _isSelected;
-
-    private bool _loaded;
-
     public FileNodeViewModel(string fullPath, string displayName, bool isDirectory,
                              IReadOnlyList<string>? extensions, string? glyph = null)
+        : base(fullPath, displayName, isDirectory && fullPath.Length > 0 ? Placeholder : null)
     {
-        FullPath       = fullPath;
-        DisplayName    = displayName;
         IsDirectory    = isDirectory;
         _extensions    = extensions;
         _glyphOverride = glyph;
-        if (isDirectory && !string.IsNullOrEmpty(fullPath))
-            Children.Add(_placeholder);  // shows expand arrow
     }
 
     private bool Matches(string file) =>
         _extensions is null || _extensions.Count == 0
         || _extensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
 
-    public void EnsureLoaded()
-    {
-        if (_loaded || !IsDirectory) return;
-        _loaded = true;
-        Children.Clear();
-        try
-        {
-            foreach (var dir in Directory.GetDirectories(FullPath)
-                         .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
-            {
-                var name = Path.GetFileName(dir);
-                if (!string.IsNullOrEmpty(name))
-                    Children.Add(new FileNodeViewModel(dir, name, isDirectory: true, _extensions));
-            }
-            foreach (var file in Directory.GetFiles(FullPath)
-                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
-            {
-                var name = Path.GetFileName(file);
-                if (!string.IsNullOrEmpty(name) && Matches(file))
-                    Children.Add(new FileNodeViewModel(file, name, isDirectory: false, _extensions));
-            }
-        }
-        catch (UnauthorizedAccessException) { }
-        catch (IOException) { }
-    }
+    /// <summary>Folders first, then the files the picker offers.</summary>
+    protected override IReadOnlyList<FileNodeViewModel> ReadChildren(string path) =>
+    [
+        .. Directory.EnumerateDirectories(path)
+                    .Order(StringComparer.OrdinalIgnoreCase)
+                    .Select(dir => (Path: dir, Name: Path.GetFileName(dir)))
+                    .Where(entry => !string.IsNullOrEmpty(entry.Name))
+                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: true, _extensions)),
+        .. Directory.EnumerateFiles(path)
+                    .Order(StringComparer.OrdinalIgnoreCase)
+                    .Select(file => (Path: file, Name: Path.GetFileName(file)))
+                    .Where(entry => !string.IsNullOrEmpty(entry.Name) && Matches(entry.Path))
+                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: false, _extensions)),
+    ];
 }
 
 // ── Root view model ──────────────────────────────────────────────────────────
@@ -134,7 +113,8 @@ public partial class FileBrowserWindow : Window
         {
             Owner = owner ?? Application.Current.MainWindow
         };
-        win.NavigateTo(initialPath);
+        // The dialog draws first and opens onto the file after: reading the way there can take a moment.
+        win.Loaded += async (_, _) => await win.NavigateToAsync(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
     }
 
@@ -154,7 +134,7 @@ public partial class FileBrowserWindow : Window
         };
 
         var start = SavePicking.Start(initialPath, extensions);
-        win.NavigateTo(start);
+        win.Loaded += async (_, _) => await win.NavigateToAsync(start);
         win.Saving(suggestedName, start, bytes);
 
         return win.ShowDialog() == true ? win.SelectedPath : null;
@@ -287,9 +267,9 @@ public partial class FileBrowserWindow : Window
         if (_saving) Weigh();
     }
 
-    /// <summary>Expands the tree to <paramref name="initialPath"/> (a folder, or a file's folder),
-    /// pre-selecting the file when one was given.</summary>
-    private void NavigateTo(string? initialPath)
+    /// <summary>Opens the tree down to <paramref name="initialPath"/> (a folder, or a file's folder), selects it —
+    /// the file, when one was given — and scrolls it into view.</summary>
+    private async Task NavigateToAsync(string? initialPath)
     {
         if (string.IsNullOrEmpty(initialPath)) return;
         try { initialPath = Path.GetFullPath(initialPath); } catch { return; }
@@ -304,8 +284,9 @@ public partial class FileBrowserWindow : Window
             string.Equals(r.FullPath.TrimEnd('\\'), root, StringComparison.OrdinalIgnoreCase));
         if (node is null) return;
 
-        node.EnsureLoaded();
+        await node.LoadAsync();
         node.IsExpanded = true;
+        var trail = new List<object> { node };
 
         var rel = Path.GetRelativePath(node.FullPath, dir);
         if (rel is not "." and not "")
@@ -315,11 +296,15 @@ public partial class FileBrowserWindow : Window
                 var child = node.Children.FirstOrDefault(c =>
                     c.IsDirectory && string.Equals(c.DisplayName, seg, StringComparison.OrdinalIgnoreCase));
                 if (child is null) break;
-                child.EnsureLoaded();
+                await child.LoadAsync();
                 child.IsExpanded = true;
                 node = child;
+                trail.Add(child);
             }
         }
+
+        // The reader may have closed the dialog while the way was being read.
+        if (!IsVisible) return;
 
         if (targetIsFile)
         {
@@ -331,11 +316,13 @@ public partial class FileBrowserWindow : Window
                 SelectedPath          = fileNode.FullPath;
                 SelectedPathText.Text = fileNode.FullPath;
                 OkBtn.IsEnabled       = true;
+                VirtualTreeScroll.BringIntoView(FileTree, [.. trail, fileNode]);
                 return;
             }
         }
 
         node.IsSelected = true;  // highlight the folder; OK stays disabled until a file is chosen
+        VirtualTreeScroll.BringIntoView(FileTree, trail);
     }
 
     private void FileTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -374,12 +361,7 @@ public partial class FileBrowserWindow : Window
     private void TreeViewItem_Expanded(object sender, RoutedEventArgs e)
     {
         if (sender is TreeViewItem { DataContext: FileNodeViewModel node })
-            node.EnsureLoaded();
-    }
-
-    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
-    {
-        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
+            _ = node.LoadAsync();
     }
 
     private void TreeViewItem_MouseDoubleClick(object sender, RoutedEventArgs e)

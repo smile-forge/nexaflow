@@ -18,7 +18,7 @@ internal sealed class MatrixSymbolNode : BlockNode
         this.Modules = modules;
         this.Settings = settings;
         this.RowHeight = rowHeight;
-        this.Parts = parts;
+        this.PartNames = parts;
         _owners = owners;
     }
 
@@ -56,13 +56,13 @@ internal sealed class MatrixSymbolNode : BlockNode
     public double RowHeight { get; }
 
     /// <summary>The parts the symbol is made of — a QR code's finders, an Aztec code's bullseye — in the order they claim modules.</summary>
-    public IReadOnlyList<string> Parts { get; }
+    public IReadOnlyList<string> PartNames { get; }
 
-    /// <summary>Which of <see cref="Parts"/> the module at (<paramref name="x"/>, <paramref name="y"/>) is in, or past the last where it is in none.</summary>
+    /// <summary>Which of <see cref="PartNames"/> the module at (<paramref name="x"/>, <paramref name="y"/>) is in, or past the last where it is in none.</summary>
     public int Owner(int x, int y) => _owners[y * this.Modules.Width + x];
 
     protected override BlockNode Retyped(BlockNode shape) =>
-        new MatrixSymbolNode(shape, this.Modules, this.Settings, this.RowHeight, this.Parts, _owners);
+        new MatrixSymbolNode(shape, this.Modules, this.Settings, this.RowHeight, this.PartNames, _owners);
 }
 
 /// <summary>One of the parts a symbol is made of: what it is called, and which modules are its.</summary>

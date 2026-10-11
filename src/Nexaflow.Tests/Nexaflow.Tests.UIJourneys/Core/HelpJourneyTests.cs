@@ -63,9 +63,10 @@ public class HelpJourneyTests : UiJourneyTestBase
 
         // Help's own page is where locate: links are shown off — the one kind of link that points at a control on screen
         // instead of navigating. Reaching it from the index is the index doing its job.
-        Check("an index entry opens that help page", () => InvokeLink(name => name == "Help"));
+        Check("an index entry opens that help page", () => InvokeLink(link => Named(link, "Help")));
+        // Picked by where it points rather than by its words, which are the help page's to reword.
         Check("a locate: link lassoes the control it names", () =>
-            InvokeLink(name => name.Contains("like this one", StringComparison.Ordinal))
+            InvokeLink(link => GoingTo(link, "locate:Chrome_HelpButton"))
             && WaitForId("Locate_Lasso", Affordable(4)) is not null);
         Check("and a click takes the lasso down", () =>
         {
@@ -95,13 +96,13 @@ public class HelpJourneyTests : UiJourneyTestBase
         AssertJourney();
     }
 
-    /// <summary>Follows a link in the help document by its text. Rendered hyperlinks are the document's own UIA children;
-    /// a locate: link's name carries its pin glyph too, so callers match on part of the text rather than all of it.</summary>
-    private bool InvokeLink(Func<string, bool> matches)
+    /// <summary>Follows a link in the help document. Each link is a Hyperlink in the document's automation tree, named by
+    /// its words and valued by where it goes; callers pick by whichever says what they mean.</summary>
+    private bool InvokeLink(Func<AutomationElement, bool> matches)
     {
         var link = WaitForId("Help_Document", Affordable(3))
             ?.FindAllDescendants(cf => cf.ByControlType(ControlType.Hyperlink))
-            .FirstOrDefault(l => l.Name is { } name && matches(name));
+            .FirstOrDefault(matches);
         if (link?.Patterns.Invoke.PatternOrDefault is not { } invoke) return false;
 
         invoke.Invoke();
@@ -109,6 +110,11 @@ public class HelpJourneyTests : UiJourneyTestBase
         Thread.Sleep(400);
         return true;
     }
+
+    private static bool Named(AutomationElement link, string name) => link.Name == name;
+
+    private static bool GoingTo(AutomationElement link, string target) =>
+        link.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault == target;
 
     private int TabStrips() => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip")).Length;
 }

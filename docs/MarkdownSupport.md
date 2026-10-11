@@ -925,6 +925,8 @@ config:
     collapsed: [n3, n7]     # ids owning a folded subtree — or a keyed block, below
     expanded:
       n0: app.exe           # id → the producer's own name, echoed back on the expand request
+    names:
+      n2: shlwapi.dll       # id → the producer's own name, with nothing said about folding
 ---
 ```
 
@@ -948,6 +950,14 @@ nothing to fold and a leaf never grows a chip. The one exception is a node a `co
 producer saying it owns a subtree the source does not carry — the PE inspector's unwalked imports — and the chip on it
 is what offers to fetch them.
 
+**Every node a producer knows is named, folding or not.** An id in one of these blocks is positional: a producer that
+re-emits its graph with one more node in it renumbers every one of them, so what a press hands back is the name beside
+the id and never the id itself. `collapsed:` and `expanded:` carry that name for the nodes that fold; `names:` carries
+it for the rest — the one the whole graph hangs from, a name the loader resolves for itself, one it could not find, one
+already drawn further up. Those are nodes a reader presses to find out what they are, and declaring them `expanded:`
+instead would grow a `[−]` chip on any of them with children. A node nobody named is known by its id, which is all
+there is to call it.
+
 *Breadth* is the other problem: some nodes have hundreds of children, and all of them at once is a wall rather than a
 picture. `maxFanOut` draws the first of them and hangs one node off the parent offering the rest — `+7 more`
 ([`DiagramSpill`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs)). **That node is layout only**: nobody
@@ -960,9 +970,9 @@ orphan it, and neither is one something else visible also points at, since it is
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
 function and cannot close over a host's state;
 the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
-the routed `Selected` that anything picked out raises — with the node's id — and
-[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers `expand`/`collapse` for the diagram it
-was pressed in: the engine's view state for that diagram, and whatever its content is bound to
+the routed `Selected` that anything picked out raises — under the producer's own name for it — and
+[`ContentEngine.Folded`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs) answers `expand`/`collapse` for
+the diagram it was pressed in: the engine's view state for that diagram, and whatever its content is bound to
 ([bound content](#bound-content-a-diagrams-lines-or-the-whole-of-it)). A chip writes its opening down **before** bound
 content is told, because what that content supplies is read into the diagram again once it has walked (the PE inspector
 walks one module further) and an opening made here has to survive that; where nothing is bound, the diagram lays itself
@@ -976,8 +986,32 @@ each diagram, barcode and QR-style symbol, tune, formula, chemical structure, pl
 ranks, then an ordering that keeps crossings down, then each node pulled toward the middle of its neighbours so a child
 sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
-**Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
-minimap.
+**A graph pays no attention to the room it is given**, and there is no honest way to wrap one into a panel: measured
+at 300, at 900 or at no width at all, a twelve-way fan comes out the same size. So a host showing nothing but a graph
+stops making the panel hold it and puts the surface on the shared
+[`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) instead — the one the scratchpad's
+corkboard and the image viewer's collage use. The surface asks for its layout's full size, the viewport fits that
+(scaling down, never past 1:1), and the reader zooms with the wheel and recentres from the overview, which is a
+picture of the content itself (`CapturePicture`, `MiniMapPicture`) because a graph is recognised by its shape. The PE
+inspector's dependency tab is the one that does this, and it is what makes opening a module safe: the graph can
+double in size and the page still shows all of it.
+
+**A node is not a link.** Written as a Mermaid `click … href` line it is one, and one press on it follows it — which
+is right in a document and wrong for a produced drawing whose every node opens a tab. So the PE inspector's import
+tree carries no `click` lines: the surface says which node was pressed (`Selected`) and says it again when it was
+pressed twice (`DoubleClicked`), and the page picks out on one and opens on two. Neither the renderer nor the diagram
+holds that choice.
+
+**Two things cannot both own one press.** Content claims a press only where it took it, and leaves one it made
+nothing of unhandled and uncaptured for whatever shows it — which is how the viewport knows it may pan from there.
+What settles it is whether the press landed *squarely* on a piece or merely nearest one (`Piece.Squarely`): a press
+between shapes means the nearer one however far off it is, which is what makes nodes easy to hit, but out in the
+empty part of a drawing it landed on nothing anybody drew. Capturing a press regardless and then losing the capture
+to a host is what leaves a drag running with no button-up ever coming to end it, so content that loses its capture
+lets go of the press (`OnLostMouseCapture`).
+
+**Still to come.** A diagram *inside a document* has no viewport of its own — the page is one layout and a diagram in
+it is part of that, so there is nothing per-diagram to pan. It gets whatever the page gets.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives

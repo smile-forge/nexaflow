@@ -3,9 +3,12 @@
     Regenerates the GitHub Pages site from the help pages the app ships.
 
 .DESCRIPTION
-    Run this when cutting a release, then commit site/ with the release commit — the Pages workflow only
-    uploads what is committed, so nothing is built on the runner. The version on the site is read from
-    src/Nexaflow.Core/Nexaflow.Core.csproj, so bump that first.
+    Run this once the release is tagged — Take Snapshot in the Product tab commits the snapshot and tags it —
+    then commit site/ on top of the tag. The site reads the newest product snapshot, and leaves off the
+    "ahead of the release" notice only when HEAD stands on the newest tag, so neither is right until the
+    snapshot exists. site/ is not in the download, so it does not need to be in the tagged commit. The Pages
+    workflow only uploads what is committed, so nothing is built on the runner. The version on the site is
+    read from src/Nexaflow.Core/Nexaflow.Core.csproj, so bump that before taking the snapshot.
 
 .EXAMPLE
     tools/site/Build-Site.ps1
@@ -43,4 +46,4 @@ if ($released -and -not $onRelease) { $arguments += @('--ahead-of', $released) }
 dotnet @arguments | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "the site generator failed (exit $LASTEXITCODE)" }
 
-Write-Host 'Done. Review `git status`, then commit site/ with the release.' -ForegroundColor Green
+Write-Host 'Done. Review `git status`, then commit site/ on top of the release tag.' -ForegroundColor Green

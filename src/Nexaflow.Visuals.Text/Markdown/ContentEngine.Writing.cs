@@ -581,6 +581,12 @@ public sealed partial class ContentEngine
     {
         if (Carried(to) is not { Writes.Count: > 0 } change) return null;
 
+        // A write describes a stretch of the source, and a move over content a binding supplied does not: those lines
+        // were never written here, so the place they would be dropped at is no offset of the source. Refused here and
+        // the drawing stands as it was, which is what every other write does when it cannot be spelled — rather than
+        // being handed on to be cut out of a source that is shorter than the cut.
+        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Source.Length)) return null;
+
         var made = Made(_state, change);
 
         return new Moved(made.Source, made.Caret, Wrote(change));

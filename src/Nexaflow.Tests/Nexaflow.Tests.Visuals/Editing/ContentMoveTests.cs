@@ -122,9 +122,9 @@ public class ContentMoveTests
         return new ContentMove(carried, to, new Landing(new EditState(source, to), Laid.Nothing, -1), default, root, root);
     }
 
-    private static MarkdownElement Element()
+    private static MarkdownElement Element(bool readOnly = false)
     {
-        var element = new MarkdownElement(Source, StyleFormat.Dark);
+        var element = new MarkdownElement(Source, StyleFormat.Dark) { IsReadOnly = readOnly };
 
         element.Measure(new Size(400, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 400, element.DesiredSize.Height));
@@ -157,4 +157,26 @@ public class ContentMoveTests
     private static Point Middle(Piece piece, int letters) =>
         new(piece.Bounds.X + (piece.Bounds.Width * letters / Source.TrimEnd('\n').Length),
             piece.Bounds.Y + (piece.Bounds.Height / 2));
+
+    [TestMethod]
+    public void NothingIsCarriedOutOfADocumentOnlyRead()
+    {
+        // Carrying is a write, and a read document has nothing to carry. Pressing on what is picked out and dragging
+        // used to begin a move anyway, and laying out the drop threw: the stretches it would be written as describe
+        // nothing writable. A generated drawing is where that shows, every one of them being only read.
+        UiThread.Run(() =>
+        {
+            var element = Element(readOnly: true);
+            var words = Words(element);
+
+            Sweep(element, Left(words), Middle(words, "alpha".Length));
+            Assert.AreNotEqual(string.Empty, Picked(element), "a read document can still be picked out of");
+
+            // Pressed on what is picked out and carried across it, which is the gesture that begins a move.
+            Sweep(element, Middle(words, 2), Right(words));
+            element.UpdateLayout();
+
+            Assert.AreEqual(Source, element.Source, "and not a character of it is moved");
+        });
+    }
 }

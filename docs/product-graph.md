@@ -182,14 +182,16 @@ What each `tests` concern should be backed by — one journey on the UI node, on
 
 ## Granularity — is the node about one thing?
 
-Every other rule asks whether the tree *says* what it should. These two ask whether the tree is granular
+Every other rule asks whether the tree *says* what it should. These three ask whether the tree is granular
 enough to be worth saying anything about, and they are the only rules that read a node's **size** rather
-than its shape. They come in a pair because the same node usually trips both, from opposite directions.
+than its shape. They come as a set because the same node usually trips more than one, from different
+directions.
 
 | Rule | Fires when | Evidence |
 |------|-----------|----------|
 | `LeafCoveredByTooManyTests` | a **leaf** is declared by more than `MaxTestsPerLeaf` (12) tests | the `scan-tests` manifest |
 | `TooManySnaplinks` | **any node** carries more than `MaxSnaplinksPerNode` (12) snaplinks, its own plus its concerns' | the tree itself |
+| `DescriptionSaysTooMuch` | **any node**'s description runs past `MaxDescriptionLength` (600 characters) | the tree itself |
 
 When a leaf accumulates far more tests than one-unit-test-per-behaviour implies, the tests have enumerated
 behaviours the tree never named: the node's status then means "some of these work" and nothing can tell you
@@ -198,11 +200,18 @@ same statement made in code references instead. Both thresholds are 12, delibera
 depends on how much code a feature involves and how user-facing it is, and no constant knows that, so one
 catch-all number the reader can hold beats two tuned ones.
 
+A description is read the same way. It says whether this is the node somebody is looking for — a `tree`
+printout cuts it to one line, so that is all of it anybody sees. What the node is made of, which keys it
+answers, where it diverges from the thing it implements: that is a document, and belongs in one the node
+snaplinks, where it is read and can be kept right. A description that runs to a page is the other two rules'
+claim made in prose — several nodes written as one. Its ceiling is three times the median description, which
+is generous for a summary and nowhere near enough for an account.
+
 Two scoping rules worth knowing:
 
 - **`LeafCoveredByTooManyTests` skips containers.** A panel accumulating its children's tests is the tree
-  working. Snaplinks do not aggregate that way — a parent never inherits its children's — so
-  `TooManySnaplinks` applies to every node.
+  working. Neither of the others aggregates that way — a parent never inherits its children's snaplinks, and
+  its description is its own — so both apply to every node.
 - **Both run over the whole tree, not just `Features`.** The other rules are feature-shaped (a backbone, a
   panel's theming) and mean nothing outside it. "This node is about too much" means the same anywhere, and *Common / Shared* nodes are as prone to it as features.
 

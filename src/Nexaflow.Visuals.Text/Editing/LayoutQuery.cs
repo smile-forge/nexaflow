@@ -337,7 +337,15 @@ public static class LayoutQuery
             var resolved = piece.Selectable();
             if (!resolved.Exists) continue;
 
-            var distance = piece.Region is null ? DistanceTo(where, point) : DistanceTo(piece, point);
+            // The box round what a piece stands in is a floor on the distance to the shape inside it, and the box
+            // costs nothing to measure while the shape has to be flattened first — which is the whole cost of this
+            // scan. So a piece whose box is already further off than the best so far is skipped by arithmetic, and
+            // once anything has been landed on squarely nothing else is flattened at all.
+            var around = piece.Region is { } shape ? Rect.Offset(shape.Bounds, piece.Anchor) : where;
+            var floor = DistanceTo(around, point);
+            if (floor > bestDistance) continue;
+
+            var distance = piece.Region is null ? floor : DistanceTo(piece, point);
             if (distance > bestDistance) continue;
 
             var depth = piece.Depth;
@@ -611,6 +619,31 @@ public static class LayoutQuery
         return stops;
     }
 
+    /// <summary>
+    /// The first place in the document that stands wholly below <paramref name="above"/>, wherever across the page
+    /// it is. -1 where nothing does.
+    ///
+    /// <para>
+    /// What a page answers when asked where it stands, and both halves of it matter. The nearest thing to the
+    /// top-left corner is not it: a centred diagram node is as much on the top row as a paragraph's first word, and
+    /// taking the nearest named the paragraph above instead. Nor is anything the line merely crosses: a page comes
+    /// to rest wherever the reader lets go of it, so the last line of the paragraph above is usually still half on
+    /// the page, and answering with that paragraph has a second showing of the document display the whole of what
+    /// this one has all but scrolled past.
+    /// </para>
+    /// </summary>
+    public static int StopBelow(this Piece root, double above)
+    {
+        foreach (var place in Index(root))
+        {
+            var where = place.Against.Bounds;
+
+            if (!where.IsEmpty && where.Top >= above - Hair) return place.Offset;
+        }
+
+        return -1;
+    }
+
 
 
     /// <summary>
@@ -763,8 +796,12 @@ public static class LayoutQuery
     private static bool Touches(Piece piece, Rect area) =>
         OnPage(piece) is not { } region || region.FillContainsWithDetail(new RectangleGeometry(area)) != IntersectionDetail.Empty;
 
-    /// <summary>The shape a piece stands in, where it sits on the page, or null for a piece that stands in its box.</summary>
-    private static Geometry? OnPage(Piece piece)
+    /// <summary>
+    /// The shape a piece stands in, where it sits on the page — or null for a piece that stands in its box, which is
+    /// nearly all of them. What a press is tested against, and what a wash is drawn over: the box round a diagonal
+    /// arrow is mostly not the arrow.
+    /// </summary>
+    public static Geometry? OnPage(this Piece piece)
     {
         if (piece.Region is not { } region) return null;
 
@@ -777,6 +814,19 @@ public static class LayoutQuery
         placed.Freeze();
         return placed;
     }
+
+    /// <summary>
+    /// Whether <paramref name="at"/> is in <paramref name="piece"/> rather than merely nearest it.
+    ///
+    /// <para>
+    /// A press between shapes means the nearer one however far off it is, which is what makes a diagram's nodes easy to
+    /// hit and what <c>PieceAt</c> answers with — in an empty corner of a drawing it still names the node across the
+    /// page. But that press landed on nothing anybody drew, and whatever shows the content may have its own use for it:
+    /// a viewport pans from there.
+    /// </para>
+    /// </summary>
+    public static bool Squarely(this Piece piece, Point at) =>
+        piece.Exists && piece.Bounds.Contains(at) && Inside(piece, at);
 
     /// <summary>
     /// How far a point is from the shape a piece stands in, squared like the distance to a box: nought inside it, and

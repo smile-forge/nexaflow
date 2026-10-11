@@ -299,6 +299,29 @@ public class StructureLinterTests
     }
 
     [TestMethod]
+    public void ANodeDescribedAtLength_IsFlagged()
+    {
+        var s = WellModelled();
+        s.Nodes["feat-behaviour"].Description = new string('x', StructureLinter.MaxDescriptionLength + 1);
+
+        var f = StructureLinter.Lint(s).Single();
+
+        Assert.AreEqual(StructureLinter.Rule.DescriptionSaysTooMuch, f.Rule);
+        Assert.AreEqual("feat-behaviour", f.NodeId);
+        StringAssert.Contains(f.Detail, "rather than a summary");
+    }
+
+    [TestMethod]
+    public void ADescriptionRightOnTheLineIsLeftAlone()
+    {
+        // The number is deliberately generous, so it has to mean what it says: at the line, nothing is said.
+        var s = WellModelled();
+        s.Nodes["feat-behaviour"].Description = new string('x', StructureLinter.MaxDescriptionLength);
+
+        Assert.IsFalse(StructureLinter.Lint(s).Any(), "a description at the limit is a description, not a document");
+    }
+
+    [TestMethod]
     public void ANodeExactlyAtTheSnaplinkLimit_IsLeftAlone()
     {
         var s = WellModelled();

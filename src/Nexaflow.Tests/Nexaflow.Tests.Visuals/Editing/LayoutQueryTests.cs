@@ -83,7 +83,7 @@ public class LayoutQueryTests
         var root = Fraction();
 
         var hit = root.PieceAt(new Point(17, 4));   // inside the exponent
-        Assert.IsNotNull(hit);
+        Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.AreEqual(8, hit.Sits().Start, "the exponent, not the script or the fraction that contain it");
     }
 
@@ -95,7 +95,7 @@ public class LayoutQueryTests
         var root = Matrix();
 
         var hit = root.PieceAt(new Point(5, 45));   // first cell of the third row
-        Assert.IsNotNull(hit);
+        Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.AreEqual(6, hit.Sits().Start);
     }
 
@@ -106,7 +106,7 @@ public class LayoutQueryTests
 
         // Between the + and the y — no ink there, but a press must still mean something.
         var hit = root.PieceAt(new Point(45, 24));
-        Assert.IsNotNull(hit);
+        Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.IsTrue(hit.Sits().Start is 13 or 14, $"expected the + or the y, got offset {hit.Sits().Start}");
     }
 
@@ -119,7 +119,7 @@ public class LayoutQueryTests
         foreach (var point in new[] { new Point(7, 10), new Point(12, 35), new Point(30, 24) })
         {
             var hit = root.PieceAt(point);
-            Assert.IsNotNull(hit);
+            Assert.IsTrue(hit.Exists, "a press lands on a piece");
             Assert.IsTrue(hit.IsLeaf, $"press at {point} resolved to the container {hit.Kind}");
         }
     }

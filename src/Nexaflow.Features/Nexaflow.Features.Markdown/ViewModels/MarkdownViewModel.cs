@@ -127,6 +127,16 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         IsDirty    = false;
     }
 
+    // ── Links ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Follows a link out of the document: the shell routes it to whichever feature claims it — a web page to the
+    /// browser, a path to the viewer for that kind of file — and nothing claiming it leaves it to open the way any
+    /// other link does. A link into the document never reaches here; the surface answers those itself, being the
+    /// only thing that knows where they go.
+    /// </summary>
+    public bool FollowLink(string url) => !string.IsNullOrWhiteSpace(url) && _shell.HandleObject(url);
+
     // ── Dirty tracking ────────────────────────────────────────────────────
 
     partial void OnMarkdownChanged(string value)

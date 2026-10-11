@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.Features.Common;
@@ -262,7 +263,7 @@ public sealed class ExecutableFeatureTests
     // ── Mermaid output ────────────────────────────────────────────────────────
 
     [TestMethod, TestCategory("Unit")]
-    public void The_diagram_emits_real_mermaid_click_directives()
+    public void What_the_binding_supplies_is_lines_of_a_diagram_and_nothing_else()
     {
         var graph  = new DependencyWalker().Walk(PeFixtures.Notepad);
         var markdown = DependencyMermaid.Build(graph);
@@ -271,9 +272,9 @@ public sealed class ExecutableFeatureTests
         Assert.IsFalse(markdown.Contains("graph LR"), "and has no header: the page's block names the diagram, and the binding supplies lines of it.");
         Assert.IsFalse(markdown.Contains("```"), "and it is the diagram, not a fence round one — the page's markdown holds the fence.");
 
-        // Standard `click id href "…"` rather than a private convention, so the diagram stays
-        // portable if it is pasted anywhere else.
-        Assert.IsTrue(markdown.Contains("click n0 href \""), "The root node should carry a link.");
+        // Written as a click line, a node was a hyperlink, and one press on it opened a tab. What a press comes to is
+        // the page's: it hears which node was pressed and how often, and decides.
+        Assert.IsFalse(markdown.Contains("click "), "no node is written as a link");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -294,12 +295,7 @@ public sealed class ExecutableFeatureTests
 
         Assert.IsFalse(markdown.Contains("+ lib.dll"), "No marker is smuggled into the node label.");
         Assert.IsFalse(markdown.Contains("nexaflow-expand:"), "No private href scheme survives.");
-        Assert.IsFalse(markdown.Contains("nexaflow-open:"), "A node's href is just its path.");
-
-        // Both nodes are real files, so both keep an ordinary click target — a node no longer has to
-        // choose between being openable and being expandable.
-        Assert.IsTrue(markdown.Contains(@"click n0 href ""C:\app\app.exe"""));
-        Assert.IsTrue(markdown.Contains(@"click n1 href ""C:\app\lib.dll"""));
+        Assert.IsFalse(markdown.Contains("click "), "and a node is not written as a link at all.");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -337,17 +333,57 @@ public sealed class ExecutableFeatureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Unresolvable_modules_get_no_link()
+    public void Every_key_a_press_can_hand_back_names_a_module_the_tab_can_find()
     {
+        // The junction between the two halves: the diagram numbers its nodes n0, n1, n2 — positional names that move
+        // the moment the graph grows — while the tab finds a module by the name the walk gave it. So every node drawn
+        // has to carry its name back, whether or not it is one that folds: an API set, a module the loader would not
+        // find and one already shown above are all nodes a reader clicks to find out what they are.
+        var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
+        var opened = new DependencyNode("lib.dll", DependencyKind.Resolved, @"C:\app\lib.dll") { Walked = true };
+        opened.Children.Add(new DependencyNode("shut.dll", DependencyKind.Resolved, @"C:\app\shut.dll"));
+        root.Children.Add(opened);
+        root.Children.Add(new DependencyNode("api-ms-win-core-synch-l1-2-0.dll", DependencyKind.ApiSet, null));
+        root.Children.Add(new DependencyNode("gone.dll", DependencyKind.Missing, null));
+
+        var source = DependencyMermaid.Build(new DependencyGraph(root, 5, false, 2));
+        var config = NexaflowConfig.Read(MermaidBlock.Read(source).Config);
+
+        foreach (var node in Flattened(root))
+        {
+            var id = Drawn(source, node.Name);
+
+            Assert.IsNotNull(id, $"'{node.Name}' is in the graph, so the diagram draws it");
+            Assert.AreEqual(node.Name, config.KeyFor(id),
+                            $"a press on '{node.Name}' hands back '{config.KeyFor(id)}', which names no module the tab can find");
+        }
+    }
+
+    /// <summary>
+    /// The id the diagram drew a module under, read back off its own source: the id, then the brackets that give the
+    /// node its shape, then the label, which opens with the module's name and may go on to say more about it.
+    /// </summary>
+    private static string? Drawn(string source, string module) =>
+        Regex.Match(source, @"^\s*(\w+)[\[({]{1,2}""" + Regex.Escape(module), RegexOptions.Multiline) is { Success: true } hit
+            ? hit.Groups[1].Value
+            : null;
+
+    private static IEnumerable<DependencyNode> Flattened(DependencyNode node) =>
+        [node, .. node.Children.SelectMany(Flattened)];
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_module_that_cannot_be_opened_says_so_by_what_it_is()
+    {
+        // No node is a link, so what tells an openable module from one that is not is its kind — drawn as a shape of
+        // its own and said in its detail. The page knows a press on a missing module has nothing to open because it
+        // asks the walk, not because the diagram left an href off.
         var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe");
         root.Children.Add(new DependencyNode("missing.dll", DependencyKind.Missing));
         root.Children.Add(new DependencyNode("api-ms-win-core-x-l1-1-0.dll", DependencyKind.ApiSet));
 
         var markdown = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 1));
 
-        Assert.IsTrue(markdown.Contains("click n0 href"), "The root resolves, so it links.");
-        Assert.IsFalse(markdown.Contains("click n1"), "A missing module has nothing to open.");
-        Assert.IsFalse(markdown.Contains("click n2"), "An API set has no file on disk.");
+        Assert.IsFalse(markdown.Contains("click "), "a node is not a link: one press on it picks it out, two open it");
         Assert.IsTrue(markdown.Contains("not found"));
         Assert.IsTrue(markdown.Contains("API set"));
     }

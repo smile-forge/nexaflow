@@ -25,7 +25,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 [TestClass]
 [TestCategory("Desktop")]
 [DoNotParallelize]
-[CoversNode("music-abc")]
+[CoversNode("abc-editing")]
 public class AbcKeyTests
 {
     private const string Tune = "X:1\nT:Reel\nL:1/8\nK:C\nCDE |\n";

@@ -56,7 +56,7 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
                                 over[0].Naming(), over[0].Naming() as ContentPart, over, where);
 
         var asked = Asked(where);
-        var offers = Shared(over).Concat(asked).Concat(Offering(act)).Concat(actions?.Menu(act) ?? [])
+        var offers = Shared(over).Concat(asked).Concat(Offering(act)).Concat(Hosted(act))
             .DistinctBy(offer => offer.Verb).ToList();
 
         return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where, asked));
@@ -103,21 +103,19 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
             return;
         }
 
-        if (actions is null) return;
-
         var told = false;
 
         foreach (var piece in over)
             if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
             {
                 var part = piece.Naming();
-                actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part as ContentPart, over, where));
+                Answered(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part as ContentPart, over, where));
                 told = true;
             }
 
         if (told || over.Count == 0) return;
 
         var named = over[0].Naming();
-        actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));
+        Answered(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));
     }
 }

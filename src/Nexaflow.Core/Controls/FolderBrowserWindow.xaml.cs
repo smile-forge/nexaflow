@@ -2,10 +2,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common.ThisPc;
+using Nexaflow.Visuals.Common.Layout;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,50 +16,26 @@ namespace Nexaflow.Core.Controls;
 
 // ── Per-node view model ──────────────────────────────────────────────────────
 
-internal sealed partial class FolderNodeViewModel : ObservableObject
+internal sealed class FolderNodeViewModel : PickerNode<FolderNodeViewModel>
 {
-    private static readonly FolderNodeViewModel _placeholder = new("", "");
+    private static readonly FolderNodeViewModel Placeholder = new("", "");
 
-    public string FullPath    { get; }
-    public string DisplayName { get; }
-
-    /// <summary>Leading icon. Provided roots get their own so a cloud location reads as one.</summary>
     public string Glyph { get; }
 
-    public ObservableCollection<FolderNodeViewModel> Children { get; } = [];
-
-    [ObservableProperty] private bool _isExpanded;
-    [ObservableProperty] private bool _isSelected;
-
-    private bool _loaded;
-
     public FolderNodeViewModel(string fullPath, string displayName, string glyph = "📁 ")
+        : base(fullPath, displayName, fullPath.Length > 0 ? Placeholder : null)
     {
-        FullPath    = fullPath;
-        DisplayName = displayName;
-        Glyph       = glyph;
-        if (!string.IsNullOrEmpty(fullPath))
-            Children.Add(_placeholder);  // shows expand arrow
+        Glyph = glyph;
     }
 
-    public void EnsureLoaded()
-    {
-        if (_loaded) return;
-        _loaded = true;
-        Children.Clear();
-        try
-        {
-            foreach (var dir in Directory.GetDirectories(FullPath)
-                         .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
-            {
-                var name = Path.GetFileName(dir);
-                if (!string.IsNullOrEmpty(name))
-                    Children.Add(new FolderNodeViewModel(dir, name));
-            }
-        }
-        catch (UnauthorizedAccessException) { }
-        catch (IOException) { }
-    }
+    protected override IReadOnlyList<FolderNodeViewModel> ReadChildren(string path) =>
+    [
+        .. Directory.EnumerateDirectories(path)
+                    .Order(StringComparer.OrdinalIgnoreCase)
+                    .Select(dir => (Dir: dir, Name: Path.GetFileName(dir)))
+                    .Where(entry => !string.IsNullOrEmpty(entry.Name))
+                    .Select(entry => new FolderNodeViewModel(entry.Dir, entry.Name)),
+    ];
 }
 
 // ── Root view model ──────────────────────────────────────────────────────────
@@ -96,12 +74,13 @@ public partial class FolderBrowserWindow : Window
         {
             Owner = owner ?? Application.Current.MainWindow
         };
-        win.NavigateTo(initialPath);
+        // The dialog draws first and opens onto the folder after: reading the way there can take a moment.
+        win.Loaded += async (_, _) => await win.NavigateToAsync(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
     }
 
-    /// <summary>Expands the tree to <paramref name="initialPath"/> and pre-selects it.</summary>
-    private void NavigateTo(string? initialPath)
+    /// <summary>Opens the tree down to <paramref name="initialPath"/>, selects it and scrolls it into view.</summary>
+    private async Task NavigateToAsync(string? initialPath)
     {
         if (string.IsNullOrEmpty(initialPath)) return;
         try { if (File.Exists(initialPath)) initialPath = Path.GetDirectoryName(initialPath); }
@@ -115,8 +94,9 @@ public partial class FolderBrowserWindow : Window
             string.Equals(r.FullPath.TrimEnd('\\'), root, StringComparison.OrdinalIgnoreCase));
         if (node is null) return;
 
-        node.EnsureLoaded();
+        await node.LoadAsync();
         node.IsExpanded = true;
+        var trail = new List<object> { node };
 
         var rel = Path.GetRelativePath(node.FullPath, initialPath);
         if (rel is not "." and not "")
@@ -126,16 +106,21 @@ public partial class FolderBrowserWindow : Window
                 var child = node.Children.FirstOrDefault(c =>
                     string.Equals(c.DisplayName, seg, StringComparison.OrdinalIgnoreCase));
                 if (child is null) break;
-                child.EnsureLoaded();
+                await child.LoadAsync();
                 child.IsExpanded = true;
                 node = child;
+                trail.Add(child);
             }
         }
+
+        // The reader may have closed the dialog while the way was being read.
+        if (!IsVisible) return;
 
         node.IsSelected = true;
         SelectedPath = node.FullPath;
         SelectedPathText.Text = node.FullPath;
         OkBtn.IsEnabled = true;
+        VirtualTreeScroll.BringIntoView(FolderTree, trail);
     }
 
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -157,12 +142,7 @@ public partial class FolderBrowserWindow : Window
     private void TreeViewItem_Expanded(object sender, RoutedEventArgs e)
     {
         if (sender is TreeViewItem { DataContext: FolderNodeViewModel node })
-            node.EnsureLoaded();
-    }
-
-    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
-    {
-        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
+            _ = node.LoadAsync();
     }
 
     private void Ok_Click(object sender, RoutedEventArgs e)

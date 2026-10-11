@@ -104,7 +104,7 @@ public class ThemeLayerContractTests
     /// through exactly one key. Named individually because "has a Scene.Window" is what makes each of
     /// them immersive rather than plain — a theme quietly losing the key still loads and still themes.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(ThemeOption.Arctic)]
     [DataRow(ThemeOption.Ocean)]
     [DataRow(ThemeOption.Sunny)]
@@ -126,7 +126,7 @@ public class ThemeLayerContractTests
     /// <c>Scene.Window</c> would still load, still theme and still look right on mains, and would
     /// silently blank the backdrop the moment the machine came off the charger.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(ThemeOption.Flowers)]
     public void StillTheme_SuppliesAStillWindowScene_AndNotAnAnimatedOne(ThemeOption theme)
     {

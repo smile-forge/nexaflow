@@ -33,7 +33,7 @@ internal static class DocumentClipboard
     /// What was copied, put on the clipboard in every form it might be pasted as. Turning a copy into what a clipboard holds is
     /// the application's: the clipboard is the application's, and only it knows what the rest of the machine can take.
     /// </summary>
-    private static void Copied(object sender, ContentCopyingEventArgs e)
+    private static void Copied(object? sender, ContentCopyingEventArgs e)
     {
         if (e.Handled) return;
 
@@ -46,7 +46,7 @@ internal static class DocumentClipboard
     /// What is on the clipboard, taken off it and said in words and in markdown: a clipboard holds whatever put something there,
     /// and a document is written from text, so the translating is the application's.
     /// </summary>
-    private static void Pasted(object sender, ContentPastingEventArgs e)
+    private static void Pasted(object? sender, ContentPastingEventArgs e)
     {
         if (e.Handled) return;
 

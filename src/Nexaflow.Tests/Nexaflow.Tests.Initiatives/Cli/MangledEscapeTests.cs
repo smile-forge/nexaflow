@@ -17,7 +17,7 @@ namespace Nexaflow.Tests.Initiatives.Cli;
 [NoCoverage("Argument handling for the headless CLI — infrastructure, not a product-tree node.")]
 public class MangledEscapeTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("// <inheritdoc/>/nprotected override Panel Layer => L;")]
     [DataRow("first/nsecond")]
     [DataRow("a/tb")]
@@ -40,7 +40,7 @@ public class MangledEscapeTests
         StringAssert.Contains(message!, "--find-stdin");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("no slashes at all")]
     [DataRow("src/network/Foo.cs")]
     [DataRow("a/nb")]
@@ -52,7 +52,7 @@ public class MangledEscapeTests
 
     /// <summary>A payload with nothing that looks like a turned-round escape is not this check's business,
     /// however path-like it is.</summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("src/main/Foo.cs")]
     [DataRow("just some prose")]
     [DataRow("")]

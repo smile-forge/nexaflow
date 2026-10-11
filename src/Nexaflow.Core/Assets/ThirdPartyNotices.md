@@ -4,22 +4,27 @@ under the license noted below.
 
 | Library | License |
 |---------|---------|
+| [AngouriMath](https://github.com/asc-community/AngouriMath) (built from source) | MIT |
 | [Anthropic SDK](https://github.com/tghamm/Anthropic.SDK) | MIT |
+| [ANTLR 4 runtime](https://github.com/antlr/antlr4) (via AngouriMath) | BSD-3-Clause |
 | [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) | MIT |
 | [Bravura](https://github.com/steinbergmedia/bravura) (bundled font — music notation) | OFL-1.1 |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
 | [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
 | [DiscUtils](https://github.com/LTRData/DiscUtils) (built from source) | MIT |
-| [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) (bundled font — ribbon and picker icons) | MIT |
+| [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) (bundled font — ribbon, picker and diagram icons) | MIT |
 | [fo-dicom](https://github.com/fo-dicom/fo-dicom) (+ fo-dicom.Codecs, bundled native codecs) | MS-PL |
+| [GenericTensor](https://github.com/WhiteBlackGoose/GenericTensor) (via AngouriMath) | MIT |
 | [Google.GenAI](https://github.com/googleapis/dotnet-genai) | Apache-2.0 |
 | [HelixToolkit.Wpf](https://github.com/helix-toolkit/helix-toolkit) | MIT |
+| [HonkSharp](https://github.com/WhiteBlackGoose/HonkSharp) (via AngouriMath) | MIT |
 | [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | MIT |
 | [JsonPath.Net](https://github.com/json-everything/json-everything) | MIT |
 | [K4os.Compression.LZ4](https://github.com/MiloszKrajewski/K4os.Compression.LZ4) | MIT |
 | [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) | MIT |
 | [LibVLCSharp](https://github.com/videolan/libvlcsharp) (+ LibVLCSharp.WPF) | LGPL-2.1-or-later |
 | [Markdig](https://github.com/xoofx/markdig) | BSD-2-Clause |
+| [Microsoft.CodeAnalysis.CSharp](https://github.com/dotnet/roslyn) (optional `nfi` command-line tool) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |
 | [MsgReader](https://github.com/Sicos1977/MSGReader) | MIT |
@@ -31,6 +36,8 @@ under the license noted below.
 | [PdfPig.Filters.Dct.JpegLibrary](https://github.com/BobLd/UglyToad.PdfPig.Filters.Dct.JpegLibrary) | Apache-2.0 |
 | [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2) | Apache-2.0 |
 | [PdfPig.Filters.Jpx.OpenJpeg](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jpx.OpenJpeg) (bundled OpenJPEG) | BSD-2-Clause |
+| [PeterO.Numbers](https://github.com/peteroupc/Numbers) (via AngouriMath) | CC0-1.0 |
+| [PureHDF](https://github.com/Apollo3zehn/PureHDF) | MIT |
 | [SharpAssimp](https://github.com/JeremyAnsel/SharpAssimp) | MIT (bundled native Assimp: BSD-3-Clause) |
 | [SharpCompress](https://github.com/adamhathcock/sharpcompress) | MIT |
 | [SharpGLTF.Toolkit](https://github.com/vpenades/SharpGLTF) | MIT |

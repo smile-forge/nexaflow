@@ -51,6 +51,11 @@ public static class StructureLinter
         /// <summary>A node carrying many snaplinks is pointing at more code than one node can be about
         /// (§1, §4) — the same smell as <see cref="LeafCoveredByTooManyTests"/>, read from the links.</summary>
         TooManySnaplinks,
+
+        /// <summary>A description long enough to be a document is either several nodes written as one, or detail
+        /// that belongs in a doc the node links — the same smell as <see cref="TooManySnaplinks"/>, read from the
+        /// prose.</summary>
+        DescriptionSaysTooMuch,
     }
 
     /// <summary>
@@ -82,6 +87,24 @@ public static class StructureLinter
     /// </para>
     /// </summary>
     public const int MaxSnaplinksPerNode = 12;
+
+    /// <summary>
+    /// How long a node's description may run, in characters, before <see cref="Rule.DescriptionSaysTooMuch"/>
+    /// fires.
+    /// <para>
+    /// A description says whether this is the node somebody is looking for. Everything past that — what it is
+    /// made of, which keys it answers, where it diverges from the thing it implements — is a document, and
+    /// belongs in one the node snaplinks; a tree printout cuts a description to a single line anyway, so the
+    /// rest is written where nobody reads it.
+    /// </para>
+    /// <para>
+    /// Deliberately generous, as <see cref="MaxTestsPerLeaf"/> is: three times the median. For calibration,
+    /// when this rule was written the median description ran 183 characters and nine in ten were under 440,
+    /// with 110 of 1,808 over this line. The fifteen longest were all Mermaid diagrams, the worst at 3,913
+    /// characters — detail <c>docs/MarkdownSupport.md</c> already carried, word for word.
+    /// </para>
+    /// </summary>
+    public const int MaxDescriptionLength = 600;
 
     /// <summary>One convention breach: the node, the rule, and what to do about it.</summary>
     public sealed record Finding(string FeatureId, string NodeId, string Title, Rule Rule, string Detail);
@@ -133,6 +156,15 @@ public static class StructureLinter
                 Add(Rule.TooManySnaplinks,
                     $"{links} snaplinks on one node (over {MaxSnaplinksPerNode}) - it is pointing at more code "
                     + "than one node can be about; split it and let each child carry its own links (§1, §4)");
+
+            // The same smell read from the prose: a description that has stopped saying which node this is and
+            // started saying everything about it.
+            var described = node.Description?.Length ?? 0;
+            if (described > MaxDescriptionLength)
+                Add(Rule.DescriptionSaysTooMuch,
+                    $"{described} characters of description (over {MaxDescriptionLength}) - it reads as a document "
+                    + "rather than a summary; cut it to what tells a reader this is the node they want, and put the "
+                    + "rest in a doc this node snaplinks");
 
             // The same smell read from the tests. Leaves only: a container legitimately accumulates its
             // children's tests, and flagging one would be flagging the tree for working.

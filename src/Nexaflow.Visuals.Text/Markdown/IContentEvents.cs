@@ -34,6 +34,18 @@ public interface IContentEvents
     bool OnNavigate(string url);
 
     /// <summary>
+    /// Two presses landed, with whatever they landed on picked out as one press would pick it out. True where the page
+    /// took them, and the content then does nothing further with them.
+    ///
+    /// <para>
+    /// Said because two presses are a thing that happened, not because the content knows what they come to. One press
+    /// on a module of an import tree picks it out and two open it in a tab, and neither of those is anything the
+    /// content could decide: a tab is the page's, as a clipboard and a file dialog are.
+    /// </para>
+    /// </summary>
+    bool OnDoubleClick(ContentSelectionChange change);
+
+    /// <summary>
     /// What is on the clipboard, taken off it and said as plain words and as markdown — the translating is the host's, because
     /// a clipboard holds whatever put something there. Null where nobody answered; both empty where somebody did and there was
     /// nothing here to write.

@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// <strong>A press means what the piece it lands on says it means, before it means a place.</strong> A piece that answers to
 /// a gesture (<see cref="LayoutActions"/>) is asked first: a box ticked is written, a link into the content is followed here,
-/// and anything else is the host's (<see cref="Actions"/>). Only a press nothing answers puts the caret down or picks
+/// and anything else is the host's (<see cref="Answered"/>). Only a press nothing answers puts the caret down or picks
 /// something out — and which of those is decided by whether it landed squarely on a thing or at a stop beside it.
 /// </para>
 /// </summary>
@@ -41,7 +41,16 @@ public sealed partial class ContentEngine
     private const double CaretReach = 3.0;
 
     /// <summary>What answers what the pieces of the content mean by a gesture — the host — or null where nothing does.</summary>
-    internal ILayoutActions? Actions { get; set; }
+    private ILayoutActions? _answers;
+
+    /// <summary>Takes what answers a gesture on the content's behalf, from whatever holds this engine.</summary>
+    internal void Answers(ILayoutActions? actions) => _answers = actions;
+
+    /// <summary>Whether the host answered the gesture, which is the end of it.</summary>
+    internal bool Answered(LayoutAct act) => _answers?.Invoke(act) == true;
+
+    /// <summary>What the host offers where a gesture landed, beside what the content itself offers.</summary>
+    internal IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _answers?.Menu(act) ?? [];
 
     /// <summary>Raised to bring a stretch of the laid content into view — the heading a link into the content goes to.</summary>
     internal event EventHandler<Rect>? Revealing;
@@ -62,8 +71,7 @@ public sealed partial class ContentEngine
                 return true;
 
             case ContentPress press:
-                Press(press.At, press.Modifiers);
-                return true;
+                return Press(press.At, press.Modifiers);
 
             case ContentDrag drag:
                 Drag(drag.At);
@@ -84,21 +92,25 @@ public sealed partial class ContentEngine
 
     // ── A press ─────────────────────────────────────────────────────────────
 
-    private void Press(Point at, ModifierKeys modifiers)
+    /// <summary>
+    /// A press, taken as what it means where it landed. True where the content took it; false is a press that landed on
+    /// nothing of the content, which whatever shows it may want for itself.
+    /// </summary>
+    private bool Press(Point at, ModifierKeys modifiers)
     {
         _pressedAt = at;
         _moving = false;
 
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
-        if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return;
+        if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return true;
 
         // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
         if (modifiers.HasFlag(ModifierKeys.Control))
         {
             _dragging = false;
             Toggle(at);
-            return;
+            return true;
         }
 
         // From where the choosing started to the press, as a drag from there would choose — from the caret, where nothing is
@@ -113,21 +125,35 @@ public sealed partial class ContentEngine
 
             _dragging = true;
             ChooseTo(at);
-            return;
+            return true;
         }
 
         Anchor = _laid.OffsetAt(at);
         _anchorNode = _laid.PieceAt(at);
 
-        // Content a binding supplied has nowhere to put the caret: a press on it picks out what was pressed, whole.
-        if (Supplied(_anchorNode)) { PickPressed(_anchorNode); Picked(at); return; }
+        // Content a binding supplied has nowhere to put the caret: a press on it picks out what was pressed, whole. And
+        // nowhere to put a selection either, so a press that landed on none of it is not a press on this content at
+        // all — the nearest piece still answers for an empty corner of a drawing, and picking that would be picking
+        // something the reader never pointed at.
+        if (Supplied(_anchorNode))
+        {
+            if (!_anchorNode.Squarely(at)) return false;
+
+            PickPressed(_anchorNode);
+            Picked(at);
+            return true;
+        }
 
         _dragging = true;
 
         // Pressing on what is already selected is how a move begins — the reader is picking the term up, not starting a new
         // selection over it. The selection is kept until the button comes back up, so a press that turns out to be an
         // ordinary click can still fall through to placing the caret.
-        if (Covers(Anchor)) { _moving = true; _dropAt = Anchor; return; }
+        //
+        // Carrying content is a write, and every other write asks this first. A document only read has nothing to
+        // carry: a generated drawing is the case that showed it, where the offsets a move would be spelled against
+        // describe no stretch anybody could write, and laying out the drop threw rather than doing nothing.
+        if (!Unwritable && Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
 
         ClearSelection();
 
@@ -136,11 +162,12 @@ public sealed partial class ContentEngine
         // edge is a caret put down beside it. A run of text is written in rather than picked up, so a press inside one is a
         // caret between two of its letters — including the press that has to show it as written before there is anywhere to
         // put one.
-        if (Writing(_anchorNode, at)) return;
+        if (Writing(_anchorNode, at)) return true;
 
-        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return; }
+        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return true; }
 
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
+        return true;
     }
 
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
@@ -333,10 +360,20 @@ public sealed partial class ContentEngine
         // Two presses on a block show it as it was written, where it can be written in and is not already.
         if (OpenAsWritten(at)) return;
 
-        // Content a binding supplied is picked out whole however often it is pressed.
-        if (Supplied(_laid.PieceAt(at))) { PickPressed(_laid.PieceAt(at)); return; }
+        var pressed = _laid.PieceAt(at);
 
-        if (Offered(at, LayoutGesture.DoubleClick) is { } act && Actions?.Invoke(act) == true) return;
+        // Content a binding supplied is picked out whole however often it is pressed — and, as for one press, only
+        // where the press landed squarely on a piece of it rather than merely nearest one.
+        if (Supplied(pressed))
+        {
+            if (!pressed.Squarely(at)) return;
+
+            PickPressed(pressed);
+            this.Events?.OnDoubleClick(WhatIsPickedOut());
+            return;
+        }
+
+        if (Offered(at, LayoutGesture.DoubleClick) is { } act && Answered(act)) return;
 
         var here = _laid.OffsetAt(at);
 
@@ -350,6 +387,10 @@ public sealed partial class ContentEngine
         }
         else if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
         else Select(Math.Max(0, here - 1), 1);
+
+        // Said last, so what the page is told is what was picked out by the two presses rather than what was there
+        // before them. Two presses are a thing that happened; the page says what they come to.
+        this.Events?.OnDoubleClick(WhatIsPickedOut());
     }
 
     // ── What a press means ──────────────────────────────────────────────────
@@ -385,7 +426,7 @@ public sealed partial class ContentEngine
     /// What a press on a piece answering to it comes to, and whether it was taken on: what the content answers itself — a box
     /// ticked, a link into it followed — and then whatever the host says.
     /// </summary>
-    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Acted(act) || Actions?.Invoke(act) == true;
+    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Acted(act) || Answered(act);
 
     /// <summary>
     /// A press on a task's box: the mark between its brackets written over as the press means — an edit like any other,
@@ -426,6 +467,6 @@ public sealed partial class ContentEngine
     /// <summary>A piece was picked by a press at <paramref name="at"/>. It is chosen either way; this is only the telling.</summary>
     private void Picked(Point at)
     {
-        if (Offered(at, LayoutGesture.Select) is { } act) Actions?.Invoke(act);
+        if (Offered(at, LayoutGesture.Select) is { } act) Answered(act);
     }
 }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HDF5 viewer — Nexaflow help</title>
+<meta name="description" content="Opens an HDF5 file (.h5, .hdf5 or .he5) and shows what is in it: groups, datasets, links and attributes. It only reads, so nothing in the file changes.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>HDF5 viewer</h1>
+  <p class="lede">Opens an HDF5 file (<code>.h5</code>, <code>.hdf5</code> or <code>.he5</code>) and shows what is in it: groups, datasets, links and attributes. It only reads, so nothing in the file changes.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-file">Opening a file</a></li><li><a href="#finding-your-way">Finding your way</a></li><li><a href="#reading-a-dataset">Reading a dataset</a></li><li><a href="#details-and-attributes">Details and attributes</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-file">Opening a file</h2>
+<ul>
+<li>Double-click an HDF5 file on the <a href="../file-system/">File System</a> page, or choose <em>Open in HDF5 viewer</em>. A file inside a zip or another archive opens the same way.</li>
+<li>An HDF5 file is also a folder you can browse into. Its groups are folders and its datasets are files: a dataset of numbers, strings of a fixed length or records is a NumPy <code>.npy</code> file, and one of variable-length strings is a <code>.txt</code> file with one value per line. Copy one out and it loads in NumPy as it is.</li>
+</ul>
+<h2 id="finding-your-way">Finding your way</h2>
+<ul>
+<li>Open a group in <span class="locate" title="In the app this points at Hdf5_Tree">the Structure tree</span> to list its members. A very large group lists a page at a time; choose <em>Show more…</em> at the end for the next page.</li>
+<li>Narrow what is listed with <span class="locate" title="In the app this points at Hdf5_TreeFilter">the filter</span>. It matches names among the objects already loaded, and keeps the groups that lead to them.</li>
+<li>A link that points at nothing, or at another file that is not there, stays in the tree and says why. If the reader cannot decode a member of a group, the listing stops at that member and says so; the members before it can still be opened.</li>
+</ul>
+<h2 id="reading-a-dataset">Reading a dataset</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Hdf5_Table">The table</span> shows the selected dataset, reading only the rows on screen, so a dataset of any size opens at once. Row numbers start at 0, as indices do in HDF5.</li>
+<li>A dataset of records shows each field as a column. A dataset of one dimension shows one column of values.</li>
+<li>Data with two or more dimensions lies on the table as rows and columns. Choose which dimension runs down <span class="locate" title="In the app this points at Hdf5_SliceRowAxis">the rows</span> and which runs across <span class="locate" title="In the app this points at Hdf5_SliceColAxis">the columns</span>. Each other dimension gets a slider that holds it at one index.</li>
+<li>Data wider than the table can lay out shows a window of columns; move it across with <span class="locate" title="In the app this points at Hdf5_ColumnOffset">the column slider</span>.</li>
+<li>If the elements cannot be read, for example because they use a compression filter or a byte order the reader does not support, the table says so. The dataset's details and attributes still show.</li>
+</ul>
+<h2 id="details-and-attributes">Details and attributes</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Hdf5_DetailsToggle">The Details button</span> opens and closes the drawer on the right.</li>
+<li><span class="locate" title="In the app this points at Hdf5_ObjectDetails">Object</span> gives the path, kind, type, shape and maximum shape, where an infinity sign marks a dimension that can still grow. <span class="locate" title="In the app this points at Hdf5_StorageDetails">Storage</span> gives the layout, the chunk shape and the fill value.</li>
+<li><span class="locate" title="In the app this points at Hdf5_Attributes">The attributes</span> list each name with its type and value. A long array value shows its first entries and says how many there are. Right-click an attribute to copy its value, its name or the whole row, and narrow the list with <span class="locate" title="In the app this points at Hdf5_AttributeFilter">the attribute filter</span>.</li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<p>The assistant sees what the viewer shows: the tree as you have opened it, the selected object with its details and attributes, and the rows of the table on screen. It can list any group, describe any object, read any part of a dataset, and select an object or a slice to show it to you.</p>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

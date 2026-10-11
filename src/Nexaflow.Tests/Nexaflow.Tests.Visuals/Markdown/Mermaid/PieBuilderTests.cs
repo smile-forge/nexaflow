@@ -38,20 +38,6 @@ public class PieBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
-        laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
-
-    private static string Written(string source, ISourcePart? part) =>
-        part is null ? "" : source.Substring(part.Start, part.Length);
-
-    private static Brush? Fill(Piece piece)
-    {
-        foreach (var mark in piece.Marks)
-            if (mark is GeometryMark { Fill: { } fill }) return fill;
-
-        return null;
-    }
-
     [TestMethod]
     public void EverySliceIsAWedgeStandingForTheLineItWasWrittenOn() => UiThread.Run(() =>
     {
@@ -156,8 +142,8 @@ public class PieBuilderTests : MermaidBuilderContract
         var laid = Build("---\nconfig:\n  themeVariables:\n    pie1: \"#ff0000\"\n---\npie\n  \"Dogs\" : 30\n  \"Cats\" : 10");
         var wedges = Pieces(laid, PiePiece.Wedge).ToList();
 
-        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)Fill(wedges[0])!).Color);
-        Assert.AreNotEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)Fill(wedges[1])!).Color,
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), Fill(wedges[0]));
+        Assert.AreNotEqual(Color.FromRgb(0xFF, 0, 0), Fill(wedges[1]),
                            "the second takes the theme's, since nothing was written for it");
     });
 

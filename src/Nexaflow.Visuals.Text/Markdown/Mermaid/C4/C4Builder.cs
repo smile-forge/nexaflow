@@ -397,7 +397,7 @@ internal sealed partial class C4Builder : MermaidBuilder
     {
         var (from, to) = down ? (along[0].Y, along[^1].Y) : (along[0].X, along[^1].X);
 
-        var mine = At(along, from + (Math.Sign(to - from) * into), down);
+        var mine = PointAlong(along, from + (Math.Sign(to - from) * into), down);
 
         return new Rect(mine.X - (taken.Width / 2), mine.Y - (taken.Height / 2), taken.Width, taken.Height);
     }
@@ -477,11 +477,11 @@ internal sealed partial class C4Builder : MermaidBuilder
         var near = down ? Math.Min(from.Bottom, to.Bottom) : Math.Min(from.Right, to.Right);
         var far = down ? Math.Max(from.Top, to.Top) : Math.Max(from.Left, to.Left);
 
-        return far <= near ? Middle(along) : At(along, (near + far) / 2, down);
+        return far <= near ? Middle(along) : PointAlong(along, (near + far) / 2, down);
     }
 
     /// <summary>The point on a route whose depth across the layout is <paramref name="value"/>.</summary>
-    private static Point At(IReadOnlyList<Point> along, double value, bool down)
+    private static Point PointAlong(IReadOnlyList<Point> along, double value, bool down)
     {
         for (var at = 1; at < along.Count; at++)
         {

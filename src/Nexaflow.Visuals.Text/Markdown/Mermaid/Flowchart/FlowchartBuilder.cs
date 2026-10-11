@@ -653,7 +653,7 @@ internal partial class FlowchartBuilder : MermaidBuilder
     private LayoutActions? Answers(Node node)
     {
         LayoutIntent? click = node.Href is { Length: > 0 } href ? new LayoutIntent(LayoutVerbs.Navigate, href, node.Tip) : null;
-        LayoutIntent? select = !Folds.IsEmpty && node.Id.Length > 0 ? new LayoutIntent(LayoutVerbs.Select, node.Id, node.Tip) : null;
+        LayoutIntent? select = !Folds.SaysNothing && node.Id.Length > 0 ? new LayoutIntent(LayoutVerbs.Select, KeyFor(node.Id), node.Tip) : null;
 
         return click is null && select is null ? null : new LayoutActions { Click = click, Select = select };
     }

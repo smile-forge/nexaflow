@@ -285,7 +285,7 @@ public class GraphAskTests
     /// The flags a caller already knows from `graph grep`, inside a question. They used to be read as part of the
     /// pattern — `grep Read --scope owned` searched for that whole phrase, found nothing, and said so.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("grep Read --from product:reading --scope owned | files")]
     [DataRow("node product:reading | grep Read --scope owned | files")]
     public void GrepScopeOwnedFlag_MatchesOwnedStage(string question)

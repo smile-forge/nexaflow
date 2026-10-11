@@ -58,7 +58,7 @@ public class ContentWordsTests
 
     private static FormattedText Set(string text) =>
         new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 12, Brushes.Black);
+            new Typeface("Segoe UI"), 12, Brushes.Black, pixelsPerDip: 1.0);
 
     private static ContentElement Element(bool readOnly = false)
     {

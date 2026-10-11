@@ -173,7 +173,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         Assert.IsFalse(taken.Any(what => what.IntersectsWith(captions["Expand"])), "clear of the point in its middle, and its name");
     });
 
-    private static Brush Ink(Piece words) =>
+    private static Brush? Ink(Piece words) =>
         words.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First().Foreground;
 
     [TestMethod]

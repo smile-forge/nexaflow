@@ -20,10 +20,10 @@ public class SequenceReadingTests
     private sealed class Reads(string source, bool writing = false)
         : SequenceBuilder(Laying.Read("sequenceDiagram", source, writing), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
     {
-        public Diagram Diagram => Read(Reading.Root, Configured(SequenceConfig.Default));
+        public Diagram Parsed => Read(Reading.Root, Configured(SequenceConfig.Default));
     }
 
-    private static SequenceBuilder.Diagram Read(string source, bool writing = false) => new Reads(source, writing).Diagram;
+    private static SequenceBuilder.Diagram Read(string source, bool writing = false) => new Reads(source, writing).Parsed;
 
     private static string Said(string source, Nexaflow.Markdown.Ast.ISourcePart part) => source.Substring(part.Start, part.Length);
 

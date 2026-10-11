@@ -14,8 +14,8 @@ namespace Nexaflow.Tests.Features.Markdown;
 /// <see cref="MarkdownViewModelEditingTests"/>; this file adds the toggle round-trip, the
 /// Save-when-clean no-op, and the context string/object reflecting dirty + file state.
 ///
-/// The view-model takes an <c>IShellServices</c> (used only to marshal AI-tool edits to the UI
-/// thread); none of these pure-state tests invoke a tool, so a bare substitute suffices.
+/// The view-model takes an <c>IShellServices</c>, to marshal AI-tool edits to the UI thread and to
+/// route a link out of the document; a bare substitute suffices for everything else here.
 ///
 /// Coverage is declared per method: each toolbar control is its own product-tree leaf, so the test that
 /// drives that control's command/state names it rather than the panel that hosts them.
@@ -32,12 +32,18 @@ public class MarkdownViewModelTests
             try { File.Delete(path); } catch { }
     }
 
-    private MarkdownViewModel Make(string content = "# Title\n\nBody.\n")
+    private MarkdownViewModel Make(string content = "# Title\n\nBody.\n") => Make(out _, content);
+
+    /// <summary>The same document, with the shell it talks to in hand — for what the view-model asks of the host.</summary>
+    private MarkdownViewModel Make(out IShellServices shell, string content = "# Title\n\nBody.\n")
     {
         var path = Path.GetTempFileName();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
-        return new MarkdownViewModel(path, Substitute.For<IShellServices>());
+
+        shell = Substitute.For<IShellServices>();
+
+        return new MarkdownViewModel(path, shell);
     }
 
     // ── File name label ───────────────────────────────────────────────────────
@@ -51,6 +57,22 @@ public class MarkdownViewModelTests
         Assert.AreEqual(Path.GetFileName(vm.FilePath), vm.FileName);
         Assert.IsFalse(vm.FileName.Contains(Path.DirectorySeparatorChar),
                        "The toolbar label shows the file name only.");
+    }
+
+    [TestMethod]
+    [CoversNode("markdown-links")]
+    public void FollowLink_IsTheShellsToRoute_AndSaysWhetherAnythingTookIt()
+    {
+        var vm = Make(out var shell);
+
+        shell.HandleObject("https://example.com/x").Returns(true);
+        Assert.IsTrue(vm.FollowLink("https://example.com/x"), "a feature claimed it, so the document's link handling ends there");
+
+        shell.HandleObject("https://example.com/y").Returns(false);
+        Assert.IsFalse(vm.FollowLink("https://example.com/y"), "nothing claimed it, so it is left to open the way links do");
+
+        Assert.IsFalse(vm.FollowLink("   "), "and a link to nowhere is never offered to anybody");
+        shell.DidNotReceive().HandleObject("   ");
     }
 
     // ── A rendered block's picture ────────────────────────────────────────────

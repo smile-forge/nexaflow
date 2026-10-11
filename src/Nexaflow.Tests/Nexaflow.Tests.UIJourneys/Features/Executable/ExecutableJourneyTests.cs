@@ -83,6 +83,9 @@ public class ExecutableJourneyTests : UiJourneyTestBase
 
         // ── Dependencies: the walk starts on first activation ───────────────────
         CheckInvoke("Dependencies tab", "Executable_Tab_Dependencies");
+        // The diagram is what the tab opens on, and it is shown on a pan/zoom viewport rather than in the panel: an
+        // import tree is laid out as the graph it is and no panel is that size.
+        CheckExists("Dependency viewport", "Executable_DependencyViewport");
         CheckDoes("Tree/diagram toggle", "Executable_DependencyTreeToggle",
                   () => WaitForId("Executable_DependencyTree", 10) is not null);
         CheckInvoke("Collapse all", "Executable_CollapseDependencies");

@@ -100,8 +100,22 @@ public sealed class ProductStore
 
     public void SaveProduct(ProductDocument product) => Write(Path.Combine(_dir, "product.json"), product);
 
-    public void SaveTree(IReadOnlyDictionary<string, ProductNode> nodes) =>
+    /// <summary>
+    /// Writes the tree, and says how the file stands once written — so a writer watching the file can tell its own
+    /// write from somebody else's when the change comes back to it.
+    /// </summary>
+    public FileStamp SaveTree(IReadOnlyDictionary<string, ProductNode> nodes)
+    {
         Write(TreeFilePath, new TreeDoc { Nodes = nodes as Dictionary<string, ProductNode> ?? new(nodes) });
+        return TreeStamp();
+    }
+
+    /// <summary>How tree.json stands now — its length and when it was last written — or an unknown stamp where there is none.</summary>
+    public FileStamp TreeStamp()
+    {
+        var info = new FileInfo(TreeFilePath);
+        return info.Exists ? new FileStamp(string.Empty, info.Length, info.LastWriteTimeUtc) : default;
+    }
 
     // ── Integrity report (derived — safe to delete; regenerate by re-validating) ──
 

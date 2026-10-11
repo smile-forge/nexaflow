@@ -485,8 +485,8 @@ internal sealed class ArchitectureBuilder : MermaidBuilder
                                      row => cells.Where(cell => cell.Key.Row == row).Max(cell => Taken(diagram, cell.Value, apart).Height));
 
         // A group needs room of its own round what is in it: its padding on every side, and the header it is written on.
-        var (left, right) = Room(diagram, sized, place => place.Column, pad, pad);
-        var (top, foot) = Room(diagram, sized, place => place.Row, pad + Header, pad);
+        var (left, right) = GroupMargins(diagram, sized, place => place.Column, pad, pad);
+        var (top, foot) = GroupMargins(diagram, sized, place => place.Row, pad + Header, pad);
 
         var at = Across(columns, wide, left, right, gap);
         var down = Across(rows, tall, top, foot, gap);
@@ -531,7 +531,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder
     /// The extra room a row or a column needs on each side of it: one group's worth for every group starting or ending
     /// there, since a group starting where another does is a group inside that one.
     /// </summary>
-    private static (Dictionary<int, double> Before, Dictionary<int, double> After) Room(
+    private static (Dictionary<int, double> Before, Dictionary<int, double> After) GroupMargins(
         Diagram diagram, IReadOnlyList<Sized> sized, Func<Spot, int> which, double before, double after)
     {
         var starts = new Dictionary<int, double>();

@@ -39,9 +39,13 @@ public sealed class DiagramExpansion
     /// <summary>How many of a node's children are left for the node that offers them, for the few that have any.</summary>
     private readonly IReadOnlyDictionary<string, int> _more;
 
-    private DiagramExpansion(IReadOnlySet<string>? shown, IReadOnlyDictionary<string, DiagramFold> folds,
-                             IReadOnlyDictionary<string, int> more)
+    /// <summary>What the diagram was folded by, kept so a node can still be named the way an opening of it is remembered.</summary>
+    private readonly NexaflowConfig _config;
+
+    private DiagramExpansion(NexaflowConfig config, IReadOnlySet<string>? shown,
+                             IReadOnlyDictionary<string, DiagramFold> folds, IReadOnlyDictionary<string, int> more)
     {
+        _config = config;
         _shown = shown;
         _folds = folds;
         _more = more;
@@ -49,7 +53,8 @@ public sealed class DiagramExpansion
 
     /// <summary>Everything drawn and nothing folded — what a diagram nobody asked to fold gets.</summary>
     public static DiagramExpansion None { get; } =
-        new(null, new Dictionary<string, DiagramFold>(StringComparer.Ordinal), new Dictionary<string, int>(StringComparer.Ordinal));
+        new(NexaflowConfig.None, null,
+            new Dictionary<string, DiagramFold>(StringComparer.Ordinal), new Dictionary<string, int>(StringComparer.Ordinal));
 
     /// <summary>True where this draws the whole diagram, so a builder can skip asking about every node.</summary>
     public bool IsEmpty => _shown is null;
@@ -75,6 +80,25 @@ public sealed class DiagramExpansion
     public IEnumerable<string> Offering => _more.Keys;
 
     /// <summary>
+    /// The name a node is opened and remembered under: the producer's own where it gave one, and the id where it did not.
+    ///
+    /// <para>
+    /// What a press on a node or on its chip says it means, so nothing downstream ever handles a positional id. An id moves
+    /// the moment the graph grows — a host re-emitting one more node renumbers every one of them — and an opening or a
+    /// selection remembered by id would land on whatever moved into that slot.
+    /// </para>
+    /// </summary>
+    public string KeyOf(string id) => _config.KeyFor(id);
+
+    /// <summary>
+    /// Nothing folded and everything drawn, with the producer's own names for its nodes still answered — what a diagram
+    /// gets where its front matter names them and asks for no folding at all.
+    /// </summary>
+    private static DiagramExpansion Naming(NexaflowConfig config) =>
+        new(config, null,
+            new Dictionary<string, DiagramFold>(StringComparer.Ordinal), new Dictionary<string, int>(StringComparer.Ordinal));
+
+    /// <summary>
     /// How much of <paramref name="chart"/> to draw under <paramref name="config"/>, with <paramref name="opened"/>
     /// holding whatever the reader has since opened or folded by hand — keyed by
     /// <see cref="NexaflowConfig.KeyFor"/>, never by id.
@@ -82,7 +106,8 @@ public sealed class DiagramExpansion
     public static DiagramExpansion Of(NexaflowConfig config, DiagramChart chart,
                                       IReadOnlyDictionary<string, bool>? opened = null)
     {
-        if (config.IsEmpty && (opened is null || opened.Count == 0)) return None;
+        if (config.IsEmpty && (opened is null || opened.Count == 0))
+            return config.SaysNothing ? None : Naming(config);
 
         var children = Children(chart.Edges);
         var roots = Roots(chart);
@@ -140,7 +165,7 @@ public sealed class DiagramExpansion
             folds[id] = new DiagramFold(!closed, closed ? Behind(id, children, shown) : 0);
         }
 
-        return new DiagramExpansion(shown, folds, more);
+        return new DiagramExpansion(config, shown, folds, more);
     }
 
     /// <summary>

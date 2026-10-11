@@ -135,7 +135,7 @@ public class LatexLayoutTests
         var denominator = tree.Root.Leaves().Single(n => n.Sits().Start == 11);
 
         var shared = numerator.Ancestors().First(a => a.Ancestors().Contains(tree.Root) || a == tree.Root);
-        Assert.IsNotNull(shared);
+        Assert.IsTrue(shared.Exists, "the x and the root share a line of descent");
         Assert.IsTrue(numerator.Ancestors().Any(a => a.Sits().Start == 0 && a.Sits().Length == 13),
             "the x sits inside the fraction");
         Assert.IsTrue(denominator.Ancestors().Any(a => a.Sits().Start == 0 && a.Sits().Length == 13),
