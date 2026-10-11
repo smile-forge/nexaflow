@@ -123,12 +123,15 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     // ── What it is ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The markdown shown — and, where it is written in, what was written. Binds both ways: a host hands a document in and
-    /// is told every edit, but the text it is told is never taken back for a new document.
+    /// The markdown shown — and, where it is written in, what was written. A host hands a document in, and one that lets it
+    /// be written in binds <c>Mode=TwoWay</c> to be told every edit; the text it is told is never taken back for a new
+    /// document. One way by default, because reading is what the surface does by default (<see cref="IsReadOnly"/>): a
+    /// reader binds whatever it shows, often a get-only property, and a two-way default makes that binding throw as the
+    /// view loads.
     /// </summary>
     public static readonly DependencyProperty MarkdownProperty = DependencyProperty.Register(
         nameof(Markdown), typeof(string), typeof(MarkdownSurface),
-        new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+        new FrameworkPropertyMetadata(string.Empty,
             (surface, args) => ((MarkdownSurface)surface).Shows((string?)args.NewValue ?? string.Empty)));
 
     public string Markdown

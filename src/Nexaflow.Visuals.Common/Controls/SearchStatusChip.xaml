@@ -2,7 +2,19 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters"
-             x:Name="Self">
+                      x:Name="Self"
+                      AutomationProperties.AutomationId="{Binding AutomationIdStatus, RelativeSource={RelativeSource Self}}">
+
+             <!-- The chip is the status, so the status id and the "only while searching" rule are the chip's own. A panel has no
+                  automation peer, so an id on the StackPanel below was in the visual tree and never in the one UI Automation
+                  reads: nothing outside the process could find it. -->
+             <UserControl.Visibility>
+                 <Binding Path="IsSearchActive">
+                     <Binding.Converter>
+                         <conv:BoolToVisibilityConverter/>
+                     </Binding.Converter>
+                 </Binding>
+             </UserControl.Visibility>
 
     <!-- The converter is declared here rather than borrowed from the host: pages key it differently
          (BoolVis / BoolToVis), and a shared control must not depend on which name its host happened
@@ -11,9 +23,7 @@
         <conv:BoolToVisibilityConverter x:Key="ChipVis"/>
     </UserControl.Resources>
 
-    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                AutomationProperties.AutomationId="{Binding AutomationIdStatus, ElementName=Self}"
-                Visibility="{Binding IsSearchActive, Converter={StaticResource ChipVis}}">
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 
         <!-- Count first: the answer to "did ? find anything". SuffixText carries a "+" when the page
              stopped scanning early, so a floor never reads as an exact total. -->

@@ -121,6 +121,15 @@
     </CreateItem>
   </Target>
 
+  <!-- The same MsgReader → WindowsAppSDK chain brings MRT Core's resource indexer, which builds a .pri for every
+       project it lands in. The app's Nexaflow.pri is the one place that index is meant to exist. A test exe never
+       loads one, and indexing its output only reads MSTest's localized messages (cs\, de\ … zh-Hant\, with no
+       neutral copy) as resources missing their default language: PRI257 and PRI263 on every suite that reaches
+       Email. So test projects build no index. -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
+  </PropertyGroup>
+
   <Target Name="DropDuplicateNativeWebView2" AfterTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"

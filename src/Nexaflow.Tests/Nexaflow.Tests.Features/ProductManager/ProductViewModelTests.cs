@@ -100,4 +100,60 @@ public class ProductViewModelTests
         var saved = new ProductStore(_root).Load().Product.Concerns.Select(c => c.Name).ToArray();
         CollectionAssert.Contains(saved, "perf", "the new concern is persisted to product.json");
     }
+
+    [TestMethod]
+    [CoversNode("product-settings")]
+    [CoversNode("product-needs-attention")]
+    public void SavingSettings_KeepsAFaultedNodeInNeedsAttention()
+    {
+        var store = new ProductStore(_root);
+        var tree = store.Load().Nodes;
+        tree["a"].Status = Status.Faulted;
+        store.SaveTree(tree);
+        var vm = Open();
+        Assert.IsTrue(vm.HasNeedsAttention, "a faulted leaf needs attention");
+
+        vm.ShowSettingsCommand.Execute(null);
+        vm.ConfirmSettingsCommand.Execute(null);
+
+        Assert.IsTrue(vm.HasNeedsAttention, "saving settings changed nothing about the tree");
+        CollectionAssert.AreEqual(new[] { "a" }, vm.NeedsAttention.Select(n => n.Id).ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("product-detail-pane")]
+    public void ThePagesOwnSave_ComingBackAsAChange_LeavesItsRowsAsTheyAre()
+    {
+        var store = new ProductStore(_root);
+        var tree = store.Load().Nodes;
+        tree["a"].Concerns = [new ConcernLink { Tag = "tests", Status = Status.Should }];
+        store.SaveTree(tree);
+
+        var shell = new IntegrityShellStub();
+        var vm = new ProductViewModel(new ProductStore(_root), new ProductGit(_root), _root, shell);
+        vm.NavigateTo("a");
+        var box = vm.ConcernBoxes.Single();
+
+        box.CycleCommand.Execute(null);                 // saves the tree, which the page watches
+        shell.Changed(store.TreeFilePath);              // and the save comes back to it as a change
+
+        Assert.AreSame(box, vm.ConcernBoxes.Single(), "its own write is not read back over the rows the reader is pressing");
+    }
+
+    [TestMethod]
+    [CoversNode("product-detail-pane")]
+    public void SomebodyElsesWrite_IsReadBack()
+    {
+        var shell = new IntegrityShellStub();
+        var vm = new ProductViewModel(new ProductStore(_root), new ProductGit(_root), _root, shell);
+        vm.NavigateTo("a");
+
+        var elsewhere = new ProductStore(_root);
+        var tree = elsewhere.Load().Nodes;
+        tree["a"].Title = "Alpha, renamed in another window";
+        elsewhere.SaveTree(tree);
+        shell.Changed(elsewhere.TreeFilePath);
+
+        Assert.AreEqual("Alpha, renamed in another window", vm.DetailTitle);
+    }
 }

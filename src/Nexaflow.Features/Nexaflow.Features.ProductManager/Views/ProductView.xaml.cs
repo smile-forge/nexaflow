@@ -7,6 +7,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
+using System.Windows.Controls.Primitives;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
@@ -60,7 +61,7 @@ public partial class ProductView : UserControl, IPageView
     // Version actions (⋮). Flat menu, per the global MenuItem-style submenu caveat.
     private void VersionMenu_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = VersionMenuButton };
+        var menu = new ContextMenu { PlacementTarget = VersionMenuButton, Placement = PlacementMode.Bottom };
         menu.Items.Add(Item("📸  Take snapshot", () => ViewModel.ShowTakeSnapshotCommand.Execute(null)));
         var del = Item("🗑  Delete this snapshot", () => ViewModel.DeleteSnapshotCommand.Execute(null));
         del.IsEnabled = ViewModel.SelectedVersion != ProductStore.CurrentVersion;
@@ -114,7 +115,7 @@ public partial class ProductView : UserControl, IPageView
     // The "+ concern" button → a dropdown of defined-but-not-present concerns.
     private void AddConcern_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = sender as UIElement };
+        var menu = new ContextMenu { PlacementTarget = sender as UIElement, Placement = PlacementMode.Bottom };
         foreach (var name in ViewModel.AddableConcerns)
         {
             var captured = name;
@@ -127,7 +128,7 @@ public partial class ProductView : UserControl, IPageView
     private void ConcernAttach_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not ConcernBox box) return;
-        var menu = new ContextMenu { PlacementTarget = sender as UIElement };
+        var menu = new ContextMenu { PlacementTarget = sender as UIElement, Placement = PlacementMode.Bottom };
         foreach (var link in box.Snaplinks)
         {
             var captured = link;
@@ -142,7 +143,7 @@ public partial class ProductView : UserControl, IPageView
     // (click → open in a new tab) + "Modify…" (opens the shared snaplinks overlay for the node).
     private void NodeAttach_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = sender as UIElement };
+        var menu = new ContextMenu { PlacementTarget = sender as UIElement, Placement = PlacementMode.Bottom };
         foreach (var row in ViewModel.Snaplinks)
         {
             var link = row.Model;

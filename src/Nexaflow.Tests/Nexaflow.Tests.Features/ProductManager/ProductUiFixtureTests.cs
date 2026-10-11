@@ -38,6 +38,7 @@ public class ProductUiFixtureTests
         var report = SnaplinkValidator.Validate(state, root, [root]);
         Assert.AreEqual(2, report.Issues.Count, "the journey needs one broken code link and one broken markdown link");
         Assert.AreEqual(1, report.Advisories.Count, "the journey needs one stale ast");
+        Assert.IsNull(report.Advisories[0].Suggestion, "the journey clears the stale ast, which it is offered only when nothing matches");
 
         var coverage = TestCoverageReconciler.Reconcile(state, store.LoadTestCoverage());
         Assert.AreEqual(1, coverage.Advisories.Count(a => a.CanAdd), "the journey needs one addable coverage suggestion");
@@ -80,7 +81,9 @@ public class ProductUiFixtureTests
                 Snaplinks =
                 [
                     new Snaplink { Type = "code", Doc = "src/Missing.cs", Class = "Missing" },
-                    new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Ast = "T:Widget/M:Gone" },
+                    // No word of this ast names anything in Widget.cs, so the validator has nothing to re-point it to and the
+                    // only fix offered is clearing it. An ast naming Widget would be re-pointed at the class instead.
+                    new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Ast = "T:Sprocket/M:Gone" },
                 ],
             },
             ["beta"] = new()
