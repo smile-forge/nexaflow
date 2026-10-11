@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -74,7 +75,8 @@ public partial class SearchStatusChipTests   // partial: the nested fake's [Rela
     }
 
     private static DependencyObject? ById(DependencyObject root, string id) =>
-        Descendants(root).FirstOrDefault(d => (string?)d.GetValue(AutomationProperties.AutomationIdProperty) == id);
+        Descendants(root).Prepend(root)
+                         .FirstOrDefault(d => (string?)d.GetValue(AutomationProperties.AutomationIdProperty) == id);
 
     [TestMethod]
     public void AutomationIds_ComposeFromThePagePrefix() => WithChip((chip, _) =>
@@ -87,10 +89,16 @@ public partial class SearchStatusChipTests   // partial: the nested fake's [Rela
         Assert.AreEqual("Log_SearchNext", chip.AutomationIdNext);
         Assert.AreEqual("Log_SearchClear", chip.AutomationIdClear);
 
-        // …and they actually reach the elements, not just the DPs.
+        // …and they actually reach the elements, not just the DPs — elements UI Automation can see, which is the only
+        // place an id is read from. A panel has no automation peer, so an id on one is in the visual tree and nowhere else.
         foreach (var id in new[] { "Log_SearchStatus", "Log_SearchMatchCount", "Log_SearchPrevious",
                                    "Log_SearchNext", "Log_SearchClear" })
-            Assert.IsNotNull(ById(chip, id), $"no element carries {id}");
+        {
+            var carrier = ById(chip, id);
+            Assert.IsNotNull(carrier, $"no element carries {id}");
+            Assert.IsNotNull(UIElementAutomationPeer.CreatePeerForElement((UIElement)carrier),
+                             $"{id} is on a {carrier.GetType().Name}, which UI Automation does not see");
+        }
     });
 
     [TestMethod]
