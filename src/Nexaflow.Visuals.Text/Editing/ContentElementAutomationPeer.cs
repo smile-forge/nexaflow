@@ -74,7 +74,7 @@ internal sealed class ContentElementAutomationPeer(ContentElement owner) : Frame
                 ? new Point(double.NaN, double.NaN)
                 : owner.PointToScreen(owner.FromContent(link.At));
 
-        protected override bool IsOffscreenCore() => !owner.IsVisible || !owner.Showing(link.Bounds);
+        protected override bool IsOffscreenCore() => !owner.IsVisible || !owner.ReachesScreen(link.Bounds);
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Hyperlink;
         protected override string GetClassNameCore() => nameof(LaidLink);
         protected override string GetAutomationIdCore() => string.Empty;

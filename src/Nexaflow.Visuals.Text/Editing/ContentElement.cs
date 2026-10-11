@@ -178,7 +178,7 @@ public class ContentElement : FrameworkElement
         content.IsEmpty ? Rect.Empty : new Rect(FromContent(content.TopLeft), FromContent(content.BottomRight));
 
     /// <summary>Whether any of a stretch of the content is on screen — everything is, where nothing has said what the screen is.</summary>
-    internal bool Showing(Rect content) => _engine.OnScreen is not { } screen || screen.IntersectsWith(content);
+    internal bool ReachesScreen(Rect content) => _engine.OnScreen is not { } screen || screen.IntersectsWith(content);
 
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
