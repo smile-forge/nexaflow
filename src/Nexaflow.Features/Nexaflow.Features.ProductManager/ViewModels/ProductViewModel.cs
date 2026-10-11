@@ -11,6 +11,7 @@ using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
@@ -510,8 +511,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
             Caption = $"{sCount.Percent}% shipping — {sCount.Done} done, {sCount.Should} should, " +
                       $"{sCount.Faulted} faulted, {sCount.Shouldnt} shouldn't";
 
-            NeedsAttention.Clear();
-            foreach (var a in ScopeNeedsAttention()) NeedsAttention.Add(a);
+            NeedsAttention.SyncTo(ScopeNeedsAttention());
             HasNeedsAttention = NeedsAttention.Count > 0;
 
             ShowVersionInfo = _snapshot is not null;
@@ -615,8 +615,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private void RefreshAttentionNote()
     {
         var was = _suppress; _suppress = true;
-        NeedsAttention.Clear();
-        foreach (var a in ScopeNeedsAttention()) NeedsAttention.Add(a);
+        NeedsAttention.SyncTo(ScopeNeedsAttention());
         HasNeedsAttention = NeedsAttention.Count > 0;
         _suppress = was;
     }

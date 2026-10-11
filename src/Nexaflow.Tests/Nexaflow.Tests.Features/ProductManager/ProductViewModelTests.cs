@@ -100,4 +100,23 @@ public class ProductViewModelTests
         var saved = new ProductStore(_root).Load().Product.Concerns.Select(c => c.Name).ToArray();
         CollectionAssert.Contains(saved, "perf", "the new concern is persisted to product.json");
     }
+
+    [TestMethod]
+    [CoversNode("product-settings")]
+    [CoversNode("product-needs-attention")]
+    public void SavingSettings_KeepsAFaultedNodeInNeedsAttention()
+    {
+        var store = new ProductStore(_root);
+        var tree = store.Load().Nodes;
+        tree["a"].Status = Status.Faulted;
+        store.SaveTree(tree);
+        var vm = Open();
+        Assert.IsTrue(vm.HasNeedsAttention, "a faulted leaf needs attention");
+
+        vm.ShowSettingsCommand.Execute(null);
+        vm.ConfirmSettingsCommand.Execute(null);
+
+        Assert.IsTrue(vm.HasNeedsAttention, "saving settings changed nothing about the tree");
+        CollectionAssert.AreEqual(new[] { "a" }, vm.NeedsAttention.Select(n => n.Id).ToArray());
+    }
 }
