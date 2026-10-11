@@ -359,48 +359,46 @@ public class AgentLoopTests
     }
 
     [TestMethod]
-    public async Task AHighRiskPage_GoesToTheModelWhoseDataStaysHere_WithoutAsking()
+    public async Task AHighRiskPage_StaysWithTheChainsModel_AndAsksBeforeItsContentsLeave()
     {
         var cloud    = new ScriptedLlmProvider(["from the cloud"]) { ProviderName = "Claude" };
         var local    = new ScriptedLlmProvider(["from here"]) { ProviderName = "Ollama", Residency = DataResidency.StaysOnMachine };
-        var approver = new FakeApprover();
+        var approver = new FakeApprover { ContextReleaseResult = true };
 
         var res = await BuildChainService(("c1", cloud), ("c2", local))
             .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
 
-        Assert.AreEqual("from here", res!.Text);
-        Assert.AreEqual(0, cloud.Calls, "the cloud model was sent something");
-        Assert.AreEqual(0, approver.ContextReleaseRequests.Count, "nothing was leaving, so nothing needed asking");
-    }
-
-    [TestMethod]
-    public async Task AHighRiskPage_WithOnlyACloudModel_IsSentWhenTheUserAgrees()
-    {
-        var cloud    = new ScriptedLlmProvider(["answer"]) { ProviderName = "Claude" };
-        var approver = new FakeApprover { ContextReleaseResult = true };
-
-        await BuildChainService(("c1", cloud))
-            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
-
+        Assert.AreEqual("from the cloud", res!.Text, "the page's risk chose the model, not the chain");
+        Assert.AreEqual(0, local.Calls);
         CollectionAssert.AreEqual(new[] { "Claude" }, approver.ContextReleaseRequests.Single().ToArray());
         StringAssert.Contains(cloud.SystemPrompts.Single(), RiskyPage.Contents);
     }
 
     [TestMethod]
-    public async Task AHighRiskPage_TheUserKeepsHere_IsAnsweredWithoutItsContentsOrTools()
+    public async Task AHighRiskPage_OnAModelWhoseDataStaysHere_IsNotAskedAbout()
     {
-        var tool     = new RecordingTool("end_process", ToolSafety.RequiresApproval);
+        var local    = new ScriptedLlmProvider(["from here"]) { ProviderName = "Ollama", Residency = DataResidency.StaysOnMachine };
+        var approver = new FakeApprover();
+
+        var res = await BuildChainService(("c1", local))
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
+
+        Assert.AreEqual("from here", res!.Text);
+        Assert.AreEqual(0, approver.ContextReleaseRequests.Count, "nothing was leaving, so nothing needed asking");
+    }
+
+    [TestMethod]
+    public async Task AHighRiskPage_TheUserDoesNotSend_IsCancelled_AndNothingLeaves()
+    {
         var cloud    = new ScriptedLlmProvider(["answer"]) { ProviderName = "Claude" };
         var approver = new FakeApprover { ContextReleaseResult = false };
 
         var res = await BuildChainService(("c1", cloud))
-            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High, tool), "q", true, approver, default);
+            .RunAgentAsync(new RiskyPage(ContextSecurityRisk.High), "q", true, approver, default);
 
-        var prompt = cloud.SystemPrompts.Single();
-        Assert.IsFalse(prompt.Contains(RiskyPage.Contents), "the page's contents left the machine");
-        Assert.IsFalse(prompt.Contains("end_process"), "the page's tools were offered without its contents");
-        StringAssert.Contains(prompt, "withheld", "the model is not told why it cannot see the page");
-        Assert.AreEqual("answer", res!.Text, "the request still runs");
+        Assert.IsNull(res, "a refused request does not run");
+        Assert.AreEqual(0, cloud.Calls, "the model was sent something");
+        Assert.IsNull(approver.Final);
     }
 
     [TestMethod]

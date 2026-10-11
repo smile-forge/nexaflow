@@ -115,18 +115,18 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/AbilityChainTests.cs",
             "class": "AbilityChainTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "AChain_PassesOverAModelThatIsNotAvailable"
           }
         ]
       }
     },
     "aibar-context-residency": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Core/Services/AIService.cs",
-          "class": "AIService",
-          "method": "PickFor"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/DataResidency.cs",
@@ -137,6 +137,12 @@
           "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
           "class": "AiResponseHandlerBase",
           "method": "RequestContextReleaseAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "RunAgentAsync"
         }
       ],
       "concerns": {
@@ -151,25 +157,25 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
             "class": "AgentLoopTests",
-            "method": "AHighRiskPage_GoesToTheModelWhoseDataStaysHere_WithoutAsking"
+            "method": "AHighRiskPage_StaysWithTheChainsModel_AndAsksBeforeItsContentsLeave"
           },
           {
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
             "class": "AgentLoopTests",
-            "method": "AHighRiskPage_WithOnlyACloudModel_IsSentWhenTheUserAgrees"
+            "method": "AHighRiskPage_OnAModelWhoseDataStaysHere_IsNotAskedAbout"
           },
           {
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
             "class": "AgentLoopTests",
-            "method": "AHighRiskPage_TheUserKeepsHere_IsAnsweredWithoutItsContentsOrTools"
+            "method": "AHighRiskPage_TheUserDoesNotSend_IsCancelled_AndNothingLeaves"
           },
           {
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
             "class": "AgentLoopTests",
-            "method": "AChain_PassesOverAModelThatIsNotAvailable"
+            "method": "APageThatIsNotHighRisk_IsNeverAskedAbout"
           },
           {
             "type": "code",

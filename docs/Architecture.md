@@ -244,10 +244,9 @@ with the `CompleteAsync` extension. Aria answers whole and yields one event.
 Each provider also says **where a request's content goes** (`Residency`: it leaves this machine, or stays on it —
 read from the endpoint for Ollama and for an OpenAI- or Claude-compatible base URL) and whether it **can take a
 request now** (`IsAvailable`; the API-key providers are not without a key). `AIService` walks an ability's chain to
-the first available provider. A page whose `GetContextSecurityRisk` is `High` — a conversation is as high-risk as
-the riskiest page pinned in it — is held to the first provider in the chain whose data stays on this machine; when
-the chain has none, `IAIResponseHandler.RequestContextReleaseAsync` asks the user, and a refusal runs the request
-without the page's contents and tools.
+the first available provider, whatever the page. When the page's `GetContextSecurityRisk` is `High` — a conversation
+is as high-risk as the riskiest page pinned in it — and a model that would read it sends data off this machine,
+`IAIResponseHandler.RequestContextReleaseAsync` names those models and asks the user; a refusal cancels the request.
 
 Tool use is **prompt-convention**: the agent loop asks the model for fenced ```` ```client_tool ```` blocks
 and parses them out of the text — no provider sends native function-calling schemas. This keeps every

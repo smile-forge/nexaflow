@@ -1,7 +1,7 @@
 # Local AI — voice conversation, on-device models, media generation
 
 **Status: phase 1 under way.** Replies stream through the agent harness, and each ability is served by a chain of
-models that holds high-risk context on this machine; the rest is not built yet. This records
+models that asks before high-risk context leaves this machine; the rest is not built yet. This records
 what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
 type, check for collisions before introducing it.
 
@@ -28,7 +28,7 @@ policy and scheduling.
 | Question | Decision |
 |---|---|
 | Whose harness | What a workspace chooses is not where a model runs but **who runs its harness** — the prompt, the chat template, the context cache. **Bridged**: Nexaflow is a client of a harness that is not its own — Claude, OpenAI, Gemini, but also Ollama and Aria, though they run on this machine — and nothing for the AI host is downloaded or loaded. **Owned**: Nexaflow is the whole harness, through the AI host — Gemma 4 E4B by default, or whichever model the user picks. Chosen when a workspace is set up, once an owned model exists to choose; **mixing** both stays possible through the grid's chains. |
-| Where data goes | A second, separate property of each provider: whether a request's content **stays on this machine**. Ollama on `localhost` does though it is bridged. A page whose context is high-risk is held to providers whose data stays here, and asks before it goes anywhere else. |
+| Where data goes | A second, separate property of each provider: whether a request's content **stays on this machine**. Ollama on `localhost` does though it is bridged. A page whose context is high-risk asks before its contents go to a provider whose data leaves this machine. |
 | Where voice lives | **The AI input bar**, in a voice mode: the bar becomes a live line both sides speak into, and anything the assistant produces that is not speech — a diagram, a table, code — opens as an overlay on the current page, so the user keeps working while talking. **The conversation page** is the focused alternative: both sides write into the conversation. |
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
@@ -312,9 +312,10 @@ maps roles to models:
   then Claude. A chain advances on unavailability — a provider not available (no API key; for the host, model not
   downloaded, host down, budget refused) — not on "try one, retry the next" for every request: a failed attempt has
   cost its whole latency already.
-- **High-risk context stays here.** A request whose context reports a high `GetContextSecurityRisk` goes to the first
-  model in the chain whose data stays on this machine (marked in the grid's column header). When the chain has none,
-  the user is asked before the contents leave; a refusal runs the request without the page's contents and tools.
+- **High-risk context leaves only with consent.** A request whose context reports a high `GetContextSecurityRisk`
+  goes to the chain's model like any other; when that model sends data off this machine, the user is asked first,
+  and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
+  about.
 - **Rows become reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
   **media capabilities** (speech in, speech out, image, audio, video) — the media rows arrive with the capability
   contracts they route; today's `ImageGeneration` and `AudioRecognition` rows are read by nothing.

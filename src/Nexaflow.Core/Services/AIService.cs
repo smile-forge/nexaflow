@@ -54,56 +54,28 @@ public sealed class AIService : IAIService
     private ILlmProvider? GetProvider(AiAbility ability) => Candidates(ability).FirstOrDefault();
 
     /// <summary>
-    /// The provider to give a request whose page context carries <paramref name="risk"/>. High-risk context is held
-    /// to the first provider in the chain whose data stays on this machine; when the chain has none, the first
-    /// available is picked and marked as one that would take the context off the machine — the user decides.
+    /// The Image Recognition model when it is not the conversation's own — null when none is set or it is the same.
+    /// The SAME pooled instance serves two abilities on the same (config, model), so reference equality means "the
+    /// image model and the conversation model are the same model".
     /// </summary>
-    private ProviderPick? PickFor(AiAbility ability, ContextSecurityRisk risk)
-    {
-        var candidates = Candidates(ability).ToList();
-        if (candidates.Count == 0) return null;
-        if (risk < ContextSecurityRisk.High) return new(candidates[0], ReleasesContext: false);
-
-        var onMachine = candidates.FirstOrDefault(p => p.Residency == DataResidency.StaysOnMachine);
-        return onMachine is not null ? new(onMachine, ReleasesContext: false) : new(candidates[0], ReleasesContext: true);
-    }
-
-    /// <param name="ReleasesContext">Sending the request to <paramref name="Provider"/> takes high-risk page
-    /// context off this machine.</param>
-    private sealed record ProviderPick(ILlmProvider Provider, bool ReleasesContext);
-
-    /// <summary>What a run offers the model of the page it was asked on.</summary>
-    private enum PageShare
-    {
-        /// <summary>The page's contents and tools.</summary>
-        Included,
-        /// <summary>Nothing — the request was made without page context.</summary>
-        Absent,
-        /// <summary>Nothing, because the contents are high-risk and the user kept them on this machine.</summary>
-        Withheld,
-    }
+    private ILlmProvider? SeparateImageModel(ILlmProvider conversation)
+        => GetProvider(AiAbility.ImageRecognition) is { } image && !ReferenceEquals(image, conversation) ? image : null;
 
     /// <summary>
     /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
-    /// app ships) when <paramref name="includeShell"/>, and the page's own as <paramref name="share"/> says.
+    /// app ships) and the page's own, when <paramref name="includeContext"/>; nothing when not.
     /// </summary>
-    private (string Context, List<IClientTool> Tools) GatherContext(IPageViewModel? page, bool includeShell, PageShare share)
+    private (string Context, List<IClientTool> Tools) GatherContext(IPageViewModel? page, bool includeContext)
     {
-        var pageContext = share switch
-        {
-            PageShare.Included => page?.GetContext() ?? "No specific context.",
-            PageShare.Withheld => "The page's contents were withheld: they hold system information the user chose to " +
-                                  "keep on this machine. Answer without them, and say so if the question needs them.",
-            _                  => "No specific context.",
-        };
-        var tools = new List<IClientTool>(share == PageShare.Included ? page?.GetClientTools() ?? [] : []);
+        if (!includeContext) return ("No specific context.", []);
+
+        var pageContext = page?.GetContext() ?? "No specific context.";
+        var tools       = new List<IClientTool>(page?.GetClientTools() ?? []);
 
         // A searchable page gets its search tools automatically — declaring ISearchable is the whole
         // opt-in, so no feature has to remember to hand them out in GetClientTools.
-        if (share == PageShare.Included && page is ISearchable searchable)
+        if (page is ISearchable searchable)
             tools.AddRange(new SearchClientTools(searchable).Tools);
-
-        if (!includeShell) return (pageContext, tools);
 
         // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
         // openable pages, and the shell tools) alongside the active page's.
@@ -379,44 +351,27 @@ public sealed class AIService : IAIService
         IPageViewModel? page, string input, bool includeContext,
         IAIResponseHandler approval, CancellationToken ct = default)
     {
-        // A page whose contents are high-risk keeps them on this machine: the models that read them are the first in
-        // each chain whose data stays here, and where a chain has none, the user is asked before they leave.
-        var risk         = includeContext ? page?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low : ContextSecurityRisk.Low;
-        var conversation = PickFor(AiAbility.Conversation, risk);
-        if (conversation is null) return null;
-        var provider = conversation.Provider;
+        var provider = GetProvider(AiAbility.Conversation);
+        if (provider is null) return null;
 
-        var share = includeContext ? PageShare.Included : PageShare.Absent;
-        var (context, pageTools) = GatherContext(page, includeContext, share);
-        var ranker = pageTools.Count > MaxUnfilteredTools ? PickFor(AiAbility.Disambiguation, risk) : null;
+        var (context, pageTools) = GatherContext(page, includeContext);
+        var ranker = pageTools.Count > MaxUnfilteredTools ? GetProvider(AiAbility.Disambiguation) : null;
 
-        // The risk the rest of the run still holds to: none once the contents may leave, or once they are not sent.
-        var heldRisk = risk;
-        var releasing = new[] { conversation, ranker }
-            .OfType<ProviderPick>().Where(p => p.ReleasesContext)
-            .Select(p => p.Provider.Name).Distinct().ToList();
-        if (releasing.Count > 0)
+        // A page whose contents are high-risk sends them off this machine only when the user agrees: every model
+        // that would read them and sends what it reads elsewhere is named, and a refusal cancels the request.
+        var risk = includeContext ? page?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low : ContextSecurityRisk.Low;
+        if (risk == ContextSecurityRisk.High)
         {
-            bool released;
-            try { released = await approval.RequestContextReleaseAsync(releasing, ct); }
+            var leaving = new[] { provider, ranker, SeparateImageModel(provider) }
+                .OfType<ILlmProvider>()
+                .Where(p => p.Residency == DataResidency.LeavesMachine)
+                .Select(p => p.Name).Distinct().ToList();
+            try
+            {
+                if (leaving.Count > 0 && !await approval.RequestContextReleaseAsync(leaving, ct))
+                    return null;
+            }
             catch (OperationCanceledException) { return null; }
-
-            if (released)
-            {
-                heldRisk = ContextSecurityRisk.Low;
-            }
-            else
-            {
-                // Each model that would have taken the contents away goes without them: the conversation answers
-                // without the page, and tools are not ranked by a model that would have read it.
-                if (conversation.ReleasesContext)
-                {
-                    share = PageShare.Withheld;
-                    (context, pageTools) = GatherContext(page, includeContext, share);
-                    heldRisk = ContextSecurityRisk.Low;
-                }
-                if (ranker is { ReleasesContext: true }) ranker = null;
-            }
         }
 
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
@@ -432,7 +387,7 @@ public sealed class AIService : IAIService
             else if (ranker is null)
                 exposed = [.. pageTools.Take(MaxUnfilteredTools), getCommands];
             else
-                exposed = [.. await RankToolsAsync(ranker.Provider, input, pageTools, context, ct), getCommands];
+                exposed = [.. await RankToolsAsync(ranker, input, pageTools, context, ct), getCommands];
         }
         catch (OperationCanceledException) { return null; }
 
@@ -577,7 +532,7 @@ public sealed class AIService : IAIService
                 var toolImages = results.SelectMany(x => x.Result.Images ?? []).ToList();
                 if (toolImages.Count > 0)
                 {
-                    var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, heldRisk, approval, ct);
+                    var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, approval, ct);
                     toolImageAttachments = atts;
                     if (note is not null) toolResultsText += "\n\n" + note;
                 }
@@ -727,20 +682,15 @@ public sealed class AIService : IAIService
     /// Returns the attachments to carry on the message (or null), plus an optional note to append to the text.
     /// </summary>
     private async Task<(IReadOnlyList<LlmAttachment>? Attachments, string? Note)> ResolveToolImagesAsync(
-        ILlmProvider convProvider, IReadOnlyList<ContextImage> images, ContextSecurityRisk heldRisk,
+        ILlmProvider convProvider, IReadOnlyList<ContextImage> images,
         IAIResponseHandler approval, CancellationToken ct)
     {
         var atts = images
             .Select(i => new LlmAttachment(i.Label ?? "image", i.MimeType, i.Bytes))
             .ToList();
 
-        // The SAME pooled instance serves two abilities on the same (config, model), so reference equality
-        // means "the image model and the conversation model are the same model". An image model that would
-        // take a high-risk page's images off this machine is passed over, as if none were set.
-        var imagePick     = PickFor(AiAbility.ImageRecognition, heldRisk);
-        var imageProvider = imagePick is { ReleasesContext: false } ? imagePick.Provider : null;
-
-        if (imageProvider is null || ReferenceEquals(imageProvider, convProvider))
+        var imageProvider = SeparateImageModel(convProvider);
+        if (imageProvider is null)
         {
             return convProvider.SupportsImages
                 ? (atts, null)
