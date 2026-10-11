@@ -63,23 +63,26 @@ public class CodeViewUiTests : FileSystemUiTestBase
             row!.DoubleClick();
             Wait.UntilInputIsProcessed();
 
-            var codeView = WaitForId("CodeView", 15);
-            Assert.IsNotNull(codeView);
-            // Diagram member rows render as real TextBlocks (Name == text), unlike the FlowDocument prose.
-            var member = WaitForName("+Method0()", 8);
-            Assert.IsNotNull(member, "panel/diagram did not render");
-            double y0 = member!.BoundingRectangle.Y;
+            Assert.IsNotNull(WaitForId("CodeView", 15), "Big.cs did not open in CodeView.");
+            var map = WaitForId("Code_Map", 8);
+            Assert.IsNotNull(map, "The code map panel did not open.");
 
-            // Hover over the diagram (centre of the right-hand panel) and spin the wheel down.
-            var r = codeView!.BoundingRectangle;
-            FlaUI.Core.Input.Mouse.Position = new System.Drawing.Point((int)(r.Right - 180), (int)(r.Y + r.Height * 0.55));
+            // The diagram is drawn rather than built from controls, so its rows are not elements to find. What the wheel is
+            // to move is the panel, and the panel is scrollable only once the diagram has been laid out taller than it.
+            var scroller = WaitFor(() => map!.FindAllDescendants().FirstOrDefault(e =>
+                e.Patterns.Scroll.PatternOrDefault is { VerticallyScrollable.Value: true }), 10);
+            Assert.IsNotNull(scroller, "The code map never grew taller than its panel, so the diagram did not render.");
+            var scroll = scroller!.Patterns.Scroll.Pattern;
+            double before = scroll.VerticalScrollPercent.Value;
+
+            // Hover over the diagram (the panel's middle, below the short Dependencies list) and spin the wheel down.
+            var r = map!.BoundingRectangle;
+            FlaUI.Core.Input.Mouse.Position = new System.Drawing.Point((int)(r.X + r.Width / 2), (int)(r.Y + r.Height * 0.55));
             System.Threading.Thread.Sleep(200);
             FlaUI.Core.Input.Mouse.Scroll(-6);
             System.Threading.Thread.Sleep(400);
 
-            var after = MainWindow.FindFirstDescendant(cf => cf.ByName("+Method0()"));
-            bool scrolled = after is null || after.IsOffscreen || System.Math.Abs(after.BoundingRectangle.Y - y0) > 10;
-            Assert.IsTrue(scrolled, "Wheel over the diagram did not scroll the Code map panel.");
+            Assert.IsTrue(scroll.VerticalScrollPercent.Value > before, "Wheel over the diagram did not scroll the Code map panel.");
         }
         finally { try { System.IO.Directory.Delete(dir, true); } catch { } }
     }
