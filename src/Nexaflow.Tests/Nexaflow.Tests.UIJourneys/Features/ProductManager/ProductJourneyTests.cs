@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Exceptions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Nexaflow.Tests.Fixtures;
@@ -241,15 +242,34 @@ public class ProductJourneyTests : UiJourneyTestBase
     /// Selects each Integrity row in turn until one whose detail shows <paramref name="automationId"/>. The rows
     /// are three kinds of item with three detail templates, and their order depends on the scan, so the journey
     /// asks for the kind it wants rather than a position.
+    /// <para>
+    /// The rows are read again for every step: the page rebuilds the list whenever the tree file changes, which the
+    /// journey's own fixes do, so a row read before the rebuild is no longer there to select. A row that goes while it
+    /// is being selected is read again in its new list, a bounded number of times.
+    /// </para>
     /// </summary>
     private bool SelectIssueShowing(string automationId)
     {
-        foreach (var row in IssueRows())
+        const int rereadsPerRow = 3;
+        for (var i = 0; ; i++)
         {
-            row.Patterns.SelectionItem.PatternOrDefault?.Select();
+            for (var reread = 0; ; reread++)
+            {
+                var rows = IssueRows();
+                if (i >= rows.Length) return false;
+                try
+                {
+                    rows[i].Patterns.SelectionItem.PatternOrDefault?.Select();
+                    break;
+                }
+                catch (ElementNotAvailableException) when (reread < rereadsPerRow)
+                {
+                    Wait.UntilInputIsProcessed();
+                }
+            }
+
             Wait.UntilInputIsProcessed();
             if (WaitForId(automationId, 1) is not null) return true;
         }
-        return false;
     }
 }
