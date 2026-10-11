@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.6.0** · 2026-09-06_
+_Version **v.1.7.0** · 2026-10-12_
 
-**88% shipping** — 1262/1426 components done (160 should · 0 faulted · 4 shouldn't)
+**87% shipping** — 1365/1571 components done (200 should · 0 faulted · 6 shouldn't)
 
 ## Tree
 
@@ -199,7 +199,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **get_image_info** — _done_
         - **next_image** — _done_
         - **previous_image** — _done_
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the page's own Thumbnails and asks the page to load them, since only the grid views otherwise do and a single image never leaves the carousel. Virtualized, and opens scrolled to the current image. In-archive images keep the placeholder (ShellThumbnail cannot read VFS paths), as in the album.
     - **UI** — _done_
       - **Top Toolbar** — _done_
         - **Sub-View Selector** — _done_
@@ -325,22 +325,24 @@ _Version **v1.6.0** · 2026-09-06_
           - **Drop text in** — _done_
         - **Source-only editor** — _done_
         - **Render-mode context menu** — _done_ — A themed WPF ContextMenu built in code-behind over the RichTextBox selection; needs a focused, rendered control and has no view-model state. Covered by the UI journey's presence check.
+        - **Block corner buttons** — _done_
+        - **Split view** — _done_
       - **Editor toolbar** — _done_
         - **File name label** — _done_
-        - **Source toggle** — _done_
+        - **View-mode slider** — _done_
         - **Save button** — _done_
-      - **Formatting mini-toolbar** — _done_
-        - **Heading buttons (H1/H2/H3)** — _done_
-        - **Inline formatting (bold/italic/strike/code)** — _done_
-        - **Quote button** — _done_
-        - **Code-block button** — _done_
+      - **Formatting** — _done_
+        - **Outline buttons (P/H1-H6)** — _done_
+        - **Inline formatting (emphasis/strong/strike/sub/sup/marked/inserted)** — _done_
+        - **Quote button** — _should_
+        - **Code-block button** — _should_
         - **Clipboard buttons** — _done_ — Cut/Copy/Paste drive the RichTextBox selection + the system clipboard — no view-model state to assert. Presence and enablement are covered by the UI journey.
       - **Status Bar** — _should_
         - **Zoom** — _done_
         - **Document Stats** — _done_
     - **Functionality** — _done_
-      - **Block model + edit keys** — _done_
-      - **Block-level undo** — _done_
+      - **Edit keys** — _done_
+      - **Undo and redo** — _done_
       - **Scroll anchoring** — _done_ — Pure scroll-offset arithmetic against a live FlowDocument render pass — there is no deterministic layout to assert off-screen. Exercised by the inline-editor UI tests.
       - **Scroll-to-heading deep link** — _done_
       - **Copy as markdown** — _done_ — Writes three formats to the system clipboard from a live TextSelection; the clipboard is machine-global and the selection needs a rendered document. The inverse (clipboard to markdown) is covered by the paste tests.
@@ -349,6 +351,7 @@ _Version **v1.6.0** · 2026-09-06_
       - **Dirty tracking** — _done_
       - **Open in Markdown editor** — _done_
       - **Find in the open document** — _done_
+      - **Links out of the document** — _done_
   - **Processes** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -549,7 +552,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **Minimap Navigation** — _done_ — The whole overview - the mapping in Visuals.Common PanZoomMiniMap and the box that draws it in PanZoomSurface - is shared with the image viewer collage and markdown graph diagrams. The board supplies only what is its own: each note as a swatch in its own paper colour, and the corner it sits in (top-left, because the recycle-bin panel covers the right-hand edge). Drawing the swatches is a paint pass; the arithmetic that decides where each lands, and whether the box appears at all, is asserted there.
         - **Search (?)** — _should_
       - **Post-it Note** — _done_
-        - **Inline Markdown Editor** — _done_ — The body is the shared InlineMarkdownEditor, tested in its own right under Visuals.Text (block model, edit keys, block-level undo). What the note adds is hosting it and migrating legacy RichTextBox-XAML content on first load, both of which need the rendered control; the journey covers typing into a note.
+        - **Inline Markdown Editor** — _done_ — The body is the shared MarkdownSurface, written in, and tested in its own right under Visuals.Text (keys, undo, formatting, the clipboard). What the note adds is hosting it and migrating legacy RichTextBox-XAML content on first load, both of which need the rendered control; the journey covers typing into a note.
         - **Drag to Move** — _done_ — A header drag converts pointer movement into canvas coordinates and raises the note - no rule of its own beyond the coordinate transform WPF already provides, and no state to read back but X/Y. The rotated-axis maths that IS non-obvious lives in postit-resize, where it is asserted.
         - **Resize Handles** — _done_
         - **Rotate Handle** — _done_ — The handle sets Rotation from the angle between the note centre and the pointer; the interesting consequence - that a rotated note still resizes about the corner you are not dragging - is asserted in postit-resize.
@@ -808,6 +811,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **This PC (drive list)** — _done_
           - **Provided items** — _done_
           - **Drive rows** — _done_
+        - **Marquee Selection** — _done_
       - **Breadcrumb / Address Bar** — _done_ — The segments are rebuilt from the current path and each navigates on click - a projection with no rule of its own beyond the path itself. The path-driving half is asserted on winfs-path-query, and the segments' presence by the journey.
       - **File Action Strip** — _done_
         - **Copy** — _done_ — Putting a CF_HDROP on the Windows clipboard is a native call with no rule between the selection and the clipboard, and a test that takes the clipboard interferes with whatever else the machine is doing. What Copy is for is asserted on the other end: winfs-act-paste, which is where a clipboard drop can actually go wrong.
@@ -822,12 +826,14 @@ _Version **v1.6.0** · 2026-09-06_
         - **Shell Verb Actions** — _done_ — The verbs come from whatever this machine's registry says about the file type, so an assertion about a particular verb is an assertion about the test machine. The registry-derived-handler import path is asserted in RegistryHandlerImportTests.
         - **Custom External-App Actions** — _done_
         - **Action Button Context Menu** — _done_ — Two menu items that deep-link to an Options page and pin to the ribbon. The pin half is asserted on winfs-ribbon-pin; the Modify half is a navigation call with no decision in it.
+        - **Copy path** — _done_
       - **File/Folder Context Menu** — _done_
       - **New / Create Overlay** — _done_
         - **New Folder** — _done_
         - **ShellNew Types** — _done_
         - **Templated Create** — _done_
       - **Drag & Drop** — _done_
+        - **Right-Drag Destination Menu** — _done_
       - **Keyboard Shortcuts** — _done_
         - **Open Selected (Shift+Enter)** — _done_
       - **Folder Viewlets Host** — _done_ — Which viewlets a folder gets, and whether a Full one takes over the pane, is decided by the registry's matching - which is what is asserted. The stacking layout itself is a panel swap in the view.
@@ -1182,7 +1188,7 @@ _Version **v1.6.0** · 2026-09-06_
       - **Definition Area** — _should_
         - **Mode Rail** — _should_
         - **Calc Input** — _should_
-        - **Markdown Editors** — _should_ — The editor is Visuals.Text's InlineMarkdownEditor, tested there. What this feature adds is an instance per tab: single-formula is what an editor IS, so flipping it live would ask one editor to reinterpret a document mid-edit, and the tab switch would have to swap the text underneath it - which a focused editor refuses.
+        - **Markdown Editors** — _should_ — The editor is Visuals.Text's MarkdownSurface, tested there. What this feature adds is an instance per tab: one block of LaTeX is what the formula field IS, so flipping it live would ask one editor to reinterpret a document mid-edit, and the tab switch would have to swap the text underneath it.
         - **Single-formula mode** — _should_
         - **Rendered / source toggle** — _should_
       - **Palette** — _should_
@@ -1319,6 +1325,7 @@ _Version **v1.6.0** · 2026-09-06_
     - **AI Integration** — _shouldn't_
   - **Executable Inspector** — _should_
     - **UI** — _should_
+      - **Dependency viewport** — _should_
     - **Functionality** — _should_
       - **Open Actions** — _should_
       - **AV Scan Action** — _should_
@@ -1355,8 +1362,10 @@ _Version **v1.6.0** · 2026-09-06_
         - **Device panel** — _done_
         - **Probe settings** — _should_
         - **What was here last time** — _should_
-        - **Stopping a sweep** — _should_
+        - **Stopping a sweep** — _done_
         - **Rows a test can reach** — _should_
+        - **Scan options** — _done_
+        - **Scan progress and log** — _done_
       - **Device actions** — _done_
         - **Ping** — _done_
         - **Published addresses** — _done_
@@ -1367,7 +1376,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **ARP / neighbour table** — _done_
         - **SSDP / UPnP** — _done_
         - **Device description** — _done_
-        - **Address sweep** — _should_
+        - **Address sweep** — _done_
         - **mDNS / DNS-SD** — _should_
         - **Listening** — _should_
       - **Device graph** — _should_
@@ -1396,9 +1405,43 @@ _Version **v1.6.0** · 2026-09-06_
         - **Trust** — _should_
         - **Where a description lives** — _should_
       - **Send guard** — _should_
-        - **Network options** — _should_
+        - **Network options** — _done_
         - **Audit** — _should_
     - **AI Integration** — _should_
+  - **Office** — _should_
+    - **Functionality** — _should_
+      - **Word text extraction (search)** — _done_
+    - **UI** — _shouldn't_ — No viewer yet - a Word document opens in whatever app Windows associates with it. A visual preview would land here, on the same package layer the search extractor reads.
+    - **AI Integration** — _shouldn't_ — No page, so no get_context or client tools. The agent reaches Word content through the file-search path the extractor feeds.
+  - **HDF5** — _should_
+    - **UI** — _should_
+      - **Structure Panel** — _should_
+        - **Object Tree** — _done_
+        - **Tree Filter** — _done_
+      - **Content Pane** — _should_
+        - **Data Table** — _done_
+        - **Slice Bar** — _done_
+        - **Group Summary** — _done_
+      - **Details Drawer** — _should_
+        - **Details Toggle** — _done_
+        - **Object Details** — _done_
+        - **Attribute List** — _done_
+        - **Attribute Filter** — _done_
+    - **Functionality** — _should_
+      - **HDF5 Reader** — _done_
+      - **Windowed Reads** — _done_
+      - **Browse as Folder** — _done_
+      - **Datasets as Files** — _done_
+      - **Open-File Cache** — _done_
+      - **Open Actions** — _done_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _done_
+      - **Act - client tools** — _should_
+        - **hdf5_list** — _done_
+        - **hdf5_describe** — _done_
+        - **hdf5_read** — _done_
+        - **hdf5_select** — _done_
+      - **Preview - IContextPreview** — _should_
 - **Providers** — _should_
   - **Claude** — _done_
   - **Gemini** — _done_
@@ -1420,14 +1463,17 @@ _Version **v1.6.0** · 2026-09-06_
         - **ordered lists** — _done_
         - **Indented Code Blocks** — _done_
         - **Fenced Code Blocks** — _done_
-          - **Syntax-highlighted code** — _should_
+          - **Syntax-highlighted code** — _done_
         - **Inline Code** — _done_
         - **Emphasis** — _done_
         - **Strong** — _done_
         - **Inline Links** — _done_
+          - **In-page anchor links** — _done_
+          - **Host Link Decoration** — _should_
         - **Reference Links** — _done_
         - **Images** — _done_
           - **Remote images** — _should_
+          - **Host image resolver** — _should_
         - **AutoLinks** — _done_
         - **Hard Breaks** — _done_
         - **Soft line breaks** — _done_
@@ -1439,7 +1485,7 @@ _Version **v1.6.0** · 2026-09-06_
           - **Two places at one character** — _done_
         - **Formula Selection** — _done_
           - **Canvas Selection In A Grid** — _done_
-          - **Moving cells in a grid** — _done_
+          - **Moving cells in a grid** — _done_ — TexGrid reads the table and TexMove says what a move of its cells comes to, both WPF-free beside the parser; LatexEdits.Move is the hook. The arithmetic is held over every carry and every drop in TexMoveTests, including that each one leaves a formula the parser gives back unchanged with every piece still saying where it was read from; MatrixMoveTests drives the gesture itself on a surface, which is the half that cannot be reasoned about.
             - **Cells know their place** — _done_
           - **Wash reads as picked out** — _done_
         - **In-Formula Editing** — _done_ — Backspace acts on the ONE piece before the caret: made of parts (its parse node has slots) means go back to the source it was written as; anything else is taken whole, six characters of \alpha included, because a symbol is one thing on the page however many letters spelled it. An earlier rule asked which pieces hide source instead and got both interesting cases wrong - it un-rendered an alpha nobody wanted to respell, and un-rendered x^2 when the caret was after the 2 (which in \frac{4}{x^2} then emptied the denominator and drew a hole). Measured side by side before changing: LatexTree.SymbolBefore and IsComposite. A revealed stretch then moves like the text it is being shown as - one character per arrow - because stepping by layout stops maps every position inside it to the single point where it sits in the typeset formula, and the caret jumps over the one place the reader wanted to edit.
@@ -1453,29 +1499,57 @@ _Version **v1.6.0** · 2026-09-06_
         - **Painting From The Tree** — _done_
         - **Diagnostics** — _done_
         - **Part Roles** — _done_
-        - **Editing through the tree** — _done_ — LatexTree.Write and LatexTree.Move return a LatexWrite (new source + where the caret goes). The tree is a reading of the source, so changed source is a changed tree: re-reading it is what re-lays out and repaints, which is how one call reaches the picture. A full writable AST would need a LaTeX writer over ~40 atom types in the fork; this gets the same guarantee from the spans, which the fork span work already made exact.
+        - **Editing through the tree** — _done_ — An edit names the stretches of source it changes and the engine writes them, as every other language does; there is no writable AST and no tree handed back to be printed. TexParser declares ITranspile, so words arriving as words - pasted, or carried in from the prose around the formula - are spelled by LaTeX before any of them is written: a percent that would comment out the rest of the formula arrives as \%, and nothing at all goes into the shape of a grid.
         - **Brackets are one thing** — _done_ — FencedAtom already had Slots; nothing needed adding. What was missing was applying the rule that already existed for a fraction's bar: a piece with a span but no role is the enclosing construct's own drawing. A bracket goes further than a bar though - it is not decoration, it carries meaning only as a pair, and one without its partner cannot be parsed at all - so LatexTree.Owning climbs to the group for backspace AND for selection. It climbs only into something that IS a construct (IsComposite), or a tree with no parse behind it would let every step qualify and walk to the top. \Bigl[ and \Bigr] stay independent, correctly: in LaTeX they are two symbols that merely happen to be sized alike. Slots were considered for the delimiters and rejected - a slot is a place content goes, and a bracket is not one.
         - **Dirac notation** — _done_
       - **Mermaid** — _should_
         - **Graph / Flowchart** — _done_
+          - **Flowchart Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Quadrant Chart** — _done_
+          - **Quadrant Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Pie** — _done_
+          - **Pie Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **State Diagram** — _done_
         - **Sequence Diagram** — _done_
-        - **gantt** — _done_
-        - **gitgraph** — _done_
-        - **mindmap** — _done_
+        - **Gantt Chart** — _done_
+          - **Gantt Syntax Tree** — _done_
+          - **Written In Place** — _done_
+        - **Git Graph** — _done_
+          - **Git Graph Syntax Tree** — _should_
+          - **Written In Place** — _should_
+        - **Mindmap** — _done_
+          - **Mindmap Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **class diagram** — _done_
         - **requirement diagram** — _done_
-        - **kanban** — _done_
+        - **Kanban Board** — _done_
+          - **Kanban Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **XY Chart** — _done_
+          - **XY Chart Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Radar Chart** — _done_
+          - **Radar Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Ishikawa (Fishbone)** — _done_
+          - **Ishikawa Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Sankey** — _done_
+          - **Sankey Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **ER Diagram** — _done_
         - **Venn** — _done_
+          - **Venn Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Timeline** — _done_
+          - **Timeline Syntax Tree** — _should_
+          - **Written In Place** — _should_
         - **User Journey** — _done_
+          - **User Journey Syntax Tree** — _should_
+          - **Written In Place** — _should_
         - **C4 diagrams** — _should_
           - **Macro syntax** — _done_
           - **Elements** — _done_
@@ -1483,16 +1557,31 @@ _Version **v1.6.0** · 2026-09-06_
           - **Relationships** — _done_
           - **Styling and legend** — _done_
           - **C4 sequence** — _done_
+            - **Written In Place** — _should_
+          - **Structural diagrams** — _should_
+            - **Written In Place** — _should_
         - **Block diagram** — _done_
+          - **Block Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Architecture** — _done_
+          - **Architecture Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Cynefin** — _done_
+          - **Cynefin Syntax Tree** — _should_
+          - **Written In Place** — _should_
         - **Swimlanes** — _done_
         - **Expandable Nodes** — _done_
+        - **Mermaid Syntax Tree** — _done_
+        - **Mermaid Builder** — _done_
+        - **Mermaid Diagram Kit** — _done_
+        - **Bound Words** — _done_
+        - **Nested Content** — _should_
+        - **Bound Content** — _done_
       - **Markdig Extensions** — _should_
         - **Pipe tables** — _done_
         - **Grid tables** — _done_
         - **Task Lists** — _done_
-          - **Clickable checkboxes** — _should_
+          - **Clickable checkboxes** — _done_
         - **Emphasis Extra** — _done_
         - **Autolinks** — _done_
         - **Definition Lists** — _done_
@@ -1507,10 +1596,8 @@ _Version **v1.6.0** · 2026-09-06_
         - **media links** — _should_
         - **smartypants** — _should_
         - **emoji and smilies** — _should_
-      - **nomnoml** — _should_
+      - **nomnoml** — _done_
       - **Musical Notation** — _should_
-        - **Block Extension** — _done_
-        - **Score Model (IR)** — _done_
         - **ABC Notation** — _done_
           - **ABC Core** — _done_
           - **ABC Expression** — _done_
@@ -1522,6 +1609,10 @@ _Version **v1.6.0** · 2026-09-06_
           - **Multi-staff / score** — _done_
           - **Figured Bass** — _should_
           - **Markup / Titles** — _done_
+          - **LilyPond Syntax Tree** — _should_
+            - **Reads back what was written** — _done_
+            - **Read by a pipeline of stages** — _done_
+          - **LilyPond Layout** — _done_
         - **Score Renderer** — _should_
           - **Staff & Signatures** — _done_
           - **Notes & Rests** — _done_
@@ -1534,6 +1625,11 @@ _Version **v1.6.0** · 2026-09-06_
           - **Lyrics/Chords/Marks** — _done_
           - **MIDI Playback** — _should_
           - **Selection** — _done_
+        - **ABC Syntax Tree** — _should_
+          - **Reads back what was written** — _done_
+          - **Read by a pipeline of stages** — _done_
+        - **ABC Layout** — _done_
+        - **ABC Editing** — _done_
       - **Diagram Text Selection** — _should_
       - **QR Code** — _done_
         - **Symbol Encoder** — _done_
@@ -1547,6 +1643,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **Editable Value** — _done_
         - **Symbol Tree** — _should_
       - **2D Symbol Layer** — _done_
+        - **Block Syntax Tree** — _done_
       - **Data Matrix** — _done_
         - **Symbol Encoder** — _done_
         - **Payload Types** — _done_
@@ -1564,6 +1661,47 @@ _Version **v1.6.0** · 2026-09-06_
         - **Aztec Runes** — _should_
         - **Reader-initialisation symbols** — _should_
         - **Structured append** — _should_
+      - **Chemical Structures** — _done_
+        - **SMILES Syntax Tree** — _done_
+        - **Reading the Molecule** — _done_
+        - **Structure Layout** — _done_
+        - **Rendering** — _done_
+      - **Shaped Pieces** — _done_
+      - **Text Runs** — _done_
+      - **Word Clouds** — _should_
+        - **Block Syntax** — _done_
+        - **Packing** — _done_
+        - **Rendering** — _done_
+        - **Editable Words** — _done_
+        - **Letter and Picture Masks** — _done_
+      - **Mathematical Figures** — _should_
+        - **Block Syntax** — _should_
+        - **Object Model** — _should_
+        - **The Coordinate Plane** — _should_
+        - **Rendering** — _should_
+        - **Function Graphs** — _should_
+        - **Constructions** — _should_
+        - **Moving Things** — _should_
+      - **Correlation Plots** — _should_
+        - **Block Syntax** — _done_
+        - **Reading the Table** — _done_
+        - **Fits, Bins and Density** — _done_
+        - **Rendering** — _done_
+        - **Editable Values** — _done_
+      - **Markdown Text** — _should_ — Prose says how words written into it are spelled (MarkdownParser.Rewrite), and it is the one language where that depends on where they land: a hash is a heading at the start of a line and a hash everywhere else. So the spelling is asked for a position as well as a part, and a position is all it needs - nothing holds the source, but a part prints the characters it was read from, so the one in front of a position is found by printing whichever part is small enough to hold it. Three places take no words at all, and each for its own reason: code, raw HTML, front matter and a block nothing has read, because a backslash is a literal backslash in all of them; the gap between two blocks, because words put there make or break a block rather than joining one; and in front of a construct's own punctuation or whatever opened a line, because there the words separate what holds a link together or push a heading's hash off the line start - which is where they land rather than how they are spelled, and no spelling prevents either.
+        - **Maths, written and typeset** — _done_
+        - **Pictures, fitted into the page** — _done_
+        - **Every language draws something** — _done_
+        - **Every construct set the way it reads** — _done_
+        - **A cell that covers more than its own square** — _done_
+        - **A link into the document it is in** — _done_
+        - **What may be done where a gesture landed** — _done_
+        - **Finding a place in a document** — _done_
+        - **A whole document on one page** — _done_
+        - **The document surfaces read from it** — _done_
+        - **A block that reads as it did is laid as it was** — _done_
+      - **Background Reading** — _done_
+      - **Moving what is picked out** — _done_
     - **Code/Text Editor** — _done_
       - **Editor Host** — _done_
       - **Highlighting Host** — _done_
@@ -1597,6 +1735,8 @@ _Version **v1.6.0** · 2026-09-06_
     - **Native grammars (built from source)** — _done_
     - **PowerShell / YAML grammars** — _should_
     - **Structural editing engine** — _done_
+      - **XML element editing** — _done_
+    - **Compiler check** — _done_
   - **Visuals.Terminal** — _done_
     - **Terminal View** — _done_
     - **Command Classifier** — _done_
@@ -1617,6 +1757,11 @@ _Version **v1.6.0** · 2026-09-06_
   - **Visuals.Common** — _done_
     - **Shared Controls** — _done_
       - **Text Zoom** — _done_
+      - **Modal Card** — _done_
+      - **Search Box** — _done_
+      - **Colour Picker** — _done_
+        - **Screen Eyedropper** — _done_
+      - **Drag Reorder** — _done_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
@@ -1649,7 +1794,15 @@ _Version **v1.6.0** · 2026-09-06_
       - **Name resolution and confidence** — _done_
       - **Archive, cache and freshness** — _done_
       - **Queries** — _done_
+        - **ask pipelines** — _done_
+        - **Signature listings** — _done_
+        - **Compiler diagnostics** — _done_
+        - **Paged answers** — _done_
       - **Structural editing** — _done_
+        - **Edit scripts** — _done_
+        - **Move a declaration** — _done_
+        - **Change impact** — _done_
+        - **Undo** — _done_
       - **Community detection** — _done_
       - **Cycle detection** — _should_
       - **Entry points as a first-class kind** — _should_
@@ -1658,6 +1811,17 @@ _Version **v1.6.0** · 2026-09-06_
     - **Hosting and daemon** — _should_
       - **Resident host** — _done_
       - **Daemon IPC** — _done_
+    - **Scale and portability** — _should_
+      - **Configuration and providers** — _should_
+      - **Change journal** — _should_
+      - **Node index** — _should_
+      - **Attributes package** — _should_
+      - **Indexed queries** — _should_
+      - **Paged store** — _should_
+      - **Implementation declarations** — _should_
+  - **Visuals.Icons** — _done_
+    - **Icon Catalog** — _done_
+    - **Icon Picker** — _done_
 - **Core UX** — _should_
   - **Themes** — _done_
     - **Dark** — _done_
@@ -1700,7 +1864,8 @@ _Version **v1.6.0** · 2026-09-06_
       - **Separator** — _done_
       - **Overflow Menu** — _done_
       - **Edit / Customise Toggle** — _done_
-      - **Button Accent Colour** — _done_
+      - **Button Colours** — _done_
+      - **Button Shapes** — _done_
     - **Right-click Quick Edit** — _done_
       - **Quick Rename** — _done_
       - **Quick Recolour Flyout** — _done_
@@ -1708,6 +1873,7 @@ _Version **v1.6.0** · 2026-09-06_
       - **Quick Grow / Shrink** — _done_
       - **Quick Delete** — _done_
       - **Open in New Window** — _done_
+      - **Quick Shape** — _done_
     - **Ribbon Editor** — _done_
       - **Draft / Commit Model** — _done_
       - **Card Strip Preview** — _done_
@@ -1715,12 +1881,15 @@ _Version **v1.6.0** · 2026-09-06_
       - **Add Page Dropdown** — _done_
       - **Rename (Name field)** — _done_
       - **Size Toggle (Full / Compact)** — _done_
-      - **Icon Picker Grid** — _done_
-      - **Colour Swatches + Hex Input** — _done_
+      - **Icon Picker** — _done_
+      - **Colour Picker** — _done_
       - **Remove Item** — _done_
       - **Insert Separator** — _done_
       - **Reset to Defaults** — _done_
       - **Done / Cancel** — _done_
+      - **Shape Gallery** — _done_
+      - **Readability Check** — _done_
+      - **Reset Look** — _done_
     - **Pin to Ribbon (drag-drop)** — _done_
       - **Pin a Dragged Tab** — _done_
       - **Pin a File Action** — _done_
@@ -1771,6 +1940,7 @@ _Version **v1.6.0** · 2026-09-06_
         - **Colour Swatches** — _done_
         - **Export Conversations** — _done_
       - **Reconfigure In Place** — _done_
+      - **Startup Tabs & Session Restore** — _done_
     - **Launch Control** — _done_
       - **Taskbar JumpList** — _done_
       - **Single-Instance IPC** — _done_
@@ -1807,6 +1977,7 @@ _Version **v1.6.0** · 2026-09-06_
       - **Final Answer Render** — _done_
       - **Continue as Conversation** — _done_
       - **Dismiss Overlay** — _done_
+      - **Reply as it is written** — _done_
     - **Inline Response Banner** — _done_
       - **Escalate to Overlay** — _done_
     - **Background Activity Ticker** — _done_
@@ -1836,6 +2007,7 @@ _Version **v1.6.0** · 2026-09-06_
     - **Same-tab Navigate Segment** — _done_
     - **Cross-tab Follow Segment** — _done_
     - **Segment Dropdown** — _done_
+    - **Copy path** — _done_
   - **Tab Strip** — _done_
     - **Activate Tab** — _done_
     - **Close Tab** — _done_
@@ -1848,6 +2020,7 @@ _Version **v1.6.0** · 2026-09-06_
     - **Custom Title Bar / Window Controls** — _done_
     - **Top Bar** — _done_
       - **Options Button** — _done_
+      - **Help Button** — _should_
     - **Content Area (Pane Host)** — _done_
     - **AI Interaction Bar** — _done_
       - **AI Status Dot** — _done_
@@ -1857,6 +2030,29 @@ _Version **v1.6.0** · 2026-09-06_
       - **AI Bar Resize Splitter** — _done_
   - **Taskbar Jump List** — _done_
   - **Crash Log** — _done_
+  - **Languages** — _should_
+    - **Language Packs** — _should_
+    - **String Tables** — _should_
+    - **Language Switch** — _should_
+    - **English** — _should_
+  - **Help** — _should_
+    - **UI** — _should_
+      - **Help Pane** — _should_
+        - **Search Box** — _should_
+        - **Search Status Chip** — _should_
+        - **In Other Help Pages** — _should_
+        - **All Help Pages Button** — _should_
+        - **Showcase Document** — _should_
+        - **Locate Lasso** — _should_
+    - **Functionality** — _should_
+      - **Open Beside / Toggle / Follow** — _should_
+      - **Showcase Library** — _should_
+      - **Search: this page, then all** — _should_
+      - **Topics Menu** — _should_
+      - **Show Me Where: locate: links** — _should_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _should_
+      - **Act - help tools** — _done_
 - **OptionalTools** — _should_
   - **nfi CLI** — _should_
     - **Verb surface and argument parsing** — _done_
@@ -1864,6 +2060,7 @@ _Version **v1.6.0** · 2026-09-06_
     - **Batch scripting** — _done_
     - **Daemon client** — _done_
     - **Test coverage collection** — _done_
+    - **Run covering tests** — _done_
 
 ## Needs attention
 
@@ -1873,8 +2070,9 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| theming | 640/1426 |
-| tests | 1104/1426 |
-| docs | 2/1426 |
-| AI Ready | 0/1426 |
-| Expanded | 25/1426 |
+| i18n | 1/1571 |
+| theming | 686/1571 |
+| tests | 1243/1571 |
+| docs | 6/1571 |
+| AI Ready | 0/1571 |
+| Expanded | 25/1571 |
