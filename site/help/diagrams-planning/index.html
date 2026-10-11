@@ -24,7 +24,7 @@ of what they cover is not in the current download yet. The latest release is
 <nav class="topics"><h2>Topics</h2><ul><li><a href="#requirement-diagram">Requirement diagram</a></li><li><a href="#gantt-chart">Gantt chart</a></li><li><a href="#git-graph">Git graph</a></li><li><a href="#kanban-board">Kanban board</a></li><li><a href="#mindmap">Mindmap</a></li><li><a href="#timeline">Timeline</a></li><li><a href="#user-journey">User journey</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="requirement-diagram">Requirement diagram</h2>
-<p>SysML-style requirements and elements with their satisfy / verify / derive relationships.</p>
+<p>SysML-style requirements and the elements that meet them, with what holds between them — satisfy, verify, derive, contain.</p>
 <pre><code class="language-markdown">```mermaid
 requirementDiagram
     requirement render_req {
@@ -33,13 +33,21 @@ requirementDiagram
         risk: low
         verifymethod: test
     }
+    designConstraint no_browser {
+        id: 1.1
+        text: No embedded browser
+        risk: medium
+        verifymethod: inspection
+    }
     element renderer {
         type: component
+        docref: Visuals.Text
     }
+    render_req - contains -&gt; no_browser
     renderer - satisfies -&gt; render_req
 ```
 </code></pre>
-<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-requirement.png" alt="A requirement diagram linking an element to a requirement" /></p>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-requirement.png" alt="A requirement diagram: an element satisfying a requirement, which contains a design constraint" /></p>
 <hr />
 <h2 id="gantt-chart">Gantt chart</h2>
 <p>Project schedules with sections, dependencies (<code>after</code>, <code>until</code>), task states (<code>done</code> / <code>active</code> / <code>crit</code>), milestones,
@@ -145,7 +153,7 @@ journey
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

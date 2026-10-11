@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Markdown — Diagrams: flow &amp; structure — Nexaflow help</title>
-<meta name="description" content="Diagrams for how something is built, and how it runs: flowcharts, sequence, class, state and ER diagrams, and the C4 family.">
+<meta name="description" content="Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and the C4 family.">
 <link rel="stylesheet" href="../../assets/site.css">
 </head>
 <body>
@@ -19,9 +19,9 @@ of what they cover is not in the current download yet. The latest release is
 <nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
 <header class="page-head">
   <h1>Markdown — Diagrams: flow &amp; structure</h1>
-  <p class="lede">Diagrams for how something is built, and how it runs: flowcharts, sequence, class, state and ER diagrams, and the C4 family.</p>
+  <p class="lede">Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and the C4 family.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#flowchart">Flowchart</a></li><li><a href="#sequence-diagram">Sequence diagram</a></li><li><a href="#class-diagram">Class diagram</a></li><li><a href="#state-diagram">State diagram</a></li><li><a href="#entity-relationship-diagram">Entity-relationship diagram</a></li><li><a href="#block-diagram">Block diagram</a></li><li><a href="#architecture-diagram">Architecture diagram</a></li><li><a href="#c4-diagrams">C4 diagrams</a></li><li><a href="#c4-sequence">C4 sequence</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#flowchart">Flowchart</a></li><li><a href="#swimlane-diagram">Swimlane diagram</a></li><li><a href="#sequence-diagram">Sequence diagram</a></li><li><a href="#class-diagram">Class diagram</a></li><li><a href="#state-diagram">State diagram</a></li><li><a href="#entity-relationship-diagram">Entity-relationship diagram</a></li><li><a href="#block-diagram">Block diagram</a></li><li><a href="#architecture-diagram">Architecture diagram</a></li><li><a href="#c4-diagrams">C4 diagrams</a></li><li><a href="#c4-sequence">C4 sequence</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="flowchart">Flowchart</h2>
 <p>Boxes, decisions and flows in any direction, with shaped nodes, labelled edges, subgraphs that gather them and classes that
@@ -42,58 +42,101 @@ flowchart LR
 </code></pre>
 <p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-flowchart.png" alt="A flowchart running left to right, two of its nodes gathered in a subgraph and one coloured by a class" /></p>
 <hr />
-<h2 id="sequence-diagram">Sequence diagram</h2>
-<p>Participants and the messages between them, including notes and async arrows.</p>
+<h2 id="swimlane-diagram">Swimlane diagram</h2>
+<p>A flowchart divided by who owns each step. Every <code>subgraph</code> written outside them all is a lane — a band of its own, named at the
+near end of it, that the work in it runs through — and an arrow from one lane to another is a handoff.</p>
 <pre><code class="language-markdown">```mermaid
-sequenceDiagram
-    participant U as User
-    participant N as Nexaflow
-    participant R as Renderer
-    U-&gt;&gt;N: Open notes.md
-    N-&gt;&gt;R: Parse + render blocks
-    R--&gt;&gt;N: WPF elements
-    N--&gt;&gt;U: Rendered document
-    Note over R: Diagrams drawn natively
+swimlane-beta LR
+    subgraph Author
+        write[Write the page]
+        fix[Fix the notes]
+    end
+    subgraph Review team
+        read{Reads well?}
+    end
+    subgraph Publishing
+        ship([Publish])
+    end
+    write --&gt; read
+    read --&gt;|yes| ship
+    read --&gt;|no| fix
+    fix --&gt; read
+    classDef waiting fill:#6e6ce6,stroke:#333
+    class read waiting
 ```
 </code></pre>
-<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-sequence.png" alt="A sequence diagram with three participants and a note" /></p>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-swimlane.png" alt="A swimlane diagram running left to right, its three lanes stacked as bands with a decision handed from one to the next" /></p>
+<hr />
+<h2 id="sequence-diagram">Sequence diagram</h2>
+<p>Participants and the messages between them: notes, numbering, the bar saying one is working, and the frames — <code>alt</code>,
+<code>opt</code>, <code>loop</code>, <code>par</code>, <code>critical</code>, <code>break</code> — that hold a run of messages under a condition.</p>
+<pre><code class="language-markdown">```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant N as Nexaflow
+    participant R as Renderer
+    U-&gt;&gt;+N: Open notes.md
+    N-&gt;&gt;+R: Parse and render the blocks
+    loop every block
+        R-&gt;&gt;R: Draw it on the layout tree
+    end
+    R--&gt;&gt;-N: The elements to show
+    N--&gt;&gt;-U: The rendered document
+    Note over R: Diagrams are drawn natively
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-sequence.png" alt="A sequence diagram: a user and two services, their messages numbered, a loop frame round a message one of them sends itself, bars saying which is working, and a note" /></p>
 <hr />
 <h2 id="class-diagram">Class diagram</h2>
-<p>UML classes with attribute and method compartments and the full relationship set.</p>
+<p>UML classes with attribute and method compartments, the full relationship set, namespaces, annotations and
+how many of each class the other has.</p>
 <pre><code class="language-markdown">```mermaid
 classDiagram
+    direction LR
     class Animal {
+        &lt;&lt;abstract&gt;&gt;
         +String name
         +int age
-        +makeSound() void
+        +makeSound()* void
     }
     class Dog {
         +String breed
         +bark() void
+        +count()$ int
     }
-    class Cat {
-        +scratch() void
+    namespace Shelter {
+        class Kennel {
+            +List~Dog~ residents
+            +admit(Dog dog) bool
+        }
     }
     Animal &lt;|-- Dog
-    Animal &lt;|-- Cat
+    Kennel &quot;1&quot; o-- &quot;*&quot; Dog : houses
 ```
 </code></pre>
-<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-class.png" alt="A class diagram with inheritance arrows" /></p>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-class.png" alt="A class diagram running left to right: an abstract animal inherited by a dog, and a kennel boxed in a shelter namespace holding many dogs" /></p>
 <hr />
 <h2 id="state-diagram">State diagram</h2>
-<p>States, transitions, start/end markers and composite states.</p>
+<p>States, the transitions between them, the dots a scope starts and stops at, composite states and notes.</p>
 <pre><code class="language-markdown">```mermaid
 stateDiagram-v2
     [*] --&gt; Idle
     Idle --&gt; Loading : open file
+    state Loading {
+        [*] --&gt; Reading
+        Reading --&gt; Parsing
+        Parsing --&gt; [*]
+    }
     Loading --&gt; Rendered : success
     Loading --&gt; Error : failure
+    note right of Error : the file is kept open
     Rendered --&gt; Idle : close
     Error --&gt; Idle : retry
     Rendered --&gt; [*]
 ```
 </code></pre>
-<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-state.png" alt="A state machine with start and end markers" /></p>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-state.png" alt="A state machine whose loading state holds two states of its own, with a note beside the error state" /></p>
 <hr />
 <h2 id="entity-relationship-diagram">Entity-relationship diagram</h2>
 <p>Entities with typed attributes and keys, joined by <strong>crow's-foot</strong> cardinality. Identifying
@@ -156,8 +199,9 @@ architecture-beta
 <hr />
 <h2 id="c4-diagrams">C4 diagrams</h2>
 <p>Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
-Elements are cards carrying their kind, technology and description; boundaries nest; relationships name the protocol
-they run over.</p>
+Elements are cards carrying their kind, technology and description, graded so the deeper the colour the higher the
+abstraction; boundaries nest and hold what is written inside them; relationships name the protocol they run over. A
+card's label and a boundary's name are typed into where they are drawn.</p>
 <pre><code class="language-markdown">```mermaid
 C4Container
 title Container diagram for the Internet Banking System
@@ -177,12 +221,14 @@ Rel(api, db, &quot;Reads from and writes to&quot;, &quot;JDBC&quot;)
 </code></pre>
 <p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-c4.png" alt="A C4 container diagram with a system boundary, element cards and technology-labelled relationships" /></p>
 <p>The body accepts the fuller <a href="https://github.com/plantuml-stdlib/C4-PlantUML">C4-PlantUML</a> macro vocabulary — <code>$tags</code>
-with <code>AddElementTag</code>, <code>UpdateElementStyle</code>, <code>SHOW_LEGEND</code>, <code>Deployment_Node</code> nesting, <code>RelIndex</code> numbering — not just
-Mermaid's subset.</p>
+with <code>AddElementTag</code>, <code>UpdateElementStyle</code>, <code>SHOW_LEGEND</code>, <code>Deployment_Node</code> nesting, <code>RelIndex</code> numbering,
+<code>LAYOUT_LEFT_RIGHT</code> — not just Mermaid's subset. <code>C4Dynamic</code> numbers its relationships without being asked.</p>
 <hr />
 <h2 id="c4-sequence">C4 sequence</h2>
-<p><code>C4Sequence</code> has no Mermaid equivalent — it mirrors C4-PlantUML's <code>C4_Sequence</code>, and is drawn by the <em>same</em> renderer as
-a native sequence diagram, so native control lines work inside it.</p>
+<p><code>C4Sequence</code> has no Mermaid equivalent — it mirrors C4-PlantUML's <code>C4_Sequence</code>. It is read into the same thing a
+<code>sequenceDiagram</code> is read into and drawn by the same builder, so an element is a lifeline whose box is a card saying what
+it is, a <code>Boundary</code> groups them, a <code>Rel</code> carries what it is done with — and <code>alt</code>, <code>loop</code>, <code>note over</code> and <code>activate</code>
+work among the macros because they are the native grammar itself.</p>
 <pre><code class="language-markdown">```mermaid
 C4Sequence
 title Sign-in sequence
@@ -211,7 +257,7 @@ end
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

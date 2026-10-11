@@ -71,6 +71,7 @@ internal sealed class HelpCorpus
         ["Video"] = new("Open anything", "video"),
         ["Model3D"] = new("Open anything", "model3d"),
         ["Dicom"] = new("Open anything", "dicom"),
+        ["Hdf5"] = new("Open anything", "hdf5"),
         ["Email"] = new("Open anything", "email"),
         ["Hex"] = new("Open anything", "hex"),
         ["Compressed"] = new("Open anything", "compressed"),
