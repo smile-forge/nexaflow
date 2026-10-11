@@ -119,8 +119,9 @@ public class SetupWizardTests
         ClickNext(wizard);
 
         // ── Step 7: projects — enable, then set the directory. The step hosts the feature's own
-        // ProjectsConfigEditorControl (Projects 2.0), so drive its named elements, not cfg_* auto-ids. ──
-        var enableToggle = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("EnableProjectsCheck"))?.AsCheckBox());
+        // ProjectsConfigEditorControl (Projects 2.0), so drive its own ids, not cfg_* auto-ids. The checkbox's id is
+        // its AutomationId, which UI Automation reports in place of its x:Name. ──
+        var enableToggle = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("ProjectsConfig_Enable"))?.AsCheckBox());
         if (enableToggle.ToggleState != ToggleState.On) enableToggle.Toggle();
 
         var dirBox = WaitFor(() =>
