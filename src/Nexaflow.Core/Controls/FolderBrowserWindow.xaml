@@ -71,11 +71,14 @@
                   Foreground="{StaticResource TextBrush}"
                   FontSize="13"
                   SelectedItemChanged="FolderTree_SelectedItemChanged"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  VirtualizingPanel.ScrollUnit="Item"
                   ItemsSource="{Binding Roots}">
             <TreeView.Resources>
                 <Style TargetType="TreeViewItem" BasedOn="{StaticResource PickerTreeItem}">
                     <EventSetter Event="Expanded" Handler="TreeViewItem_Expanded"/>
-                    <EventSetter Event="Selected" Handler="TreeViewItem_Selected"/>
+
                 </Style>
             </TreeView.Resources>
             <TreeView.ItemTemplate>
