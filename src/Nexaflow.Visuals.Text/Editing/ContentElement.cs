@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
+using System.Windows.Automation.Peers;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -123,6 +124,9 @@ public class ContentElement : FrameworkElement
     private void OnLaid(object? sender, EventArgs args)
     {
         if (!_measuring) InvalidateMeasure();
+
+        // Laid out again, so the links a screen reader was told of are not the ones there now.
+        UIElementAutomationPeer.FromElement(this)?.ResetChildrenCache();
     }
 
     /// <summary>Bound content changed on whatever thread it walked on; it is laid out again here, on this element's.</summary>
@@ -153,6 +157,28 @@ public class ContentElement : FrameworkElement
 
     /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
     public Laid Laid => _engine.Laid;
+
+    /// <summary>What the content's links are to UI Automation — see <see cref="ContentElementAutomationPeer"/>.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ContentElementAutomationPeer(this);
+
+    /// <summary>The links in what is shown, as the engine lays them out.</summary>
+    internal IReadOnlyList<LaidLink> LaidLinks() => _engine.LaidLinks();
+
+    /// <summary>Whether <paramref name="link"/> still describes what is shown.</summary>
+    internal bool Holds(LaidLink link) => _engine.Holds(link);
+
+    /// <summary>Follows <paramref name="link"/> as a click on it would.</summary>
+    internal bool Open(LaidLink link) => _engine.Open(link);
+
+    /// <summary>A place in the content's own units, on this element — the way back from <c>Unscaled</c>.</summary>
+    internal Point FromContent(Point content) => new(content.X * Scale, content.Y * Scale);
+
+    /// <summary>A stretch of the content in its own units, on this element.</summary>
+    internal Rect FromContent(Rect content) =>
+        content.IsEmpty ? Rect.Empty : new Rect(FromContent(content.TopLeft), FromContent(content.BottomRight));
+
+    /// <summary>Whether any of a stretch of the content is on screen — everything is, where nothing has said what the screen is.</summary>
+    internal bool Showing(Rect content) => _engine.OnScreen is not { } screen || screen.IntersectsWith(content);
 
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
