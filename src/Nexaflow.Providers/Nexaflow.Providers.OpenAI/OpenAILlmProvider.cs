@@ -37,17 +37,7 @@ public sealed class OpenAILlmProvider : ILlmProvider
     // The pooled instance is long-lived with a fixed config payload — build the SDK client once.
     private OpenAIClient Client
     {
-        get
-        {
-            if (_client is null)
-            {
-                var clientOptions = new OpenAIClientOptions();
-                if (!string.IsNullOrWhiteSpace(_config.BaseUrl))
-                    clientOptions.Endpoint = new Uri(_config.BaseUrl);
-                _client = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), clientOptions);
-            }
-            return _client;
-        }
+        get => _client ??= OpenAIClients.Create(_config);
     }
 
     private ChatClient ChatClient => _chatClient ??= Client.GetChatClient(_model);

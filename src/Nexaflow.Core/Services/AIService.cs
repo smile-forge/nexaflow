@@ -18,12 +18,12 @@ public sealed class AIService : IAIService
     // ── Provider registry ─────────────────────────────────────────────────
     // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
 
-    private readonly Dictionary<string, ILlmProvider> _providers = [];
+    private readonly Dictionary<string, IAiProvider> _providers = [];
 
     private AiConfig? _abilityConfig;
 
     /// <summary>Registers the execution provider for an ability-grid column. Called by WorkspaceManager.</summary>
-    public void Register(string columnId, ILlmProvider provider)
+    public void Register(string columnId, IAiProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
         _providers[columnId] = provider;
@@ -37,21 +37,21 @@ public sealed class AIService : IAIService
 
     /// <summary>
     /// The providers that can serve <paramref name="ability"/> now, in its chain's order: each column the chain
-    /// names whose provider is registered and available. Unavailability moves a chain on; a request that fails
-    /// does not — it has cost its whole latency already.
+    /// names whose provider is registered, of the ability's kind, and available. Unavailability moves a chain
+    /// on; a request that fails does not — it has cost its whole latency already.
     /// </summary>
-    private IEnumerable<ILlmProvider> Candidates(AiAbility ability)
+    private IEnumerable<T> Candidates<T>(AiAbility ability) where T : class, IAiProvider
     {
         if (_abilityConfig is null || !_abilityConfig.Assignments.TryGetValue(ability.ToString(), out var chain))
             yield break;
 
         foreach (var columnId in chain.ColumnIds)
-            if (_providers.TryGetValue(columnId, out var p) && p.IsAvailable)
-                yield return p;
+            if (_providers.TryGetValue(columnId, out var p) && p is T served && p.IsAvailable)
+                yield return served;
     }
 
-    /// <summary>The provider that serves <paramref name="ability"/>: the first available in its chain, or null.</summary>
-    private ILlmProvider? GetProvider(AiAbility ability) => Candidates(ability).FirstOrDefault();
+    /// <summary>The language model that serves <paramref name="ability"/>: the first available in its chain, or null.</summary>
+    private ILlmProvider? GetProvider(AiAbility ability) => Candidates<ILlmProvider>(ability).FirstOrDefault();
 
     /// <summary>
     /// The Image Recognition model when it is not the conversation's own — null when none is set or it is the same.

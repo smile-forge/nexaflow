@@ -1,20 +1,11 @@
 namespace Nexaflow.Providers.Common;
 
 /// <summary>
-/// Abstraction over an LLM backend bound to a single model. One instance is created per
-/// (config, model) the user assigns — the model is injected at construction via
-/// <see cref="ProviderModel"/>, so completion calls don't pass it. Providers report activity through
-/// an <see cref="IBackgroundActivityManager"/> supplied at construction, so they need no knowledge of
-/// WPF or observable properties.
-/// <para>
-/// A model-agnostic "capability" instance (constructed with an empty <see cref="ProviderModel"/>) is
-/// used by the options UI only to call <see cref="GetAvailableModelsAsync"/>; it never completes.
-/// </para>
+/// A language model bound to a single model (see <see cref="IAiProvider"/> for what every provider shares): messages
+/// in, a reply streamed out.
 /// </summary>
-public interface ILlmProvider
+public interface ILlmProvider : IAiProvider
 {
-    string Name { get; }
-
     /// <summary>
     /// Whether this provider's bound model can accept image attachments (vision input). When true, the
     /// host may pass image <see cref="LlmAttachment"/>s and the provider encodes them as vision content;
@@ -22,18 +13,6 @@ public interface ILlmProvider
     /// Best-effort per provider — default false (text-only).
     /// </summary>
     bool SupportsImages => false;
-
-    /// <summary>
-    /// Where a request's content goes. A page whose context is high-risk is held to providers whose data stays
-    /// on this machine, unless the user agrees to send it.
-    /// </summary>
-    DataResidency Residency { get; }
-
-    /// <summary>
-    /// Whether this instance can take a request now. An ability's chain of models passes over an unavailable
-    /// one to the next — unavailability, not a failed request, is what moves a chain on. Default: available.
-    /// </summary>
-    bool IsAvailable => true;
 
     /// <summary>
     /// Sends an ordered list of messages to this provider's bound model and streams its reply as it is written.
@@ -52,41 +31,11 @@ public interface ILlmProvider
         CancellationToken         ct = default);
 
     /// <summary>
-    /// Returns the list of model identifiers available from this provider (independent of the bound
-    /// model — this is a provider/config-level capability). Implementations may query a remote API or
-    /// return a static list. Returns an empty list on failure; never throws.
-    /// </summary>
-    Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Why the last <see cref="GetAvailableModelsAsync"/> came back empty (bad key, unreachable
-    /// backend…), or null after a success. Lets the options UI distinguish "no models" from
-    /// "misconfigured" without breaking the never-throws contract. Default: null (not tracked).
-    /// </summary>
-    string? LastModelListError => null;
-
-    /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't
     /// know. Default implementation returns null.
     /// </summary>
     Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
         => Task.FromResult<ModelInfo?>(null);
-
-    /// <summary>
-    /// Called when this instance is created because its (config, model) became referenced by the first
-    /// active workspace. Lets the provider pre-load / cache anything it needs — e.g. a local backend can
-    /// load the model into memory. Best-effort and fire-and-forget: implementations must never throw.
-    /// Default implementation is a no-op (remote providers need no warm-up).
-    /// </summary>
-    Task WarmupAsync(CancellationToken ct = default) => Task.CompletedTask;
-
-    /// <summary>
-    /// Called when this instance is being released because its (config, model) is no longer referenced
-    /// by ANY active workspace. Lets the provider release resources — e.g. a local backend can unload
-    /// the model from memory. Best-effort and fire-and-forget: implementations must never throw.
-    /// Default implementation is a no-op.
-    /// </summary>
-    Task CooldownAsync(CancellationToken ct = default) => Task.CompletedTask;
 }
 
 /// <summary>Metadata about a specific LLM model.</summary>

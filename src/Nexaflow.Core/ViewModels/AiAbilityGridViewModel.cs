@@ -4,6 +4,7 @@ using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;
@@ -12,22 +13,40 @@ namespace Nexaflow.Core.ViewModels;
 
 public sealed class AiColumnViewModel
 {
-    public string Id               { get; }
-    public string ProviderName     { get; }
-    public string Model            { get; }
-    public string AssemblyFileName { get; }
+    public string    Id               { get; }
+    public string    ProviderName     { get; }
+    public string    Model            { get; }
+    public ModelKind Kind             { get; }
+    public string    AssemblyFileName { get; }
 
-    /// <summary>What this column's model is sent stays on this machine — so it can read high-risk pages.</summary>
+    /// <summary>What this column's model is sent stays on this machine.</summary>
     public bool StaysOnMachine { get; }
 
-    public AiColumnViewModel(string id, string providerName, string model, string assemblyFileName, bool staysOnMachine)
+    /// <summary>The kind, named under the model when it is not a language model ("speech to text").</summary>
+    public string KindLabel { get; }
+
+    public AiColumnViewModel(string id, string providerName, string model, ModelKind kind, string assemblyFileName, bool staysOnMachine)
     {
         Id               = id;
         ProviderName     = providerName;
         Model            = model;
+        Kind             = kind;
         AssemblyFileName = assemblyFileName;
         StaysOnMachine   = staysOnMachine;
+        KindLabel        = ProviderOffer.KindLabel(kind);
     }
+}
+
+/// <summary>A provider's models of one kind, as the add-column picker lists them.</summary>
+public sealed record ProviderOffer(string ProviderName, ModelKind Kind)
+{
+    public string Display => Kind == ModelKind.Language ? ProviderName : $"{ProviderName} — {KindLabel(Kind)}";
+
+    public static string KindLabel(ModelKind kind) => kind switch
+    {
+        ModelKind.SpeechToText => Str.Get("Shell.Config.AiGrid.Kind.SpeechToText"),
+        _                      => string.Empty,
+    };
 }
 
 // ── Cell (one per row×column intersection) ────────────────────────────────────
@@ -38,6 +57,9 @@ public partial class AiAbilityCellViewModel : ObservableObject
 
     public AiColumnViewModel Column { get; }
 
+    /// <summary>The column holds the kind of model the row's ability takes; other cells are blank.</summary>
+    public bool IsUsable { get; }
+
     /// <summary>Where this column stands in the row's chain, from 1; 0 when the row does not use it.</summary>
     public int Position => _row.Chain.IndexOf(Column.Id) + 1;
 
@@ -47,10 +69,11 @@ public partial class AiAbilityCellViewModel : ObservableObject
 
     public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column)
     {
-        _row   = row;
-        Column = column;
+        _row     = row;
+        Column   = column;
+        IsUsable = column.Kind == row.Kind;
 
-        ToggleCommand = new RelayCommand(() => _row.Toggle(Column.Id));
+        ToggleCommand = new RelayCommand(() => _row.Toggle(Column.Id), () => IsUsable);
 
         _row.Chain.CollectionChanged += (_, _) =>
         {
@@ -66,6 +89,7 @@ public partial class AiAbilityRowViewModel : ObservableObject
 {
     public AiAbility Ability     { get; }
     public string    AbilityName { get; }
+    public ModelKind Kind        => AiAbilityNames.Kind(Ability);
 
     /// <summary>The columns that serve this ability, in order of preference.</summary>
     public ObservableCollection<string> Chain { get; } = [];
@@ -100,13 +124,13 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     // ── Add-column panel state ────────────────────────────────────────────
 
-    [ObservableProperty] private bool    _showAddPanel;
-    [ObservableProperty] private string? _newProviderName;
-    [ObservableProperty] private string  _newModelName = string.Empty;
-    [ObservableProperty] private bool    _isLoadingModels;
+    [ObservableProperty] private bool           _showAddPanel;
+    [ObservableProperty] private ProviderOffer? _newOffer;
+    [ObservableProperty] private string         _newModelName = string.Empty;
+    [ObservableProperty] private bool           _isLoadingModels;
 
-    public ObservableCollection<string> AvailableProviders { get; } = [];
-    public ObservableCollection<string> SuggestedModels    { get; } = [];
+    public ObservableCollection<ProviderOffer> AvailableOffers { get; } = [];
+    public ObservableCollection<string>        SuggestedModels { get; } = [];
 
     public bool HasModelSuggestions => SuggestedModels.Count > 0;
 
@@ -129,17 +153,19 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         // Provider plugins are loaded and this context's provider set is (re)built by
         // WorkspaceConfigViewModel before the grid is shown; we read it via _config.Providers.
-        RebuildAvailableProviders();
+        RebuildAvailableOffers();
 
         foreach (var pair in config.Columns)
-            Columns.Add(NewColumn(pair.Id, pair.ProviderName, pair.Model, pair.AssemblyFileName));
+            Columns.Add(NewColumn(pair.Id, pair.ProviderName, pair.Model, pair.Kind, pair.AssemblyFileName));
 
-        // Build rows for every defined ability, keeping only the saved chain's columns that still exist.
-        var known = Columns.Select(c => c.Id).ToHashSet();
+        // Build rows for every defined ability, keeping only the saved chain's columns that still exist and
+        // hold the ability's kind of model.
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
         {
-            var saved = config.Assignments.GetValueOrDefault(ability.ToString()) ?? AbilityChain.Empty;
-            var row   = new AiAbilityRowViewModel(ability, new AbilityChain(saved.ColumnIds.Where(known.Contains)));
+            var kind   = AiAbilityNames.Kind(ability);
+            var usable = Columns.Where(c => c.Kind == kind).Select(c => c.Id).ToHashSet();
+            var saved  = config.Assignments.GetValueOrDefault(ability.ToString()) ?? AbilityChain.Empty;
+            var row    = new AiAbilityRowViewModel(ability, new AbilityChain(saved.ColumnIds.Where(usable.Contains)));
 
             foreach (var col in Columns)
                 row.Cells.Add(new AiAbilityCellViewModel(row, col));
@@ -154,31 +180,25 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         OpenAddPanelCommand = new RelayCommand(() =>
         {
-            RebuildAvailableProviders();
-            ShowAddPanel    = true;
-            NewProviderName = null;
+            RebuildAvailableOffers();
+            ShowAddPanel = true;
+            NewOffer     = null;
         });
 
-        CancelAddCommand = new RelayCommand(() =>
-        {
-            ShowAddPanel    = false;
-            NewModelName    = string.Empty;
-            NewProviderName = null;
-            SuggestedModels.Clear();
-        });
+        CancelAddCommand = new RelayCommand(ResetAddPanel);
 
         ConfirmAddCommand = new RelayCommand(
             AddColumn,
-            () => !string.IsNullOrWhiteSpace(NewProviderName) && !string.IsNullOrWhiteSpace(NewModelName));
+            () => NewOffer is not null && !string.IsNullOrWhiteSpace(NewModelName));
 
         RemoveColumnCommand = new RelayCommand<object>(
             obj => RemoveColumn(obj as AiColumnViewModel),
             obj => obj is AiColumnViewModel);
     }
 
-    // ── Provider changed — reload model suggestions ───────────────────────
+    // ── Offer changed — reload model suggestions ──────────────────────────
 
-    partial void OnNewProviderNameChanged(string? value)
+    partial void OnNewOfferChanged(ProviderOffer? value)
     {
         SuggestedModels.Clear();
         NewModelName = string.Empty;
@@ -190,10 +210,9 @@ public partial class AiAbilityGridViewModel : ObservableObject
     partial void OnNewModelNameChanged(string value)
         => ConfirmAddCommand.NotifyCanExecuteChanged();
 
-    private async Task LoadModelsAsync(string providerName)
+    private async Task LoadModelsAsync(ProviderOffer offer)
     {
-        if (_config.Providers is not { } set
-            || !set.Providers.TryGetValue(providerName, out var provider))
+        if (_config.Providers?.Find(offer.ProviderName, offer.Kind) is not { } provider)
             return;
 
         IsLoadingModels = true;
@@ -214,26 +233,31 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     // ── Provider list ─────────────────────────────────────────────────────
 
-    private void RebuildAvailableProviders()
+    /// <summary>Every (provider, kind) the workspace can add a column for — a provider whose required config
+    /// (an API key) is missing offers nothing yet.</summary>
+    private void RebuildAvailableOffers()
     {
-        AvailableProviders.Clear();
+        AvailableOffers.Clear();
         if (_config.Providers is not { } set) return;
 
         var providerConfigs = set.Configs.ToDictionary(c => c.FriendlyName);
-        foreach (var name in set.Providers.Keys)
+        foreach (var provider in set.Providers)
         {
-            if (providerConfigs.TryGetValue(name, out var cfg)
+            if (providerConfigs.TryGetValue(provider.Name, out var cfg)
                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
                 continue;
-            AvailableProviders.Add(name);
+
+            foreach (var kind in Enum.GetValues<ModelKind>())
+                if (provider.Serves(kind))
+                    AvailableOffers.Add(new ProviderOffer(provider.Name, kind));
         }
     }
 
     public void ResetAddPanel()
     {
-        ShowAddPanel    = false;
-        NewModelName    = string.Empty;
-        NewProviderName = null;
+        ShowAddPanel = false;
+        NewModelName = string.Empty;
+        NewOffer     = null;
         SuggestedModels.Clear();
     }
 
@@ -241,31 +265,28 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     /// <summary>A column, with where its provider sends what it is asked — read from the provider as this workspace
     /// configures it (an Ollama server's address, an OpenAI-compatible base URL).</summary>
-    private AiColumnViewModel NewColumn(string id, string providerName, string model, string assemblyFileName)
+    private AiColumnViewModel NewColumn(string id, string providerName, string model, ModelKind kind, string assemblyFileName)
     {
-        var staysOnMachine = _config.Providers?.Providers.GetValueOrDefault(providerName) is { } provider
+        var staysOnMachine = _config.Providers?.Find(providerName, kind) is { } provider
                              && provider.Residency == DataResidency.StaysOnMachine;
-        return new AiColumnViewModel(id, providerName, model, assemblyFileName, staysOnMachine);
+        return new AiColumnViewModel(id, providerName, model, kind, assemblyFileName, staysOnMachine);
     }
 
     private void AddColumn()
     {
-        if (string.IsNullOrWhiteSpace(NewProviderName) || string.IsNullOrWhiteSpace(NewModelName))
+        if (NewOffer is not { } offer || string.IsNullOrWhiteSpace(NewModelName))
             return;
 
         var colVm = NewColumn(
-            Guid.NewGuid().ToString("N"), NewProviderName, NewModelName,
-            _config.Providers?.GetAssemblyFileName(NewProviderName) ?? string.Empty);
+            Guid.NewGuid().ToString("N"), offer.ProviderName, NewModelName, offer.Kind,
+            _config.Providers?.GetAssemblyFileName(offer.ProviderName) ?? string.Empty);
 
         Columns.Add(colVm);
 
         foreach (var row in Rows)
             row.Cells.Add(new AiAbilityCellViewModel(row, colVm));
 
-        ShowAddPanel    = false;
-        NewModelName    = string.Empty;
-        NewProviderName = null;
-        SuggestedModels.Clear();
+        ResetAddPanel();
     }
 
     private void RemoveColumn(AiColumnViewModel? col)
@@ -296,7 +317,10 @@ public partial class AiAbilityGridViewModel : ObservableObject
     public void Apply()
     {
         _config.Columns = Columns
-            .Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, AssemblyFileName = c.AssemblyFileName })
+            .Select(c => new ProviderModelPair
+            {
+                Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, Kind = c.Kind, AssemblyFileName = c.AssemblyFileName,
+            })
             .ToList();
 
         _config.Assignments.Clear();

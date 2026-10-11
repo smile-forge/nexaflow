@@ -96,12 +96,8 @@ public class AiAbilityGridViewModelTests
         {
             Columns   = [Column("here", "Local"), Column("away", "Cloud")],
             Providers = new ProviderSet(
-                new Dictionary<string, ILlmProvider>
-                {
-                    ["Local"] = new Residing(DataResidency.StaysOnMachine),
-                    ["Cloud"] = new Residing(DataResidency.LeavesMachine),
-                },
-                new Dictionary<string, ILlmProvider>(), [], new Dictionary<string, string>(), []),
+                [new Residing("Local", DataResidency.StaysOnMachine), new Residing("Cloud", DataResidency.LeavesMachine)],
+                new Dictionary<string, IAiProvider>(), [], new Dictionary<string, string>(), []),
         };
         var grid = new AiAbilityGridViewModel(config);
 
@@ -109,9 +105,27 @@ public class AiAbilityGridViewModelTests
         Assert.IsFalse(grid.Columns.Single(c => c.Id == "away").StaysOnMachine);
     }
 
-    private sealed class Residing(DataResidency residency) : ILlmProvider
+    [TestMethod]
+    public void ARowTakesOnlyColumnsOfItsKindOfModel()
     {
-        public string Name => "r";
+        var config = new AiConfig
+        {
+            Columns     = [Column("llm"), new ProviderModelPair { Id = "stt", ProviderName = "Prov", Model = "t", Kind = ModelKind.SpeechToText }],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of("llm", "stt") },
+        };
+        var grid     = new AiAbilityGridViewModel(config);
+        var speechIn = grid.Rows.Single(r => r.Ability == AiAbility.SpeechIn);
+
+        CollectionAssert.AreEqual(new[] { "stt" }, speechIn.Chain.ToArray(), "a language model cannot hear");
+        Assert.IsFalse(Cell(speechIn, "llm").IsUsable);
+        Assert.IsFalse(Cell(speechIn, "llm").ToggleCommand.CanExecute(null));
+        Assert.IsTrue(Cell(Conversation(grid), "llm").IsUsable);
+        Assert.IsFalse(Cell(Conversation(grid), "stt").IsUsable);
+    }
+
+    private sealed class Residing(string name, DataResidency residency) : ILlmProvider
+    {
+        public string Name => name;
         public DataResidency Residency => residency;
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
             => AsyncEnumerable.Empty<LlmStreamEvent>();

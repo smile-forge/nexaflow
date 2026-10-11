@@ -73,7 +73,8 @@
                     Command="{Binding ToggleCommand}"
                     ToolTip="{loc:Str Shell.Config.AiGrid.CellTip}"
                     AutomationProperties.AutomationId="AiGrid_Cell">
-                <Grid Width="20" Height="20">
+                <Grid Width="20" Height="20"
+                      Visibility="{Binding IsUsable, Converter={StaticResource BoolVis}}">
                     <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
                              Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
                     <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
@@ -169,10 +170,11 @@
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Text="Provider" FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                        <ComboBox ItemsSource="{Binding AvailableProviders}"
-                                  SelectedItem="{Binding NewProviderName}"
+                        <ComboBox ItemsSource="{Binding AvailableOffers}"
+                                  SelectedItem="{Binding NewOffer}"
+                                  DisplayMemberPath="Display"
                                   Style="{StaticResource DarkComboBox}"
-                                  Width="150"/>
+                                  Width="210"/>
                     </StackPanel>
 
                     <!-- Model selector -->
@@ -255,7 +257,7 @@
                 <Border BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1"
                         Background="{StaticResource SurfaceBrush}"
-                        Height="60">
+                        Height="72">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Blank space matching ability-name column -->
                         <TextBlock Width="170"/>
@@ -276,6 +278,10 @@
                                                        Foreground="{StaticResource TextBrush}"
                                                        HorizontalAlignment="Center"/>
                                             <TextBlock Text="{Binding Model}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding KindLabel}"
                                                        FontSize="10"
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"/>

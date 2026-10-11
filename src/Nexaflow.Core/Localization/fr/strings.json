@@ -28,6 +28,7 @@
   "Shell.AiResponse.ContextRelease.Question": "Envoyer le contenu de cette page à {0} ?",
   "Shell.Config.AiGrid.ChainHint": "Cliquez sur les cases pour choisir les modèles qui assurent chaque capacité, dans l'ordre où ils sont essayés : une demande va au premier disponible. Sur une page contenant des informations système, vous êtes consulté avant que son contenu ne parte vers un modèle dont les données quittent cet ordinateur.",
   "Shell.Config.AiGrid.CellTip": "Ajouter ce modèle à la capacité, ou l'en retirer",
+  "Shell.Config.AiGrid.Kind.SpeechToText": "transcription vocale",
   "Shell.Config.AiGrid.StaysOnMachine": "sur cet ordinateur",
   "Shell.Config.AiGrid.StaysOnMachineTip": "Ce qui est envoyé à ce modèle reste sur cet ordinateur",
   "Shell.Notifications.Header": "Notifications",

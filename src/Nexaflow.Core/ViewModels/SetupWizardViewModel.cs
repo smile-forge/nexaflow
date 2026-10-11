@@ -198,8 +198,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
     private async Task LoadModelsAsync()
     {
         var name = _ctx.ChosenProvider?.FriendlyName;
-        if (name is null || _ctx.ProviderSet is null
-            || !_ctx.ProviderSet.Providers.TryGetValue(name, out var provider))
+        if (name is null || _ctx.ProviderSet?.Find(name, ModelKind.Language) is not { } provider)
             return;
 
         // The provider's own Name is exactly the key the ability grid / AcquireProviderSet resolve
@@ -229,10 +228,12 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
             AssemblyFileName = _ctx.ProviderSet?.GetAssemblyFileName(name) ?? string.Empty,
         };
 
+        // The chosen language model serves every reasoning role; abilities of other kinds need models of their own.
         _ctx.Workspace.AiConfig.Columns = [pair];
         _ctx.Workspace.AiConfig.Assignments.Clear();
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
-            _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
+            if (AiAbilityNames.Kind(ability) == ModelKind.Language)
+                _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();

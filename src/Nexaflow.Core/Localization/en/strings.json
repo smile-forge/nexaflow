@@ -55,6 +55,7 @@
   "Shell.AiResponse.ContextRelease.Question": "Send this page's contents to {0}?",
   "Shell.Config.AiGrid.ChainHint": "Click cells to choose which models serve each ability, in the order they are tried: a request goes to the first that is available. On a page holding system information, you are asked before its contents go to a model whose data leaves this machine.",
   "Shell.Config.AiGrid.CellTip": "Add this model to the ability, or take it out",
+  "Shell.Config.AiGrid.Kind.SpeechToText": "speech to text",
   "Shell.Config.AiGrid.StaysOnMachine": "on this machine",
   "Shell.Config.AiGrid.StaysOnMachineTip": "What this model is sent stays on this machine",
   "Shell.Notifications.Header": "Notifications",
