@@ -32,9 +32,9 @@
         Core and the CLI were not built at all. The harvest read whatever an earlier Nexaflow.slnx build had left
         behind, and a checkout without one stopped at the snaplink check, looking for an nfi.dll nothing built.
 
-    So the payload is built the way the command line builds one project on its own: Configuration and Platform
-    passed down, references built, and the solution's map and the IDE's flags taken away. Both builds use the
-    same set, so a later query of either project lands on the instance that built it.
+    So the payload is restored and built the way the command line builds one project on its own: Configuration
+    and Platform passed down, references built, and the solution's map and the IDE's flags taken away. Both builds
+    use the same set, so a later query of either project lands on the instance that built it.
   -->
   <PropertyGroup>
     <_PayloadBuildProperties>Configuration=$(Configuration);Platform=$(Platform);BuildProjectReferences=true</_PayloadBuildProperties>
@@ -120,7 +120,7 @@
     BuildAppPayload). Removing BuildingInsideVisualStudio also keeps the CLI's NfiPublishViaScript hook, which
     is for Visual Studio's Publish button, out of this publish.
   -->
-  <Target Name="HarvestToolsOutput" BeforeTargets="CoreCompile">
+  <Target Name="HarvestToolsOutput" DependsOnTargets="RestoreAppPayload" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <_ToolsCliProj>$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj</_ToolsCliProj>
       <_ToolsStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)tools-payload'))\</_ToolsStage>
@@ -185,6 +185,19 @@
   </Target>
 
   <!--
+    Restoring this solution restores the two wixprojs and nothing else, so the payload's packages are restored here,
+    with the properties it is built with. Restore is its own evaluation, as `msbuild -restore` makes it: a fresh
+    MSBuildRestoreSessionId keeps it apart from the build that follows, which then reads the props and targets the
+    restore wrote rather than a pre-restore copy.
+  -->
+  <Target Name="RestoreAppPayload">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj;$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj"
+             Targets="Restore"
+             Properties="$(_PayloadBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid());MSBuildIsRestoring=true"
+             RemoveProperties="$(_PayloadContextProperties)" />
+  </Target>
+
+  <!--
     Builds Nexaflow.Core and, through its references, every feature, provider, language pack and library the app
     ships, all in $(Configuration)|$(Platform). Core's Build target returns the path it built, and that path is
     what HarvestCoreOutput harvests: the exact output of this build, never a folder guessed from the
@@ -195,7 +208,7 @@
     surfaces as file-lock CS2012, a half-done WPF markup compile, or an incomplete harvest — which is why the
     property sets above are shared, and why nothing else here builds Core.
   -->
-  <Target Name="BuildAppPayload">
+  <Target Name="BuildAppPayload" DependsOnTargets="RestoreAppPayload">
     <MSBuild Projects="$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj" Targets="Build"
              Properties="$(_PayloadBuildProperties)" RemoveProperties="$(_PayloadContextProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CoreRef" />
