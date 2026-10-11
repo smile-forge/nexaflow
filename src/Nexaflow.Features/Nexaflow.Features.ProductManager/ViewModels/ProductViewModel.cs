@@ -9,6 +9,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Collections;
@@ -40,6 +41,13 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
     [ObservableProperty] private string _productName = "Product";
     [ObservableProperty] private string? _focusedNodeId;
+
+    /// <summary>
+    /// How tree.json stood after this page last wrote it. The page watches the file it writes, so every save comes back as
+    /// a change; reading it back rebuilt every row on the page, under whatever the reader was pressing. A change that
+    /// leaves the file as this page wrote it is this page's own, and there is nothing in it to read.
+    /// </summary>
+    private FileStamp _treeWritten;
     [ObservableProperty] private SunburstNode? _sunburstRoot;
     [ObservableProperty] private bool _hasNodes;
 
@@ -146,7 +154,10 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         _shell = shell;
         Load();
         // watch only the live tree; snapshots are static, so ignore changes while one is selected
-        _watch = shell.WatchFile(store.TreeFilePath, () => { if (SelectedVersion == ProductStore.CurrentVersion) Load(); });
+        _watch = shell.WatchFile(store.TreeFilePath, () =>
+        {
+            if (SelectedVersion == ProductStore.CurrentVersion && _store.TreeStamp() != _treeWritten) Load();
+        });
         // the Integrity page rewrites integrity.json after a scan or a repair — keep the root tile honest
         _integrityWatch = shell.WatchFile(store.IntegrityFilePath, LoadIntegritySummary);
 
@@ -907,7 +918,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private void SaveTree()
     {
         if (!IsEditable) return;
-        _store.SaveTree(_state.Nodes);
+        _treeWritten = _store.SaveTree(_state.Nodes);
     }
 
     // ── IPageViewModel ─────────────────────────────────────────────────────────

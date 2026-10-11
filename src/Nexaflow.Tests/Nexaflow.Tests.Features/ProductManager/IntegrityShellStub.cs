@@ -24,7 +24,20 @@ internal sealed class IntegrityShellStub : IShellServices
         onComplete?.Invoke(ok);
     }
 
-    public IFileWatch WatchFile(string path, Action onChanged) => new NoopWatch();
+    /// <summary>Every file watched, with what it calls — fired by <see cref="Changed"/> rather than by a disk.</summary>
+    public Dictionary<string, Action> Watches { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public IFileWatch WatchFile(string path, Action onChanged)
+    {
+        Watches[path] = onChanged;
+        return new NoopWatch();
+    }
+
+    /// <summary>Tells whoever watches <paramref name="path"/> that it changed, as the shell's watcher would.</summary>
+    public void Changed(string path)
+    {
+        if (Watches.TryGetValue(path, out var onChanged)) onChanged();
+    }
 
     public void ShowNotification(string message) => Notifications.Add(message);
     public void ShowNotification(string message, Page tab) => Notifications.Add(message);

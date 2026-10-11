@@ -118,6 +118,23 @@ public class ProductStoreTests
     }
 
     [TestMethod]
+    public void SaveTree_SaysHowTheFileItWroteStands()
+    {
+        _store.Initialize("Demo");
+
+        var written = _store.SaveTree(Mermaid());
+
+        Assert.IsTrue(written.IsKnown);
+        Assert.AreEqual(_store.TreeStamp(), written, "a writer watching the file can tell its own write when it comes back");
+
+        var tree = Mermaid();
+        tree["mermaid"].Title = "Mermaid rendering, renamed by somebody else";
+        new ProductStore(_root).SaveTree(tree);
+
+        Assert.AreNotEqual(written, _store.TreeStamp(), "and somebody else's write is not taken for its own");
+    }
+
+    [TestMethod]
     public void RoundTrip_ChangingOneStatus_ProducesMinimalDiff()
     {
         _store.Initialize("Nexaflow");
