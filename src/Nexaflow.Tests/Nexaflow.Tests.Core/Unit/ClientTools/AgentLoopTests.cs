@@ -27,21 +27,32 @@ public class AgentLoopTests
 
         public string Name => "fake";
 
-        public Task<LlmResponse?> CompleteAsync(
+        public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
             IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User)?.Text ?? string.Empty;
             if (lastUser.Contains("Most relevant tool numbers"))
-                return Task.FromResult<LlmResponse?>(new LlmResponse(rankReply));
+                return Streamed(rankReply, ct);
 
             SystemPrompts.Add(messages.FirstOrDefault(m => m.Role == LlmRole.System)?.Text ?? string.Empty);
-            var text = _responses.Count > 0 ? _responses.Dequeue() : "done";
-            return Task.FromResult<LlmResponse?>(new LlmResponse(text));
+            return Streamed(_responses.Count > 0 ? _responses.Dequeue() : "done", ct);
         }
 
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(["m"]);
+    }
+
+    /// <summary>A reply the way a model sends it: a few characters at a time, so a fence can be cut anywhere.</summary>
+    private static async IAsyncEnumerable<LlmStreamEvent> Streamed(
+        string text, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        for (var i = 0; i < text.Length; i += 5)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Yield();
+            yield return new LlmTextDelta(text.Substring(i, Math.Min(5, text.Length - i)));
+        }
     }
 
     private sealed class FakeApprover : IAIResponseHandler
@@ -51,13 +62,20 @@ public class AgentLoopTests
         public int  BatchRequests;
         public int  PlanRequests;
         public string? Final;
+        public string? LastExplanation;
+
+        /// <summary>Every draft shown, in order, and how each draft ended.</summary>
+        public List<string> Drafts { get; } = [];
+        public List<bool>   DraftEnds { get; } = [];
 
         public void BeginResponse(string userText) { }
         public Task<bool> RequestToolBatchApprovalAsync(string explanation, IReadOnlyList<ToolCall> batch, CancellationToken ct)
-        { BatchRequests++; return Task.FromResult(BatchResult); }
+        { BatchRequests++; LastExplanation = explanation; return Task.FromResult(BatchResult); }
         public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
         { PlanRequests++; return Task.FromResult(PlanResult); }
         public void ReportProgress(string message) { }
+        public void ShowReplyDraft(string draftMarkdown) => Drafts.Add(draftMarkdown);
+        public void EndReplyDraft(bool keep) => DraftEnds.Add(keep);
         public void ShowFinal(string finalMarkdown) => Final = finalMarkdown;
         public void Abort() { }
     }
@@ -97,18 +115,17 @@ public class AgentLoopTests
         public string Name => "fake";
         public bool SupportsImages => supportsImages;
 
-        public Task<LlmResponse?> CompleteAsync(
+        public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
             IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
             var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User);
             var lastText = lastUser?.Text ?? string.Empty;
             if (lastText.Contains("Most relevant tool numbers"))
-                return Task.FromResult<LlmResponse?>(new LlmResponse("1,2,3,4"));
+                return Streamed("1,2,3,4", ct);
 
             LastToolResultsText = lastText;
-            Calls.Add(lastUser?.Attachments);   // attachments now ride the message, not a side parameter
-            var text = _responses.Count > 0 ? _responses.Dequeue() : "done";
-            return Task.FromResult<LlmResponse?>(new LlmResponse(text));
+            Calls.Add(lastUser?.Attachments);   // attachments ride the message, not a side parameter
+            return Streamed(_responses.Count > 0 ? _responses.Dequeue() : "done", ct);
         }
 
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
@@ -142,10 +159,10 @@ public class AgentLoopTests
         public string Name => "img";
         public bool SupportsImages => true;
 
-        public Task<LlmResponse?> CompleteAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
+        public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
             Seen.AddRange(messages.SelectMany(m => m.Attachments ?? []));
-            return Task.FromResult<LlmResponse?>(new LlmResponse(description));
+            return Streamed(description, ct);
         }
 
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
@@ -221,6 +238,62 @@ public class AgentLoopTests
         Assert.AreEqual(1, tool.Invocations);
         Assert.AreEqual(0, approver.BatchRequests);
         Assert.AreEqual("All done.", approver.Final);
+    }
+
+    [TestMethod]
+    public async Task Answer_IsShownAsItIsWritten_ThenReplacedByTheFinal()
+    {
+        const string answer = "The build failed because the test project no longer compiles.";
+        var approver = new FakeApprover();
+
+        await BuildService(new ScriptedLlmProvider([answer])).RunAgentAsync(new TestPage(), "why", true, approver, default);
+
+        Assert.IsTrue(approver.Drafts.Count > 0, "the reply was not shown while it was written");
+        Assert.IsTrue(approver.Drafts.All(d => answer.StartsWith(d, StringComparison.Ordinal)),
+            "every draft is the reply so far");
+        Assert.AreEqual(0, approver.DraftEnds.Count, "the final answer takes the draft's place; it is not ended");
+        Assert.AreEqual(answer, approver.Final);
+    }
+
+    [TestMethod]
+    public async Task ProseBeforeATool_StandsAsNarration_AndTheToolBlockIsNeverShown()
+    {
+        var tool     = new RecordingTool("get_x", ToolSafety.SafeOperation);
+        var provider = new ScriptedLlmProvider(["Let me look at the file.\n" + ToolBlock("get_x"), "Found it."]);
+        var approver = new FakeApprover();
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tool), "look", true, approver, default);
+
+        Assert.IsFalse(approver.Drafts.Any(d => d.Contains("client_tool") || d.Contains("get_x")),
+            "a block the agent acts on leaked into a draft");
+        CollectionAssert.AreEqual(new[] { true }, approver.DraftEnds);
+        Assert.IsTrue(approver.Drafts.Contains("Let me look at the file."), "the narration was not shown whole");
+        Assert.AreEqual("Found it.", approver.Final);
+    }
+
+    [TestMethod]
+    public async Task ProseBeforeAnApproval_GivesWayToTheApprovalPrompt()
+    {
+        var tool     = new RecordingTool("write_x", ToolSafety.RequiresApproval);
+        var provider = new ScriptedLlmProvider(["I'll write the file.\n" + ToolBlock("write_x"), "Written."]);
+        var approver = new FakeApprover();
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tool), "write", true, approver, default);
+
+        CollectionAssert.AreEqual(new[] { false }, approver.DraftEnds);
+        Assert.AreEqual("I'll write the file.", approver.LastExplanation);
+    }
+
+    [TestMethod]
+    public async Task AMalformedBlock_TakesItsDraftAway_ForTheRetry()
+    {
+        var provider = new ScriptedLlmProvider(["Trying.\n```client_tool\n{not json\n```", "Answered."]);
+        var approver = new FakeApprover();
+
+        await BuildService(provider).RunAgentAsync(new TestPage(), "go", true, approver, default);
+
+        CollectionAssert.AreEqual(new[] { false }, approver.DraftEnds);
+        Assert.AreEqual("Answered.", approver.Final);
     }
 
     [TestMethod]

@@ -1,7 +1,8 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: proposal.** Nothing here is built. It records what was measured, the decisions taken, the design that
-follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
+**Status: phase 1 under way.** Replies stream through the agent harness; the rest is not built yet. This records
+what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
+type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -219,9 +220,9 @@ Proposed layout, mirroring `Nexaflow.Elevation`: `src/Nexaflow.AI/Nexaflow.AI.Co
 
 ### Capabilities instead of one text contract
 
-`ILlmProvider` stays the text-generation contract and gains what Architecture.md already names as its escape
-hatches — a streaming completion and an opt-in native-tools capability — plus **audio attachments** next to image
-ones (`LlmAttachment.IsImage` has no audio counterpart). Beside it, in `Providers.Common`:
+`ILlmProvider` stays the text-generation contract. It streams its reply as events (`StreamAsync`), and gains
+**audio attachments** next to image ones (`LlmAttachment.IsImage` has no audio counterpart); native tool calls
+arrive later as one more kind of event, for a provider that opts in. Beside it, in `Providers.Common`:
 
 | Capability | Shape |
 |---|---|
@@ -355,8 +356,8 @@ flowchart LR
   clause still missing its verb ("…die ich gestern"), which the audio alone judged finished. After a barge-in, a
   fragment judged complete ("Wait, stop —") is held ~1 s for the rest of the sentence.
 - **The agent loop is the same one**: a voice turn goes through `RunAgentAsync` with page context and tools, in a
-  "spoken reply" style. This needs streaming through the harness — today `LlmStreamRunner` accumulates the whole
-  reply before anything returns.
+  "spoken reply" style. The loop streams each step's prose to its response handler as a draft while it is
+  written, without the blocks the agent acts on — what the segmenter reads.
 - **Segmenter**: the first segment ends at a clause boundary, later ones at sentences.
 - **Barge-in**: VAD onset (96 ms of speech) during playback **pauses** playback at once; the ASR decides. Words →
   generation is cancelled and the history keeps **only what was heard** — the measured run recorded "Garbage

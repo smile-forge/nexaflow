@@ -1,0 +1,95 @@
+{
+  "branch": "claude/local-ai-phase1",
+  "nodes": {
+    "providers-common": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/LlmStreamRunnerTests.cs",
+            "class": "LlmStreamRunnerTests"
+          }
+        ]
+      }
+    },
+    "aibar-reply-draft": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "ShowReplyDraft"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "StreamStepAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/ReplyDraft.cs",
+          "class": "ReplyDraft"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/ReplyDraftTests.cs",
+            "class": "ReplyDraftTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "Answer_IsShownAsItIsWritten_ThenReplacedByTheFinal"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/AgentLoopTests.cs",
+            "class": "AgentLoopTests",
+            "method": "ProseBeforeATool_StandsAsNarration_AndTheToolBlockIsNeverShown"
+          }
+        ]
+      }
+    },
+    "aichat-thread": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationTimelineTests.cs",
+            "class": "ConversationTimelineTests",
+            "method": "ShowFinal_EmptyAnswer_RendersANoticeInsteadOfABlankBubble"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationTimelineTests.cs",
+            "class": "ConversationTimelineTests",
+            "method": "ShowFinal_RealAnswer_RendersAndPersistsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationTimelineTests.cs",
+            "class": "ConversationTimelineTests",
+            "method": "ADraft_GrowsInOneBubble_AndTheAnswerTakesItsPlace"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationTimelineTests.cs",
+            "class": "ConversationTimelineTests",
+            "method": "Narration_StaysAboveTheToolsItLeadsTo_AndIsNotPersisted"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "aibar-reply-draft",
+    "aichat-thread",
+    "providers-common"
+  ]
+}

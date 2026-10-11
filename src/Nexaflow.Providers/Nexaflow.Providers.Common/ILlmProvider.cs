@@ -24,13 +24,18 @@ public interface ILlmProvider
     bool SupportsImages => false;
 
     /// <summary>
-    /// Sends an ordered list of messages to this provider's bound model and returns the completion.
+    /// Sends an ordered list of messages to this provider's bound model and streams its reply as it is written.
     /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt; subsequent
     /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>. A message may
     /// carry <see cref="LlmMessage.Attachments"/> (e.g. an image a tool captured); providers that report
     /// <see cref="SupportsImages"/> encode image attachments inline, others list their file paths in text.
+    /// <para>
+    /// Cancelling <paramref name="ct"/> ends the stream with an <see cref="OperationCanceledException"/>; any
+    /// other failure is an <see cref="LlmProviderException"/>. A caller that wants the finished reply reads the
+    /// stream to its end — <see cref="LlmProviderExtensions.CompleteAsync"/>.
+    /// </para>
     /// </summary>
-    Task<LlmResponse?> CompleteAsync(
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default);
 

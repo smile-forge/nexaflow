@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              IsHitTestVisible="True"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
@@ -92,11 +93,17 @@
 
                 <!-- Body: selectable markdown, or a centred status line while the agent works -->
                 <Grid Grid.Row="1">
-                    <md:MarkdownSurface x:Name="MarkdownBody"
-                                               Markdown="{Binding AiResponseText}"
-                                               VerticalScrollBarVisibility="Auto"
-                                               Margin="20,14"
-                                               Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}"/>
+                    <!-- The scroller is outside the surface so a reply being written can be followed to its end. -->
+                    <ScrollViewer x:Name="BodyScroller"
+                                  beh:ScrollFollowsEnd.IsEnabled="True"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                        <md:MarkdownSurface x:Name="MarkdownBody"
+                                                   Markdown="{Binding AiResponseText}"
+                                                   VerticalScrollBarVisibility="Disabled"
+                                                   Margin="20,14"/>
+                    </ScrollViewer>
 
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -135,12 +142,12 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Footer: hidden while running -->
+                <!-- Footer: only for a finished message or a pending approval -->
                 <Border Grid.Row="2"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,1,0,0"
                         Padding="16,10"
-                        Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                        Visibility="{Binding AiOverlayShowsFooter, Converter={StaticResource BoolVis}}">
                     <Grid>
                         <!-- Message / final state -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"

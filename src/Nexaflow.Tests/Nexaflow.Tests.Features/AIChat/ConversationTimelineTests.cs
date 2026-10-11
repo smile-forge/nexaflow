@@ -5,6 +5,7 @@ using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
 using Page = Nexaflow.Features.Common.Page;
+using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Tests.Features.AIChat;
 
@@ -49,6 +50,62 @@ public class ConversationTimelineTests
         => new() { Text = text, IsUser = false, Timestamp = DateTime.Now.AddMinutes(-minutesAgo) };
 
     // ── An empty final answer ─────────────────────────────────────────────
+
+    // ── The reply being written ───────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("aichat-thread")]
+    public async Task ADraft_GrowsInOneBubble_AndTheAnswerTakesItsPlace()
+    {
+        var convo = await LoadedAsync();
+
+        convo.BeginResponse("why");
+        convo.ShowReplyDraft("The build");
+        convo.ShowReplyDraft("The build failed.");
+
+        var draft = convo.Timeline.OfType<TimelineReplyDraft>().Single();
+        Assert.AreEqual("The build failed.", draft.Text);
+
+        convo.ShowFinal("The build failed.");
+
+        Assert.IsFalse(convo.Timeline.OfType<TimelineReplyDraft>().Any(), "the draft stayed beside its answer");
+        Assert.AreEqual(1, convo.Timeline.OfType<TimelineAssistantMessage>().Count());
+    }
+
+    [TestMethod]
+    [CoversNode("aichat-thread")]
+    public async Task Narration_StaysAboveTheToolsItLeadsTo_AndIsNotPersisted()
+    {
+        var convo = await LoadedAsync();
+
+        convo.BeginResponse("look");
+        convo.ShowReplyDraft("Let me look at the file.");
+        convo.EndReplyDraft(keep: true);
+        convo.OnToolBatchFinished([new("read_file", ToolResult.Ok("read"))]);
+        convo.ShowReplyDraft("Found it.");
+        convo.ShowFinal("Found it.");
+
+        var items = convo.Timeline.ToList();
+        var narration = items.OfType<TimelineReplyDraft>().Single();
+        Assert.AreEqual("Let me look at the file.", narration.Text);
+        Assert.IsTrue(items.IndexOf(narration) < items.IndexOf(items.OfType<TimelineToolBatch>().Single()),
+            "the tools a step ran sit below what it said it would do");
+
+        Assert.AreEqual(2, convo.Conversation!.Messages.Count, "only the question and the answer are kept");
+    }
+
+    [TestMethod]
+    [CoversNode("aichat-thread")]
+    public async Task ADraftThatIsNotKept_IsTakenAway()
+    {
+        var convo = await LoadedAsync();
+
+        convo.BeginResponse("write");
+        convo.ShowReplyDraft("I'll write the file.");
+        convo.EndReplyDraft(keep: false);
+
+        Assert.IsFalse(convo.Timeline.OfType<TimelineReplyDraft>().Any());
+    }
 
     [TestMethod]
     [CoversNode("aichat-thread")]

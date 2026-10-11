@@ -9,6 +9,7 @@ using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text;
 using Nexaflow.Core.Localization;
+using System.Diagnostics;
 
 namespace Nexaflow.Core.Services;
 
@@ -373,14 +374,14 @@ public sealed class AIService : IAIService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var resp = await provider.CompleteAsync(messages, ct);
-                var raw  = resp?.RawText?.Trim() ?? string.Empty;
+                var raw  = (await StreamStepAsync(provider, messages, approval, ct)).Trim();
                 var turn = ClientBlockParser.Parse(raw);
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.
                 if (turn.Plan is not null && !planMode)
                 {
                     messages.Add(new(LlmRole.Assistant, raw));
+                    KeepNarration(approval, turn);
                     if (!await approval.RequestPlanApprovalAsync(turn.Plan, ct))
                     {
                         messages.Add(new(LlmRole.User,
@@ -395,7 +396,10 @@ public sealed class AIService : IAIService
 
                 // 2. Pure prefill.
                 if (turn.Prefill is not null && turn.ToolCalls.Count == 0)
+                {
+                    approval.EndReplyDraft(keep: false);
                     return AiResponse.AsPrefill(turn.Prefill);
+                }
 
                 // 3. No tool calls.
                 if (turn.ToolCalls.Count == 0)
@@ -403,6 +407,7 @@ public sealed class AIService : IAIService
                     if (turn.ParseErrors.Count > 0)
                     {
                         // The model tried to act but emitted something malformed — let it self-correct.
+                        approval.EndReplyDraft(keep: false);
                         messages.Add(new(LlmRole.Assistant, raw));
                         messages.Add(new(LlmRole.User,
                             "TOOL RESULTS\n" + string.Join('\n', turn.ParseErrors) +
@@ -414,6 +419,7 @@ public sealed class AIService : IAIService
                     var lateInterjections = approval.TakeInterjections();
                     if (lateInterjections.Count > 0)
                     {
+                        KeepNarration(approval, turn);
                         messages.Add(new(LlmRole.Assistant, raw));
                         messages.Add(new(LlmRole.User, FormatInterjections(lateInterjections)));
                         continue;
@@ -444,6 +450,7 @@ public sealed class AIService : IAIService
                     {
                         const string looped = "I've stopped because I kept repeating the same action without making " +
                                               "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
+                        KeepNarration(approval, turn);
                         approval.ShowFinal(looped);
                         return AiResponse.AsMessage(looped, artifacts);
                     }
@@ -451,6 +458,11 @@ public sealed class AIService : IAIService
 
                 var needApproval = !planMode &&
                     calls.Any(rc => rc.Tool is { Safety: ToolSafety.RequiresApproval });
+
+                // An approval request carries the step's prose as its explanation, so the draft gives way to it;
+                // a batch that runs unasked leaves the prose standing as the account of what it is doing.
+                if (needApproval) approval.EndReplyDraft(keep: false);
+                else              KeepNarration(approval, turn);
 
                 if (needApproval &&
                     !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, turn.ToolCalls, ct))
@@ -505,6 +517,49 @@ public sealed class AIService : IAIService
                               "_(stopped: max steps reached)_";
         approval.ShowFinal(capped);
         return AiResponse.AsMessage(capped, artifacts);
+    }
+
+    /// <summary>Draft updates reach the handler at most this often — quick enough to read as live, slow enough
+    /// that a long reply is not laid out again for every token.</summary>
+    private static readonly TimeSpan DraftInterval = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
+    /// Runs one model step, showing its prose to <paramref name="handler"/> as a draft while it streams, and
+    /// returns the whole reply. The draft is left open: what the step turns out to be decides how it ends.
+    /// </summary>
+    private static async Task<string> StreamStepAsync(
+        ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IAIResponseHandler handler, CancellationToken ct)
+    {
+        var raw   = new StringBuilder();
+        var draft = new ReplyDraft();
+        var shown = string.Empty;
+        var next  = 0L;   // the first words show at once; later ones wait out the interval
+
+        await foreach (var e in provider.StreamAsync(messages, ct))
+        {
+            if (e is not LlmTextDelta delta) continue;
+
+            raw.Append(delta.Text);
+            draft.Append(delta.Text);
+            if (Stopwatch.GetTimestamp() < next) continue;
+
+            var text = draft.Text;
+            if (text.Length == 0 || string.Equals(text, shown, StringComparison.Ordinal)) continue;
+
+            handler.ShowReplyDraft(text);
+            shown = text;
+            next  = Stopwatch.GetTimestamp() + (long)(DraftInterval.TotalSeconds * Stopwatch.Frequency);
+        }
+        return raw.ToString();
+    }
+
+    /// <summary>Ends a step's draft as narration: the step's prose stands in full, as the parser read it, or —
+    /// when it wrote none — nothing does.</summary>
+    private static void KeepNarration(IAIResponseHandler handler, ParsedAssistantTurn turn)
+    {
+        var keep = turn.ExplanationMarkdown.Length > 0;
+        if (keep) handler.ShowReplyDraft(turn.ExplanationMarkdown);
+        handler.EndReplyDraft(keep);
     }
 
     private static IClientTool? FindTool(IReadOnlyList<IClientTool> catalog, string name)

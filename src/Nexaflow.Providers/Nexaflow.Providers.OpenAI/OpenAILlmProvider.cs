@@ -49,22 +49,23 @@ public sealed class OpenAILlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
         var chatMessages = BuildChatMessages(messages);
         return LlmStreamRunner.RunAsync(_activityManager, $"OpenAI ({_model})…", ProviderName,
-            ct => Deltas(chatMessages, ct), ct);
+            ct => Events(chatMessages, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         List<ChatMessage> messages,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var update in ChatClient.CompleteChatStreamingAsync(messages, cancellationToken: ct))
             foreach (var part in update.ContentUpdate)
-                yield return part.Text;
+                if (!string.IsNullOrEmpty(part.Text))
+                    yield return new LlmTextDelta(part.Text);
     }
 
     /// <summary>Maps the neutral message list to OpenAI chat messages (system/assistant/user roles;

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
@@ -68,6 +69,7 @@
             <!-- Body: selectable markdown (Message/Approval), or a status line while Running -->
             <Grid Grid.Row="1">
                 <ScrollViewer x:Name="BodyScroller"
+                              beh:ScrollFollowsEnd.IsEnabled="True"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               ScrollChanged="BodyScroller_ScrollChanged"
@@ -88,12 +90,12 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Footer: hidden while running -->
+            <!-- Footer: only for a finished message or a pending approval -->
             <Border Grid.Row="2"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,1,0,0"
                     Padding="12,7"
-                    Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                    Visibility="{Binding AiOverlayShowsFooter, Converter={StaticResource BoolVis}}">
                 <Grid>
                     <!-- Message / final state: link out to a full conversation -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"

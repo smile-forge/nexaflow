@@ -8,6 +8,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -93,6 +94,16 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
+                <md:MarkdownSurface Markdown="{Binding Text}"/>
+            </Border>
+        </DataTemplate>
+
+        <!-- The reply being written, and the narration a step leaves above the tools it ran. -->
+        <DataTemplate DataType="{x:Type tl:TimelineReplyDraft}">
+            <Border Background="{DynamicResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="14,14,14,4" Padding="14,10" Margin="0,6"
+                    MaxWidth="720" HorizontalAlignment="Left">
                 <md:MarkdownSurface Markdown="{Binding Text}"/>
             </Border>
         </DataTemplate>
@@ -702,6 +713,7 @@
 
             <ScrollViewer Grid.Row="0"
                           x:Name="MessageScroller"
+                          beh:ScrollFollowsEnd.IsEnabled="True"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="24,16">

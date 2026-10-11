@@ -34,7 +34,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
@@ -44,16 +44,17 @@ public sealed class GeminiLlmProvider : ILlmProvider
             : null;
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Gemini ({_model})…", ProviderName,
-            ct => Deltas(contents, config, ct), ct);
+            ct => Events(contents, config, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         List<Content> contents, GenerateContentConfig? config,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var chunk in Client.Models.GenerateContentStreamAsync(
                            model: _model, contents: contents, config: config, cancellationToken: ct))
-            yield return chunk.Text;
+            if (!string.IsNullOrEmpty(chunk.Text))
+                yield return new LlmTextDelta(chunk.Text);
     }
 
     /// <summary>Maps the neutral message list to Gemini's wire shape (system instruction split out;

@@ -233,17 +233,23 @@ Non-contract UI shared across features and Core. Features may reference these (t
 
 ### Nexaflow.Providers.*
 
-**The contract is deliberately lowest-common-denominator.** `CompleteAsync` is structured-in /
-**string-out**: providers stream internally (via the shared `LlmStreamRunner` — activity lifecycle,
-clean cancellation, hung-stream timeout, transient retry) but return one accumulated string; there is
-no token-streaming surface on the interface. Tool use is **prompt-convention**: the agent loop asks
-the model for fenced ```` ```client_tool ```` blocks and parses them out of the text — no provider
-sends native function-calling schemas. This keeps every backend (including local Ollama models and
-the pipe-based Aria) behaviourally identical and the agent loop provider-agnostic. The accepted
-trade-offs: no live token rendering, no usage/cost metadata, and tool reliability rides on
-instruction-following. The future escape hatches, when appetite exists, are an optional
-`CompleteStreamingAsync` overload plus usage fields on `LlmResponse`, and a native-tools capability a
-provider can opt into — both additive.
+**The contract is deliberately lowest-common-denominator.** `StreamAsync` is structured-in, **events-out**:
+a provider yields its reply as `LlmStreamEvent`s — today `LlmTextDelta`, the next piece of text — through the
+shared `LlmStreamRunner` (activity lifecycle, clean cancellation, hung-stream timeout, transient retry before
+the first event). The set of events is closed and grows by a record: a consumer switches on what it
+understands, so usage figures or native tool calls arrive as new events without breaking anyone. A caller
+that acts on a finished answer — tool ranking, image descriptions, analysis — reads the stream to its end
+with the `CompleteAsync` extension. Aria answers whole and yields one event.
+
+Tool use is **prompt-convention**: the agent loop asks the model for fenced ```` ```client_tool ```` blocks
+and parses them out of the text — no provider sends native function-calling schemas. This keeps every
+backend (including local Ollama models and the pipe-based Aria) behaviourally identical and the agent loop
+provider-agnostic; the trade-offs are no usage/cost metadata and tool reliability riding on
+instruction-following. While a step streams, the loop shows its prose to the `IAIResponseHandler` as a
+draft (`ShowReplyDraft`, at most every 50 ms) through `ReplyDraft`, which holds back the fences the agent
+acts on and shows any other fenced block once it is closed. The step's outcome ends the draft: the final
+answer replaces it, a batch run unasked keeps it as narration above its tools (`EndReplyDraft(keep: true)`),
+an approval prompt or a retry takes it away.
 
 All providers implement `ILlmProvider` (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 

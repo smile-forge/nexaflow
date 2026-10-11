@@ -567,7 +567,7 @@ Covers the provider clients (Claude, OpenAI, Gemini, Ollama, Aria) without touch
 - **Aria wire protocol** — `PipeFrame` serialization round-trips and `AriaNamedPipeClient`
   lifecycle guards (send before connect / after dispose throws, idempotent dispose).
 
-**Remaining gap:** the live `CompleteAsync` path — the neutral `LlmMessage` → SDK request mapping
+**Remaining gap:** the live `StreamAsync` path — the neutral `LlmMessage` → SDK request mapping
 (roles, attachments, vision blocks) — has no coverage; it is welded to the vendor SDK call with no
 seam to intercept, so mapping regressions ship untested.
 

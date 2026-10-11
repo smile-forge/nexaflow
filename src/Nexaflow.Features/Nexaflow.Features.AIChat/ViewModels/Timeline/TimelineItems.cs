@@ -38,6 +38,14 @@ public sealed partial class TimelineAssistantMessage(string text) : ObservableOb
     [ObservableProperty] private bool _isSearchHit;
 }
 
+/// <summary>The assistant's prose for one model step while it is being written, and after it when the step
+/// went on to run tools — its account of what it is doing. Session-only, like the tool batches it sits between:
+/// the conversation keeps the finished answer.</summary>
+public sealed partial class TimelineReplyDraft : ObservableObject
+{
+    [ObservableProperty] private string _text = string.Empty;
+}
+
 /// <summary>A muted, session-only line — e.g. the model finished a turn without saying anything. Never
 /// persisted: it records the absence of a message, not a message.</summary>
 public sealed class TimelineNotice(string text)
