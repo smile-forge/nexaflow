@@ -266,6 +266,11 @@
   <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
     <Platform Project="x64" />
   </Project>
+  <!-- WPF-free compound file (MS-CFB) reader and writer — the container a .msg, a pre-2007 Office file and an .msi are
+       written in. Reaches the app through Nexaflow.Features.Email. -->
+  <Project Path="src/Nexaflow.IO.CompoundFile/Nexaflow.IO.CompoundFile.csproj">
+    <Platform Project="x64" />
+  </Project>
   <!-- WPF-free network leaf: device graph, discovery contracts, send guard, transports. -->
   <!-- The DynamicProtocol engine. Zero refs by design: no socket API is in scope, so a protocol
        document cannot reach the network from here even by accident. -->

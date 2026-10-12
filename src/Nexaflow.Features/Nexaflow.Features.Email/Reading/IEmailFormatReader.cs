@@ -4,7 +4,7 @@ using Nexaflow.Features.Email.Model;
 namespace Nexaflow.Features.Email.Reading;
 
 /// <summary>Parses one on-disk email format (<c>.eml</c> or <c>.msg</c>) into the shared
-/// <see cref="EmailDocument"/>. Implementations own their parser dependency (MimeKit / MsgReader); callers
+/// <see cref="EmailDocument"/>. Implementations own their parser (MimeKit / MS-OXMSG over a compound file); callers
 /// go through <see cref="EmailDocumentReader"/>, which picks the reader and caches the result.</summary>
 internal interface IEmailFormatReader
 {

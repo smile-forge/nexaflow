@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Rtf;
 
@@ -48,6 +49,69 @@ public static class RtfParser
 
     /// <summary><paramref name="source"/> — the document's bytes, one character to each — as the blocks it is drawn as.</summary>
     public static ContentNode Parse(string? source) => new RtfReading(source ?? string.Empty).Read();
+
+    /// <summary>
+    /// The words of an RTF document as plain text — what a reader of it reads, for whatever wants its words without drawing
+    /// them: a paragraph to a line, the cells of a row apart by tabs, its codes decoded and none of its machinery.
+    /// </summary>
+    public static string Text(string? source)
+    {
+        var text = new System.Text.StringBuilder();
+        Blocks(Parse(source), text);
+
+        return text.ToString().TrimEnd('\n');
+
+        static void Blocks(ContentNode holder, System.Text.StringBuilder text)
+        {
+            foreach (var block in holder.Children)
+            {
+                if (block.IsDerived || block.Role == Roles.Trivia) continue;
+
+                switch (block.Kind)
+                {
+                    case Prose.MarkdownKinds.Table:
+                        foreach (var row in block.Children.Where(part => part.Kind == Prose.MarkdownKinds.Row))
+                        {
+                            var first = true;
+                            foreach (var cell in row.Children.Where(part => part.Kind == Prose.MarkdownKinds.Cell))
+                            {
+                                if (!first) text.Append('\t');
+                                first = false;
+
+                                var inside = new System.Text.StringBuilder();
+                                Blocks(cell.Part(Roles.Body) ?? cell, inside);
+                                text.Append(inside.ToString().TrimEnd('\n').Replace('\n', ' '));
+                            }
+
+                            text.Append('\n');
+                        }
+
+                        break;
+
+                    case Prose.MarkdownKinds.Paragraph:
+                        Words(block.Part(Roles.Body) ?? block, text);
+                        text.Append('\n');
+                        break;
+                }
+            }
+        }
+
+        static void Words(ContentNode piece, System.Text.StringBuilder text)
+        {
+            if (piece.IsDerived || piece.Role is Roles.Silent or Roles.Name or Roles.Open or Roles.Close or Roles.Trivia) return;
+
+            switch (piece.Kind)
+            {
+                case Prose.MarkdownKinds.Encoded: text.Append(piece.Fact(Prose.MarkdownRoles.Decoded)?.Held as string); return;
+                case Prose.MarkdownKinds.Tab: text.Append('\t'); return;
+                case Prose.MarkdownKinds.Break: text.Append('\n'); return;
+                case Prose.MarkdownKinds.Image: return;
+                case Prose.MarkdownKinds.Word: text.Append(piece.Text); return;
+            }
+
+            foreach (var child in piece.Children) Words(child, text);
+        }
+    }
 }
 
 /// <summary>What a piece of RTF source is that markdown has no word for: the machinery round the words.</summary>

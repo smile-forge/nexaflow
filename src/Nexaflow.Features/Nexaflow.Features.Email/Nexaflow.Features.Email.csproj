@@ -12,10 +12,6 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="MimeKit" Version="4.17.0" />
-    <!-- MsgReader (.msg) pulls Maui.Graphics → WindowsAppSDK, whose native_uap WebView2 copy would collide
-         with the Web feature's WPF WebView2 in the MRT payload. That collision is defused centrally in
-         Directory.Build.targets (DropDuplicateNativeWebView2), so this reference stays plain. -->
-    <PackageReference Include="MsgReader" Version="6.1.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +19,8 @@
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- A .msg is a compound file; this reads it, and writes an embedded message out as a .msg of its own. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.CompoundFile\Nexaflow.IO.CompoundFile.csproj" />
   </ItemGroup>
 
   <ItemGroup>

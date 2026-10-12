@@ -11,6 +11,7 @@ using Nexaflow.Features.Email.Model;
 using Nexaflow.Features.Email.Reading;
 using Nexaflow.Features.Email.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.Markdown.Rtf;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -43,6 +44,15 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     [ObservableProperty] private string? _dateText;
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private string _renderedMarkdown = string.Empty;
+
+    /// <summary>
+    /// What <see cref="RenderedMarkdown"/> is written in where it is not markdown — RTF, for a message kept as rich text —
+    /// or null for markdown.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRichText))]
+    [NotifyPropertyChangedFor(nameof(BodyPalette))]
+    private string? _renderedLanguage;
     [ObservableProperty] private string _plainText = string.Empty;
     [ObservableProperty] private string _htmlSource = string.Empty;
     [ObservableProperty] private int _inlineImageCount;
@@ -72,6 +82,15 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     public bool HasError      => ErrorMessage is not null;
     public bool HasInlineImages => InlineImageCount > 0;
 
+    /// <summary>Whether the body is drawn as the rich text it was written as — on paper, in the colours its writer chose.</summary>
+    public bool IsRichText => RenderedLanguage is not null;
+
+    /// <summary>
+    /// What the rendered body is drawn in: the light palette for rich text, which is drawn on paper, and the theme's own —
+    /// null — for everything else.
+    /// </summary>
+    public StyleFormat? BodyPalette => IsRichText ? StyleFormat.Light : null;
+
     public EmailViewModel(string path, IShellServices shell)
     {
         _path = path;
@@ -93,7 +112,8 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
             Cc = doc.Cc;
             Subject = doc.Subject;
             DateText = doc.Date?.LocalDateTime.ToString("f");
-            PlainText = doc.TextBody ?? string.Empty;
+            // A rich-text message that kept no plain text of its own reads as the words its RTF draws.
+            PlainText = doc.TextBody ?? (doc.RtfBody is { } words ? RtfParser.Text(words) : string.Empty);
             HtmlSource = doc.HtmlBody ?? string.Empty;
 
             foreach (var h in doc.Headers) AllHeaders.Add(new EmailHeaderItem(h.Field, h.Value));
@@ -102,6 +122,13 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
             {
                 RenderedMarkdown = HtmlToMarkdown.Convert(_exporter.RewriteCidToLocal(doc.HtmlBody));
                 MarkdownBaseDirectory = _exporter.InlineBaseDirectory;
+                BodyView = EmailBodyView.Rendered;
+            }
+            else if (!string.IsNullOrEmpty(doc.RtfBody))
+            {
+                // Drawn as the RTF it is, by the same surface — not turned into anything else first.
+                RenderedLanguage = RtfParser.Language;
+                RenderedMarkdown = doc.RtfBody;
                 BodyView = EmailBodyView.Rendered;
             }
             else if (!string.IsNullOrEmpty(doc.TextBody))

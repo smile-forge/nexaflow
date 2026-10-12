@@ -27,7 +27,7 @@ under the license noted below.
 | [Microsoft.CodeAnalysis.CSharp](https://github.com/dotnet/roslyn) (optional `nfi` command-line tool) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |
-| [MsgReader](https://github.com/Sicos1977/MSGReader) | MIT |
+
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
 | [NVorbis](https://github.com/NVorbis/NVorbis) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |

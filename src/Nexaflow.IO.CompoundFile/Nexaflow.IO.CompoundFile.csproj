@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    WPF-free compound file (MS-CFB, "OLE2" / "structured storage") reader and writer: the container Outlook's .msg, the
+    pre-2007 Office formats, Windows Installer packages and Thumbs.db are all written in. No dependencies, so anything that
+    reads one of those reads it the same way.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
+  </ItemGroup>
+
+</Project>

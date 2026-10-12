@@ -1,0 +1,133 @@
+{
+  "branch": "claude/msg-reader-own-parser",
+  "nodes": {
+    "compound-file": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.CompoundFile/CompoundFile.cs",
+          "class": "CompoundFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.CompoundFile/CompoundFileWriter.cs",
+          "class": "CompoundFileWriter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.CompoundFile/CompoundStorage.cs",
+          "class": "CompoundStorage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.CompoundFile/Nexaflow.IO.CompoundFile.csproj"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/CompoundFiles/CompoundFileTests.cs",
+            "class": "CompoundFileTests"
+          }
+        ]
+      }
+    },
+    "email-parse": {
+      "links": [
+        {
+          "type": "code",
+          "status": "should",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Reading/EmailDocumentReader.cs",
+          "class": "EmailDocumentReader"
+        },
+        {
+          "type": "code",
+          "status": "should",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Reading/MimeKitEmailReader.cs",
+          "class": "MimeKitEmailReader"
+        },
+        {
+          "type": "code",
+          "status": "should",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Reading/MsgEmailReader.cs",
+          "class": "MsgEmailReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Reading/Msg/MsgProperties.cs",
+          "class": "MsgProperties"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Reading/Msg/MsgStandalone.cs",
+          "class": "MsgStandalone"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailDocumentReaderTests.cs",
+            "class": "EmailDocumentReaderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailDocumentReaderTests.cs",
+            "class": "EmailDocumentReaderTests",
+            "method": "DuplicateFilenames_AreDeduplicated"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailDocumentReaderTests.cs",
+            "class": "EmailDocumentReaderTests",
+            "method": "Forwarded_EmbeddedMessage_BecomesEmlAttachment"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/MsgEmailReaderTests.cs",
+            "class": "MsgEmailReaderTests"
+          }
+        ]
+      }
+    },
+    "email-body": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Theming/EmailThemeContribution.cs",
+          "class": "EmailThemeContribution"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailSurfaceTests.cs",
+            "class": "EmailSurfaceTests",
+            "method": "ThereIsAlwaysSomethingInTheRenderedPane_WhicheverBodyPartsExist"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailSurfaceTests.cs",
+            "class": "EmailSurfaceTests",
+            "method": "AnInlineImageIsRewrittenToSomethingTheRendererCanActuallyShow"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Email/EmailRichTextTests.cs",
+            "class": "EmailRichTextTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "compound-file",
+    "email-body",
+    "email-parse"
+  ]
+}

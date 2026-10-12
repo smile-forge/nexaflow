@@ -294,6 +294,14 @@ public class RtfParserTests
         Assert.AreEqual(6.0, picture.Width!.Value, 1e-9);
     }
 
+    [TestMethod]
+    public void ADocumentsWordsComeOutAsPlainText()
+    {
+        var text = RtfParser.Text(Header + @"\pard One {\b bold}\par\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row\pard caf\'e9\tab end\par}");
+
+        Assert.AreEqual("One bold\nA\tB\ncaf" + (char)0xE9 + "\tend", text);
+    }
+
     // ── Reading the tree ────────────────────────────────────────────────────
 
     private static IEnumerable<ContentNode> Paragraphs(ContentNode tree) =>

@@ -196,12 +196,29 @@
             </StackPanel>
 
             <!-- ── Body ────────────────────────────────────────────────────── -->
-            <!-- The message sits on its own surface card rather than floating over the window background. -->
-            <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+            <!-- The message sits on its own surface card rather than floating over the window background — on paper while
+                 a rich-text body is shown, since its writer chose its colours against white. -->
+            <Border Grid.Row="2"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     CornerRadius="6" Margin="16,8,16,8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsRichText}" Value="True"/>
+                                    <Condition Binding="{Binding IsRenderedView}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="{DynamicResource Email.RichText.Paper}"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <md:MarkdownSurface x:Name="MarkdownBody"
+                                               WrittenIn="{Binding RenderedLanguage}"
+                                               Palette="{Binding BodyPalette}"
                                                Markdown="{Binding RenderedMarkdown}"
                                                VerticalScrollBarVisibility="Auto"
                                                Margin="12,10"
