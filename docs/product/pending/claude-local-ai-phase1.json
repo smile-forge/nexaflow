@@ -412,10 +412,66 @@
           }
         ]
       }
+    },
+    "ws-unapplied-on-close": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/Overlays/OverlayCoordinator.cs",
+          "class": "OverlayCoordinator",
+          "method": "CloseOrAskAboutEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WorkspaceConfigViewModel.cs",
+          "class": "WorkspaceConfigViewModel",
+          "method": "ApplyAllChanges"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "DismissOptions"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests",
+            "method": "APanelWithNothingUnapplied_ClosesWithoutAsking"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests",
+            "method": "APanelWithEdits_AsksFirst_NamingThePagesThatHoldThem"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests",
+            "method": "Apply_AppliesThenCloses_ButAFailedApplyKeepsThePanelOpen"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests",
+            "method": "Discard_Closes_AndKeepEditing_LeavesThePanelOpen"
+          }
+        ],
+        "i18n": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 23,
+  "changed_sets": 26,
   "touched_nodes": [
     "ai-model-assets",
     "aibar-context-residency",
@@ -428,6 +484,7 @@
     "providers-speech-to-text",
     "sysinfo-local-ai",
     "voice-input",
-    "whisper"
+    "whisper",
+    "ws-unapplied-on-close"
   ]
 }

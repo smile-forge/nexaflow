@@ -68,6 +68,28 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
+                        <!-- A third answer, when the question has one: "Discard" beside "Apply" and "Keep editing". -->
+                        <Button AutomationProperties.AutomationId="Chrome_ConfirmAlternate" Content="{Binding AlternateLabel}" Command="{Binding AlternateCommand}"
+                                Visibility="{Binding HasAlternate, Converter={StaticResource BoolVis}}"
+                                MinWidth="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
+                                Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="root" Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="7" Padding="8,6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                         <Button AutomationProperties.AutomationId="Chrome_ConfirmOk" Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}"
                                 MinWidth="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"

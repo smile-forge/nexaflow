@@ -27,6 +27,69 @@ public class OverlayCoordinatorTests
         return o;
     }
 
+    // ── Closing a settings panel that holds edits ─────────────────────────────
+
+    [TestMethod]
+    [CoversNode("configure-workspace")]
+    public void APanelWithNothingUnapplied_ClosesWithoutAsking()
+    {
+        var o = Make();
+        var closed = 0;
+
+        o.CloseOrAskAboutEdits([], apply: () => throw new AssertFailedException("nothing to apply"), "Apply", () => closed++);
+
+        Assert.AreEqual(1, closed);
+        Assert.IsNull(o.Confirmation);
+    }
+
+    [TestMethod]
+    [CoversNode("configure-workspace")]
+    public void APanelWithEdits_AsksFirst_NamingThePagesThatHoldThem()
+    {
+        var o = Make();
+        var closed = 0;
+
+        o.CloseOrAskAboutEdits(["AI", "Ollama"], apply: () => true, "Apply", () => closed++);
+
+        Assert.AreEqual(0, closed, "nothing closes while the question is open");
+        Assert.AreEqual(Str.Format("Shell.Prompt.Unapplied.Body", "AI, Ollama"), o.Confirmation!.Prompt);
+        Assert.IsTrue(o.Confirmation.HasAlternate, "Discard is offered beside Apply and Keep editing");
+    }
+
+    [TestMethod]
+    [CoversNode("configure-workspace")]
+    public void Apply_AppliesThenCloses_ButAFailedApplyKeepsThePanelOpen()
+    {
+        var o = Make();
+        var (applied, closed) = (0, 0);
+
+        o.CloseOrAskAboutEdits(["AI"], apply: () => { applied++; return true; }, "Apply", () => closed++);
+        o.Confirmation!.ConfirmCommand.Execute(null);
+        Assert.AreEqual((1, 1), (applied, closed));
+
+        o.CloseOrAskAboutEdits(["AI"], apply: () => false, "Apply", () => closed++);
+        o.Confirmation!.ConfirmCommand.Execute(null);
+        Assert.AreEqual(1, closed, "edits that could not be saved are not thrown away by closing");
+    }
+
+    [TestMethod]
+    [CoversNode("configure-workspace")]
+    public void Discard_Closes_AndKeepEditing_LeavesThePanelOpen()
+    {
+        var o = Make();
+        var (applied, closed) = (0, 0);
+
+        o.CloseOrAskAboutEdits(["AI"], apply: () => { applied++; return true; }, "Apply", () => closed++);
+        o.Confirmation!.CancelCommand.Execute(null);
+        Assert.AreEqual((0, 0), (applied, closed), "keep editing does nothing");
+        Assert.IsNull(o.Confirmation);
+
+        o.CloseOrAskAboutEdits(["AI"], apply: () => { applied++; return true; }, "Apply", () => closed++);
+        o.Confirmation!.AlternateCommand.Execute(null);
+        Assert.AreEqual((0, 1), (applied, closed), "discard closes without applying");
+        Assert.IsNull(o.Confirmation);
+    }
+
     [TestMethod]
     [CoversNode("chrome-prompt-confirm")]
     public void Confirming_RunsTheCallbackOnce_WithTheHostAlreadyClear()

@@ -628,9 +628,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // coordinator owns everything else. Re-raise its changes under the same property names so
         // existing XAML bindings (ActiveOverlay, ConfirmationVisible, …) and the airspace-coverage watcher
         // keep working against this VM.
+        // Escape closes a panel the way its ✕ does: asking first when it holds edits closing would lose.
         Overlays = new OverlayCoordinator(
             () => OptionsOpen, () => WorkspaceConfigOpen,
-            () => OptionsOpen = false, () => WorkspaceConfigOpen = false);
+            DismissOptions, CloseWorkspaceConfig);
         Overlays.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
         // Keep airspace-hosting pages (WebView2) hidden while a modal overlay covers the page area —
@@ -988,6 +989,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [RelayCommand]
     private void CloseOptions() => OptionsOpen = false;
 
+    /// <summary>
+    /// Options' ✕ and Escape: asks first when a page holds unsaved edits. Its Cancel button is the deliberate discard
+    /// and closes without asking (<see cref="CloseOptions"/>). Saving closes the panel itself when it succeeds.
+    /// </summary>
+    [RelayCommand]
+    private void DismissOptions()
+        => Overlays.CloseOrAskAboutEdits(
+            _optionsPanel?.UnsavedSections ?? [],
+            apply: () => { _optionsPanel?.SaveCommand.Execute(null); return false; },
+            Str.Get("Shell.Prompt.Unapplied.Save"),
+            close: () => OptionsOpen = false);
+
     // ── Help ──────────────────────────────────────────────────────────────
     // The Help button / F1: this page's help in the pane beside it (see HelpPaneController).
 
@@ -1023,8 +1036,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     // ── Configure (per-workspace) ─────────────────────────────────────────
 
+    /// <summary>Close and ✕: asks first when a page holds edits not yet applied.</summary>
     [RelayCommand]
-    private void CloseWorkspaceConfig() => WorkspaceConfigOpen = false;
+    private void CloseWorkspaceConfig()
+        => Overlays.CloseOrAskAboutEdits(
+            _workspaceConfigPanel?.UnappliedSections ?? [],
+            apply: () => _workspaceConfigPanel?.ApplyAllChanges() ?? true,
+            Str.Get("Shell.Prompt.Unapplied.Apply"),
+            close: () => WorkspaceConfigOpen = false);
 
     /// <summary>Opens the per-workspace Configure panel for a specific workspace (may be non-active).</summary>
     [RelayCommand]

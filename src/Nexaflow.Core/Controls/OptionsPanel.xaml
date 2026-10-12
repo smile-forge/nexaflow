@@ -248,7 +248,7 @@
             <Button AutomationProperties.AutomationId="Options_CloseX" HorizontalAlignment="Right"
                     Style="{StaticResource TopBarAction}"
                     Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
-                                      Path=DataContext.CloseOptionsCommand}">
+                                      Path=DataContext.DismissOptionsCommand}">
                 <TextBlock Text="✕" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
             </Button>
         </Grid>

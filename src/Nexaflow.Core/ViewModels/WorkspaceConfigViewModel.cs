@@ -140,17 +140,22 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     }
 
     /// <summary>Saves the ability grid's config as it stands — a local-model page's choice, written into it at once.</summary>
-    private void SaveGrid()
+    private void SaveGrid() => SaveGridConfig();
+
+    /// <summary>Saves the ability grid's config; every page that edits the grid is then unchanged.</summary>
+    private bool SaveGridConfig()
     {
         try
         {
             ConfigManager.Instance.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
             _dirty = true;
             foreach (var s in _gridSections) s.ResetChanges();
+            return true;
         }
         catch (Exception ex)
         {
             ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", _aiConfig.FriendlyName, ex.Message));
+            return false;
         }
     }
 
@@ -219,9 +224,23 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
-        if (SelectedSection is null) return;
-        var section = SelectedSection;
+        if (SelectedSection is { } section) ApplySection(section);
+    }
 
+    /// <summary>The pages holding edits not yet applied — what closing the panel now would lose.</summary>
+    public IReadOnlyList<string> UnappliedSections => [.. Sections.Where(s => s.HasChanges).Select(s => s.FriendlyName)];
+
+    /// <summary>Applies every page holding edits, as Apply does one; false when one could not be saved, which is
+    /// reported and leaves the rest unapplied.</summary>
+    public bool ApplyAllChanges()
+    {
+        foreach (var section in Sections.ToList())
+            if (section.HasChanges && !ApplySection(section)) return false;
+        return true;
+    }
+
+    private bool ApplySection(ConfigEditViewModel section)
+    {
         // The identity page edits the live workspace directly (name/symbol/colour) and persists itself
         // (workspace list + on-disk folder move), so it skips the per-folder disk-save the config sections
         // take. A rename moved the data folder, so a live workspace must rebuild (its AIService captured
@@ -234,7 +253,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             Title = $"Configure Workspace — {_workspace.Name}";
             if (!string.Equals(oldName, _workspace.Name, StringComparison.Ordinal))
                 _dirty = true;
-            return;
+            return true;
         }
 
         // The default-tabs page also edits the live workspace and persists itself (SaveWorkspaces). Its change
@@ -244,7 +263,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         {
             section.ApplyToReal();
             section.ResetChanges();
-            return;
+            return true;
         }
 
         // The AI page and the local-model pages edit one ability grid: applying any of them saves it, and every one of
@@ -252,17 +271,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         if (_gridSections.Contains(section))
         {
             section.ApplyToReal();
-            try
-            {
-                ConfigManager.Instance.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
-                foreach (var s in _gridSections) s.ResetChanges();
-                _dirty = true;
-            }
-            catch (Exception ex)
-            {
-                ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
-            }
-            return;
+            return SaveGridConfig();
         }
 
         section.ApplyToReal();   // clone -> editing instance (NOT the live workspace instance)
@@ -276,13 +285,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             // A provider config (not the persona, which is also an IProviderConfig) changed — rebuild the
             // editing provider set so the grid can list models with the new key.
             if (section.RealConfig is IProviderConfig && !ReferenceEquals(section.RealConfig, _persona))
-            {
                 ReacquireEditingProviderSet();
-            }
+            return true;
         }
         catch (Exception ex)
         {
             ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
+            return false;
         }
     }
 

@@ -123,7 +123,17 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
 
         // ── The panel's own controls ──────────────────────────────────────────────────
         CheckExists("Apply", "WorkspacePanel_Apply");
-        CheckDoes("✕ closes the panel", "WorkspacePanel_CloseX", () => WaitForGone("WorkspacePanel_Close"));
+
+        // The pass leaves edits unapplied (a swatch, a grid cell), so closing asks about them first.
+        Check("✕ asks about the unapplied edits", () =>
+            PressNth("WorkspacePanel_CloseX", 0) && WaitFor(() => FindInAppWindows("Chrome_ConfirmAlternate"), 5) is not null);
+        Check("Keep editing leaves the panel open", () =>
+            PressInDialog("Chrome_ConfirmCancel") && WaitForId("WorkspacePanel_Close", 3) is not null);
+        CheckExists("Apply them and close", "Chrome_ConfirmOk");
+        Check("Discard closes the panel without them", () =>
+            PressNth("WorkspacePanel_CloseX", 0)
+            && WaitFor(() => FindInAppWindows("Chrome_ConfirmAlternate"), 5) is not null
+            && PressInDialog("Chrome_ConfirmAlternate") && WaitForGone("WorkspacePanel_Close"));
         Check("Configure workspace… opens it again", () =>
             FromSelectorMenu("Configure workspace") && WaitForId("WorkspacePanel_Close", 10) is not null);
         CheckDoes("Close closes the panel", "WorkspacePanel_Close", () => WaitForGone("WorkspacePanel_CloseX"));
