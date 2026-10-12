@@ -279,6 +279,36 @@
     ]
   },
   {
+    "ExperienceId": "/image/edit",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "OptionalExtension", "Value": "*.png" },
+      { "Type": "OptionalExtension", "Value": "*.jpg" },
+      { "Type": "OptionalExtension", "Value": "*.jpeg" },
+      { "Type": "OptionalExtension", "Value": "*.gif" },
+      { "Type": "OptionalExtension", "Value": "*.bmp" },
+      { "Type": "OptionalExtension", "Value": "*.ico" },
+      { "Type": "OptionalExtension", "Value": "*.tiff" },
+      { "Type": "OptionalExtension", "Value": "*.tif" },
+      { "Type": "OptionalExtension", "Value": "*.webp" }
+    ]
+  },
+  {
+    "ExperienceId": "/image/edit/revert",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "OptionalExtension", "Value": "*.png" },
+      { "Type": "OptionalExtension", "Value": "*.jpg" },
+      { "Type": "OptionalExtension", "Value": "*.jpeg" },
+      { "Type": "OptionalExtension", "Value": "*.gif" },
+      { "Type": "OptionalExtension", "Value": "*.bmp" },
+      { "Type": "OptionalExtension", "Value": "*.ico" },
+      { "Type": "OptionalExtension", "Value": "*.tiff" },
+      { "Type": "OptionalExtension", "Value": "*.tif" },
+      { "Type": "OptionalExtension", "Value": "*.webp" }
+    ]
+  },
+  {
     "ExperienceId": "/video",
     "Source": "User",
     "Criteria": [

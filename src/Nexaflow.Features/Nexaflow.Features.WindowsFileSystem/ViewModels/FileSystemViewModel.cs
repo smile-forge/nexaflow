@@ -1001,6 +1001,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     }
 
     private readonly IShellServices _shell;
+
+    /// <summary>The companion files the features have declared — hidden in the list, carried by every operation.</summary>
+    internal FileCompanions Companions => FileCompanions.For(_shell);
     private readonly IAIService _ai;
 
     /// <summary>Surfaces a file-operation error (e.g. a failed drag-drop move) as a toast.
@@ -1277,7 +1280,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             };
         });
 
-        var sorted = ApplySort(entries).ToList();
+        var companions = Companions.Listing();
+        var shown = entries.Where(e => !companions.Hold(e)).ToList();
+        shown.AddRange(companions.Finish());
+
+        var sorted = ApplySort(shown).ToList();
         Entries.ReplaceAll(sorted);
         int folders = sorted.Count(e => e.IsDirectory);
         UpdateEntryCountLabel(folders, sorted.Count - folders, 0);
@@ -1841,6 +1848,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             var buffer    = new List<FileSystemEntry>(StreamThreshold + 1);
             bool streaming = false;
             int folders = 0, files = 0;
+            var companions = Companions.Listing();
 
             // Enumerate the real directory, but keep 'path' as the parent for the entries we hand back:
             // under a mount those must stay virtual (see ToEntry).
@@ -1870,6 +1878,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     try { entry = ToEntry(iterator.Current, path); }
                     catch { continue; } // skip an entry we can't read
 
+                    if (companions.Hold(entry)) continue;   // decided once the whole folder has been read
+
                     if (entry.IsDirectory) folders++; else files++;
                     buffer.Add(entry);
 
@@ -1890,6 +1900,14 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 }
             }
             finally { iterator.Dispose(); }
+
+            // A companion can be read before its file, so they were held back until now: those whose file is here
+            // are dropped (the file shows their badge), the rest — orphans — are listed as the ordinary files they are.
+            foreach (var orphan in companions.Finish())
+            {
+                files++;
+                buffer.Add(orphan);
+            }
 
             if (Timing.Enabled)
             {

@@ -93,6 +93,13 @@ namespace Nexaflow.Features.Common
         /// </summary>
         bool RequiresFullyBackedPath => false;
 
+        /// <summary>
+        /// The suffix of a companion file (<see cref="FileCompanionKind"/>) that every selected file must have beside it for
+        /// the action to be offered — an action about that companion, such as reverting a photo's edits. Null, the default,
+        /// offers the action whatever companions the files have.
+        /// </summary>
+        string? RequiredCompanionSuffix => null;
+
         bool PerformAction(string filePath);
         bool PerformAction(IEnumerable<string> filePaths);
 

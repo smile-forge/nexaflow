@@ -79,7 +79,8 @@ public sealed class FileOperationQueue : IFileOperationHost
         if (sources.Count == 0 || string.IsNullOrEmpty(destinationFolder)) return null;
 
         destinationFolder = Services.ShellPath.RealForMutation(destinationFolder);
-        var items = FileOperationDestinations.Plan(sources, destinationFolder, move, out var refusals);
+        // Each file carries its companions, which the engine sends after it under its resolved name.
+        var items = Services.FileCompanions.For(_shell).Attach(FileOperationDestinations.Plan(sources, destinationFolder, move, out var refusals));
 
         if (items.Count == 0)
         {
@@ -109,7 +110,7 @@ public sealed class FileOperationQueue : IFileOperationHost
         if (real.Length == 0) return null;
 
         var request = new FileTransferRequest(
-            TransferKind.Delete, [.. real.Select(p => new TransferItem(p, p))], ConflictPolicy.Fail);
+            TransferKind.Delete, Services.FileCompanions.For(_shell).Attach([.. real.Select(p => new TransferItem(p, p))]), ConflictPolicy.Fail);
 
         // A delete says nothing when it works: the files being gone is its own confirmation.
         var op = new FileOperation(

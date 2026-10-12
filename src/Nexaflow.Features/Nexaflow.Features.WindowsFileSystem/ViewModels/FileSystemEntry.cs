@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -16,6 +17,7 @@ public class FileSystemEntry : INotifyPropertyChanged
     private long          _driveTotalBytes;
     private string        _fileSystem     = string.Empty;
     private string        _driveKindLabel = string.Empty;
+    private FileCompanionKind? _companion;
 
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
@@ -31,6 +33,16 @@ public class FileSystemEntry : INotifyPropertyChanged
     /// <summary>Set when this row came from an <c>IThisPcItemProvider</c> — the item's id. Null for a
     /// physical drive, so the two kinds of top-level row can still be told apart.</summary>
     public string? ProviderId { get; init; }
+
+    /// <summary>
+    /// The companion beside this file whose badge it shows — an edited photo's recipe — or null. Set as the folder
+    /// finishes listing, which can be after the row is on screen, so it notifies.
+    /// </summary>
+    public FileCompanionKind? Companion
+    {
+        get => _companion;
+        set { _companion = value; OnPropertyChanged(); }
+    }
 
     /// <summary>Readiness state — only meaningful for <see cref="IsThisPcItem"/> entries.</summary>
     public DriveStatus DriveStatus

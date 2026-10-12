@@ -40,7 +40,11 @@ public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
                     var sub2 = new StringBuilder("Contents of ").Append(dir).Append(":\n");
                     var d = 0; var f = 0;
                     foreach (var e in di.EnumerateDirectories()) { sub2.Append("[dir]  ").Append(e.Name).Append('\n'); d++; }
-                    foreach (var e in di.EnumerateFiles())       { sub2.Append("[file] ").Append(e.Name).Append('\n'); f++; }
+                    foreach (var e in di.EnumerateFiles())
+                    {
+                        if (vm.Companions.IsCompanionIn(di.FullName, e.Name)) continue;   // belongs to a file listed beside it
+                        sub2.Append("[file] ").Append(e.Name).Append('\n'); f++;
+                    }
                     return ToolResult.Ok($"{d} folders, {f} files", sub2.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"Could not list '{sub}': {ex.Message}"); }
@@ -122,7 +126,7 @@ public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
                 if (Directory.Exists(full))
                 {
                     var di = new DirectoryInfo(full);
-                    var fileCount = di.EnumerateFiles().Count();
+                    var fileCount = di.EnumerateFiles().Count(e => !vm.Companions.IsCompanionIn(di.FullName, e.Name));
                     var dirCount  = di.EnumerateDirectories().Count();
                     return ToolResult.Ok($"folder {di.Name}",
                         $"{di.Name} — folder\nContains: {fileCount} file(s), {dirCount} subfolder(s)\n" +
@@ -180,6 +184,7 @@ public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
             try
             {
                 matches = Directory.EnumerateFileSystemEntries(basePath, glob, opt)
+                                   .Where(p => !vm.Companions.IsCompanionIn(Path.GetDirectoryName(p) ?? basePath, Path.GetFileName(p)))
                                    .Take(MaxMatches + 1).ToList();
             }
             catch (Exception ex) { return ToolResult.Error($"Search failed: {ex.Message}"); }

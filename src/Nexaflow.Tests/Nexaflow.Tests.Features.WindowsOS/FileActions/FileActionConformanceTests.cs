@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 [CoversNode("winfs-action-strip")]
 public class CopyFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CopyFiles();
+    protected override IFileAction CreateAction() => new CopyFiles(Substitute.For<IShellServices>());
 }
 
 [TestClass]
@@ -33,7 +33,7 @@ public class CopyPathsConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class CutFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CutFiles();
+    protected override IFileAction CreateAction() => new CutFiles(Substitute.For<IShellServices>());
 }
 
 [TestClass]

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Images.Views;
 using Nexaflow.Visuals.Common.Localization;
@@ -11,11 +12,14 @@ namespace Nexaflow.Features.Images;
 /// <summary>
 /// Registers the image viewer page with <see cref="FeatureManager"/>.
 /// Accepts a "paths" page parameter containing pipe-separated image file paths, and an optional
-/// "view" param selecting the initial sub-view (carousel / album / explore / collage).
+/// "view" param selecting the initial sub-view (carousel / album / explore / collage / edit).
 /// </summary>
 public sealed class ImageTabRegistration : IPageRegistration
 {
     private readonly IShellServices _shell;
+
+    /// <summary>The editing engine every Images tab of this workspace shares: codecs, renderer and the recipe store.</summary>
+    private readonly ImageEditingServices _editing = new();
 
     public ImageTabRegistration(IShellServices shell) => _shell = shell;
 
@@ -28,6 +32,7 @@ public sealed class ImageTabRegistration : IPageRegistration
         "album"   => ImageViewMode.Album,
         "explore" => ImageViewMode.Explore,
         "collage" => ImageViewMode.Collage,
+        "edit"    => ImageViewMode.Edit,
         _         => ImageViewMode.Carousel,
     };
 
@@ -50,7 +55,7 @@ public sealed class ImageTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "🖼",
-            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode))
+            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode, _editing))
         };
 
         // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".

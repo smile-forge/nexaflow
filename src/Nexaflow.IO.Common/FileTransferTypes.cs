@@ -69,7 +69,14 @@ public enum PauseDecision
 }
 
 /// <summary>One source and the full path it should end up at — a path, never a folder.</summary>
-public sealed record TransferItem(string Source, string Destination);
+public sealed record TransferItem(string Source, string Destination)
+{
+    /// <summary>
+    /// Suffixes naming the source's companion files (<c>photo.jpg</c> + <c>.nfedit</c>): each that exists goes
+    /// wherever the source lands — under its resolved name, a <c>(2)</c> included — and is deleted with it.
+    /// </summary>
+    public IReadOnlyList<string> CompanionSuffixes { get; init; } = [];
+}
 
 /// <summary>A unit of work handed to <see cref="FileTransferEngine.RunAsync"/>.</summary>
 public sealed record FileTransferRequest(
