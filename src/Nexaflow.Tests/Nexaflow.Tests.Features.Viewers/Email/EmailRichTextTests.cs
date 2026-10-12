@@ -3,6 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Email.ViewModels;
 using Nexaflow.Markdown.Rtf;
+using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
@@ -51,6 +52,20 @@ public class EmailRichTextTests
             Assert.IsNull(vm.RenderedLanguage);
             Assert.IsFalse(vm.IsRichText);
             Assert.IsNull(vm.BodyPalette);
+        });
+    }
+
+    [TestMethod]
+    [CoversNode("email-find")]
+    public void ARichTextBodyIsSearchedInTheWordsItDraws_NeverItsRtf()
+    {
+        Opened(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
+        {
+            var words = vm.SearchAsync(new SearchRequest("figures"), display: false, CancellationToken.None).GetAwaiter().GetResult();
+            var control = vm.SearchAsync(new SearchRequest("cf1"), display: false, CancellationToken.None).GetAwaiter().GetResult();
+
+            Assert.AreEqual(1, words.MatchCount);
+            Assert.AreEqual(0, control.MatchCount, "a control word is how the body is written, not what it says");
         });
     }
 

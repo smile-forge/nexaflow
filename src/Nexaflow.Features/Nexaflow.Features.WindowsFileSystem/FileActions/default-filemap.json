@@ -90,6 +90,13 @@
     ]
   },
   {
+    "ExperienceId": "/document/rtf",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.rtf" }
+    ]
+  },
+  {
     "ExperienceId": "/text/log",
     "Source": "User",
     "Criteria": [

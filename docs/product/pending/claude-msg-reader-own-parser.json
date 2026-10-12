@@ -121,13 +121,339 @@
           }
         ]
       }
+    },
+    "rtf-viewer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Nexaflow.Features.Rtf.csproj"
+        },
+        {
+          "type": "node",
+          "target": "rtf"
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Localization/en/help/Rtf.md",
+            "title_path": [
+              "Rich text"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Rtf/RtfJourneyTests.cs",
+            "class": "RtfJourneyTests"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Rtf/RtfJourneyTests.cs",
+            "class": "RtfJourneyTests",
+            "method": "Rtf_Document_IsDrawnInOnePass"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-toolbar": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Views/RtfView.xaml"
+        }
+      ]
+    },
+    "rtf-open-externally": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ViewModels/RtfViewModel.cs",
+          "class": "RtfViewModel",
+          "method": "OpenExternally"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "OpeningExternallyAFileThatIsGone_SaysWhy"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-document": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Views/RtfView.xaml.cs",
+          "class": "RtfView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Theming/RtfThemeContribution.cs",
+          "class": "RtfThemeContribution"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheDocumentIsHandedToTheSurfaceAsTheRtfItIs_OnPaper"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "ItsWordsAreTheOnesItDraws_NeverItsControlWords"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-error": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "AFileThatIsNotRtfSaysSo_RatherThanDrawingItsTextAsADocument"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "AFileThatCannotBeReadSaysWhy"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-footer": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheFooterCountsWordsAndParagraphs_AndGivesTheFileSize"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-ai-context": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ViewModels/RtfViewModel.cs",
+          "class": "RtfViewModel",
+          "method": "GetContext"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheContextNamesTheDocumentAndItsSize_AndPointsAtTheWords"
+          }
+        ]
+      }
+    },
+    "rtf-viewer-ai-act": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ClientTools/RtfTools.cs",
+          "class": "RtfTools"
+        }
+      ]
+    },
+    "rtf-read-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ClientTools/RtfTools.cs",
+          "class": "RtfTools",
+          "method": "Read"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "ReadText_GivesTheWordsAParagraphToALine_Numbered"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "ReadText_ReadsALongDocumentAStretchAtATime_AndSaysWhereToCarryOn"
+          }
+        ]
+      }
+    },
+    "rtf-file-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Reading/RtfDocumentFile.cs",
+          "class": "RtfDocumentFile"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "AByteLeftPastSevenBits_ReachesTheReaderAsTheByteItIs"
+          }
+        ]
+      }
+    },
+    "rtf-load-gate": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ViewModels/RtfViewModel.cs",
+          "class": "RtfViewModel",
+          "method": "LoadAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheAiIsHeldBackUntilTheFileHasLoaded"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheGateIsReleasedEvenWhenTheLoadFails"
+          }
+        ]
+      }
+    },
+    "rtf-reload": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ViewModels/RtfViewModel.cs",
+          "class": "RtfViewModel",
+          "method": "ReloadAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "TheFileIsWatched_HeldWhileTheTabIsOffScreen_AndLetGoOnClose"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
+            "class": "RtfViewModelTests",
+            "method": "AChangeOnDiskIsReadAgain"
+          }
+        ]
+      }
+    },
+    "rtf-open-actions": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/FileActions/ShowRtfAction.cs",
+          "class": "ShowRtfAction"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/FileActions/ViewerActionConformanceTests.cs",
+            "class": "ShowRtfActionConformance"
+          }
+        ]
+      }
+    },
+    "rtf-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/ViewModels/RtfViewModel.Search.cs",
+          "class": "RtfViewModel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Search/RtfSearchableTests.cs",
+            "class": "RtfSearchableTests"
+          }
+        ]
+      }
+    },
+    "rtf-text-extractor": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Search/RtfTextExtractor.cs",
+          "class": "RtfTextExtractor"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfTextExtractorTests.cs",
+            "class": "RtfTextExtractorTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 34,
   "touched_nodes": [
     "compound-file",
     "email-body",
-    "email-parse"
+    "email-parse",
+    "rtf-file-reading",
+    "rtf-find",
+    "rtf-load-gate",
+    "rtf-open-actions",
+    "rtf-open-externally",
+    "rtf-read-text",
+    "rtf-reload",
+    "rtf-text-extractor",
+    "rtf-viewer",
+    "rtf-viewer-ai-act",
+    "rtf-viewer-ai-context",
+    "rtf-viewer-document",
+    "rtf-viewer-error",
+    "rtf-viewer-footer",
+    "rtf-viewer-toolbar",
+    "rtf-viewer-ui"
   ]
 }

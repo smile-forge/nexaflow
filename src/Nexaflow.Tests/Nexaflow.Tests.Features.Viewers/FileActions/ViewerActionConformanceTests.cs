@@ -187,6 +187,16 @@ public class ShowSvgActionConformance : ViewerActionConformanceTests
 }
 
 [TestClass]
+[CoversNode("rtf-open-actions")]
+public class ShowRtfActionConformance : ViewerActionConformanceTests
+{
+    protected override IFileAction CreateAction(IShellServices shell) =>
+        new Nexaflow.Features.Rtf.FileActions.ShowRtfAction(shell);
+    protected override string ExpectedPageKind => Nexaflow.Features.Rtf.RtfTabRegistration.StaticPageKind;
+    protected override string AcceptableFile   => @"C:\docs\letter.rtf";
+}
+
+[TestClass]
 [CoversNode("tabular-open-action")]
 public class ShowTabularActionConformance : ViewerActionConformanceTests
 {
