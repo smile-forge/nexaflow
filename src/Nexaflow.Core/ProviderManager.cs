@@ -30,6 +30,7 @@ public sealed class ProviderManager
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
+    private IModelAssetStore?           _assets;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -56,8 +57,11 @@ public sealed class ProviderManager
     private ProviderManager() { }
 
     /// <summary>Must be called once at startup before any Load method.</summary>
-    public void Initialize(IBackgroundActivityManager activityManager)
-        => _activityManager = activityManager;
+    public void Initialize(IBackgroundActivityManager activityManager, IModelAssetStore assets)
+    {
+        _activityManager = activityManager;
+        _assets          = assets;
+    }
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
@@ -190,12 +194,13 @@ public sealed class ProviderManager
         return entry;
     }
 
-    /// <summary>Builds a provider, injecting the activity manager, the bound <see cref="ProviderModel"/>,
-    /// and any config the constructor declares (matched by type).</summary>
+    /// <summary>Builds a provider, injecting the activity manager, the model asset store, the bound
+    /// <see cref="ProviderModel"/>, and any config the constructor declares (matched by type).</summary>
     private IAiProvider Instantiate(ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs, string model)
     {
         var args = ctor.GetParameters().Select(p =>
             typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType) ? (object?)_activityManager
+            : typeof(IModelAssetStore).IsAssignableFrom(p.ParameterType)           ? _assets
             : p.ParameterType == typeof(ProviderModel)                           ? new ProviderModel(model)
             : configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
             .ToArray();

@@ -23,4 +23,7 @@ public interface IActivityHandle
 {
     void Complete();
     void Fail(string? reason = null);
+
+    /// <summary>Replaces what the activity says it is doing — how far a download has got, say.</summary>
+    void Update(string description);
 }

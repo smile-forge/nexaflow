@@ -263,7 +263,9 @@ public partial class App : Application
             : [];
 
         // ── 3. Providers — union of all assembly file names across workspaces ──
-        ProviderManager.Instance.Initialize(activityManager);
+        // Model files live outside the roaming profile; the folder voice models were once kept in is adopted from.
+        ProviderManager.Instance.Initialize(activityManager,
+            new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")]));
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a

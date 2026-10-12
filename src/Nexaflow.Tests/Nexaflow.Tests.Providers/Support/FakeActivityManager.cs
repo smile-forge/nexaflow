@@ -21,5 +21,6 @@ internal sealed class FakeActivityManager : IBackgroundActivityManager
     {
         public void Complete() { }
         public void Fail(string? reason = null) { }
+        public void Update(string description) { }
     }
 }

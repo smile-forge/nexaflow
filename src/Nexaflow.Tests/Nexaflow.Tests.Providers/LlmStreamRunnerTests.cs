@@ -18,8 +18,9 @@ public class LlmStreamRunnerTests
 
         private sealed class Handle(Activities owner) : IActivityHandle
         {
-            public void Complete()             => owner.Ends.Add("complete");
-            public void Fail(string? message)  => owner.Ends.Add("fail: " + message);
+            public void Complete()                 => owner.Ends.Add("complete");
+            public void Fail(string? message)      => owner.Ends.Add("fail: " + message);
+            public void Update(string description) { }
         }
     }
 
