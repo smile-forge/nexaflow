@@ -264,7 +264,10 @@ model, `ISpeechToTextProvider` for speech to text — over the `IAiProvider` bas
 residency, availability, models, warm-up); one backend serving two kinds ships a type per kind under one name, as
 OpenAI does. The ability grid's columns carry their kind, and a row takes only columns of its own. A provider that
 needs model files declares an `IModelAssetStore` in its constructor and describes them in a catalog manifest it
-ships (`ModelCatalog`); the store fetches them. Speech In starts on `Whisper` (whisper.cpp, on this machine) when
+ships (`ModelCatalog`); the store fetches them. A provider that exposes its catalog (`ILocalModelCatalog`) gets a page
+in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
+kind serves one ability — choose the one that ability uses, as an edit of the ability grid it shares with the AI
+page. Speech In starts on `Whisper` (whisper.cpp, on this machine) when
 a workspace's grid has never had that row, and `DictationService` streams the microphone into whichever speech
 model the row's chain picks.
 

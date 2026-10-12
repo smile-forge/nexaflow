@@ -28,6 +28,19 @@ public interface IModelAssetStore
     /// <summary>Makes the asset present — downloading it, or resuming a download — and returns its path.</summary>
     /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
     Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>An asset arrived on disk, verified, or was removed — whoever downloaded or removed it. A provider
+    /// whose model it is becomes available, or stops being. Raised on whichever thread made the change.</summary>
+    event EventHandler<ModelAsset>? Changed;
+}
+
+/// <summary>
+/// A provider whose models are files kept on this machine, fetched through the <see cref="IModelAssetStore"/>: its
+/// catalog says which models there are and what each needs, so the workspace can show them, fetch them and remove them.
+/// </summary>
+public interface ILocalModelCatalog
+{
+    IReadOnlyList<CatalogModel> Catalog { get; }
 }
 
 /// <summary>One model a provider offers, and the files it needs.</summary>

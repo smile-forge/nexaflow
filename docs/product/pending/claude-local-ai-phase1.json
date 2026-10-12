@@ -276,6 +276,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/AI/LegacyVoiceSettings.cs",
           "class": "LegacyVoiceSettings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalModelsViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/LocalModelsControl.xaml.cs",
+          "class": "LocalModelsControl"
         }
       ],
       "concerns": {
@@ -285,6 +295,17 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
             "class": "SpeechInTests",
             "method": "AGridThatHasNeverHadSpeechIn_StartsOnWhisper"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalModelsViewModelTests.cs",
+            "class": "LocalModelsViewModelTests"
+          }
+        ],
+        "i18n": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
           }
         ]
       }
@@ -394,7 +415,7 @@
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 23,
   "touched_nodes": [
     "ai-model-assets",
     "aibar-context-residency",

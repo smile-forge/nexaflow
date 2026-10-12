@@ -68,9 +68,27 @@ public sealed class ModelAssetStore : IModelAssetStore
             }
 
             await File.WriteAllTextAsync(VerifiedMark(path), asset.Sha256, ct);
+            Changed?.Invoke(this, asset);
             return path;
         }
         finally { gate.Release(); }
+    }
+
+    public event EventHandler<ModelAsset>? Changed;
+
+    /// <summary>Deletes an asset — the file, its verified mark, and any partial download — to free its space.</summary>
+    public async Task RemoveAsync(ModelAsset asset, CancellationToken ct = default)
+    {
+        var path = PathOf(asset);
+        var gate = LockFor(path);
+        await gate.WaitAsync(ct);
+        try
+        {
+            foreach (var file in new[] { path, VerifiedMark(path), path + ".partial" })
+                if (File.Exists(file)) File.Delete(file);
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke(this, asset);
     }
 
     /// <summary>Moves a file an earlier version downloaded into place, when it is the same file.</summary>

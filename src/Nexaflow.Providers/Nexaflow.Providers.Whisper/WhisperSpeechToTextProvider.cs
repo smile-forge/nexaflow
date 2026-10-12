@@ -9,7 +9,7 @@ namespace Nexaflow.Providers.Whisper;
 /// CPU with AVX. The model's file comes from the asset store, described by the catalog this assembly ships; it is
 /// fetched when the model is first assigned, and the provider is available once it is on disk.
 /// </summary>
-public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDisposable
+public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IDisposable
 {
     public const string ProviderName = "Whisper";
     public string Name => ProviderName;
@@ -24,11 +24,20 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
     {
         _activityManager = activityManager;
         _assets          = assets;
-        _model           = Catalog.FirstOrDefault(m => m.Id == model.Model);
+        _model           = Models.FirstOrDefault(m => m.Id == model.Model);
+        _assets.Changed += OnAssetChanged;
     }
 
     /// <summary>The models this assembly can fetch, read once from its embedded manifest.</summary>
-    internal static IReadOnlyList<CatalogModel> Catalog { get; } = ReadCatalog();
+    internal static IReadOnlyList<CatalogModel> Models { get; } = ReadCatalog();
+
+    public IReadOnlyList<CatalogModel> Catalog => Models;
+
+    /// <summary>This model's file arrived or went — downloaded here, from the workspace's Whisper page, or removed there.</summary>
+    private void OnAssetChanged(object? sender, ModelAsset asset)
+    {
+        if (_model is { Files: [var file, ..] } && file == asset) AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private static IReadOnlyList<CatalogModel> ReadCatalog()
     {
@@ -47,7 +56,7 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
     private string? ModelPath => _model is { Files: [var file, ..] } ? _assets.Locate(file) : null;
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<string>>([.. Catalog.Select(m => m.Id)]);
+        => Task.FromResult<IReadOnlyList<string>>([.. Models.Select(m => m.Id)]);
 
     /// <summary>
     /// Fetches the model when it is not on disk yet, reporting how far it has got, then loads it — the weights, and on
@@ -82,8 +91,7 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
         try
         {
             await _assets.EnsureAsync(file, progress, ct);
-            activity.Complete();
-            AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+            activity.Complete();   // the store's Changed event says the model is here
             return true;
         }
         catch (Exception ex)
@@ -101,7 +109,11 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
 
     public Task CooldownAsync(CancellationToken ct = default)
     {
-        Dispose();
+        lock (_factoryLock)
+        {
+            _factory?.Dispose();
+            _factory = null;
+        }
         return Task.CompletedTask;
     }
 
@@ -118,6 +130,7 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
 
     public void Dispose()
     {
+        _assets.Changed -= OnAssetChanged;
         lock (_factoryLock)
         {
             _factory?.Dispose();

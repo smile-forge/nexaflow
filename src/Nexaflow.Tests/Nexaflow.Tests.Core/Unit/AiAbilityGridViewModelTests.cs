@@ -123,6 +123,46 @@ public class AiAbilityGridViewModelTests
         Assert.IsFalse(Cell(Conversation(grid), "stt").IsUsable);
     }
 
+    [TestMethod]
+    public void UsingAnotherModel_ChangesTheColumnInPlace_KeepingItsPlaceInTheChain()
+    {
+        var config = new AiConfig
+        {
+            Columns     = [new ProviderModelPair { Id = "w", ProviderName = "Whisper", Model = "base.en", Kind = ModelKind.SpeechToText },
+                           new ProviderModelPair { Id = "o", ProviderName = "OpenAI", Model = "gpt-4o-transcribe", Kind = ModelKind.SpeechToText }],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of("o", "w") },
+        };
+        var grid = new AiAbilityGridViewModel(config);
+
+        grid.UseModel(AiAbility.SpeechIn, "Whisper", "large-v3-turbo");
+
+        Assert.AreEqual("large-v3-turbo", grid.ModelFor(AiAbility.SpeechIn, "Whisper"));
+        Assert.AreEqual(2, Cell(grid.Rows.Single(r => r.Ability == AiAbility.SpeechIn), "w").Position, "still second in the chain");
+        Assert.IsTrue(grid.HasChanges, "a model changed is a change");
+
+        grid.Apply();
+        Assert.AreEqual("large-v3-turbo", config.Columns.Single(c => c.Id == "w").Model);
+        Assert.IsFalse(grid.HasChanges);
+    }
+
+    [TestMethod]
+    public void UsingAModelOfAProviderTheChainLacks_AddsItsColumnAtTheEnd()
+    {
+        var config = new AiConfig
+        {
+            Columns     = [new ProviderModelPair { Id = "o", ProviderName = "OpenAI", Model = "whisper-1", Kind = ModelKind.SpeechToText }],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of("o") },
+        };
+        var grid = new AiAbilityGridViewModel(config);
+
+        grid.UseModel(AiAbility.SpeechIn, "Whisper", "small");
+
+        var speechIn = grid.Rows.Single(r => r.Ability == AiAbility.SpeechIn);
+        var added    = grid.Columns.Single(c => c.ProviderName == "Whisper");
+        Assert.AreEqual(("small", ModelKind.SpeechToText), (added.Model, added.Kind));
+        CollectionAssert.AreEqual(new[] { "o", added.Id }, speechIn.Chain.ToArray());
+    }
+
     private sealed class Residing(string name, DataResidency residency) : ILlmProvider
     {
         public string Name => name;

@@ -1,4 +1,5 @@
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
@@ -30,7 +31,7 @@ public sealed class ProviderManager
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
-    private IModelAssetStore?           _assets;
+    private ModelAssetStore?            _assets;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -57,11 +58,14 @@ public sealed class ProviderManager
     private ProviderManager() { }
 
     /// <summary>Must be called once at startup before any Load method.</summary>
-    public void Initialize(IBackgroundActivityManager activityManager, IModelAssetStore assets)
+    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets)
     {
         _activityManager = activityManager;
         _assets          = assets;
     }
+
+    /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
+    public ModelAssetStore? Assets => _assets;
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;

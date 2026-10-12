@@ -71,6 +71,14 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         Check("Cancel closes the add-column panel", () =>
             PressNth("AiGrid_CancelAdd", 0) && WaitForFs(() => Exists("AiGrid_AddColumn"), 3));
 
+        // ── Whisper: the speech models on this machine ────────────────────────────────
+        // A journey downloads nothing, so Use only chooses; the panel closes without applying it.
+        SelectSection(sections!, "Whisper", "LocalModels_Use");
+        Check("Every Whisper model is listed", () => WaitForFs(() => CountOf("LocalModels_Use") >= 8, 3));
+        Check("Use chooses a model for Speech In", () => PressNth("LocalModels_Use", -1));
+        CheckExists("Download a model", "LocalModels_Download");
+        CheckExists("Remove a model", "LocalModels_Remove");
+
         // ── Console: environments ─────────────────────────────────────────────────────
         SelectSection(sections!, "Console", "ConsoleEnv_Add");
         Check("The saved-locations section expands", () => SetToggle("ConsoleEnv_LocationsToggle", true));

@@ -13,11 +13,13 @@ public class WhisperProviderTests
     private sealed class Store : IModelAssetStore
     {
         public readonly List<ModelAsset> Fetched = [];
+        public event EventHandler<ModelAsset>? Changed;
         public string? Locate(ModelAsset asset) => Fetched.Contains(asset) ? @"C:\models\" + asset.RelativePath : null;
         public Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
         {
             progress?.Report(new AssetProgress(asset.Size, asset.Size));
             Fetched.Add(asset);
+            Changed?.Invoke(this, asset);
             return Task.FromResult(Locate(asset)!);
         }
     }
@@ -30,7 +32,7 @@ public class WhisperProviderTests
 
         CollectionAssert.AreEquivalent(
             new[] { "base.en", "base", "small.en", "small", "medium.en", "medium", "large-v3-turbo", "large-v3" }, models.ToArray());
-        Assert.IsTrue(WhisperSpeechToTextProvider.Catalog.All(m => m.Files.Single().Sha256.Length == 64));
+        Assert.IsTrue(WhisperSpeechToTextProvider.Models.All(m => m.Files.Single().Sha256.Length == 64));
     }
 
     [TestMethod]

@@ -289,6 +289,48 @@ public partial class AiAbilityGridViewModel : ObservableObject
         ResetAddPanel();
     }
 
+    /// <summary>The model the first <paramref name="providerName"/> column in <paramref name="ability"/>'s chain holds,
+    /// or null when the chain has none of that provider's.</summary>
+    public string? ModelFor(AiAbility ability, string providerName) => ColumnFor(ability, providerName)?.Model;
+
+    /// <summary>
+    /// Makes <paramref name="ability"/> use <paramref name="model"/> of <paramref name="providerName"/>: the first column of
+    /// that provider in its chain becomes one holding the model, keeping its place in every chain; with none, a column is
+    /// added and joins the end of the chain.
+    /// </summary>
+    public void UseModel(AiAbility ability, string providerName, string model)
+    {
+        var row = Rows.Single(r => r.Ability == ability);
+
+        if (ColumnFor(ability, providerName) is { } current)
+        {
+            if (current.Model == model) return;
+            var replacement = NewColumn(current.Id, current.ProviderName, model, current.Kind, current.AssemblyFileName);
+            Columns[Columns.IndexOf(current)] = replacement;
+            foreach (var r in Rows)
+            {
+                var cell = r.Cells.First(c => c.Column.Id == current.Id);
+                r.Cells[r.Cells.IndexOf(cell)] = new AiAbilityCellViewModel(r, replacement);
+            }
+            return;
+        }
+
+        var column = NewColumn(Guid.NewGuid().ToString("N"), providerName, model, row.Kind,
+            _config.Providers?.GetAssemblyFileName(providerName) ?? string.Empty);
+        Columns.Add(column);
+        foreach (var r in Rows) r.Cells.Add(new AiAbilityCellViewModel(r, column));
+        row.Toggle(column.Id);
+    }
+
+    private AiColumnViewModel? ColumnFor(AiAbility ability, string providerName)
+    {
+        var row = Rows.Single(r => r.Ability == ability);
+        return row.Chain
+            .Select(id => Columns.FirstOrDefault(c => c.Id == id))
+            .FirstOrDefault(c => c is not null && c.Kind == row.Kind
+                                 && string.Equals(c.ProviderName, providerName, StringComparison.OrdinalIgnoreCase));
+    }
+
     private void RemoveColumn(AiColumnViewModel? col)
     {
         if (col is null) return;
@@ -307,7 +349,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private void RecheckChanges()
     {
-        HasChanges = !Columns.Select(c => c.Id).SequenceEqual(_config.Columns.Select(c => c.Id))
+        HasChanges = !Columns.Select(c => (c.Id, c.Model)).SequenceEqual(_config.Columns.Select(c => (c.Id, c.Model)))
                      || Rows.Any(row => !row.ToChain().SameAs(
                             _config.Assignments.GetValueOrDefault(row.Ability.ToString()) ?? AbilityChain.Empty));
     }
