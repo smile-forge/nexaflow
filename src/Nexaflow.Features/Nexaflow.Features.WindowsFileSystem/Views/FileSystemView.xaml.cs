@@ -982,7 +982,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         if (paths.Length == 0) return;
 
-        var data = new DataObject(DataFormats.FileDrop, paths);
+        // Whatever receives the drop knows nothing of companions, so they are dragged with their files.
+        var data = new DataObject(DataFormats.FileDrop, ViewModel.Companions.WithCompanions(paths).ToArray());
 
         // WPF's built-in continue-drag rule ends the drag when the LEFT button comes up, so a right-drag
         // would follow the cursor forever and never drop. Saying so explicitly also keeps this from

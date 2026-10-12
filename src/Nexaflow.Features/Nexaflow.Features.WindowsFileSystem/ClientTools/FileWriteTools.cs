@@ -111,7 +111,11 @@ public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
             await Task.Run(() =>
             {
                 if (isDir) FsTool.CopyDirectory(src, dst, overwrite);
-                else       File.Copy(src, dst, overwrite);
+                else
+                {
+                    File.Copy(src, dst, overwrite);
+                    vm.Companions.Follow(src, dst, move: false);
+                }
             }, ct);
         }
         catch (Exception ex) { return ToolResult.Error($"Copy failed: {ex.Message}"); }
@@ -151,7 +155,11 @@ public sealed class MoveTool(FileSystemViewModel vm) : IClientTool
             await Task.Run(() =>
             {
                 if (isDir) Directory.Move(src, dst);
-                else       File.Move(src, dst);
+                else
+                {
+                    File.Move(src, dst);
+                    vm.Companions.Follow(src, dst, move: true);
+                }
             }, ct);
         }
         catch (Exception ex) { return ToolResult.Error($"Move failed: {ex.Message}"); }
@@ -198,7 +206,11 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
             await Task.Run(() =>
             {
                 if (isDir) Directory.Move(src, dst);
-                else       File.Move(src, dst);
+                else
+                {
+                    File.Move(src, dst);
+                    vm.Companions.Follow(src, dst, move: true);
+                }
             }, ct);
         }
         catch (Exception ex) { return ToolResult.Error($"Rename failed: {ex.Message}"); }
@@ -229,7 +241,7 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
             return ToolResult.Error($"Not found: {full}");
 
         bool ok;
-        try { ok = await Task.Run(() => NativeMethods.RecycleFiles(new[] { full }), ct); }
+        try { ok = await Task.Run(() => NativeMethods.RecycleFiles(vm.Companions.WithCompanions([full])), ct); }
         catch (Exception ex) { return ToolResult.Error($"Delete failed: {ex.Message}"); }
 
         if (!ok) return ToolResult.Error($"Could not recycle '{Path.GetFileName(full)}'.");

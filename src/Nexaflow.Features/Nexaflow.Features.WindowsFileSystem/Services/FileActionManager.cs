@@ -102,11 +102,20 @@ public sealed class FileActionManager
         {
             if (!canPerform[i]) continue;
             if (!fullyBacked && file[i].RequiresFullyBackedPath) continue;
+            if (!HasRequiredCompanions(file[i], selected)) continue;
             if (FileMatches(file[i], selected, anyDrives, multipleFiles, includeOptional))
                 filtered.Add(file[i]);
         }
         return filtered;
     }
+
+    /// <summary>
+    /// True unless <paramref name="action"/> is about a companion (<see cref="IFileAction.RequiredCompanionSuffix"/>)
+    /// that some selected item lacks — a folder, or a file with none beside it.
+    /// </summary>
+    public static bool HasRequiredCompanions(IFileAction action, IReadOnlyList<FileSystemEntry> selected) =>
+        action.RequiredCompanionSuffix is not { } suffix
+        || selected.All(e => !e.IsDirectory && System.IO.File.Exists(e.FullPath + suffix));
 
     /// <summary>
     /// Filters folder actions for a folder-only selection. Safe to call on any thread.

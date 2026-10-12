@@ -53,7 +53,9 @@ internal sealed class FileTransferTask(
 
             if (request.Kind == TransferKind.Delete && recycle)
             {
-                await RecycleAsync(sources, scan, ct);
+                // The Recycle Bin takes a file's companions with it, so a restore brings them back together.
+                var companions = request.Items.SelectMany(i => CompanionFiles.Existing(i.Source, i.CompanionSuffixes));
+                await RecycleAsync([.. sources, .. companions], scan, ct);
                 return;
             }
 

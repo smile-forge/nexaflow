@@ -6,6 +6,9 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     public class CopyFiles : IFileAction, IFolderAction, ICacheable
     {
+        private readonly IShellServices _shell;
+
+        public CopyFiles(IShellServices shell) => _shell = shell;
         // ── IFileAction ───────────────────────────────────────────────────────
 
         public bool   IsDestructive          => false;
@@ -33,7 +36,8 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(string filePath)
         {
-            NativeMethods.ClipboardCopyFiles(Services.ShellPath.Realize([filePath]));
+            // Companions ride along, so a paste anywhere — here or in Explorer — brings them too.
+            NativeMethods.ClipboardCopyFiles(Services.FileCompanions.For(_shell).WithCompanions(Services.ShellPath.Realize([filePath])));
             return true;
         }
 
@@ -45,7 +49,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             var paths = Services.ShellPath.Realize(filePaths).ToList();
             if (paths.Count == 0) return false;
 
-            NativeMethods.ClipboardCopyFiles(paths);
+            NativeMethods.ClipboardCopyFiles(Services.FileCompanions.For(_shell).WithCompanions(paths));
             return true;
         }
     }

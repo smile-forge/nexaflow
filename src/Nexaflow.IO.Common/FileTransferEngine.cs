@@ -222,7 +222,7 @@ public static class FileTransferEngine
                 {
                     case TransferKind.Copy:   await CopyItemAsync(item, forMove: false); break;
                     case TransferKind.Move:   await MoveItemAsync(item);                 break;
-                    case TransferKind.Delete: DeleteItem(item.Source);                   break;
+                    case TransferKind.Delete: DeleteItem(item.Source); DeleteCompanions(item); break;
                 }
             }
 
@@ -277,6 +277,7 @@ public static class FileTransferEngine
                         File.Move(LongPath.Prefix(item.Source), LongPath.Prefix(destination), overwrite: false);
 
                     _itemsDone++;
+                    if (isFile) CarryCompanions(item, destination, move: true);
                     Report(TransferPhase.Running, force: true);
                     return;
                 }
@@ -291,7 +292,7 @@ public static class FileTransferEngine
                 }
             }
 
-            await CopyItemAsync(new TransferItem(item.Source, destination), forMove: true, alreadyResolved: true);
+            await CopyItemAsync(item with { Destination = destination }, forMove: true, alreadyResolved: true);
         }
 
         // ── Copy ──────────────────────────────────────────────────────────────
@@ -316,7 +317,8 @@ public static class FileTransferEngine
             }
 
             if (isDir) await CopyDirectoryAsync(item.Source, destination, forMove);
-            else       await CopyFileAsync(item.Source, destination, forMove, resolved: true);
+            else if (await CopyFileAsync(item.Source, destination, forMove, resolved: true))
+                CarryCompanions(item, destination, move: forMove);
         }
 
         /// <summary>
@@ -526,6 +528,26 @@ public static class FileTransferEngine
             if (!Directory.Exists(path)) return;
             DeleteDirectory(path);
             Report(TransferPhase.Running, force: true);
+        }
+
+        // ── Companions ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// A file's companions follow it to wherever it landed — its resolved name, so they pair with a <c>(2)</c>
+        /// rather than keep the old one (<see cref="CompanionFiles.Follow"/>). A companion that cannot follow is reported;
+        /// the primary stays where it landed.
+        /// </summary>
+        private void CarryCompanions(TransferItem item, string destination, bool move)
+        {
+            foreach (var (path, error) in CompanionFiles.Follow(item.Source, destination, item.CompanionSuffixes, move))
+                Fail(move ? "move" : "copy", path, error);
+        }
+
+        /// <summary>A deleted file's companions go with it — only once it has gone.</summary>
+        private void DeleteCompanions(TransferItem item)
+        {
+            foreach (var (path, error) in CompanionFiles.DeleteWith(item.Source, item.CompanionSuffixes))
+                Fail("delete", path, error);
         }
 
         private bool DeleteDirectory(string path)
