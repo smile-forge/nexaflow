@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Editing;
-using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
@@ -31,11 +30,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The longest side the assistant is shown, in pixels.</summary>
     private const int CaptureEdge = 2048;
 
-    /// <summary>Photos kept decoded behind the current one, so stepping back is instant.</summary>
-    private const int SessionCacheSize = 4;
 
-    /// <summary>Decodes are sized in steps of this, so a slowly growing zoom does not decode at every step.</summary>
-    private const int DecodeStep = 512;
 
     // Auto-advance intervals per speed slider position (Slow / Medium / Fast).
     private static readonly TimeSpan[] _autoIntervals =
@@ -54,17 +49,11 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     private readonly ImageEditingServices _editing;
     private readonly bool _ownsEditing;
-    private readonly SkiaBitmapPresenter _presenter;
-    private readonly List<ImageEditSession> _sessions = [];   // most recently shown last
+    private readonly ImageSessionCache _sessions;
+    private readonly ImageDisplay _display;
     private readonly DispatcherTimer _thumbRefresh;
     private IFileWatch? _sidecarWatch;
-    private CancellationTokenSource? _decodeCts;
-    private int _decodingEdge;
     private ImageViewMode _modeBeforeEdit = ImageViewMode.Carousel;
-
-    // The surface the current image is shown on, in device-independent pixels, and its pixel density.
-    private double _viewportWidth = 1600, _viewportHeight = 1000, _pixelsPerDip = 1;
-    private double _editZoom = 1;
 
     [ObservableProperty] private int _currentIndex;
     [ObservableProperty] private BitmapSource? _currentImage;
@@ -497,9 +486,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _ownsEditing = editing is null;
         TotalImages  = _paths.Count;
 
-        _presenter = new SkiaBitmapPresenter(action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action));
-        _presenter.BitmapChanged += () => CurrentImage = _presenter.Bitmap;
-        _presenter.Presented     += tag => { if (tag is EditCanvas canvas) Canvas = canvas; };
+        _sessions = new ImageSessionCache(_editing);
+        _display  = new ImageDisplay(_editing, action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action), _cts.Token);
+        _display.ImageChanged += image => CurrentImage = image;
+        _display.Presented    += canvas => Canvas = canvas;
+        _display.Decoded      += OnDecoded;
+        _display.DecodeFailed += session => { if (ReferenceEquals(CurrentSession, session)) LoadFailed = true; };
 
         Editor = new ImageEditorViewModel(this, shell, _editing);
 
@@ -608,24 +600,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         PreviousCommand.NotifyCanExecuteChanged();
         NextCommand.NotifyCanExecuteChanged();
 
-        ShowSession(OpenSession(path));
-    }
-
-    /// <summary>The session for <paramref name="path"/>: kept from before, or opened now.</summary>
-    private ImageEditSession OpenSession(string path)
-    {
-        var existing = _sessions.FirstOrDefault(s => string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
-        {
-            _sessions.Remove(existing);
-            _sessions.Add(existing);
-            return existing;
-        }
-
-        var session = new ImageEditSession(path, _editing);
-        _sessions.Add(session);
-        while (_sessions.Count > SessionCacheSize) CloseSession(_sessions[0].Path);
-        return session;
+        ShowSession(_sessions.Open(path));
     }
 
     private void ShowSession(ImageEditSession session)
@@ -635,10 +610,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (CurrentSession is { } previous) previous.RecipeChanged -= OnRecipeChanged;
         _sidecarWatch?.Dispose();
         _sidecarWatch = null;
-        _decodeCts?.Cancel();
-        _decodingEdge = 0;
 
         CurrentSession = session;
+        _display.Show(session);
         session.RecipeChanged += OnRecipeChanged;
         LoadFailed = false;
         Canvas = null;
@@ -647,24 +621,21 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
 
-        if (session.Proxy is null) _presenter.Clear();
         RequestRender();
     }
 
     private void CloseSession(string path)
     {
-        var session = _sessions.FirstOrDefault(s => string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase));
-        if (session is null) return;
-        _sessions.Remove(session);
-        if (ReferenceEquals(CurrentSession, session))
-        {
-            session.RecipeChanged -= OnRecipeChanged;
-            _sidecarWatch?.Dispose();
-            _sidecarWatch = null;
-            _decodeCts?.Cancel();
-            CurrentSession = null;
-        }
-        session.Dispose();
+    if (_sessions.Remove(path) is not { } session) return;
+    if (ReferenceEquals(CurrentSession, session))
+    {
+        session.RecipeChanged -= OnRecipeChanged;
+        _sidecarWatch?.Dispose();
+        _sidecarWatch = null;
+        _display.Show(null);
+        CurrentSession = null;
+    }
+    session.Dispose();
     }
 
     /// <summary>Closes and reopens the current photo — after a save has replaced the file under it.</summary>
@@ -678,7 +649,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     private void ShowNothing()
     {
         if (CurrentSession is { } session) CloseSession(session.Path);
-        _presenter.Clear();
+        _display.Clear();
         Canvas = null;
     }
 
@@ -705,114 +676,26 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The surface the current image is shown on changed size (device-independent pixels) or density.</summary>
     public void SetViewport(double width, double height, double pixelsPerDip)
     {
-        if (width <= 0 || height <= 0) return;
-        bool changed = Math.Abs(width - _viewportWidth) > 1 || Math.Abs(height - _viewportHeight) > 1 || Math.Abs(pixelsPerDip - _pixelsPerDip) > 0.01;
-        (_viewportWidth, _viewportHeight, _pixelsPerDip) = (width, height, pixelsPerDip);
-        if (changed) RequestRender();
+    if (_display.SetViewport(width, height, pixelsPerDip)) RequestRender();
     }
 
     /// <summary>The edit canvas was zoomed: render more (or fewer) pixels for the same layout.</summary>
     public void SetEditZoom(double zoom)
     {
-        if (zoom <= 0 || Math.Abs(zoom - _editZoom) < 0.01) return;
-        _editZoom = zoom;
-        if (IsEditing) RequestRender();
+    if (_display.SetEditZoom(zoom) && IsEditing) RequestRender();
     }
 
-    /// <summary>
-    /// Renders the current photo for the way it is being shown — the finished picture, or the uncropped one while
-    /// cropping; fitted, at 100% or at the edit canvas's zoom — and decodes it sharper first if the decode it has
-    /// is too small for that.
-    /// </summary>
-    internal void RequestRender()
+    /// <summary>Renders the current photo for the way it is being shown: on the edit canvas or not, before or after, fitted or at 100%.</summary>
+    internal void RequestRender() =>
+        _display.Render(new ImageDisplayMode(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow));
+
+    /// <summary>The current photo has pixels — its first decode, or a sharper one: the editor and the frame catch up.</summary>
+    private void OnDecoded(ImageEditSession session)
     {
-        if (CurrentSession is not { } session) return;
-        if (session.Proxy is not { } proxy)
-        {
-            EnsureDecoded(session, InitialDecodeEdge());
-            return;
-        }
-
-        var showOriginal = IsEditing && Editor.ShowOriginal;
-        var recipe = showOriginal ? ImageRecipe.Identity : session.Recipe;
-        var frame = IsEditing && !showOriginal ? Editor.Frame : RenderFrame.Output;
-        var source = proxy.SourceSize;
-
-        CropGeometry.FrameToCanvas(recipe, source, frame, 1, out var natural);
-        double layoutScale, renderScale;
-        if (IsEditing)
-        {
-            // Laid out to fit the canvas; rendered at the screen's density times the zoom, so zooming in sharpens.
-            layoutScale = Math.Min(1, Math.Min(_viewportWidth / natural.Width, _viewportHeight / natural.Height));
-            renderScale = Math.Min(1, layoutScale * _pixelsPerDip * _editZoom);
-        }
-        else
-        {
-            layoutScale = renderScale = FitToWindow
-                ? Math.Min(1, Math.Min(_viewportWidth * _pixelsPerDip / natural.Width, _viewportHeight * _pixelsPerDip / natural.Height))
-                : 1;
-        }
-
-        var sourceToCanvas = CropGeometry.SourceToCanvas(recipe, source, frame, renderScale, out _);
-        EnsureSharpEnough(session, proxy, CropGeometry.SourcePixelsPerCanvasPixel(sourceToCanvas));
-
-        var straightenedToLayout = CropGeometry.FrameToCanvas(recipe, source, frame, layoutScale, out var layout);
-        var canvas = new EditCanvas(recipe, frame, source, layoutScale, layout, straightenedToLayout,
-                                    CropGeometry.Straighten(source, recipe.Geometry.StraightenDegrees).PostConcat(straightenedToLayout));
-
-        var request = new RenderRequest(frame, renderScale, Adjustments: !showOriginal, Markup: !showOriginal);
-        double dpi = IsEditing ? 96 * renderScale / layoutScale : 96;
-        _presenter.Present(consume => session.Render(recipe, request, consume), dpi, canvas);
+        if (!ReferenceEquals(CurrentSession, session)) return;
+        Editor.OnSessionChanged();
+        RequestRender();
     }
-
-    /// <summary>The first decode's size: enough for the viewport, before the photo's own size is known.</summary>
-    private int InitialDecodeEdge() =>
-        RoundUpToStep(Math.Max(1024, Math.Max(_viewportWidth, _viewportHeight) * _pixelsPerDip));
-
-    private void EnsureSharpEnough(ImageEditSession session, DecodedImage proxy, double sourcePerCanvasPixel)
-    {
-        if (proxy.IsFullResolution || proxy.Reduction <= Math.Max(1, sourcePerCanvasPixel) * 1.25) return;
-        int storedEdge = Math.Max(proxy.StoredFullSize.Width, proxy.StoredFullSize.Height);
-        int needed = RoundUpToStep(storedEdge / Math.Max(1, sourcePerCanvasPixel));
-        EnsureDecoded(session, Math.Min(needed, storedEdge));
-    }
-
-    /// <summary>Decodes the session's photo off the UI thread at <paramref name="longEdge"/>, once per size asked for.</summary>
-    private void EnsureDecoded(ImageEditSession session, int longEdge)
-    {
-        if (_decodingEdge >= longEdge) return;
-        _decodingEdge = longEdge;
-        _decodeCts?.Cancel();
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-        _decodeCts = cts;
-
-        _ = Task.Run(() =>
-        {
-            DecodedImage decoded;
-            try
-            {
-                decoded = _editing.Decode(session.Path, longEdge);
-            }
-            catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
-            {
-                if (!cts.IsCancellationRequested) Ui(() => { if (ReferenceEquals(CurrentSession, session)) { LoadFailed = true; _presenter.Clear(); } });
-                return;
-            }
-            if (cts.IsCancellationRequested) { decoded.Dispose(); return; }
-
-            session.Attach(decoded);
-            Ui(() =>
-            {
-                if (!ReferenceEquals(CurrentSession, session)) return;
-                Editor.OnSessionChanged();
-                RequestRender();
-            });
-        }, cts.Token);
-    }
-
-    private void Ui(Action action) => _ = _shell?.RunOnUiAsync(action) ?? RunHere(action);
-
-    private static int RoundUpToStep(double edge) => (int)Math.Ceiling(edge / DecodeStep) * DecodeStep;
 
     // ── IContextPreview ───────────────────────────────────────────────────
 
@@ -994,8 +877,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _thumbRefresh.Stop();
         _cts.Cancel();
         _sidecarWatch?.Dispose();
-        foreach (var session in _sessions.ToList()) CloseSession(session.Path);
-        _presenter.Dispose();
+        if (CurrentSession is { } current) CloseSession(current.Path);
+        _sessions.Dispose();
+        _display.Dispose();
         if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }
