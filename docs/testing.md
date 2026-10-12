@@ -371,7 +371,9 @@ markdown's own), painting (a fresh tree — all of it, and a screen of it — th
 was painted before it), and memory (what opening, a keystroke and each paint allocate, and what a document laid and painted
 holds on to, and for the largest document each layer it holds and what opening it and typing in it allocate by type) —
 with corpus totals for every nested language, every stage of each language's own
-pipeline, and every kind of block. It writes one JSON file per run and asserts nothing.
+pipeline, and every kind of block. Rich text (RTF) is laid through the same steps — its samples and one long document
+written as a word processor writes one — and totalled on its own (`rtfTotals`), so the markdown totals compare with every
+run before it. It writes one JSON file per run and asserts nothing.
 
 ```powershell
 tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept in %LOCALAPPDATA%\Nexaflow\markdown-bench

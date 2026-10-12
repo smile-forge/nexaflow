@@ -139,6 +139,9 @@ These are drawn by the same renderer, on your machine, from a fenced block you t
   renderer works offline.
 - **Local images only.** `![](…)` loads local image files; remote `http(s)` and `data:` images are
   not fetched (you'll see the alt text instead).
+- **Picture sizes.** Write a size after a bar at the end of a picture's words, as Obsidian does:
+  `![a cat|300](cat.png)` draws it 300 wide in its own proportions, and `![a cat|300x200](cat.png)` 300 by 200.
+  Without one, a picture is drawn its own size, brought down to fit the page and never blown up.
 - **Copy or save a picture of a diagram.** Rest the pointer on a pie chart, a Venn diagram, a formula or a
   chemical structure and a small toolbar appears at its top right: **Copy** puts a picture of it on the
   clipboard, and **Save** saves it as a PNG wherever you choose. The picture is the diagram as it reads —

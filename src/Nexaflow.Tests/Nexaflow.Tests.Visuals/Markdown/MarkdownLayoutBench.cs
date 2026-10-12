@@ -23,6 +23,8 @@ using System.Diagnostics.Tracing;
 using System.Threading;
 using System.Windows;
 using Nexaflow.Markdown.Editing;
+using System.Text;
+using Nexaflow.Markdown.Rtf;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -77,8 +79,17 @@ public class MarkdownLayoutBench
         foreach (var path in docs)
         {
             var text = File.ReadAllText(path);
-            rows.Add(Document(Path.GetFileName(path), text, style, inputs, languages, stages, kinds));
+        rows.Add(Document(Path.GetFileName(path), text, null, style, inputs, languages, stages, kinds));
         }
+
+        // Rich text, through the same steps: the samples, and one long document written as a word processor writes one. Kept
+        // apart in its own totals, so the corpus totals still compare with every run taken before rich text was measured.
+        var rich = new List<Dictionary<string, object>>();
+
+        foreach (var path in TestSampleData.Files("rtf").OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+            rich.Add(Document(Path.GetFileName(path), File.ReadAllText(path, Encoding.Latin1), RtfParser.Language, style, inputs, languages, stages, kinds));
+
+        rich.Add(Document($"generated-{LongRichText}-paragraphs.rtf", RichText(LongRichText), RtfParser.Language, style, inputs, languages, stages, kinds));
 
         var run = new Dictionary<string, object>
         {
@@ -94,8 +105,9 @@ public class MarkdownLayoutBench
             ["when"] = DateTimeOffset.Now.ToString("o"),
             ["runs"] = Runs,
             ["room"] = Room,
-            ["documents"] = rows,
+            ["documents"] = (List<Dictionary<string, object>>)[.. rows, .. rich],
             ["totals"] = Totals(rows),
+            ["rtfTotals"] = Totals(rich),
             ["languages"] = Listed(languages),
             ["languageStages"] = Listed(stages),
             ["blockKinds"] = Listed(kinds),
@@ -110,25 +122,30 @@ public class MarkdownLayoutBench
     });
 
     /// <summary>One document, step by step.</summary>
-    private static Dictionary<string, object> Document(string name, string text, StyleFormat style, ContentInputs inputs,
+    private static Dictionary<string, object> Document(string name, string text, string? language, StyleFormat style, ContentInputs inputs,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> languages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> stages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> kinds)
     {
-        var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
+        var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(language, EditState.For(text), style, Room, false));
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
         var content = new ContentEngine(inputs);
-        content.Lay(null, EditState.For(text), style, Room, false);
+        content.Lay(language, EditState.For(text), style, Room, false);
         var middle = Middle(text);
         var typed = 0;
-        var (edit, editKb) = Cost(() => content.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false));
+        var (edit, editKb) = Cost(() => content.Lay(language, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false));
+
+        // A language other than markdown is read by its own parser and stages, as the engine reads it.
+        var spoken = language is null ? null : ContentLanguages.For(language) ?? throw new InvalidOperationException($"no language {language}");
 
         ContentNode read = null!;
-        var tRead = Median(() => read = MarkdownParser.Parsing()(text).Tree);
+        var tRead = Median(() => read = spoken is null ? MarkdownParser.Parsing()(text).Tree : spoken.Parser()(text).Tree);
 
-        IAstStage[] pipeline =
+        IAstStage[] pipeline = spoken is not null
+            ? [.. spoken.Stages(read, new ContentShowing(language!, style, false, null, 0, inputs) { Reads = ContentLanguages.Reads }).OfType<IAstStage>()]
+            :
         [
             new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(inputs.Pictures),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(inputs.Links),
@@ -155,13 +172,13 @@ public class MarkdownLayoutBench
         // Laying out is the engine's, parse and all: what building costs is what is left of laying it out once reading it and
         // working it over are taken away.
         Laid laid = null!;
-        var whole = Median(() => laid = Laying.Lay(null, text, Room, style, writing: true, inputs: inputs));
+        var whole = Median(() => laid = Laying.Lay(language, text, Room, style, writing: true, inputs: inputs));
         var build = Math.Max(0, whole - tRead - staged.Values.Sum(Convert.ToDouble));
 
         var nested = 0.0;
         var count = 0;
 
-        foreach (var part in reading.Root.SelfAndDescendants())
+        foreach (var part in language is null ? reading.Root.SelfAndDescendants() : [])
         {
             if (ContentLanguages.Held(part) is null || part.Part(Roles.Body) is not { } body) continue;
 
@@ -177,7 +194,7 @@ public class MarkdownLayoutBench
             Language(named, own, style, inputs, stages);
         }
 
-        foreach (var block in reading.Root.Children.Where(part => part.Role != Roles.Trivia && !part.Derived))
+        foreach (var block in language is null ? reading.Root.Children.Where(part => part.Role != Roles.Trivia && !part.Derived) : [])
         {
             var source = block.Print();
             var (blockMs, blockKb) = Cost(() => Laying.Lay(null, source, Room, style, writing: true));
@@ -186,20 +203,20 @@ public class MarkdownLayoutBench
 
         // Painting what was just laid, as a keystroke does; and painting the same tree again, as a caret blink or a
         // change of selection does — the two differ by whatever painting keeps from one time to the next.
-        var (paint, paintKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, inputs: inputs),
+        var (paint, paintKb) = Timed(() => Laying.Lay(language, text, Room, style, writing: true, inputs: inputs),
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
         // The same, as a window showing a screen of it paints it: only what is near the screen.
-        var (paintShown, paintShownKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, inputs: inputs),
+        var (paintShown, paintShownKb) = Timed(() => Laying.Lay(language, text, Room, style, writing: true, inputs: inputs),
                                                fresh => Painted(fresh, style, Screen));
 
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
         var painter = new ContentEngine(inputs);
-        Painted(painter.Lay(null, EditState.For(text), style, Room, false), style);
+        Painted(painter.Lay(language, EditState.For(text), style, Room, false), style);
         var retyped = 0;
-        var (editPaint, editPaintKb) = Timed(() => painter.Lay(null, EditState.For(text.Insert(middle, new string('x', ++retyped))), style, Room, false),
+        var (editPaint, editPaintKb) = Timed(() => painter.Lay(language, EditState.For(text.Insert(middle, new string('x', ++retyped))), style, Room, false),
                                              typedIn => Painted(typedIn, style));
 
         // What a document open for writing holds on to once it is on the page: its tree, the pictures its blocks keep,
@@ -207,7 +224,7 @@ public class MarkdownLayoutBench
         var retained = Retained(() =>
         {
             var held = new ContentEngine(inputs);
-            var shown = held.Lay(null, EditState.For(text), style, Room, false);
+            var shown = held.Lay(language, EditState.For(text), style, Room, false);
             Painted(shown, style);
 
             return (held, shown);
@@ -216,7 +233,7 @@ public class MarkdownLayoutBench
         var retainedShown = Retained(() =>
         {
             var held = new ContentEngine(inputs);
-            var shown = held.Lay(null, EditState.For(text), style, Room, false);
+            var shown = held.Lay(language, EditState.For(text), style, Room, false);
             Painted(shown, style, Screen);
 
             return (held, shown);
@@ -225,6 +242,7 @@ public class MarkdownLayoutBench
         return new Dictionary<string, object>
         {
             ["name"] = name,
+            ["language"] = language ?? "markdown",
             ["kb"] = Math.Round(text.Length / 1024.0, 1),
             ["lines"] = text.Count(c => c == '\n'),
             ["blocks"] = read.Children.Count(child => child.Role != Roles.Trivia && !child.IsDerived),
@@ -292,6 +310,42 @@ public class MarkdownLayoutBench
         var at = text.Length / 2;
         while (at > 0 && !char.IsWhiteSpace(text[at - 1])) at--;
         return at;
+    }
+
+    /// <summary>How many paragraphs the long rich-text document has: enough that laying all of it is what opening it costs.</summary>
+    private const int LongRichText = 2000;
+
+    /// <summary>
+    /// A long document in RTF, written as a word processor writes one: a bold heading before every paragraph, and words in the
+    /// paragraph set italic, bold or in a colour. The same every run, so runs compare.
+    /// </summary>
+    private static string RichText(int paragraphs)
+    {
+        string[] words = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit", "sed", "do", "eiusmod",
+                          "tempor", "incididunt", "labore", "magna", "aliqua"];
+
+        var text = new StringBuilder(@"{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss Arial;}}{\colortbl ;\red0\green0\blue128;}\f0\fs24");
+        text.Append('\n');
+        var next = 0;
+
+        for (var at = 1; at <= paragraphs; at++)
+        {
+            text.Append(@"\pard\sa120{\b Paragraph ").Append(at).Append(@"}\par").Append('\n').Append(@"\pard\sa120 ");
+
+            for (var word = 0; word < 60; word++)
+            {
+                var said = words[next++ % words.Length];
+
+                text.Append(word % 11 == 3 ? @"{\i " + said + "}"
+                          : word % 13 == 5 ? @"{\b " + said + "}"
+                          : word % 17 == 7 ? @"{\cf1 " + said + "}"
+                          : said).Append(' ');
+            }
+
+            text.Append(@"\par").Append('\n');
+        }
+
+        return text.Append('}').ToString();
     }
 
     private static Dictionary<string, object> Totals(List<Dictionary<string, object>> rows)

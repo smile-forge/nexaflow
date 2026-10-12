@@ -213,6 +213,54 @@ public class MarkdownInlineTests
         Assert.AreEqual("cat.png", picture.Part(Roles.Destination)?.Text);
     }
 
+    /// <summary>
+    /// A picture's words can end in the size it is drawn at, the way Obsidian writes it — a width, or a width and a height —
+    /// which is kept as the characters typed but is no part of what the words say.
+    /// </summary>
+    [TestMethod]
+    public void APicturesWordsCanEndInTheSizeItIsDrawnAt()
+    {
+        var wide = One("![a cat|300](cat.png)", MarkdownKinds.Image);
+        Assert.AreEqual("a cat", Body(wide));
+        Assert.AreEqual("|300", wide.Part(MarkdownRoles.Size)?.Text);
+        Assert.AreEqual(new MarkdownPictureSize(300, null), MarkdownPictureSize.Of(wide));
+
+        var both = One("![a cat|300x200](cat.png)", MarkdownKinds.Image);
+        Assert.AreEqual(new MarkdownPictureSize(300, 200), MarkdownPictureSize.Of(both));
+
+        var spaced = One("![a cat | 300 x 200](cat.png)", MarkdownKinds.Image);
+        Assert.AreEqual(new MarkdownPictureSize(300, 200), MarkdownPictureSize.Of(spaced));
+        Assert.AreEqual("a cat", Body(spaced).TrimEnd());
+    }
+
+    [TestMethod]
+    public void APictureWithOnlyASizeHasNoWords()
+    {
+        var bare = One("![|300](cat.png)", MarkdownKinds.Image);
+
+        Assert.IsNull(bare.Part(Roles.Body));
+        Assert.AreEqual(new MarkdownPictureSize(300, null), MarkdownPictureSize.Of(bare));
+    }
+
+    [TestMethod]
+    public void WordsEndingInAnythingElseSayNoSize()
+    {
+        foreach (var source in new[] { "![page 1|2b](p.png)", @"![a\|300](p.png)", "![a|0](p.png)", "[a link|300](p.png)" })
+        {
+            var found = Every(source, MarkdownKinds.Image).Concat(Every(source, Kinds.Link)).Single();
+
+            Assert.IsNull(MarkdownPictureSize.Of(found), source);
+            Assert.IsNull(found.Part(MarkdownRoles.Size), source);
+        }
+    }
+
+    [TestMethod]
+    public void APictureWithASizePrintsAsItWasWritten()
+    {
+        foreach (var source in new[] { "![a cat|300](cat.png)", "![a *big* cat|300x200](cat.png \"Title\")", @"![a\_b|40](x.png)", "![|300](cat.png)" })
+            Assert.IsTrue(MarkdownInline.Read(source).Prints(source), source);
+    }
+
     // ── What a reader can tick ──────────────────────────────────────────────
 
     [TestMethod]

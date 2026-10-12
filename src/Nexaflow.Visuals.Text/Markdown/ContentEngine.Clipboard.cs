@@ -38,6 +38,15 @@ public sealed partial class ContentEngine
     private MarkdownClipboard.ContentCopy Copy()
     {
         if (this.PickedText is { } drawn) return new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty);
+
+        // Where the source is formatting nobody reads, a copy is the words the reader picked out, not the formatting round them.
+        if (ReadsAsDrawn)
+        {
+            var read = DrawnText.Of(_laid);
+            var words = Stretch() is { } picked ? read.Within(picked.Start, picked.Length) : read.Text;
+
+            return new MarkdownClipboard.ContentCopy(words, words, string.Empty);
+        }
         if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(_state.Source, null);
 
         return Blocked(chosen.Start) is { } block && block.Start == chosen.Start && block.Length == chosen.Length

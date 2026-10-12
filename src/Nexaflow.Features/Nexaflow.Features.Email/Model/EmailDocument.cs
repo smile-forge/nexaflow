@@ -4,11 +4,11 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Email.Model;
 
 /// <summary>
-/// A parsed email, normalised so a <c>.eml</c> (MimeKit) and a <c>.msg</c> (MsgReader) present one shape to
-/// the view-model and the VFS session. Envelope fields are pre-formatted display strings; <see cref="Headers"/>
-/// is the full raw header list (for the expandable "all headers" panel); the body is available as HTML and/or
-/// plain text; <see cref="Attachments"/> is every non-body part (regular <i>and</i> inline), in message order,
-/// each carrying its decoded bytes and a stable VFS entry name.
+/// A parsed email, normalised so a <c>.eml</c> (MimeKit) and a <c>.msg</c> (MS-OXMSG, read over the compound file it is)
+/// present one shape to the view-model and the VFS session. Envelope fields are pre-formatted display strings;
+/// <see cref="Headers"/> is the full raw header list (for the expandable "all headers" panel); the body is available as
+/// HTML, RTF and/or plain text; <see cref="Attachments"/> is every non-body part (regular <i>and</i> inline), in message
+/// order, each carrying its decoded bytes and a stable VFS entry name.
 /// </summary>
 internal sealed class EmailDocument
 {
@@ -25,6 +25,13 @@ internal sealed class EmailDocument
 
     /// <summary>HTML body, or null when the message has none.</summary>
     public string? HtmlBody { get; init; }
+
+    /// <summary>
+    /// The body as RTF, where that is the best the message kept — an Outlook message written as rich text rather than as HTML
+    /// — or null. Never set beside <see cref="HtmlBody"/>: RTF that was made from HTML is read back as that HTML. The RTF's
+    /// bytes, one character to each, as the RTF reader reads them.
+    /// </summary>
+    public string? RtfBody { get; init; }
 
     public required IReadOnlyList<EmailAttachment> Attachments { get; init; }
 }

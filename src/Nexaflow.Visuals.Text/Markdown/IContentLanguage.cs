@@ -30,6 +30,18 @@ public interface IContentLanguage
     bool ShowsWhatWasWritten => false;
 
     /// <summary>
+    /// Whether what a reader reads of this content is what is drawn rather than its source — a language whose source is
+    /// formatting nobody sees, as RTF's is. Then a search looks in the words drawn and never in the control words round them, a
+    /// copy carries those words, and a place found is quoted as them (<see cref="DrawnText"/>).
+    ///
+    /// <para>
+    /// No for anything that has not said otherwise, which is every language whose source a reader writes in: a document's
+    /// marks are the writer's own, and finding one is finding what they typed.
+    /// </para>
+    /// </summary>
+    bool ReadsAsDrawn => false;
+
+    /// <summary>
     /// What may be done to this content where a gesture landed — the things a reader can add, and the
     /// things they can do to what is already there.
     ///

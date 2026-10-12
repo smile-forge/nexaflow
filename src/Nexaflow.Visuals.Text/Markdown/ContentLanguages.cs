@@ -24,6 +24,7 @@ public static class ContentLanguages
     private static readonly List<ContentLanguage> Known =
     [
         Shipped.Mermaid,
+        Shipped.Rtf,
         .. Shipped.Diagrams,
         Shipped.Nomnoml,
         Shipped.Qr,

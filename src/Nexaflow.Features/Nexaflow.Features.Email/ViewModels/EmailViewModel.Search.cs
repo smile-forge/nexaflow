@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Email.Model;
+using Nexaflow.Markdown.Rtf;
 using Nexaflow.Search;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Generic;
@@ -74,11 +75,15 @@ internal sealed partial class EmailViewModel : ISearchable
         _ => 0f,
     };
 
-    /// <summary>The body currently on screen — what a search of "this page" looks in.</summary>
+    /// <summary>
+    /// The body currently on screen — what a search of "this page" looks in. A rich-text body is searched in the words it
+    /// draws, never in the RTF it is drawn from.
+    /// </summary>
     private string ShownBody => BodyView switch
     {
         EmailBodyView.PlainText  => PlainText,
         EmailBodyView.HtmlSource => HtmlSource,
+        _ when IsRichText        => RtfParser.Text(RenderedMarkdown),
         _                        => RenderedMarkdown,
     };
 

@@ -56,6 +56,14 @@ public static class Roles
     /// </summary>
     public const string Trivia = "trivia";
 
+    /// <summary>
+    /// Characters a language reads past and draws nothing for — not even the space a line ending among the machinery would
+    /// otherwise stand for. RTF's line endings are this: a writer breaks the source wherever they like and none of it is
+    /// in the document, so two words either side of one are still one word. So is everything a reader is told to skip, such
+    /// as the bytes of a picture or a destination nothing draws.
+    /// </summary>
+    public const string Silent = "silent";
+
     // ── The one role that was never written ─────────────────────────────────
 
     /// <summary>

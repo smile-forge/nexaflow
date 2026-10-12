@@ -24,19 +24,23 @@ public static class MarkdownList
 {
     /// <summary><paramref name="source"/> as the items written in it.</summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
+    /// <param name="lead">
+    /// What stands in front of <paramref name="source"/> on the line it starts on. A list written inside an item starts part-way
+    /// along its line and its later items carry that indentation, so it is read as it reads inside the item — see <see cref="Cut"/>.
+    /// </param>
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text, at);
+        var read = new Cut(text, at, lead);
         var parts = new List<ContentNode>();
 
         MarkdownNumbering? counting = null;
 
         try
         {
-            var document = Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline);
+            var document = Markdig.Markdown.Parse(read.Contained, pipeline ?? MarkdownParser.Pipeline);
 
             counting = Counting(document);
             Items(document, parts, read);

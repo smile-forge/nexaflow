@@ -4,6 +4,7 @@ using System.Windows;
 
 using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Rtf;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -375,4 +376,18 @@ public class MarkdownSurfaceTests
 
         public IReadOnlyList<LayoutIntent> Menu(LayoutAct act) => [];
     }
+
+    [TestMethod]
+    public void APageReadAsWhatItDrawsIsSearchedAndQuotedAsItsWords() => UiThread.Run(() =>
+    {
+        var surface = new MarkdownSurface { WrittenIn = RtfParser.Language, Markdown = @"{\rtf1\pard Keep the {\b paragraph} here.\par}" };
+
+        surface.Measure(new Size(640, 2000));
+        surface.Arrange(new Rect(0, 0, 640, 2000));
+        surface.UpdateLayout();
+
+        Assert.AreEqual(0, surface.Find("pard"), "a control word is nothing a reader can see");
+        Assert.AreEqual(1, surface.Find("paragraph"));
+        Assert.AreEqual("Keep the paragraph here.", surface.Preview(0), "quoted as it reads, not as it is written");
+    });
 }

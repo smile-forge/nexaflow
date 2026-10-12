@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Times laying markdown out, step by step, over the sample corpus and docs/MarkdownSupport.md. Run it by hand.
+  Times laying markdown out, step by step, over the sample corpus and docs/MarkdownSupport.md - and rich text (RTF), over
+  its samples and one long generated document, in totals of its own. Run it by hand.
 
 .DESCRIPTION
   Builds the Visuals test suite, runs MarkdownLayoutBench, and prints the JSON file the run wrote: per document what
@@ -50,3 +51,7 @@ if (-not $written) { throw "the run wrote nothing to $Out" }
 $run = Get-Content $written.FullName -Raw | ConvertFrom-Json
 "{0}  open {1:N0} ms  edit {2:N0} ms  paint {3:N0} ms  ({4} documents, {5} {6})" -f `
     $written.FullName, $run.totals.open, $run.totals.edit, $run.totals.paint, $run.documents.Count, $run.configuration, $run.commit
+if ($run.rtfTotals) {
+    "rich text: open {0:N0} ms  edit {1:N0} ms  paint {2:N0} ms  a screen {3:N0} ms" -f `
+        $run.rtfTotals.open, $run.rtfTotals.edit, $run.rtfTotals.paint, $run.rtfTotals.paintShown
+}

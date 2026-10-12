@@ -337,8 +337,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         
 
-        // A field holding one language is written at the end of what it holds; a document is read from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null ? 0 : _shown.Markdown.Length));
+        // A field holding one language is written at the end of what it holds; a document, and anything only read, is read
+        // from its top.
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Markdown.Length));
 
         HoldAsWritten();
         _engine.Begin();

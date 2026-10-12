@@ -62,7 +62,7 @@ public sealed class MarkdownParser : ITranspile
     public static Func<string, ContentParse> Parsing()
     {
         var blocks = new MarkdownBlocks();
-        return source => ContentParse.Of(blocks.Read(Read(source)));
+        return source => ContentParse.Of(blocks.Read(Read(source), source));
     }
 
     /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>
@@ -143,19 +143,20 @@ public sealed class MarkdownParser : ITranspile
     /// </para>
     /// </summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null, int at = 0)
+    /// <param name="lead">What stands in front of <paramref name="source"/> on the line it starts on — see <see cref="Cut"/>.</param>
+    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text, at);
+        var read = new Cut(text, at, lead);
         var parts = new List<ContentNode>();
 
         try
         {
-            ContainerBlock blocks = Markdig.Markdown.Parse(text, pipeline ?? Pipeline);
+            ContainerBlock blocks = Markdig.Markdown.Parse(read.Contained, pipeline ?? Pipeline);
 
-            while (blocks.Count == 1 && blocks[0] is ContainerBlock only && Whole(only, text)) blocks = only;
+            while (blocks.Count == 1 && blocks[0] is ContainerBlock only && Whole(only, read.Contained)) blocks = only;
 
             // An alert says what it is with the first characters of its first line. Markdig reads them and keeps them out of
             // the words, but not out of the paragraph's span — so they are cut here, before the paragraph is.
@@ -211,7 +212,7 @@ public sealed class MarkdownParser : ITranspile
     internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read, int first = 0)
     {
         for (var at = first; at < blocks.Count; at++)
-            One(blocks[at], parts, read, at + 1 < blocks.Count ? blocks[at + 1].Span.Start : null);
+            One(blocks[at], parts, read, at + 1 < blocks.Count ? read.Original(blocks[at + 1].Span.Start) : null);
     }
 
     /// <summary>

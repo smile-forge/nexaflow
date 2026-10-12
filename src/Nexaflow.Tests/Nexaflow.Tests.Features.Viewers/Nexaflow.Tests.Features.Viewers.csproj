@@ -68,6 +68,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Model3D\Nexaflow.Features.Model3D.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Rtf\Nexaflow.Features.Rtf.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Svg\Nexaflow.Features.Svg.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />

@@ -105,6 +105,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Projects/Nexaflow.Features.Projects.csproj" Id="57e7f577-d6bf-47a8-ae6f-872fd2f52a14">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Rtf/Nexaflow.Features.Rtf.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Nexaflow.Features.Scratchpad.csproj" Id="6bb477f1-beea-4167-88fc-68bc0ff640be">
       <Platform Project="x64" />
     </Project>
@@ -281,6 +284,11 @@
   <!-- WPF-free HDF5 reader over PureHDF: hierarchy, attributes, windowed dataset reads, and the
        .npy / .txt projection of datasets as files. Reaches the app through Nexaflow.Features.Hdf5. -->
   <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- WPF-free compound file (MS-CFB) reader and writer — the container a .msg, a pre-2007 Office file and an .msi are
+       written in. Reaches the app through Nexaflow.Features.Email. -->
+  <Project Path="src/Nexaflow.IO.CompoundFile/Nexaflow.IO.CompoundFile.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- WPF-free network leaf: device graph, discovery contracts, send guard, transports. -->
