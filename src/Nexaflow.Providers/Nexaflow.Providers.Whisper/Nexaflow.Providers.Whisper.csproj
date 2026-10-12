@@ -9,10 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- whisper.cpp: the CPU runtime, and the CUDA one Whisper.net picks when an NVIDIA GPU is present. -->
+    <!-- whisper.cpp on the CPU. Speech on the GPU runs in the AI host, on its one CUDA stack (docs/local-ai.md). -->
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
-    <PackageReference Include="Whisper.net.Runtime.Cuda" Version="1.9.1" />
   </ItemGroup>
 
   <ItemGroup>

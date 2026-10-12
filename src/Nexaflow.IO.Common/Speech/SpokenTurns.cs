@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Nexaflow.AiHost.Speech;
+namespace Nexaflow.IO.Common.Speech;
 
 /// <summary>
 /// What a transcript says about a turn that the audio alone cannot. A turn that trails off — on a comma, an ellipsis
@@ -10,7 +10,7 @@ namespace Nexaflow.AiHost.Speech;
 /// an article and is complete. An utterance of only a listener's noises is a backchannel, not a turn. English, French
 /// and German; a language not given is judged by all three.
 /// </summary>
-internal static class TurnText
+public static class SpokenTurns
 {
     private static readonly Dictionary<string, HashSet<string>> Fillers = new(StringComparer.Ordinal)
     {

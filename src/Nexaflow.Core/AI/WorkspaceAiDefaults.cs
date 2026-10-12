@@ -26,9 +26,10 @@ internal static class WorkspaceAiDefaults
 
     /// <summary>
     /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>, or by both — then Speech
-    /// In on Whisper. At least one model must be given.
+    /// In on <paramref name="ownedSpeech"/> where Nexaflow has its own, with Whisper behind it, which is all a bridged
+    /// workspace listens with. At least one language model must be given.
     /// </summary>
-    public static void Assign(AiConfig config, ProviderModelPair? bridged, ProviderModelPair? owned, string whisperModel)
+    public static void Assign(AiConfig config, ProviderModelPair? bridged, ProviderModelPair? owned, ProviderModelPair? ownedSpeech, string whisperModel)
     {
         if (bridged is null && owned is null) throw new ArgumentException("A workspace needs a model.");
 
@@ -44,6 +45,11 @@ internal static class WorkspaceAiDefaults
                 _              => AbilityChain.Of(owned!.Id),
             };
         }
+
         config.AddDefaultSpeechIn(whisperModel);
+        if (ownedSpeech is null) return;
+        var speechIn = nameof(AiAbility.SpeechIn);
+        config.Columns.Add(ownedSpeech);
+        config.Assignments[speechIn] = AbilityChain.Of([ownedSpeech.Id, .. config.Assignments[speechIn].ColumnIds]);
     }
 }

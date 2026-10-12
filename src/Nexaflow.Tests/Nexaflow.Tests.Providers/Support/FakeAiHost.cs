@@ -3,7 +3,7 @@ using System.Threading.Channels;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
-namespace Nexaflow.Tests.Providers;
+namespace Nexaflow.Tests.Providers.Support;
 
 /// <summary>
 /// The AI host as a provider sees it, in memory. Each request is recorded and answered by <see cref="Reply"/>; a

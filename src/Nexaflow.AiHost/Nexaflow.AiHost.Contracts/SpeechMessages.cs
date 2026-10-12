@@ -37,6 +37,4 @@ public sealed record ListenActivity(long RequestId, bool Speaking) : HostReply(R
 public sealed record ListenPartial(long RequestId, string Text) : HostReply(RequestId);
 
 /// <summary>An utterance has ended; its text will not change.</summary>
-/// <param name="Backchannel">It held only a listener's noises — "mm-hm", "ouais", "ja" — which acknowledge rather than
-/// take a turn.</param>
-public sealed record ListenFinal(long RequestId, string Text, bool Backchannel) : HostReply(RequestId);
+public sealed record ListenFinal(long RequestId, string Text) : HostReply(RequestId);

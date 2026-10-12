@@ -1,4 +1,5 @@
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.IO.Common.Speech;
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -162,7 +163,7 @@ internal sealed class ListenSession(
 
         _nextTurnAsk = _silentFrames + TurnRecheckFrames;
         if (turnDetector!.CompleteProbability(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_utterance)) < TurnComplete) return false;
-        return TurnText.LooksFinished(await TranscriptAsync(ct), language);
+        return SpokenTurns.LooksFinished(await TranscriptAsync(ct), language);
     }
 
     /// <summary>The utterance's text: the transcriber's, of the speech and a little after it — kept while no more
@@ -186,7 +187,7 @@ internal sealed class ListenSession(
     {
         string text = await TranscriptAsync(ct);
         if (_speaking) await reply(new ListenActivity(requestId, false));
-        if (text.Length > 0) await reply(new ListenFinal(requestId, text, TurnText.IsBackchannel(text, language)));
+        if (text.Length > 0) await reply(new ListenFinal(requestId, text));
 
         _recognizer?.Dispose();
         _recognizer  = null;

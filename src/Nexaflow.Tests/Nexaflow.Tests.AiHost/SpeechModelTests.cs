@@ -62,7 +62,7 @@ public class SpeechModelTests
         Assert.IsTrue(heard.OfType<ListenPartial>().Any(), "words show while it is spoken");
         var turn = heard.OfType<ListenFinal>().Single();
         StringAssert.Contains(turn.Text.ToLowerInvariant(), "paris");
-        Assert.IsFalse(turn.Backchannel);
+
     }
 
     [TestMethod]

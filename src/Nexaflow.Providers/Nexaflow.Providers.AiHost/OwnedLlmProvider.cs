@@ -19,24 +19,15 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     /// <summary>The longest a reply may run before it is cut off.</summary>
     internal const int MaxReplyTokens = 4096;
 
-    /// <summary>How long a request may go without a word from the host — a load takes seconds, a token milliseconds.</summary>
-    private static readonly TimeSpan StallLimit = TimeSpan.FromMinutes(2);
-
-    private readonly IBackgroundActivityManager _activities;
-    private readonly IModelAssetStore           _assets;
-    private readonly IAiHost                    _host;
-    private readonly ComputeHardwareReport      _hardware;
-    private readonly OwnedModel?                _model;
+    private readonly OwnedModelRuntime _runtime;
+    private readonly OwnedModel?       _model;
 
     public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host,
                             ComputeHardwareReport hardware, ProviderModel model)
     {
-        _activities = activities;
-        _assets     = assets;
-        _host       = host;
-        _hardware   = hardware;
-        _model      = OwnedModels.All.FirstOrDefault(m => m.Id == model.Model);
-        _assets.Changed += OnAssetChanged;
+        _runtime = new OwnedModelRuntime(activities, assets, host, hardware);
+        _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
+        assets.Changed += OnAssetChanged;
     }
 
     public string Name => ProviderName;
@@ -45,87 +36,30 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     public bool SupportsImages => _model?.Images ?? false;
     public bool SupportsAudio  => _model?.Audio ?? false;
 
-    public IReadOnlyList<CatalogModel> Catalog => [.. OwnedModels.All.Select(m => m.Catalog)];
+    public IReadOnlyList<CatalogModel> Catalog => [.. OwnedModels.OfKind(ModelKind.Language).Select(_runtime.CatalogOf)];
 
     /// <summary>Its files are here and verified.</summary>
-    public bool IsAvailable => _model is not null && _model.Catalog.Files.All(f => _assets.Locate(f) is not null);
+    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
 
     public event EventHandler? AvailabilityChanged;
 
     private void OnAssetChanged(object? sender, ModelAsset asset)
     {
-        if (_model is not null && _model.Catalog.Files.Contains(asset)) AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        if (_model is not null && _runtime.IsFileOf(_model, asset)) AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<string>>([.. OwnedModels.All.Select(m => m.Id)]);
+        => Task.FromResult<IReadOnlyList<string>>([.. OwnedModels.OfKind(ModelKind.Language).Select(m => m.Id)]);
 
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
-        => Task.FromResult(_model is null ? null : new ModelInfo(_model.ContextTokens, _model.Catalog.DisplayName));
+        => Task.FromResult(_model is null ? null : new ModelInfo(_model.Part(OwnedRoles.Chat, _runtime.ExecutionProvider).ContextTokens, _model.Catalog.DisplayName));
 
-    /// <summary>The runtime the host should run on: the CUDA pack, where it suits this machine and is here.</summary>
-    private AiHostEnvironment Environment
-        => CudaRuntimePack.Applies(_hardware) && CudaRuntimePack.Locate(_assets) is { } pack ? new AiHostEnvironment(pack) : AiHostEnvironment.Cpu;
-
-    /// <summary>
-    /// Fetches what is missing — the model's files, and the CUDA pack where it suits this machine — reporting how far
-    /// it has got, then has the host load the model and keep it. Never throws: a model that will not come is
-    /// unavailable, and its chain moves on.
-    /// </summary>
-    public async Task WarmupAsync(CancellationToken ct = default)
-    {
-        if (_model is null) return;
-        if (!await FetchAsync(_model, ct)) return;
-
-        try
-        {
-            _host.Environment = Environment;
-            await foreach (var _ in _host.SendAsync(id => new LoadModel(id, Spec(_model)), StallLimit, ct)) { }
-        }
-        catch (Exception ex) when (ex is AiHostException or OperationCanceledException)
-        {
-            // A model that will not load says why when a request asks for it.
-        }
-    }
-
-    private async Task<bool> FetchAsync(OwnedModel model, CancellationToken ct)
-    {
-        var files = model.Catalog.Files.ToList();
-        if (CudaRuntimePack.Applies(_hardware)) files.AddRange(CudaRuntimePack.Files);
-        if (files.All(f => _assets.Locate(f) is not null)) return true;
-
-        var activity = _activities.StartActivity($"Downloading {model.Catalog.DisplayName}…");
-        var lastPercent = -1;
-        var progress = new Progress<AssetProgress>(p =>
-        {
-            var percent = (int)(p.Fraction * 100);
-            if (percent == lastPercent) return;
-            lastPercent = percent;
-            activity.Update($"Downloading {model.Catalog.DisplayName}… {percent}%");
-        });
-        try
-        {
-            await _assets.EnsureAllAsync(files, progress, ct);
-            activity.Complete();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            activity.Fail(ex.Message);   // the model stays unavailable until a later warm-up fetches it
-            return false;
-        }
-    }
+    /// <summary>Fetches what is missing, then has the host load the model and keep it. Never throws: a model that will
+    /// not come is unavailable, and its chain moves on.</summary>
+    public Task WarmupAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.WarmupAsync(_model, ct);
 
     /// <summary>Unloads the model from the host; the host itself stays for any other.</summary>
-    public async Task CooldownAsync(CancellationToken ct = default)
-    {
-        if (_model is null) return;
-        try
-        {
-            await foreach (var _ in _host.SendAsync(id => new UnloadModel(id, _model.Id), StallLimit, ct)) { }
-        }
-        catch (Exception ex) when (ex is AiHostException or OperationCanceledException) { }
-    }
+    public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         => StreamAsync(messages, LlmUrgency.Interactive, ct);
@@ -135,7 +69,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
         if (_model is null) throw new LlmProviderException($"{ProviderName} has no model to answer with.");
         var request = Turns(messages, _model);
         var priority = urgency == LlmUrgency.Background ? RequestPriority.Background : RequestPriority.Interactive;
-        return LlmStreamRunner.RunAsync(_activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
+        return LlmStreamRunner.RunAsync(_runtime.Activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
             token => Events(_model, request, priority, token), ct);
     }
 
@@ -144,12 +78,14 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, RequestPriority priority,
                                                           [EnumeratorCancellation] CancellationToken ct)
     {
-        _host.Environment = Environment;
+        var host = _runtime.Host;
+        host.Environment = _runtime.Environment;
+        var spec = _runtime.Spec(model, OwnedRoles.Chat);
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = _host.SendAsync(id => new Generate(id, Spec(model), turns, MaxReplyTokens, priority), StallLimit, ct)
-                                           .GetAsyncEnumerator(ct);
+            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxReplyTokens, priority), OwnedModelRuntime.StallLimit, ct)
+                                          .GetAsyncEnumerator(ct);
             while (true)
             {
                 try
@@ -169,17 +105,6 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
         }
     }
 
-    /// <summary>What the host needs to run the model. Its folder is where its files are: a file's path, less its place
-    /// inside the model's folder — whatever root the store keeps them under.</summary>
-    private ModelSpec Spec(OwnedModel model)
-    {
-        var file   = model.Catalog.Files[0];
-        var path   = _assets.Locate(file) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-        var inside = file.RelativePath[(model.Folder.Length + 1)..].Replace('/', Path.DirectorySeparatorChar);
-        var folder = path[..^inside.Length].TrimEnd(Path.DirectorySeparatorChar);
-        return new ModelSpec(model.Id, "genai-chat", folder, null, model.Adapter, model.MemoryBytes, model.ContextTokens);
-    }
-
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
     /// them; any other attachment is named in the text, as for any provider that cannot read it.</summary>
     internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, OwnedModel model)
@@ -195,7 +120,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
 
     public ValueTask DisposeAsync()
     {
-        _assets.Changed -= OnAssetChanged;
+        _runtime.Assets.Changed -= OnAssetChanged;
         return ValueTask.CompletedTask;
     }
 }

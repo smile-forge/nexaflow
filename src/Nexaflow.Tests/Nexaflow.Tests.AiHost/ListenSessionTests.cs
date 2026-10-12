@@ -165,14 +165,4 @@ public class ListenSessionTests
 
         Assert.AreEqual(s.Replies.OfType<ListenPartial>().Last().Text, s.Finals.Single().Text);
     }
-
-    [TestMethod]
-    public async Task OnlyAListenersNoise_IsABackchannel()
-    {
-        var s = new Script { Transcript = "Mm-hmm." };
-        s.Add(Speech, 10); s.Add(Quiet, 30);
-        await s.RunAsync(s.Session(UtteranceEnd.Turn));
-
-        Assert.IsTrue(s.Finals.Single().Backchannel);
-    }
 }
