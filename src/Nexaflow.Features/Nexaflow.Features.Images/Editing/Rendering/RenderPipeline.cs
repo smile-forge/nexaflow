@@ -91,13 +91,13 @@ public sealed class RenderPipeline : IDisposable
     private SKImage DrawGeometry(SKMatrix sourceToCanvas, SKSizeI canvas)
     {
         var pixelsToCanvas = _source.PixelsToSource.PostConcat(sourceToCanvas);
-        using var surface = NewSurface(canvas);
-        var c = surface.Canvas;
-        c.Clear(SKColors.Transparent);
-        c.SetMatrix(pixelsToCanvas);
-        using var paint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Src };
-        c.DrawImage(_source.Pixels, 0, 0, SamplingFor(pixelsToCanvas), paint);
-        return surface.Snapshot();
+        var sampling = SamplingFor(pixelsToCanvas);
+        return DrawBanded(canvas, c =>
+        {
+            c.Concat(pixelsToCanvas);
+            using var paint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Src };
+            c.DrawImage(_source.Pixels, 0, 0, sampling, paint);
+        });
     }
 
     private SKImage DrawTone(SKImage geometry, RecipeAdjustments adjustments)
@@ -105,11 +105,11 @@ public sealed class RenderPipeline : IDisposable
         using var filter = _adjust.Create(adjustments);
         if (filter is null) return geometry;
 
-        using var surface = NewSurface(new SKSizeI(geometry.Width, geometry.Height));
-        surface.Canvas.Clear(SKColors.Transparent);
-        using var paint = new SKPaint { ColorFilter = filter, BlendMode = SKBlendMode.Src };
-        surface.Canvas.DrawImage(geometry, 0, 0, paint);
-        return surface.Snapshot();
+        return DrawBanded(new SKSizeI(geometry.Width, geometry.Height), c =>
+        {
+            using var paint = new SKPaint { ColorFilter = filter, BlendMode = SKBlendMode.Src };
+            c.DrawImage(geometry, 0, 0, paint);
+        });
     }
 
     private SKImage DrawMarkup(SKImage toned, ImageRecipe recipe, SKMatrix sourceToCanvas)
@@ -124,6 +124,40 @@ public sealed class RenderPipeline : IDisposable
     }
 
     /// <summary>
+    /// One pass drawn across the cores: the canvas is cut into horizontal bands, each drawn by <paramref name="draw"/>
+    /// on a canvas of its own over its own rows of one shared buffer — so the bands never touch, and every pixel is
+    /// computed exactly as a single canvas would compute it. The resampling and the adjustment program are per-pixel
+    /// work Skia runs on one core, so this is what keeps a slider live on a large preview and a save short.
+    /// </summary>
+    private SKImage DrawBanded(SKSizeI size, Action<SKCanvas> draw)
+    {
+        var bitmap = new SKBitmap(NewInfo(size));
+        if (bitmap.GetPixels() == IntPtr.Zero) throw new InvalidOperationException($"No memory for a {size.Width}×{size.Height} picture.");
+
+        int bands = Math.Clamp(size.Height / MinBandRows, 1, Environment.ProcessorCount);
+        int rows = (size.Height + bands - 1) / bands;
+        var origin = bitmap.GetPixels();
+        int rowBytes = bitmap.RowBytes;
+
+        Parallel.For(0, bands, band =>
+        {
+            int top = band * rows, height = Math.Min(rows, size.Height - top);
+            if (height <= 0) return;
+            using var slice = new SKBitmap();
+            slice.InstallPixels(bitmap.Info.WithSize(size.Width, height), origin + top * rowBytes, rowBytes);
+            using var canvas = new SKCanvas(slice);
+            canvas.Clear(SKColors.Transparent);
+            canvas.Translate(0, -top);
+            draw(canvas);
+        });
+
+        return ImageDecoders.Seal(bitmap);
+    }
+
+    /// <summary>Bands thinner than this cost more to set up than they save.</summary>
+    private const int MinBandRows = 64;
+
+    /// <summary>
     /// Cubic resampling, except where the picture is shrunk to well under half — there mipmaps average the detail a
     /// cubic kernel would alias.
     /// </summary>
@@ -132,12 +166,12 @@ public sealed class RenderPipeline : IDisposable
             ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
             : new SKSamplingOptions(SKCubicResampler.Mitchell);
 
-    private SKSurface NewSurface(SKSizeI size)
-    {
-        var colorType = _source.IsHighBitDepth ? SKColorType.RgbaF16 : SKImageInfo.PlatformColorType;
-        var info = new SKImageInfo(size.Width, size.Height, colorType, SKAlphaType.Premul, _source.ColorSpace);
-        return SKSurface.Create(info) ?? throw new InvalidOperationException($"No memory for a {size.Width}×{size.Height} picture.");
-    }
+    private SKSurface NewSurface(SKSizeI size) =>
+        SKSurface.Create(NewInfo(size)) ?? throw new InvalidOperationException($"No memory for a {size.Width}×{size.Height} picture.");
+
+    /// <summary>The working format: 8-bit premultiplied for an 8-bit source, half-float for a deeper one, in its colour space.</summary>
+    private SKImageInfo NewInfo(SKSizeI size) => new(size.Width, size.Height,
+        _source.IsHighBitDepth ? SKColorType.RgbaF16 : SKImageInfo.PlatformColorType, SKAlphaType.Premul, _source.ColorSpace);
 
     private void DropGeometry()
     {

@@ -298,6 +298,36 @@ public class ImageEditRenderTests
         AssertNear(PixelAt(fresh, 5, 5), second, tolerance: 0, because: "cached and uncached renders agree");
     }
 
+    public TestContext TestContext { get; set; } = null!;
+
+    /// <summary>
+    /// How long a live edit takes on a screen-sized preview — what decides whether a slider feels live. Logged, not
+    /// asserted: a timing gate on a shared build machine fails for reasons that are not the code's.
+    /// </summary>
+    [TestMethod]
+    [TestCategory("Performance")]
+    [CoversNode("images-render-preview")]
+    public void APreviewRerender_IsTimedForTheLog()
+    {
+        using var source = Decoded(Quadrants(2560, 1707));
+        using var pipeline = Services.Pipeline(source);
+        var straightened = new ImageRecipe { Geometry = new RecipeGeometry { StraightenDegrees = 3, QuarterTurns = 1 } };
+        var request = new RenderRequest(RenderFrame.Output, 1);
+        pipeline.Render(straightened, request);   // warm: the filter compiled, the geometry pass made
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        const int Ticks = 20;
+        for (int i = 1; i <= Ticks; i++)
+            pipeline.Render(straightened with { Adjustments = new RecipeAdjustments { Exposure = i / 20.0, Saturation = i } }, request);
+        double slider = clock.Elapsed.TotalMilliseconds / Ticks;
+
+        clock.Restart();
+        pipeline.Render(straightened with { Geometry = straightened.Geometry with { StraightenDegrees = 4 } }, request);
+        double geometry = clock.Elapsed.TotalMilliseconds;
+
+        TestContext.WriteLine($"2560-px preview: a slider tick re-renders in {slider:F1} ms (tone pass only); a geometry change in {geometry:F1} ms.");
+    }
+
     // ── Decoding ────────────────────────────────────────────────────────────
 
     [TestMethod]
