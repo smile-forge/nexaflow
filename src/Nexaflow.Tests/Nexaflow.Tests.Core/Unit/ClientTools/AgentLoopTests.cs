@@ -25,6 +25,9 @@ public class AgentLoopTests
         private readonly Queue<string> _responses = new(responses);
         public List<string> SystemPrompts { get; } = [];
 
+        /// <summary>Every conversation this model was asked to continue, tool ranking aside.</summary>
+        public List<IReadOnlyList<LlmMessage>> Conversations { get; } = [];
+
         /// <summary>Every request this model was sent, tool ranking included.</summary>
         public int Calls { get; private set; }
 
@@ -44,6 +47,7 @@ public class AgentLoopTests
                 return Streamed(rankReply, ct);
 
             SystemPrompts.Add(messages.FirstOrDefault(m => m.Role == LlmRole.System)?.Text ?? string.Empty);
+            Conversations.Add([.. messages]);
             return Streamed(_responses.Count > 0 ? _responses.Dequeue() : "done", ct);
         }
 
@@ -300,6 +304,28 @@ public class AgentLoopTests
             "every draft is the reply so far");
         Assert.AreEqual(0, approver.DraftEnds.Count, "the final answer takes the draft's place; it is not ended");
         Assert.AreEqual(answer, approver.Final);
+    }
+
+    [TestMethod]
+    public async Task ARunWithOptions_ContinuesItsConversation_WritesInTheStyleAsked_AndAlwaysOffersItsOwnTools()
+    {
+        var provider = new ScriptedLlmProvider(["Three o'clock."]);
+        var pageTools = Enumerable.Range(1, 6).Select(i => (IClientTool)new RecordingTool($"page_tool_{i}", ToolSafety.SafeOperation)).ToArray();
+        var options = new AgentRunOptions
+        {
+            History    = [new(LlmRole.User, "Hello."), new(LlmRole.Assistant, "Hi —")],
+            ReplyStyle = "Speak briefly.",
+            Tools      = [new RecordingTool("end_voice_session", ToolSafety.SafeOperation)],
+        };
+
+        await BuildService(provider).RunAgentAsync(new TestPage(pageTools), "What time is it?", true, new FakeApprover(), options);
+
+        var conversation = provider.Conversations.Single();
+        CollectionAssert.AreEqual(new[] { LlmRole.System, LlmRole.User, LlmRole.Assistant, LlmRole.User }, conversation.Select(m => m.Role).ToArray());
+        Assert.AreEqual("Hi —", conversation[2].Text, "what was said before comes between the instructions and the question");
+        StringAssert.EndsWith(conversation[0].Text, "Speak briefly.");
+        StringAssert.Contains(conversation[0].Text, "end_voice_session", "the caller's own tool is offered though the page's were ranked down");
+        Assert.IsFalse(conversation[0].Text.Contains("page_tool_6"), "the page's tools were ranked: four of six");
     }
 
     [TestMethod]

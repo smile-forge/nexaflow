@@ -362,9 +362,13 @@ public sealed class AIService : IAIService
     /// <summary>Above this many page tools, filter to the most relevant + get_client_commands.</summary>
     private const int MaxUnfilteredTools = 4;
 
+    public Task<AiResponse?> RunAgentAsync(IPageViewModel? page, string input, bool includeContext, IAIResponseHandler approval,
+                                          CancellationToken ct = default)
+        => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed, ct);
+
     public async Task<AiResponse?> RunAgentAsync(
         IPageViewModel? page, string input, bool includeContext,
-        IAIResponseHandler approval, CancellationToken ct = default)
+        IAIResponseHandler approval, AgentRunOptions options, CancellationToken ct = default)
     {
         var provider = GetProvider(AiAbility.Conversation);
         if (provider is null) return null;
@@ -394,6 +398,7 @@ public sealed class AIService : IAIService
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
         var getCommands = BuildGetClientCommandsTool(pageTools);
         var fullCatalog = new List<IClientTool>(pageTools) { getCommands };
+        fullCatalog.AddRange(options.Tools);
         var toolNames   = fullCatalog.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Expose at most MaxUnfilteredTools page tools (most relevant first) + get_client_commands.
@@ -408,12 +413,13 @@ public sealed class AIService : IAIService
                 exposed = [.. await RankToolsAsync(ranker, input, pageTools, context, ct), getCommands];
         }
         catch (OperationCanceledException) { return null; }
+        exposed = [.. exposed.Except(options.Tools), .. options.Tools];   // the caller's own are never ranked away
 
-        var messages = new List<LlmMessage>
-        {
-            new(LlmRole.System, BuildSystemPrompt(page, context, exposed)),
-            new(LlmRole.User,   input)
-        };
+        string system = BuildSystemPrompt(page, context, exposed);
+        if (options.ReplyStyle is { Length: > 0 } style) system += "\n\n" + style;
+        var messages = new List<LlmMessage> { new(LlmRole.System, system) };
+        messages.AddRange(options.History);
+        messages.Add(new(LlmRole.User, input));
 
         var artifacts = new List<string>();   // files the tools read/created, for conversation context
         var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)

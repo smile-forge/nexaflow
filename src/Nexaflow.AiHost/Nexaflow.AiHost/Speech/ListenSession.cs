@@ -67,6 +67,8 @@ internal sealed class ListenSession(
     internal const int DictationEndFrames = 19;
     /// <summary>About 3 s of silence ends any turn — longer than the 2.4 s thinking pauses measured.</summary>
     internal const int TurnCeilingFrames = 94;
+    /// <summary>The turn detector's window: a turn longer than this is judged by its transcript too.</summary>
+    internal const int LongTurnSamples = 8 * SampleRate;
     /// <summary>About 300 ms of trailing silence kept for the transcriber; more only invites it to hear words in noise.</summary>
     private const int TranscribedTailFrames = 9;
 
@@ -162,7 +164,13 @@ internal sealed class ListenSession(
         if (_silentFrames != _nextTurnAsk) return false;
 
         _nextTurnAsk = _silentFrames + TurnRecheckFrames;
-        if (turnDetector!.CompleteProbability(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_utterance)) < TurnComplete) return false;
+        bool complete = turnDetector!.CompleteProbability(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_utterance)) >= TurnComplete;
+
+        // The detector hears only the last 8 s, so of a longer turn it hears no beginning, and it judged the ends of
+        // measured long turns unfinished. There the transcript decides — from the second ask, so that a breath between
+        // two sentences does not end the turn.
+        bool longTurn = _speechEnd > LongTurnSamples && _silentFrames > PauseFrames;
+        if (!complete && !longTurn) return false;
         return SpokenTurns.LooksFinished(await TranscriptAsync(ct), language);
     }
 

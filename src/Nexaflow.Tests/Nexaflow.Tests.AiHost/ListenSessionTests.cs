@@ -135,6 +135,19 @@ public class ListenSessionTests
     }
 
     [TestMethod]
+    public async Task ATurnLongerThanTheDetectorHears_EndsOnItsTranscript_FromTheSecondAsk()
+    {
+        var s = new Script { TurnComplete = _ => 0.1f };
+        int frames = ListenSession.LongTurnSamples / ListenSession.FrameSamples + 5;
+        s.Add(Speech, frames); s.Add(Quiet, 40);
+        await s.RunAsync(s.Session(UtteranceEnd.Turn));
+
+        var end = s.Replies.IndexOf(s.Finals.Single());
+        Assert.AreEqual(2, s.TurnAsks, "the first ask, at a breath, does not end it; the second does");
+        Assert.AreEqual(1, s.Transcribed.Count);
+    }
+
+    [TestMethod]
     public async Task SpeechAfterAPause_ContinuesTheSameTurn()
     {
         var s = new Script { TurnComplete = _ => 0.1f };
