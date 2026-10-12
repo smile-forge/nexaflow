@@ -55,6 +55,17 @@
   "SystemInfo.Display.Connected": "Connected",
   "SystemInfo.Display.NoAdapters": "No adapters detected",
 
+  "SystemInfo.LocalAi.Title": "Local AI",
+  "SystemInfo.LocalAi.Fit": "Local models",
+  "SystemInfo.LocalAi.Fit.LargerModels": "The larger models, with voice",
+  "SystemInfo.LocalAi.Fit.DefaultModel": "The default model, with voice",
+  "SystemInfo.LocalAi.Fit.Insufficient": "Needs a GPU with {0} of its own",
+  "SystemInfo.LocalAi.Gpu": "{0} GPU, {1}",
+  "SystemInfo.LocalAi.IntegratedGpu": "{0} integrated GPU, {1}",
+  "SystemInfo.LocalAi.Npu": "NPU",
+  "SystemInfo.LocalAi.Cuda": "CUDA driver",
+  "SystemInfo.LocalAi.None": "None",
+
   "SystemInfo.Storage.Title": "Storage",
   "SystemInfo.Storage.Disk": "Disk",
   "SystemInfo.Storage.FixedDisk": "Fixed disk",

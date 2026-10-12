@@ -18,6 +18,22 @@ public interface IAIResponseHandler
     /// <summary>Updates the single live activity line while tools run (overwrites).</summary>
     void ReportProgress(string message);
 
+    /// <summary>
+    /// The reply the model is writing in the current step, so far: its prose, without the blocks the agent acts
+    /// on. Each call carries the whole draft, not the change, and the first call of a step starts a new one. A
+    /// draft ends with <see cref="EndReplyDraft"/>, or is replaced by <see cref="ShowFinal"/>. Default: no-op —
+    /// a handler that shows only finished answers.
+    /// </summary>
+    void ShowReplyDraft(string draftMarkdown) { }
+
+    /// <summary>
+    /// The step that wrote the current draft ended without a final answer. <paramref name="keep"/>: it goes on
+    /// to run tools or to wait on a plan, and the draft stands as the assistant's account of what it is doing.
+    /// Otherwise the draft is superseded — an approval request carries the same words, or the model is asked to
+    /// write its reply again — and is taken away. Default: no-op.
+    /// </summary>
+    void EndReplyDraft(bool keep) { }
+
     /// <summary>A batch of tool calls is about to execute. Default: no-op.</summary>
     void OnToolBatchStarting(IReadOnlyList<ToolCall> batch) { }
 
@@ -36,6 +52,14 @@ public interface IAIResponseHandler
     /// Returns true to proceed, false to decline.
     /// </summary>
     Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct);
+
+    /// <summary>
+    /// The page's contents are high-risk, and the models that would read them — named by provider in
+    /// <paramref name="destinations"/> — send what they read off this machine. Asks whether to send them: true sends
+    /// them, false runs the request without them. Default: false — a handler that cannot ask keeps them here.
+    /// </summary>
+    Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+        => Task.FromResult(false);
 
     /// <summary>Renders the model's final answer (and, for a conversation, persists the exchange).</summary>
     void ShowFinal(string finalMarkdown);

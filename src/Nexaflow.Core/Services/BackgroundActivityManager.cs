@@ -125,7 +125,8 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
     private sealed class ActivityHandle(BackgroundActivityManager manager, BackgroundTask task)
         : IActivityHandle
     {
-        public void Complete()              => manager.OnComplete(task);
-        public void Fail(string? reason)    => manager.OnFail(task, reason);
+        public void Complete()                   => manager.OnComplete(task);
+        public void Fail(string? reason)         => manager.OnFail(task, reason);
+        public void Update(string description)   => manager.Dispatch(() => task.Description = description);
     }
 }

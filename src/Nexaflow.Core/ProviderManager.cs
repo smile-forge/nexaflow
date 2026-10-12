@@ -1,4 +1,5 @@
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
@@ -18,8 +19,8 @@ namespace Nexaflow.Core;
 /// enumerate models for the options UI.</item>
 /// <item><b>Execution</b> — one per (provider type + config payload + model), bound to that model via
 /// an injected <see cref="ProviderModel"/>. Each ability-grid assignment maps to one of these. An
-/// execution instance is <see cref="ILlmProvider.WarmupAsync">warmed</see> when first created (first
-/// owner) and <see cref="ILlmProvider.CooldownAsync">cooled</see> when its last ref drops — so model
+/// execution instance is <see cref="IAiProvider.WarmupAsync">warmed</see> when first created (first
+/// owner) and <see cref="IAiProvider.CooldownAsync">cooled</see> when its last ref drops — so model
 /// lifetime and instance lifetime are one and the same.</item>
 /// </list>
 /// </para>
@@ -30,13 +31,14 @@ public sealed class ProviderManager
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
+    private ModelAssetStore?            _assets;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
     // ── Global ref-counted provider instance pool ─────────────────────────────
     private sealed class PoolEntry
     {
-        public required ILlmProvider Provider;
+        public required IAiProvider  Provider;
         public required string       AssemblyFile;
         /// <summary>The bound model, or empty for a model-agnostic capability instance.</summary>
         public required string       Model;
@@ -56,8 +58,14 @@ public sealed class ProviderManager
     private ProviderManager() { }
 
     /// <summary>Must be called once at startup before any Load method.</summary>
-    public void Initialize(IBackgroundActivityManager activityManager)
-        => _activityManager = activityManager;
+    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets)
+    {
+        _activityManager = activityManager;
+        _assets          = assets;
+    }
+
+    /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
+    public ModelAssetStore? Assets => _assets;
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
@@ -121,16 +129,17 @@ public sealed class ProviderManager
         IReadOnlyList<IProviderConfig> workspaceConfigs,
         IReadOnlyList<ProviderModelPair> columns)
     {
-        var capability  = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
-        var execution   = new Dictionary<string, ILlmProvider>();
+        var capability  = new List<IAiProvider>();
+        var execution   = new Dictionary<string, IAiProvider>();
         var assemblyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var poolKeys    = new List<string>();
-        var toWarm      = new List<ILlmProvider>();
+        var toWarm      = new List<IAiProvider>();
 
-        // Provider Name → the type/ctor that produced its capability instance, so columns can be mapped
-        // to the right provider type to build an execution instance from.
+        // (provider Name, kind) → the type/ctor that produced its capability instance, so columns can be mapped
+        // to the right provider type to build an execution instance from — one backend ships a type per kind.
         var byName = new Dictionary<string, (ConstructorInfo Ctor, string ConfigKey, string AssemblyFile)>(
             StringComparer.OrdinalIgnoreCase);
+        static string NameKind(string name, ModelKind kind) => $"{name}|{kind}";
 
         lock (_poolLock)
         {
@@ -142,9 +151,10 @@ public sealed class ProviderManager
                     var key    = $"{type.FullName}|cap|{cfgKey}";
                     var entry  = Acquire(key, ctor, workspaceConfigs, model: "", desc.FileName, toWarm);
 
-                    capability[entry.Provider.Name]  = entry.Provider;
+                    capability.Add(entry.Provider);
                     assemblyMap[entry.Provider.Name] = desc.FileName;
-                    byName[entry.Provider.Name]      = (ctor, cfgKey, desc.FileName);
+                    foreach (var kind in ModelKinds.Of(type))
+                        byName[NameKind(entry.Provider.Name, kind)] = (ctor, cfgKey, desc.FileName);
                     poolKeys.Add(key);
                 }
 
@@ -152,7 +162,7 @@ public sealed class ProviderManager
             foreach (var col in columns)
             {
                 if (string.IsNullOrEmpty(col.Model)) continue;
-                if (!byName.TryGetValue(col.ProviderName, out var t)) continue;   // provider not available
+                if (!byName.TryGetValue(NameKind(col.ProviderName, col.Kind), out var t)) continue;   // provider not available
 
                 var key   = $"{t.Ctor.DeclaringType!.FullName}|exec|{col.Model}|{t.ConfigKey}";
                 var entry = Acquire(key, t.Ctor, workspaceConfigs, col.Model, t.AssemblyFile, toWarm);
@@ -171,7 +181,7 @@ public sealed class ProviderManager
     /// A newly-created model-bound (execution) instance is queued for warm-up. Caller holds the lock.</summary>
     private PoolEntry Acquire(
         string key, ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs,
-        string model, string assemblyFile, List<ILlmProvider> toWarm)
+        string model, string assemblyFile, List<IAiProvider> toWarm)
     {
         if (!_pool.TryGetValue(key, out var entry))
         {
@@ -188,16 +198,17 @@ public sealed class ProviderManager
         return entry;
     }
 
-    /// <summary>Builds a provider, injecting the activity manager, the bound <see cref="ProviderModel"/>,
-    /// and any config the constructor declares (matched by type).</summary>
-    private ILlmProvider Instantiate(ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs, string model)
+    /// <summary>Builds a provider, injecting the activity manager, the model asset store, the bound
+    /// <see cref="ProviderModel"/>, and any config the constructor declares (matched by type).</summary>
+    private IAiProvider Instantiate(ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs, string model)
     {
         var args = ctor.GetParameters().Select(p =>
             typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType) ? (object?)_activityManager
+            : typeof(IModelAssetStore).IsAssignableFrom(p.ParameterType)           ? _assets
             : p.ParameterType == typeof(ProviderModel)                           ? new ProviderModel(model)
             : configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
             .ToArray();
-        return (ILlmProvider)ctor.Invoke(args);
+        return (IAiProvider)ctor.Invoke(args);
     }
 
     /// <summary>Stable key fragment for the configs feeding a provider's constructor (model-independent).</summary>
@@ -272,7 +283,7 @@ public sealed class ProviderManager
                 .ToList();
 
             var providerTypes = asm.GetTypes()
-                .Where(t => !t.IsAbstract && !t.IsInterface && typeof(ILlmProvider).IsAssignableFrom(t))
+                .Where(t => !t.IsAbstract && !t.IsInterface && ModelKinds.Of(t).Count > 0)
                 .Select(t => (Type: t, Ctor: t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First()))
                 .ToList();
 

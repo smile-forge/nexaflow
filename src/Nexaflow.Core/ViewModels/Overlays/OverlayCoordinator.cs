@@ -98,7 +98,8 @@ public sealed class OverlayCoordinator : ObservableObject
     public bool ConfirmationVisible => Confirmation is not null;
 
     public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
-                                 string? confirmLabel = null, string? cancelLabel = null)
+                                 string? confirmLabel = null, string? cancelLabel = null,
+                                 Action? onAlternate = null, string? alternateLabel = null)
     {
         // A new question supersedes an open one, which is answered Cancel — so an awaiting ConfirmAsync
         // completes rather than hanging on a dialog nobody can reach any more.
@@ -109,8 +110,29 @@ public sealed class OverlayCoordinator : ObservableObject
             onConfirm: () => { CloseConfirmation(request!); onConfirm(); },
             onCancel:  () => { CloseConfirmation(request!); onCancel?.Invoke(); },
             confirmLabel: string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Shell.Prompt.Confirm") : confirmLabel,
-            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Shell.Prompt.Cancel")  : cancelLabel);
+            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Shell.Prompt.Cancel")  : cancelLabel,
+            onAlternate:  onAlternate is null ? null : () => { CloseConfirmation(request!); onAlternate(); },
+            alternateLabel: alternateLabel);
         SetConfirmation(request);
+    }
+
+    /// <summary>
+    /// Closes a settings panel — at once when it holds no unapplied edits; otherwise after asking what to do with them:
+    /// apply them and close (<paramref name="apply"/> says whether that worked), discard them and close, or keep editing.
+    /// </summary>
+    /// <param name="unapplied">The names of the panel's pages with edits not yet applied.</param>
+    public void CloseOrAskAboutEdits(IReadOnlyList<string> unapplied, Func<bool> apply, string applyLabel, Action close)
+    {
+        if (unapplied.Count == 0) { close(); return; }
+
+        ShowConfirmation(
+            Str.Get("Shell.Prompt.Unapplied.Title"),
+            Str.Format("Shell.Prompt.Unapplied.Body", string.Join(", ", unapplied)),
+            onConfirm:      () => { if (apply()) close(); },
+            confirmLabel:   applyLabel,
+            cancelLabel:    Str.Get("Shell.Prompt.Unapplied.KeepEditing"),
+            onAlternate:    close,
+            alternateLabel: Str.Get("Shell.Prompt.Unapplied.Discard"));
     }
 
     // Runs before the caller's callback, so a callback that asks again opens a fresh question.

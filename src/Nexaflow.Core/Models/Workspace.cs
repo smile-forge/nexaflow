@@ -142,6 +142,8 @@ public sealed partial class Workspace : ObservableObject
     {
         if (RibbonService is not null) return;
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        if (AiConfig.AddDefaultSpeechIn(LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir)))
+            ConfigManager.Instance.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
         ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);

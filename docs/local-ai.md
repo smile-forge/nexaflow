@@ -1,7 +1,12 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: proposal.** Nothing here is built. It records what was measured, the decisions taken, the design that
-follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
+**Status: phase 1 built.** Replies stream through the agent harness; each ability is served by a chain of models
+that asks before high-risk context leaves this machine; providers serve speech to text beside language models, and
+dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime transcription in the
+cloud); local models' files live in one verified, resumable store; System Info reports what the machine can run.
+The rest is not built yet. This records
+what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
+type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -25,7 +30,8 @@ policy and scheduling.
 
 | Question | Decision |
 |---|---|
-| Local or cloud | Chosen when a workspace is set up. **Cloud**: cloud models only, and nothing local is downloaded or loaded. **Local**: the resident model — Gemma 4 E4B by default, or whichever model the user picks — serves the workspace. **Mixing** both stays possible through the per-role grid. |
+| Whose harness | What a workspace chooses is not where a model runs but **who runs its harness** — the prompt, the chat template, the context cache. **Bridged**: Nexaflow is a client of a harness that is not its own — Claude, OpenAI, Gemini, but also Ollama and Aria, though they run on this machine — and nothing for the AI host is downloaded or loaded. **Owned**: Nexaflow is the whole harness, through the AI host — Gemma 4 E4B by default, or whichever model the user picks. Chosen when a workspace is set up, once an owned model exists to choose; **mixing** both stays possible through the grid's chains. |
+| Where data goes | A second, separate property of each provider: whether a request's content **stays on this machine**. Ollama on `localhost` does though it is bridged. A page whose context is high-risk asks before its contents go to a provider whose data leaves this machine. |
 | Where voice lives | **The AI input bar**, in a voice mode: the bar becomes a live line both sides speak into, and anything the assistant produces that is not speech — a diagram, a table, code — opens as an overlay on the current page, so the user keeps working while talking. **The conversation page** is the focused alternative: both sides write into the conversation. |
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
@@ -185,8 +191,9 @@ test beds hit:
   behind.
 - **Native stacks cannot be mixed.** Two CUDA stacks in one process loaded clashing cuDNN; sherpa-onnx and Windows ML
   each ship their own `onnxruntime.dll`; the same class of problem the LlamaSharp provider
-  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. Core's
-  `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same reason.
+  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. The Whisper
+  provider's `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same
+  reason once speech runs in the host.
 - **One owner for the GPU.** Scheduling and the VRAM budget only work if one process decides.
 - **A watchdog.** Neither onnxruntime-genai nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
@@ -219,9 +226,9 @@ Proposed layout, mirroring `Nexaflow.Elevation`: `src/Nexaflow.AI/Nexaflow.AI.Co
 
 ### Capabilities instead of one text contract
 
-`ILlmProvider` stays the text-generation contract and gains what Architecture.md already names as its escape
-hatches — a streaming completion and an opt-in native-tools capability — plus **audio attachments** next to image
-ones (`LlmAttachment.IsImage` has no audio counterpart). Beside it, in `Providers.Common`:
+`ILlmProvider` stays the text-generation contract. It streams its reply as events (`StreamAsync`), and gains
+**audio attachments** next to image ones (`LlmAttachment.IsImage` has no audio counterpart); native tool calls
+arrive later as one more kind of event, for a provider that opts in. Beside it, in `Providers.Common`:
 
 | Capability | Shape |
 |---|---|
@@ -231,16 +238,16 @@ ones (`LlmAttachment.IsImage` has no audio counterpart). Beside it, in `Provider
 | audio generation | job: prompt in, audio file out, progress (sound effects, music) |
 | video generation | job; cloud only for now |
 
-Every capability has local and cloud implementations — OpenAI and Gemini already do speech and images — so a cloud
-workspace gets voice and generation without a GPU, and a local workspace gets them on the machine. A provider
-declares what it offers: input and output kinds, streaming, tools, context window, **on-device or cloud**, and a
-cost class.
+Every capability has owned and bridged implementations — OpenAI and Gemini already do speech and images — so a
+bridged workspace gets voice and generation without a GPU, and an owned one gets them on the machine. A provider
+declares what it offers: input and output kinds, streaming, tools, context window, **whose harness and where its
+data goes**, and a cost class.
 
 ### Scheduling and the VRAM budget
 
 The host owns:
 
-- **A resident set** — the model a local workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
+- **A resident set** — the model an owned workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
   to reload is too slow between turns).
 - **One generation slot** — image, music or a second LLM, loaded on demand and disposed afterwards. Generation
   takes seconds anyway, so a load is acceptable there.
@@ -302,19 +309,25 @@ twice the VRAM.
 
 ## Routing
 
-The workspace's choice comes first: a cloud workspace never starts the host. Within a workspace, the ability grid
-maps roles to models, and changes in three ways:
+The workspace's choice comes first: a bridged workspace never starts the host. Within a workspace, the ability grid
+maps roles to models:
 
-| Today | Proposed |
-|---|---|
-| Seven rows, all text; `ImageGeneration` and `AudioRecognition` are read by nothing | **Reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and **media capabilities** (speech in, speech out, image, audio, video) |
-| A cell is one provider + model | A cell is an **ordered chain** when a workspace mixes local and cloud: local Gemma, then Claude |
-| Resources invisible | The resident set and its VRAM shown; assignments that cannot coexist on the card are refused at configuration time |
+- **Each cell is an ordered chain** of models, set by clicking cells in the order they should be tried: owned Gemma,
+  then Claude. A chain advances on unavailability — a provider not available (no API key; for the host, model not
+  downloaded, host down, budget refused) — not on "try one, retry the next" for every request: a failed attempt has
+  cost its whole latency already.
+- **High-risk context leaves only with consent.** A request whose context reports a high `GetContextSecurityRisk`
+  goes to the chain's model like any other; when that model sends data off this machine, the user is asked first,
+  and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
+  about.
+- **Rows become reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
+  **media capabilities** (speech in, speech out, image, audio, video) — the media rows arrive with the capability
+  contracts they route; today's `ImageGeneration` and `AudioRecognition` rows are read by nothing.
+- **Resources become visible**: the resident set and its VRAM shown; assignments that cannot coexist on the card are
+  refused at configuration time.
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
-to local, which is where API cost actually goes. A chain advances on unavailability (model not downloaded, host down,
-budget refused), not on "try local, retry cloud" for every request — a failed local attempt costs its whole latency
-first. A request whose context reports a high `GetContextSecurityRisk` is held to on-device entries.
+to the owned model, which is where API cost actually goes.
 
 Prompt-convention tools are an advantage here: with the chat template coming from the model itself
 (`Tokenizer.ApplyChatTemplate`), a new local model needs no per-family harness — the part PR #74 had to write by
@@ -355,8 +368,8 @@ flowchart LR
   clause still missing its verb ("…die ich gestern"), which the audio alone judged finished. After a barge-in, a
   fragment judged complete ("Wait, stop —") is held ~1 s for the rest of the sentence.
 - **The agent loop is the same one**: a voice turn goes through `RunAgentAsync` with page context and tools, in a
-  "spoken reply" style. This needs streaming through the harness — today `LlmStreamRunner` accumulates the whole
-  reply before anything returns.
+  "spoken reply" style. The loop streams each step's prose to its response handler as a draft while it is
+  written, without the blocks the agent acts on — what the segmenter reads.
 - **Segmenter**: the first segment ends at a clause boundary, later ones at sentences.
 - **Barge-in**: VAD onset (96 ms of speech) during playback **pauses** playback at once; the ASR decides. Words →
   generation is cancelled and the history keeps **only what was heard** — the measured run recorded "Garbage
@@ -369,7 +382,7 @@ flowchart LR
 - **Ending the session**: the user's stop button, or a client tool the assistant calls when the conversation is
   over.
 - The voice session is one implementation of a contract; a cloud realtime API (OpenAI Realtime, Gemini Live) can be
-  another, for cloud workspaces.
+  another, for bridged workspaces.
 
 Target: under a second from the user stopping to the assistant speaking, local. Measured 1.3 s with a 600 ms silence
 wait; replacing that wait with Smart Turn at 200 ms of silence (~10 ms to decide, with Whisper's final pass started
@@ -386,9 +399,9 @@ at the same moment) puts a complete turn at about 0.9 s.
 - **The conversation page** is the focused form: speech and text both land in the conversation as messages, and rich
   content renders inline there instead of as an overlay.
 
-`VoiceManager` (a static singleton re-transcribing the whole buffer every second with Whisper.net) and
-`WhisperModelManager` are replaced by the speech capability; push-to-talk dictation becomes the same streaming ASR
-without the reply.
+Push-to-talk dictation already runs on the speech capability: `DictationService` streams the microphone into the
+Speech In chain's model. Whisper on this machine re-transcribes the whole buffer every second; in the host it becomes
+the same streaming ASR as the voice loop, without the reply.
 
 ## Languages: English, French, German
 
@@ -513,26 +526,30 @@ every payload a second time under Package Cache, the standard bootstrapper canno
 per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
 `InstallTools` — that the app reads on first run.
 
-- **The host** ships in the base install or downloads with the first local workspace; without the CUDA pack it is
+- **The host** ships in the base install or downloads with the first owned workspace; without the CUDA pack it is
   about 30 MB (ONNX Runtime, onnxruntime-genai, Windows ML's bootstrap).
 - **Execution providers**: our CUDA pack (~1.1 GB) for NVIDIA, hosted on our GitHub releases and versioned with the
   host; Windows ML's providers for other vendors and NPUs, downloaded by Windows itself.
-- **Models and voices**: one hashed, resumable asset manager, generalised from `WhisperModelManager`, under
-  `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming path (not `%APPDATA%`, where voice models sit
-  today).
-- **Hardware probe**: `HostCapabilityService` widens beyond `nvidia-smi` — VRAM and vendor for AMD and Intel, NPU
-  presence — and its unused `RecommendedBackend` gains a consumer: whether to offer Local at all, and which provider.
-- **Whisper's CUDA natives** leave the base install, cutting the installer and every update by about 60%.
+- **Models and voices**: `ModelAssetStore`, under `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming
+  path. Each provider ships a catalog manifest naming its models' files with source, size and SHA-256; a download
+  resumes from a `.partial` file and a file is handed out only once verified. Whisper models an earlier version kept
+  in `%APPDATA%\…\voice\models` are moved in when they are the same file.
+- **Hardware probe**: `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of every
+  vendor with their real memory, and NPUs — and the CUDA driver from `nvcuda.dll`. System Info's Local AI card shows
+  it with the local models it suits; the host reads it to decide whether to offer an owned model at all, and on
+  which provider.
+- **Whisper's CUDA natives** leave the base install once speech runs in the host, cutting the installer and every
+  update by about 60%.
 
 ## Build order
 
 | Phase | Delivers | Size |
 |---|---|---|
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
-| 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
-| 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
-| 3. Voice | speech in the host; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
-| 4. Generation tools | speech and image tools first; music after; video through cloud providers | medium per tool |
+| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
+| 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74; the harness property and the workspace's choice of an owned model; audio attachments; the AI-path test suite against the owned model | large |
+| 3. Voice | speech in the host; the text-to-speech contract; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay | large |
+| 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 

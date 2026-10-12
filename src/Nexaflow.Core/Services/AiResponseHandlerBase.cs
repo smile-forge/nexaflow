@@ -5,10 +5,13 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
-public enum AiOverlayState { Message, Approval, Running }
+/// <summary>Where a response surface is: working with nothing to show yet, writing a reply as it arrives,
+/// waiting on an approval, or showing a finished message.</summary>
+public enum AiOverlayState { Message, Approval, Running, Writing }
 
 /// <summary>
 /// Shared <see cref="IAIResponseHandler"/> machinery for the two AI response surfaces — the shell's modal
@@ -37,14 +40,20 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     [NotifyPropertyChangedFor(nameof(AiOverlayIsMessage))]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsApproval))]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsRunning))]
+    [NotifyPropertyChangedFor(nameof(AiOverlayIsWriting))]
     [NotifyPropertyChangedFor(nameof(AiOverlayShowsMarkdown))]
+    [NotifyPropertyChangedFor(nameof(AiOverlayShowsFooter))]
     private AiOverlayState _aiOverlayState = AiOverlayState.Message;
 
     public bool AiOverlayIsMessage  => AiOverlayState == AiOverlayState.Message;
     public bool AiOverlayIsApproval => AiOverlayState == AiOverlayState.Approval;
     public bool AiOverlayIsRunning  => AiOverlayState == AiOverlayState.Running;
-    /// <summary>True in Message/Approval states (markdown body + footer); false while Running.</summary>
+    public bool AiOverlayIsWriting  => AiOverlayState == AiOverlayState.Writing;
+    /// <summary>The markdown body shows whenever there is text to read — everywhere but Running.</summary>
     public bool AiOverlayShowsMarkdown => AiOverlayState != AiOverlayState.Running;
+    /// <summary>The footer holds what to do with a finished message or a pending approval; a reply still being
+    /// written has neither.</summary>
+    public bool AiOverlayShowsFooter => AiOverlayState is AiOverlayState.Message or AiOverlayState.Approval;
 
     private TaskCompletionSource<bool>? _toolApprovalTcs;
     protected Page? _originTab;
@@ -65,6 +74,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     {
         SyncAiName();
         AiResponsePrompt  = userText;
+        AiResponseText    = string.Empty;
         _originTab        = OriginTab();
         AgentContextPaths = [];
         AiProgressText    = "Considering";
@@ -77,6 +87,21 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         AiProgressText = message;
         AiOverlayState = AiOverlayState.Running;
         Open();
+    });
+
+    public virtual void ShowReplyDraft(string draftMarkdown) => Dispatch(() =>
+    {
+        AiResponseText = draftMarkdown;
+        AiOverlayState = AiOverlayState.Writing;
+        Open();
+    });
+
+    /// <summary>One surface holds one text, so a step that goes on to tools hands it back to the working line
+    /// either way; a draft that is not kept is also cleared, so it cannot surface again as a later state's body.</summary>
+    public virtual void EndReplyDraft(bool keep) => Dispatch(() =>
+    {
+        if (!keep) AiResponseText = string.Empty;
+        AiOverlayState = AiOverlayState.Running;
     });
 
     public Task<bool> RequestToolBatchApprovalAsync(
@@ -101,6 +126,18 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
         AiToolApprovalSummary = $"Approve plan: {plan.Title}";
+        return ShowApprovalAndWait(ct);
+    }
+
+    public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+    {
+        if (!_ui.CheckAccess())
+            return _ui.Invoke(() => RequestContextReleaseAsync(destinations, ct));
+
+        SyncAiName();
+        var to = string.Join(", ", destinations);
+        AiResponseText        = Str.Format("Shell.AiResponse.ContextRelease.Explanation", to);
+        AiToolApprovalSummary = Str.Format("Shell.AiResponse.ContextRelease.Question", to);
         return ShowApprovalAndWait(ct);
     }
 

@@ -1,4 +1,5 @@
 using Nexaflow.Providers.Common;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Nexaflow.Providers.Aria;
@@ -13,6 +14,9 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
     public const  string ProviderName = "Aria";
     public string Name => ProviderName;
 
+    /// <summary>The Aria service runs on this machine and keeps what it is sent here.</summary>
+    public DataResidency Residency => DataResidency.StaysOnMachine;
+
     private readonly AriaClientService          _client;
     private readonly IBackgroundActivityManager _activityManager;
 
@@ -24,9 +28,10 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    /// <summary>The Aria service answers a request whole, so its reply arrives as a single text event.</summary>
+    public async IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
-        CancellationToken         ct = default)
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         // Aria uses a simple text pipe; serialise the conversation as a labelled transcript
         var sb = new StringBuilder();
@@ -48,12 +53,14 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
             .Select(a => a.FilePath)
             .ToList();
 
-        return SendCoreAsync(sb.ToString().TrimEnd(), paths.Count > 0 ? paths : null, ct);
+        var text = await SendCoreAsync(sb.ToString().TrimEnd(), paths.Count > 0 ? paths : null, ct);
+        if (!string.IsNullOrEmpty(text))
+            yield return new LlmTextDelta(text);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────
 
-    private async Task<LlmResponse?> SendCoreAsync(
+    private async Task<string?> SendCoreAsync(
         string text,
         IReadOnlyList<string>? attachments,
         CancellationToken ct)
@@ -63,9 +70,7 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
         {
             var ariaResponse = await _client.SendAsync(text, attachments, ct);
             activity.Complete();
-
-            if (ariaResponse is null) return null;
-            return new LlmResponse(ariaResponse.RawText, ariaResponse.FocusTab);
+            return ariaResponse?.RawText;
         }
         catch (AriaClientService.AriaConnectionException ex)
         {

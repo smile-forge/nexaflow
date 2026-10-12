@@ -9,6 +9,7 @@ using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text;
 using Nexaflow.Core.Localization;
+using System.Diagnostics;
 
 namespace Nexaflow.Core.Services;
 
@@ -17,37 +18,89 @@ public sealed class AIService : IAIService
     // ── Provider registry ─────────────────────────────────────────────────
     // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
 
-    private readonly Dictionary<string, ILlmProvider> _providers = [];
+    private readonly Dictionary<string, IAiProvider> _providers = [];
 
     private AiConfig? _abilityConfig;
 
     /// <summary>Registers the execution provider for an ability-grid column. Called by WorkspaceManager.</summary>
-    public void Register(string columnId, ILlmProvider provider)
+    public void Register(string columnId, IAiProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
+        if (_providers.TryGetValue(columnId, out var replaced)) replaced.AvailabilityChanged -= OnProviderAvailabilityChanged;
         _providers[columnId] = provider;
+        provider.AvailabilityChanged += OnProviderAvailabilityChanged;
     }
 
     /// <summary>Clears all registered execution providers (before a hot re-registration).</summary>
-    public void ClearProviders() => _providers.Clear();
+    public void ClearProviders()
+    {
+        foreach (var provider in _providers.Values) provider.AvailabilityChanged -= OnProviderAvailabilityChanged;
+        _providers.Clear();
+    }
+
+    private void OnProviderAvailabilityChanged(object? sender, EventArgs e) => _workspace.RaiseProvidersChanged();
+
+    /// <summary>The speech-to-text model that serves Speech In now — the first available in its chain — or null.</summary>
+    public ISpeechToTextProvider? SpeechToText => Candidates<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault();
 
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
     /// <summary>
-    /// Returns the model-bound execution provider assigned to <paramref name="ability"/>, or null if
-    /// none is configured or its column has no registered provider.
+    /// The providers that can serve <paramref name="ability"/> now, in its chain's order: each column the chain
+    /// names whose provider is registered, of the ability's kind, and available. Unavailability moves a chain
+    /// on; a request that fails does not — it has cost its whole latency already.
     /// </summary>
-    private ILlmProvider? GetProvider(AiAbility ability)
+    private IEnumerable<T> Candidates<T>(AiAbility ability) where T : class, IAiProvider
     {
-        if (_abilityConfig is null) return null;
+        if (_abilityConfig is null || !_abilityConfig.Assignments.TryGetValue(ability.ToString(), out var chain))
+            yield break;
 
-        var key = ability.ToString();
-        if (!_abilityConfig.Assignments.TryGetValue(key, out var columnId)
-            || string.IsNullOrEmpty(columnId))
-            return null;
+        foreach (var columnId in chain.ColumnIds)
+            if (_providers.TryGetValue(columnId, out var p) && p is T served && p.IsAvailable)
+                yield return served;
+    }
 
-        return _providers.TryGetValue(columnId, out var p) ? p : null;
+    /// <summary>The language model that serves <paramref name="ability"/>: the first available in its chain, or null.</summary>
+    private ILlmProvider? GetProvider(AiAbility ability) => Candidates<ILlmProvider>(ability).FirstOrDefault();
+
+    /// <summary>
+    /// The Image Recognition model when it is not the conversation's own — null when none is set or it is the same.
+    /// The SAME pooled instance serves two abilities on the same (config, model), so reference equality means "the
+    /// image model and the conversation model are the same model".
+    /// </summary>
+    private ILlmProvider? SeparateImageModel(ILlmProvider conversation)
+        => GetProvider(AiAbility.ImageRecognition) is { } image && !ReferenceEquals(image, conversation) ? image : null;
+
+    /// <summary>
+    /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
+    /// app ships) and the page's own, when <paramref name="includeContext"/>; nothing when not.
+    /// </summary>
+    private (string Context, List<IClientTool> Tools) GatherContext(IPageViewModel? page, bool includeContext)
+    {
+        if (!includeContext) return ("No specific context.", []);
+
+        var pageContext = page?.GetContext() ?? "No specific context.";
+        var tools       = new List<IClientTool>(page?.GetClientTools() ?? []);
+
+        // A searchable page gets its search tools automatically — declaring ISearchable is the whole
+        // opt-in, so no feature has to remember to hand them out in GetClientTools.
+        if (page is ISearchable searchable)
+            tools.AddRange(new SearchClientTools(searchable).Tools);
+
+        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
+        // openable pages, and the shell tools) alongside the active page's.
+        var shellCtx = new ShellAi.ShellAiContext(_workspace);
+        tools.AddRange(shellCtx.BuildTools());
+
+        // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
+        // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
+        // No language pack means no help to offer — which is the case in a unit test of this loop, and the
+        // same way BuildTools above yields nothing without a shell.
+        if (LanguageManager.TryInstance is not null)
+            tools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
+
+        return (shellCtx.BuildContext() + "\n---\n" + pageContext, tools);
     }
 
     /// <summary>
@@ -312,29 +365,24 @@ public sealed class AIService : IAIService
         var provider = GetProvider(AiAbility.Conversation);
         if (provider is null) return null;
 
-        var pageContext = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
-        var pageTools   = new List<IClientTool>(includeContext ? page?.GetClientTools() ?? [] : []);
+        var (context, pageTools) = GatherContext(page, includeContext);
+        var ranker = pageTools.Count > MaxUnfilteredTools ? GetProvider(AiAbility.Disambiguation) : null;
 
-        // A searchable page gets its search tools automatically — declaring ISearchable is the whole
-        // opt-in, so no feature has to remember to hand them out in GetClientTools.
-        if (includeContext && page is ISearchable searchable)
-            pageTools.AddRange(new SearchClientTools(searchable).Tools);
-
-        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
-        // openable pages, and the shell tools) alongside the active page's.
-        var context = pageContext;
-        if (includeContext)
+        // A page whose contents are high-risk sends them off this machine only when the user agrees: every model
+        // that would read them and sends what it reads elsewhere is named, and a refusal cancels the request.
+        var risk = includeContext ? page?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low : ContextSecurityRisk.Low;
+        if (risk == ContextSecurityRisk.High)
         {
-            var shellCtx = new ShellAi.ShellAiContext(_workspace);
-            context = shellCtx.BuildContext() + "\n---\n" + pageContext;
-            pageTools.AddRange(shellCtx.BuildTools());
-
-            // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
-            // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
-            // No language pack means no help to offer — which is the case in a unit test of this loop, and the
-            // same way BuildTools above yields nothing without a shell.
-            if (LanguageManager.TryInstance is not null)
-                pageTools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
+            var leaving = new[] { provider, ranker, SeparateImageModel(provider) }
+                .OfType<ILlmProvider>()
+                .Where(p => p.Residency == DataResidency.LeavesMachine)
+                .Select(p => p.Name).Distinct().ToList();
+            try
+            {
+                if (leaving.Count > 0 && !await approval.RequestContextReleaseAsync(leaving, ct))
+                    return null;
+            }
+            catch (OperationCanceledException) { return null; }
         }
 
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
@@ -345,15 +393,12 @@ public sealed class AIService : IAIService
         IReadOnlyList<IClientTool> exposed;
         try
         {
-            if (pageTools.Count > MaxUnfilteredTools)
-            {
-                var ranked = await RankToolsAsync(input, pageTools, context, ct);
-                exposed = [.. ranked, getCommands];
-            }
-            else
-            {
+            if (pageTools.Count <= MaxUnfilteredTools)
                 exposed = fullCatalog;
-            }
+            else if (ranker is null)
+                exposed = [.. pageTools.Take(MaxUnfilteredTools), getCommands];
+            else
+                exposed = [.. await RankToolsAsync(ranker, input, pageTools, context, ct), getCommands];
         }
         catch (OperationCanceledException) { return null; }
 
@@ -373,14 +418,14 @@ public sealed class AIService : IAIService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var resp = await provider.CompleteAsync(messages, ct);
-                var raw  = resp?.RawText?.Trim() ?? string.Empty;
+                var raw  = (await StreamStepAsync(provider, messages, approval, ct)).Trim();
                 var turn = ClientBlockParser.Parse(raw);
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.
                 if (turn.Plan is not null && !planMode)
                 {
                     messages.Add(new(LlmRole.Assistant, raw));
+                    KeepNarration(approval, turn);
                     if (!await approval.RequestPlanApprovalAsync(turn.Plan, ct))
                     {
                         messages.Add(new(LlmRole.User,
@@ -395,7 +440,10 @@ public sealed class AIService : IAIService
 
                 // 2. Pure prefill.
                 if (turn.Prefill is not null && turn.ToolCalls.Count == 0)
+                {
+                    approval.EndReplyDraft(keep: false);
                     return AiResponse.AsPrefill(turn.Prefill);
+                }
 
                 // 3. No tool calls.
                 if (turn.ToolCalls.Count == 0)
@@ -403,6 +451,7 @@ public sealed class AIService : IAIService
                     if (turn.ParseErrors.Count > 0)
                     {
                         // The model tried to act but emitted something malformed — let it self-correct.
+                        approval.EndReplyDraft(keep: false);
                         messages.Add(new(LlmRole.Assistant, raw));
                         messages.Add(new(LlmRole.User,
                             "TOOL RESULTS\n" + string.Join('\n', turn.ParseErrors) +
@@ -414,6 +463,7 @@ public sealed class AIService : IAIService
                     var lateInterjections = approval.TakeInterjections();
                     if (lateInterjections.Count > 0)
                     {
+                        KeepNarration(approval, turn);
                         messages.Add(new(LlmRole.Assistant, raw));
                         messages.Add(new(LlmRole.User, FormatInterjections(lateInterjections)));
                         continue;
@@ -444,6 +494,7 @@ public sealed class AIService : IAIService
                     {
                         const string looped = "I've stopped because I kept repeating the same action without making " +
                                               "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
+                        KeepNarration(approval, turn);
                         approval.ShowFinal(looped);
                         return AiResponse.AsMessage(looped, artifacts);
                     }
@@ -451,6 +502,11 @@ public sealed class AIService : IAIService
 
                 var needApproval = !planMode &&
                     calls.Any(rc => rc.Tool is { Safety: ToolSafety.RequiresApproval });
+
+                // An approval request carries the step's prose as its explanation, so the draft gives way to it;
+                // a batch that runs unasked leaves the prose standing as the account of what it is doing.
+                if (needApproval) approval.EndReplyDraft(keep: false);
+                else              KeepNarration(approval, turn);
 
                 if (needApproval &&
                     !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, turn.ToolCalls, ct))
@@ -505,6 +561,49 @@ public sealed class AIService : IAIService
                               "_(stopped: max steps reached)_";
         approval.ShowFinal(capped);
         return AiResponse.AsMessage(capped, artifacts);
+    }
+
+    /// <summary>Draft updates reach the handler at most this often — quick enough to read as live, slow enough
+    /// that a long reply is not laid out again for every token.</summary>
+    private static readonly TimeSpan DraftInterval = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
+    /// Runs one model step, showing its prose to <paramref name="handler"/> as a draft while it streams, and
+    /// returns the whole reply. The draft is left open: what the step turns out to be decides how it ends.
+    /// </summary>
+    private static async Task<string> StreamStepAsync(
+        ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IAIResponseHandler handler, CancellationToken ct)
+    {
+        var raw   = new StringBuilder();
+        var draft = new ReplyDraft();
+        var shown = string.Empty;
+        var next  = 0L;   // the first words show at once; later ones wait out the interval
+
+        await foreach (var e in provider.StreamAsync(messages, ct))
+        {
+            if (e is not LlmTextDelta delta) continue;
+
+            raw.Append(delta.Text);
+            draft.Append(delta.Text);
+            if (Stopwatch.GetTimestamp() < next) continue;
+
+            var text = draft.Text;
+            if (text.Length == 0 || string.Equals(text, shown, StringComparison.Ordinal)) continue;
+
+            handler.ShowReplyDraft(text);
+            shown = text;
+            next  = Stopwatch.GetTimestamp() + (long)(DraftInterval.TotalSeconds * Stopwatch.Frequency);
+        }
+        return raw.ToString();
+    }
+
+    /// <summary>Ends a step's draft as narration: the step's prose stands in full, as the parser read it, or —
+    /// when it wrote none — nothing does.</summary>
+    private static void KeepNarration(IAIResponseHandler handler, ParsedAssistantTurn turn)
+    {
+        var keep = turn.ExplanationMarkdown.Length > 0;
+        if (keep) handler.ShowReplyDraft(turn.ExplanationMarkdown);
+        handler.EndReplyDraft(keep);
     }
 
     private static IClientTool? FindTool(IReadOnlyList<IClientTool> catalog, string name)
@@ -601,11 +700,8 @@ public sealed class AIService : IAIService
             .Select(i => new LlmAttachment(i.Label ?? "image", i.MimeType, i.Bytes))
             .ToList();
 
-        // GetProvider returns the SAME pooled instance for two abilities on the same (config, model),
-        // so reference equality means "the image model and the conversation model are the same model".
-        var imageProvider = GetProvider(AiAbility.ImageRecognition);
-
-        if (imageProvider is null || ReferenceEquals(imageProvider, convProvider))
+        var imageProvider = SeparateImageModel(convProvider);
+        if (imageProvider is null)
         {
             return convProvider.SupportsImages
                 ? (atts, null)
@@ -658,11 +754,9 @@ public sealed class AIService : IAIService
     /// Asks the Disambiguation-ability model to pick the most relevant page tools for the request.
     /// Falls back to the first <see cref="MaxUnfilteredTools"/> when no ranker is configured.
     /// </summary>
-    private async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
-        string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
+    private static async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
+        ILlmProvider provider, string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
     {
-        var provider = GetProvider(AiAbility.Disambiguation);
-        if (provider is null) return [.. tools.Take(MaxUnfilteredTools)];
 
         var list   = string.Join('\n', tools.Select((t, i) => $"{i + 1}. {t.Name} — {t.Description}"));
         var system = "You select the tools most relevant to a user request. Reply with the numbers of up to " +

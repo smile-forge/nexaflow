@@ -49,6 +49,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     // Provider set the ability grid queries for model lists; re-acquired when a key changes.
     private ProviderSet? _editingProviderSet;
 
+    /// <summary>The ability grid being edited — one, shared by the AI page and every local-model page, so a model
+    /// chosen on either is the same edit.</summary>
+    private readonly AiAbilityGridViewModel _grid;
+
+    /// <summary>The pages whose apply writes the ability grid, saved as <see cref="_aiConfig"/>.</summary>
+    private readonly List<ConfigEditViewModel> _gridSections = [];
+
     // Set once any section is applied to disk — drives the single rebuild on Close.
     private bool _dirty;
 
@@ -80,6 +87,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
         _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
         _aiConfig.Providers  = _editingProviderSet;
+        _grid                = new AiAbilityGridViewModel(_aiConfig);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -107,12 +115,48 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", Str.Get("Shell.Config.WorkspaceDefaultTabs"));
         Sections.Add(_defaultTabsSection);
 
-        Sections.Add(new ConfigEditViewModel(_aiConfig, _aiConfig.ConfigName, _aiConfig.FriendlyName));
+        Sections.Add(GridSection(new AiAbilityGridControl { DataContext = _grid }, _aiConfig.ConfigName, _aiConfig.FriendlyName));
         Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
         foreach (var config in _providerConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+
+        // A provider whose models are files on this machine gets a page for them, after the providers' own settings.
+        if (ProviderManager.Instance.Assets is { } assets && _editingProviderSet is { } set)
+            foreach (var provider in set.Providers)
+                if (provider is ILocalModelCatalog catalog)
+                {
+                    var page = new LocalModelsViewModel(provider, catalog, _grid, assets, ProviderManager.Instance.ActivityManager, SaveGrid);
+                    Sections.Add(GridSection(new LocalModelsControl(page, _grid), $"local-models-{provider.Name}", provider.Name));
+                }
         foreach (var config in _workspaceConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
+    }
+
+    private ConfigEditViewModel GridSection(System.Windows.FrameworkElement control, string configName, string title)
+    {
+        var section = ConfigEditViewModel.ForCustomControl(control, configName, title);
+        _gridSections.Add(section);
+        return section;
+    }
+
+    /// <summary>Saves the ability grid's config as it stands — a local-model page's choice, written into it at once.</summary>
+    private void SaveGrid() => SaveGridConfig();
+
+    /// <summary>Saves the ability grid's config; every page that edits the grid is then unchanged.</summary>
+    private bool SaveGridConfig()
+    {
+        try
+        {
+            ConfigManager.Instance.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
+            _dirty = true;
+            foreach (var s in _gridSections) s.ResetChanges();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", _aiConfig.FriendlyName, ex.Message));
+            return false;
+        }
     }
 
     private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
@@ -180,9 +224,23 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
-        if (SelectedSection is null) return;
-        var section = SelectedSection;
+        if (SelectedSection is { } section) ApplySection(section);
+    }
 
+    /// <summary>The pages holding edits not yet applied — what closing the panel now would lose.</summary>
+    public IReadOnlyList<string> UnappliedSections => [.. Sections.Where(s => s.HasChanges).Select(s => s.FriendlyName)];
+
+    /// <summary>Applies every page holding edits, as Apply does one; false when one could not be saved, which is
+    /// reported and leaves the rest unapplied.</summary>
+    public bool ApplyAllChanges()
+    {
+        foreach (var section in Sections.ToList())
+            if (section.HasChanges && !ApplySection(section)) return false;
+        return true;
+    }
+
+    private bool ApplySection(ConfigEditViewModel section)
+    {
         // The identity page edits the live workspace directly (name/symbol/colour) and persists itself
         // (workspace list + on-disk folder move), so it skips the per-folder disk-save the config sections
         // take. A rename moved the data folder, so a live workspace must rebuild (its AIService captured
@@ -195,7 +253,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             Title = $"Configure Workspace — {_workspace.Name}";
             if (!string.Equals(oldName, _workspace.Name, StringComparison.Ordinal))
                 _dirty = true;
-            return;
+            return true;
         }
 
         // The default-tabs page also edits the live workspace and persists itself (SaveWorkspaces). Its change
@@ -205,7 +263,15 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         {
             section.ApplyToReal();
             section.ResetChanges();
-            return;
+            return true;
+        }
+
+        // The AI page and the local-model pages edit one ability grid: applying any of them saves it, and every one of
+        // them is then unchanged.
+        if (_gridSections.Contains(section))
+        {
+            section.ApplyToReal();
+            return SaveGridConfig();
         }
 
         section.ApplyToReal();   // clone -> editing instance (NOT the live workspace instance)
@@ -216,18 +282,16 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             section.ResetChanges();
             _dirty = true;
 
-            // A provider config (not the ability grid / persona, which are also IProviderConfig)
-            // changed — rebuild the editing provider set so the grid can list models with the new key.
-            if (section.RealConfig is IProviderConfig
-                && !ReferenceEquals(section.RealConfig, _aiConfig)
-                && !ReferenceEquals(section.RealConfig, _persona))
-            {
+            // A provider config (not the persona, which is also an IProviderConfig) changed — rebuild the
+            // editing provider set so the grid can list models with the new key.
+            if (section.RealConfig is IProviderConfig && !ReferenceEquals(section.RealConfig, _persona))
                 ReacquireEditingProviderSet();
-            }
+            return true;
         }
         catch (Exception ex)
         {
             ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
+            return false;
         }
     }
 

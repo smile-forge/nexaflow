@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Nexaflow.Features.SystemInfo.Models;
+using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -21,6 +22,7 @@ public sealed class SystemInfoCollector
         snapshot.Sections.Add(CollectOperatingSystem());
         snapshot.Sections.Add(CollectHardware());
         snapshot.Sections.Add(CollectDisplay());
+        snapshot.Sections.Add(CollectLocalAi(ComputeHardware.Probe()));
         snapshot.Sections.Add(CollectStorage());
         snapshot.Sections.Add(CollectSecurity());
         return snapshot;
@@ -277,6 +279,40 @@ public sealed class SystemInfoCollector
         if (s.Items.Count == 0) s.Add(Str.Get("SystemInfo.Display.Title"), Str.Get("SystemInfo.Display.NoAdapters"));
         return s;
     }
+
+    // ── Local AI ──────────────────────────────────────────────────────────────
+    /// <summary>What the machine has for running models itself: each GPU and NPU with its own memory, the CUDA
+    /// driver, and which of the local models that is enough for.</summary>
+    internal static SystemInfoSection CollectLocalAi(ComputeHardwareReport report)
+    {
+        var s = new SystemInfoSection(Str.Get("SystemInfo.LocalAi.Title"), "🧠");
+
+        s.Add(Str.Get("SystemInfo.LocalAi.Fit"), report.Fit switch
+        {
+            LocalAiFit.LargerModels => Str.Get("SystemInfo.LocalAi.Fit.LargerModels"),
+            LocalAiFit.DefaultModel => Str.Get("SystemInfo.LocalAi.Fit.DefaultModel"),
+            _                       => Str.Format("SystemInfo.LocalAi.Fit.Insufficient",
+                                           SizeFormatter.FormatBytes(ComputeHardwareReport.DefaultModelBytes)),
+        }, report.Fit == LocalAiFit.Insufficient ? SystemInfoStatus.Warning : SystemInfoStatus.Good);
+
+        foreach (var adapter in report.Adapters.Where(a => !a.IsNpu))
+            s.Add(adapter.Name, Str.Format(adapter.IsIntegrated ? "SystemInfo.LocalAi.IntegratedGpu" : "SystemInfo.LocalAi.Gpu",
+                VendorName(adapter.Vendor), SizeFormatter.FormatBytes(adapter.DedicatedMemoryBytes)));
+
+        var npus = report.Npus.Select(n => n.Name).ToList();
+        s.Add(Str.Get("SystemInfo.LocalAi.Npu"), npus.Count > 0 ? string.Join(", ", npus) : Str.Get("SystemInfo.LocalAi.None"));
+
+        s.Add(Str.Get("SystemInfo.LocalAi.Cuda"),
+            report.CudaDriver is { } cuda ? cuda.ToString(2) : Str.Get("SystemInfo.LocalAi.None"));
+        return s;
+    }
+
+    private static string VendorName(ComputeVendor vendor) => vendor switch
+    {
+        ComputeVendor.Nvidia => "NVIDIA",
+        ComputeVendor.Amd    => "AMD",
+        _                    => vendor.ToString(),
+    };
 
     /// <summary>Decodes a WmiMonitor* uint16[] property (null-terminated char codes) to a string.</summary>
     private static string? DecodeWmiString(System.Management.ManagementObject mo, string prop)

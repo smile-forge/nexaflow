@@ -40,7 +40,7 @@ public static class ClientBlockParser
                 while (j < lines.Length && !IsFenceClose(lines[j], fenceChar, fenceLen)) j++;
                 var closed = j < lines.Length;   // lines[j] is the closing fence when true
 
-                if (info is ToolInfo or PlanInfo or PrefillInfo)
+                if (IsActionBlock(info))
                 {
                     var body = string.Join('\n', lines[bodyStart..j]);
                     HandleRecognised(info, body, toolCalls, ref plan, ref prefill, errors);
@@ -65,6 +65,9 @@ public static class ClientBlockParser
         return new ParsedAssistantTurn(
             explanation.ToString().Trim(), toolCalls, plan, prefill, errors);
     }
+
+    /// <summary>Whether a fence with this info word holds something the agent acts on rather than prose to show.</summary>
+    internal static bool IsActionBlock(string info) => info is ToolInfo or PlanInfo or PrefillInfo;
 
     private static void HandleRecognised(
         string info, string body, List<ToolCall> toolCalls,
@@ -140,7 +143,7 @@ public static class ClientBlockParser
     /// Detects a fence-opening line (≥3 backticks or tildes, optional leading spaces) and returns
     /// the fence character, length, and the normalised first info word (lower-cased).
     /// </summary>
-    private static bool TryParseFenceOpen(string line, out char fenceChar, out int fenceLen, out string info)
+    internal static bool TryParseFenceOpen(string line, out char fenceChar, out int fenceLen, out string info)
     {
         fenceChar = '\0';
         fenceLen  = 0;
@@ -170,7 +173,7 @@ public static class ClientBlockParser
     }
 
     /// <summary>A closing fence is a line of only the fence character (≥ the opening length).</summary>
-    private static bool IsFenceClose(string line, char fenceChar, int fenceLen)
+    internal static bool IsFenceClose(string line, char fenceChar, int fenceLen)
     {
         var s = line.AsSpan().Trim();
         if (s.Length < fenceLen) return false;

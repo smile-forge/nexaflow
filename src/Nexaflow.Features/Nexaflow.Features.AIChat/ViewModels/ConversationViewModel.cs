@@ -13,6 +13,7 @@ using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -137,7 +138,8 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     // ShowFinal / revert on Abort, the live activity line, and every Timeline item added this turn.
     private readonly List<ConversationMessage> _pendingUserMessages = [];
     private TimelineActivity? _activity;
-    private TimelineToolBatch? _currentToolBatch;   // accumulates consecutive tool steps into one entry
+    private TimelineToolBatch? _currentToolBatch;
+    private TimelineReplyDraft? _draft;   // accumulates consecutive tool steps into one entry
     private readonly List<object> _turnItems = [];
 
     public ConversationViewModel(IAIService aiService, IShellServices shell, AiChatConfig config, Page ownerPage)
@@ -314,6 +316,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _turnItems.Clear();
         _pendingUserMessages.Clear();
         _currentToolBatch = null;
+        _draft            = null;
 
         var user = new ConversationMessage { Text = userText, IsUser = true, Timestamp = DateTime.Now };
         _pendingUserMessages.Add(user);
@@ -378,6 +381,29 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         if (_activity is not null) _activity.Text = message;
     });
 
+    /// <summary>The reply being written: one bubble per model step, growing above the live line.</summary>
+    public void ShowReplyDraft(string draftMarkdown) => OnUi(() =>
+    {
+        if (_draft is null)
+        {
+            _draft = new TimelineReplyDraft();
+            InsertBeforeActivity(_draft);
+            _turnItems.Add(_draft);
+        }
+        _draft.Text = draftMarkdown;
+    });
+
+    /// <summary>A step ended without answering. Kept, its prose stays as narration and the tools that follow
+    /// group below it; otherwise its bubble goes, because an approval prompt or a retry carries the words.</summary>
+    public void EndReplyDraft(bool keep) => OnUi(() =>
+    {
+        if (_draft is null) return;
+
+        if (keep) _currentToolBatch = null;
+        else      RemoveDraft();
+        _draft = null;
+    });
+
     public void OnToolBatchStarting(IReadOnlyList<ToolCall> batch) { }
 
     /// <summary>Fold a completed batch into this turn's single collapsed "Ran N tools" entry (created on
@@ -406,6 +432,14 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
         => RequestApproval(plan.Title, $"Approve plan: {plan.Title}?", ct);
 
+    public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
+    {
+        var to = string.Join(", ", destinations);
+        return RequestApproval(
+            Str.Format("AIChat.Conversation.ContextRelease.Explanation", to),
+            Str.Format("AIChat.Conversation.ContextRelease.Question", to), ct);
+    }
+
     private Task<bool> RequestApproval(string explanation, string summary, CancellationToken ct)
         => _shell.RunOnUiAsync(() =>
         {
@@ -428,6 +462,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     public void ShowFinal(string finalMarkdown) => OnUi(async () =>
     {
         RemoveActivity();
+        RemoveDraft();   // the answer takes the place of the draft it was written as
 
         var empty = string.IsNullOrWhiteSpace(finalMarkdown);
         ConversationMessage? assistant = null;
@@ -462,6 +497,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _pendingUserMessages.Clear();
         PendingInterjections.Clear();
         _currentToolBatch = null;
+        _draft            = null;
         IsAgentRunning = false;
         MarkLastUserMessage();
     });
@@ -576,6 +612,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private void RemoveActivity()
     {
         if (_activity is not null) { Timeline.Remove(_activity); _turnItems.Remove(_activity); _activity = null; }
+    }
+
+    private void RemoveDraft()
+    {
+        if (_draft is not null) { Timeline.Remove(_draft); _turnItems.Remove(_draft); _draft = null; }
     }
 
     private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
@@ -780,6 +821,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
                 source.PropertyChanged -= handler;
         _riskSubscriptions.Clear();
     }
+
+    /// <summary>A conversation's context is as high-risk as the riskiest page pinned in it — those pages' contents
+    /// are what the model reads.</summary>
+    public ContextSecurityRisk GetContextSecurityRisk()
+        => ContextItems.Select(c => c.Page.SecurityRisk).DefaultIfEmpty(ContextSecurityRisk.Low).Max();
 
     private static void UpdateRisk(Page page)
         => page.SecurityRisk = (page.Content as IPageView)?.ViewModel?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low;

@@ -12,6 +12,10 @@ public sealed class GeminiLlmProvider : ILlmProvider
     /// <summary>Gemini models are multimodal; image attachments are sent as inline data parts.</summary>
     public bool SupportsImages => true;
 
+    public DataResidency Residency => DataResidency.LeavesMachine;
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly GeminiConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;
@@ -34,7 +38,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
@@ -44,16 +48,17 @@ public sealed class GeminiLlmProvider : ILlmProvider
             : null;
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Gemini ({_model})…", ProviderName,
-            ct => Deltas(contents, config, ct), ct);
+            ct => Events(contents, config, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         List<Content> contents, GenerateContentConfig? config,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var chunk in Client.Models.GenerateContentStreamAsync(
                            model: _model, contents: contents, config: config, cancellationToken: ct))
-            yield return chunk.Text;
+            if (!string.IsNullOrEmpty(chunk.Text))
+                yield return new LlmTextDelta(chunk.Text);
     }
 
     /// <summary>Maps the neutral message list to Gemini's wire shape (system instruction split out;

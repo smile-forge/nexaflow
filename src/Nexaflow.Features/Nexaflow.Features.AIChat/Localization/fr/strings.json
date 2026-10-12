@@ -6,5 +6,7 @@
   "AIChat.Config.AiChat.Retention.OneMonth": "1 mois",
   "AIChat.Config.AiChat.Retention.OneYear": "1 an",
   "AIChat.Config.AiChat.Retention.FiveYears": "5 ans",
-  "AIChat.Config.AiChat.Retention.Forever": "Indéfiniment"
+  "AIChat.Config.AiChat.Retention.Forever": "Indéfiniment",
+  "AIChat.Conversation.ContextRelease.Explanation": "Une page du contexte de cette conversation contient des informations système, qui restent sur cet ordinateur sauf si vous acceptez de les envoyer. Répondre enverrait son contenu à {0}.",
+  "AIChat.Conversation.ContextRelease.Question": "Envoyer le contenu du contexte à {0} ?"
 }

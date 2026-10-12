@@ -78,7 +78,7 @@ public class WorkspaceManagerTests
     {
         var source = new Workspace { Name = "Source" };
         source.AiConfig.Columns.Add(new ProviderModelPair { Id = "c1", ProviderName = "Prov", Model = "m1" });
-        source.AiConfig.Assignments["Conversation"] = "c1";
+        source.AiConfig.Assignments["Conversation"] = AbilityChain.Of("c1");
         source.Persona.Name         = "TestPersona";
         source.Persona.SystemPrompt = "Be brief.";
         StubSharedServices(source);
@@ -95,7 +95,7 @@ public class WorkspaceManagerTests
         ConfigManager.Instance.LoadFrom(destDir, ai, ai.ConfigName);
         Assert.AreEqual(1,    ai.Columns.Count);
         Assert.AreEqual("c1", ai.Columns[0].Id);
-        Assert.AreEqual("c1", ai.Assignments["Conversation"]);
+        CollectionAssert.AreEqual(new[] { "c1" }, ai.Assignments["Conversation"].ColumnIds.ToArray());
 
         var persona = new AiPersonaConfig();
         ConfigManager.Instance.LoadFrom(destDir, persona, persona.ConfigName);

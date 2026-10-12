@@ -167,7 +167,8 @@ public class SetupWizardTests
         var assignments = ai.GetProperty("Assignments");
         Assert.IsTrue(assignments.EnumerateObject().Any(), "No ability assignments written.");
         foreach (var a in assignments.EnumerateObject())
-            Assert.AreEqual(columnId, a.Value.GetString(), $"Ability '{a.Name}' not assigned to the chosen model.");
+            CollectionAssert.AreEqual(new[] { columnId }, a.Value.EnumerateArray().Select(id => id.GetString()).ToArray(),
+                $"Ability '{a.Name}' not assigned to the chosen model alone.");
 
         var persona = ReadConfig(defaultDir, "ai-persona");
         Assert.AreEqual(personaName,   persona.GetProperty("Name").GetString(),         "Persona name not persisted.");

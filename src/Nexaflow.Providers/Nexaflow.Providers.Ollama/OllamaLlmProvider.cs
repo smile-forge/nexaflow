@@ -16,6 +16,9 @@ public sealed class OllamaLlmProvider : ILlmProvider
     /// <summary>Vision is model-bound (llava/moondream/…-vision variants accept images).</summary>
     public bool SupportsImages => ModelSupportsVision(_model);
 
+    /// <summary>On this machine when the Ollama server is; a server elsewhere takes requests off it.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.Url, DataResidency.StaysOnMachine);
+
     private readonly OllamaConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;
@@ -38,7 +41,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
@@ -48,20 +51,21 @@ public sealed class OllamaLlmProvider : ILlmProvider
             Model     = _model,
             Messages  = msgList,
             KeepAlive = _config.KeepAliveValue,
-            // Thinking mode == --think; we never append Message.Thinking, so it's --hidethinking too.
+            // Thinking mode == --think; we never yield Message.Thinking, so it's --hidethinking too.
             Think     = _config.ThinkingMode ? true : null
         };
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Ollama ({_model})…", ProviderName,
-            ct => Deltas(request, ct), ct);
+            ct => Events(request, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         ChatRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var chunk in Client.ChatAsync(request, ct))
-            yield return chunk?.Message?.Content;
+            if (chunk?.Message?.Content is { Length: > 0 } text)
+                yield return new LlmTextDelta(text);
     }
 
     /// <summary>Maps the neutral message list to Ollama chat messages (system inline; attachments

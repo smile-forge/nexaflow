@@ -98,7 +98,7 @@
                     </Button.Template>
                 </Button>
 
-                <!-- Close: applies pending changes to the running workspace on the way out -->
+                <!-- Close: asks first when a page holds unapplied edits; what was applied reaches the running workspace on the way out -->
                 <Button Content="Close"
                         Width="90" Height="32"
                         FontSize="12"

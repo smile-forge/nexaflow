@@ -14,6 +14,11 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     /// <summary>Every Claude model in the current catalogue (Claude 3 and later) accepts image input.</summary>
     public bool SupportsImages => true;
 
+    /// <summary>Anthropic's API, unless the base URL points at a server on this machine.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.BaseUrl, DataResidency.LeavesMachine);
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
@@ -36,7 +41,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
@@ -52,18 +57,19 @@ public sealed class ClaudeLlmProvider : ILlmProvider
             request = request with { System = new MessageCreateParamsSystem(systemPrompt, null) };
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Claude ({_model})…", ProviderName,
-            ct => Deltas(request, ct), ct);
+            ct => Events(request, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         MessageCreateParams request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var evt in Client.Messages.CreateStreaming(request, ct))
         {
             if (evt.TryPickContentBlockDelta(out var deltaEvt) &&
-                deltaEvt.Delta.TryPickText(out var textDelta))
-                yield return textDelta.Text;
+                deltaEvt.Delta.TryPickText(out var textDelta) &&
+                !string.IsNullOrEmpty(textDelta.Text))
+                yield return new LlmTextDelta(textDelta.Text);
         }
     }
 

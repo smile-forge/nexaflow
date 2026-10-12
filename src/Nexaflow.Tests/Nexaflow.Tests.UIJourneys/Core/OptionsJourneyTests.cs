@@ -107,7 +107,6 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             // ── The editors behind the sections ──────────────────────────────────────
             // Every section rendered above; these drive the controls inside the custom editors. They edit the throwaway
             // config dir's copy, and Cancel at the end discards even that.
-            DriveVoice(list);
             DriveWorkspaces(list);
             DriveDefaultActions(list);
             DriveExternalApps(list);
@@ -159,13 +158,6 @@ public class OptionsJourneyTests : OptionsOverlayJourney
                   .Select(e => e.Name ?? string.Empty)
                   .Where(n => n.Length > 0)
                   .ToArray();
-    }
-
-    /// <summary>Download fetches a speech model from the network, so it is only checked for.</summary>
-    private void DriveVoice(AutomationElement list)
-    {
-        SelectSection(list, "Voice", "Voice_Download");
-        CheckExists("Download the speech model", "Voice_Download");
     }
 
     /// <summary>

@@ -25,8 +25,16 @@ public partial class AiAbilityGridControl : UserControl, ICustomConfigApply, ICo
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not AiConfig config) return;
-        _viewModel = new AiAbilityGridViewModel(config);
+        if (_viewModel is not null) return;   // Loaded fires each time the page is shown again
+
+        // The workspace panel hands over the grid it shares with the local-model pages; on its own, the grid is the config's.
+        _viewModel = DataContext switch
+        {
+            AiAbilityGridViewModel shared => shared,
+            AiConfig config               => new AiAbilityGridViewModel(config),
+            _                             => null,
+        };
+        if (_viewModel is null) return;
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(AiAbilityGridViewModel.HasChanges))

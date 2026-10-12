@@ -12,13 +12,14 @@ public sealed class ProviderSet
 {
     private readonly Dictionary<string, string> _assemblyMap;
 
-    /// <summary>Model-agnostic capability instances keyed by provider name — for the options UI's
-    /// model enumeration (<see cref="ILlmProvider.GetAvailableModelsAsync"/>).</summary>
-    public IReadOnlyDictionary<string, ILlmProvider> Providers { get; }
+    /// <summary>Model-agnostic capability instances, one per provider type — for the options UI's model
+    /// enumeration (<see cref="IAiProvider.GetAvailableModelsAsync"/>). One backend may appear once per
+    /// <see cref="ModelKind"/> it serves, under the same name.</summary>
+    public IReadOnlyList<IAiProvider> Providers { get; }
 
     /// <summary>Model-bound execution instances keyed by ability-grid column id — used by the AIService
     /// to run an ability. Each is bound to a specific (config, model).</summary>
-    public IReadOnlyDictionary<string, ILlmProvider> Execution { get; }
+    public IReadOnlyDictionary<string, IAiProvider> Execution { get; }
 
     /// <summary>The workspace's provider configs (one per discovered type), for editing/saving.</summary>
     public IReadOnlyList<IProviderConfig> Configs { get; }
@@ -27,8 +28,8 @@ public sealed class ProviderSet
     internal IReadOnlyList<string> PoolKeys { get; }
 
     public ProviderSet(
-        IReadOnlyDictionary<string, ILlmProvider> providers,
-        IReadOnlyDictionary<string, ILlmProvider> execution,
+        IReadOnlyList<IAiProvider>                providers,
+        IReadOnlyDictionary<string, IAiProvider>  execution,
         IReadOnlyList<IProviderConfig>            configs,
         Dictionary<string, string>                assemblyMap,
         IReadOnlyList<string>                     poolKeys)
@@ -39,6 +40,12 @@ public sealed class ProviderSet
         _assemblyMap = assemblyMap;
         PoolKeys     = poolKeys;
     }
+
+    /// <summary>The capability instance of <paramref name="providerName"/> that serves <paramref name="kind"/>,
+    /// or null when that provider offers no such models.</summary>
+    public IAiProvider? Find(string providerName, ModelKind kind)
+        => Providers.FirstOrDefault(p => string.Equals(p.Name, providerName, StringComparison.OrdinalIgnoreCase)
+                                         && p.Serves(kind));
 
     /// <summary>Plugin DLL file name for a provider name, or empty string if unknown.</summary>
     public string GetAssemblyFileName(string providerName)

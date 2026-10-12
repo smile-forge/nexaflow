@@ -14,6 +14,11 @@ public sealed class OpenAILlmProvider : ILlmProvider
     /// models (embeddings, audio, images, legacy 3.5/instruct) don't.</summary>
     public bool SupportsImages => ModelSupportsVision(_model);
 
+    /// <summary>OpenAI's API, unless the base URL points at an OpenAI-compatible server on this machine.</summary>
+    public DataResidency Residency => EndpointResidency.Of(_config.BaseUrl, DataResidency.LeavesMachine);
+
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
+
     private readonly OpenAIConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
@@ -32,39 +37,30 @@ public sealed class OpenAILlmProvider : ILlmProvider
     // The pooled instance is long-lived with a fixed config payload — build the SDK client once.
     private OpenAIClient Client
     {
-        get
-        {
-            if (_client is null)
-            {
-                var clientOptions = new OpenAIClientOptions();
-                if (!string.IsNullOrWhiteSpace(_config.BaseUrl))
-                    clientOptions.Endpoint = new Uri(_config.BaseUrl);
-                _client = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), clientOptions);
-            }
-            return _client;
-        }
+        get => _client ??= OpenAIClients.Create(_config);
     }
 
     private ChatClient ChatClient => _chatClient ??= Client.GetChatClient(_model);
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> CompleteAsync(
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
     {
         var chatMessages = BuildChatMessages(messages);
         return LlmStreamRunner.RunAsync(_activityManager, $"OpenAI ({_model})…", ProviderName,
-            ct => Deltas(chatMessages, ct), ct);
+            ct => Events(chatMessages, ct), ct);
     }
 
-    private async IAsyncEnumerable<string?> Deltas(
+    private async IAsyncEnumerable<LlmStreamEvent> Events(
         List<ChatMessage> messages,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var update in ChatClient.CompleteChatStreamingAsync(messages, cancellationToken: ct))
             foreach (var part in update.ContentUpdate)
-                yield return part.Text;
+                if (!string.IsNullOrEmpty(part.Text))
+                    yield return new LlmTextDelta(part.Text);
     }
 
     /// <summary>Maps the neutral message list to OpenAI chat messages (system/assistant/user roles;

@@ -235,6 +235,20 @@ public class ConversationContextStripTests
 
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
+    public void AConversation_IsAsHighRiskAsTheRiskiestPagePinnedInIt() => Sta(() =>
+    {
+        // The pinned pages' contents are what the model reads, so their risk decides where they may be sent.
+        var convo = NewConversation();
+        Assert.AreEqual(ContextSecurityRisk.Low, convo.GetContextSecurityRisk(), "nothing pinned");
+
+        convo.AddContextItem(RiskyPageOf("Pdf", "a", ContextSecurityRisk.Low));
+        convo.AddContextItem(RiskyPageOf("Registry", "hklm", ContextSecurityRisk.High));
+
+        Assert.AreEqual(ContextSecurityRisk.High, convo.GetContextSecurityRisk());
+    });
+
+    [TestMethod]
     [CoversNode("aichat-context-collapse")]
     public void CollapsedContext_CarriesTheSecurityRisk_SoTheBadgeSurvivesCollapsing() => Sta(() =>
     {

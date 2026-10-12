@@ -210,7 +210,7 @@ building; `test --failed` reruns exactly what failed. UI journey suites are name
   redirect. Source, tests, docs, project files, this file. Only scratch files outside the repo are written otherwise.
 - **A change is not complete until you've asked who depends on it**: read the edit's `impact:` / `compile:` lines,
   then `nfi test <id>`. A package bump: `graph node external:<Name>` names every consuming project. (NAudio is used by both
-  the Audio feature and Core's `VoiceManager` — a grep of the feature you're in names only one.)
+  the Audio feature and Core's `DictationService` — a grep of the feature you're in names only one.)
 - **After touching `Nexaflow.Core`, run its unit tests before committing** (`Tests.Core`, `--filter
   "FullyQualifiedName~Unit"` — [testing.md](docs/testing.md#fast-inner-loop)).
 - **Update the product tree as you build, not after merge** — concerns, snaplinks, descriptions. Snaplink edits on a

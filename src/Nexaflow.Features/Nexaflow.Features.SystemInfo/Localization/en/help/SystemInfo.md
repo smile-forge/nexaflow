@@ -1,12 +1,16 @@
 # System Info
 
-Reports what this machine is: its Windows build, hardware, displays, disks and security settings.
+Reports what this machine is: its Windows build, hardware, displays, what it can run AI models on, disks and
+security settings.
 
 ---
 
 ## The cards
 
-- Facts are grouped into cards, in this order: Operating System, Hardware, Display, Storage, Windows Security.
+- Facts are grouped into cards, in this order: Operating System, Hardware, Display, Local AI, Storage, Windows Security.
+- The Local AI card says which local models the machine's best graphics card has the memory for — the default model
+  with voice needs 24 GB of the card's own memory, the larger models 32 GB — and lists each graphics card with its
+  maker and memory, any NPU, and the CUDA driver version on NVIDIA machines.
 - A fact the machine will not answer for reads as a dash rather than being left blank.
 - A volume with less than 10% free is flagged on the Storage card.
 - Windows Security items are marked healthy or worth attention as well as reported: Secure Boot, Virtualization-based Security (VBS), Memory Integrity (HVCI), Credential Guard, Kernel DMA Protection and TPM.
@@ -16,6 +20,8 @@ Reports what this machine is: its Windows build, hardware, displays, disks and s
 - Most are read from WMI. The Windows display version (24H2 and the like), the build number and the registered owner come from the registry.
 - Secure Boot is read from the registry, and the TPM through the TPM Base Services API, so both are reported without administrator rights.
 - Graphics memory is read from the display driver's registry key, because the WMI figure caps at 4 GB.
+- The Local AI card reads graphics cards and NPUs from DirectX's adapter list, which every vendor reports to, and the
+  CUDA version from NVIDIA's driver itself.
 - Where Windows does not report Device Guard at all, VBS and Kernel DMA Protection read Unknown instead of being dropped.
 
 ## Refreshing

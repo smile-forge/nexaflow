@@ -443,6 +443,9 @@ public partial class OptionsViewModel : ObservableObject
 
     private void RecheckCanSave() => CanSave = Sections.All(s => s.IsValid);
 
+    /// <summary>The pages holding edits not yet saved — what closing without saving would lose.</summary>
+    public IReadOnlyList<string> UnsavedSections => [.. Sections.Where(s => s.HasChanges).Select(s => s.FriendlyName)];
+
     /// <summary>Selects the section for the given config name (e.g. returning to the Workspaces tab).</summary>
     public void SelectSection(string configName)
     {
