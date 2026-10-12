@@ -1,8 +1,10 @@
-using Nexaflow.Providers.Common;
+using Nexaflow.IO.Common.Audio;
+using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Providers;
+namespace Nexaflow.Tests.IO.Common.Audio;
 
 [TestClass]
+[CoversNode("ai-host")]
 public class PcmResamplerTests
 {
     private static byte[] Pcm(params short[] samples)

@@ -219,7 +219,7 @@ internal sealed class HostConnection : IAsyncDisposable
     {
         int code = await _process.Exited;
         if (Volatile.Read(ref _killReason) is { } killed) End(null, killed);
-        else                                              End(code, $"the AI host exited (code {code})");
+        else End(code, code == 0 ? "the AI host exited" : $"the AI host exited (code {code})" + (_process.LastErrors is { Length: > 0 } errors ? $": {errors}" : ""));
     }
 
     /// <summary>Kills the host — it is hung — and ends the connection with <paramref name="reason"/>, which its exit

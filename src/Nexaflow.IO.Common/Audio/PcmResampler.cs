@@ -1,9 +1,9 @@
-namespace Nexaflow.Providers.Common;
+namespace Nexaflow.IO.Common.Audio;
 
 /// <summary>
 /// Converts a stream of 16-bit mono PCM from one sample rate to another by linear interpolation, chunk by chunk:
 /// the position between chunks is carried over, so a stream cut anywhere comes out as if it had been converted
-/// whole. Good enough for speech going to a recogniser; not for music.
+/// whole. Good enough for speech going to a recogniser or a model; not for music.
 /// </summary>
 public sealed class PcmResampler(int fromRate, int toRate)
 {

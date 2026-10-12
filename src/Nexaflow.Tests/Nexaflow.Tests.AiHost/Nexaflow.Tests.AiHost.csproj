@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net10.0-windows for the client's pipe access control. The host itself runs as its own process, copied into
+    <!-- net10.0-windows for the client's pipe access control. The host also runs as its own process, copied into
          AiHost\ beside these tests by CopyHelperExes, exactly as it sits beside the app. -->
     <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
@@ -29,7 +29,9 @@
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
+    <!-- The host twice over: its internals tested in this process (the scheduler, the context log, the adapters), and
+         its executable run as the app runs it, from AiHost\. -->
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" HelperFolder="AiHost" />
 
     <!-- The [CoversNode] / [NoCoverage] attributes every test class declares its coverage with. -->
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />

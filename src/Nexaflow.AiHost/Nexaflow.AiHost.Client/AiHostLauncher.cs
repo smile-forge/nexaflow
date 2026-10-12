@@ -18,6 +18,9 @@ public interface IAiHostProcess : IDisposable
     /// <summary>Completes when the process has exited, with its exit code.</summary>
     Task<int> Exited { get; }
 
+    /// <summary>The last lines the process wrote to its error output — a native runtime's last words before a crash.</summary>
+    string LastErrors { get; }
+
     void Kill();
 }
 
@@ -35,6 +38,7 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHo
             UseShellExecute        = false,
             CreateNoWindow         = true,
             RedirectStandardInput  = true,
+            RedirectStandardError  = true,
             WorkingDirectory       = Path.GetDirectoryName(hostPath)!,
         };
         info.ArgumentList.Add(AiHostProtocol.PipeArgument);
@@ -55,19 +59,45 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHo
         return new HostProcess(process);
     }
 
-    private sealed class HostProcess(Process process) : IAiHostProcess
+    private sealed class HostProcess : IAiHostProcess
     {
-        public int Id => process.Id;
+        private const int KeptLines = 20;
 
-        public Task<int> Exited { get; } = WaitAsync(process);
+        private readonly Process _process;
+        private readonly Queue<string> _errors = new();
+
+        public HostProcess(Process process)
+        {
+            _process = process;
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is not { Length: > 0 } line) return;
+                lock (_errors)
+                {
+                    _errors.Enqueue(line);
+                    if (_errors.Count > KeptLines) _errors.Dequeue();
+                }
+            };
+            process.BeginErrorReadLine();
+            Exited = WaitAsync(process);
+        }
+
+        public int Id => _process.Id;
+
+        public Task<int> Exited { get; }
+
+        public string LastErrors
+        {
+            get { lock (_errors) return string.Join(Environment.NewLine, _errors); }
+        }
 
         public void Kill()
         {
-            try { process.Kill(entireProcessTree: true); }
+            try { _process.Kill(entireProcessTree: true); }
             catch (InvalidOperationException) { /* already gone */ }
         }
 
-        public void Dispose() => process.Dispose();
+        public void Dispose() => _process.Dispose();
 
         private static async Task<int> WaitAsync(Process process)
         {

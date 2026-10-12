@@ -27,10 +27,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.17.1" />
+    <!-- ONNX's protobuf schema (MIT), for the adapters that rewrite a downloaded model's graph headers. -->
+    <PackageReference Include="OnnxSharp" Version="0.3.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <!-- ComputeHardware: the GPU memory the VRAM budget is drawn from. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

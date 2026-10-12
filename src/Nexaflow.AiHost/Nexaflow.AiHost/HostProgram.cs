@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Generation;
+using Nexaflow.AiHost.Models;
+using Nexaflow.IO.Common.Hardware;
 
 namespace Nexaflow.AiHost;
 
@@ -35,8 +38,16 @@ internal static class HostProgram
 
             log.Write($"connected (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
             NativeRuntime.Load(Argument(args, AiHostProtocol.RuntimePackArgument));
-            using var runtime = new ExecutionRuntime(log);
-            var server = new HostServer(channel, log, [new DescribeHostHandler(runtime)]);
+            using var runtime = new ExecutionRuntime(log, ComputeHardware.Probe());
+            using var models  = new ModelRegistry(runtime, ModelAdapters.Default, log);
+            var scheduler = new GpuScheduler();
+            var server = new HostServer(channel, log,
+            [
+                new DescribeHostHandler(runtime),
+                new LoadModelHandler(models),
+                new UnloadModelHandler(models),
+                new GenerateHandler(models, scheduler),
+            ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");
             return 0;

@@ -96,6 +96,7 @@ internal sealed class FakeHost : IAiHostLauncher
         public bool WasKilled { get; private set; }
 
         public int Id => 4242;
+        public string LastErrors => "";
         public Task<int> Exited => _exited.Task;
 
         public void Exit(int code)

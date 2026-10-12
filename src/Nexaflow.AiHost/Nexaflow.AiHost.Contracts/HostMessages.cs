@@ -19,6 +19,12 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Progress), "progress")]
 [JsonDerivedType(typeof(Completed), "completed")]
 [JsonDerivedType(typeof(Failed), "failed")]
+[JsonDerivedType(typeof(LoadModel), "load")]
+[JsonDerivedType(typeof(ModelLoaded), "loaded")]
+[JsonDerivedType(typeof(UnloadModel), "unload")]
+[JsonDerivedType(typeof(Generate), "generate")]
+[JsonDerivedType(typeof(TextDelta), "delta")]
+[JsonDerivedType(typeof(GenerationEnded), "generated")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>
