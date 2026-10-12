@@ -577,8 +577,9 @@ variable), it calls **`IShellServices.RunElevatedAsync(ElevatedRequest)`**:
 **Layering:** `Nexaflow.Elevation.Contracts` is a pure DTO leaf (`ElevatedRequest`/`ElevatedResult`/
 `Operations`/pipe framing) referenced by `Features.Common` (for the `RunElevatedAsync` signature), Core
 and the bridge. `Nexaflow.PrivilegeBridge` is a standalone `requireAdministrator` exe **outside** the
-in-process layering — Core's csproj copies it beside the app (`ReferenceOutputAssembly=false`, the
-`CopyPrivilegeBridge` target); features never see it.
+in-process layering — Core's csproj copies it beside the app (`ReferenceOutputAssembly=false` with
+`HelperFolder="PrivilegeBridge"`, which the `CopyHelperExes` target in `Directory.Build.targets` reads); features
+never see it.
 
 **To add an elevated operation:** define the DTO in `Elevation.Contracts`, implement an
 `IElevatedOperation` in the bridge, call it via `RunElevatedAsync`. **Never** `Process.Start` with

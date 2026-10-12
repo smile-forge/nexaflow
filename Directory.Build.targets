@@ -130,6 +130,42 @@
     <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
   </PropertyGroup>
 
+  <!-- Helper executables — the privilege bridge, the AI host — run beside the app in a subfolder of their own, which
+       keeps their dependency closures (System.Management; ONNX Runtime's natives) apart from the app's DLLs. A project
+       that ships or tests one references it for build ordering only and names the folder:
+
+         <ProjectReference Include="…\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false"
+                           HelperFolder="AiHost" />
+
+       and its whole output (less symbols) lands in $(OutDir)<HelperFolder>\, where the installer's harvest of Core's
+       output picks it up. The reference has already built the helper with this Configuration+Platform, so only its
+       path is asked for: a nested Build without Platform would be a separate AnyCPU instance building a stray tree. -->
+  <!-- Nothing compiles against a helper, so its framework need not be one the referencing project could consume —
+       the AI host targets a newer Windows SDK (for Windows ML) than the app. -->
+  <ItemGroup>
+    <ProjectReference Update="@(ProjectReference->HasMetadata('HelperFolder'))" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <Target Name="CopyHelperExes" AfterTargets="Build" Condition="'@(ProjectReference->HasMetadata('HelperFolder'))' != ''">
+    <ItemGroup>
+      <_HelperProject Include="@(ProjectReference->HasMetadata('HelperFolder'))" />
+    </ItemGroup>
+
+    <MSBuild Projects="@(_HelperProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
+      <Output TaskParameter="TargetOutputs" ItemName="_HelperTarget" />
+    </MSBuild>
+
+    <ItemGroup>
+      <_HelperFile Include="%(_HelperTarget.RootDir)%(_HelperTarget.Directory)**\*"
+                   Exclude="%(_HelperTarget.RootDir)%(_HelperTarget.Directory)**\*.pdb"
+                   HelperFolder="%(_HelperTarget.HelperFolder)" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_HelperFile)"
+          DestinationFiles="@(_HelperFile->'$(OutDir)%(HelperFolder)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
   <Target Name="DropDuplicateNativeWebView2" AfterTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"

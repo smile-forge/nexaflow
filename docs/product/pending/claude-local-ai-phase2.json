@@ -1,0 +1,37 @@
+{
+  "branch": "claude/local-ai-phase2",
+  "nodes": {
+    "ioterm-job": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Common/Processes/KillOnCloseJob.cs",
+          "class": "KillOnCloseJob"
+        }
+      ]
+    },
+    "ai-host": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "ai-host",
+    "ioterm-job"
+  ]
+}

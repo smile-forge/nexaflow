@@ -165,6 +165,17 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/Nexaflow.AiHost/">
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
   <Folder Name="/Nexaflow.Elevation/">
     <Project Path="src/Nexaflow.Elevation/Nexaflow.Elevation.Contracts/Nexaflow.Elevation.Contracts.csproj">
       <Platform Project="x64" />
@@ -220,6 +231,9 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Nexaflow.Tests.AiHost.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">

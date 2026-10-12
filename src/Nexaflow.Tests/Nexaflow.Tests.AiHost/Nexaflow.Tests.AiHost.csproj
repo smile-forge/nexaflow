@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0-windows for the client's pipe access control. The host itself runs as its own process, copied into
+         AiHost\ beside these tests by CopyHelperExes, exactly as it sits beside the app. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
+
+    <!-- The [CoversNode] / [NoCoverage] attributes every test class declares its coverage with. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

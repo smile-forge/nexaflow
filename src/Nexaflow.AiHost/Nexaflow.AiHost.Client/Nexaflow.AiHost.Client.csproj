@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The app's side of the AI host: starts Nexaflow.AiHost on demand, binds it to the kill-on-close job, speaks the
+    contracts over a pipe only this user can open, and restarts it when it dies or stops answering. One per app;
+    the client provider takes it by injection. Windows-only for the pipe's access control.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.AiHost" />
+  </ItemGroup>
+
+</Project>

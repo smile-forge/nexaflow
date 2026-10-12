@@ -117,45 +117,17 @@
          plugin sets; the attribute lives in a dependency-free leaf so a plugin assembly stays WPF-free. -->
     <ProjectReference Include="..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
 
-    <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is referenced for build
-         ordering only (ReferenceOutputAssembly=false) — CopyPrivilegeBridge places its output explicitly. -->
+    <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is a helper — referenced for build
+         ordering only, its output copied to PrivilegeBridge\ by CopyHelperExes (Directory.Build.targets). -->
     <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
-    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="PrivilegeBridge" />
+
+    <!-- The AI host: the client (real ref) starts the host exe, a helper copied to AiHost\ the same way. -->
+    <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
   </ItemGroup>
 
-  <!--
-    Copy the privilege bridge (exe + its dep closure) into a subfolder of Core's output so
-    (a) ElevatedBridgeLauncher finds it at AppContext.BaseDirectory\PrivilegeBridge\ and
-    (b) the WiX harvester (globs $(_CoreOutDir)**\*) packages it automatically. A subfolder isolates the
-    bridge's deps (its System.Management etc.) from Core's own DLLs. Mirrors the StripNonWinX64Runtimes
-    target's style of resolving another project's output via GetTargetPath.
-  -->
-  <Target Name="CopyPrivilegeBridge" AfterTargets="Build">
-    <PropertyGroup>
-      <_BridgeProj>$(MSBuildThisFileDirectory)..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj</_BridgeProj>
-      <_BridgeDest>$(OutDir)PrivilegeBridge\</_BridgeDest>
-    </PropertyGroup>
 
-    <!-- The bridge is already built by the ProjectReference above (ReferenceOutputAssembly=false keeps its DLL
-         out of Core, but it's still built for ordering), so don't build it again here. A second nested <MSBuild>
-         that drops Platform (Configuration only) is a *separate* AnyCPU instance: it builds a stray bin\<Config>\
-         tree and, on an incremental build, leaves GetTargetPath pointing at an output the bridge wasn't built
-         into. Just query the path, passing the same Configuration+Platform Core was built with. -->
-    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
-      <Output TaskParameter="TargetOutputs" ItemName="_BridgeTarget" />
-    </MSBuild>
-
-    <PropertyGroup>
-      <_BridgeOutDir>$([System.IO.Path]::GetDirectoryName('%(_BridgeTarget.Identity)'))\</_BridgeOutDir>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <_BridgeFile Include="$(_BridgeOutDir)**\*" Exclude="$(_BridgeOutDir)**\*.pdb" />
-    </ItemGroup>
-
-    <MakeDir Directories="$(_BridgeDest)" />
-    <Copy SourceFiles="@(_BridgeFile)" DestinationFiles="@(_BridgeFile->'$(_BridgeDest)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
 
   <!--
     libVLC (VideoLAN.LibVLC.Windows, referenced by Nexaflow.Features.Video) copies its native runtime into
@@ -163,7 +135,7 @@
     Assimp / tree-sitter natives it does NOT flow through ProjectReference into Core's output. Without it the
     WiX harvester (globs Core's output) ships Video.dll with no engine and video playback fails. Copy the
     Video project's libvlc tree into Core's output explicitly — same resolve-via-GetTargetPath pattern as
-    CopyPrivilegeBridge, so it tracks whatever Configuration/Platform Core is built with (we ship win-x64).
+    CopyHelperExes, so it tracks whatever Configuration/Platform Core is built with (we ship win-x64).
   -->
   <Target Name="CopyLibVlc" AfterTargets="Build;Publish">
     <PropertyGroup>

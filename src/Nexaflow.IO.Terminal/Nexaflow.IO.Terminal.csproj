@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- KillOnCloseJob: the process-wide kill-on-close job every child shell is bound to. -->
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
     <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
   </ItemGroup>
