@@ -13,6 +13,8 @@ namespace Nexaflow.Tests.AiHost;
 /// the media is the sample dataset's, whose content is beside the point.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
+[TestCategory("OwnedModel")]
 [CoversNode("ai-host")]
 public class OwnedModelTests
 {

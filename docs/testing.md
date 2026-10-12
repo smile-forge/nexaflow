@@ -280,6 +280,16 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   enforces this — a class whose source shows a window must declare the category and opt out of
   parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
   the assembly it happens to sit in would pass over the other one and read green while testing nothing.
+- **`TestCategory("OwnedModel")`** *(`Tests.Core/AiPaths`, and `OwnedModelTests` in `Tests.AiHost`)* — the agent loop
+  and the AI host on a real model, Gemma 4 E4B, where a machine has it. `NEXAFLOW_TEST_GEMMA` names a folder holding
+  its files as its catalog lays them out (`onnx\…`, the tokenizer, `genai_config.native.json`), and
+  `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack to run it on; without the first they are **inconclusive**, which is what
+  they are in CI. One host and one loaded model serve a run, so the classes do not parallelise. They assert what the
+  harness owns — the tools called and their arguments, what was asked for approval, the page's state afterwards, the
+  reply's language, and that the run ended by answering within a bounded number of corrected tool blocks — never the
+  wording, which varies between models and runs; the one content check is a fact only a recording holds, spoken by
+  the machine's own voice. `NEXAFLOW_TEST_TRANSCRIPTS` names a folder to write every run's turns to — what to read
+  when one fails.
 - **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a
   whole assembly rather than filtering on the category. In `Tests.Visuals` and `Tests.Core` it means only *renders
   WPF off-screen* — an STA thread, no window, safe to parallelise and safe on a runner, so those run in CI. In

@@ -391,6 +391,7 @@ public sealed class AIService : IAIService
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
         var getCommands = BuildGetClientCommandsTool(pageTools);
         var fullCatalog = new List<IClientTool>(pageTools) { getCommands };
+        var toolNames   = fullCatalog.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Expose at most MaxUnfilteredTools page tools (most relevant first) + get_client_commands.
         IReadOnlyList<IClientTool> exposed;
@@ -422,7 +423,7 @@ public sealed class AIService : IAIService
                 ct.ThrowIfCancellationRequested();
 
                 var raw  = (await StreamStepAsync(provider, messages, approval, ct)).Trim();
-                var turn = ClientBlockParser.Parse(raw);
+                var turn = ClientBlockParser.Parse(raw, toolNames);
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.
                 if (turn.Plan is not null && !planMode)

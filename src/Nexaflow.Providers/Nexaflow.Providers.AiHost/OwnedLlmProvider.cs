@@ -169,13 +169,14 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
         }
     }
 
-    /// <summary>What the host needs to run the model: its folder is found from where the store keeps its files.</summary>
+    /// <summary>What the host needs to run the model. Its folder is where its files are: a file's path, less its place
+    /// inside the model's folder — whatever root the store keeps them under.</summary>
     private ModelSpec Spec(OwnedModel model)
     {
         var file   = model.Catalog.Files[0];
         var path   = _assets.Locate(file) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-        var root   = path[..^file.RelativePath.Length];
-        var folder = Path.Combine(root, model.Folder.Replace('/', Path.DirectorySeparatorChar));
+        var inside = file.RelativePath[(model.Folder.Length + 1)..].Replace('/', Path.DirectorySeparatorChar);
+        var folder = path[..^inside.Length].TrimEnd(Path.DirectorySeparatorChar);
         return new ModelSpec(model.Id, folder, model.Adapter, model.MemoryBytes, model.ContextTokens);
     }
 

@@ -130,4 +130,62 @@ public class ClientBlockParserTests
         Assert.IsFalse(turn.HasActions);
         Assert.AreEqual(string.Empty, turn.ExplanationMarkdown);
     }
+
+    private static readonly string[] Tools = ["add_note", "get_weather"];
+
+    [TestMethod]
+    [DataRow("call:add_note{text:buy milk}")]
+    [DataRow("add_note(text=\"buy milk\")")]
+    [DataRow("`get_weather{\"city\": \"Lyon\"}`")]
+    public void AToolCalledAsText_IsAMalformedBlock_SoTheModelIsAskedAgain(string reply)
+    {
+        var turn = ClientBlockParser.Parse(reply, Tools);
+
+        Assert.AreEqual(0, turn.ToolCalls.Count);
+        Assert.AreEqual(1, turn.ParseErrors.Count);
+        StringAssert.Contains(turn.ParseErrors[0], "client_tool");
+    }
+
+    [TestMethod]
+    [DataRow("I can add_note for you if you like.")]
+    [DataRow("Use `add_note` to keep it.")]
+    [DataRow("print(add_note)")]
+    public void AToolOnlyMentioned_IsProse(string reply)
+        => Assert.AreEqual(0, ClientBlockParser.Parse(reply, Tools).ParseErrors.Count);
+
+    [TestMethod]
+    public void BesideARealBlock_ATextCallIsLeftAlone()
+    {
+        var turn = ClientBlockParser.Parse("add_note(x)\n```client_tool\n{\"tool\":\"get_weather\",\"arguments\":{}}\n```", Tools);
+
+        Assert.AreEqual(1, turn.ToolCalls.Count);
+        Assert.AreEqual(0, turn.ParseErrors.Count);
+    }
+
+    [TestMethod]
+    [DataRow("I will add it now.\n\ncall:client_tool\n{\"tool\": \"add_note\", \"arguments\": {\"text\": \"buy milk\"}}")]
+    [DataRow("client_tool\n{\"tool\": \"add_note\",\n \"arguments\": {\"text\": \"buy milk\"}}")]
+    [DataRow("{\"tool\": \"add_note\", \"arguments\": {\"text\": \"buy milk\"}}")]
+    [DataRow("call:client_tool{\"tool\": \"add_note\", \"arguments\": {\"text\": \"buy milk\"}}")]
+    public void ACallBodyWithoutItsFence_IsTheCallItPlainlyIs(string reply)
+    {
+        var turn = ClientBlockParser.Parse(reply, Tools);
+
+        Assert.AreEqual(0, turn.ParseErrors.Count);
+        var call = turn.ToolCalls.Single();
+        Assert.AreEqual(("add_note", "buy milk"), (call.Tool, (string?)call.Arguments["text"]));
+    }
+
+    [TestMethod]
+    public void JsonThatCallsNoKnownTool_IsProse()
+    {
+        var turn = ClientBlockParser.Parse("{\"tool\": \"format_disk\", \"arguments\": {}}", Tools);
+
+        Assert.AreEqual(0, turn.ToolCalls.Count);
+        StringAssert.Contains(turn.ExplanationMarkdown, "format_disk");
+    }
+
+    [TestMethod]
+    public void WithoutToolNames_AnUnfencedBodyIsProse_AsBefore()
+        => Assert.AreEqual(0, ClientBlockParser.Parse("{\"tool\": \"add_note\", \"arguments\": {}}").ToolCalls.Count);
 }
