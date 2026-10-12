@@ -162,7 +162,7 @@ public class MarkdownTranspileTests
     // ── What the fixtures mean ──────────────────────────────────────────────
 
     private static ContentPart Read(string source) =>
-        ContentPart.Of(new MarkdownBlocks().Read(MarkdownParser.Read(source)));
+        ContentPart.Of(new MarkdownBlocks().Read(MarkdownParser.Read(source), source));
 
     /// <summary>
     /// The smallest piece of the document holding where <paramref name="said"/> is written — found by where it stands

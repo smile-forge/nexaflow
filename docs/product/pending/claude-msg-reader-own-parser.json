@@ -98,6 +98,10 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Theming/EmailThemeContribution.cs",
           "class": "EmailThemeContribution"
+        },
+        {
+          "type": "node",
+          "target": "markdown-from-html"
         }
       ],
       "concerns": {
@@ -431,14 +435,94 @@
           }
         ]
       }
+    },
+    "nested-loose-lists": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/Cut.cs",
+          "class": "Cut"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownBlocksTests.cs",
+            "class": "MarkdownBlocksTests",
+            "method": "ItemsSideBySideUnderAnItemStaySideBySide"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownBlocksTests.cs",
+            "class": "MarkdownBlocksTests",
+            "method": "TwoLevelsDownTheyStillDo_RatherThanTurningIntoCode"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownBlocksTests.cs",
+            "class": "MarkdownBlocksTests",
+            "method": "InsideAQuoteTheQuotesMarksAreTakenOffEveryLineToo"
+          }
+        ]
+      }
+    },
+    "markdown-from-html": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/HtmlToMarkdown.cs",
+          "class": "HtmlToMarkdown"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/HtmlToMarkdownTests.cs",
+            "class": "HtmlToMarkdownTests"
+          }
+        ]
+      }
+    },
+    "markdown-paste": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/HtmlToMarkdown.cs",
+          "class": "HtmlToMarkdown",
+          "method": "Convert"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "ReadBestMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.History.cs",
+          "class": "MarkdownSurface",
+          "method": "OnPaste"
+        },
+        {
+          "type": "node",
+          "target": "markdown-from-html"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 39,
   "touched_nodes": [
     "compound-file",
     "email-body",
     "email-parse",
+    "markdown-from-html",
+    "markdown-paste",
+    "nested-loose-lists",
     "rtf-file-reading",
     "rtf-find",
     "rtf-load-gate",
