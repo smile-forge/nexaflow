@@ -17,6 +17,13 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- ModelAsset and the catalog manifest: the runtime pack is fetched through the same asset store as models. -->
+    <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the host's own ONNX Runtime and onnxruntime-genai; Tests.AiHost holds them together. -->
+    <EmbeddedResource Include="RuntimePacks\cuda-pack.json" LogicalName="cuda-pack.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -29,7 +29,8 @@ public class RealHostTests
     {
         public IAiHostProcess? Process { get; private set; }
 
-        public IAiHostProcess Start(string pipeName, string token) => Process = inner.Start(pipeName, token);
+        public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
+            => Process = inner.Start(pipeName, token, environment);
     }
 
     [TestMethod]

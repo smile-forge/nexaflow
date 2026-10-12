@@ -32,9 +32,9 @@ public class HostChannelTests
             Assert.AreEqual(message, await app.ReceiveAsync());
         }
 
-        await host.SendAsync(new HostDescription(4, "1.30.0", ["CUDAExecutionProvider", "CPUExecutionProvider"]));
+        await host.SendAsync(new HostDescription(4, "1.30.0", ["CUDAExecutionProvider", "CPUExecutionProvider"], @"C:\ai\runtime\cuda"));
         var description = (HostDescription)(await app.ReceiveAsync())!;
-        Assert.AreEqual((4L, "1.30.0"), (description.RequestId, description.RuntimeVersion));
+        Assert.AreEqual((4L, "1.30.0", @"C:\ai\runtime\cuda"), (description.RequestId, description.RuntimeVersion, description.RuntimePack));
         CollectionAssert.AreEqual(new[] { "CUDAExecutionProvider", "CPUExecutionProvider" }, description.ExecutionProviders.ToArray());
     }
 

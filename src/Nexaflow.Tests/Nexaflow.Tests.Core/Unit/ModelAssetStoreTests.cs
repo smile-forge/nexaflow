@@ -96,4 +96,92 @@ public class ModelAssetStoreTests
 
         Assert.IsNull(store.Locate(Asset));
     }
+
+    /// <summary>A zip holding <paramref name="entries"/>, as a wheel or a NuGet package is.</summary>
+    private static byte[] Zip(params (string Name, byte[] Bytes)[] entries)
+    {
+        using var stream = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var (name, bytes) in entries)
+                using (var entry = zip.CreateEntry(name).Open())
+                    entry.Write(bytes);
+        return stream.ToArray();
+    }
+
+    private static string Sha(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+    /// <summary>Serves one archive and counts how often it is asked for.</summary>
+    private sealed class ArchiveServer(byte[] archive) : HttpMessageHandler
+    {
+        public int Requests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Requests++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) });
+        }
+    }
+
+    private static readonly byte[] Cublas = [.. Enumerable.Range(0, 30_000).Select(i => (byte)(i * 3))];
+    private static readonly byte[] Cudnn  = [.. Enumerable.Range(0, 20_000).Select(i => (byte)(i * 11))];
+    private static readonly byte[] Wheel  = Zip(("nvidia/bin/cublas.dll", Cublas), ("nvidia/bin/cudnn.dll", Cudnn), ("nvidia/bin/unwanted.dll", Weights));
+
+    private static ModelAsset Packed(string file, string entry, byte[] bytes, byte[] archive)
+        => new($"runtime/{file}", new Uri("https://pypi.test/nvidia.whl"), bytes.Length, Sha(bytes),
+               new ArchiveEntry(entry, archive.Length, Sha(archive)));
+
+    [TestMethod]
+    public async Task FilesPackedInOneArchive_AreFetchedWithOneDownload_AndOnlyTheyAreKept()
+    {
+        var server  = new ArchiveServer(Wheel);
+        var store   = new ModelAssetStore(_root, [], new HttpClient(server));
+        var cublas  = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
+        var cudnn   = Packed("cudnn.dll", "nvidia/bin/cudnn.dll", Cudnn, Wheel);
+        var changed = new List<ModelAsset>();
+        store.Changed += (_, a) => changed.Add(a);
+        var progress = new List<AssetProgress>();
+
+        var paths = await store.EnsureAllAsync([cublas, cudnn], new SyncProgress(progress));
+
+        Assert.AreEqual(1, server.Requests);
+        CollectionAssert.AreEqual(Cublas, File.ReadAllBytes(paths[0]));
+        CollectionAssert.AreEqual(Cudnn, File.ReadAllBytes(paths[1]));
+        CollectionAssert.AreEquivalent(new[] { cublas, cudnn }, changed);
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "runtime", "unwanted.dll")), "an entry nobody asked for is not kept");
+        Assert.IsFalse(Directory.EnumerateFiles(Path.Combine(_root, ".downloads")).Any(), "the archive would cost its size twice");
+        Assert.AreEqual(new AssetProgress(Wheel.Length, Wheel.Length), progress[^1]);
+
+        await store.EnsureAllAsync([cublas, cudnn]);
+        Assert.AreEqual(1, server.Requests, "what is here and verified is not fetched again");
+    }
+
+    [TestMethod]
+    public async Task AnEntryThatIsNotWhatTheCatalogSays_IsRefused_AndNotHandedOut()
+    {
+        var store   = new ModelAssetStore(_root, [], new HttpClient(new ArchiveServer(Wheel)));
+        var claimed = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cudnn, Wheel);   // the catalog describes other bytes
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => store.EnsureAllAsync([claimed]));
+
+        Assert.IsNull(store.Locate(claimed));
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "runtime", "cublas.dll")));
+    }
+
+    [TestMethod]
+    public async Task AnArchiveThatIsNotWhatTheCatalogSays_IsRefused()
+    {
+        var store = new ModelAssetStore(_root, [], new HttpClient(new ArchiveServer(Wheel)));
+        var other = Zip(("nvidia/bin/cublas.dll", Cublas));
+        var asset = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, other);   // expects another archive
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => store.EnsureAllAsync([asset]));
+
+        Assert.IsNull(store.Locate(asset));
+    }
+
+    /// <summary>Records reports as they are made — <see cref="Progress{T}"/> would post them to a context later.</summary>
+    private sealed class SyncProgress(List<AssetProgress> into) : IProgress<AssetProgress>
+    {
+        public void Report(AssetProgress value) => into.Add(value);
+    }
 }

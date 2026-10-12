@@ -28,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
 
     <!-- The [CoversNode] / [NoCoverage] attributes every test class declares its coverage with. -->

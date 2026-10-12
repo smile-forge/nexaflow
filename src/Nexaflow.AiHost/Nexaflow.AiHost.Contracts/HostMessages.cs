@@ -56,8 +56,9 @@ public sealed record Failed(long RequestId, HostErrorKind Kind, string Message) 
 /// <summary>What the host is and what it can run on: its runtime and the execution providers that loaded.</summary>
 public sealed record DescribeHost(long RequestId) : HostRequest(RequestId);
 
-public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders)
-    : HostReply(RequestId);
+/// <param name="RuntimePack">The pack the runtime was loaded from, or null for the install's CPU runtime.</param>
+public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders,
+                                     string? RuntimePack) : HostReply(RequestId);
 
 public enum HostErrorKind
 {

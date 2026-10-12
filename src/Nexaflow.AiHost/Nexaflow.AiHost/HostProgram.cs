@@ -34,6 +34,7 @@ internal static class HostProgram
             }
 
             log.Write($"connected (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
+            NativeRuntime.Load(Argument(args, AiHostProtocol.RuntimePackArgument));
             using var runtime = new ExecutionRuntime(log);
             var server = new HostServer(channel, log, [new DescribeHostHandler(runtime)]);
             await server.RunAsync();

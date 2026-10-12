@@ -13,11 +13,14 @@ public static class AiHostProtocol
     /// app's pipe before giving up.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>The host's command line: <c>--pipe &lt;name&gt; --ai-dir &lt;folder&gt;</c>. The token arrives on
-    /// standard input, so it never shows in a process listing.</summary>
+    /// <summary>The host's command line: <c>--pipe &lt;name&gt; --ai-dir &lt;folder&gt; [--runtime-pack &lt;folder&gt;]</c>.
+    /// The token arrives on standard input, so it never shows in a process listing.</summary>
     public const string PipeArgument = "--pipe";
 
     public const string AiDirArgument = "--ai-dir";
+
+    /// <summary>A runtime pack to load ONNX Runtime and onnxruntime-genai from instead of the install's CPU runtime.</summary>
+    public const string RuntimePackArgument = "--runtime-pack";
 }
 
 /// <summary>The serializer for <see cref="HostMessage"/>, generated at build time.</summary>

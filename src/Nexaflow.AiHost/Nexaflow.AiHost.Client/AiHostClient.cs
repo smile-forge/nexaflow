@@ -17,6 +17,7 @@ public sealed class AiHostClient : IAsyncDisposable
     private readonly SemaphoreSlim _starting = new(1, 1);
     private readonly Queue<DateTimeOffset> _crashes = new();
     private HostConnection? _connection;
+    private AiHostEnvironment _environment = AiHostEnvironment.Cpu;
     private bool _disposed;
 
     public AiHostClient(IAiHostLauncher launcher, AiHostTimings? timings = null, TimeProvider? time = null)
@@ -31,6 +32,14 @@ public sealed class AiHostClient : IAsyncDisposable
     public event EventHandler<AiHostExitedEventArgs>? HostExited;
 
     public bool IsRunning => _connection is { IsAlive: true };
+
+    /// <summary>What the next host is started with. A host already running with something else serves out the
+    /// requests it has, and the next request starts its replacement.</summary>
+    public AiHostEnvironment Environment
+    {
+        get => Volatile.Read(ref _environment);
+        set => Volatile.Write(ref _environment, value);
+    }
 
     /// <summary>
     /// Sends the request <paramref name="create"/> makes from a fresh id and yields its replies until it ends.
@@ -61,17 +70,23 @@ public sealed class AiHostClient : IAsyncDisposable
         }
     }
 
-    /// <summary>The live connection, starting a host first when there is none.</summary>
+    /// <summary>The live connection, starting a host first when there is none — or when the one running was started
+    /// with another environment, once it has finished what it was doing.</summary>
     private async Task<HostConnection> ConnectAsync(CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_connection is { IsAlive: true } live) return live;
+        var environment = Environment;
+        if (_connection is { IsAlive: true } live && live.Environment == environment) return live;
 
         await _starting.WaitAsync(ct);
         try
         {
-            if (_connection is { IsAlive: true } started) return started;
-            if (_connection is { } dead) await dead.DisposeAsync();
+            if (_connection is { IsAlive: true } started && started.Environment == environment) return started;
+            if (_connection is { } previous)
+            {
+                await previous.WhenIdle.WaitAsync(ct);
+                await previous.DisposeAsync();
+            }
             _connection = null;
 
             int recent = RecentCrashes();
@@ -79,9 +94,8 @@ public sealed class AiHostClient : IAsyncDisposable
                 throw new AiHostException(AiHostFailure.Unavailable,
                     $"The AI host stopped unexpectedly {recent} times in {_timings.CrashWindow.TotalMinutes:0.#} minutes; it is not restarted until that eases.");
 
-            var connection = await HostConnection.StartAsync(_launcher, _timings, _time, OnEnded, ct);
-            _connection = connection;
-            return connection;
+            _connection = await HostConnection.StartAsync(_launcher, environment, _timings, _time, OnEnded, ct);
+            return _connection;
         }
         finally { _starting.Release(); }
     }

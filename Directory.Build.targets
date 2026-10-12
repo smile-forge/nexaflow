@@ -140,8 +140,7 @@
        and its whole output (less symbols) lands in $(OutDir)<HelperFolder>\, where the installer's harvest of Core's
        output picks it up. The reference has already built the helper with this Configuration+Platform, so only its
        path is asked for: a nested Build without Platform would be a separate AnyCPU instance building a stray tree. -->
-  <!-- Nothing compiles against a helper, so its framework need not be one the referencing project could consume —
-       the AI host targets a newer Windows SDK (for Windows ML) than the app. -->
+  <!-- Nothing compiles against a helper, so its framework need not be one the referencing project could consume. -->
   <ItemGroup>
     <ProjectReference Update="@(ProjectReference->HasMetadata('HelperFolder'))" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>

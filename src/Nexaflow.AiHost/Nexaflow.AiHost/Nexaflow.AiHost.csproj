@@ -6,14 +6,15 @@
     and spoken to over a private pipe (Nexaflow.AiHost.Contracts). A native crash or a hang here costs a restart, not
     the app; see docs/local-ai.md.
 
-    Ships in the base install without the CUDA pack: the NVIDIA libraries, ONNX Runtime's CUDA provider and
-    onnxruntime-genai's CUDA layer are downloaded into the AI folder on machines that can use them, so they are left
-    out of this output (ExcludeCudaPack).
+    Ships in the base install without the CUDA pack: on machines that can use CUDA, the pack — ONNX Runtime and
+    onnxruntime-genai with their CUDA layers, and NVIDIA's cuBLAS and cuDNN — is downloaded into the AI folder and the
+    host loads its runtime from there (NativeRuntime). The install's own runtime is the CPU one, so the CUDA layers are
+    left out of this output (ExcludeCudaPack).
   -->
   <PropertyGroup>
     <!-- WinExe: no console is allocated, so starting the host never flashes a window. -->
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
     <Nullable>enable</Nullable>

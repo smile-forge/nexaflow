@@ -16,7 +16,7 @@ internal sealed class ExecutionRuntime : IDisposable
         var env = OrtEnv.Instance();
         Version            = env.GetVersionString();
         ExecutionProviders = env.GetAvailableProviders();
-        log.Write($"ONNX Runtime {Version}; providers {string.Join(", ", ExecutionProviders)}");
+        log.Write($"ONNX Runtime {Version} from {NativeRuntime.Pack ?? "the install"}; providers {string.Join(", ", ExecutionProviders)}");
     }
 
     public string Version { get; }

@@ -28,14 +28,46 @@ internal sealed class HostConnection : IAsyncDisposable
     private bool _closing;
     private Task _reading = Task.CompletedTask;
     private Task _beating = Task.CompletedTask;
+    private readonly object _idleGate = new();
+    private int _inFlight;
+    private TaskCompletionSource _idle = Idle();
 
-    private HostConnection(IAiHostProcess process, HostChannel channel, AiHostTimings timings, TimeProvider time)
+    private HostConnection(IAiHostProcess process, AiHostEnvironment environment, HostChannel channel, AiHostTimings timings,
+                           TimeProvider time)
     {
-        _process  = process;
-        _channel  = channel;
-        _timings  = timings;
-        _time     = time;
-        _lastPong = time.GetTimestamp();
+        _process     = process;
+        Environment  = environment;
+        _channel     = channel;
+        _timings     = timings;
+        _time        = time;
+        _lastPong    = time.GetTimestamp();
+    }
+
+    public AiHostEnvironment Environment { get; }
+
+    /// <summary>Completes when no request is in flight.</summary>
+    public Task WhenIdle
+    {
+        get { lock (_idleGate) return _idle.Task; }
+    }
+
+    private static TaskCompletionSource Idle()
+    {
+        var idle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        idle.SetResult();
+        return idle;
+    }
+
+    private void Opened()
+    {
+        lock (_idleGate)
+            if (_inFlight++ == 0) _idle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private void Closed()
+    {
+        lock (_idleGate)
+            if (--_inFlight == 0) _idle.TrySetResult();
     }
 
     public event EventHandler<AiHostExitedEventArgs>? Ended;
@@ -45,8 +77,8 @@ internal sealed class HostConnection : IAsyncDisposable
     /// <summary>Opens a pipe only this user can reach, starts a host on it and waits for its token.</summary>
     /// <param name="onEnded">Attached before anything can end the connection: a host that dies straight after the
     /// handshake must still be counted.</param>
-    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostTimings timings, TimeProvider time,
-                                                        EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
+    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostEnvironment environment, AiHostTimings timings,
+                                                        TimeProvider time, EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
         string pipeName = "nexaflow-aihost-" + Guid.NewGuid().ToString("N");
         string token    = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -55,7 +87,7 @@ internal sealed class HostConnection : IAsyncDisposable
         IAiHostProcess? process = null;
         try
         {
-            process = launcher.Start(pipeName, token);
+            process = launcher.Start(pipeName, token, environment);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(AiHostProtocol.ConnectTimeout);
 
@@ -78,7 +110,7 @@ internal sealed class HostConnection : IAsyncDisposable
             }
             await channel.SendAsync(new Welcome(), timeout.Token);
 
-            var connection = new HostConnection(process, channel, timings, time);
+            var connection = new HostConnection(process, environment, channel, timings, time);
             connection.Ended += onEnded;
             connection._reading = connection.ReadAsync();
             connection._beating = connection.BeatAsync();
@@ -116,6 +148,7 @@ internal sealed class HostConnection : IAsyncDisposable
         var request = create(Interlocked.Increment(ref _nextId));
         var replies = Channel.CreateUnbounded<HostReply>(new UnboundedChannelOptions { SingleReader = true });
         _open[request.RequestId] = replies;
+        Opened();
         if (!IsAlive) replies.Writer.TryComplete(Lost("The AI host has stopped."));
         try
         {
@@ -275,6 +308,7 @@ internal sealed class HostConnection : IAsyncDisposable
                 catch (Exception ex) when (ex is ChannelClosedException or IOException or ObjectDisposedException) { }
             }
             connection.Forget(id);
+            connection.Closed();
         }
     }
 }

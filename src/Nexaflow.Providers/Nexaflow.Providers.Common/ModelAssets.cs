@@ -3,11 +3,20 @@ using System.Text.Json;
 namespace Nexaflow.Providers.Common;
 
 /// <summary>
-/// A file a model needs — its weights, a vocabulary — fetched once and kept. <see cref="RelativePath"/> is where it
-/// lives under the asset store's root and what identifies it; <see cref="Size"/> and <see cref="Sha256"/> are what
-/// it must be, so a file is used only when it is exactly what the catalog says.
+/// A file a model needs — its weights, a vocabulary, a runtime library — fetched once and kept. <see cref="RelativePath"/>
+/// is where it lives under the asset store's root and what identifies it; <see cref="Size"/> and <see cref="Sha256"/>
+/// are what it must be, so a file is used only when it is exactly what the catalog says. A file published inside an
+/// archive names it as <see cref="Archive"/>, and <see cref="Source"/> is then the archive's address.
 /// </summary>
-public sealed record ModelAsset(string RelativePath, Uri Source, long Size, string Sha256);
+public sealed record ModelAsset(string RelativePath, Uri Source, long Size, string Sha256, ArchiveEntry? Archive = null);
+
+/// <summary>
+/// Where an asset is packed when it is not published on its own — an entry of a zip archive such as a Python wheel or
+/// a NuGet package, as NVIDIA and Microsoft ship their runtime libraries. The archive is fetched and checked whole,
+/// once for every asset packed in it, and only the entries wanted are kept.
+/// </summary>
+/// <param name="Entry">The entry's path inside the archive.</param>
+public sealed record ArchiveEntry(string Entry, long ArchiveSize, string ArchiveSha256);
 
 /// <summary>How far an asset's download has got.</summary>
 public readonly record struct AssetProgress(long Received, long Total)
@@ -29,6 +38,12 @@ public interface IModelAssetStore
     /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
     Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default);
 
+    /// <summary>Makes every asset present and returns their paths in order. Each archive they are packed in is fetched
+    /// once for all of them; <paramref name="progress"/> counts every byte the set still needs.</summary>
+    /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
+    Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
+                                               CancellationToken ct = default);
+
     /// <summary>An asset arrived on disk, verified, or was removed — whoever downloaded or removed it. A provider
     /// whose model it is becomes available, or stops being. Raised on whichever thread made the change.</summary>
     event EventHandler<ModelAsset>? Changed;
@@ -48,10 +63,13 @@ public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<M
 
 /// <summary>
 /// The manifest a provider ships of the models it can fetch: for each, an id (what an ability-grid column names),
-/// a display name, and its files with their source, size and SHA-256.
+/// a display name, and its files with their source, size and SHA-256. A file published inside an archive gives the
+/// archive's address as its url, and says which entry it is and what the archive must be:
 /// <code>
 /// { "models": [ { "id": "base.en", "displayName": "…",
-///                 "files": [ { "path": "whisper/ggml-base.en.bin", "url": "https://…", "size": 147964211, "sha256": "…" } ] } ] }
+///                 "files": [ { "path": "whisper/ggml-base.en.bin", "url": "https://…", "size": 147964211, "sha256": "…" },
+///                            { "path": "runtime/…/cudnn64_9.dll", "url": "https://…/nvidia_cudnn_cu13-….whl", "size": 270448, "sha256": "…",
+///                              "archive": { "entry": "nvidia/cudnn/bin/cudnn64_9.dll", "size": 436469905, "sha256": "…" } } ] } ] }
 /// </code>
 /// </summary>
 public static class ModelCatalog
@@ -60,7 +78,8 @@ public static class ModelCatalog
 
     private sealed record Manifest(List<ManifestModel>? Models);
     private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files);
-    private sealed record ManifestFile(string? Path, string? Url, long Size, string? Sha256);
+    private sealed record ManifestFile(string? Path, string? Url, long Size, string? Sha256, ManifestArchive? Archive);
+    private sealed record ManifestArchive(string? Entry, long Size, string? Sha256);
 
     /// <exception cref="InvalidDataException">The manifest is malformed, or a model or file lacks what it must say.</exception>
     public static IReadOnlyList<CatalogModel> Read(Stream json)
@@ -90,6 +109,14 @@ public static class ModelCatalog
         if (f.Size <= 0 || f.Sha256 is not { Length: 64 })
             throw new InvalidDataException($"Catalog file '{f.Path}' does not say its size and SHA-256.");
 
-        return new ModelAsset(f.Path.Replace('\\', '/'), url, f.Size, f.Sha256.ToLowerInvariant());
+        ArchiveEntry? archive = null;
+        if (f.Archive is { } a)
+        {
+            if (string.IsNullOrWhiteSpace(a.Entry) || a.Size <= 0 || a.Sha256 is not { Length: 64 })
+                throw new InvalidDataException($"Catalog file '{f.Path}' is packed in an archive it does not fully describe.");
+            archive = new ArchiveEntry(a.Entry, a.Size, a.Sha256.ToLowerInvariant());
+        }
+
+        return new ModelAsset(f.Path.Replace('\\', '/'), url, f.Size, f.Sha256.ToLowerInvariant(), archive);
     }
 }

@@ -7,7 +7,7 @@ namespace Nexaflow.AiHost.Client;
 /// <summary>Starts a host that will connect to <c>pipeName</c> and prove itself with <c>token</c>.</summary>
 public interface IAiHostLauncher
 {
-    IAiHostProcess Start(string pipeName, string token);
+    IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment);
 }
 
 /// <summary>A started host, as the client watches it.</summary>
@@ -25,7 +25,7 @@ public interface IAiHostProcess : IDisposable
 /// kill-on-close job so it can never outlive the app.</summary>
 public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHostLauncher
 {
-    public IAiHostProcess Start(string pipeName, string token)
+    public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
     {
         if (!File.Exists(hostPath))
             throw new AiHostException(AiHostFailure.Unavailable, $"The AI host is not installed ({hostPath}).");
@@ -41,6 +41,11 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHo
         info.ArgumentList.Add(pipeName);
         info.ArgumentList.Add(AiHostProtocol.AiDirArgument);
         info.ArgumentList.Add(aiDir);
+        if (environment.RuntimePack is { } pack)
+        {
+            info.ArgumentList.Add(AiHostProtocol.RuntimePackArgument);
+            info.ArgumentList.Add(pack);
+        }
 
         var process = Process.Start(info)
             ?? throw new AiHostException(AiHostFailure.Unavailable, "The AI host could not be started.");

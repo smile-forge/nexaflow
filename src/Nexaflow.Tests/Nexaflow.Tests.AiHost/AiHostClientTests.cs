@@ -168,4 +168,31 @@ public class AiHostClientTests
         await Describe(client);
         Assert.AreEqual(Fast.CrashLimit + 1, host.Starts);
     }
+
+    [TestMethod]
+    public async Task ANewEnvironment_ReplacesTheHost_OnceItHasFinishedWhatItWasDoing()
+    {
+        var release = new TaskCompletionSource();
+        var host = new FakeHost
+        {
+            Serve = async (r, c) => { await release.Task; await FakeHost.Describe(r, c); },
+        };
+        await using var client = new AiHostClient(host, Fast);
+        var pack = new AiHostEnvironment(@"C:\ai\runtime\cuda");
+
+        var running = Describe(client);                    // in flight on the CPU host
+        while (!client.IsRunning) await Task.Delay(10);
+        client.Environment = pack;
+        var next = Describe(client);                       // waits for the CPU host to finish
+
+        await Task.Delay(200);
+        Assert.AreEqual(1, host.Starts, "a host is not replaced under a request it is serving");
+        host.Serve = FakeHost.Describe;
+        release.SetResult();
+        await running;
+        await next;
+
+        Assert.AreEqual(2, host.Starts);
+        CollectionAssert.AreEqual(new[] { AiHostEnvironment.Cpu, pack }, host.Environments.ToArray());
+    }
 }

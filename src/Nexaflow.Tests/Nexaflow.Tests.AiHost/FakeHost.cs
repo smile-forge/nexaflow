@@ -25,11 +25,15 @@ internal sealed class FakeHost : IAiHostLauncher
 
     public ConcurrentBag<long> CancelsReceived { get; } = [];
 
+    /// <summary>What each host was started with, in order.</summary>
+    public ConcurrentQueue<AiHostEnvironment> Environments { get; } = [];
+
     public FakeProcess? Last { get; private set; }
 
-    public IAiHostProcess Start(string pipeName, string token)
+    public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
     {
         Interlocked.Increment(ref _starts);
+        Environments.Enqueue(environment);
         var process = new FakeProcess();
         Last = process;
         _ = RunAsync(pipeName, WrongToken ?? token, process);
@@ -38,7 +42,7 @@ internal sealed class FakeHost : IAiHostLauncher
 
     public static async Task Describe(HostRequest request, HostChannel channel)
     {
-        await channel.SendAsync(new HostDescription(request.RequestId, "fake", ["CPUExecutionProvider"]));
+        await channel.SendAsync(new HostDescription(request.RequestId, "fake", ["CPUExecutionProvider"], RuntimePack: null));
         await channel.SendAsync(new Completed(request.RequestId));
     }
 
