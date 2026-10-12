@@ -76,13 +76,27 @@
           "class": "ContextAudio"
         }
       ]
+    },
+    "audio-ai-act": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioAiTests.cs",
+            "class": "AudioAiTests",
+            "method": "ToolSurface_IsSixSafeOperations"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 7,
   "touched_nodes": [
     "agent-tool-audio",
     "ai-host",
+    "audio-ai-act",
     "audio-ai-act-listen",
     "ioterm-job",
     "owned-llm",

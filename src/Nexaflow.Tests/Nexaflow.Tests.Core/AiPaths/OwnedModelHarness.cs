@@ -118,7 +118,7 @@ internal static class OwnedModelHarness
         {
             public void Update(string label) { }
             public void Complete() { }
-            public void Fail(string reason) { }
+            public void Fail(string? reason = null) { }
         }
     }
 }
