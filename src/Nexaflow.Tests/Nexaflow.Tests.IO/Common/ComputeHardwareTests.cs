@@ -1,9 +1,11 @@
 using Nexaflow.IO.Common.Hardware;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.IO.Common;
 
 /// <summary>Which local models a machine's hardware suits, by its best GPU's own memory.</summary>
 [TestClass]
+[CoversNode("sysinfo-local-ai")]
 public class ComputeHardwareTests
 {
     private static ComputeHardwareReport With(params ComputeAdapter[] adapters) => new(adapters, null);

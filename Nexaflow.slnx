@@ -161,6 +161,9 @@
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/Nexaflow.Providers.OpenAI.csproj" Id="213a1d5d-278a-4d03-a0e0-17fb052675ac">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Whisper/Nexaflow.Providers.Whisper.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Nexaflow.Elevation/">
     <Project Path="src/Nexaflow.Elevation/Nexaflow.Elevation.Contracts/Nexaflow.Elevation.Contracts.csproj">

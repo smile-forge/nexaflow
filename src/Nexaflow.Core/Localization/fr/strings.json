@@ -120,14 +120,13 @@
   "Shell.Config.Shell.TextFontSize": "Taille du texte",
   "Shell.Config.Shell.PrestartAtLogin": "Démarrer avec Windows",
   "Shell.Config.Shell.DisableAnimationsOnBattery": "Désactiver les animations d'arrière-plan sur batterie",
-  "Shell.Config.Voice.ModelSize": "Taille du modèle",
-  "Shell.Config.Voice.Language": "Langue",
+
   "Shell.Config.Security": "Sécurité",
   "Shell.Config.Security.AllowWindowAccess": "Autoriser l'IA à voir les autres fenêtres",
   "Shell.Config.Security.AllowWindowAccess.Yes": "Oui",
   "Shell.Config.Security.AllowWindowAccess.No": "Non",
   "Shell.Config.Security.AllowWindowAccess.Prompt": "Demander",
-  "Shell.Config.Voice": "Voix",
+
   "Shell.Config.Workspaces": "Espaces de travail",
   "Shell.Config.About": "À propos",
   "Shell.Config.Ai": "IA",

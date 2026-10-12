@@ -232,8 +232,9 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
         _ctx.Workspace.AiConfig.Columns = [pair];
         _ctx.Workspace.AiConfig.Assignments.Clear();
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
-            if (AiAbilityNames.Kind(ability) == ModelKind.Language)
-                _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
+                if (AiAbilityNames.Kind(ability) == ModelKind.Language)
+                    _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
+            _ctx.Workspace.AiConfig.AddDefaultSpeechIn(LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
@@ -467,8 +468,9 @@ public partial class SetupWizardViewModel : ObservableObject
         var assignedColumnIds = ai.AssignedColumnIds();
         if (assignedColumnIds.Count == 0) return false;
         var byName = p.ProviderConfigs.ToDictionary(c => c.FriendlyName);
+        // Configured means a language model is ready to answer; a speech model alone does not make one.
         return ai.Columns
-            .Where(c => assignedColumnIds.Contains(c.Id))
+            .Where(c => c.Kind == ModelKind.Language && assignedColumnIds.Contains(c.Id))
             .Any(c => byName.TryGetValue(c.ProviderName, out var cfg)
                       && ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg));
     }

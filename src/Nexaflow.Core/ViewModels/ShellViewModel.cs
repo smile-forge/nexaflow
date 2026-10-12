@@ -233,10 +233,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True while the mic is actively capturing — disables the input box.</summary>
     [ObservableProperty] private bool    _isRecording;
 
-    /// <summary>Mic button enabled only when host capabilities pass and the model is downloaded.</summary>
+    /// <summary>Mic button enabled only when the workspace's Speech In chain has a model ready to listen.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ToggleVoiceCommand))]
     private bool _voiceAvailable;
+
+    /// <summary>This window's dictation — the microphone streamed into the Speech In model.</summary>
+    private readonly DictationService _dictation = new();
 
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
@@ -659,16 +662,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         };
 
         // ── Voice input availability + transcription wiring ──────────────────
-        HostCapabilityService.Instance.CapabilitiesReady += (_, _) => RecomputeVoiceAvailable();
-        WhisperModelManager.Instance.ModelReadyChanged   += (_, _) => RecomputeVoiceAvailable();
+        // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away.
+        workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
 
-        VoiceManager.Instance.RecordingChanged += (_, rec) =>
+        _dictation.RecordingChanged += (_, rec) =>
             _ui.Invoke(() => { IsRecording = rec; VoiceActive = rec; });
-        // Voice owns the input display while listening — set, don't append; it
-        // self-corrects each pass and a final pass lands when listening stops.
-        VoiceManager.Instance.TranscriptionUpdated += (_, text) =>
+        // Voice owns the input display while listening — set, don't append; the text is everything heard so
+        // far, revised as the model hears more, and its last word lands when listening stops.
+        _dictation.TranscriptUpdated += (_, text) =>
             _ui.Invoke(() => AiInputText = text);
-        VoiceManager.Instance.Error += (_, msg) =>
+        _dictation.Failed += (_, msg) =>
             _ui.Invoke(() => ShowError("Voice", msg));
 
         RecomputeVoiceAvailable();
@@ -733,12 +736,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeUnread() => UnreadCount = Notifications.Count(n => !n.IsRead);
 
     private void RecomputeVoiceAvailable()
-    {
-        var cfg = ConfigManager.Instance.GetAll().OfType<VoiceConfig>().FirstOrDefault();
-        VoiceAvailable = cfg is not null
-            && HostCapabilityService.Instance.Report?.CanRunWhisper == true
-            && WhisperModelManager.Instance.IsModelReady(cfg);
-    }
+        => VoiceAvailable = CurrentRuntime.AiService?.SpeechToText is not null;
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
@@ -1520,10 +1518,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [RelayCommand(CanExecute = nameof(CanToggleVoice))]
     private async Task ToggleVoice()
     {
-        if (!IsRecording)
-            VoiceManager.Instance.StartListening();
-        else
-            await VoiceManager.Instance.StopListeningAsync();   // manual early stop; also auto-stops
+        if (_dictation.IsRecording)
+            await _dictation.StopAsync();   // manual early stop; it also stops by itself after a silence
+        else if (CurrentRuntime.AiService?.SpeechToText is { } model)
+            await _dictation.StartAsync(model);
     }
 
     /// <summary>

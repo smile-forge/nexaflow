@@ -232,17 +232,181 @@
           }
         ]
       }
+    },
+    "voice-input": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ToggleVoice"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Mic"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/DictationService.cs",
+          "class": "DictationService"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
+            "class": "SpeechInTests"
+          }
+        ]
+      }
+    },
+    "aibar-voice-config": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/AiConfig.cs",
+          "class": "AiConfig",
+          "method": "AddDefaultSpeechIn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/LegacyVoiceSettings.cs",
+          "class": "LegacyVoiceSettings"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
+            "class": "SpeechInTests",
+            "method": "AGridThatHasNeverHadSpeechIn_StartsOnWhisper"
+          }
+        ]
+      }
+    },
+    "providers-speech-to-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ISpeechToTextProvider.cs",
+          "class": "ISpeechToTextProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAISpeechToTextProvider.cs",
+          "class": "OpenAISpeechToTextProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Whisper/WhisperSpeechToTextProvider.cs",
+          "class": "WhisperSpeechToTextProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OpenAISpeechToTextTests.cs",
+            "class": "OpenAISpeechToTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/WhisperProviderTests.cs",
+            "class": "WhisperProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/PcmResamplerTests.cs",
+            "class": "PcmResamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelKindsTests.cs",
+            "class": "ModelKindsTests"
+          }
+        ]
+      }
+    },
+    "ai-model-assets": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ModelAssetStore.cs",
+          "class": "ModelAssetStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Downloads/VerifiedDownload.cs",
+          "class": "VerifiedDownload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ModelAssets.cs",
+          "class": "ModelCatalog"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ModelAssetStoreTests.cs",
+            "class": "ModelAssetStoreTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/VerifiedDownloadTests.cs",
+            "class": "VerifiedDownloadTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelCatalogTests.cs",
+            "class": "ModelCatalogTests"
+          }
+        ]
+      }
+    },
+    "whisper": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Whisper/Nexaflow.Providers.Whisper.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Whisper/WhisperSession.cs",
+          "class": "WhisperSession"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/WhisperProviderTests.cs",
+            "class": "WhisperProviderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 22,
   "touched_nodes": [
+    "ai-model-assets",
     "aibar-context-residency",
     "aibar-reply-draft",
+    "aibar-voice-config",
     "aichat-context-chips",
     "aichat-thread",
     "opt-ai-ability-grid",
     "providers-common",
-    "sysinfo-local-ai"
+    "providers-speech-to-text",
+    "sysinfo-local-ai",
+    "voice-input",
+    "whisper"
   ]
 }

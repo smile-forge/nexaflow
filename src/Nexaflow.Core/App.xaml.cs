@@ -140,7 +140,6 @@ public partial class App : Application
         IsResident = prestart;
 
         var activityManager = new BackgroundActivityManager();
-        VoiceConfig voiceConfig;
 
         // ── Initialisation + first window — a throw from this sequence ends the launch ──
         // Left to OnDispatcherUnhandledException it would be handled, and the launch would carry on with no window while
@@ -148,7 +147,7 @@ public partial class App : Application
         // and stays survivable; only what this sequence itself throws is terminal.
         try
         {
-            voiceConfig = InitializeApp(activityManager);
+            InitializeApp(activityManager);
             StartupTimings.Mark("InitializeApp");
 
             // ── Main window — skipped in --prestart mode (windowless login daemon) ──
@@ -179,15 +178,7 @@ public partial class App : Application
         // into an archive works as early as possible.
         Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
 
-        // Voice model download — background, kicked off only after the window is up (or after init in
-        // prestart mode) so it never competes with window construction / first render.
-        //
-        // Not under a UI journey. Each journey launches with a throwaway config dir, so the model is never
-        // already there and every single test re-downloads a large file over the network — then posts a
-        // message about how it went, on top of the window the journey is trying to click. A control a test
-        // cannot reach because a toast is covering it fails as though the control itself were broken.
-        if (!UiTest)
-            Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
+
 
         // Update check — runs in both paths (the daemon finds updates windowless and posts a message;
         // the first window replays it as a toast). Skipped on first run.
@@ -201,11 +192,10 @@ public partial class App : Application
 
     /// <summary>
     /// Runs all app-level initialisation shared by both the normal and <c>--prestart</c> launch paths:
-    /// config registration, providers, workspaces, file map, features, the voice capability probe,
-    /// the torn-off window factory, the taskbar JumpList and the single-instance IPC listener.
-    /// Returns the <see cref="VoiceConfig"/> so the caller can start the model download afterwards.
+    /// config registration, providers, workspaces, file map, features, the torn-off window factory,
+    /// the taskbar JumpList and the single-instance IPC listener.
     /// </summary>
-    private VoiceConfig InitializeApp(BackgroundActivityManager activityManager)
+    private void InitializeApp(BackgroundActivityManager activityManager)
     {
         // ── 0. Base path — single source of truth for all app-data paths ─────
         // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
@@ -264,8 +254,10 @@ public partial class App : Application
 
         // ── 3. Providers — union of all assembly file names across workspaces ──
         // Model files live outside the roaming profile; the folder voice models were once kept in is adopted from.
+        // A UI journey fetches nothing: a download is minutes of network the run cannot wait on or count on.
         ProviderManager.Instance.Initialize(activityManager,
-            new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")]));
+            new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
+                                downloadsAllowed: !UiTest));
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -275,6 +267,7 @@ public partial class App : Application
             {
                 var ai = new AiConfig();
                 ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
+                ai.AddDefaultSpeechIn(AiConfig.DefaultSpeechModel);   // its provider loads with the rest; the workspace saves it
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Distinct();
@@ -340,38 +333,11 @@ public partial class App : Application
         if (UiTest) FeatureCatalog.Instance.EnsureAllActivated();
         StartupTimings.Mark("Init.Features");
 
-        // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
-        var voiceConfig = new VoiceConfig();
-        ConfigManager.Instance.Register(voiceConfig, voiceConfig.ConfigName);
-        WhisperModelManager.Instance.Initialize(activityManager);
-
-        // Force the app-global inbox into existence here, on the UI thread, so it captures the app
-        // dispatcher even in the windowless --prestart daemon (which never builds a ShellViewModel — its
-        // first Post would otherwise come from the background update-check thread).
+        // ── 6a. The app-global inbox ─────────────────────────────────────────
+        // Force it into existence here, on the UI thread, so it captures the app dispatcher even in the windowless
+        // --prestart daemon (which never builds a ShellViewModel — its first Post would otherwise come from the
+        // background update-check thread).
         _ = MessageCenter.Instance;
-
-        // Surface download outcomes as messages (global, so they survive the windowless daemon).
-        WhisperModelManager.Instance.ModelDownloadCompleted += (_, _) =>
-            MessageCenter.Instance.Post(new NotificationItem
-            {
-                Title     = "Voice ready",
-                Body      = "Voice model downloaded — voice input is ready.",
-                Severity  = MessageSeverity.Info,
-                ShowToast = true,
-            });
-        WhisperModelManager.Instance.ModelDownloadFailed += (_, msg) =>
-            MessageCenter.Instance.Post(new NotificationItem
-            {
-                Title     = "Voice model download failed",
-                Body      = msg,
-                Severity  = MessageSeverity.Error,
-                ShowToast = true,
-                Actions   = [new MessageAction("Retry",
-                    new RelayCommand(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig)), IsPrimary: true)],
-            });
-
-        HostCapabilityService.Instance.StartProbe();
-        StartupTimings.Mark("Init.Voice");
 
         // ── 6b. Damaged config: say so, say what came back ───────────────────
         // Settings that could not be read are already on defaults and on record in the crash log; this is
@@ -390,8 +356,6 @@ public partial class App : Application
         // ── 9. Single-instance IPC listener — a later click signals us to open a window ──
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
         StartupTimings.Mark("Init.JumpListAndIpc");
-
-        return voiceConfig;
     }
 
     /// <summary>
@@ -424,7 +388,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
-        VoiceManager.Instance.Dispose();
+        
         _singleInstance.Dispose();
         base.OnExit(e);
     }

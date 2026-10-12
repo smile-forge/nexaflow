@@ -467,6 +467,7 @@ public sealed class WorkspaceManager
             svc.ClearProviders();
             foreach (var (columnId, provider) in fresh.Execution)
                 svc.Register(columnId, provider);
+            ws.RaiseProvidersChanged();
         }
     }
 

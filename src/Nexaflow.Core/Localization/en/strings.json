@@ -147,14 +147,13 @@
   "Shell.Config.Shell.TextFontSize": "Text size",
   "Shell.Config.Shell.PrestartAtLogin": "Start with Windows",
   "Shell.Config.Shell.DisableAnimationsOnBattery": "Disable background animations on battery",
-  "Shell.Config.Voice.ModelSize": "Model Size",
-  "Shell.Config.Voice.Language": "Language",
+
   "Shell.Config.Security": "Security",
   "Shell.Config.Security.AllowWindowAccess": "Allow AI to view other windows",
   "Shell.Config.Security.AllowWindowAccess.Yes": "Yes",
   "Shell.Config.Security.AllowWindowAccess.No": "No",
   "Shell.Config.Security.AllowWindowAccess.Prompt": "Prompt",
-  "Shell.Config.Voice": "Voice",
+
   "Shell.Config.Workspaces": "Workspaces",
   "Shell.Config.About": "About",
   "Shell.Config.Ai": "AI",

@@ -26,11 +26,22 @@ public sealed class AIService : IAIService
     public void Register(string columnId, IAiProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
+        if (_providers.TryGetValue(columnId, out var replaced)) replaced.AvailabilityChanged -= OnProviderAvailabilityChanged;
         _providers[columnId] = provider;
+        provider.AvailabilityChanged += OnProviderAvailabilityChanged;
     }
 
     /// <summary>Clears all registered execution providers (before a hot re-registration).</summary>
-    public void ClearProviders() => _providers.Clear();
+    public void ClearProviders()
+    {
+        foreach (var provider in _providers.Values) provider.AvailabilityChanged -= OnProviderAvailabilityChanged;
+        _providers.Clear();
+    }
+
+    private void OnProviderAvailabilityChanged(object? sender, EventArgs e) => _workspace.RaiseProvidersChanged();
+
+    /// <summary>The speech-to-text model that serves Speech In now — the first available in its chain — or null.</summary>
+    public ISpeechToTextProvider? SpeechToText => Candidates<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault();
 
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;

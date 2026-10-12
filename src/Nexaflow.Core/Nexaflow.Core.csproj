@@ -24,9 +24,6 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="NAudio" Version="3.0.1" />
     <PackageReference Include="Updatum" Version="1.4.0" />
-    <PackageReference Include="Whisper.net" Version="1.9.1" />
-    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
-    <PackageReference Include="Whisper.net.Runtime.Cuda" Version="1.9.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -43,7 +40,7 @@
   </ItemGroup>
 
   <!--
-    Whisper.net.Runtime[.Cuda] ship every RID under runtimes\ regardless of our win-x64
+    Whisper.net.Runtime[.Cuda] (through the Whisper provider) ship every RID under runtimes\ regardless of our win-x64
     RuntimeIdentifier. We're Windows-x64-only, so prune the dead trees (the linux CUDA .so
     alone is ~160 MB). Runs after both Build and Publish; keeps win-x64 + cuda\win-x64.
   -->
@@ -107,6 +104,7 @@
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.OpenAI\Nexaflow.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Whisper\Nexaflow.Providers.Whisper.csproj" />
 	  <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />

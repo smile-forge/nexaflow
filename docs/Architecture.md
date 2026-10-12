@@ -79,9 +79,10 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, WorkspaceRuntime)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
-| `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
+| `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
+| `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume | — |
 
-**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`. Dictation's model is the workspace's: the ability grid's Speech In row.
 
 > ⚠️ The **AI persona** (`AiPersonaConfig`: assistant name + system prompt) is **per-`Workspace`**
 > (persisted under `Contexts\<name>\ai-persona`, exposed as `Workspace.Persona`) — as are the
@@ -258,14 +259,24 @@ acts on and shows any other fenced block once it is closed. The step's outcome e
 answer replaces it, a batch run unasked keeps it as narration above its tools (`EndReplyDraft(keep: true)`),
 an approval prompt or a retry takes it away.
 
-All providers implement `ILlmProvider` (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
+A provider serves one kind of model (`ModelKind`) through that kind's contract — `ILlmProvider` for a language
+model, `ISpeechToTextProvider` for speech to text — over the `IAiProvider` base every provider shares (name,
+residency, availability, models, warm-up); one backend serving two kinds ships a type per kind under one name, as
+OpenAI does. The ability grid's columns carry their kind, and a row takes only columns of its own. A provider that
+needs model files declares an `IModelAssetStore` in its constructor and describes them in a catalog manifest it
+ships (`ModelCatalog`); the store fetches them. Speech In starts on `Whisper` (whisper.cpp, on this machine) when
+a workspace's grid has never had that row, and `DictationService` streams the microphone into whichever speech
+model the row's chain picks.
+
+All providers implement `IAiProvider` through their kind's contract (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 
 | Assembly | Backing service |
 |----------|----------------|
 | `Nexaflow.Providers.Aria` | Windows named-pipe to the local Aria service. Two layers: `AriaNamedPipeClient` (raw JSON framing) and `AriaClientService` (one-shot request/reply, parses `#focustab` instructions from responses). |
 | `Nexaflow.Providers.Claude` | Anthropic Claude API over HTTPS. |
 | `Nexaflow.Providers.Gemini` | Google Gemini API over HTTPS. |
-| `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS. |
+| `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS: chat models, and the realtime transcription API for speech to text. |
+| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine, CUDA or CPU, for speech to text; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 
 ---
@@ -582,7 +593,7 @@ App.OnStartup
   → InitializeApp(activityManager):
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ apply theme), WorkspacesConfig,
-        FileMapConfig, ExternalAppsConfig, VoiceConfig
+        FileMapConfig, ExternalAppsConfig
       → LanguageManager.Initialize(Languages\, ShellConfig.Language)   ← records the language, points Str at it;
             loads nothing — the first string or help page asked for reads the pack. After the first-run wizard
             the language is selected again, before the first window's strings resolve
@@ -595,7 +606,7 @@ App.OnStartup
       → FeatureManager.RegisterFeatures()                   ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
             assemblies load + activate lazily later (first use, or the post-paint background warm-up)
-      → WhisperModelManager + HostCapability probe, JumpList, single-instance IPC listener
+      → JumpList, single-instance IPC listener
   → pick startup Workspace (Workspaces[0], or the one named by --context "Name")
   → WorkspaceManager.CreateWorkspace(workspace)             ← workspace.EnsureSharedServicesLoaded +
         bootstrap: AcquireProviderSet(pool) → new AIService(runtime, Conversations\) →

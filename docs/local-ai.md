@@ -1,7 +1,10 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phase 1 under way.** Replies stream through the agent harness, and each ability is served by a chain of
-models that asks before high-risk context leaves this machine; the rest is not built yet. This records
+**Status: phase 1 built.** Replies stream through the agent harness; each ability is served by a chain of models
+that asks before high-risk context leaves this machine; providers serve speech to text beside language models, and
+dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime transcription in the
+cloud); local models' files live in one verified, resumable store; System Info reports what the machine can run.
+The rest is not built yet. This records
 what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
 type, check for collisions before introducing it.
 
@@ -188,8 +191,9 @@ test beds hit:
   behind.
 - **Native stacks cannot be mixed.** Two CUDA stacks in one process loaded clashing cuDNN; sherpa-onnx and Windows ML
   each ship their own `onnxruntime.dll`; the same class of problem the LlamaSharp provider
-  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. Core's
-  `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same reason.
+  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. The Whisper
+  provider's `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same
+  reason once speech runs in the host.
 - **One owner for the GPU.** Scheduling and the VRAM budget only work if one process decides.
 - **A watchdog.** Neither onnxruntime-genai nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
@@ -395,9 +399,9 @@ at the same moment) puts a complete turn at about 0.9 s.
 - **The conversation page** is the focused form: speech and text both land in the conversation as messages, and rich
   content renders inline there instead of as an overlay.
 
-`VoiceManager` (a static singleton re-transcribing the whole buffer every second with Whisper.net) and
-`WhisperModelManager` are replaced by the speech capability; push-to-talk dictation becomes the same streaming ASR
-without the reply.
+Push-to-talk dictation already runs on the speech capability: `DictationService` streams the microphone into the
+Speech In chain's model. Whisper on this machine re-transcribes the whole buffer every second; in the host it becomes
+the same streaming ASR as the voice loop, without the reply.
 
 ## Languages: English, French, German
 
@@ -526,22 +530,26 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   about 30 MB (ONNX Runtime, onnxruntime-genai, Windows ML's bootstrap).
 - **Execution providers**: our CUDA pack (~1.1 GB) for NVIDIA, hosted on our GitHub releases and versioned with the
   host; Windows ML's providers for other vendors and NPUs, downloaded by Windows itself.
-- **Models and voices**: one hashed, resumable asset manager, generalised from `WhisperModelManager`, under
-  `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming path (not `%APPDATA%`, where voice models sit
-  today).
-- **Hardware probe**: `HostCapabilityService` widens beyond `nvidia-smi` — VRAM and vendor for AMD and Intel, NPU
-  presence — and its unused `RecommendedBackend` gains a consumer: whether to offer Local at all, and which provider.
-- **Whisper's CUDA natives** leave the base install, cutting the installer and every update by about 60%.
+- **Models and voices**: `ModelAssetStore`, under `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming
+  path. Each provider ships a catalog manifest naming its models' files with source, size and SHA-256; a download
+  resumes from a `.partial` file and a file is handed out only once verified. Whisper models an earlier version kept
+  in `%APPDATA%\…\voice\models` are moved in when they are the same file.
+- **Hardware probe**: `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of every
+  vendor with their real memory, and NPUs — and the CUDA driver from `nvcuda.dll`. System Info's Local AI card shows
+  it with the local models it suits; the host reads it to decide whether to offer an owned model at all, and on
+  which provider.
+- **Whisper's CUDA natives** leave the base install once speech runs in the host, cutting the installer and every
+  update by about 60%.
 
 ## Build order
 
 | Phase | Delivers | Size |
 |---|---|---|
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
-| 1. Contracts and plumbing | capability contracts, streaming through the harness, audio attachments; workspace local/cloud choice and grid chains; asset manager and catalog manifest; wider hardware probe | medium |
-| 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74 | large |
-| 3. Voice | speech in the host; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay; replaces `VoiceManager` | large |
-| 4. Generation tools | speech and image tools first; music after; video through cloud providers | medium per tool |
+| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
+| 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74; the harness property and the workspace's choice of an owned model; audio attachments; the AI-path test suite against the owned model | large |
+| 3. Voice | speech in the host; the text-to-speech contract; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay | large |
+| 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 

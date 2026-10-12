@@ -24,14 +24,17 @@ public sealed class ModelAssetStore : IModelAssetStore
     private readonly string                _root;
     private readonly IReadOnlyList<string> _adoptFrom;
     private readonly HttpClient            _http;
+    private readonly bool                  _downloadsAllowed;
     private readonly Dictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
-    public ModelAssetStore(string root, IReadOnlyList<string> adoptFrom, HttpClient? http = null)
+    /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
+    public ModelAssetStore(string root, IReadOnlyList<string> adoptFrom, HttpClient? http = null, bool downloadsAllowed = true)
     {
-        _root      = root;
-        _adoptFrom = adoptFrom;
-        _http      = http ?? SharedHttp;
+        _root             = root;
+        _adoptFrom        = adoptFrom;
+        _http             = http ?? SharedHttp;
+        _downloadsAllowed = downloadsAllowed;
     }
 
     /// <summary><c>NEXAFLOW_AI_DIR</c>, or <c>%LOCALAPPDATA%\Smile\nexaflow\ai</c>.</summary>
@@ -56,9 +59,13 @@ public sealed class ModelAssetStore : IModelAssetStore
             if (IsVerified(path, asset)) return path;
 
             if (!await AdoptAsync(asset, path, ct))
+            {
+                if (!_downloadsAllowed)
+                    throw new InvalidOperationException($"{Path.GetFileName(path)} is not on this machine, and downloads are off in this run.");
                 await VerifiedDownload.DownloadAsync(_http, asset.Source, path, asset.Size, asset.Sha256,
                     progress is null ? null : new Progress<DownloadProgress>(p => progress.Report(new AssetProgress(p.Received, p.Total))),
                     ct);
+            }
 
             await File.WriteAllTextAsync(VerifiedMark(path), asset.Sha256, ct);
             return path;

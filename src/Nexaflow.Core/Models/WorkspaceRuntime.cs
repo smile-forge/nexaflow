@@ -36,4 +36,13 @@ public sealed class WorkspaceRuntime
     public WorkspaceRuntime() : this(new Workspace()) { }
 
     internal void RepointWorkspace(Workspace workspace) => Workspace = workspace;
+
+    /// <summary>
+    /// Raised when the runtime's providers are registered anew, or one of them becomes available or stops being — a
+    /// model finishing its download, say. What depends on a kind of model being there (dictation) listens. Raised on
+    /// whichever thread made the change.
+    /// </summary>
+    public event EventHandler? ProvidersChanged;
+
+    internal void RaiseProvidersChanged() => ProvidersChanged?.Invoke(this, EventArgs.Empty);
 }

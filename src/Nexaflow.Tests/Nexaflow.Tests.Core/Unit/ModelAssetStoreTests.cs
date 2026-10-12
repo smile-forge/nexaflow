@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// earlier versions kept voice models in.
 /// </summary>
 [TestClass]
+[CoversNode("ai-model-assets")]
 public class ModelAssetStoreTests
 {
     private static readonly byte[] Weights = [.. Enumerable.Range(0, 50_000).Select(i => (byte)(i * 7))];

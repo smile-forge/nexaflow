@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using Nexaflow.IO.Common.Downloads;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.IO.Common;
 
@@ -11,6 +12,7 @@ namespace Nexaflow.Tests.IO.Common;
 /// will not resume, and kept only when it is the file it should be.
 /// </summary>
 [TestClass]
+[CoversNode("ai-model-assets")]
 public class VerifiedDownloadTests
 {
     private static readonly byte[] Body = [.. Enumerable.Range(0, 300_000).Select(i => (byte)(i * 31))];
