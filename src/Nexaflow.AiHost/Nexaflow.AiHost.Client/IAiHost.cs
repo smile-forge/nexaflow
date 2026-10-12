@@ -8,6 +8,9 @@ public interface IAiHost
     /// <inheritdoc cref="AiHostClient.SendAsync"/>
     IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default);
 
+    /// <inheritdoc cref="AiHostClient.OpenStreamAsync"/>
+    Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default);
+
     /// <inheritdoc cref="AiHostClient.Environment"/>
     AiHostEnvironment Environment { get; set; }
 }

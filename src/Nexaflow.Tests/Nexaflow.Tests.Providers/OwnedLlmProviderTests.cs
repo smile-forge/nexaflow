@@ -35,36 +35,13 @@ public class OwnedLlmProviderTests
         }
     }
 
-    /// <summary>Answers each request with what <see cref="Reply"/> says for it.</summary>
-    private sealed class Host : IAiHost
-    {
-        public readonly List<HostRequest> Requests = [];
-        public Func<HostRequest, int, IEnumerable<HostReply>> Reply = (r, _) => r is Generate g
-            ? [new TextDelta(g.RequestId, "Hello"), new TextDelta(g.RequestId, " there."), new GenerationEnded(g.RequestId, StopReason.EndOfTurn, 10, 10, 3)]
-            : [];
-        public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
-
-        public async IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit,
-                                                           [EnumeratorCancellation] CancellationToken ct = default)
-        {
-            var request = create(Requests.Count + 1);
-            Requests.Add(request);
-            int attempt = Requests.Count(r => r.GetType() == request.GetType()) - 1;
-            foreach (var reply in Reply(request, attempt))
-            {
-                await Task.Yield();
-                yield return reply;
-            }
-        }
-    }
-
-    private static readonly CatalogModel Gemma = new OwnedLlmProvider(new FakeActivityManager(), new Store(), new Host(), Hardware(), new ProviderModel("x"))
+    private static readonly CatalogModel Gemma = new OwnedLlmProvider(new FakeActivityManager(), new Store(), new FakeAiHost(), Hardware(), new ProviderModel("x"))
         .Catalog.Single(m => m.Id == "gemma-4-e4b-it");
 
     private static ComputeHardwareReport Hardware(ComputeVendor vendor = ComputeVendor.Amd, Version? cuda = null)
         => new([new ComputeAdapter("gpu", vendor, 24L << 30, IsIntegrated: false, IsNpu: false)], cuda);
 
-    private static OwnedLlmProvider Provider(Store store, Host host, ComputeHardwareReport? hardware = null)
+    private static OwnedLlmProvider Provider(Store store, FakeAiHost host, ComputeHardwareReport? hardware = null)
         => new(new FakeActivityManager(), store, host, hardware ?? Hardware(), new ProviderModel("gemma-4-e4b-it"));
 
     private static async Task<string> ReadAsync(IAsyncEnumerable<LlmStreamEvent> events)
@@ -77,7 +54,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public void ItIsNexaflowsOwnHarness_AndNothingLeavesTheMachine()
     {
-        var provider = Provider(new Store(), new Host());
+        var provider = Provider(new Store(), new FakeAiHost());
 
         Assert.AreEqual(("Nexaflow", ModelHarness.Owned, DataResidency.StaysOnMachine), (provider.Name, provider.Harness, provider.Residency));
         Assert.IsTrue(provider.SupportsImages);
@@ -87,7 +64,7 @@ public class OwnedLlmProviderTests
     public void TheModel_IsAvailableOnceItsFilesAreHere()
     {
         var store = new Store();
-        var provider = Provider(store, new Host());
+        var provider = Provider(store, new FakeAiHost());
         int changes = 0;
         provider.AvailabilityChanged += (_, _) => changes++;
         Assert.IsFalse(provider.IsAvailable);
@@ -101,7 +78,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task AConversation_GoesToTheHostWhole_AndItsReplyStreamsBack()
     {
-        var host = new Host();
+        var host = new FakeAiHost();
         var provider = Provider(new Store(Gemma.Files), host);
         var image = new LlmAttachment(@"C:\shot.png", "image/png");
         var notes = new LlmAttachment(@"C:\notes.txt", "text/plain");
@@ -124,7 +101,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task BackgroundWork_AsksForTheBackgroundPriority()
     {
-        var host = new Host();
+        var host = new FakeAiHost();
         var provider = Provider(new Store(Gemma.Files), host);
 
         await provider.CompleteAsync([new(LlmRole.User, "Analyse this page.")], LlmUrgency.Background);
@@ -135,7 +112,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task ARequestTheHostRefuses_IsAProviderFailure()
     {
-        var host = new Host { Reply = (r, _) => throw new AiHostException(AiHostFailure.Request, "over budget", HostErrorKind.Refused) };
+        var host = new FakeAiHost { Reply = (r, _) => throw new AiHostException(AiHostFailure.Request, "over budget", HostErrorKind.Refused) };
         var provider = Provider(new Store(Gemma.Files), host);
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() => ReadAsync(provider.StreamAsync([new(LlmRole.User, "Hi")])));
@@ -145,7 +122,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task AHostLostBeforeAWord_IsAskedOnceMore()
     {
-        var host = new Host();
+        var host = new FakeAiHost();
         var answer = host.Reply;
         host.Reply = (r, attempt) => attempt == 0 ? throw new AiHostException(AiHostFailure.Lost, "crashed") : answer(r, attempt);
         var provider = Provider(new Store(Gemma.Files), host);
@@ -157,7 +134,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task AHostLostPartWay_IsNotAskedAgain_TheReaderHasSeenPartOfTheReply()
     {
-        var host = new Host();
+        var host = new FakeAiHost();
         host.Reply = (r, _) => LostAfterAWord(r.RequestId);
         var provider = Provider(new Store(Gemma.Files), host);
 
@@ -175,7 +152,7 @@ public class OwnedLlmProviderTests
     public async Task WarmingUp_FetchesTheModelAndTheCudaPack_WhereThePackSuitsTheMachine_ThenLoadsIt()
     {
         var store = new Store();
-        var host = new Host();
+        var host = new FakeAiHost();
         var provider = Provider(store, host, Hardware(ComputeVendor.Nvidia, new Version(13, 0)));
 
         await provider.WarmupAsync();
@@ -189,7 +166,7 @@ public class OwnedLlmProviderTests
     public async Task OnAMachineThePackDoesNotSuit_OnlyTheModelIsFetched_AndItRunsOnTheCpu()
     {
         var store = new Store();
-        var host = new Host();
+        var host = new FakeAiHost();
         var provider = Provider(store, host, Hardware(ComputeVendor.Amd));
 
         await provider.WarmupAsync();
@@ -201,7 +178,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public async Task ARecording_GoesToTheModelAsAudio()
     {
-        var host = new Host();
+        var host = new FakeAiHost();
         var provider = Provider(new Store(Gemma.Files), host);
 
         await ReadAsync(provider.StreamAsync([new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", [1, 2])] }]));

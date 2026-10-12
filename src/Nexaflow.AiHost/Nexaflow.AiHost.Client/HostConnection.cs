@@ -263,7 +263,25 @@ internal sealed class HostConnection : IAsyncDisposable
     /// <summary>One request in flight: its replies, its stall watchdog, and its cancellation.</summary>
     internal sealed class OpenRequest(HostConnection connection, long id, ChannelReader<HostReply> replies) : IAsyncDisposable
     {
-        private bool _ended;
+    private bool _ended;
+
+        public long Id => id;
+
+        /// <summary>Sends input into the request while it runs.</summary>
+        /// <exception cref="AiHostException">The host was lost.</exception>
+        public async Task SendInputAsync(RequestInput input, CancellationToken ct)
+        {
+            if (!connection.IsAlive) throw Lost("The AI host has stopped.");
+            try
+            {
+                await connection._channel.SendAsync(input, ct);
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                connection.End(null, "the pipe broke");
+                throw Lost("The AI host was lost: the pipe broke.");
+            }
+        }
 
         /// <summary>The next reply; the host is killed when none arrives within <paramref name="stallLimit"/>.</summary>
         public async Task<HostReply> NextAsync(TimeSpan stallLimit, CancellationToken ct)

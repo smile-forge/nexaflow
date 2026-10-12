@@ -23,7 +23,12 @@ internal sealed class FakeHost : IAiHostLauncher
     /// <summary>What the host does with a request; by default it describes itself and completes.</summary>
     public Func<HostRequest, HostChannel, Task> Serve { get; set; } = Describe;
 
+    /// <summary>What the host does with input sent into a request; by default nothing.</summary>
+    public Func<RequestInput, HostChannel, Task> Receive { get; set; } = (_, _) => Task.CompletedTask;
+
     public ConcurrentBag<long> CancelsReceived { get; } = [];
+
+    public ConcurrentQueue<RequestInput> InputsReceived { get; } = [];
 
     /// <summary>What each host was started with, in order.</summary>
     public ConcurrentQueue<AiHostEnvironment> Environments { get; } = [];
@@ -72,6 +77,10 @@ internal sealed class FakeHost : IAiHostLauncher
                     case CancelRequest cancel:
                         CancelsReceived.Add(cancel.RequestId);
                         if (HonourCancel) await channel.SendAsync(new Failed(cancel.RequestId, HostErrorKind.Cancelled, "cancelled"));
+                        break;
+                    case RequestInput input:
+                        InputsReceived.Enqueue(input);
+                        await Receive(input, channel);
                         break;
                     case HostRequest request:
                         _ = Task.Run(() => Serve(request, channel));

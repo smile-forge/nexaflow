@@ -6,7 +6,8 @@ namespace Nexaflow.AiHost.Contracts;
 /// One value on the AI host's pipe. The app opens the pipe and the host connects; the host speaks first
 /// (<see cref="Hello"/>) and the app answers <see cref="Welcome"/>. After that, any number of requests run at once:
 /// each carries an id, every reply names it, and each request ends in exactly one <see cref="Completed"/> or
-/// <see cref="Failed"/>.
+/// <see cref="Failed"/>. A request may also take input while it runs (<see cref="RequestInput"/>) — audio to hear,
+/// text to speak — until the app sends <see cref="InputEnd"/>.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$m")]
 [JsonDerivedType(typeof(Hello), "hello")]
@@ -14,6 +15,8 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Ping), "ping")]
 [JsonDerivedType(typeof(Pong), "pong")]
 [JsonDerivedType(typeof(CancelRequest), "cancel")]
+[JsonDerivedType(typeof(AudioInput), "audio")]
+[JsonDerivedType(typeof(InputEnd), "input-end")]
 [JsonDerivedType(typeof(DescribeHost), "describe")]
 [JsonDerivedType(typeof(HostDescription), "description")]
 [JsonDerivedType(typeof(Progress), "progress")]
@@ -42,6 +45,16 @@ public sealed record Pong(long Sequence) : HostMessage;
 /// <summary>Asks the host to stop the request with this id. The request still ends with its own
 /// <see cref="Failed"/> (<see cref="HostErrorKind.Cancelled"/>) or, if it finished first, <see cref="Completed"/>.</summary>
 public sealed record CancelRequest(long RequestId) : HostMessage;
+
+/// <summary>What the app sends into a request while it runs. The host hands it to the request's handler in the order
+/// sent; input for a request that has ended, or that takes none, is dropped.</summary>
+public abstract record RequestInput(long RequestId) : HostMessage;
+
+/// <summary>Audio captured as the request runs: 16 kHz, 16-bit signed little-endian, mono PCM.</summary>
+public sealed record AudioInput(long RequestId, byte[] Pcm) : RequestInput(RequestId);
+
+/// <summary>No more input is coming: the request finishes what it has been given and ends.</summary>
+public sealed record InputEnd(long RequestId) : RequestInput(RequestId);
 
 /// <summary>A request from the app. The id is the client's, unique for the life of one connection.</summary>
 public abstract record HostRequest(long RequestId) : HostMessage;

@@ -51,23 +51,20 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     public async IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit,
                                                        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var connection = await ConnectAsync(ct);
-        await using var request = await connection.BeginAsync(create, ct);
+        await using var stream = await OpenStreamAsync(create, stallLimit, ct);
+        await foreach (var reply in stream.ReadAsync(ct)) yield return reply;
+    }
 
-        while (true)
-        {
-            var reply = await request.NextAsync(stallLimit, ct);
-            switch (reply)
-            {
-                case Completed:
-                    yield break;
-                case Failed failed:
-                    throw new AiHostException(AiHostFailure.Request, failed.Message, failed.Kind);
-                default:
-                    yield return reply;
-                    break;
-            }
-        }
+    /// <summary>
+    /// Sends the request <paramref name="create"/> makes from a fresh id and keeps it open for input — see
+    /// <see cref="IHostStream"/>. <paramref name="stallLimit"/> is as for <see cref="SendAsync"/>: a stream's handler
+    /// replies while it waits for input, so a quiet stream is not taken for a hung one.
+    /// </summary>
+    /// <exception cref="AiHostException">No host could be started.</exception>
+    public async Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default)
+    {
+        var connection = await ConnectAsync(ct);
+        return new HostStream(await connection.BeginAsync(create, ct), stallLimit);
     }
 
     /// <summary>The live connection, starting a host first when there is none — or when the one running was started
