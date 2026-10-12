@@ -2,7 +2,15 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Id="smileforge.nexaflowSetup" Name="Nexaflow" Manufacturer="Smile-forge"
            Version="$(var.AppVersion)" UpgradeCode="{7C608FBB-CD12-4A72-99D4-019D1928106B}">
-    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" DowngradeErrorMessage="!(loc.DowngradeError)" />
+    <!--
+      MigrateFeatures="no": an upgrade would otherwise copy each feature's state from the product it
+      replaces, and that copy overrides the Tools feature's Level condition — so INSTALLTOOLS could neither
+      add the tools over a version without them nor take them away from one with them. Whether the tools
+      were there before is the bundle's question (InstallTools in Bundle.wxs reads it), and INSTALLTOOLS
+      carries the answer; Main is Level 1 and always installs.
+    -->
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" MigrateFeatures="no"
+                  DowngradeErrorMessage="!(loc.DowngradeError)" />
 
     <!-- Show the app icon in Add/Remove Programs -->
     <Icon Id="NexaflowIcon" SourceFile="..\src\Nexaflow.Core\Appicon.ico" />
