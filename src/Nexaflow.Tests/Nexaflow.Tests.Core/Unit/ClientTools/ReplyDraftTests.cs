@@ -38,6 +38,38 @@ public class ReplyDraftTests
     }
 
     [TestMethod]
+    [DataRow("Deleting it.\ncall:client_tool {\"tool\": delete_file, \"arguments\": {\"name\": \"old\"}}")]
+    [DataRow("Deleting it.\nclient_tool\n{\"tool\": \"delete_file\", \"arguments\": {\"name\": \"old\"}}")]
+    [DataRow("Deleting it.\n{\"tool\": \"delete_file\", \"arguments\": {\"name\": \"old\"}}")]
+    [DataRow("Deleting it.\ncall:delete_file{name: old}")]
+    public void ACallOutsideAFence_NeverShows_WhereverTheStreamCutsIt(string reply)
+    {
+        for (var size = 1; size <= reply.Length; size++)
+        {
+            var draft = new ReplyDraft();
+            for (var i = 0; i < reply.Length; i += size)
+            {
+                draft.Append(reply.Substring(i, Math.Min(size, reply.Length - i)));
+                Assert.IsFalse(draft.Text.Contains("call", StringComparison.OrdinalIgnoreCase) || draft.Text.Contains("delete_file")
+                               || draft.Text.Contains('{'),
+                    $"pieces of {size}: the draft showed '{draft.Text}'");
+            }
+            Assert.AreEqual("Deleting it.", draft.Text, $"pieces of {size}");
+        }
+    }
+
+    [TestMethod]
+    public void ALineThatOnlyStartsLikeACall_ShowsOnceItIsProse()
+    {
+        var draft = new ReplyDraft();
+
+        draft.Append("Ca");
+        Assert.AreEqual("", draft.Text, "it could still be call:");
+        draft.Append("lling Ada now.");
+        Assert.AreEqual("Calling Ada now.", draft.Text);
+    }
+
+    [TestMethod]
     public void AnotherBlock_ShowsWhole_OnceItIsClosed()
     {
         var draft = new ReplyDraft();

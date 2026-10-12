@@ -241,8 +241,10 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
         bool folder = FsTool.TryResolve(vm, name, out var full, out _) && Directory.Exists(full);
         return folder
             ? new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FolderFormat", name),
+                  Str.Format("WindowsFileSystem.Announce.DeletingFolderFormat", name),
                   Str.Get("WindowsFileSystem.Announce.FolderDeleted"), Str.Get("WindowsFileSystem.Announce.FolderUnchanged"))
             : new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FileFormat", name),
+                  Str.Format("WindowsFileSystem.Announce.DeletingFileFormat", name),
                   Str.Get("WindowsFileSystem.Announce.FileDeleted"), Str.Get("WindowsFileSystem.Announce.FileUnchanged"));
     }
 

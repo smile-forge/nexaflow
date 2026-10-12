@@ -27,7 +27,7 @@ public class VoiceSessionTests
         public readonly FakeAgent Agent;
         public readonly VoiceSession Session;
     public readonly List<string> Blocks = [];
-    public readonly List<string> Said = [];
+    public readonly List<string> Voiced = [];
         public readonly List<string> Heard = [];
         public readonly List<string> Taken = [];
         public string? EndedBecause = "still going";
@@ -37,7 +37,7 @@ public class VoiceSessionTests
             Agent = new FakeAgent(script);
             Session = new VoiceSession(new VoiceSessionParts(Ears, Voice, Microphone, Speaker, Agent, Shown, Confirmations, Time), "en");
     Session.Shown += (_, md) => { lock (Blocks) Blocks.Add(md); };
-    Session.Said  += (_, text) => { lock (Said) Said.Add(text); };
+        Session.Voiced += (_, text) => { lock (Voiced) Voiced.Add(text); };
             Session.Heard += (_, text) => { lock (Heard) Heard.Add(text); };
             Session.TurnTaken += (_, text) => { lock (Taken) Taken.Add(text); };
             Session.Ended += (_, why) => EndedBecause = why;
@@ -81,8 +81,10 @@ public class VoiceSessionTests
     private static string Stopped => Str.Format("Shell.Voice.AbortStoppedFormat", "delete", "The file is unchanged.");
     private static string NotUnderstood => Str.Format("Shell.Voice.AbortUnclearFormat", "delete");
 
+    private static string HeldFirst => Str.Format("Shell.Voice.HeldFirstFormat", "Deleting file test.zip");
+
     private static readonly ToolCall DeleteTestZip = new("delete_file", new JsonObject { ["path"] = @"C:\temp\test.zip" },
-        Announcement: new ToolCallAnnouncement("delete", "file test.zip", "File deleted.", "The file is unchanged."));
+        Announcement: new ToolCallAnnouncement("delete", "file test.zip", "Deleting file test.zip", "File deleted.", "The file is unchanged."));
 
     /// <summary>The agent loop asked for one action that needs approval: the action put up, run if it goes ahead and its
     /// result reported — and after it the model would say more, were the turn not already over.</summary>
@@ -95,6 +97,32 @@ public class VoiceSessionTests
             ct.ThrowIfCancellationRequested();
             handler.ShowFinal("I have deleted test.zip for you.");
         };
+
+    /// <summary>The agent loop asked to delete the file and then to go on: the delete put up, run if it goes ahead, and
+    /// then whatever the user added meanwhile taken up, and summed up in the final answer.</summary>
+    private static Func<string, IReadOnlyList<IClientTool>, IAIResponseHandler, CancellationToken, Task> DeleteThenCarryOn(Action<bool> answered)
+        => async (_, _, handler, ct) =>
+        {
+            bool proceed = await handler.RequestToolBatchApprovalAsync("Deleting it now.", [DeleteTestZip], ct);
+            answered(proceed);
+            if (proceed)
+            {
+                handler.OnToolBatchStarting([DeleteTestZip]);
+                handler.OnToolBatchFinished([new ToolRunResult(DeleteTestZip.Tool, ToolResult.Ok("Deleted test.zip."))]);
+            }
+            ct.ThrowIfCancellationRequested();
+            var added = handler.TakeInterjections();
+            handler.ShowFinal($"{(proceed ? "Deleted it" : "Kept it")} and did {added.Count} more.");
+        };
+
+    /// <summary>Speech over what is playing, with words: the reply pauses, then the words decide it.</summary>
+    private static async Task SpeakOverAsync(Rig rig, string partial)
+    {
+        rig.Ears.Hear(new SpeechActivity(true));
+        await Until(() => rig.Speaker.IsPaused && rig.Time.Waiting == 1, "the pause, and the wait for words");
+        rig.Ears.Hear(new TranscriptPartial(partial));
+        await Until(() => rig.Time.Waiting == 0, "the words to decide it");
+    }
 
     private static async Task Until(Func<bool> condition, string? what = null)
     {
@@ -117,6 +145,29 @@ public class VoiceSessionTests
         await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
 
         CollectionAssert.AreEqual(new[] { "What time is it?", "It is three o'clock." }, rig.Session.History.Select(m => m.Text).ToArray());
+    }
+
+    [TestMethod]
+    public async Task TheReply_IsShownWordByWord_AsItIsHeard_NotAheadOfTheVoice()
+    {
+        const string first = "First comes this sentence.";
+        await using var rig = await new Rig(Answer(first + " Then comes a second one.")).StartAsync();
+        rig.Ears.Hear(new TranscriptFinal("Tell me two things."));
+        await Until(() => rig.Voice.Texts.Length == 2 && rig.Speaker.QueuedSamples > 0, "the reply to be queued");
+
+        rig.Time.Advance(VoiceSession.VoicedEvery);
+        await Task.Delay(50);
+        Assert.AreEqual(0, rig.Voiced.Count, "nothing is shown before it is heard");
+
+        rig.Speaker.Play(first.Length * FakeSpeaker.SamplesPerChar);
+        await Until(() =>
+        {
+            rig.Time.Advance(VoiceSession.VoicedEvery);
+            lock (rig.Voiced) return rig.Voiced.Count > 0 && rig.Voiced[^1] == first;
+        }, "the first sentence, once heard");
+
+        await rig.PlayOutAsync();
+        Assert.AreEqual(first + " Then comes a second one.", rig.Voiced[^1], "and the rest once it has been");
     }
 
     [TestMethod]
@@ -201,7 +252,7 @@ public class VoiceSessionTests
         await rig.PlayOutAsync();
         CollectionAssert.AreEqual(new[] { "Delete the selected file.", Announcement + " File deleted." },
                                   rig.Session.History.Select(m => m.Text).ToArray());
-        CollectionAssert.AreEqual(rig.Voice.Texts, rig.Said.ToArray(), "the bar shows exactly what is read aloud");
+        Assert.AreEqual(string.Join(' ', rig.Voice.Texts), rig.Voiced[^1], "the bar shows exactly what is read aloud");
     }
 
     [TestMethod]
@@ -235,13 +286,14 @@ public class VoiceSessionTests
         await Until(() => rig.Time.Waiting == 0, "the words to decide it");
         rig.Time.Advance(VoiceSession.BargeInDecision);
         await Task.Delay(50);
-        Assert.IsTrue(rig.Speaker.IsPaused, "words over the announcement are its answer: it waits for them, it does not carry on");
+        Assert.AreEqual(1, rig.Speaker.Stops, "words over the announcement are its answer: it is cut at the first, not carried on");
         rig.Ears.Hear(new TranscriptFinal("Stop."));
         await Until(() => rig.Voice.Texts.Length == 2 && proceeded is not null, "the abort");
 
         Assert.IsFalse(proceeded);
         Assert.AreEqual(Stopped, rig.Voice.Texts[1]);
-        Assert.AreEqual(1, rig.Speaker.Stops, "the rest of the announcement is not said");
+    Assert.AreEqual(1, rig.Speaker.Stops, "cut once: the rest of the announcement is not said");
+        Assert.AreEqual(0, rig.Agent.Judged.Count, "a plain stop needs no judging");
         Assert.AreEqual(1, rig.Agent.Count, "the answer is not a new turn");
         Assert.AreEqual(1, rig.Confirmations.Withdrawn);
         await rig.PlayOutAsync();
@@ -249,19 +301,112 @@ public class VoiceSessionTests
     }
 
     [TestMethod]
-    public async Task AnythingButAYes_AbortsTheAnnouncedAction_ForWantOfOne()
+    public async Task AnInstructionOverAnAnnouncedAction_IsAddedToTheWork_AndTheActionIsHeld_UntilTheUserIsQuiet()
+    {
+        bool? proceeded = null;
+        await using var rig = await new Rig(DeleteThenCarryOn(p => proceeded = p)).StartAsync();
+        rig.Agent.Judge = _ => AnswerIntent.Instruction;
+
+        rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
+        await Until(() => rig.Confirmations.Showing && rig.Speaker.QueuedSamples > 0, "the announcement");
+        rig.Speaker.Play(FakeSpeaker.SamplesPerChar * 4);
+        await SpeakOverAsync(rig, "and rename");
+        rig.Ears.Hear(new TranscriptFinal("And rename notes.txt to report.txt."));
+        await Until(() => rig.Session.State == VoiceState.Working && rig.Confirmations.Shown.Count == 2, "the work to go quiet");
+
+        var held = rig.Confirmations.Shown[^1];
+        Assert.IsTrue(held.IsHeld, "shown held, in red");
+        Assert.AreEqual((HeldFirst, Str.Get("Shell.Voice.Abort")), (held.Text, held.StopLabel));
+        Assert.AreEqual(1, rig.Speaker.Stops, "the announcement stops as the user speaks over it");
+        Assert.IsNull(proceeded, "not while the user is still talking");
+
+        rig.Ears.Hear(new SpeechActivity(false));
+        await Until(() => rig.Time.Waiting == 1, "the quiet to be timed");
+        rig.Ears.Hear(new SpeechActivity(true));
+        await Until(() => rig.Time.Waiting == 0, "speech to start the quiet over");
+        rig.Ears.Hear(new SpeechActivity(false));
+        await Until(() => rig.Time.Waiting == 1, "the quiet to be timed again");
+        rig.Time.Advance(VoiceReply.StopWindow);
+        await Until(() => proceeded is not null && rig.Voice.Texts.Length == 2, "the summary");
+
+        Assert.IsTrue(proceeded);
+        CollectionAssert.AreEqual(new[] { Announcement, "Deleted it and did 1 more." }, rig.Voice.Texts,
+                                  "the done line is held: the model's summary is all that is said");
+        Assert.AreEqual(1, rig.Agent.Count, "added to the work, not a turn of its own");
+        await rig.PlayOutAsync();
+        CollectionAssert.AreEqual(new[] { "Delete the selected file. And rename notes.txt to report.txt.", "Deleted it and did 1 more." },
+                                  rig.Session.History.Select(m => m.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { "Delete the selected file.", "And rename notes.txt to report.txt." }, rig.Taken);
+    }
+
+    [TestMethod]
+    public async Task Abort_OnAHeldAction_SkipsIt_AndTheWorkGoesOn()
+    {
+        bool? proceeded = null;
+        await using var rig = await new Rig(DeleteThenCarryOn(p => proceeded = p)).StartAsync();
+        rig.Agent.Judge = _ => AnswerIntent.Instruction;
+
+        rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
+        await Until(() => rig.Confirmations.Showing && rig.Speaker.QueuedSamples > 0, "the announcement");
+        rig.Speaker.Play(FakeSpeaker.SamplesPerChar * 4);
+        await SpeakOverAsync(rig, "and rename");
+        rig.Ears.Hear(new TranscriptFinal("And rename notes.txt to report.txt."));
+        await Until(() => rig.Confirmations.Shown.Count == 2 && rig.Confirmations.Showing, "the held action");
+
+        rig.Confirmations.Press(false);
+        await Until(() => proceeded is not null && rig.Voice.Texts.Length == 2, "the summary");
+
+        Assert.IsFalse(proceeded);
+        CollectionAssert.AreEqual(new[] { Announcement, "Kept it and did 1 more." }, rig.Voice.Texts,
+                                  "no abort line: the summary says what was not done");
+    }
+
+    [TestMethod]
+    [DataRow(AnswerIntent.Unclear, false, "unclear")]
+    [DataRow(AnswerIntent.Cancel, false, "stopped")]
+    [DataRow(AnswerIntent.Proceed, true, "done")]
+    public async Task WordsThatAreNeitherYesNorNo_AreJudged_AndTheJudgementDecides(AnswerIntent intent, bool proceeds, string line)
     {
         bool? proceeded = null;
         await using var rig = await new Rig(Delete(p => proceeded = p)).StartAsync();
+        rig.Agent.Judge = _ => intent;
 
         rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
         await rig.HearAnnouncementAsync();
         rig.Ears.Hear(new TranscriptFinal("Hmm, the blue one maybe."));
-        await Until(() => rig.Voice.Texts.Length == 2 && proceeded is not null, "the abort");
+        await Until(() => proceeded is not null && rig.Voice.Texts.Length == 2, "the outcome");
 
-        Assert.IsFalse(proceeded);
-        Assert.AreEqual(NotUnderstood, rig.Voice.Texts[1]);
+        Assert.AreEqual(proceeds, proceeded);
+        Assert.AreEqual(line switch { "unclear" => NotUnderstood, "stopped" => Stopped, _ => "File deleted." }, rig.Voice.Texts[1]);
+        CollectionAssert.AreEqual(new[] { "Hmm, the blue one maybe." }, rig.Agent.Judged, "only what the words alone cannot tell");
         Assert.AreEqual(1, rig.Agent.Count);
+    }
+
+    [TestMethod]
+    public async Task WordsOverAReplyAtWork_AreAddedToIt_ItWorksQuietly_AndSumsUpAtTheEnd()
+    {
+        var release = new TaskCompletionSource();
+        await using var rig = await new Rig(async (_, _, handler, ct) =>
+        {
+            handler.ShowReplyDraft("Looking through the folder now. ");
+            await release.Task.WaitAsync(ct);
+            var added = handler.TakeInterjections();
+            handler.ShowFinal($"Found it and did {added.Count} more.");
+        }).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Find the report."));
+        await Until(() => rig.Speaker.QueuedSamples > 0, "the acknowledgement");
+        rig.Speaker.Play(FakeSpeaker.SamplesPerChar * 10);
+        await SpeakOverAsync(rig, "also open");
+        Assert.AreEqual(1, rig.Speaker.Stops, "the acknowledgement is cut at the first word");
+        rig.Ears.Hear(new TranscriptFinal("Also open it."));
+        await Until(() => rig.Session.State == VoiceState.Working, "the work to go quiet");
+        Assert.AreEqual(1, rig.Agent.Count, "the work goes on: added to, not started again");
+
+        release.SetResult();
+        await Until(() => rig.Voice.Texts.Contains("Found it and did 1 more."), "the summary");
+        await rig.PlayOutAsync();
+        Assert.AreEqual("Find the report. Also open it.", rig.Session.History[^2].Text);
     }
 
     [TestMethod]
@@ -281,6 +426,27 @@ public class VoiceSessionTests
         Assert.AreEqual(proceed ? "File deleted." : Stopped, rig.Voice.Texts[1]);
     Assert.AreEqual(0, rig.Confirmations.Withdrawn, "answered, not taken away");
         Assert.AreEqual(1, rig.Speaker.Stops, "a click answers it as words would: the rest of the announcement is not said");
+    }
+
+    [TestMethod]
+    public async Task AnAnnouncementCutShort_IsStillRemembered_AsHeard_WhenTheNextTurnInterruptsWhatFollows()
+    {
+        bool? proceeded = null;
+        await using var rig = await new Rig(Delete(p => proceeded = p)).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
+        await Until(() => rig.Confirmations.Showing && rig.Speaker.QueuedSamples > 0, "the announcement");
+        rig.Speaker.Play(rig.Speaker.QueuedSamples / 2);
+        rig.Confirmations.Press(false);
+        await Until(() => proceeded is not null && rig.Voice.Texts.Length == 2 && rig.Speaker.QueuedSamples > rig.Speaker.PlayedSamples,
+                    "the abort line to be queued");
+        rig.Speaker.Play(1);
+
+        rig.Session.Submit("Something else.");
+        await Until(() => rig.Agent.Count == 2 || rig.Session.IsHoldingTurn, "the next turn");
+
+        Assert.AreEqual(Announcement + " —", rig.Session.History[^1].Text,
+                        "the announcement was cut, not unheard: what followed it lines up after the part let go of");
     }
 
     [TestMethod]

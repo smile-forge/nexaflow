@@ -202,6 +202,13 @@ public abstract class UITestBase
                 + "whatever window is on top. Re-run with the desktop free.");
     }
 
+    /// <summary>
+    /// Brings the app in front before input is sent the way a user sends it. Keystrokes and clicks go to whichever window
+    /// is in front, so input sent while another app holds the foreground lands in that app. False when the app will not
+    /// come forward — send nothing then.
+    /// </summary>
+    protected bool InFront() => UiTestGate.BringToForeground(MainWindow.Properties.NativeWindowHandle, TimeSpan.FromSeconds(5));
+
     private Window ResolveShellWindow()
     {
         var sw = Stopwatch.StartNew();

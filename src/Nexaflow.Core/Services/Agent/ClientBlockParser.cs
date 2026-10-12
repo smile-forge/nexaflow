@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common.ClientTools;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Nexaflow.Core.Services.Agent;
 
@@ -70,6 +71,11 @@ public static class ClientBlockParser
             else
             {
                 if (toolNames is not null && TextCall(lines[i], toolNames) is { } tool) textCalls.Add((lines[i].Trim(), tool));
+                // A call opened outside a fence whose body cannot be read is still a call, not prose: the model is asked
+                // to write it again rather than the attempt reaching the user as the answer.
+                if (toolNames is not null && OpensBareCall(lines[i]))
+                    errors.Add($"`{lines[i].Trim()}` starts a client_tool call that could not be read, so it did not run. A tool "
+                             + "runs only from a fenced client_tool block of JSON:\n```client_tool\n{\"tool\": \"…\", \"arguments\": { … }}\n```");
                 explanation.Append(lines[i]).Append('\n');
                 i++;
             }
@@ -132,10 +138,29 @@ public static class ClientBlockParser
         var body = new StringBuilder(opening);
         for (int end = start; ; )
         {
-            if (TryCallObject(body.ToString(), toolNames)) return (body.ToString(), end + 1);
+            var candidate = body.ToString();
+            if (TryCallObject(candidate, toolNames)) return (candidate, end + 1);
+            // A model's own call syntax leaves words unquoted — "tool": delete_file — where JSON wants strings.
+            if (Requoted(candidate) is var repaired && TryCallObject(repaired, toolNames)) return (repaired, end + 1);
             if (++end >= lines.Length || end - start > BareCallLines) return null;
             body.Append('\n').Append(lines[end]);
         }
+    }
+
+    /// <summary>A bare word where JSON wants a string — a key, or a value that is not <c>true</c>, <c>false</c> or <c>null</c>.</summary>
+    private static readonly Regex BareKey   = new(@"(?<=[{,]\s*)([A-Za-z_][\w\-]*)(?=\s*:)", RegexOptions.Compiled);
+    private static readonly Regex BareValue = new(@"(?<=[:\[,]\s*)(?!(?:true|false|null)\b)([A-Za-z_][\w.\-/\\]*)(?=\s*[,}\]])", RegexOptions.Compiled);
+
+    /// <summary>The call body with its bare words quoted, as a model writing its own call syntax means them.</summary>
+    private static string Requoted(string body) => BareValue.Replace(BareKey.Replace(body, "\"$1\""), "\"$1\"");
+
+    /// <summary>A line that opens a <c>client_tool</c> call outside a fence — <c>call:client_tool</c> or <c>client_tool {</c>.</summary>
+    internal static bool OpensBareCall(string line)
+    {
+        var text = line.Trim().Trim('`');
+        if (text.StartsWith("call:", StringComparison.OrdinalIgnoreCase)) text = text[5..].TrimStart();
+        return text.StartsWith(ToolInfo, StringComparison.OrdinalIgnoreCase)
+            && (text.Length == ToolInfo.Length || text[ToolInfo.Length] is '{' or ' ' or '\t');
     }
 
     /// <summary>Whether <paramref name="json"/> is a whole client_tool object naming a known tool.</summary>

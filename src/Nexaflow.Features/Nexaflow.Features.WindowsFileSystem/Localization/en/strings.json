@@ -261,6 +261,8 @@
   "WindowsFileSystem.Announce.Delete": "delete",
   "WindowsFileSystem.Announce.FileFormat": "file {0}",
   "WindowsFileSystem.Announce.FolderFormat": "folder {0}",
+  "WindowsFileSystem.Announce.DeletingFileFormat": "Deleting file {0}",
+  "WindowsFileSystem.Announce.DeletingFolderFormat": "Deleting folder {0}",
   "WindowsFileSystem.Announce.FileDeleted": "File deleted.",
   "WindowsFileSystem.Announce.FolderDeleted": "Folder deleted.",
   "WindowsFileSystem.Announce.FileUnchanged": "The file is unchanged.",

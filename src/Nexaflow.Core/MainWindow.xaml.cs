@@ -12,6 +12,7 @@ using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
 using Nexaflow.Visuals.Common.Localization;
+using System.Windows.Media.Animation;
 
 namespace Nexaflow.Core;
 
@@ -157,6 +158,11 @@ public partial class MainWindow : Window
 
         SizeChanged    += (_, _) => CapAiRowHeight();
         RootGrid.LayoutUpdated += (_, _) => CapAiRowHeight();
+        _vm.Voice.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) LayOutForVoice(_vm.Voice.IsActive, animate: true);
+        };
+
 
         WireAiBarChatHandlers();
     }
@@ -221,6 +227,38 @@ public partial class MainWindow : Window
         double maxAi = (ActualHeight - 91) * 0.5;
         if (maxAi < 72) maxAi = 72;
         AiRow.MaxHeight = maxAi;
+    }
+
+    /// <summary>How long the AI bar takes to change between its two layouts.</summary>
+    private static readonly Duration VoiceLayoutTime = new(TimeSpan.FromMilliseconds(180));
+
+    /// <summary>
+    /// Voice mode gives the AI its line: its field grows right from around the status dot across the top, and the user's
+    /// field gives the top line up to it. Out of voice mode the AI is the dot alone and the user's field is full height.
+    /// Once grown, the AI's field stretches with the bar again.
+    /// </summary>
+    private void LayOutForVoice(bool active, bool animate)
+    {
+        var time = animate ? VoiceLayoutTime : new Duration(TimeSpan.Zero);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        double dotOnly = AiBarGrid.ColumnDefinitions[0].ActualWidth;
+        double across  = dotOnly + AiBarGrid.ColumnDefinitions[1].ActualWidth;
+
+        var top = new Thickness(UserField.Margin.Left, active ? AiField.ActualHeight + AiField.Margin.Bottom : 0, 0, 0);
+        UserField.BeginAnimation(MarginProperty, new ThicknessAnimation(top, time) { EasingFunction = ease });
+
+        double from = AiField.ActualWidth;
+        AiField.HorizontalAlignment = HorizontalAlignment.Left;
+        var width = new DoubleAnimation(from, active ? across : dotOnly, time) { EasingFunction = ease };
+        if (active)
+            width.Completed += (_, _) =>
+            {
+                if (!_vm.Voice.IsActive) return;
+                AiField.BeginAnimation(WidthProperty, null);
+                AiField.Width = double.NaN;
+                AiField.HorizontalAlignment = HorizontalAlignment.Stretch;
+            };
+        AiField.BeginAnimation(WidthProperty, width);
     }
 
     protected override void OnSourceInitialized(EventArgs e)

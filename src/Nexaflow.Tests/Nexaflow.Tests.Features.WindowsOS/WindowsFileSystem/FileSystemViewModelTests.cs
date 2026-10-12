@@ -540,6 +540,26 @@ public class FileSystemViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("win-file-system-ai-act-delete-file")]
+    public void DeleteFileTool_Announces_AFileOrAFolder_InFixedWords()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "test.zip"), "");
+            Directory.CreateDirectory(Path.Combine(dir, "old"));
+            var tool = new DeleteTool(AtPath(dir));
+
+            Assert.AreEqual(new ToolCallAnnouncement("delete", "file test.zip", "Deleting file test.zip", "File deleted.", "The file is unchanged."),
+                            tool.Announce(new JsonObject { ["name"] = "test.zip" }));
+            Assert.AreEqual(new ToolCallAnnouncement("delete", "folder old", "Deleting folder old", "Folder deleted.", "The folder is unchanged."),
+                            tool.Announce(new JsonObject { ["name"] = "old" }));
+            Assert.IsNull(tool.Announce([]), "nothing named: the call is announced by the tool's name");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
     [CoversNode("win-file-system-ai-act-create-directory")]
     public async Task CreateDirectoryTool_CreatesFolderOnDisk()
     {

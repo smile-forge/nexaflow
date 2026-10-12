@@ -86,10 +86,12 @@ public class AiStatusDot : ContentControl
             Visibility          = Visibility.Collapsed
         };
 
-        var grid = new Grid();
+        // Drawn at 28 and scaled to whatever size the dot is given — the bar sets its own — so it stays round. The
+        // grid keeps the full 28 while the busy pulse shrinks the ellipse, or the scale would undo the pulse.
+        var grid = new Grid { Width = 28, Height = 28 };
         grid.Children.Add(_dot);
         grid.Children.Add(_symbolBorder);
-        Content = grid;
+        Content = new Viewbox { Child = grid };
 
         Width  = 28;
         Height = 28;

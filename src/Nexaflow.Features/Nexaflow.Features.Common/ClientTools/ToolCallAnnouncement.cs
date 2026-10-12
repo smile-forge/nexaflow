@@ -9,4 +9,4 @@ namespace Nexaflow.Features.Common.ClientTools;
 /// <param name="Target">What it acts on, as it follows the verb: "file test.zip".</param>
 /// <param name="Done">The sentence said once it is done: "File deleted."</param>
 /// <param name="Unchanged">The sentence said when it is stopped: "The file is unchanged."</param>
-public sealed record ToolCallAnnouncement(string Action, string Target, string Done, string Unchanged);
+public sealed record ToolCallAnnouncement(string Action, string Target, string Doing, string Done, string Unchanged);

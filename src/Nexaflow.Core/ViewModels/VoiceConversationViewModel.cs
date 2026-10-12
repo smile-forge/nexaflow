@@ -16,9 +16,9 @@ namespace Nexaflow.Core.ViewModels;
 public sealed record ShownBlockViewModel(string Markdown);
 
 /// <summary>
-/// The input bar in voice mode: one window's spoken conversation. The bar becomes a live line — what the user says, in
-/// the box as it is heard, and what the assistant says above it, exactly as it is read aloud — and changes with what is
-/// happening: an action about to be done is shown there with Stop beside it. Anything the reply holds that speech
+/// The input bar in voice mode: one window's spoken conversation. The assistant has one line above the box — what it
+/// is saying now, exactly as it is read aloud, or what it is doing — and an action about to be done is shown there with
+/// Stop beside it. The user's last turn shows above the box a while, and what they say fills the box as it is heard. Anything the reply holds that speech
 /// cannot carry is shown over the page until Escape or the end of the conversation puts it away. On a page that shows
 /// AI replies itself, the conversation page, the replies land there instead.
 /// </summary>
@@ -33,16 +33,42 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     /// <summary>A conversation is under way.</summary>
     [ObservableProperty] private bool _isActive;
 
-    [ObservableProperty] private VoiceState _state = VoiceState.Ended;
+    /// <summary>How long the user's last turn stays above the box before it fades.</summary>
+    internal static readonly TimeSpan TurnShownFor = TimeSpan.FromSeconds(10);
+
+    private DispatcherTimer? _turnFade;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Line))]
+    private VoiceState _state = VoiceState.Ended;
 
     /// <summary>The user's last turn, as the assistant was given it — the box is free for the next one.</summary>
     [ObservableProperty] private string _turnText = "";
 
-    /// <summary>What the assistant has said of its current reply, as it was read aloud.</summary>
-    [ObservableProperty] private string _replyText = "";
+    /// <summary>The last turn is still shown; it fades once <see cref="TurnShownFor"/> has passed.</summary>
+    [ObservableProperty] private bool _isTurnFresh;
+
+    /// <summary>What the assistant has said of its reply so far, word by word as it is heard — the words given to the
+    /// voice, revealed as they are played.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Line))]
+    private string _saying = "";
 
     /// <summary>What the assistant is doing between words: the tool it runs.</summary>
-    [ObservableProperty] private string? _progress;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Line))]
+    private string? _progress;
+
+    /// <summary>The assistant's one line: its reply as it is said, and between words what it is doing — "Thinking…",
+    /// "Working… Deleting file test.zip". The reply stays until the next turn begins.</summary>
+    public string Line => State switch
+    {
+        VoiceState.Working                          => $"{Str.Get("Shell.AiBar.Voice.Working")} {Progress}".TrimEnd(),
+        // Speaking, but not a word heard yet: the voice is still on its way.
+        VoiceState.Thinking or VoiceState.Speaking when Saying.Length == 0 => Str.Get("Shell.AiBar.Voice.Thinking"),
+        _ when Saying.Length > 0                    => Saying,
+        _                                           => Str.Get("Shell.AiBar.Voice.Listening"),
+    };
 
     /// <summary>An action announced and waiting to be stopped — or a question waiting for a yes; null otherwise.</summary>
     [ObservableProperty]
@@ -72,7 +98,7 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     {
         if (IsActive) return;
         _inline   = inline is not null;
-        ReplyText = "";
+        Saying    = "";
         _playback = new SpeakerPlayback();
         _capture  = new CommunicationsCapture(_playback.EndpointId);
         var parts = new VoiceSessionParts(service.SpeechToText!, service.TextToSpeech!, _capture, _playback,
@@ -81,8 +107,8 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
         var session = new VoiceSession(parts, language);
         session.StateChanged += (_, state) => OnUi(() => State = state);
         session.Heard        += (_, text)  => OnUi(() => Heard?.Invoke(text));
-        session.TurnTaken    += (_, text)  => OnUi(() => { TurnText = text; TurnTaken?.Invoke(text); });
-        session.Said         += (_, text)  => OnUi(() => ReplyText = ReplyText.Length == 0 ? text : ReplyText + " " + text);
+        session.TurnTaken    += (_, text)  => OnUi(() => { ShowTurn(text); TurnTaken?.Invoke(text); });
+        session.Voiced       += (_, text)  => OnUi(() => Saying = text);
         session.Shown        += (_, md)    => OnUi(() => { if (!_inline) Shown.Add(new ShownBlockViewModel(md)); });
         session.Ended        += (_, why)   => OnUi(() => _ = FinishAsync(why));
         _session = session;
@@ -96,6 +122,20 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
             await TearDownAsync();
             throw;
         }
+    }
+
+    /// <summary>Shows the user's turn above the box for <see cref="TurnShownFor"/>, then lets it fade.</summary>
+    private void ShowTurn(string text)
+    {
+        TurnText    = text;
+        IsTurnFresh = true;
+        _turnFade ??= new DispatcherTimer(TurnShownFor, DispatcherPriority.Normal, (_, _) =>
+        {
+            _turnFade!.Stop();
+            IsTurnFresh = false;
+        }, ui);
+        _turnFade.Stop();
+        _turnFade.Start();
     }
 
     /// <summary>Ends the conversation: whatever is being said stops, and the microphone closes. A conversation started
@@ -129,8 +169,10 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
         _confirmed?.TrySetCanceled();
         Confirmation = null;
         Shown.Clear();
-        ReplyText = "";
-        TurnText  = "";
+        _turnFade?.Stop();
+        Saying      = "";
+        TurnText    = "";
+        IsTurnFresh = false;
         Progress  = null;
         IsActive  = false;
         State     = VoiceState.Ended;
@@ -186,7 +228,7 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
 
     // ── The bar as the reply's handler: what is said is shown from what was said, not from the draft ──────────
 
-    public void BeginResponse(string userText) => OnUi(() => { ReplyText = ""; Progress = null; });
+    public void BeginResponse(string userText) => OnUi(() => { Saying = ""; Progress = null; });
 
     public void ReportProgress(string message) => OnUi(() => Progress = message);
 

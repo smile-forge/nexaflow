@@ -528,17 +528,20 @@ public sealed class AIService : IAIService
                 if (needApproval) approval.EndReplyDraft(keep: false);
                 else              KeepNarration(approval, turn);
 
-                if (needApproval &&
-                    !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown,
-                        [.. calls.Select(c => c.Call with { Announcement = c.Tool?.Announce(c.Call.Arguments) })], ct))
+                // Each call as it is put to the user: what it does, in the tool's own words where it gives them.
+                IReadOnlyList<ToolCall> batch = [.. calls.Select(c => c.Call with { Announcement = c.Tool?.Announce(c.Call.Arguments) })];
+                if (needApproval && !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, batch, ct))
                 {
                     var denied = string.Join(", ", turn.ToolCalls.Select(c => c.Tool));
-                    messages.Add(new(LlmRole.User,
-                        $"TOOL RESULTS\nThe user denied: {denied}. Do not retry — ask what they would prefer, or finish."));
+                    var deniedText = $"TOOL RESULTS\nThe user denied: {denied}. Do not retry — ask what they would prefer, or finish.";
+                    // What the user said while deciding is part of the answer.
+                    var meanwhile = approval.TakeInterjections();
+                    if (meanwhile.Count > 0) deniedText += "\n\n" + FormatInterjections(meanwhile);
+                    messages.Add(new(LlmRole.User, deniedText));
                     continue;
                 }
 
-                approval.OnToolBatchStarting(turn.ToolCalls);
+                approval.OnToolBatchStarting(batch);
                 var results = await ExecuteBatchAsync(calls, approval, ct);
 
                 // A tool asked to end the run silently (e.g. a command handed off to a background
@@ -908,7 +911,7 @@ public sealed class AIService : IAIService
           .Append("- Text you write OUTSIDE fenced blocks is shown to the user as your message.\n")
           .Append("- To run several INDEPENDENT tools at once, emit multiple `client_tool` blocks in the same reply — the harness runs them together as one batch without asking you in between. Only batch tools that don't depend on each other.\n")
           .Append("- When you have everything you need, reply normally with no tool block — that is your final answer.\n")
-          .Append("- Read-only tools run immediately; tools that change the machine ask the user to approve first.\n")
+          .Append("- Read-only tools run immediately. Tools marked [needs approval] are put to the user by the app when you call them, so call them directly — never ask the user for permission or confirmation yourself.\n")
           .Append("- If you're unsure what you can do here, call `get_client_commands` for the full list.\n\n")
           .Append("To pre-fill the user's input box instead of acting (e.g. to suggest a command for them to run), emit:\n\n")
           .Append("```client_prefill\n{\"text\": \"suggested input\"}\n```\n\n");

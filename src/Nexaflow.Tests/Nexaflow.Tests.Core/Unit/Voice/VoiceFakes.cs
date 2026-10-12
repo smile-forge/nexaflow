@@ -7,7 +7,7 @@ using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Tests.Core.Unit.Voice;
 
-/// <summary>A clock the test moves by hand; timers fire when it passes them.</summary>
+/// <summary>A clock the test moves by hand; timers fire when it passes them, a periodic one again each period.</summary>
 internal sealed class ManualTime : TimeProvider
 {
     private readonly List<Timer> _timers = [];
@@ -30,14 +30,22 @@ internal sealed class ManualTime : TimeProvider
         foreach (var timer in due) timer.Fire();
     }
 
+    /// <summary>One-shot timers set and not yet fired — what a test waits on before moving the clock past them.</summary>
+    public int Waiting { get { lock (_timers) return _timers.Count(t => t.Due is not null && !t.Periodic); } }
+
     private sealed class Timer(ManualTime time, TimerCallback callback, object? state) : ITimer
     {
+        private TimeSpan _period = Timeout.InfiniteTimeSpan;
+
         public DateTimeOffset? Due { get; private set; }
+
+        public bool Periodic => _period != Timeout.InfiniteTimeSpan;
 
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {
             lock (time._timers)
             {
+                _period = period;
                 Due = dueTime == Timeout.InfiniteTimeSpan ? null : time._now + dueTime;
                 if (!time._timers.Contains(this)) time._timers.Add(this);
             }
@@ -46,7 +54,7 @@ internal sealed class ManualTime : TimeProvider
 
         public void Fire()
         {
-            Due = null;
+            lock (time._timers) Due = Periodic ? time._now + _period : null;
             callback(state);
         }
 
@@ -58,9 +66,6 @@ internal sealed class ManualTime : TimeProvider
             return ValueTask.CompletedTask;
         }
     }
-
-    /// <summary>Timers set and not yet fired.</summary>
-    public int Waiting { get { lock (_timers) return _timers.Count(t => t.Due is not null); } }
 }
 
 /// <summary>A listening model the test speaks through.</summary>
@@ -203,6 +208,16 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
     }
 
     public int Count { get { lock (Turns) return Turns.Count; } }
+
+    /// <summary>What the Disambiguation model makes of words over an announcement; what it was asked.</summary>
+    public Func<string, AnswerIntent> Judge { get; set; } = _ => AnswerIntent.Unclear;
+    public readonly List<string> Judged = [];
+
+    public Task<AnswerIntent> JudgeAnswerAsync(string announcement, string said, CancellationToken ct)
+    {
+        lock (Judged) Judged.Add(said);
+        return Task.FromResult(Judge(said));
+    }
 }
 
 /// <summary>What the conversation shows. A voice reply announces its actions itself, so approvals never reach it.</summary>

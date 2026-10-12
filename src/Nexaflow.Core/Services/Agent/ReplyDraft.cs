@@ -20,6 +20,9 @@ internal sealed class ReplyDraft
     /// <summary>The fence the lines are inside, and whether it is one the agent acts on; null outside one.</summary>
     private (char Char, int Length, bool IsAction)? _fence;
 
+    /// <summary>A tool call began outside a fence — the model's own call framing — and nothing from it on is prose.</summary>
+    private bool _unfencedCall;
+
     public void Append(string delta)
     {
         foreach (var c in delta)
@@ -34,7 +37,7 @@ internal sealed class ReplyDraft
     {
         get
         {
-            if (_fence is not null || _line.Length == 0 || MayOpenFence(_line))
+            if (_unfencedCall || _fence is not null || _line.Length == 0 || MayOpenFence(_line) || MayOpenUnfencedCall(_line))
                 return _prose.ToString().Trim();
             return string.Concat(_prose.ToString(), _line.ToString()).Trim();
         }
@@ -44,6 +47,7 @@ internal sealed class ReplyDraft
     {
         var line = _line.ToString();
         _line.Clear();
+        if (_unfencedCall) return;
 
         if (_fence is { } fence)
         {
@@ -64,6 +68,12 @@ internal sealed class ReplyDraft
             return;
         }
 
+        if (OpensUnfencedCall(line))
+        {
+            _unfencedCall = true;
+            return;
+        }
+
         _prose.Append(line).Append('\n');
     }
 
@@ -77,5 +87,27 @@ internal sealed class ReplyDraft
 
         var c = line[i];
         return c is '`' or '~';
+    }
+
+    /// <summary>A line that opens a tool call outside a fence, as a model writes one in its own framing —
+    /// <c>call:…</c>, <c>client_tool …</c>, or a bare <c>{"tool": …}</c> object.</summary>
+    private static bool OpensUnfencedCall(string line)
+    {
+        var text = line.TrimStart();
+        return text.StartsWith("call:", StringComparison.OrdinalIgnoreCase)
+            || ClientBlockParser.OpensBareCall(text)
+            || (text.StartsWith('{') && text.Contains("tool", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Whether a partial line could still turn out to open a call outside a fence: so far it is the start of
+    /// <c>call:</c> or <c>client_tool</c>, or a <c>{</c> that may yet name a tool, or already opens one. Such a line shows
+    /// once it ends, if it is prose.</summary>
+    private static bool MayOpenUnfencedCall(StringBuilder line)
+    {
+        var text = line.ToString().TrimStart();
+        return text.StartsWith('{')
+            || "call:".StartsWith(text, StringComparison.OrdinalIgnoreCase)
+            || "client_tool".StartsWith(text, StringComparison.OrdinalIgnoreCase)
+            || OpensUnfencedCall(text);
     }
 }
