@@ -69,6 +69,7 @@ public class SetupWizardTests
 
     [TestMethod]
     [CoversNode("opt-ai-persona")]
+    [CoversNode("ws-harness-choice")]
     [CoversNode("opt-section-shell")]
     [CoversNode("opt-shell-text-size")]
     public void FirstRunWizard_ConfiguresEveryStep_AndPersistsToDisk()
@@ -93,6 +94,19 @@ public class SetupWizardTests
         var textSizeCombo = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("ShellTextSizeCombo"))?.AsComboBox());
         textSizeCombo.Select(chosenTextSize);
         ClickNext(wizard);
+
+        // ── Who runs the AI — asked only on a machine that can run Nexaflow's own model. This journey sets up a
+        // provider, so it takes that choice; Both and Nexaflow alone are there beside it. ──
+        WaitUntil(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardProviderList")) is not null
+                     || wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged")) is not null);
+        if (wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged"))?.AsRadioButton() is { } bridged)
+        {
+            Assert.IsTrue(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Mixed"))?.AsRadioButton().IsChecked == true,
+                          "Both is offered first");
+            Assert.IsNotNull(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Owned")), "Nexaflow alone is offered");
+            bridged.Click();
+            ClickNext(wizard);
+        }
 
         // ── Step 3: pick the provider ──
         var providerList = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardProviderList"))?.AsListBox());

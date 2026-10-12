@@ -39,13 +39,28 @@
           "class": "OwnedLlmProvider"
         }
       ]
+    },
+    "ws-harness-choice": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/SetupWizardViewModel.cs",
+          "class": "HarnessStep"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/WorkspaceAiDefaults.cs",
+          "class": "WorkspaceAiDefaults"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 4,
   "touched_nodes": [
     "ai-host",
     "ioterm-job",
-    "owned-llm"
+    "owned-llm",
+    "ws-harness-choice"
   ]
 }

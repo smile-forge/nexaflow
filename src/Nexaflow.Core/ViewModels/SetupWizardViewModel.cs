@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.AiHost.Client;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -24,6 +26,10 @@ public interface IWizardStep : INotifyPropertyChanged
     bool   IsComplete { get; }          // gates the Next button
     void   OnEnter();                   // called when the step becomes current (lazy load)
     void   Commit();                    // persist this step on advancing past it
+
+    /// <summary>Whether the step is asked at all, given what earlier steps chose — the provider steps are not when
+    /// Nexaflow runs the workspace's AI itself. Next and Back pass over a step that does not apply.</summary>
+    bool Applies => true;
 }
 
 // ── Content view models (rendered by DataTemplates) ──────────────────────────────
@@ -37,6 +43,29 @@ public sealed partial class WizardProviderPickContent : ObservableObject
 {
     public ObservableCollection<string> Providers { get; } = [];
     [ObservableProperty] private string? _selectedProvider;
+}
+
+/// <summary>The choice of who runs the workspace's AI, with what Nexaflow's own model costs to fetch.</summary>
+public sealed partial class WizardHarnessContent : ObservableObject
+{
+    public WizardHarnessContent(string modelName, string downloadText, string hardwareText)
+    {
+        ModelName    = modelName;
+        DownloadText = downloadText;
+        HardwareText = hardwareText;
+    }
+
+    public string ModelName    { get; }
+    public string DownloadText { get; }
+    public string HardwareText { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOwned), nameof(IsBridged), nameof(IsMixed))]
+    private WorkspaceHarness _choice = WorkspaceHarness.Mixed;
+
+    public bool IsOwned   { get => Choice == WorkspaceHarness.Owned;   set { if (value) Choice = WorkspaceHarness.Owned; } }
+    public bool IsBridged { get => Choice == WorkspaceHarness.Bridged; set { if (value) Choice = WorkspaceHarness.Bridged; } }
+    public bool IsMixed   { get => Choice == WorkspaceHarness.Mixed;   set { if (value) Choice = WorkspaceHarness.Mixed; } }
 }
 
 public sealed partial class WizardModelPickContent : ObservableObject
@@ -54,6 +83,29 @@ internal sealed class WorkspaceSetupContext
     public IReadOnlyList<IProviderConfig> AvailableProviders = [];
     public IProviderConfig? ChosenProvider;
     public ProviderSet?     ProviderSet;   // acquired after the provider config is saved (for model listing)
+
+    /// <summary>Who runs the workspace's AI; bridged unless the machine can run Nexaflow's own model and the user chose it.</summary>
+    public WorkspaceHarness Harness = WorkspaceHarness.Bridged;
+
+    /// <summary>Nexaflow's own model, when the machine can run one.</summary>
+    public OwnedModelOffer? Owned;
+}
+
+/// <summary>The model Nexaflow runs itself that a new workspace is offered: what its column is, and what it costs to fetch.</summary>
+internal sealed record OwnedModelOffer(string ProviderName, string ModelId, string DisplayName, string AssemblyFileName, long DownloadBytes)
+{
+    public ProviderModelPair Column() => new() { ProviderName = ProviderName, Model = ModelId, AssemblyFileName = AssemblyFileName };
+
+    /// <summary>The owned language provider's first model, with its files and — where the machine suits it — the CUDA
+    /// pack to fetch; null when no provider is Nexaflow's own harness.</summary>
+    public static OwnedModelOffer? Find(ProviderSet providers, ComputeHardwareReport hardware)
+    {
+        var provider = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Serves(ModelKind.Language));
+        if (provider is not ILocalModelCatalog { Catalog: [var model, ..] }) return null;
+
+        long bytes = model.Files.Sum(f => f.Size) + (CudaRuntimePack.Applies(hardware) ? CudaRuntimePack.Size : 0);
+        return new OwnedModelOffer(provider!.Name, model.Id, model.DisplayName, providers.GetAssemblyFileName(provider.Name), bytes);
+    }
 }
 
 // ── Steps ────────────────────────────────────────────────────────────────────
@@ -101,6 +153,44 @@ internal sealed class ConfigEditStep : ObservableObject, IWizardStep
     }
 }
 
+/// <summary>
+/// Who runs the workspace's AI: Nexaflow itself, a provider the user chooses, or both. Asked only where the machine
+/// can run Nexaflow's own model; choosing Nexaflow alone skips the provider steps and sets the grid here.
+/// </summary>
+internal sealed class HarnessStep : ObservableObject, IWizardStep
+{
+    private readonly WorkspaceSetupContext _ctx;
+    private readonly WizardHarnessContent? _content;
+
+    public HarnessStep(WorkspaceSetupContext ctx, ComputeHardwareReport hardware)
+    {
+        _ctx = ctx;
+        if (ctx.Owned is not { } offer || hardware.Fit == LocalAiFit.Insufficient) return;
+
+        var gpu = hardware.BestGpu!;
+        _content = new WizardHarnessContent(offer.DisplayName,
+            $"{offer.DisplayName} and what it needs to run on this machine: {offer.DownloadBytes / 1e9:0.0} GB, downloaded in the background once you finish. Until it is here, Nexaflow's own model is not available.",
+            $"This machine can run it: {gpu.Name}, {gpu.DedicatedMemoryBytes / 1e9:0} GB.");
+    }
+
+    public string Title      => "Who runs the AI";
+    public object Content    => _content!;
+    public bool   IsComplete => true;
+    public bool   Applies    => _content is not null;
+    public void   OnEnter() { }
+
+    public void Commit()
+    {
+        _ctx.Harness = _content!.Choice;
+        if (_ctx.Harness != WorkspaceHarness.Owned) return;
+
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Column(),
+                                   LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
+        WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
+        WorkspaceManager.Instance.SaveWorkspaces();
+    }
+}
+
 /// <summary>Pick which provider to set up first.</summary>
 internal sealed class ProviderPickStep : ObservableObject, IWizardStep
 {
@@ -125,6 +215,7 @@ internal sealed class ProviderPickStep : ObservableObject, IWizardStep
     }
 
     public string Title      => "Choose a provider";
+    public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
     public object Content     => _content;
     public bool   IsComplete  => _ctx.ChosenProvider is not null;
     public void   OnEnter() { }
@@ -142,6 +233,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     public ProviderConfigStep(WorkspaceSetupContext ctx) => _ctx = ctx;
 
     public string Title => "Provider settings";
+    public bool Applies => _ctx.Harness != WorkspaceHarness.Owned;
 
     public bool IsComplete =>
         _editor is not null && ConfigEditViewModel.AreRequiredPropertiesSatisfied(_editor.EditingClone);
@@ -185,6 +277,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
     }
 
     public string Title      => "Choose a model";
+    public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
     public object Content     => _content;
     public bool   IsComplete  => !string.IsNullOrEmpty(_content.SelectedModel);
 
@@ -228,13 +321,10 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
             AssemblyFileName = _ctx.ProviderSet?.GetAssemblyFileName(name) ?? string.Empty,
         };
 
-        // The chosen language model serves every reasoning role; abilities of other kinds need models of their own.
-        _ctx.Workspace.AiConfig.Columns = [pair];
-        _ctx.Workspace.AiConfig.Assignments.Clear();
-        foreach (AiAbility ability in Enum.GetValues<AiAbility>())
-                if (AiAbilityNames.Kind(ability) == ModelKind.Language)
-                    _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = AbilityChain.Of(pair.Id);
-            _ctx.Workspace.AiConfig.AddDefaultSpeechIn(LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
+        // The chosen language model serves every reasoning role — alongside Nexaflow's own when the workspace mixes
+        // both; abilities of other kinds need models of their own.
+        var owned = _ctx.Harness == WorkspaceHarness.Mixed ? _ctx.Owned?.Column() : null;
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, owned, LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
@@ -263,17 +353,30 @@ public partial class SetupWizardViewModel : ObservableObject
     public event EventHandler? Finished;
 
     public IWizardStep   CurrentStep    => _steps[CurrentIndex];
-    public bool          IsLastStep     => CurrentIndex == _steps.Count - 1;
+    public bool          IsLastStep     => NextApplying(CurrentIndex) is null;
     public string        NextButtonText => IsLastStep ? "Finish" : "Next";
-    public int           StepNumber     => CurrentIndex + 1;
-    public int           StepCount      => _steps.Count;
+    public int           StepNumber     => _steps.Take(CurrentIndex + 1).Count(s => s.Applies);
+    public int           StepCount      => _steps.Count(s => s.Applies);
     public string        StepIndicator  => $"Step {StepNumber} of {StepCount}";
-    public bool          ShowBack       => CurrentIndex > 0;
+    public bool          ShowBack       => PreviousApplying(CurrentIndex) is not null;
 
-    private SetupWizardViewModel(IReadOnlyList<IWizardStep> steps, WorkspaceSetupContext? ctx)
+    private int? NextApplying(int from)
+    {
+        for (int i = from + 1; i < _steps.Count; i++) if (_steps[i].Applies) return i;
+        return null;
+    }
+
+    private int? PreviousApplying(int from)
+    {
+        for (int i = from - 1; i >= 0; i--) if (_steps[i].Applies) return i;
+        return null;
+    }
+
+    internal SetupWizardViewModel(IReadOnlyList<IWizardStep> steps, WorkspaceSetupContext? ctx)
     {
         _steps = steps;
         _ctx   = ctx;
+        _currentIndex = NextApplying(-1) ?? 0;
         CurrentStep.PropertyChanged += OnStepPropertyChanged;
         CurrentStep.OnEnter();
     }
@@ -305,14 +408,14 @@ public partial class SetupWizardViewModel : ObservableObject
     private void Next()
     {
         CurrentStep.Commit();
-        if (IsLastStep) { Complete(); return; }
-        CurrentIndex++;
+        if (NextApplying(CurrentIndex) is not { } next) { Complete(); return; }
+        CurrentIndex = next;
     }
 
-    private bool CanGoBack() => CurrentIndex > 0;
+    private bool CanGoBack() => PreviousApplying(CurrentIndex) is not null;
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
-    private void Back() => CurrentIndex--;
+    private void Back() => CurrentIndex = PreviousApplying(CurrentIndex)!.Value;
 
     /// <summary>Skip the rest of the wizard and launch with whatever defaults exist (no dead-end).</summary>
     [RelayCommand]
@@ -439,7 +542,15 @@ public partial class SetupWizardViewModel : ObservableObject
             AvailableProviders = workspace.ProviderConfigs,
         };
 
-        // Essential AI bootstrap — always runs.
+        // Who runs the AI — asked only where this machine can run Nexaflow's own model. A provider set is acquired
+        // just long enough to find it among the providers by its harness.
+        var hardware = ProviderManager.Instance.Service<ComputeHardwareReport>() ?? ComputeHardware.Probe();
+        var offers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, []);
+        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware); }
+        finally { ProviderManager.Instance.ReleaseProviderSet(offers); }
+        steps.Add(new HarnessStep(ctx, hardware));
+
+        // Essential AI bootstrap — unless Nexaflow runs the workspace's AI itself.
         steps.Add(new ProviderPickStep(ctx));
         steps.Add(new ProviderConfigStep(ctx));
         steps.Add(new ModelPickStep(ctx));
@@ -460,8 +571,8 @@ public partial class SetupWizardViewModel : ObservableObject
         return ctx;
     }
 
-    /// <summary>True when the workspace has at least one ability assigned to a provider whose required
-    /// config (e.g. API key) is satisfied.</summary>
+    /// <summary>True when the workspace has a language ability assigned to a provider that is ready: one whose required
+    /// config (e.g. API key) is satisfied, or one that takes no config at all — Nexaflow's own model.</summary>
     public static bool IsWorkspaceConfigured(Workspace p)
     {
         var ai = p.AiConfig;
@@ -472,7 +583,8 @@ public partial class SetupWizardViewModel : ObservableObject
         return ai.Columns
             .Where(c => c.Kind == ModelKind.Language && assignedColumnIds.Contains(c.Id))
             .Any(c => byName.TryGetValue(c.ProviderName, out var cfg)
-                      && ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg));
+                      ? ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg)
+                      : ProviderManager.Instance.TakesNoConfig(c.AssemblyFileName));
     }
 
     private static bool TryLoadWhatsNew(out string markdown)

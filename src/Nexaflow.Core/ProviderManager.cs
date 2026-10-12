@@ -74,6 +74,14 @@ public sealed class ProviderManager
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
 
+    /// <summary>An app-wide service given to <see cref="Initialize"/>, or null.</summary>
+    public T? Service<T>() where T : class => _services.OfType<T>().FirstOrDefault();
+
+    /// <summary>Whether the loaded provider assembly <paramref name="assemblyFileName"/> defines no config — its providers
+    /// need nothing set to be used. False for an assembly not loaded.</summary>
+    public bool TakesNoConfig(string assemblyFileName)
+        => _descriptors.FirstOrDefault(d => string.Equals(d.FileName, assemblyFileName, StringComparison.OrdinalIgnoreCase)) is { ConfigTypes.Count: 0 };
+
     /// <summary>
     /// Loads only the assemblies listed in <paramref name="assemblyFileNames"/>.
     /// Called at startup with the union of assembly file names from all workspaces' AiConfigs.
