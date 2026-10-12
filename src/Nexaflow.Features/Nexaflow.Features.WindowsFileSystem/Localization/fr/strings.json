@@ -257,5 +257,12 @@
   "WindowsFileSystem.Templates.TemplateFile": "Fichier modèle",
   "WindowsFileSystem.Templates.Stored": "Un fichier modèle est déjà enregistré. Ne choisissez un nouveau fichier que pour le remplacer.",
   "WindowsFileSystem.Templates.NewTemplate": "Nouveau modèle",
-  "WindowsFileSystem.Templates.AllFilesFilter": "Tous les fichiers (*.*)|*.*"
+  "WindowsFileSystem.Templates.AllFilesFilter": "Tous les fichiers (*.*)|*.*",
+  "WindowsFileSystem.Announce.Delete": "supprimer",
+  "WindowsFileSystem.Announce.FileFormat": "le fichier {0}",
+  "WindowsFileSystem.Announce.FolderFormat": "le dossier {0}",
+  "WindowsFileSystem.Announce.FileDeleted": "Fichier supprimé.",
+  "WindowsFileSystem.Announce.FolderDeleted": "Dossier supprimé.",
+  "WindowsFileSystem.Announce.FileUnchanged": "Le fichier n'a pas été modifié.",
+  "WindowsFileSystem.Announce.FolderUnchanged": "Le dossier n'a pas été modifié."
 }

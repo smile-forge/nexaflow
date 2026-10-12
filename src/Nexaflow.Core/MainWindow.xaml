@@ -9,6 +9,7 @@
         xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
         xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
         xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+                xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
         Title="NexaFlow" Height="880" Width="1280"
         AutomationProperties.AutomationId="MainWindow"
         MinHeight="600" MinWidth="980"
@@ -468,6 +469,22 @@
                                 Panel.ZIndex="100"
                                 DataContext="{Binding Ai}"/>
 
+        <!-- Voice mode: what a spoken reply holds that speech cannot carry — a diagram, a table, code — shown over the
+             page, which stays usable beneath, until Escape or the end of the conversation puts it away. -->
+        <ItemsControl Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="90"
+                      ItemsSource="{Binding Voice.Shown}" Focusable="False"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="760">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource PopupBorder}" Padding="10" Margin="0,8,0,0">
+                        <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <md:MarkdownSurface Markdown="{Binding Markdown}" VerticalScrollBarVisibility="Disabled"/>
+                        </ScrollViewer>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <!-- ═══════════════════════════════════════════════════════════
              ROW 3 — DRAG SPLITTER
              ═══════════════════════════════════════════════════════════ -->
@@ -537,8 +554,63 @@
                         Background="{StaticResource AiBar.InputBg}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Voice mode: the live line — what the assistant is doing, the user's last turn, what the assistant
+                             says and what it asks. The box below fills as the user is heard, and empties once the turn is taken. -->
+                        <StackPanel Grid.Row="0" Margin="14,8,14,0"
+                                    Visibility="{Binding Voice.IsActive, Converter={StaticResource BoolVis}}">
+                            <DockPanel>
+                                                        <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiBar_VoiceOpenConversation"
+                                                                Content="{loc:Str Shell.Voice.OpenConversation}" Command="{Binding Voice.OpenInConversationCommand}"
+                                                                FontSize="11" Padding="8,1" Background="Transparent" BorderThickness="0"
+                                                                Foreground="{StaticResource AccentBrush}" Cursor="Hand"/>
+                                                        <StackPanel Orientation="Horizontal">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{loc:Str Shell.AiBar.Voice.Listening}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Voice.State}" Value="Thinking">
+                                                    <Setter Property="Text" Value="{loc:Str Shell.AiBar.Voice.Thinking}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Voice.State}" Value="Speaking">
+                                                    <Setter Property="Text" Value="{loc:Str Shell.AiBar.Voice.Speaking}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Voice.Progress}" FontSize="11" Margin="8,0,0,0"
+                                           Foreground="{StaticResource TextBrush}" Opacity="0.6" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                                                    </DockPanel>
+                            <TextBlock Text="{Binding Voice.TurnText}" FontSize="11" Margin="0,2,0,0" Opacity="0.6"
+                                       Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Voice.ReplyText}" FontSize="13" Margin="0,2,0,0"
+                                       Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" MaxHeight="58" TextTrimming="WordEllipsis"/>
+
+                                                    <!-- An action about to be done: said aloud, done after a few seconds unless stopped. -->
+                                                    <DockPanel Margin="0,6,0,0" Visibility="{Binding Voice.IsConfirming, Converter={StaticResource BoolVis}}">
+                                                        <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiBar_VoiceProceed"
+                                                                Content="{Binding Voice.Confirmation.ProceedLabel}" Command="{Binding Voice.ProceedCommand}"
+                                                                Padding="14,3" Margin="6,0,0,0"/>
+                                                        <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiBar_VoiceStop"
+                                                                Content="{Binding Voice.Confirmation.StopLabel}" Command="{Binding Voice.StopActionCommand}"
+                                                                Padding="14,3" Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"/>
+                                                        <TextBlock Text="{Binding Voice.Confirmation.Text}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                                    </DockPanel>
+
+                        </StackPanel>
+
                     <ctrl:PlaceholderTextBox
                         x:Name="AiInput"
+                        Grid.Row="1"
                         AutomationProperties.AutomationId="AiInputBox"
                         MinHeight="62"
                         Placeholder="{loc:Str Shell.AiBar.Placeholder}"
@@ -565,13 +637,14 @@
                                     <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
                                         <Setter Property="IsEnabled" Value="False"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                    <DataTrigger Binding="{Binding IsDictating}" Value="True">
                                         <Setter Property="IsEnabled" Value="False"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ctrl:PlaceholderTextBox.Style>
                     </ctrl:PlaceholderTextBox>
+                    </Grid>
                 </Border>
 
                 <!-- Submit / Cancel (swaps on AiIsBusy) + a Queue button that appears while busy so the
@@ -679,12 +752,16 @@
                         </ToggleButton>
 
                         <!-- Mic button — enabled only when voice is available; red while listening -->
-                        <Button AutomationProperties.AutomationId="AiBar_Mic" ToolTip="{loc:Str Shell.AiBar.Voice}"
+                        <Button AutomationProperties.AutomationId="AiBar_Mic"
                                 Command="{Binding ToggleVoiceCommand}"
                                 Margin="0,6,0,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Voice}"/>
                                     <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VoiceConverses}" Value="True">
+                                            <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Converse}"/>
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                             <Setter Property="Foreground" Value="#E11D48"/>
                                         </DataTrigger>

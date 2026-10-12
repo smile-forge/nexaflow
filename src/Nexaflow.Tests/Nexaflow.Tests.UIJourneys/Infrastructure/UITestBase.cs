@@ -61,6 +61,10 @@ public abstract class UITestBase
     /// </summary>
     protected virtual string? LaunchTabKind => null;
 
+    /// <summary>Environment the app is started with besides its isolated config dir — read after <see cref="SeedConfig"/>,
+    /// so a seed can decide it (where the AI models are, say).</summary>
+    protected virtual IReadOnlyDictionary<string, string> LaunchEnvironment { get; } = new Dictionary<string, string>();
+
     /// <summary>
     /// Override to seed files/config into the isolated config dir (<paramref name="configDir"/> =
     /// <c>NEXAFLOW_CONFIG_DIR</c>) BEFORE the app launches — e.g. write a workspace-scoped feature config
@@ -111,6 +115,7 @@ public abstract class UITestBase
             psi.ArgumentList.Add(kind);
         }
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
+        foreach (var (name, value) in LaunchEnvironment) psi.EnvironmentVariables[name] = value;
 
         App = Application.Launch(psi);
 

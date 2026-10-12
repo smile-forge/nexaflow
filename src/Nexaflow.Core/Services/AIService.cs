@@ -46,6 +46,13 @@ public sealed class AIService : IAIService
     /// <summary>The Speech Out chain's first model that can speak now, or null.</summary>
     public ITextToSpeechProvider? TextToSpeech => Candidates<ITextToSpeechProvider>(AiAbility.SpeechOut).FirstOrDefault();
 
+    /// <summary>
+    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens, a voice speaks the
+    /// language, and a model answers. Where it cannot, the mic dictates instead.
+    /// </summary>
+    public bool CanConverse(string language)
+        => SpeechToText is not null && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
+
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
@@ -522,7 +529,8 @@ public sealed class AIService : IAIService
                 else              KeepNarration(approval, turn);
 
                 if (needApproval &&
-                    !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, turn.ToolCalls, ct))
+                    !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown,
+                        [.. calls.Select(c => c.Call with { Announcement = c.Tool?.Announce(c.Call.Arguments) })], ct))
                 {
                     var denied = string.Join(", ", turn.ToolCalls.Select(c => c.Tool));
                     messages.Add(new(LlmRole.User,

@@ -28,12 +28,12 @@ internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : Ho
         using var turn        = parts.TurnDetector is { } d ? await models.AcquireAsync(d, resident: false, Stage, ct) : null;
 
         var streaming = recognizer.As<StreamingRecognizer>();
-        using var session = new ListenSession(request.RequestId, request.Language, request.End,
+        await using var session = new ListenSession(request.RequestId, request.Language, request.End,
             vad.As<SileroVoiceActivity>().Open(),
             () => streaming.Open(request.Language, gpu, request.Priority),
             transcriber?.As<WhisperTranscriber>().For(request.Language, gpu, request.Priority),
             turn?.As<SmartTurn>(),
-            reply);
+            reply, ct);
 
         var frames = new PcmFrames(ListenSession.FrameSamples);
         long heardSamples = 0;
@@ -44,10 +44,10 @@ internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : Ho
             foreach (var frame in frames.Add(audio.Pcm))
             {
                 heardSamples += frame.Length;
-                await session.FrameAsync(frame, ct);
+                await session.FrameAsync(frame);
             }
         }
-        await session.FinishAsync(ct);
+        await session.FinishAsync();
     }
 }
 

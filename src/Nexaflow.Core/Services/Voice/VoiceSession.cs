@@ -30,7 +30,8 @@ public interface IVoiceAgent
 }
 
 /// <summary>What a voice session is made of: the models it listens and speaks with, the microphone and speaker, the
-/// agent it talks to, the handler that shows the conversation, and the clock it times barge-in by.</summary>
+/// agent it talks to, the handler that shows the conversation, where announced actions are shown with their Stop, and
+/// the clock it times barge-in and announcements by.</summary>
 public sealed record VoiceSessionParts(
     ISpeechToTextProvider Listener,
     ITextToSpeechProvider Speaker,
@@ -38,6 +39,7 @@ public sealed record VoiceSessionParts(
     ISpeechPlayback Playback,
     IVoiceAgent Agent,
     IAIResponseHandler Shown,
+    IVoiceConfirmations Confirmations,
     TimeProvider Time);
 
 /// <summary>
@@ -48,7 +50,9 @@ public sealed record VoiceSessionParts(
 /// <b>Barge-in.</b> Speech while the assistant talks pauses it at once; words within half a second stop the reply, and
 /// what was actually heard of it — not what was written — is what the conversation remembers. No words — a cough, an
 /// "mm-hm" — and it carries on from where it paused. A turn that ends just after an interruption is held a second for
-/// the rest of the sentence ("Wait, stop —" is rarely all).
+/// the rest of the sentence ("Wait, stop —" is rarely all). Over a question the reply waits on — an announced action,
+/// a request to send a page away — the words are its answer instead: the question stays paused until they are
+/// finished, and is cut there.
 /// </para>
 /// <para>Everything happens on one loop, so the state is never seen half-changed.</para>
 /// </summary>
@@ -89,11 +93,17 @@ public sealed class VoiceSession : IAsyncDisposable
     /// <summary>Raised from the session's loop; a listener marshals.</summary>
     public event EventHandler<VoiceState>? StateChanged;
 
-    /// <summary>What the user is saying, as it is heard.</summary>
+    /// <summary>What the user is saying, as it is heard — speech only; a typed turn is not heard.</summary>
     public event EventHandler<string>? Heard;
+
+    /// <summary>The user's turn, said or typed, as the assistant is given it.</summary>
+    public event EventHandler<string>? TurnTaken;
 
     /// <summary>A diagram, table or code the assistant's reply holds, to show over the page.</summary>
     public event EventHandler<string>? Shown;
+
+    /// <summary>Words the assistant has begun to say — exactly what is read aloud.</summary>
+    public event EventHandler<string>? Said;
 
     /// <summary>Why it ended — null when the user stopped it or the assistant said goodbye.</summary>
     public event EventHandler<string?>? Ended;
@@ -147,7 +157,12 @@ public sealed class VoiceSession : IAsyncDisposable
         try
         {
             await foreach (var e in _listening!.ReadEventsAsync(_life.Token))
+            {
+                // Speech over the reply pauses it here, as it is heard, not when the loop gets to it: the loop may be
+                // queueing a sentence for the voice.
+                if (e is SpeechActivity { Speaking: true } && Audible) _parts.Playback.Pause();
                 Post(() => OnHeardAsync(e));
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Post(() => EndCoreAsync(ex.Message)); }
@@ -157,7 +172,7 @@ public sealed class VoiceSession : IAsyncDisposable
     {
         switch (e)
         {
-            case SpeechActivity { Speaking: true } when Audible && !_parts.Playback.IsPaused:
+            case SpeechActivity { Speaking: true } when Audible && !_bargeInPending:
                 // The user started talking over the reply: pause it now, and let the words decide.
                 _parts.Playback.Pause();
                 _bargeInPending = true;
@@ -173,7 +188,12 @@ public sealed class VoiceSession : IAsyncDisposable
 
             case TranscriptPartial partial:
                 Heard?.Invoke(this, (_held + " " + partial.Text).Trim());
-                if (_bargeInPending && !SpokenTurns.IsBackchannel(partial.Text, _language)) return InterruptAsync();
+                if (_bargeInPending && !SpokenTurns.IsBackchannel(partial.Text, _language))
+                {
+                    // Words over a question are its answer: it stays paused until they are finished.
+                    if (PendingAnswer is null) return InterruptAsync();
+                    EndBargeIn();
+                }
                 break;
 
             case TranscriptFinal final:
@@ -185,12 +205,15 @@ public sealed class VoiceSession : IAsyncDisposable
     /// <summary>Some of the reply is still to be heard.</summary>
     private bool Audible => _reply is not null && _parts.Playback.QueuedSamples > _parts.Playback.PlayedSamples;
 
-    private async Task OnTurnAsync(string text)
+    private async Task OnTurnAsync(string text, bool typed = false)
     {
         if (PendingAnswer is { } answer)
         {
-            // The reply asked a question and waits on it: this is the answer, not a new turn.
+            // The reply asked a question and waits on it: this is the answer, not a new turn — and what was still to be
+            // said of the question is not needed.
             PendingAnswer = null;
+            EndBargeIn();
+            _reply?.Silence();
             answer.TrySetResult(text);
             return;
         }
@@ -204,7 +227,7 @@ public sealed class VoiceSession : IAsyncDisposable
 
         if (_reply is not null) await InterruptAsync();
         _held = (_held + " " + text).Trim();
-        Heard?.Invoke(this, _held);
+        if (!typed) Heard?.Invoke(this, _held);
 
         if (_interrupted)
         {
@@ -224,6 +247,13 @@ public sealed class VoiceSession : IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>The words have decided what the speech over the reply was: the half-second wait is over.</summary>
+    private void EndBargeIn()
+    {
+        _bargeInPending = false;
+        _bargeInTimer?.Dispose();
+    }
+
     /// <summary>The user's turn is complete: the agent answers it.</summary>
     private Task TakeTurnAsync()
     {
@@ -233,6 +263,7 @@ public sealed class VoiceSession : IAsyncDisposable
         string text = _held;
         _held = "";
         if (text.Length == 0) return Task.CompletedTask;
+        TurnTaken?.Invoke(this, text);
 
         var reply = new VoiceReply(this, text);
         _reply = reply;
@@ -243,8 +274,7 @@ public sealed class VoiceSession : IAsyncDisposable
     /// <summary>Stops the reply: its agent, its synthesis and its sound. The conversation remembers what was heard.</summary>
     private async Task InterruptAsync()
     {
-        _bargeInPending = false;
-        _bargeInTimer?.Dispose();
+        EndBargeIn();
         if (_reply is not { } reply) return;
         _reply = null;
         _interrupted = true;
@@ -261,6 +291,7 @@ public sealed class VoiceSession : IAsyncDisposable
     /// <summary>Raised by the playback thread when everything queued has been heard.</summary>
     private async Task OnDrainedAsync()
     {
+        _reply?.OnDrained();
         if (_reply is not { } reply || !reply.Complete) return;
         _reply = null;
         Remember(reply.UserText, reply.Written);
@@ -295,6 +326,14 @@ public sealed class VoiceSession : IAsyncDisposable
     }
 
     internal void ShowBlock(string markdown) => Shown?.Invoke(this, markdown);
+
+    internal void OnSaid(string text) => Said?.Invoke(this, text);
+
+    /// <summary>A turn typed rather than said — in a meeting, a noisy room — answered aloud like any other.</summary>
+    public void Submit(string text)
+    {
+        if (!string.IsNullOrWhiteSpace(text)) Post(() => OnTurnAsync(text.Trim(), typed: true));
+    }
 
     internal void PostFromReply(Func<Task> action) => Post(action);
 

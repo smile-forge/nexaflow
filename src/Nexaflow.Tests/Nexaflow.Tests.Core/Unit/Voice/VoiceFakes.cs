@@ -58,6 +58,9 @@ internal sealed class ManualTime : TimeProvider
             return ValueTask.CompletedTask;
         }
     }
+
+    /// <summary>Timers set and not yet fired.</summary>
+    public int Waiting { get { lock (_timers) return _timers.Count(t => t.Due is not null); } }
 }
 
 /// <summary>A listening model the test speaks through.</summary>
@@ -202,23 +205,41 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
     public int Count { get { lock (Turns) return Turns.Count; } }
 }
 
-/// <summary>What the conversation shows: approvals wait for a click that never comes, until cancelled.</summary>
+/// <summary>What the conversation shows. A voice reply announces its actions itself, so approvals never reach it.</summary>
 internal sealed class ShownConversation : IAIResponseHandler
 {
     public readonly List<string> Finals = [];
-    public int ApprovalsCancelled;
 
     public void BeginResponse(string userText) { }
     public void ReportProgress(string message) { }
     public void ShowFinal(string finalMarkdown) { lock (Finals) Finals.Add(finalMarkdown); }
     public void Abort() { }
 
-    public async Task<bool> RequestToolBatchApprovalAsync(string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
+    public Task<bool> RequestToolBatchApprovalAsync(string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
+        => throw new InvalidOperationException("a voice reply announces its actions; it does not pass them on for approval");
+
+    public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
+        => throw new InvalidOperationException("a voice reply announces its plans; it does not pass them on for approval");
+}
+
+/// <summary>The bar's Stop and go-ahead: shown until the test presses one, or until answered some other way.</summary>
+internal sealed class FakeConfirmations : IVoiceConfirmations
+{
+    private TaskCompletionSource<bool>? _shown;
+
+    public readonly List<VoiceConfirmation> Shown = [];
+    public int Withdrawn;
+
+    public bool Showing => Volatile.Read(ref _shown) is { Task.IsCompleted: false };
+
+    public async Task<bool> ShowAsync(VoiceConfirmation confirmation, CancellationToken ct)
     {
-        try { await Task.Delay(Timeout.Infinite, ct); }
-        catch (OperationCanceledException) { Interlocked.Increment(ref ApprovalsCancelled); throw; }
-        return false;
+        var shown = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (Shown) Shown.Add(confirmation);
+        Volatile.Write(ref _shown, shown);
+        await using var _ = ct.Register(() => { if (shown.TrySetCanceled(ct)) Interlocked.Increment(ref Withdrawn); });
+        return await shown.Task;
     }
 
-    public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct) => RequestToolBatchApprovalAsync(plan.Title, [], ct);
+    public void Press(bool proceed) => Volatile.Read(ref _shown)?.TrySetResult(proceed);
 }

@@ -33,8 +33,8 @@ public class ListenSessionTests
 
         public async Task RunAsync(ListenSession session)
         {
-            while (Activity.Count > 0) await session.FrameAsync(new float[ListenSession.FrameSamples], default);
-            await session.FinishAsync(default);
+            while (Activity.Count > 0) await session.FrameAsync(new float[ListenSession.FrameSamples]);
+            await session.FinishAsync();
         }
 
         public List<ListenFinal> Finals => [.. Replies.OfType<ListenFinal>()];
@@ -81,6 +81,40 @@ public class ListenSessionTests
         await s.RunAsync(s.Session(UtteranceEnd.Turn));
         Assert.IsTrue(((ListenActivity)s.Replies[0]).Speaking);
         Assert.AreEqual(1, s.Finals.Count);
+    }
+
+    [TestMethod]
+    public async Task SpeechIsNoticed_WhileTheRecognizerWaitsForTheGpu()
+    {
+        var gpu = new TaskCompletionSource();
+        var replies = new List<HostReply>();
+        var session = new ListenSession(7, "en", UtteranceEnd.Turn, new Steady(Speech), () => new Stuck(gpu.Task), null, new Never(),
+            r => { lock (replies) replies.Add(r); return Task.CompletedTask; });
+
+        for (int i = 0; i < ListenSession.OnsetFrames + 20; i++)
+            await session.FrameAsync(new float[ListenSession.FrameSamples]).WaitAsync(TimeSpan.FromSeconds(2));
+
+        lock (replies) Assert.IsTrue(((ListenActivity)replies[0]).Speaking, "what pauses the assistant does not queue behind recognition");
+        gpu.SetResult();
+        await session.FinishAsync();
+    }
+
+    private sealed class Steady(float probability) : IVoiceActivityStream
+    {
+        public float Next(ReadOnlySpan<float> frame) => probability;
+    }
+
+    private sealed class Never : ITurnDetector
+    {
+        public float CompleteProbability(ReadOnlySpan<float> turn) => 0f;
+    }
+
+    /// <summary>A recogniser whose every chunk waits for a GPU that is busy elsewhere.</summary>
+    private sealed class Stuck(Task gpu) : IRecognizerStream
+    {
+        public async ValueTask<string?> FeedAsync(float[] samples, CancellationToken ct) { await gpu; return null; }
+        public ValueTask<string?> FlushAsync(CancellationToken ct) => ValueTask.FromResult<string?>(null);
+        public void Dispose() { }
     }
 
     [TestMethod]

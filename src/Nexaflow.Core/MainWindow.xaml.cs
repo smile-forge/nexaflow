@@ -105,6 +105,7 @@ public partial class MainWindow : Window
                 _vm.WorkspaceConfigOpen    = false;
                 _vm.NotificationsOpen      = false;
                 _vm.Ai.AiResponseOverlayOpen = false;
+                _vm.Voice.PutAwayShown();
                 RibbonControl.ViewModel.IsEditOpen = false;
             }
         };

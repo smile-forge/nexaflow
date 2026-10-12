@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.IO.Common.Speech;
 
@@ -37,6 +38,12 @@ internal interface ITurnDetector
 /// they are recognised, and where each utterance ends — at a pause when dictating; in a conversation, when the turn
 /// detector judges the audio finished and the transcript does not end mid-phrase, or at a ceiling longer than any
 /// thinking pause. Time is counted in frames, so the session decides the same way however fast it is fed.
+/// <para>
+/// <b>The frame path never waits on the GPU.</b> Detecting speech is what stops the assistant when the user talks over
+/// it, so it must not queue behind a sentence being synthesised or an utterance being transcribed: each utterance's
+/// recogniser is fed by a pump of its own, a transcript is asked for and read once it is ready, and an utterance's
+/// final text is completed after the session has moved on — in order, one utterance after another.
+/// </para>
 /// </summary>
 internal sealed class ListenSession(
     long requestId,
@@ -46,7 +53,8 @@ internal sealed class ListenSession(
     Func<IRecognizerStream> openRecognizer,
     IUtteranceTranscriber? transcriber,
     ITurnDetector? turnDetector,
-    Func<HostReply, Task> reply) : IDisposable
+    Func<HostReply, Task> reply,
+    CancellationToken ct = default) : IAsyncDisposable
 {
     public const int SampleRate   = 16_000;
     public const int FrameSamples = 512;
@@ -73,32 +81,27 @@ internal sealed class ListenSession(
     private const int TranscribedTailFrames = 9;
 
     private readonly Queue<float[]> _preroll = new();
-    private readonly List<float> _utterance = [];
-    private IRecognizerStream? _recognizer;
-    private bool _inUtterance;
+    private Utterance? _utterance;
     private bool _speaking;
     private int _onsetRun;
     private int _silentFrames;
     private int _nextTurnAsk = PauseFrames;
-    private int _speechEnd;
-    private string _partial = "";
-    private (int SpeechEnd, string Text)? _transcript;
+    private Task _finals = Task.CompletedTask;
 
     /// <summary>Hears one <see cref="FrameSamples"/>-sample frame.</summary>
-    public async Task FrameAsync(float[] frame, CancellationToken ct)
+    public async Task FrameAsync(float[] frame)
     {
         float p = voiceActivity.Next(frame);
-        if (!_inUtterance)
+        if (_utterance is not { } utterance)
         {
             _preroll.Enqueue(frame);
             if (_preroll.Count > PrerollFrames) _preroll.Dequeue();
             _onsetRun = p >= SpeechThreshold ? _onsetRun + 1 : 0;
-            if (_onsetRun >= OnsetFrames) await BeginAsync(ct);
+            if (_onsetRun >= OnsetFrames) await BeginAsync();
             return;
         }
 
-        _utterance.AddRange(frame);
-        await FeedAsync(frame, ct);
+        utterance.Add(frame);
 
         // Between the thresholds, speech carries on until silence has begun: a word's quiet tail is not a pause.
         bool speech = p >= SpeechThreshold || (p >= SilenceThreshold && _silentFrames == 0);
@@ -106,7 +109,7 @@ internal sealed class ListenSession(
         {
             _silentFrames = 0;
             _nextTurnAsk  = PauseFrames;
-            _speechEnd    = _utterance.Count;
+            utterance.SpeechEnd = utterance.Length;
             if (!_speaking)
             {
                 _speaking = true;
@@ -121,94 +124,183 @@ internal sealed class ListenSession(
             _speaking = false;
             await reply(new ListenActivity(requestId, false));
         }
-        if (await EndsHereAsync(ct)) await EndAsync(ct);
-    }
 
-    /// <summary>No more audio: an utterance under way ends where it is.</summary>
-    public async Task FinishAsync(CancellationToken ct)
-    {
-        if (_inUtterance) await EndAsync(ct);
-    }
-
-    private async Task BeginAsync(CancellationToken ct)
-    {
-        _inUtterance = true;
-        _speaking    = true;
-        _onsetRun    = 0;
-        _recognizer  = openRecognizer();
-        await reply(new ListenActivity(requestId, true));
-        while (_preroll.TryDequeue(out var earlier))
+        if (end == UtteranceEnd.Pause)
         {
-            _utterance.AddRange(earlier);
-            await FeedAsync(earlier, ct);
+            if (_silentFrames >= DictationEndFrames) await EndAsync();
+            return;
         }
-        _speechEnd = _utterance.Count;
+        if (_silentFrames >= TurnCeilingFrames)
+        {
+            await EndAsync();
+            return;
+        }
+        if (_silentFrames == _nextTurnAsk) Ask(utterance);
+        if (utterance.Transcript is { IsCompleted: true } done && utterance.TranscriptOf == utterance.SpeechEnd && utterance.Finishing)
+        {
+            if (SpokenTurns.LooksFinished(await done, language)) await EndAsync();
+            else utterance.Finishing = false;   // the words leave it open: the next ask decides again
+        }
     }
 
-    private async Task FeedAsync(float[] frame, CancellationToken ct)
+    /// <summary>No more audio: an utterance under way ends where it is, and every final is sent.</summary>
+    public async Task FinishAsync()
     {
-        if (await _recognizer!.FeedAsync(frame, ct) is { } text) await PartialAsync(text);
+        if (_utterance is not null) await EndAsync();
+        await _finals;
     }
 
-    private async Task PartialAsync(string text)
+    private async Task BeginAsync()
     {
-        if (text == _partial || text.Length == 0) return;
-        _partial = text;
-        await reply(new ListenPartial(requestId, text));
+        _speaking = true;
+        _onsetRun = 0;
+        await reply(new ListenActivity(requestId, true));   // first: this is what pauses the assistant
+
+        var utterance = new Utterance(openRecognizer(), this);
+        _utterance = utterance;
+        while (_preroll.TryDequeue(out var earlier)) utterance.Add(earlier);
+        utterance.SpeechEnd = utterance.Length;
     }
 
-    private async Task<bool> EndsHereAsync(CancellationToken ct)
+    /// <summary>A pause long enough to ask whether the turn is over. The detector runs on the CPU, here; the
+    /// transcript it may need is asked for and read on a later frame, once it is ready.</summary>
+    private void Ask(Utterance utterance)
     {
-        if (end == UtteranceEnd.Pause) return _silentFrames >= DictationEndFrames;
-        if (_silentFrames >= TurnCeilingFrames) return true;
-        if (_silentFrames != _nextTurnAsk) return false;
-
         _nextTurnAsk = _silentFrames + TurnRecheckFrames;
-        bool complete = turnDetector!.CompleteProbability(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_utterance)) >= TurnComplete;
+        bool complete = turnDetector!.CompleteProbability(utterance.Audio) >= TurnComplete;
 
         // The detector hears only the last 8 s, so of a longer turn it hears no beginning, and it judged the ends of
         // measured long turns unfinished. There the transcript decides — from the second ask, so that a breath between
         // two sentences does not end the turn.
-        bool longTurn = _speechEnd > LongTurnSamples && _silentFrames > PauseFrames;
-        if (!complete && !longTurn) return false;
-        return SpokenTurns.LooksFinished(await TranscriptAsync(ct), language);
+        bool longTurn = utterance.SpeechEnd > LongTurnSamples && _silentFrames > PauseFrames;
+        if (!complete && !longTurn) return;
+        utterance.Finishing = true;
+        if (utterance.TranscriptOf != utterance.SpeechEnd) utterance.Transcribe();
     }
 
-    /// <summary>The utterance's text: the transcriber's, of the speech and a little after it — kept while no more
-    /// speech comes, so asking again costs nothing — or else the recognizer's.</summary>
-    private async Task<string> TranscriptAsync(CancellationToken ct)
+    /// <summary>The utterance is over: the session listens for the next at once, and this one's final text — the
+    /// transcript, or the recogniser's last words — is sent once it is ready, after any before it.</summary>
+    private async Task EndAsync()
     {
-        if (transcriber is null)
-        {
-            if (await _recognizer!.FlushAsync(ct) is { } flushed) await PartialAsync(flushed);
-            return _partial;
-        }
-        if (_transcript is { } kept && kept.SpeechEnd == _speechEnd) return kept.Text;
-
-        int length = Math.Min(_utterance.Count, _speechEnd + TranscribedTailFrames * FrameSamples);
-        string text = (await transcriber.TranscribeAsync([.. _utterance.GetRange(0, length)], ct)).Trim();
-        _transcript = (_speechEnd, text);
-        return text;
-    }
-
-    private async Task EndAsync(CancellationToken ct)
-    {
-        string text = await TranscriptAsync(ct);
+        var utterance = _utterance!;
+        _utterance    = null;
         if (_speaking) await reply(new ListenActivity(requestId, false));
-        if (text.Length > 0) await reply(new ListenFinal(requestId, text));
-
-        _recognizer?.Dispose();
-        _recognizer  = null;
-        _inUtterance = false;
-        _speaking    = false;
+        _speaking     = false;
         _silentFrames = 0;
-        _nextTurnAsk = PauseFrames;
-        _speechEnd   = 0;
-        _partial     = "";
-        _transcript  = null;
-        _utterance.Clear();
+        _nextTurnAsk  = PauseFrames;
         _preroll.Clear();
+
+        var before = _finals;
+        _finals = SendFinalAsync(before, utterance);
+        if (_finals.IsCompleted) await _finals;   // surfaces a failure now rather than at the end
     }
 
-    public void Dispose() => _recognizer?.Dispose();
+    private async Task SendFinalAsync(Task before, Utterance utterance)
+    {
+        await before;
+        string text = (await utterance.FinalTextAsync()).Trim();
+        if (text.Length > 0) await reply(new ListenFinal(requestId, text));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_utterance is { } utterance) await utterance.DisposeAsync();
+    }
+
+    private IUtteranceTranscriber? Transcriber => transcriber;
+    private CancellationToken Token => ct;
+    private Task SendPartialAsync(string text) => reply(new ListenPartial(requestId, text));
+
+    /// <summary>One utterance: its audio, the recogniser fed from it on a pump of its own, and its transcript.</summary>
+    private sealed class Utterance : IAsyncDisposable
+    {
+        private readonly ListenSession _session;
+        private readonly IRecognizerStream _recognizer;
+        private readonly List<float> _audio = [];
+        private readonly Channel<float[]> _frames = Channel.CreateUnbounded<float[]>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+        private readonly Task _pump;
+        private string _partial = "";
+
+        public Utterance(IRecognizerStream recognizer, ListenSession session)
+        {
+            _recognizer = recognizer;
+            _session    = session;
+            _pump       = Task.Run(PumpAsync);
+        }
+
+        public int Length => _audio.Count;
+        public ReadOnlySpan<float> Audio => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_audio);
+
+        /// <summary>Where the last speech ended, in samples.</summary>
+        public int SpeechEnd { get; set; }
+
+        /// <summary>The detector judged the turn over; its transcript decides, once it is ready.</summary>
+        public bool Finishing { get; set; }
+
+        public Task<string>? Transcript { get; private set; }
+
+        /// <summary>The speech the transcript is of — the utterance up to where speech last ended.</summary>
+        public int TranscriptOf { get; private set; } = -1;
+
+        public void Add(float[] frame)
+        {
+            _audio.AddRange(frame);
+            _frames.Writer.TryWrite(frame);
+        }
+
+        /// <summary>Asks for the transcript of the speech so far, and a little after it.</summary>
+        public void Transcribe()
+        {
+            TranscriptOf = SpeechEnd;
+            if (_session.Transcriber is null)
+            {
+                Transcript = Task.FromResult(Volatile.Read(ref _partial));
+                return;
+            }
+            int length = Math.Min(_audio.Count, SpeechEnd + TranscribedTailFrames * FrameSamples);
+            Transcript = _session.Transcriber.TranscribeAsync([.. _audio.GetRange(0, length)], _session.Token);
+        }
+
+        /// <summary>The text that counts: the transcript of all the speech, or without a transcriber the recogniser's
+        /// words once it has read everything.</summary>
+        public async Task<string> FinalTextAsync()
+        {
+            _frames.Writer.TryComplete();
+            try
+            {
+                if (_session.Transcriber is null)
+                {
+                    await _pump;
+                    if (await _recognizer.FlushAsync(_session.Token) is { } flushed) await PartialAsync(flushed);
+                    return _partial;
+                }
+                if (TranscriptOf != SpeechEnd || Transcript is null) Transcribe();
+                return await Transcript!;
+            }
+            finally { await DisposeAsync(); }
+        }
+
+        private async Task PumpAsync()
+        {
+            await foreach (var frame in _frames.Reader.ReadAllAsync(_session.Token))
+                if (await _recognizer.FeedAsync(frame, _session.Token) is { } text) await PartialAsync(text);
+        }
+
+        private async Task PartialAsync(string text)
+        {
+            if (text.Length == 0 || text == _partial) return;
+            Volatile.Write(ref _partial, text);
+            await _session.SendPartialAsync(text);
+        }
+
+        private int _disposed;
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _frames.Writer.TryComplete();
+            try { await _pump; } catch (OperationCanceledException) { }
+            _recognizer.Dispose();
+        }
+    }
 }
