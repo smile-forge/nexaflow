@@ -197,4 +197,18 @@ public class OwnedLlmProviderTests
         CollectionAssert.AreEquivalent(Gemma.Files.ToArray(), store.Fetched.Single().ToArray());
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
     }
+
+    [TestMethod]
+    public async Task ARecording_GoesToTheModelAsAudio()
+    {
+        var host = new Host();
+        var provider = Provider(new Store(Gemma.Files), host);
+
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", [1, 2])] }]));
+
+        var media = ((Generate)host.Requests.Single()).Turns[0].Media!.Single();
+        Assert.AreEqual(MediaKind.Audio, media.Kind);
+        CollectionAssert.AreEqual(new byte[] { 1, 2 }, media.Bytes);
+        Assert.IsTrue(provider.SupportsAudio);
+    }
 }

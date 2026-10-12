@@ -15,6 +15,13 @@ public interface ILlmProvider : IAiProvider
     bool SupportsImages => false;
 
     /// <summary>
+    /// Whether this provider's bound model can hear audio attachments. When true, the host may pass
+    /// <see cref="LlmAttachment.IsAudio"/> attachments and the provider encodes them as audio input; when false, a
+    /// recording reaches the model only as a transcript. Default false.
+    /// </summary>
+    bool SupportsAudio => false;
+
+    /// <summary>
     /// Sends an ordered list of messages to this provider's bound model and streams its reply as it is written.
     /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt; subsequent
     /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>. A message may

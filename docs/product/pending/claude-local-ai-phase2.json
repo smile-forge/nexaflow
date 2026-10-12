@@ -53,12 +53,37 @@
           "class": "WorkspaceAiDefaults"
         }
       ]
+    },
+    "audio-ai-act-listen": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Services/TrackClip.cs",
+          "class": "TrackClip"
+        }
+      ]
+    },
+    "agent-tool-audio": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/SpeechTranscription.cs",
+          "class": "SpeechTranscription"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ContextAudio.cs",
+          "class": "ContextAudio"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
+    "agent-tool-audio",
     "ai-host",
+    "audio-ai-act-listen",
     "ioterm-job",
     "owned-llm",
     "ws-harness-choice"

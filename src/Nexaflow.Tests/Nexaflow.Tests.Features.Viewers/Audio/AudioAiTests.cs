@@ -89,11 +89,11 @@ public class AudioAiTests
 
     [TestMethod]
     [CoversNode("audio-ai-act")]
-    public void ToolSurface_IsFiveSafeOperations()
+    public void ToolSurface_IsSixSafeOperations()
     {
         var tools = NewPlayer([]).GetClientTools();
         CollectionAssert.AreEquivalent(
-            new[] { "read_now_playing", "control_playback", "seek", "next_track", "previous_track" },
+            new[] { "read_now_playing", "listen_to_track", "control_playback", "seek", "next_track", "previous_track" },
             tools.Select(t => t.Name).ToArray(),
             "the Audio AI act tool surface changed — update the tree's audio-ai-act leaves to match");
         Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.SafeOperation),

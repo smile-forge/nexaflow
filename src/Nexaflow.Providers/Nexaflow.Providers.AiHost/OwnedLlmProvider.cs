@@ -43,6 +43,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     public ModelHarness Harness => ModelHarness.Owned;
     public DataResidency Residency => DataResidency.StaysOnMachine;
     public bool SupportsImages => _model?.Images ?? false;
+    public bool SupportsAudio  => _model?.Audio ?? false;
 
     public IReadOnlyList<CatalogModel> Catalog => [.. OwnedModels.All.Select(m => m.Catalog)];
 
@@ -178,17 +179,17 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
         return new ModelSpec(model.Id, folder, model.Adapter, model.MemoryBytes, model.ContextTokens);
     }
 
-    /// <summary>The conversation as the host takes it: images the model reads go as images, where it reads them;
-    /// any other attachment is named in the text, as for any provider that cannot read it.</summary>
+    /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
+    /// them; any other attachment is named in the text, as for any provider that cannot read it.</summary>
     internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, OwnedModel model)
         => [.. messages.Select(m =>
         {
             var role = m.Role switch { LlmRole.System => TurnRole.System, LlmRole.Assistant => TurnRole.Assistant, _ => TurnRole.User };
-            var read = (m.Attachments ?? []).Where(a => a.IsImage && model.Images).ToList();
+            var read = (m.Attachments ?? []).Where(a => (a.IsImage && model.Images) || (a.IsAudio && model.Audio)).ToList();
             var named = (m.Attachments ?? []).Except(read).Select(a => $"[attached: {a.FilePath}]").ToList();
             string text = named.Count == 0 ? m.Text : m.Text + "\n" + string.Join("\n", named);
             return new ChatTurn(role, text, read.Count == 0 ? null
-                : [.. read.Select(a => new ChatMedia(MediaKind.Image, a.Bytes is null ? a.FilePath : null, a.Bytes))]);
+                : [.. read.Select(a => new ChatMedia(a.IsImage ? MediaKind.Image : MediaKind.Audio, a.Bytes is null ? a.FilePath : null, a.Bytes))]);
         })];
 
     public ValueTask DisposeAsync()

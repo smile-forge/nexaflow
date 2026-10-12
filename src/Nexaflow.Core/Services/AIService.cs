@@ -374,8 +374,10 @@ public sealed class AIService : IAIService
         var risk = includeContext ? page?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low : ContextSecurityRisk.Low;
         if (risk == ContextSecurityRisk.High)
         {
-            var leaving = new[] { provider, ranker, SeparateImageModel(provider) }
-                .OfType<ILlmProvider>()
+            // A recording a tool captures reaches a model that cannot hear as a transcript, so the speech model
+            // that would make it reads it too.
+            var leaving = new IAiProvider?[] { provider, ranker, SeparateImageModel(provider), provider.SupportsAudio ? null : SpeechToText }
+                .OfType<IAiProvider>()
                 .Where(p => p.Residency == DataResidency.LeavesMachine)
                 .Select(p => p.Name).Distinct().ToList();
             try
@@ -540,12 +542,22 @@ public sealed class AIService : IAIService
                 // A tool may have captured an image for the model to see (e.g. the web view screenshot).
                 // How it reaches the conversation model depends on the Image Recognition ability: same model
                 // → attach the image directly; a different model → that model describes it and we pass text.
-                IReadOnlyList<LlmAttachment>? toolImageAttachments = null;
+                var toolAttachments = new List<LlmAttachment>();
                 var toolImages = results.SelectMany(x => x.Result.Images ?? []).ToList();
                 if (toolImages.Count > 0)
                 {
                     var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, approval, ct);
-                    toolImageAttachments = atts;
+                    toolAttachments.AddRange(atts ?? []);
+                    if (note is not null) toolResultsText += "\n\n" + note;
+                }
+
+                // A tool may have produced a recording to hear (the audio player's listen_to_track): attached for a
+                // model that hears, transcribed by the Speech In model for one that does not.
+                var toolAudio = results.SelectMany(x => x.Result.Audio ?? []).ToList();
+                if (toolAudio.Count > 0)
+                {
+                    var (atts, note) = await ResolveToolAudioAsync(provider, toolAudio, approval, ct);
+                    toolAttachments.AddRange(atts ?? []);
                     if (note is not null) toolResultsText += "\n\n" + note;
                 }
 
@@ -553,7 +565,7 @@ public sealed class AIService : IAIService
                 var interjections   = approval.TakeInterjections();
                 if (interjections.Count > 0)
                     toolResultsText += "\n\n" + FormatInterjections(interjections);
-                messages.Add(new(LlmRole.User, toolResultsText) { Attachments = toolImageAttachments });
+                messages.Add(new(LlmRole.User, toolResultsText) { Attachments = toolAttachments.Count > 0 ? toolAttachments : null });
             }
         }
         catch (OperationCanceledException) { return null; }
@@ -723,6 +735,39 @@ public sealed class AIService : IAIService
             ? (null, "Description of the captured image (from the image-recognition model):\n\n"
                      + string.Join("\n\n", descriptions))
             : (null, "(An image was captured, but it couldn't be described.)");
+    }
+
+    /// <summary>
+    /// How a recording a tool produced reaches the conversation model: as audio when it can hear, otherwise as what the
+    /// Speech In model hears in it — or, with no speech model, a note that it could not be passed on.
+    /// </summary>
+    private async Task<(IReadOnlyList<LlmAttachment>? Attachments, string? Note)> ResolveToolAudioAsync(
+        ILlmProvider convProvider, IReadOnlyList<ContextAudio> audio, IAIResponseHandler approval, CancellationToken ct)
+    {
+        if (convProvider.SupportsAudio)
+            return ([.. audio.Select(a => new LlmAttachment(a.Label ?? "recording.wav", "audio/wav", a.Wav))], null);
+
+        if (SpeechToText is not { } transcriber)
+            return (null, "(A recording was captured, but the current model can't hear audio and no Speech In model is set up to transcribe it, so it wasn't passed on.)");
+
+        approval.ReportProgress("Transcribing the recording…");
+        var transcripts = new List<string>();
+        foreach (var clip in audio)
+        {
+            string heard;
+            try
+            {
+                heard = await SpeechTranscription.TranscribeAsync(transcriber, clip.Wav, ct);
+                if (heard.Length == 0) heard = "(no speech was heard in it)";
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                heard = $"(it couldn't be transcribed: {ex.Message})";
+            }
+            transcripts.Add(clip.Label is { } label ? $"{label}: {heard}" : heard);
+        }
+        return (null, "Transcript of the recording (the current model can't hear audio, so the Speech In model transcribed it; "
+                    + "sounds other than speech are not in it):\n\n" + string.Join("\n\n", transcripts));
     }
 
     /// <summary>

@@ -605,9 +605,10 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     public string? GetSecurityContext() => CurrentPath;
 
     public string? GetAiSystemPromptGuidance() =>
-        "An audio player tab is open. You cannot hear the audio — call read_now_playing to read the current "
-      + "track, play state, position and queue, and control_playback / seek / next_track / previous_track to "
-      + "drive playback. Report what the transport reports; never claim to have listened to the sound.";
+        "An audio player tab is open. Call read_now_playing to read the current track, play state, position and "
+      + "queue, and control_playback / seek / next_track / previous_track to drive playback. listen_to_track hands "
+      + "you up to 30 seconds of the track: the recording itself when you can hear audio, otherwise a transcript of "
+      + "the words in it. Describe only what that gave you; never claim to have heard more of the track than it did.";
 
     /// <summary>
     /// Client tools for the player. All are reversible view-state changes (play/pause/seek/skip) or pure
@@ -622,11 +623,22 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         new DelegateClientTool(
             "read_now_playing",
             "Report the audio player's state: playing/paused, the resolved track title and artist, "
-          + "position and duration, and the track's place in the queue. Read-only — you cannot hear the audio.",
+          + "position and duration, and the track's place in the queue. Read-only.",
             [],
             ToolSafety.SafeOperation,
-            (_, _) => Task.FromResult(ReadNowPlaying()),
-            parallelizable: true),
+                (_, _) => Task.FromResult(ReadNowPlaying()),
+                parallelizable: true),
+
+            // ── Pure read: a stretch of the track to hear (decoded off the UI thread; nothing changes) ──
+            new DelegateClientTool(
+                "listen_to_track",
+                "Hear part of the current track: up to 30 seconds from a position. A model that can hear audio receives "
+              + "the recording; otherwise the workspace's speech model transcribes the words in it.",
+                [new ClientToolParameter("start", "Where to start: whole seconds or mm:ss. Omit for the current position.", Required: false),
+                 new ClientToolParameter("seconds", "How much to hear, up to 30. Omit for 30.", Required: false)],
+                ToolSafety.SafeOperation,
+                (args, ct) => ListenAsync(ToolArgs.Str(args, "start"), ToolArgs.Str(args, "seconds"), ct),
+                parallelizable: true),
 
         // ── Transport control (reversible; marshalled to the UI thread) ──
         new DelegateClientTool(
@@ -685,6 +697,45 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         lines.Add(_paths.Count > 1 ? $"Queue: track {_index + 1} of {_paths.Count}" : "Queue: single track");
 
         return ToolResult.Ok($"{(IsPlaying ? "playing" : "paused")} \"{name}\"{ArtistSuffix()}", string.Join("\n", lines));
+    }
+
+    /// <summary>listen_to_track body — decodes a stretch of the current track into a recording for the model. A pure
+    /// read of the file, so it runs off the UI thread and marshals nothing.</summary>
+    private async Task<ToolResult> ListenAsync(string? startText, string? secondsText, CancellationToken ct)
+    {
+        if (CurrentPath is not { } path)
+            return ToolResult.Error("no track", "No track is loaded, so there is nothing to listen to.");
+
+        TimeSpan start = Position;
+        if (!string.IsNullOrWhiteSpace(startText))
+        {
+            if (ParsePosition(startText) is not { } parsed)
+                return ToolResult.Error("invalid position", $"Couldn't read a position from '{startText}'. Give whole seconds (e.g. 90) or mm:ss (e.g. 1:30).");
+            start = parsed;
+        }
+
+        var length = TrackClip.Longest;
+        if (!string.IsNullOrWhiteSpace(secondsText))
+        {
+            if (!double.TryParse(secondsText, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds) || seconds <= 0)
+                return ToolResult.Error("invalid length", $"Couldn't read a length from '{secondsText}'. Give a number of seconds up to 30.");
+            length = TimeSpan.FromSeconds(Math.Min(seconds, TrackClip.Longest.TotalSeconds));
+        }
+
+        (byte[] Wav, TimeSpan Length) clip;
+        try { clip = await Task.Run(() => TrackClip.Read(path, start, length), ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return ToolResult.Error("couldn't read the track", $"The track couldn't be decoded: {ex.Message}");
+        }
+
+        var name = ResolvedName();
+        if (clip.Length == TimeSpan.Zero)
+            return ToolResult.Ok("nothing to hear", $"\"{name}\" ends before {FormatTime(start)}, so there is nothing to hear there.");
+
+        return ToolResult.Ok($"listened to {clip.Length.TotalSeconds:0} s of \"{name}\"",
+                             $"Attached {clip.Length.TotalSeconds:0} s of \"{name}\"{ArtistSuffix()} from {FormatTime(start)}.")
+            with { Audio = [new ContextAudio(clip.Wav, $"\"{name}\" from {FormatTime(start)}")] };
     }
 
     /// <summary>control_playback body — sets/toggles playback through the existing transport methods. The state
