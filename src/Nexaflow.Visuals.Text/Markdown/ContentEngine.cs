@@ -97,6 +97,11 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         return Builder(language, Reading, showing).Lay(room);
     }
 
+
+
+    /// <summary>Whether a reader reads the content as what is drawn rather than as its source (<see cref="IContentLanguage.ReadsAsDrawn"/>).</summary>
+    internal bool ReadsAsDrawn => Language(_named).Editing.ReadsAsDrawn;
+
     /// <summary>
     /// <paramref name="source"/> read and worked over as the language called <paramref name="named"/> works it over — with
     /// nothing laid out, for whatever wants to know what content says rather than to draw it.

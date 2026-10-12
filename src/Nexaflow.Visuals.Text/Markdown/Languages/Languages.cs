@@ -41,6 +41,7 @@ using System.Linq;
 using Nexaflow.Syntax;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Rtf;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -75,6 +76,25 @@ internal static class Shipped
             Writable = true,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
+        };
+
+    /// <summary>
+    /// RTF: a document written as formatting rather than marks — what Outlook keeps a message's body in, and what a word
+    /// processor saves as rich text. Read into the same paragraphs, tables, links and pictures a document is
+    /// (<see cref="RtfParser"/>) and drawn by the same builder, with the fonts, sizes, colours, indents and alignment it spells
+    /// out. Only read: nobody writes RTF by hand, so it is never written in here, and a reader reads it as what it draws.
+    /// </summary>
+    public static readonly ContentLanguage Rtf = new(
+        Reads: static word => RtfParser.Language.Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: RtfParser.Parsing,
+        Stages: static (_, show) =>
+        [
+            new WithEmbeddedPictures(show.Style.TextSize),
+            new WithLinks(show.Inputs.Links),
+        ],
+        Builder: typeof(MarkdownBuilder))
+        {
+            Editing = new ReadAsDrawn(),
         };
 
     /// <summary>
@@ -627,6 +647,16 @@ internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
 
     /// <summary>And its moves too, where the same handler says anything about one.</summary>
     public IOnMove? OnMove => onEdit as IOnMove;
+}
+
+/// <summary>
+/// What a language whose source is formatting nobody reads shows and offers: its words, found, copied and quoted as they are
+/// drawn (<see cref="IContentLanguage.ReadsAsDrawn"/>).
+/// </summary>
+internal sealed class ReadAsDrawn : IContentLanguage
+{
+    /// <inheritdoc/>
+    public bool ReadsAsDrawn => true;
 }
 
 /// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>

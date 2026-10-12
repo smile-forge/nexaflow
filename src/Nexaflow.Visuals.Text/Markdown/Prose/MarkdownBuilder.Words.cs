@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -50,6 +51,9 @@ public sealed partial class MarkdownBuilder
 
         public bool Mono { get; init; }
 
+        /// <summary>Set in capitals whatever case it was written in — which makes what is drawn something other than what was written.</summary>
+        public bool Capitals { get; init; }
+
         /// <summary>How big, against the reader's text size.</summary>
         public double Scale { get; init; }
 
@@ -77,11 +81,15 @@ public sealed partial class MarkdownBuilder
     /// place of the glyphs: it is measured for the line break, sat on the line, and grafted whole — so a formula in a
     /// sentence is still every piece it was drawn as, and a drag through the sentence picks up its parts.
     /// </param>
+    /// <param name="Tab">
+    /// A tab: how wide it is depends on where on the line it falls, so it is measured as the line is broken
+    /// (<see cref="Lines"/>) and set as the room it takes.
+    /// </param>
     private readonly record struct Run(string Text, ContentPart Part, Face Face, bool Maps, LayoutIntent? Act = null,
-                                       ContentInset? Inset = null);
+                                       ContentInset? Inset = null, bool Tab = false);
 
     /// <summary>Sets what a block says, breaking lines at the room it was given.</summary>
-    private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face)
+    private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face, ParagraphLook? look = null)
     {
         // One list for every block's words, used again rather than made again: a run is a large thing to copy, and a
         // document is a great many runs.
@@ -97,7 +105,7 @@ public sealed partial class MarkdownBuilder
             return;
         }
 
-        Lines(into, runs, x, Math.Max(room, 1));
+        Lines(into, runs, x, Math.Max(room, 1), look);
         runs.Clear();
     }
 
@@ -122,6 +130,22 @@ public sealed partial class MarkdownBuilder
 
             case MarkdownKinds.Sub: Inside(part, face with { Scale = face.Scale * 0.72, Lift = 0.22 }, runs); return;
             case MarkdownKinds.Sup: Inside(part, face with { Scale = face.Scale * 0.72, Lift = -0.34 }, runs); return;
+
+            // Set the way its source spelled out, on top of however what holds it is set.
+            case MarkdownKinds.Styled when part.Node.HeldAs(MarkdownRoles.Typeset) is TextLook look:
+                Inside(part, Typeset(face, look), runs);
+                return;
+
+            // Written as codes, drawn as what they decode to — so what is drawn is not what was written.
+            case MarkdownKinds.Encoded:
+                if (part.Node.HeldAs(MarkdownRoles.Decoded) is string { Length: > 0 } decoded)
+                    runs.Add(new Run(face.Capitals ? Capitalised(decoded) : decoded, part, face, Maps: false));
+                return;
+
+            // How wide a tab is depends on where it falls, which only the line it lands on knows.
+            case MarkdownKinds.Tab:
+                runs.Add(new Run(string.Empty, part, face, Maps: false, Tab: true));
+                return;
 
             // Nothing inside a code span is read, so nothing inside it is set: what is there is what was typed. It is set in
             // the accent on its own wash, so it reads as code inside a highlighter's wash as much as outside one.
@@ -191,6 +215,9 @@ public sealed partial class MarkdownBuilder
             return;
         }
 
+        // Read past, and drawn as nothing at all — not even the space a line ending among the machinery stands for.
+        if (part.Role == Roles.Silent) return;
+
         if (part.Role is Roles.Open or Roles.Close or Roles.Name or Roles.Trivia)
         {
             // Machinery is not drawn. Where it ran over a line ending, though, it stood between two words, and two
@@ -203,7 +230,11 @@ public sealed partial class MarkdownBuilder
         // A line ending that closes the words is not reflowed into a space either: nothing follows it.
         if (part.Kind == Kinds.Space && part.Text.Contains('\n') && Closing(part)) return;
 
-        if (part.Text.Length > 0) runs.Add(new Run(Flowed(part.Text), part, face, Maps: true));
+        if (part.Text.Length == 0) return;
+
+        runs.Add(face.Capitals
+            ? new Run(Capitalised(Flowed(part.Text)), part, face, Maps: false)
+            : new Run(Flowed(part.Text), part, face, Maps: true));
     }
 
     /// <summary>Whether a line ending is the last thing its words hold, closing them rather than breaking them.</summary>
@@ -224,6 +255,63 @@ public sealed partial class MarkdownBuilder
     {
         foreach (var child in part.Children) Gather(child, face, runs);
     }
+
+    /// <summary>
+    /// <paramref name="face"/>, set as well the way <paramref name="look"/> spells out — the face it names, the size against the
+    /// reader's own, the colours it gives. A sub- or superscript is set the way markdown's are.
+    /// </summary>
+    private Face Typeset(Face face, TextLook look)
+    {
+        var scale = face.Scale * (look.Scale > 0 ? look.Scale : 1);
+
+        return face with
+        {
+            Bold = face.Bold || look.Bold,
+            Italic = face.Italic || look.Italic,
+            Underline = face.Underline || look.Underline,
+            Strike = face.Strike || look.Strike,
+            Capitals = face.Capitals || look.Capitals,
+            Font = look.Font is { Length: > 0 } named ? Family(named) : face.Font,
+            Scale = look.Script == TextScript.None ? scale : scale * 0.72,
+            Lift = look.Script switch
+            {
+                TextScript.Sub => 0.22,
+                TextScript.Super => -0.34,
+                _ => face.Lift,
+            },
+            Ink = look.Ink is { } ink ? Brushed(ink) : face.Ink,
+            Wash = look.Wash is { } wash ? Brushed(wash) : face.Wash,
+        };
+    }
+
+    /// <summary>
+    /// The family a look names, falling back to the reading face for any letter it has not got — so a font this machine lacks
+    /// is drawn in the reader's rather than in whatever WPF falls back to. Made once for each name.
+    /// </summary>
+    private FontFamily Family(string named)
+    {
+        if (_families.TryGetValue(named, out var made)) return made;
+
+        return _families[named] = new FontFamily($"{named}, {Style.TextFont.Source}");
+    }
+
+    private readonly Dictionary<string, FontFamily> _families = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A colour a look gives, as <c>0xAARRGGBB</c>, made into a brush once and frozen.</summary>
+    private Brush Brushed(uint argb)
+    {
+        if (_brushes.TryGetValue(argb, out var made)) return made;
+
+        var brush = new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
+        brush.Freeze();
+
+        return _brushes[argb] = brush;
+    }
+
+    private readonly Dictionary<uint, Brush> _brushes = [];
+
+    /// <summary>Words set in capitals, in the reader's own culture.</summary>
+    private static string Capitalised(string text) => text.ToUpper(CultureInfo.CurrentCulture);
 
     /// <summary>
     /// A link, or a picture named by one. Where it points is not drawn — it is machinery — but the press that follows
@@ -363,13 +451,24 @@ public sealed partial class MarkdownBuilder
 
     // ── Where the lines break ───────────────────────────────────────────────
 
-    private void Lines(LayoutBuilder into, IReadOnlyList<Run> runs, double x, double room)
+    /// <summary>
+    /// Breaks <paramref name="runs"/> into lines at <paramref name="room"/>, set as <paramref name="look"/> says where the
+    /// source said how — its first line further in or hanging out, its tabs at its stops, its lines aligned — and as markdown
+    /// sets a paragraph where it said nothing.
+    /// </summary>
+    private void Lines(LayoutBuilder into, List<Run> runs, double x, double room, ParagraphLook? look = null)
     {
         // Each word as where it lies in its run rather than a copy of it: the words are measured from the run's own text,
         // and whatever ends up on one line is cut from it once.
-    var line = _line;
+        var line = _line;
         line.Clear();
         var width = 0.0;
+
+        // Where the line being set starts, against where the paragraph's lines do: the first can start further in, or hang
+        // out past the rest — though never past the edge of the page.
+        var first = true;
+        var hang = Math.Max((look?.FirstLine ?? 0) * Style.TextSize, -x);
+        var align = look?.Align ?? ParagraphAlign.Start;
 
         for (var index = 0; index < runs.Count; index++)
         {
@@ -377,8 +476,25 @@ public sealed partial class MarkdownBuilder
 
             if (run.Part.Kind == MarkdownKinds.Break && run.Text.Length == 0)
             {
-                Row(into, runs, line, x);
-                width = 0;
+                Broke(closes: true);
+
+                continue;
+            }
+
+            // A tab takes the line on to the next stop past where it falls, and to the next line where that stop is past the end.
+            if (run.Tab)
+            {
+                var advance = Tabbed(Starts() + width);
+
+                if (width > 0 && width + advance > Room())
+                {
+                    Broke(closes: false);
+                    advance = Tabbed(Starts());
+                }
+
+                runs[index] = run with { Inset = TabRoom(run.Part, advance) };
+                line.Add((index, 0, 0));
+                width += advance;
 
                 continue;
             }
@@ -411,21 +527,54 @@ public sealed partial class MarkdownBuilder
             }
         }
 
-        Row(into, runs, line, x);
+        Row(into, runs, line, x + Starts(), Room(), align, closes: true);
+
+        double Starts() => first ? hang : 0;
+
+        double Room() => Math.Max(room - Starts(), 1);
+
+        void Broke(bool closes)
+        {
+            Row(into, runs, line, x + Starts(), Room(), align, closes);
+            width = 0;
+            first = false;
+        }
+
+        // How far a tab falling at a place on the line takes it: to the paragraph's next stop, which is measured from where
+        // the paragraph's indent is measured from.
+        double Tabbed(double at)
+        {
+            var stops = look ?? Untabbed;
+            var em = Style.TextSize;
+            var indent = stops.Indent * em;
+
+            return Math.Max((stops.NextStop((indent + at) / em) * em) - indent - at, 0);
+        }
 
         // A word fits by its letters, since the space after it may hang past the edge; what follows it starts past
         // that space, though, so the line moves on by the whole of it.
         void Place(int index, int start, int end, double inked, double advance)
         {
-            if (width > 0 && width + inked > room)
-            {
-                Row(into, runs, line, x);
-                width = 0;
-            }
+            if (width > 0 && width + inked > Room()) Broke(closes: false);
 
             line.Add((index, start, end));
             width += advance;
         }
+    }
+
+    /// <summary>Where a tab goes in a paragraph that set no stops of its own: every three of the reader's text size.</summary>
+    private static readonly ParagraphLook Untabbed = new();
+
+    /// <summary>The room a tab takes on its line: nothing drawn, standing for the tab.</summary>
+    private static ContentInset TabRoom(ContentPart part, double width)
+    {
+        var into = new LayoutBuilder();
+
+        into.Open(MarkdownPieces.Block, part, stops: Stops.None);
+        into.Covers(new Rect(0, 0, Math.Max(width, 0), 1));
+        into.Close();
+
+        return new ContentInset(new Laid(into.Seal(), new Size(Math.Max(width, 0), 0), []));
     }
 
     /// <summary>
@@ -439,12 +588,18 @@ public sealed partial class MarkdownBuilder
     /// "in the middle of the line". Where it is taller than the words it makes the line taller, and where it reaches
     /// above them the whole line moves down, so nothing is ever drawn above where the line starts.
     /// </para>
+    /// <para>
+    /// The line stands at the start of its <paramref name="room"/>, in the middle of it, or against its end, as
+    /// <paramref name="align"/> says; justified, it is widened to fill the room at the spaces between its words — every line
+    /// but one that <paramref name="closes"/> its paragraph or ends where a break was written.
+    /// </para>
     /// </summary>
-    private void Row(LayoutBuilder into, IReadOnlyList<Run> runs, List<(int Run, int Start, int End)> line, double x)
+    private void Row(LayoutBuilder into, IReadOnlyList<Run> runs, List<(int Run, int Start, int End)> line, double x,
+                     double room, ParagraphAlign align, bool closes)
     {
         if (line.Count == 0) return;
 
-    var groups = _groups;
+        var groups = _groups;
         groups.Clear();
         var at = 0;
 
@@ -463,7 +618,11 @@ public sealed partial class MarkdownBuilder
             // A run's words on one line lie side by side in it, so the line's share of the run is one cut.
             while (at < line.Count && line[at].Run == index) end = line[at++].End;
 
-            groups.Add((run, Glyphs(start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end], run.Face)));
+            var cut = start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end];
+
+            // Justified, each word is a piece of its own, so the space between two of them can be widened.
+            if (align == ParagraphAlign.Justified && !closes) Worded(run, cut, groups);
+            else groups.Add((run, Glyphs(cut, run.Face)));
         }
 
         line.Clear();
@@ -490,8 +649,10 @@ public sealed partial class MarkdownBuilder
             over = Math.Min(over, tops[index]);
         }
 
+        var (shift, widen) = Aligned(groups, room, align, closes);
+
         var height = 0.0;
-        var cursor = x;
+        var cursor = x + shift;
         var reach = x;
 
         for (var index = 0; index < groups.Count; index++)
@@ -506,12 +667,72 @@ public sealed partial class MarkdownBuilder
             reach = cursor + (glyphs?.Width ?? run.Inset!.Width);
             cursor += glyphs?.WidthIncludingTrailingWhitespace ?? run.Inset!.Width;
             height = Math.Max(height, top + (glyphs?.Height ?? run.Inset!.Height));
+
+            if (widen > 0 && index < groups.Count - 1 && Spaced(glyphs)) cursor += widen;
         }
 
         groups.Clear();
         _y += height;
         Reached(reach);
     }
+
+    /// <summary>A line's share of a run, a word to a piece — each word with the space after it.</summary>
+    private void Worded(Run run, string cut, List<(Run Run, FormattedText? Glyphs)> groups)
+    {
+        var at = 0;
+
+        while (at < cut.Length)
+        {
+            var end = at;
+            while (end < cut.Length && !char.IsWhiteSpace(cut[end])) end++;
+            while (end < cut.Length && char.IsWhiteSpace(cut[end])) end++;
+            if (end == at) end++;
+
+            groups.Add((run, Glyphs(at == 0 && end == cut.Length ? cut : cut[at..end], run.Face)));
+            at = end;
+        }
+    }
+
+    /// <summary>
+    /// How far along its room a line is moved, and how much wider each space between its words is made: nothing at all set
+    /// against the start, the room it leaves split either side centred or all before it against the end, and justified the
+    /// room it leaves shared between its spaces.
+    /// </summary>
+    private static (double Shift, double Widen) Aligned(List<(Run Run, FormattedText? Glyphs)> groups, double room,
+                                                        ParagraphAlign align, bool closes)
+    {
+        if (align == ParagraphAlign.Start || groups.Count == 0) return (0, 0);
+
+        // As wide as the line reaches: past every piece's trailing space but the last one's.
+        var wide = 0.0;
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var (run, glyphs) = groups[index];
+            wide += index < groups.Count - 1
+                ? glyphs?.WidthIncludingTrailingWhitespace ?? run.Inset!.Width
+                : glyphs?.Width ?? run.Inset!.Width;
+        }
+
+        var left = Math.Max(room - wide, 0);
+
+        switch (align)
+        {
+            case ParagraphAlign.Centre: return (left / 2, 0);
+            case ParagraphAlign.End: return (left, 0);
+        }
+
+        if (closes) return (0, 0);
+
+        var spaces = 0;
+        for (var index = 0; index < groups.Count - 1; index++)
+            if (Spaced(groups[index].Glyphs)) spaces++;
+
+        return (0, spaces > 0 ? left / spaces : 0);
+    }
+
+    /// <summary>Whether a piece ends in the space between two words.</summary>
+    private static bool Spaced(FormattedText? glyphs) =>
+        glyphs is { Text.Length: > 0 } words && char.IsWhiteSpace(words.Text[^1]);
 
     /// <summary>One run of one line, with whatever is washed behind it and whatever a press on it means.</summary>
     private void Set(LayoutBuilder into, Run run, FormattedText? glyphs, double x, double top)

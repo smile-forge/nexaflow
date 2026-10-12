@@ -138,6 +138,26 @@ public static class MarkdownKinds
     /// <summary><c>^^ …</c> — what stands at the foot of the page.</summary>
     public const string Footer = "footer";
 
+    /// <summary>
+    /// A run set the way its source spells out in so many words — a font, a size, a colour, a weight — rather than the way a
+    /// punctuation mark names. Markdown never writes one; a prose language whose source is formatting does (RTF), with how it
+    /// is set hung under it as a <see cref="TextLook"/> (<see cref="MarkdownRoles.Typeset"/>).
+    /// </summary>
+    public const string Styled = "styled";
+
+    /// <summary>
+    /// Characters written as codes for others — RTF's <c>\'e9</c> and <c>\u8212?</c>, or a byte of a code page — drawn as what
+    /// they stand for, which is hung under them (<see cref="MarkdownRoles.Decoded"/>). What is drawn is not what was written,
+    /// so a press on one shows the source, as it does for an <see cref="Entity"/>.
+    /// </summary>
+    public const string Encoded = "encoded";
+
+    /// <summary>
+    /// A tab: the rest of the line moves on to the next stop the paragraph sets (<see cref="ParagraphLook.NextStop"/>). Markdown
+    /// reads a tab as space; a language that sets stops (RTF) writes one.
+    /// </summary>
+    public const string Tab = "tab";
+
     // ── What a stage works out ──────────────────────────────────────────────
 
     /// <summary>
@@ -172,6 +192,16 @@ public static class MarkdownKinds
     /// them (<c>ShowBlocksAsWritten</c>).
     /// </summary>
     public const string Written = "written";
+
+    /// <summary>
+    /// How a run or a paragraph is set, where its source says so in so many words: a <see cref="TextLook"/> under a
+    /// <see cref="Styled"/> run, a <see cref="ParagraphLook"/> under a paragraph. Derived, because it is what the formatting
+    /// written before and round the words comes to, not anything written in their place.
+    /// </summary>
+    public const string Typeset = "typeset";
+
+    /// <summary>What the codes of an <see cref="Encoded"/> run come to.</summary>
+    public const string Decoded = "decoded";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>
@@ -194,6 +224,12 @@ public static class MarkdownRoles
 
     /// <summary>How deep a heading is (<see cref="MarkdownKinds.Rank"/>).</summary>
     public const string Rank = "rank";
+
+    /// <summary>How a <see cref="MarkdownKinds.Styled"/> run or a paragraph is set (<see cref="MarkdownKinds.Typeset"/>).</summary>
+    public const string Typeset = "typeset";
+
+    /// <summary>What the codes of an <see cref="MarkdownKinds.Encoded"/> run come to (<see cref="MarkdownKinds.Decoded"/>).</summary>
+    public const string Decoded = "decoded";
 }
 
 /// <summary>Which way a column of a table is set, as the rule under its head says.</summary>
