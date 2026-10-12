@@ -31,7 +31,7 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
         """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""";
 
     [TestMethod]
-    [CoversNode("images-edit")]
+    [CoversNode("images-ui")]
     public void Image_Edit_ControlsRespondInOnePass()
     {
         var folder = Path.Combine(Path.GetTempPath(), "nexaflow_edit_journey_" + Guid.NewGuid().ToString("N"));
