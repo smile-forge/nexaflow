@@ -43,6 +43,9 @@ public sealed class AIService : IAIService
     /// <summary>The speech-to-text model that serves Speech In now — the first available in its chain — or null.</summary>
     public ISpeechToTextProvider? SpeechToText => Candidates<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault();
 
+    /// <summary>The Speech Out chain's first model that can speak now, or null.</summary>
+    public ITextToSpeechProvider? TextToSpeech => Candidates<ITextToSpeechProvider>(AiAbility.SpeechOut).FirstOrDefault();
+
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 

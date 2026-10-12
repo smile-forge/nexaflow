@@ -49,6 +49,7 @@ internal static class HostProgram
                 new UnloadModelHandler(models),
                 new GenerateHandler(models, scheduler),
                 new ListenHandler(models, scheduler),
+                new SpeakHandler(models, scheduler, new SpeechPhonemizers()),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

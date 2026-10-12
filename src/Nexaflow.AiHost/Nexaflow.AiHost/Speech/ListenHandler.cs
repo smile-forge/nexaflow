@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
+using Nexaflow.IO.Common.Audio;
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -14,8 +15,6 @@ namespace Nexaflow.AiHost.Speech;
 /// </summary>
 internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : HostStreamHandler<Listen>
 {
-    internal static readonly TimeSpan AliveInterval = TimeSpan.FromSeconds(1);
-
     protected override async Task HandleAsync(Listen request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
         var parts = request.Models;
@@ -38,28 +37,9 @@ internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : Ho
 
         var frames = new PcmFrames(ListenSession.FrameSamples);
         long heardSamples = 0;
-        var alive = Stopwatch.GetTimestamp();
-        Task Alive()
+        Task Alive() => reply(new Progress(request.RequestId, "listening", heardSamples * 1000 / ListenSession.SampleRate, 0));
+        await foreach (var item in HostStreamInput.ReadAsync(input, Alive, ct))
         {
-            alive = Stopwatch.GetTimestamp();
-            return reply(new Progress(request.RequestId, "listening", heardSamples * 1000 / ListenSession.SampleRate, 0));
-        }
-
-        while (true)
-        {
-            if (Stopwatch.GetElapsedTime(alive) >= AliveInterval) await Alive();
-            if (!input.TryRead(out var item))
-            {
-                using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                wait.CancelAfter(AliveInterval);
-                try
-                {
-                    if (!await input.WaitToReadAsync(wait.Token)) break;
-                }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
-                continue;
-            }
-
             if (item is not AudioInput audio) continue;
             foreach (var frame in frames.Add(audio.Pcm))
             {
@@ -88,10 +68,8 @@ internal sealed class PcmFrames(int frameSamples)
             at      += take;
             if (_filled < _pending.Length) yield break;
 
-            var frame = new float[frameSamples];
-            for (int i = 0; i < frameSamples; i++) frame[i] = BitConverter.ToInt16(_pending, i * 2) / 32768f;
             _filled = 0;
-            yield return frame;
+            yield return Pcm16.ToSamples(_pending);
         }
     }
 }

@@ -62,6 +62,7 @@
   "Shell.Config.AiGrid.ChainHint": "Click cells to choose which models serve each ability, in the order they are tried: a request goes to the first that is available. On a page holding system information, you are asked before its contents go to a model whose data leaves this machine.",
   "Shell.Config.AiGrid.CellTip": "Add this model to the ability, or take it out",
   "Shell.Config.AiGrid.Kind.SpeechToText": "speech to text",
+  "Shell.Config.AiGrid.Kind.TextToSpeech": "text to speech",
   "Shell.Config.LocalModels.Heading": "{0} models",
   "Shell.Config.LocalModels.Intro": "The models {0} runs on this machine. Each is downloaded once and kept; remove one to free its space.",
   "Shell.Config.LocalModels.IntroChoose": "The models {0} runs on this machine. Use picks the one {1} listens with, at once — it is downloaded if it is not here yet. A larger model hears more accurately and takes longer; one ending in “(English)” knows only English.",

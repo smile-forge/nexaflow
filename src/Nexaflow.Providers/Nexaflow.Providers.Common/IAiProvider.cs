@@ -3,7 +3,8 @@ namespace Nexaflow.Providers.Common;
 /// <summary>
 /// What every provider instance has, whatever kind of model it serves: a name, where its requests go, whether it
 /// can take one now, the models it offers, and a lifetime. A provider serves one <see cref="ModelKind"/>, through
-/// the contract for that kind (<see cref="ILlmProvider"/>, <see cref="ISpeechToTextProvider"/>); one backend offering
+/// the contract for that kind (<see cref="ILlmProvider"/>, <see cref="ISpeechToTextProvider"/>,
+/// <see cref="ITextToSpeechProvider"/>); one backend offering
 /// several kinds ships a provider type per kind under the same <see cref="Name"/>.
 /// <para>
 /// One instance is created per (config, model) the user assigns — the model is injected at construction via
@@ -89,6 +90,9 @@ public enum ModelKind
 
     /// <summary>Speech in, text out — <see cref="ISpeechToTextProvider"/>.</summary>
     SpeechToText,
+
+    /// <summary>Text in, speech out — <see cref="ITextToSpeechProvider"/>.</summary>
+    TextToSpeech,
 }
 
 public static class ModelKinds
@@ -99,6 +103,7 @@ public static class ModelKinds
         var kinds = new List<ModelKind>();
         if (typeof(ILlmProvider).IsAssignableFrom(providerType))          kinds.Add(ModelKind.Language);
         if (typeof(ISpeechToTextProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.SpeechToText);
+        if (typeof(ITextToSpeechProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.TextToSpeech);
         return kinds;
     }
 
@@ -107,6 +112,7 @@ public static class ModelKinds
     {
         ModelKind.Language     => provider is ILlmProvider,
         ModelKind.SpeechToText => provider is ISpeechToTextProvider,
+        ModelKind.TextToSpeech => provider is ITextToSpeechProvider,
         _                      => false,
     };
 }

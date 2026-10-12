@@ -92,27 +92,36 @@ internal sealed class WorkspaceSetupContext
 }
 
 /// <summary>The model Nexaflow runs itself that a new workspace is offered: what its column is, and what it costs to fetch.</summary>
-/// <param name="SpeechModelId">Nexaflow's own speech-to-text model, when there is one — what Speech In starts on.</param>
+/// <param name="SpeechInModelId">Nexaflow's own speech-to-text model, when there is one — what Speech In starts on.</param>
+/// <param name="SpeechOutModelId">Nexaflow's own text-to-speech model, when there is one — what Speech Out starts on.</param>
 internal sealed record OwnedModelOffer(string ProviderName, string ModelId, string DisplayName, string AssemblyFileName, long DownloadBytes,
-                                       string? SpeechModelId)
+                                       string? SpeechInModelId, string? SpeechOutModelId)
 {
-    public ProviderModelPair Column() => new() { ProviderName = ProviderName, Model = ModelId, AssemblyFileName = AssemblyFileName };
+/// <summary>The columns a workspace that uses Nexaflow's own models starts with.</summary>
+    public OwnedColumns Columns() => new(
+        Column(ModelId, ModelKind.Language),
+        SpeechInModelId is null ? null : Column(SpeechInModelId, ModelKind.SpeechToText),
+        SpeechOutModelId is null ? null : Column(SpeechOutModelId, ModelKind.TextToSpeech));
 
-    public ProviderModelPair? SpeechColumn() => SpeechModelId is null ? null
-        : new() { ProviderName = ProviderName, Model = SpeechModelId, Kind = ModelKind.SpeechToText, AssemblyFileName = AssemblyFileName };
+    private ProviderModelPair Column(string model, ModelKind kind)
+        => new() { ProviderName = ProviderName, Model = model, Kind = kind, AssemblyFileName = AssemblyFileName };
 
-/// <summary>The owned language provider's first model, and its speech-to-text model, with their files and — where
-/// the machine suits it — the CUDA pack to fetch; null when no provider is Nexaflow's own harness.</summary>
+/// <summary>The owned language provider's first model, with its speech models, their files and — where the machine
+/// suits it — the CUDA pack to fetch; null when no provider is Nexaflow's own harness.</summary>
     public static OwnedModelOffer? Find(ProviderSet providers, ComputeHardwareReport hardware)
     {
         var provider = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Serves(ModelKind.Language));
         if (provider is not ILocalModelCatalog { Catalog: [var model, ..] }) return null;
 
-        var speech = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Name == provider.Name && p.Serves(ModelKind.SpeechToText))
-                         is ILocalModelCatalog { Catalog: [var s, ..] } ? s : null;
-        long bytes = model.Files.Sum(f => f.Size) + (speech?.Files.Sum(f => f.Size) ?? 0)
+        CatalogModel? First(ModelKind kind)
+            => providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Name == provider.Name && p.Serves(kind))
+                   is ILocalModelCatalog { Catalog: [var first, ..] } ? first : null;
+        var speechIn  = First(ModelKind.SpeechToText);
+        var speechOut = First(ModelKind.TextToSpeech);
+        long bytes = new[] { model, speechIn, speechOut }.OfType<CatalogModel>().Sum(m => m.Files.Sum(f => f.Size))
                    + (CudaRuntimePack.Applies(hardware) ? CudaRuntimePack.Size : 0);
-        return new OwnedModelOffer(provider.Name, model.Id, model.DisplayName, providers.GetAssemblyFileName(provider.Name), bytes, speech?.Id);
+        return new OwnedModelOffer(provider.Name, model.Id, model.DisplayName, providers.GetAssemblyFileName(provider.Name), bytes,
+                                   speechIn?.Id, speechOut?.Id);
     }
 }
 
@@ -192,7 +201,7 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
         _ctx.Harness = _content!.Choice;
         if (_ctx.Harness != WorkspaceHarness.Owned) return;
 
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Column(), _ctx.Owned.SpeechColumn(),
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns(),
                                    LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
@@ -331,8 +340,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
 
         // The chosen language model serves every reasoning role — alongside Nexaflow's own when the workspace mixes
         // both; abilities of other kinds need models of their own.
-        bool mixed = _ctx.Harness == WorkspaceHarness.Mixed;
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, mixed ? _ctx.Owned?.Column() : null, mixed ? _ctx.Owned?.SpeechColumn() : null,
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, _ctx.Harness == WorkspaceHarness.Mixed ? _ctx.Owned?.Columns() : null,
                                    LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);

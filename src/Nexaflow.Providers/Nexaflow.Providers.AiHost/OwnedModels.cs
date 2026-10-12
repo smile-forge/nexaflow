@@ -27,21 +27,25 @@ internal static class OwnedRoles
     public const string Recognizer    = "recognizer";
     public const string Transcriber   = "transcriber";
     public const string TurnDetector  = "turnDetector";
+    public const string Synthesizer   = "synthesizer";
 
     /// <summary>The parts a model of each kind is made of.</summary>
     public static IReadOnlyList<string> Of(ModelKind kind) => kind switch
     {
         ModelKind.Language     => [Chat],
         ModelKind.SpeechToText => [VoiceActivity, Recognizer, Transcriber, TurnDetector],
+        ModelKind.TextToSpeech => [Synthesizer],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned model is of this kind"),
     };
 }
 
 /// <summary>
-/// A model Nexaflow runs itself: its catalog entry — every file any machine might need — and its parts. A part built for
-/// one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is fetched and run only on that runtime.
+/// A model Nexaflow runs itself: its catalog entry — every file any machine might need — its parts, and, for a model
+/// that speaks, its voices. A part built for one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is
+/// fetched and run only on that runtime.
 /// </summary>
-internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, bool Images, bool Audio)
+internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
+                                  bool Images, bool Audio)
 {
     public string Id => Catalog.Id;
 
@@ -60,6 +64,9 @@ internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnl
     }
 }
 
+/// <summary>A voice of a model that speaks: the language it reads, the part that speaks it, and its file in that part's folder.</summary>
+internal sealed record OwnedVoice(string Language, string Role, string File);
+
 /// <summary>
 /// The models in <c>owned-models.json</c>: a model catalog (<see cref="ModelCatalog"/>) whose entries also say what kind
 /// of model each is and how the host runs its parts.
@@ -76,7 +83,8 @@ internal static class OwnedModels
     };
 
     private sealed record Manifest(List<Entry>? Models);
-    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, List<Part>? Parts);
+    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, List<Part>? Parts, List<Voice>? Voices);
+    private sealed record Voice(string? Language, string? Part, string? File);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider);
 
@@ -105,8 +113,10 @@ internal static class OwnedModels
             if (e.Id is null || !catalog.TryGetValue(e.Id, out var model)) throw new InvalidDataException("An owned model has no id.");
             if (e.Kind is not { } kind) throw new InvalidDataException($"Owned model '{e.Id}' does not say what kind of model it is.");
 
-            var parts = (e.Parts ?? []).Select(p => ToPart(e.Id, kind, p)).ToList();
-            var owned = new OwnedModel(model, kind, parts, e.Images, e.Audio);
+            var parts  = (e.Parts ?? []).Select(p => ToPart(e.Id, kind, p)).ToList();
+            var voices = (e.Voices ?? []).Select(v => ToVoice(e.Id, model, parts, v)).ToList();
+            if (kind == ModelKind.TextToSpeech && voices.Count == 0) throw new InvalidDataException($"Owned model '{e.Id}' speaks with no voice.");
+            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio);
             foreach (var runtime in new[] { Cuda, Cpu })
             {
                 var roles = owned.PartsFor(runtime).Select(p => p.Role).ToList();
@@ -131,5 +141,14 @@ internal static class OwnedModels
         if (kind == ModelKind.Language && (p.MemoryBytes <= 0 || p.ContextTokens <= 0))
             throw new InvalidDataException($"Owned model '{modelId}' does not say how much it holds or how long a conversation may grow.");
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider);
+    }
+
+    private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)
+    {
+        if (string.IsNullOrWhiteSpace(v.Language) || string.IsNullOrWhiteSpace(v.File) || parts.FirstOrDefault(p => p.Role == v.Part) is not { } part)
+            throw new InvalidDataException($"A voice of owned model '{modelId}' does not say what it reads, which part speaks it, or its file.");
+        if (!model.Files.Any(f => f.RelativePath == $"{part.Folder}/{v.File}"))
+            throw new InvalidDataException($"Owned model '{modelId}' has a voice, {v.File}, that is not among its files.");
+        return new OwnedVoice(v.Language, part.Role, v.File);
     }
 }

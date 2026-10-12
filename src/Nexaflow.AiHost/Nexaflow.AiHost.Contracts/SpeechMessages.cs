@@ -38,3 +38,23 @@ public sealed record ListenPartial(long RequestId, string Text) : HostReply(Requ
 
 /// <summary>An utterance has ended; its text will not change.</summary>
 public sealed record ListenFinal(long RequestId, string Text) : HostReply(RequestId);
+
+/// <summary>A voice: the language it reads, the model that speaks it, and its file among the model's.</summary>
+public sealed record VoiceSpec(string Language, ModelSpec Model, string VoiceFile);
+
+/// <summary>
+/// Speaks the text sent into it (<see cref="TextToSpeak"/>) until <see cref="InputEnd"/>: each segment in order, in
+/// the voice for its language, replied as <see cref="SpokenAudio"/> — 24 kHz 16-bit mono PCM — and then
+/// <see cref="SpokenSegmentEnd"/>.
+/// </summary>
+/// <param name="Voices">The voices it may use; the first reads anything in a language none of them is for.</param>
+/// <param name="Speed">How fast, 1 being each voice's own pace.</param>
+public sealed record Speak(long RequestId, IReadOnlyList<VoiceSpec> Voices, float Speed, RequestPriority Priority) : HostRequest(RequestId);
+
+/// <summary>A segment to speak, numbered by the app in the order it is to be heard.</summary>
+/// <param name="Language">ISO 639-1; null for the first voice's.</param>
+public sealed record TextToSpeak(long RequestId, int Segment, string Text, string? Language) : RequestInput(RequestId);
+
+public sealed record SpokenAudio(long RequestId, int Segment, byte[] Pcm) : HostReply(RequestId);
+
+public sealed record SpokenSegmentEnd(long RequestId, int Segment) : HostReply(RequestId);

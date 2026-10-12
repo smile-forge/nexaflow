@@ -13,6 +13,9 @@ public enum WorkspaceHarness
     Mixed,
 }
 
+/// <summary>The models of Nexaflow's own a workspace starts with: a language model, and the speech models where there are some.</summary>
+public sealed record OwnedColumns(ProviderModelPair Language, ProviderModelPair? SpeechIn, ProviderModelPair? SpeechOut);
+
 /// <summary>The ability grid a newly set-up workspace starts with.</summary>
 internal static class WorkspaceAiDefaults
 {
@@ -25,31 +28,39 @@ internal static class WorkspaceAiDefaults
         new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition };
 
     /// <summary>
-    /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>, or by both — then Speech
-    /// In on <paramref name="ownedSpeech"/> where Nexaflow has its own, with Whisper behind it, which is all a bridged
-    /// workspace listens with. At least one language model must be given.
+    /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;
+    /// Speech In on Nexaflow's own speech model where there is one, with Whisper behind it — all a bridged workspace
+    /// listens with; and Speech Out on Nexaflow's own voice where there is one. At least one language model must be given.
     /// </summary>
-    public static void Assign(AiConfig config, ProviderModelPair? bridged, ProviderModelPair? owned, ProviderModelPair? ownedSpeech, string whisperModel)
+    public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned, string whisperModel)
     {
-        if (bridged is null && owned is null) throw new ArgumentException("A workspace needs a model.");
+        var ownedLanguage = owned?.Language;
+        if (bridged is null && ownedLanguage is null) throw new ArgumentException("A workspace needs a model.");
 
-        config.Columns = [.. new[] { bridged, owned }.OfType<ProviderModelPair>()];
+        config.Columns = [.. new[] { bridged, ownedLanguage }.OfType<ProviderModelPair>()];
         config.Assignments.Clear();
         foreach (var ability in Enum.GetValues<AiAbility>())
         {
             if (AiAbilityNames.Kind(ability) != ModelKind.Language) continue;
-            config.Assignments[ability.ToString()] = (bridged, owned) switch
+            config.Assignments[ability.ToString()] = (bridged, ownedLanguage) switch
             {
                 ({ } b, { } o) => FrequentRoles.Contains(ability) ? AbilityChain.Of(o.Id, b.Id) : AbilityChain.Of(b.Id, o.Id),
                 ({ } b, null)  => AbilityChain.Of(b.Id),
-                _              => AbilityChain.Of(owned!.Id),
+                _              => AbilityChain.Of(ownedLanguage!.Id),
             };
         }
 
         config.AddDefaultSpeechIn(whisperModel);
-        if (ownedSpeech is null) return;
-        var speechIn = nameof(AiAbility.SpeechIn);
-        config.Columns.Add(ownedSpeech);
-        config.Assignments[speechIn] = AbilityChain.Of([ownedSpeech.Id, .. config.Assignments[speechIn].ColumnIds]);
+        if (owned?.SpeechIn is { } speechIn)
+        {
+            var key = nameof(AiAbility.SpeechIn);
+            config.Columns.Add(speechIn);
+            config.Assignments[key] = AbilityChain.Of([speechIn.Id, .. config.Assignments[key].ColumnIds]);
+        }
+        if (owned?.SpeechOut is { } speechOut)
+        {
+            config.Columns.Add(speechOut);
+            config.Assignments[nameof(AiAbility.SpeechOut)] = AbilityChain.Of(speechOut.Id);
+        }
     }
 }

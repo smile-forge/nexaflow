@@ -20,6 +20,7 @@ public class SpeechModelTests
 {
     private static AiHostClient? _client;
     private static ListenModels? _models;
+    private static VoiceSpec? _voice;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
@@ -43,7 +44,10 @@ public class SpeechModelTests
                                 new Dictionary<string, string> { ["sdpa_kernel"] = "1" }),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
 
-        foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector! })
+        _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, 1L << 30, 0),
+                               "voices/af_heart.bin");
+
+        foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector!, _voice.Model })
             await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
     }
 
@@ -111,6 +115,31 @@ public class SpeechModelTests
 
         Assert.IsFalse(heard.OfType<ListenFinal>().Any());
         Assert.IsFalse(heard.OfType<ListenActivity>().Any());
+    }
+
+    [TestMethod]
+    public async Task Segments_AreSpokenInOrder_AndWhatIsSaidIsWhatWasWritten()
+    {
+        if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
+
+        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, "Good morning, Sam.", "en"));
+        await stream.WriteAsync(new TextToSpeak(stream.RequestId, 1, "Your meeting has moved to Thursday at three.", "en"));
+        await stream.WriteAsync(new InputEnd(stream.RequestId));
+        var replies = new List<HostReply>();
+        await foreach (var reply in stream.ReadAsync()) if (reply is not Progress) replies.Add(reply);
+
+        CollectionAssert.AreEqual(new[] { 0, 1 }, replies.OfType<SpokenSegmentEnd>().Select(e => e.Segment).ToArray());
+        Assert.IsTrue(replies.TakeWhile(r => r is not SpokenSegmentEnd).All(r => r is SpokenAudio { Segment: 0 }), "the first segment is heard whole before the second");
+        byte[] speech = [.. replies.OfType<SpokenAudio>().SelectMany(a => a.Pcm)];
+        double seconds = speech.Length / 2.0 / 24_000;
+        Assert.IsTrue(seconds is > 2 and < 8, $"{seconds:0.0} s of speech");
+
+        // Heard back through the host's own ears: the words are the ones written.
+        var heard = await ListenAsync(new Nexaflow.IO.Common.Audio.PcmResampler(24_000, 16_000).Convert(speech), UtteranceEnd.Pause);
+        string text = string.Join(" ", heard.OfType<ListenFinal>().Select(f => f.Text)).ToLowerInvariant();
+        StringAssert.Contains(text, "thursday");
+        StringAssert.Contains(text, "morning");
     }
 
     /// <summary>Streams the audio in 100 ms pieces, then 2 s of quiet, and returns everything the host replied.</summary>

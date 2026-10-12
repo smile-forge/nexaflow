@@ -61,7 +61,7 @@ internal sealed partial class WhisperTranscriber : IHostModel
     private async Task<string> TranscribePieceAsync(ReadOnlyMemory<float> audio, string? language, GpuScheduler? gpu, RequestPriority priority,
                                                    CancellationToken ct)
     {
-        using var audios = Audios.Load(WavAudio.Write(Pcm(audio.Span), Rate));
+        using var audios = Audios.Load(WavAudio.Write(Pcm16.FromSamples(audio.Span), Rate));
         NamedTensors inputs;
         await _processing.WaitAsync(ct);
         try { inputs = _processor.ProcessAudios(Prompt(language), audios); }
@@ -105,14 +105,6 @@ internal sealed partial class WhisperTranscriber : IHostModel
             start = best;
         }
         if (audio.Length > start) yield return (start, audio.Length - start);
-    }
-
-    private static byte[] Pcm(ReadOnlySpan<float> samples)
-    {
-        var pcm = new byte[samples.Length * 2];
-        for (int i = 0; i < samples.Length; i++)
-            BitConverter.TryWriteBytes(pcm.AsSpan(i * 2), (short)Math.Clamp(samples[i] * 32767f, short.MinValue, short.MaxValue));
-        return pcm;
     }
 
     public void Dispose()

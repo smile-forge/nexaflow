@@ -37,6 +37,16 @@ public class OwnedModelsTests
         Assert.AreEqual("1", speech.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).CudaOptions!["sdpa_kernel"]);
     }
 
+    [TestMethod]
+    public void TheShippedVoice_HasAnEnglishVoiceAmongItsFiles()
+    {
+        var kokoro = OwnedModels.OfKind(ModelKind.TextToSpeech).Single();
+
+        var english = kokoro.Voices.Single(v => v.Language == "en");
+        Assert.AreEqual(OwnedRoles.Synthesizer, english.Role);
+        CollectionAssert.Contains(kokoro.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/kokoro-82m/" + english.File);
+    }
+
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";
@@ -53,6 +63,8 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "speechToText", "parts": [{ "role": "recognizer", "runner": "r", "folder": "models/m" }], "files": [IN] }""", DisplayName = "parts missing")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "cuda" }], "files": [IN] }""", DisplayName = "none for the CPU")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
+    [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "files": [IN] }""", DisplayName = "a voice model with no voice")]
+    [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "voices/x.bin" }], "files": [IN] }""", DisplayName = "a voice not among its files")]
     public void AModelThatDoesNotSayWhatItIsOrHowItRuns_OrStraysFromItsFolders_IsRefused(string model)
     {
         var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";

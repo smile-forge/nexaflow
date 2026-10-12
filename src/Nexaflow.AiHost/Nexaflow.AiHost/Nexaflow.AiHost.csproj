@@ -29,6 +29,8 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.17.1" />
     <!-- ONNX's protobuf schema (MIT), for the adapters that rewrite a downloaded model's graph headers. -->
     <PackageReference Include="OnnxSharp" Version="0.3.2" />
+    <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
+    <PackageReference Include="MisakiSharp" Version="2.1.1" />
   </ItemGroup>
 
   <ItemGroup>
