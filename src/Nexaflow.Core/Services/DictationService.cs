@@ -38,6 +38,10 @@ public sealed class DictationService
     public event EventHandler<string>? TranscriptUpdated;
     public event EventHandler<string>? Failed;
 
+    /// <summary>
+    /// Starts listening at once: capture begins and the mic shows it before the model's session is open, and what is
+    /// heard meanwhile waits in the queue for it — a slow start to a session costs no words.
+    /// </summary>
     public async Task StartAsync(ISpeechToTextProvider provider)
     {
         if (Interlocked.Exchange(ref _running, 1) == 1) return;
@@ -48,23 +52,35 @@ public sealed class DictationService
             _heardSpeech    = false;
             _lastSpeechTick = Environment.TickCount64;
             _listening      = new CancellationTokenSource();
-
-            _session = await provider.StartSessionAsync(new SpeechToTextOptions(), _listening.Token);
-            _audio   = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
-            _pump    = Task.Run(PumpAsync);
-            _reading = Task.Run(ReadAsync);
+            _audio          = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
 
             _waveIn = new WaveIn { WaveFormat = CaptureFormat, BufferMilliseconds = 100 };
             _waveIn.DataAvailable += OnDataAvailable;
             _waveIn.StartRecording();
-
             RecordingChanged?.Invoke(this, true);
+
+            var session = await provider.StartSessionAsync(new SpeechToTextOptions(), _listening.Token);
+            if (!IsRecording)
+            {
+                // Stopped while the session was opening: nothing is waiting for it.
+                await session.DisposeAsync();
+                return;
+            }
+            _session = session;
+            _pump    = Task.Run(PumpAsync);
+            _reading = Task.Run(ReadAsync);
             _ = Task.Run(WatchSilenceAsync);
+        }
+        catch (OperationCanceledException) when (!IsRecording)
+        {
+            // Stopped while the session was opening — StopAsync has already put everything away.
         }
         catch (Exception ex)
         {
+            var wasShown = _waveIn is not null;
             await TearDownAsync();
             Interlocked.Exchange(ref _running, 0);
+            if (wasShown) RecordingChanged?.Invoke(this, false);
             Failed?.Invoke(this, ex.Message);
         }
     }

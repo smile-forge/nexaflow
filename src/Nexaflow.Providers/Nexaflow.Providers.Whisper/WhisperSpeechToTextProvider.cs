@@ -49,30 +49,54 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. Catalog.Select(m => m.Id)]);
 
-    /// <summary>Fetches the model when it is not on disk yet, reporting how far it has got.</summary>
+    /// <summary>
+    /// Fetches the model when it is not on disk yet, reporting how far it has got, then loads it — the weights, and on
+    /// an NVIDIA GPU the CUDA runtime, take a second or more, which the first press of the mic should not wait for.
+    /// </summary>
     public async Task WarmupAsync(CancellationToken ct = default)
     {
-        if (_model is not { Files: [var file, ..] } || ModelPath is not null) return;
+        if (_model is not { Files: [var file, ..] }) return;
+        if (ModelPath is null && !await DownloadAsync(_model, file, ct)) return;
 
-        var activity = _activityManager.StartActivity($"Downloading {_model.DisplayName}…");
+        try
+        {
+            if (ModelPath is { } path) await Task.Run(() => Factory(path), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Warm-up must not throw; a model that will not load says why when a session asks for it.
+        }
+    }
+
+    private async Task<bool> DownloadAsync(CatalogModel model, ModelAsset file, CancellationToken ct)
+    {
+        var activity = _activityManager.StartActivity($"Downloading {model.DisplayName}…");
         var lastPercent = -1;
         var progress = new Progress<AssetProgress>(p =>
         {
             var percent = (int)(p.Fraction * 100);
             if (percent == lastPercent) return;
             lastPercent = percent;
-            activity.Update($"Downloading {_model.DisplayName}… {percent}%");
+            activity.Update($"Downloading {model.DisplayName}… {percent}%");
         });
         try
         {
             await _assets.EnsureAsync(file, progress, ct);
             activity.Complete();
             AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+            return true;
         }
         catch (Exception ex)
         {
-            activity.Fail(ex.Message);   // warm-up must not throw; the model stays unavailable until a later one
+            activity.Fail(ex.Message);   // the model stays unavailable until a later warm-up fetches it
+            return false;
         }
+    }
+
+    /// <summary>The loaded model, loaded once and shared by every session.</summary>
+    private WhisperFactory Factory(string path)
+    {
+        lock (_factoryLock) return _factory ??= WhisperFactory.FromPath(path);
     }
 
     public Task CooldownAsync(CancellationToken ct = default)
@@ -85,8 +109,7 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDispos
     {
         var path = ModelPath ?? throw new LlmProviderException($"The Whisper model '{_model?.Id}' is not downloaded.");
 
-        WhisperFactory factory;
-        lock (_factoryLock) factory = _factory ??= WhisperFactory.FromPath(path);
+        var factory = Factory(path);
 
         // An English-only model knows one language; otherwise say the one being spoken, or let it listen for it.
         var language = _model!.Id.EndsWith(".en", StringComparison.Ordinal) ? "en" : options.Language ?? "auto";
