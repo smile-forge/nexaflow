@@ -31,7 +31,7 @@
   "Shell.Config.AiGrid.Kind.SpeechToText": "transcription vocale",
   "Shell.Config.LocalModels.Heading": "Modèles {0}",
   "Shell.Config.LocalModels.Intro": "Les modèles que {0} fait tourner sur cet ordinateur. Chacun est téléchargé une fois et conservé ; supprimez-en un pour libérer sa place.",
-  "Shell.Config.LocalModels.IntroChoose": "Les modèles que {0} fait tourner sur cet ordinateur. Utiliser choisit celui qu'écoute {1} — il est téléchargé s'il n'est pas encore là. Un modèle plus grand entend plus juste et prend plus de temps ; un modèle marqué « (English) » ne connaît que l'anglais.",
+  "Shell.Config.LocalModels.IntroChoose": "Les modèles que {0} fait tourner sur cet ordinateur. Utiliser choisit celui qu'écoute {1}, aussitôt — il est téléchargé s'il n'est pas encore là. Un modèle plus grand entend plus juste et prend plus de temps ; un modèle marqué « (English) » ne connaît que l'anglais.",
   "Shell.Config.LocalModels.InUse": "utilisé",
   "Shell.Config.LocalModels.OnDisk": "Sur cet ordinateur",
   "Shell.Config.LocalModels.NotDownloaded": "Non téléchargé",

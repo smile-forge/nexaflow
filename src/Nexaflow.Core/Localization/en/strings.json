@@ -58,7 +58,7 @@
   "Shell.Config.AiGrid.Kind.SpeechToText": "speech to text",
   "Shell.Config.LocalModels.Heading": "{0} models",
   "Shell.Config.LocalModels.Intro": "The models {0} runs on this machine. Each is downloaded once and kept; remove one to free its space.",
-  "Shell.Config.LocalModels.IntroChoose": "The models {0} runs on this machine. Use picks the one {1} listens with — it is downloaded if it is not here yet. A larger model hears more accurately and takes longer; one ending in “(English)” knows only English.",
+  "Shell.Config.LocalModels.IntroChoose": "The models {0} runs on this machine. Use picks the one {1} listens with, at once — it is downloaded if it is not here yet. A larger model hears more accurately and takes longer; one ending in “(English)” knows only English.",
   "Shell.Config.LocalModels.InUse": "in use",
   "Shell.Config.LocalModels.OnDisk": "On this machine",
   "Shell.Config.LocalModels.NotDownloaded": "Not downloaded",

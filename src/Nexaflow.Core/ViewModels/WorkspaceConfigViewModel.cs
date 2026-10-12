@@ -125,7 +125,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             foreach (var provider in set.Providers)
                 if (provider is ILocalModelCatalog catalog)
                 {
-                    var page = new LocalModelsViewModel(provider, catalog, _grid, assets, ProviderManager.Instance.ActivityManager);
+                    var page = new LocalModelsViewModel(provider, catalog, _grid, assets, ProviderManager.Instance.ActivityManager, SaveGrid);
                     Sections.Add(GridSection(new LocalModelsControl(page, _grid), $"local-models-{provider.Name}", provider.Name));
                 }
         foreach (var config in _workspaceConfigs)
@@ -137,6 +137,21 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         var section = ConfigEditViewModel.ForCustomControl(control, configName, title);
         _gridSections.Add(section);
         return section;
+    }
+
+    /// <summary>Saves the ability grid's config as it stands — a local-model page's choice, written into it at once.</summary>
+    private void SaveGrid()
+    {
+        try
+        {
+            ConfigManager.Instance.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
+            _dirty = true;
+            foreach (var s in _gridSections) s.ResetChanges();
+        }
+        catch (Exception ex)
+        {
+            ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", _aiConfig.FriendlyName, ex.Message));
+        }
     }
 
     private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)

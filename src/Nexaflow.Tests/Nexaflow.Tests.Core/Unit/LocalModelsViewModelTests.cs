@@ -47,6 +47,7 @@ public class LocalModelsViewModelTests
 
     private string _root = null!;
     private ModelAssetStore _store = null!;
+    private int _saves;
 
     [TestInitialize]
     public void Init()
@@ -66,7 +67,7 @@ public class LocalModelsViewModelTests
         };
         var grid = new AiAbilityGridViewModel(config);
         var whisper = new Whisper();
-        return (new LocalModelsViewModel(whisper, whisper, grid, _store, activities: null), grid, config);
+        return (new LocalModelsViewModel(whisper, whisper, grid, _store, activities: null, saveGrid: () => _saves++), grid, config);
     }
 
     private static LocalModelRowViewModel Row(LocalModelsViewModel page, string id) => page.Models.Single(m => m.Id == id);
@@ -85,7 +86,7 @@ public class LocalModelsViewModelTests
     }
 
     [TestMethod]
-    public async Task Use_ChoosesTheModelForSpeechIn_AndFetchesIt()
+    public async Task Use_ChoosesTheModelForSpeechIn_SavesItAtOnce_AndFetchesIt()
     {
         var (page, grid, config) = Open();
 
@@ -94,8 +95,20 @@ public class LocalModelsViewModelTests
         Assert.AreEqual("large", grid.ModelFor(AiAbility.SpeechIn, "Whisper"));
         Assert.IsTrue(Row(page, "large").IsInUse);
         Assert.IsTrue(Row(page, "large").IsOnDisk, "a model chosen and not here is fetched");
-        Assert.IsTrue(grid.HasChanges);
-        Assert.AreEqual("small", config.Columns.Single().Model, "the choice is saved when the page is applied, not before");
+        Assert.AreEqual("large", config.Columns.Single().Model, "the choice is written into the config, not left for Apply");
+        Assert.AreEqual(1, _saves, "and saved");
+        Assert.IsFalse(grid.HasChanges, "nothing is left waiting for Apply");
+    }
+
+    [TestMethod]
+    public async Task Use_LeavesTheGridsOtherEditsWaitingForApply()
+    {
+        var (page, grid, config) = Open();
+        grid.Rows.Single(r => r.Ability == AiAbility.Analysis).Toggle("w");   // not usable there, but an edit all the same
+
+        await Row(page, "large").UseCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(config.Assignments.ContainsKey("Analysis"), "an edit the user has not applied stays unapplied");
     }
 
     [TestMethod]

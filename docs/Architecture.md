@@ -266,8 +266,9 @@ OpenAI does. The ability grid's columns carry their kind, and a row takes only c
 needs model files declares an `IModelAssetStore` in its constructor and describes them in a catalog manifest it
 ships (`ModelCatalog`); the store fetches them. A provider that exposes its catalog (`ILocalModelCatalog`) gets a page
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
-kind serves one ability — choose the one that ability uses, as an edit of the ability grid it shares with the AI
-page. Speech In starts on `Whisper` (whisper.cpp, on this machine) when
+kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
+on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
+Speech In starts on `Whisper` (whisper.cpp, on this machine) when
 a workspace's grid has never had that row, and `DictationService` streams the microphone into whichever speech
 model the row's chain picks.
 

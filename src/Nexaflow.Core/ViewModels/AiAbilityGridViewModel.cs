@@ -322,6 +322,27 @@ public partial class AiAbilityGridViewModel : ObservableObject
         row.Toggle(column.Id);
     }
 
+    /// <summary>
+    /// Writes just <paramref name="ability"/>'s chain, and the <paramref name="providerName"/> column in it, into the
+    /// config — a choice made to take effect at once, while every other edit on the grid waits for Apply.
+    /// </summary>
+    public void CommitModel(AiAbility ability, string providerName)
+    {
+        if (ColumnFor(ability, providerName) is not { } column) return;
+
+        var saved = new ProviderModelPair
+        {
+            Id = column.Id, ProviderName = column.ProviderName, Model = column.Model, Kind = column.Kind,
+            AssemblyFileName = column.AssemblyFileName,
+        };
+        var index = _config.Columns.FindIndex(c => c.Id == column.Id);
+        if (index >= 0) _config.Columns[index] = saved;
+        else            _config.Columns.Add(saved);
+
+        _config.Assignments[ability.ToString()] = Rows.Single(r => r.Ability == ability).ToChain();
+        RecheckChanges();
+    }
+
     private AiColumnViewModel? ColumnFor(AiAbility ability, string providerName)
     {
         var row = Rows.Single(r => r.Ability == ability);

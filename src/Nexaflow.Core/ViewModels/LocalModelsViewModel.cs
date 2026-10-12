@@ -13,12 +13,13 @@ namespace Nexaflow.Core.ViewModels;
 /// <summary>
 /// A workspace page for a provider whose models are files on this machine (<see cref="ILocalModelCatalog"/>): every
 /// model it offers, its size, whether it is here, and the means to fetch or remove it. When the provider's kind of
-/// model serves exactly one ability — Whisper and Speech In — each model can be chosen for it here; the choice is an
-/// edit of the ability grid it shares with the AI page, applied with it.
+/// model serves exactly one ability — Whisper and Speech In — each model can be chosen for it here. Everything on the
+/// page acts at once: the choice is made on the ability grid it shares with the AI page, and saved straight away.
 /// </summary>
 public sealed partial class LocalModelsViewModel : ObservableObject
 {
     private readonly AiAbilityGridViewModel _grid;
+    private readonly Action                 _saveGrid;
     private readonly Dispatcher             _ui = Dispatcher.CurrentDispatcher;
 
     public string ProviderName { get; }
@@ -33,10 +34,12 @@ public sealed partial class LocalModelsViewModel : ObservableObject
 
     public ObservableCollection<LocalModelRowViewModel> Models { get; } = [];
 
+    /// <param name="saveGrid">Saves the grid's config — called once a choice has been written into it.</param>
     public LocalModelsViewModel(IAiProvider provider, ILocalModelCatalog catalog, AiAbilityGridViewModel grid,
-                                ModelAssetStore store, IBackgroundActivityManager? activities)
+                                ModelAssetStore store, IBackgroundActivityManager? activities, Action saveGrid)
     {
         _grid        = grid;
+        _saveGrid    = saveGrid;
         ProviderName = provider.Name;
 
         var abilities = Enum.GetValues<AiAbility>()
@@ -64,10 +67,14 @@ public sealed partial class LocalModelsViewModel : ObservableObject
     /// <summary>The model the grid has the ability use — the first of this provider's columns in its chain.</summary>
     public string? InUse => Ability is { } ability ? _grid.ModelFor(ability, ProviderName) : null;
 
+    /// <summary>Chooses the row's model for the ability and saves that choice at once, like fetching and removing on the
+    /// same page — a choice left waiting for Apply was lost on Close.</summary>
     internal void Use(LocalModelRowViewModel row)
     {
         if (Ability is not { } ability) return;
         _grid.UseModel(ability, ProviderName, row.Id);
+        _grid.CommitModel(ability, ProviderName);
+        _saveGrid();
     }
 
     private void RefreshInUse()
