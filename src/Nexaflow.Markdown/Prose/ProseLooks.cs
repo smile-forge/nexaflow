@@ -116,6 +116,30 @@ public sealed record ParagraphLook
 
         return (Math.Floor((at + Past) / every) + 1) * every;
     }
+
+    /// <summary>
+    /// The same look: every setting alike, and the same stops in the same places. Compared by what the stops are rather than
+    /// by which list holds them, because a block read again is the same block only when its look is the same look — which is
+    /// what lets a document that was laid once be laid again from what it was.
+    /// </summary>
+    public bool Equals(ParagraphLook? other) =>
+        other is not null
+        && Align == other.Align
+        && Indent == other.Indent
+        && EndIndent == other.EndIndent
+        && FirstLine == other.FirstLine
+        && Before == other.Before
+        && After == other.After
+        && EveryStop == other.EveryStop
+        && Stops.SequenceEqual(other.Stops);
+
+    public override int GetHashCode()
+    {
+        var hash = HashCode.Combine(Align, Indent, EndIndent, FirstLine, Before, After, EveryStop, Stops.Count);
+        foreach (var stop in Stops) hash = HashCode.Combine(hash, stop);
+
+        return hash;
+    }
 }
 
 /// <summary>Which way a paragraph's lines are set.</summary>
@@ -150,6 +174,20 @@ public sealed record EmbeddedPicture(string MediaType, byte[] Bytes, double? Wid
     /// null for any other picture.
     /// </summary>
     public PictureMetafile? Metafile { get; init; }
+
+    /// <summary>
+    /// The same picture: the same kind of bytes, the same bytes, asked for at the same size and played the same way. Compared
+    /// by the bytes themselves rather than by which array holds them, so a document read again keeps the pictures it had.
+    /// </summary>
+    public bool Equals(EmbeddedPicture? other) =>
+        other is not null
+        && MediaType == other.MediaType
+        && Width == other.Width
+        && Height == other.Height
+        && Equals(Metafile, other.Metafile)
+        && Bytes.AsSpan().SequenceEqual(other.Bytes);
+
+    public override int GetHashCode() => HashCode.Combine(MediaType, Bytes.Length, Width, Height, Metafile);
 }
 
 /// <summary>
