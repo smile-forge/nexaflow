@@ -148,7 +148,9 @@ public sealed class ModelAssetStore : IModelAssetStore
         Changed?.Invoke(this, asset);
     }
 
-    /// <summary>One progress bar over several downloads: each reports its own bytes, counted after those before it.</summary>
+    /// <summary>One progress bar over several downloads: each reports its own bytes, counted after those before it. Each
+    /// report is passed on as it is made, in order — the caller's own <see cref="Progress{T}"/> moves it to the caller's
+    /// thread; a second hop here would let reports overtake each other, and the last arrive after the fetch had ended.</summary>
     private sealed class ProgressTally(long total, IProgress<AssetProgress>? progress)
     {
         private long _before;
@@ -158,7 +160,12 @@ public sealed class ModelAssetStore : IModelAssetStore
             if (progress is null) return null;
             long before = _before;
             _before += size;
-            return new Progress<DownloadProgress>(p => progress.Report(new AssetProgress(before + p.Received, total)));
+            return new Forward(p => progress.Report(new AssetProgress(before + p.Received, total)));
+        }
+
+        private sealed class Forward(Action<DownloadProgress> report) : IProgress<DownloadProgress>
+        {
+            public void Report(DownloadProgress value) => report(value);
         }
     }
 
