@@ -126,4 +126,29 @@ public class RequestMappingTests
         Assert.IsTrue(OllamaLlmProvider.ModelSupportsVision("llama3.2-vision"));
         Assert.IsFalse(OllamaLlmProvider.ModelSupportsVision("llama3.1:8b"));
     }
+
+    [TestMethod]
+    public void OpenAI_AModelThatHears_GetsARecordingAsAudio_AnyOtherGetsItNamed()
+    {
+        LlmMessage[] convo = [new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", [1, 2, 3, 4])] }];
+
+        var heard = (global::OpenAI.Chat.UserChatMessage)OpenAILlmProvider.BuildChatMessages(convo, hearsAudio: true)[0];
+        var named = (global::OpenAI.Chat.UserChatMessage)OpenAILlmProvider.BuildChatMessages(convo, hearsAudio: false)[0];
+
+        Assert.AreEqual(2, heard.Content.Count, "a text part and an audio part");
+        #pragma warning disable OPENAI001 // the SDK marks chat audio input for evaluation
+        Assert.IsNotNull(heard.Content[1].InputAudioBytes);
+        #pragma warning restore OPENAI001
+        Assert.AreEqual(1, named.Content.Count);
+        StringAssert.Contains(named.Content[0].Text, "clip.wav");
+    }
+
+    [TestMethod]
+    [DataRow("gpt-4o-audio-preview", true)]
+    [DataRow("gpt-audio", true)]
+    [DataRow("gpt-4o", false)]
+    [DataRow("gpt-4o-realtime-preview", false)]
+    [DataRow("gpt-4o-transcribe", false)]
+    public void OpenAI_ModelsThatHear_AreNamedForIt(string model, bool hears)
+        => Assert.AreEqual(hears, OpenAILlmProvider.ModelHearsAudio(model));
 }

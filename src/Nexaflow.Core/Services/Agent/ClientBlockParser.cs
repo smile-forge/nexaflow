@@ -17,11 +17,17 @@ public static class ClientBlockParser
     private const string PlanInfo    = "client_plan";
     private const string PrefillInfo = "client_prefill";
 
-    public static ParsedAssistantTurn Parse(string? raw)
+    /// <param name="toolNames">The tools the model may call. A <c>client_tool</c> body written without its fence — as
+    /// some models do in their own call framing, <c>call:client_tool</c> then the JSON — is the call it plainly is, when it
+    /// names one of them. A reply with no block that calls one of them as text — <c>add_note(…)</c>, or a model's own
+    /// argument syntax such as <c>call:add_note{…}</c> — is reported as a parse error, so the model is asked to call it
+    /// properly rather than the call reaching the user as the answer.</param>
+    public static ParsedAssistantTurn Parse(string? raw, IReadOnlyCollection<string>? toolNames = null)
     {
         var toolCalls   = new List<ToolCall>();
         var errors      = new List<string>();
         var explanation = new StringBuilder();
+        var textCalls   = new List<(string Line, string Tool)>();
         ClientPlan? plan = null;
         string? prefill  = null;
 
@@ -55,15 +61,93 @@ public static class ClientBlockParser
 
                 i = closed ? j + 1 : lines.Length;
             }
+            else if (toolNames is not null && BareCall(lines, i, toolNames) is var (body, next))
+            {
+                // A client_tool body written without its fence — after a model's own call marker, or alone.
+                HandleRecognised(ToolInfo, body, toolCalls, ref plan, ref prefill, errors);
+                i = next;
+            }
             else
             {
+                if (toolNames is not null && TextCall(lines[i], toolNames) is { } tool) textCalls.Add((lines[i].Trim(), tool));
                 explanation.Append(lines[i]).Append('\n');
                 i++;
             }
         }
 
+        // A call written as text runs nothing; with no block beside it, it is the model's attempt at one.
+        if (toolCalls.Count == 0)
+            foreach (var (line, tool) in textCalls)
+                errors.Add($"`{line}` is a call to {tool} written as text, so it did not run. A tool runs only from a fenced "
+                         + $"client_tool block:\n```client_tool\n{{\"tool\": \"{tool}\", \"arguments\": {{ … }}}}\n```");
+
         return new ParsedAssistantTurn(
             explanation.ToString().Trim(), toolCalls, plan, prefill, errors);
+    }
+
+    /// <summary>The tool a line calls as text — its name straight followed by arguments, <c>name(…)</c> or
+    /// <c>name{…}</c>, alone or after a model's own <c>call:</c> marker; null for a line that only mentions one.</summary>
+    internal static string? TextCall(string line, IReadOnlyCollection<string> toolNames)
+    {
+        var text = line.Trim().Trim('`');
+        if (text.StartsWith("call:", StringComparison.OrdinalIgnoreCase)) text = text[5..].TrimStart();
+
+        int end = 0;
+        while (end < text.Length && (char.IsLetterOrDigit(text[end]) || text[end] is '_' or '-' or '.')) end++;
+        if (end == 0 || end >= text.Length || text[end] is not ('(' or '{')) return null;
+
+        var name = text[..end];
+        return toolNames.FirstOrDefault(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Longest a bare call's JSON may run, in lines, before it is taken for prose.</summary>
+    private const int BareCallLines = 200;
+
+    /// <summary>
+    /// A <c>client_tool</c> body without its fence starting at <paramref name="at"/> — <c>{"tool": …, "arguments": …}</c>
+    /// naming one of <paramref name="toolNames"/>, alone or after a <c>call:client_tool</c> / <c>client_tool</c> marker,
+    /// on one line or several — and the line after it; null when there is none.
+    /// </summary>
+    internal static (string Body, int Next)? BareCall(string[] lines, int at, IReadOnlyCollection<string> toolNames)
+    {
+        var first = lines[at].Trim();
+        if (first.StartsWith("call:", StringComparison.OrdinalIgnoreCase)) first = first[5..].TrimStart();
+
+        int start = at;
+        string opening;
+        if (first.Equals(ToolInfo, StringComparison.OrdinalIgnoreCase))
+        {
+            start = at + 1;
+            while (start < lines.Length && lines[start].Trim().Length == 0) start++;
+            if (start >= lines.Length) return null;
+            opening = lines[start].Trim();
+        }
+        else if (first.StartsWith(ToolInfo, StringComparison.OrdinalIgnoreCase))
+            opening = first[ToolInfo.Length..].TrimStart();
+        else
+            opening = first;
+
+        if (!opening.StartsWith('{')) return null;
+
+        var body = new StringBuilder(opening);
+        for (int end = start; ; )
+        {
+            if (TryCallObject(body.ToString(), toolNames)) return (body.ToString(), end + 1);
+            if (++end >= lines.Length || end - start > BareCallLines) return null;
+            body.Append('\n').Append(lines[end]);
+        }
+    }
+
+    /// <summary>Whether <paramref name="json"/> is a whole client_tool object naming a known tool.</summary>
+    private static bool TryCallObject(string json, IReadOnlyCollection<string> toolNames)
+    {
+        try
+        {
+            return JsonNode.Parse(json) is JsonObject obj
+                && Str(obj["tool"]) is { } tool
+                && toolNames.Contains(tool, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (System.Text.Json.JsonException) { return false; }
     }
 
     /// <summary>Whether a fence with this info word holds something the agent acts on rather than prose to show.</summary>

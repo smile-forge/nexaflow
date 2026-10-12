@@ -51,4 +51,13 @@ public class LlmAttachmentTests
         }
         finally { File.Delete(path); }
     }
+
+    [TestMethod]
+    public void IsAudio_ByMime_OrByExtensionWhenNoMime()
+    {
+        Assert.IsTrue(new LlmAttachment("clip", "audio/wav").IsAudio);
+        Assert.IsTrue(new LlmAttachment(@"C:\song.flac").IsAudio);
+        Assert.IsFalse(new LlmAttachment(@"C:\song.flac", "text/plain").IsAudio, "an explicit MIME wins");
+        Assert.IsFalse(new LlmAttachment(@"C:\shot.png").IsAudio);
+    }
 }

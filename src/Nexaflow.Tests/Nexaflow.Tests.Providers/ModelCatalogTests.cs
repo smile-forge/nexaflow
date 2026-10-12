@@ -39,4 +39,27 @@ public class ModelCatalogTests
     [TestMethod]
     public void AModelWithNoFiles_IsRefused()
         => Assert.ThrowsExactly<InvalidDataException>(() => Read("""{ "models": [ { "id": "m", "files": [] } ] }"""));
+
+    [TestMethod]
+    public void AFilePackedInAnArchive_SaysWhichEntryAndWhatTheArchiveMustBe()
+    {
+        var file = Read($$"""
+            { "models": [ { "id": "cuda", "files": [ { "path": "runtime/cudnn64_9.dll", "url": "https://pypi.test/cudnn.whl",
+                "size": 270448, "sha256": "{{Hash}}",
+                "archive": { "entry": "nvidia/cudnn/bin/cudnn64_9.dll", "size": 436469905, "sha256": "{{Hash.ToUpperInvariant()}}" } } ] } ] }
+            """).Single().Files.Single();
+
+        Assert.AreEqual(new ArchiveEntry("nvidia/cudnn/bin/cudnn64_9.dll", 436469905, Hash), file.Archive);
+        Assert.AreEqual(new Uri("https://pypi.test/cudnn.whl"), file.Source, "the url is the archive's");
+    }
+
+    [TestMethod]
+    [DataRow("""{ "size": 1, "sha256": "{0}" }""")]
+    [DataRow("""{ "entry": "a.dll", "size": 0, "sha256": "{0}" }""")]
+    [DataRow("""{ "entry": "a.dll", "size": 1, "sha256": "abc" }""")]
+    public void AnArchiveThatIsNotFullyDescribed_IsRefused(string archive)
+        => Assert.ThrowsExactly<InvalidDataException>(() => Read($$"""
+            { "models": [ { "id": "m", "files": [ { "path": "a.dll", "url": "https://h/x.whl", "size": 1, "sha256": "{{Hash}}",
+                                                   "archive": {{archive.Replace("{0}", Hash)}} } ] } ] }
+            """));
 }

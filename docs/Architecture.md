@@ -249,8 +249,20 @@ the first available provider, whatever the page. When the page's `GetContextSecu
 is as high-risk as the riskiest page pinned in it — and a model that would read it sends data off this machine,
 `IAIResponseHandler.RequestContextReleaseAsync` names those models and asks the user; a refusal cancels the request.
 
+A provider also says **whose harness it is** (`Harness`): bridged — Nexaflow is a client of a model's own harness,
+a cloud API or a local server like Ollama — or owned, where Nexaflow is the whole harness. The owned language models
+run in the **AI host** (`src/Nexaflow.AiHost/`): `Nexaflow.AiHost.exe` beside the app, started on the first request
+by the app's one `AiHostClient`, bound to the kill-on-close job, and replaced when it dies or stops answering
+([local-ai.md](local-ai.md)). The provider for them, "Nexaflow" (`Nexaflow.Providers.AiHost`), gets the client the way
+any provider gets an app-wide service: `ProviderManager.Initialize` is handed the services, and a provider constructor
+parameter of a service's type receives it. A request says how urgent it is (`LlmUrgency`), which the host schedules
+the GPU by. A new workspace's setup asks who runs its AI where the machine can run an owned model
+(`WorkspaceAiDefaults`).
+
 Tool use is **prompt-convention**: the agent loop asks the model for fenced ```` ```client_tool ```` blocks
-and parses them out of the text — no provider sends native function-calling schemas. This keeps every
+and parses them out of the text — no provider sends native function-calling schemas. A model that writes a call in
+its own framing is met halfway: an unfenced `client_tool` body naming a known tool is the call, and a known tool
+called as text (`add_note(…)`, `call:add_note{…}`) is sent back as a malformed block to rewrite. This keeps every
 backend (including local Ollama models and the pipe-based Aria) behaviourally identical and the agent loop
 provider-agnostic; the trade-offs are no usage/cost metadata and tool reliability riding on
 instruction-following. While a step streams, the loop shows its prose to the `IAIResponseHandler` as a
@@ -577,8 +589,9 @@ variable), it calls **`IShellServices.RunElevatedAsync(ElevatedRequest)`**:
 **Layering:** `Nexaflow.Elevation.Contracts` is a pure DTO leaf (`ElevatedRequest`/`ElevatedResult`/
 `Operations`/pipe framing) referenced by `Features.Common` (for the `RunElevatedAsync` signature), Core
 and the bridge. `Nexaflow.PrivilegeBridge` is a standalone `requireAdministrator` exe **outside** the
-in-process layering — Core's csproj copies it beside the app (`ReferenceOutputAssembly=false`, the
-`CopyPrivilegeBridge` target); features never see it.
+in-process layering — Core's csproj copies it beside the app (`ReferenceOutputAssembly=false` with
+`HelperFolder="PrivilegeBridge"`, which the `CopyHelperExes` target in `Directory.Build.targets` reads); features
+never see it.
 
 **To add an elevated operation:** define the DTO in `Elevation.Contracts`, implement an
 `IElevatedOperation` in the bridge, call it via `RunElevatedAsync`. **Never** `Process.Start` with

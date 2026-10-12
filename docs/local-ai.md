@@ -1,12 +1,14 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phase 1 built.** Replies stream through the agent harness; each ability is served by a chain of models
-that asks before high-risk context leaves this machine; providers serve speech to text beside language models, and
-dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime transcription in the
-cloud); local models' files live in one verified, resumable store; System Info reports what the machine can run.
-The rest is not built yet. This records
-what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a
-type, check for collisions before introducing it.
+**Status: phases 1 and 2 built.** Replies stream through the agent harness; each ability is served by a chain of
+models that asks before high-risk context leaves this machine; providers serve speech to text beside language
+models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
+transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
+machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on CUDA from a pack fetched from where NVIDIA and
+Microsoft publish it, or on the CPU — as the provider "Nexaflow", chosen when a workspace is set up; tools can hand a
+model recordings to hear; and an AI-path suite runs the agent loop on it. Voice (phase 3) and generation tools
+(phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and the
+order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -37,7 +39,8 @@ policy and scheduling.
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPU minimum | **24 GB** for the default resident model (Gemma 4 E4B) with voice; **32 GB** for the larger models (Qwen 3.8 27B, Gemma 4 26B-A4B) with voice. Bringing the larger models to 24 GB is the longer-term goal: their own exports, and a context that never re-reads what it has already read (below). |
-| Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). |
+| Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
+| Tool calls | **Prompt convention**, for every model: fenced `client_tool` blocks the harness parses. A model that writes a call in its own framing is read where the call is plain — an unfenced `client_tool` body naming a known tool — and asked to rewrite it where it is not (below). Native tool calls stay deferred. |
 
 ## What was measured
 
@@ -181,9 +184,10 @@ flowchart LR
 
 ### One host process on one stack
 
-Local models run in a helper executable Nexaflow starts on demand, talks to over named pipes, and keeps in a job
-object so it dies with the app — the shape `Nexaflow.PrivilegeBridge` already has. Every reason is something the
-test beds hit:
+Local models run in `Nexaflow.AiHost`, a helper executable beside the app, as `Nexaflow.PrivilegeBridge` is. The app's
+`AiHostClient` starts it on the first request for a model, speaks to it over a named pipe only the user can open, and
+binds it to the process-wide kill-on-close job object (`KillOnCloseJob`, shared with the terminal) so it dies with
+the app. Every reason is something the test beds hit:
 
 - **A native crash takes its process down.** Two access violations in onnxruntime-genai during testing; in the
   host that is a restart and a retried request, in the WPF process it is the whole app.
@@ -208,12 +212,16 @@ Inside the host there is **one ONNX Runtime and one CUDA stack**, and two surfac
 Execution providers come from two places, into **one host build for every machine** — ONNX Runtime's GPU build,
 which carries the CUDA provider:
 
-- **Our CUDA pack** on NVIDIA: the CUDA provider, onnxruntime-genai's CUDA layer, and NVIDIA's redistributable
-  cuBLAS and cuDNN. The host puts the pack's folder at the front of its `PATH` before anything loads; nothing else
-  NVIDIA is needed, toolkit or not.
+- **The CUDA pack** on NVIDIA (`CudaRuntimePack`): ONNX Runtime and onnxruntime-genai built with their CUDA layers,
+  and NVIDIA's cuBLAS and cuDNN. ONNX Runtime loads its CUDA provider from the folder `onnxruntime.dll` came from, so
+  the pack carries the runtime itself — the same build as the install's, which a test holds them to — and a host
+  started on it binds both managed wrappers to the pack's copies and puts the folder first on its `PATH` before
+  anything loads. Nothing else NVIDIA is needed, toolkit or not. Without the pack the host runs on the install's CPU
+  runtime.
 - **Windows ML's provider catalog** for TensorRT-RTX, OpenVINO and NPUs: `EnsureAndRegisterCertifiedAsync`
   registers them into the same runtime, and sessions reach them through `OrtEnv.GetEpDevices`. Only Windows ML's
-  bootstrap DLL ships; its own `onnxruntime.dll` must not.
+  bootstrap DLL ships; its own `onnxruntime.dll` must not. **Not wired yet**: it arrives with the first catalog model
+  built and checked for one of its providers, so nothing is registered with nothing to run on it.
 
 A provider being present does not mean a model runs on it: TensorRT-RTX rejected the Kokoro and Silero graphs as
 exported. The catalog names, per model, the providers its variants were built and checked for.
@@ -221,14 +229,26 @@ exported. The catalog names, per model, the providers its variants were built an
 Speech runs in the same host. sherpa-onnx (wake words, denoise, diarization, 80 ms-chunk ASR) would need a process
 of its own because of its runtime, and is not needed for the decisions above.
 
-Proposed layout, mirroring `Nexaflow.Elevation`: `src/Nexaflow.AI/Nexaflow.AI.Contracts` (pipe DTOs) and
-`Nexaflow.AI.Host`.
+Layout: `src/Nexaflow.AiHost/` — `Nexaflow.AiHost.Contracts` (the pipe's messages and framing), `Nexaflow.AiHost.Client`
+(the app's side, and the CUDA pack's manifest) and `Nexaflow.AiHost` (the executable); the provider is
+`Nexaflow.Providers.AiHost`, which takes the client by constructor injection like any app-wide service.
+
+The client watches the host three ways: a heartbeat answered on the host's reading loop, so a frozen process shows
+however busy its requests are; a stall limit per request, so a request that stops replying is taken for a hang; and
+a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
+starts another, and a host that keeps crashing is not restarted until it has stayed down a while.
+
+A downloaded model is prepared once in its folder by the adapter its catalog names — Gemma 4 E4B's rewrites the
+onnx-community export's graph headers with OnnxSharp, as the testbed's Python adapter did — into a provider-neutral
+`genai_config.base.json`; the host writes `genai_config.json` for the runtime it is on before loading, since
+onnxruntime-genai's API can set only the decoder's providers.
 
 ### Capabilities instead of one text contract
 
-`ILlmProvider` stays the text-generation contract. It streams its reply as events (`StreamAsync`), and gains
-**audio attachments** next to image ones (`LlmAttachment.IsImage` has no audio counterpart); native tool calls
-arrive later as one more kind of event, for a provider that opts in. Beside it, in `Providers.Common`:
+`ILlmProvider` stays the text-generation contract. It streams its reply as events (`StreamAsync`), takes **audio
+attachments** beside image ones (`LlmAttachment.IsAudio`, `SupportsAudio`) — a recording a tool hands over
+(`ToolResult.Audio`) reaches a model that hears as audio and any other as what the Speech In model heard in it — and
+native tool calls arrive later as one more kind of event, for a provider that opts in. Beside it, in `Providers.Common`:
 
 | Capability | Shape |
 |---|---|
@@ -249,14 +269,16 @@ The host owns:
 
 - **A resident set** — the model an owned workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
   to reload is too slow between turns).
-- **One generation slot** — image, music or a second LLM, loaded on demand and disposed afterwards. Generation
-  takes seconds anyway, so a load is acceptable there.
-- **Admission against a budget**: size each model from its manifest, refuse or evict rather than over-commit, and
-  keep headroom for transients. Generators always run with `chunk_size` set, an explicit `max_length`, and
-  `arena_extend_strategy` = 1 (grow only by what is requested).
+- **Models loaded on demand** — image, music or a second LLM a request names: kept loaded after the request, and the
+  first to go, least recently used, when another needs the room.
+- **Admission against a budget**: the NVIDIA GPU's memory less 3 GB kept back; each model sized from its manifest;
+  unload what may go, or refuse rather than over-commit — and when even that would not make room, nothing is
+  unloaded. Generators always run with `chunk_size` set, an explicit `max_length`, and `arena_extend_strategy` = 1
+  (grow only by what is requested).
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
-  generation jobs. Concurrent models time-slice the GPU, so a background analysis running during a voice reply
-  halves the reply's speed unless something yields.
+  generation jobs. Concurrent models time-slice the GPU, so the GPU takes one step at a time — a token, a 512-token
+  slice of prompt — and gives the next to the highest-priority request waiting; a background analysis yields to a
+  reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
 
 **Cancellation is per step.** A decode step is one token (~14 ms at 70 tok/s); the long steps are an image or audio
 encode (~100 ms) and a prefill chunk (bounded by `chunk_size`). Barge-in does not wait on any of them: playback stops
@@ -291,8 +313,12 @@ Appending is exact: the next-token scores after a prompt read in pieces match a 
   generating again: a bare rewind skips the next token.
 - **New turns are rendered as deltas against the cache.** Templates re-render history differently from what the
   model read (Gemma 4 26B-A4B's adds an empty thought block to the generation prompt and strips it from history), so
-  a turn appends the template's closing for the last reply — its end token mapped by id, since decoding it returns
-  nothing usable — then the new turn and generation prompt. What was read stays as it was read.
+  a turn appends the template's whole closing for the last reply — onnxruntime-genai does not keep the end token a
+  reply stops on, so the model has not read it — then the new turn and generation prompt. What was read stays as it
+  was read.
+- **Requests stay stateless.** `ILlmProvider` sends whole conversations; the host matches each to the conversation it
+  continues — the turns that conversation has read, its last reply included, begin the request's, and the rest is
+  text — and keeps a few, least recently used dropped first. Nothing in the app knows the cache exists.
 - **An image rebuilds the context.** onnxruntime-genai 0.17.1 does not take media on a continuing generator: the
   native E4B export silently ignored the image ("I cannot see any failure stages in the screenshot") and the adapted
   one crashed. An image turn re-reads the conversation — E4B in ~0.25–0.5 s, Qwen in ~1–1.6 s.
@@ -331,7 +357,11 @@ to the owned model, which is where API cost actually goes.
 
 Prompt-convention tools are an advantage here: with the chat template coming from the model itself
 (`Tokenizer.ApplyChatTemplate`), a new local model needs no per-family harness — the part PR #74 had to write by
-hand for Gemma and Qwen — and Qwen's unparsed tool calls do not matter.
+hand for Gemma and Qwen. A model's own call syntax still surfaces: Gemma 4 E4B, asked for a tool the request names
+directly, often writes `call:add_note{text:buy milk}`, and when told to use a block, writes the block's JSON in its
+own framing without the fence. The harness takes an unfenced `client_tool` body naming a known tool as the call it
+is, and sends a known tool called as text back to be rewritten — so the call never reaches the user as the answer.
+The AI-path suite allows two such corrections a run.
 
 ## Voice conversation
 
@@ -526,10 +556,12 @@ every payload a second time under Package Cache, the standard bootstrapper canno
 per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
 `InstallTools` — that the app reads on first run.
 
-- **The host** ships in the base install or downloads with the first owned workspace; without the CUDA pack it is
-  about 30 MB (ONNX Runtime, onnxruntime-genai, Windows ML's bootstrap).
-- **Execution providers**: our CUDA pack (~1.1 GB) for NVIDIA, hosted on our GitHub releases and versioned with the
-  host; Windows ML's providers for other vendors and NPUs, downloaded by Windows itself.
+- **The host** ships in the base install, in `AiHost\` beside the app: about 26 MB of ONNX Runtime and
+  onnxruntime-genai, CPU only, started only when a workspace uses a model Nexaflow runs.
+- **Execution providers**: the CUDA pack (about 1.3 GB on disk) for NVIDIA, fetched with the first owned model on a
+  machine with an NVIDIA GPU and a CUDA 13 driver — from Microsoft's NuGet packages and NVIDIA's wheels on PyPI, each
+  archive checked and only the DLLs kept. Windows ML's providers, for other vendors and NPUs, come with the first
+  model built for one of them.
 - **Models and voices**: `ModelAssetStore`, under `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming
   path. Each provider ships a catalog manifest naming its models' files with source, size and SHA-256; a download
   resumes from a `.partial` file and a file is handed out only once verified. Whisper models an earlier version kept
@@ -547,7 +579,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 |---|---|---|
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
-| 2. AI host + local LLM | the host, its pipe protocol, scheduler, budget and watchdog; provider provisioning; the client provider — superseding PR #74; the harness property and the workspace's choice of an owned model; audio attachments; the AI-path test suite against the owned model | large |
+| 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B prepared from the onnx-community export, with the append-only context; the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | speech in the host; the text-to-speech contract; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay | large |
 | 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
 

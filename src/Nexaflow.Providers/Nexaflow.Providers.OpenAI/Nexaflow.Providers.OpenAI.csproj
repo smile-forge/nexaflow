@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <!-- PcmResampler: the microphone's 16 kHz to the realtime API's 24 kHz. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

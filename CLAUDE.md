@@ -62,8 +62,9 @@ src/
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
   Nexaflow.Services.Initiatives.Cli/  nfi
   Nexaflow.Elevation/                 Elevation.Contracts (DTOs) + PrivilegeBridge (the elevated exe)
+  Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + the host exe — models Nexaflow runs itself
   Nexaflow.Languages/                 one resource-only pack per language
-  Nexaflow.Providers/                 Providers.Common + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria)
+  Nexaflow.Providers/                 Providers.Common + one project per backend (Claude, Gemini, OpenAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
   Nexaflow.Tests/                     one suite per subject — docs/testing.md
 ```
 

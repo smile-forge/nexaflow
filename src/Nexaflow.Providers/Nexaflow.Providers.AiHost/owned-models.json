@@ -1,0 +1,106 @@
+{
+  "models": [
+    {
+      "id": "gemma-4-e4b-it",
+      "displayName": "Gemma 4 E4B",
+      "folder": "models/gemma-4-e4b-it",
+      "adapter": "gemma4-onnx-community-q4f16",
+      "memoryBytes": 11811160064,
+      "contextTokens": 16384,
+      "images": true,
+      "audio": true,
+      "files": [
+        {
+          "path": "models/gemma-4-e4b-it/onnx/embed_tokens_q4f16.onnx",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/embed_tokens_q4f16.onnx",
+          "size": 5619,
+          "sha256": "aa48aa1806eda0ea42b79cd8eea355aebaf3b6ae3b04190bfee7ceef308603a4"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/embed_tokens_q4f16.onnx_data",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/embed_tokens_q4f16.onnx_data",
+          "size": 2017460224,
+          "sha256": "fd0f39c08f7e20a31145c2351a76a408b6c4ab60d15cc33f40e29cf30c0b2451"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/decoder_model_merged_q4f16.onnx",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/decoder_model_merged_q4f16.onnx",
+          "size": 850610,
+          "sha256": "43aa27452be3dd7fbb9524257dd66af957add748ddab20ea63ae71923e59aa08"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/decoder_model_merged_q4f16.onnx_data",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/decoder_model_merged_q4f16.onnx_data",
+          "size": 2074847232,
+          "sha256": "b6aa13eab3ecdf4721293e93c806c279ca0516956187f7aec63ee90ec7216e73"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/decoder_model_merged_q4f16.onnx_data_1",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/decoder_model_merged_q4f16.onnx_data_1",
+          "size": 812318720,
+          "sha256": "84e1c5f09ba88a5351959e4f73f62bce46f92dc19a7d7c82376ef36771c26a30"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/vision_encoder_q4f16.onnx",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/vision_encoder_q4f16.onnx",
+          "size": 189126,
+          "sha256": "7475ce3d5d98d74003410367cc53f23ddb38891e1847cce0a4535fb6d953c540"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/vision_encoder_q4f16.onnx_data",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/vision_encoder_q4f16.onnx_data",
+          "size": 100762304,
+          "sha256": "6cada2b035aed2284ef3a379fb6523906b95da1c1a24af7182161342d1269a52"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/audio_encoder_q4f16.onnx",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/audio_encoder_q4f16.onnx",
+          "size": 260446,
+          "sha256": "abf9f3db89b336579c786704e147747085ccca23f28ecdf33f6736a93e3fbc47"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/onnx/audio_encoder_q4f16.onnx_data",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/onnx/audio_encoder_q4f16.onnx_data",
+          "size": 172167424,
+          "sha256": "814635b03d618d2513d377e051d491d0a5448f1407864fb2535e4b8182f9eced"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/tokenizer.json",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/tokenizer.json",
+          "size": 19439251,
+          "sha256": "47bd35616c7c782aaca6ccf48c75f3461d5877170984b8836b375107d0a9f566"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/tokenizer_config.json",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/tokenizer_config.json",
+          "size": 19795,
+          "sha256": "e5d1a3b4bfd10a843cff2189b01ddd30c7f646d6b2998481eb93a9c6e9487a90"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/chat_template.jinja",
+          "url": "https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX/resolve/d298100958fdf3c60581158fe201fb240634fb28/chat_template.jinja",
+          "size": 16317,
+          "sha256": "781d10940fbc44be40064b5d43a056fc486c84ceaa55538226368b57314132bf"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/image_processor.json",
+          "url": "https://huggingface.co/justinchuby/gemma-4-e4b-it-onnx/resolve/45d9d90c1f56aaf36e0ca3748a522c495f436394/NF4/cuda/image_processor.json",
+          "size": 744,
+          "sha256": "02b37f9a41347d2921917ba902dfba8d66db156311e8fd914239acf25f0a19f7"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/audio_feature_extraction.json",
+          "url": "https://huggingface.co/justinchuby/gemma-4-e4b-it-onnx/resolve/45d9d90c1f56aaf36e0ca3748a522c495f436394/NF4/cuda/audio_feature_extraction.json",
+          "size": 923,
+          "sha256": "b3ccfc6e00691c9accbda59543db9a4e6e91cb78b0ce62339c97d4c7f44e1672"
+        },
+        {
+          "path": "models/gemma-4-e4b-it/genai_config.native.json",
+          "url": "https://huggingface.co/justinchuby/gemma-4-e4b-it-onnx/resolve/45d9d90c1f56aaf36e0ca3748a522c495f436394/NF4/cuda/genai_config.json",
+          "size": 4090,
+          "sha256": "826f26ec78c1330f8c4ce78939871d5c6a18574bd7476a62af14e3ec2a443d0a"
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,13 @@ public record LlmAttachment(string FilePath, string? MimeType = null, byte[]? By
         || (MimeType is null && Path.GetExtension(FilePath).ToLowerInvariant() is
                 ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp");
 
+    /// <summary>True when this attachment is a recording — by MIME type, or by file extension when no MIME is given.
+    /// Providers that report <see cref="ILlmProvider.SupportsAudio"/> encode these as audio input.</summary>
+    public bool IsAudio =>
+        MimeType?.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) == true
+        || (MimeType is null && Path.GetExtension(FilePath).ToLowerInvariant() is
+                ".wav" or ".mp3" or ".m4a" or ".flac" or ".ogg" or ".opus" or ".aac" or ".wma");
+
     /// <summary>The image's MIME type, inferring from the file extension when <see cref="MimeType"/> is unset.</summary>
     public string ResolvedMimeType => MimeType ?? Path.GetExtension(FilePath).ToLowerInvariant() switch
     {

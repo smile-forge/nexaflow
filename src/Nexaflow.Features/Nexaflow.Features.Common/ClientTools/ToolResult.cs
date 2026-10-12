@@ -24,6 +24,13 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     public IReadOnlyList<ContextImage>? Images { get; init; }
 
     /// <summary>
+    /// Recordings this tool produced for the model to hear (e.g. a stretch of the track the audio player has open).
+    /// The harness forwards them as audio when the conversation model can hear, or as a transcript from the Speech
+    /// In model when it cannot. Transient, like <see cref="Images"/>.
+    /// </summary>
+    public IReadOnlyList<ContextAudio>? Audio { get; init; }
+
+    /// <summary>
     /// When true the agent run ends immediately and silently after this result: the harness feeds NO
     /// tool-results text back to the model and shows no final message — it just dismisses the response
     /// UI. Used when a tool has handed work off to a background process and there is nothing to report yet.

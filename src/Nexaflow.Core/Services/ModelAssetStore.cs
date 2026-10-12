@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using Nexaflow.IO.Common.Downloads;
 using Nexaflow.Providers.Common;
+using System.IO.Compression;
 
 namespace Nexaflow.Core.Services;
 
@@ -50,28 +51,115 @@ public sealed class ModelAssetStore : IModelAssetStore
     }
 
     public async Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
+        => (await EnsureAllAsync([asset], progress, ct))[0];
+
+    public async Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
+                                                            CancellationToken ct = default)
+    {
+        var missing = assets.Where(a => Locate(a) is null).Distinct().ToList();
+        var loose   = missing.Where(a => a.Archive is null).ToList();
+        var packed  = missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256).ToList();
+
+        var tally = new ProgressTally(loose.Sum(a => a.Size) + packed.Sum(g => g.First().Archive!.ArchiveSize), progress);
+        foreach (var asset in loose)
+            await EnsureLooseAsync(asset, tally.Next(asset.Size), ct);
+        foreach (var archive in packed)
+            await EnsurePackedAsync([.. archive], tally.Next(archive.First().Archive!.ArchiveSize), ct);
+
+        return [.. assets.Select(a => Locate(a) ?? throw new InvalidDataException($"{a.RelativePath} did not arrive."))];
+    }
+
+    /// <summary>A file published on its own: found, adopted from an earlier version's folder, or downloaded.</summary>
+    private async Task EnsureLooseAsync(ModelAsset asset, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         var path = PathOf(asset);
         var gate = LockFor(path);
         await gate.WaitAsync(ct);
         try
         {
-            if (IsVerified(path, asset)) return path;
+            if (IsVerified(path, asset)) return;
 
             if (!await AdoptAsync(asset, path, ct))
             {
-                if (!_downloadsAllowed)
-                    throw new InvalidOperationException($"{Path.GetFileName(path)} is not on this machine, and downloads are off in this run.");
-                await VerifiedDownload.DownloadAsync(_http, asset.Source, path, asset.Size, asset.Sha256,
-                    progress is null ? null : new Progress<DownloadProgress>(p => progress.Report(new AssetProgress(p.Received, p.Total))),
-                    ct);
+                RefuseWhenDownloadsAreOff(path);
+                await VerifiedDownload.DownloadAsync(_http, asset.Source, path, asset.Size, asset.Sha256, progress, ct);
             }
 
-            await File.WriteAllTextAsync(VerifiedMark(path), asset.Sha256, ct);
-            Changed?.Invoke(this, asset);
-            return path;
+            await MarkVerifiedAsync(path, asset, ct);
         }
         finally { gate.Release(); }
+    }
+
+    /// <summary>
+    /// Files packed in one archive: the archive is downloaded (resuming, verified whole) into <c>.downloads</c>, each wanted
+    /// entry is extracted and checked against what the catalog says it is, and the archive is deleted — its other
+    /// entries are not wanted, and it would cost its size twice.
+    /// </summary>
+    private async Task EnsurePackedAsync(IReadOnlyList<ModelAsset> entries, IProgress<DownloadProgress>? progress, CancellationToken ct)
+    {
+        var archive     = entries[0].Archive!;
+        var archivePath = Path.Combine(_root, ".downloads", archive.ArchiveSha256 + ".zip");
+        var gate = LockFor(archivePath);
+        await gate.WaitAsync(ct);
+        try
+        {
+            var wanted = entries.Where(e => !IsVerified(PathOf(e), e)).ToList();
+            if (wanted.Count == 0) return;
+
+            RefuseWhenDownloadsAreOff(archivePath);
+            await VerifiedDownload.DownloadAsync(_http, entries[0].Source, archivePath, archive.ArchiveSize, archive.ArchiveSha256, progress, ct);
+
+            using (var zip = ZipFile.OpenRead(archivePath))
+            {
+                foreach (var asset in wanted)
+                {
+                    var entry = zip.GetEntry(asset.Archive!.Entry)
+                        ?? throw new InvalidDataException($"{Path.GetFileName(archivePath)} has no entry {asset.Archive.Entry}.");
+                    var path    = PathOf(asset);
+                    var partial = path + ".partial";
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    entry.ExtractToFile(partial, overwrite: true);
+
+                    if (new FileInfo(partial).Length != asset.Size
+                        || !string.Equals(await Nexaflow.IO.Common.Hashing.Sha256FileAsync(partial, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Delete(partial);
+                        throw new InvalidDataException($"{asset.Archive.Entry} in {Path.GetFileName(archivePath)} is not the file the catalog describes.");
+                    }
+
+                    File.Move(partial, path, overwrite: true);
+                    await MarkVerifiedAsync(path, asset, ct);
+                }
+            }
+            File.Delete(archivePath);
+        }
+        finally { gate.Release(); }
+    }
+
+    private void RefuseWhenDownloadsAreOff(string path)
+    {
+        if (!_downloadsAllowed)
+            throw new InvalidOperationException($"{Path.GetFileName(path)} is not on this machine, and downloads are off in this run.");
+    }
+
+    private async Task MarkVerifiedAsync(string path, ModelAsset asset, CancellationToken ct)
+    {
+        await File.WriteAllTextAsync(VerifiedMark(path), asset.Sha256, ct);
+        Changed?.Invoke(this, asset);
+    }
+
+    /// <summary>One progress bar over several downloads: each reports its own bytes, counted after those before it.</summary>
+    private sealed class ProgressTally(long total, IProgress<AssetProgress>? progress)
+    {
+        private long _before;
+
+        public IProgress<DownloadProgress>? Next(long size)
+        {
+            if (progress is null) return null;
+            long before = _before;
+            _before += size;
+            return new Progress<DownloadProgress>(p => progress.Report(new AssetProgress(before + p.Received, total)));
+        }
     }
 
     public event EventHandler<ModelAsset>? Changed;

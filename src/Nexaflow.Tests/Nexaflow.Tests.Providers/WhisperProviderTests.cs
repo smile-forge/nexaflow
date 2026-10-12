@@ -22,6 +22,12 @@ public class WhisperProviderTests
             Changed?.Invoke(this, asset);
             return Task.FromResult(Locate(asset)!);
         }
+        public async Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
+        {
+            var paths = new List<string>();
+            foreach (var asset in assets) paths.Add(await EnsureAsync(asset, progress, ct));
+            return paths;
+        }
     }
 
     [TestMethod]

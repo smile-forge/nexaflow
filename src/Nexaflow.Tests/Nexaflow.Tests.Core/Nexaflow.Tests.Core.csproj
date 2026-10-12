@@ -12,8 +12,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- AiPaths runs the agent loop on Nexaflow's own model, in the AI host — copied into AiHost\ beside these tests,
+         as it sits beside the app. -->
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MSTest" Version="4.4.0" />
     <PackageReference Include="NSubstitute" Version="6.2.0" />
+    <!-- Speech made on the spot for the AI-path suite: a model hearing a recording is shown by what it heard. -->
+    <PackageReference Include="System.Speech" Version="10.0.11" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
   </ItemGroup>
