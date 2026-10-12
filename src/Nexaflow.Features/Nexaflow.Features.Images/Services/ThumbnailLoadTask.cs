@@ -1,7 +1,13 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -9,9 +15,9 @@ using System.Windows.Media.Imaging;
 namespace Nexaflow.Features.Images.Services;
 
 /// <summary>
-/// Populates album thumbnails off the UI thread: pulls each image from the shell's thumbnail cache and
-/// marshals the results onto their <see cref="ImageThumbItem"/>s in batches, so cells fill in
-/// progressively while their placeholders show in the meantime.
+/// Populates album thumbnails off the UI thread and marshals the results onto their <see cref="ImageThumbItem"/>s in
+/// batches, so cells fill in progressively while their placeholders show in the meantime. An edited photo's
+/// thumbnail is drawn through its recipe, as the viewer shows it; every other comes from the shell's thumbnail cache.
 /// </summary>
 public sealed class ThumbnailLoadTask : IBackgroundTask
 {
@@ -27,15 +33,20 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
     /// <summary>Thumbnails applied per UI-thread hop — one dispatcher call per batch, not per image.</summary>
     private const int BatchSize = 24;
 
+    /// <summary>An edited photo is decoded this many times the thumbnail size, so a tight crop is still sharp.</summary>
+    private const int EditedDecodeFactor = 4;
+
     private readonly IReadOnlyList<ImageThumbItem> _items;
     private readonly int _size;
     private readonly IShellServices _shell;
+    private readonly ImageEditingServices _editing;
 
-    public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell)
+    public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell, ImageEditingServices editing)
     {
-        _items = items;
-        _size  = size;
-        _shell = shell;
+        _items   = items;
+        _size    = size;
+        _shell   = shell;
+        _editing = editing;
     }
 
     public string Description => Str.Format("Images.Status.LoadingThumbnailsFormat", _items.Count);
@@ -50,7 +61,7 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
             ct.ThrowIfCancellationRequested();
             if (loaded >= MaxThumbnails) break;
 
-            var bmp = ShellThumbnail.TryGet(item.FilePath, _size);
+            var bmp = EditedThumbnail(item.FilePath) ?? ShellThumbnail.TryGet(item.FilePath, _size);
             if (bmp is null) continue;
 
             loaded++;
@@ -59,6 +70,27 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
         }
 
         if (batch.Count > 0) await FlushAsync(batch);
+    }
+
+    /// <summary>The photo drawn with its edits, or null when it has none (or they cannot be applied).</summary>
+    private BitmapSource? EditedThumbnail(string path)
+    {
+        if (!File.Exists(ImageRecipeStore.SidecarPath(path))) return null;
+        var load = _editing.Recipes.Load(path);
+        if (load is not { Status: RecipeLoadStatus.Loaded, Recipe: { } recipe }) return null;
+
+        try
+        {
+            using var decoded = _editing.Decode(path, _size * EditedDecodeFactor);
+            var output = CropGeometry.OutputSize(recipe, decoded.SourceSize);
+            double scale = Math.Min(1, (double)_size / Math.Max(output.Width, output.Height));
+            using var pipeline = _editing.Pipeline(decoded, cache: false);
+            return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
+        }
+        catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return null;   // the shell's thumbnail of the unedited photo is shown instead
+        }
     }
 
     private async Task FlushAsync(List<(ImageThumbItem Item, BitmapSource Bmp)> batch)

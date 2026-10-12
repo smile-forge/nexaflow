@@ -30,7 +30,14 @@ public sealed record ImageRecipe
     public RecipeAdjustments Adjustments { get; init; } = RecipeAdjustments.Identity;
 
     /// <summary>Annotations, painted in list order over the adjusted image.</summary>
-    public ImmutableArray<MarkupElement> Markup { get; init; } = [];
+    /// <remarks>Never default: a recipe read from a file that names no markup has none, not a missing list.</remarks>
+    public ImmutableArray<MarkupElement> Markup
+    {
+        get => _markup.IsDefault ? [] : _markup;
+        init => _markup = value;
+    }
+
+    private readonly ImmutableArray<MarkupElement> _markup = [];
 
     /// <summary>The output size; null keeps the cropped size.</summary>
     public RecipeResize? Resize { get; init; }

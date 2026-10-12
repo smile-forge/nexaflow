@@ -85,7 +85,14 @@ public enum StrokeStyle
 /// <summary>A freehand line through <see cref="Points"/>, smoothed when drawn.</summary>
 public sealed record MarkupStroke : MarkupElement
 {
-    public ImmutableArray<MarkupPoint> Points { get; init; } = [];
+    /// <remarks>Never default, whatever a file left out.</remarks>
+    public ImmutableArray<MarkupPoint> Points
+    {
+        get => _points.IsDefault ? [] : _points;
+        init => _points = value;
+    }
+
+    private readonly ImmutableArray<MarkupPoint> _points = [];
     public StrokeStyle Style { get; init; } = StrokeStyle.Pen;
 
     public override MarkupElement Offset(double dx, double dy) =>

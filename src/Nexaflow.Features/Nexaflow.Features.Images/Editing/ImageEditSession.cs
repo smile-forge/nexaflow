@@ -102,6 +102,28 @@ public sealed class ImageEditSession : IDisposable
     }
 
     /// <summary>
+    /// A one-off picture of <paramref name="recipe"/> — a thumbnail, what the assistant is shown — rendered beside the
+    /// preview without disturbing its cached passes. The caller owns the result; null when there is nothing to render.
+    /// </summary>
+    public SKImage? Snapshot(ImageRecipe recipe, RenderRequest request)
+    {
+        lock (_renderGate)
+        {
+            if (_disposed || _proxy is null) return null;
+            using var pipeline = _services.Pipeline(_proxy, cache: false);
+            using var picture = pipeline.Render(recipe, request);
+            return SKImage.FromBitmap(SKBitmap.FromImage(picture));
+        }
+    }
+
+    /// <summary>The finished picture's size in pixels, once the photo is decoded.</summary>
+    public SKSizeI? OutputSize(ImageRecipe recipe)
+    {
+        var proxy = Proxy;
+        return proxy is null ? null : CropGeometry.OutputSize(recipe, proxy.SourceSize);
+    }
+
+    /// <summary>
     /// The photo changed after its recipe was made, and the user chose to keep the edits: they are re-anchored to the
     /// photo as it is now.
     /// </summary>

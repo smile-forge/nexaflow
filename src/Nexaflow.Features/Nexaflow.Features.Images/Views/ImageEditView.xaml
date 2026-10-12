@@ -1,0 +1,341 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.ImageEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="ImageEditView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="300"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ══ Canvas: the picture and the editing chrome over it, on the shared pan/zoom surface ══ -->
+        <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged">
+            <vcl:PanZoomSurface x:Name="Surface" Background="{StaticResource BgBrush}" AutomationProperties.AutomationId="Image_EditCanvas"
+                                ZoomOnPlainWheel="True" MinScale="0.1" MaxScale="8"/>
+            <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Visibility="{Binding LoadFailed, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- ══ Tools ══ -->
+        <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+            <DockPanel>
+                <!-- Tool selector -->
+                <Border DockPanel.Dock="Top" Margin="10,10,10,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                    <UniformGrid Rows="1">
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.CropTip}" AutomationProperties.AutomationId="Image_EditToolCrop"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Crop}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Crop}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.AdjustTip}" AutomationProperties.AutomationId="Image_EditToolAdjust"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Adjust}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Adjust}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.MarkupTip}" AutomationProperties.AutomationId="Image_EditToolMarkup"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Markup}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Markup}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.ResizeTip}" AutomationProperties.AutomationId="Image_EditToolResize"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Resize}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Resize}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.ExportTip}" AutomationProperties.AutomationId="Image_EditToolExport"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Export}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Export}" FontSize="11"/>
+                        </RadioButton>
+                    </UniformGrid>
+                </Border>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
+                    <StackPanel Margin="12,0,12,16">
+
+                        <!-- ── Crop & rotate ── -->
+                        <StackPanel Visibility="{Binding Editor.IsCropTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.RotateHeader}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding RotateLeftCommand}" Margin="0,0,6,0"
+                                        ToolTip="{loc:Str Images.Tools.RotateLeft}" AutomationProperties.AutomationId="Image_EditRotateLeft">
+                                    <TextBlock Text="⟲" FontSize="14"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding RotateRightCommand}" Margin="0,0,6,0"
+                                        ToolTip="{loc:Str Images.Tools.RotateRight}" AutomationProperties.AutomationId="Image_EditRotateRight">
+                                    <TextBlock Text="⟳" FontSize="14"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding FlipHorizontalCommand}" Margin="0,0,6,0"
+                                        ToolTip="{loc:Str Images.Tools.FlipHorizontal}" AutomationProperties.AutomationId="Image_EditFlipHorizontal">
+                                    <TextBlock Text="⇆" FontSize="14"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding FlipVerticalCommand}"
+                                        ToolTip="{loc:Str Images.Tools.FlipVertical}" AutomationProperties.AutomationId="Image_EditFlipVertical">
+                                    <TextBlock Text="⇅" FontSize="14"/>
+                                </Button>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.AspectHeader}"/>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                <UniformGrid Rows="1">
+                                    <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectFree"
+                                                 ToolTip="{loc:Str Images.Edit.Crop.FreeTip}"
+                                                 IsChecked="{Binding Editor.Aspect, Converter={StaticResource EnumToBool}, ConverterParameter=Free}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Crop.Free}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectOriginal"
+                                                 ToolTip="{loc:Str Images.Edit.Crop.OriginalTip}"
+                                                 IsChecked="{Binding Editor.Aspect, Converter={StaticResource EnumToBool}, ConverterParameter=Original}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Crop.Original}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectSquare"
+                                                 IsChecked="{Binding Editor.Aspect, Converter={StaticResource EnumToBool}, ConverterParameter=Square}">
+                                        <TextBlock Text="1:1" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectFourThree"
+                                                 IsChecked="{Binding Editor.Aspect, Converter={StaticResource EnumToBool}, ConverterParameter=FourThree}">
+                                        <TextBlock Text="4:3" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectSixteenNine"
+                                                 IsChecked="{Binding Editor.Aspect, Converter={StaticResource EnumToBool}, ConverterParameter=SixteenNine}">
+                                        <TextBlock Text="16:9" FontSize="11"/>
+                                    </RadioButton>
+                                </UniformGrid>
+                            </Border>
+                            <ToggleButton Style="{StaticResource ToolbarToggleStyle}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                          IsChecked="{Binding Editor.AspectPortrait, Mode=TwoWay}"
+                                          ToolTip="{loc:Str Images.Edit.Crop.PortraitTip}" AutomationProperties.AutomationId="Image_EditAspectPortrait">
+                                <TextBlock Text="{loc:Str Images.Edit.Crop.Portrait}" FontSize="11"/>
+                            </ToggleButton>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.StraightenHeader}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="46"/>
+                                </Grid.ColumnDefinitions>
+                                <views:AdjustmentSlider x:Name="StraightenSlider" Minimum="-45" Maximum="45" SmallChange="0.1" LargeChange="1"
+                                                        Value="{Binding Editor.Straighten, Mode=TwoWay}" DefaultValue="0" VerticalAlignment="Center"
+                                                        AutomationProperties.AutomationId="Image_EditStraighten"/>
+                                <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" TextAlignment="Right"
+                                           Text="{Binding Editor.Straighten, StringFormat={}{0:0.0}°}"/>
+                            </Grid>
+                            <ToggleButton Style="{StaticResource ToolbarToggleStyle}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                          IsChecked="{Binding Editor.IsLevelTool, Mode=TwoWay}"
+                                          ToolTip="{loc:Str Images.Edit.Crop.LevelTip}" AutomationProperties.AutomationId="Image_EditLevel">
+                                <TextBlock Text="{loc:Str Images.Edit.Crop.Level}" FontSize="11"/>
+                            </ToggleButton>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                    Command="{Binding Editor.ResetCropCommand}" AutomationProperties.AutomationId="Image_EditResetCrop">
+                                <TextBlock Text="{loc:Str Images.Edit.Crop.Reset}" FontSize="11"/>
+                            </Button>
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" Text="{loc:Str Images.Edit.Crop.Hint}"/>
+                        </StackPanel>
+
+                        <!-- ── Adjust ── -->
+                        <StackPanel Visibility="{Binding Editor.IsAdjustTool, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,4">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.AutoEnhanceCommand}" Margin="0,0,6,0"
+                                        ToolTip="{loc:Str Images.Edit.Adjust.AutoTip}" AutomationProperties.AutomationId="Image_EditAuto">
+                                    <TextBlock Text="{loc:Str Images.Edit.Adjust.Auto}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.ResetAdjustmentsCommand}"
+                                        AutomationProperties.AutomationId="Image_EditResetAdjust">
+                                    <TextBlock Text="{loc:Str Images.Edit.Adjust.Reset}" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Exposure}"/>
+                                <views:AdjustmentSlider Minimum="-3" Maximum="3" SmallChange="0.05" LargeChange="0.5" Value="{Binding Editor.Exposure, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditExposure"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Contrast}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Contrast, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditContrast"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Highlights}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Highlights, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditHighlights"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Shadows}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Shadows, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditShadows"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Saturation}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Saturation, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditSaturation"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Temperature}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Temperature, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditTemperature"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Tint}"/>
+                                <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Tint, Mode=TwoWay}"
+                                                        AutomationProperties.AutomationId="Image_EditTint"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- ── Markup ── -->
+                        <StackPanel Visibility="{Binding Editor.IsMarkupTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.ToolHeader}"/>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                <UniformGrid Rows="2">
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupSelect"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Select}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Select}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupArrow"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Arrow}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Arrow}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupBox"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Box}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Box}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupText"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Text}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Text}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupPen"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Pen}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Pen}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupHighlighter"
+                                                 IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Highlighter}">
+                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Highlighter}" FontSize="11"/>
+                                    </RadioButton>
+                                </UniformGrid>
+                            </Border>
+
+                            <!-- The selected text annotation's words. -->
+                            <StackPanel Visibility="{Binding Editor.IsTextSelected, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.TextHeader}"/>
+                                <TextBox x:Name="MarkupTextBox" AcceptsReturn="True" MinHeight="48" TextWrapping="Wrap"
+                                         Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         Text="{Binding Editor.SelectedText, UpdateSourceTrigger=PropertyChanged}"
+                                         LostKeyboardFocus="MarkupTextBox_LostKeyboardFocus"
+                                         AutomationProperties.AutomationId="Image_EditMarkupTextBox"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.InkHeader}"/>
+                            <vcc:ColorPicker AutomationPrefix="Image_EditInk" AllowDefault="False" Value="{Binding Editor.InkColour, Mode=TwoWay}"/>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.Weight}"/>
+                            <views:AdjustmentSlider Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="4" VerticalAlignment="Center"
+                                                    Value="{Binding Editor.Weight, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditWeight"/>
+                            <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.FillBoxes, Mode=TwoWay}" Margin="0,8,0,0"
+                                      Content="{loc:Str Images.Edit.Markup.FillBoxes}" AutomationProperties.AutomationId="Image_EditFillBoxes"/>
+
+                            <StackPanel Visibility="{Binding Editor.IsTextStyle, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.Font}"/>
+                                <ComboBox ItemsSource="{Binding Editor.FontFamilies}" SelectedItem="{Binding Editor.FontFamily, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="Image_EditFont"/>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.TextSize}"/>
+                                <views:AdjustmentSlider Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="5" VerticalAlignment="Center"
+                                                        Value="{Binding Editor.TextSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditTextSize"/>
+                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.TextBacking, Mode=TwoWay}" Margin="0,8,0,0"
+                                          Content="{loc:Str Images.Edit.Markup.TextBacking}" AutomationProperties.AutomationId="Image_EditTextBacking"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.DeleteSelectedCommand}" Margin="0,0,6,0"
+                                        ToolTip="{loc:Str Images.Edit.Markup.DeleteTip}" AutomationProperties.AutomationId="Image_EditDeleteMarkup">
+                                    <TextBlock Text="{loc:Str Images.Edit.Markup.Delete}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.ClearMarkupCommand}"
+                                        AutomationProperties.AutomationId="Image_EditClearMarkup">
+                                    <TextBlock Text="{loc:Str Images.Edit.Markup.Clear}" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" Text="{loc:Str Images.Edit.Markup.Hint}"/>
+                        </StackPanel>
+
+                        <!-- ── Resize ── -->
+                        <StackPanel Visibility="{Binding Editor.IsResizeTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Resize.Header}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton GroupName="ResizeBy" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditResizePercent"
+                                             IsChecked="{Binding Editor.ResizeByPercent, Mode=TwoWay}">
+                                    <TextBlock Text="{loc:Str Images.Edit.Resize.Percent}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="ResizeBy" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditResizePixels"
+                                             IsChecked="{Binding Editor.ResizeByPixels, Mode=TwoWay}">
+                                    <TextBlock Text="{loc:Str Images.Edit.Resize.Pixels}" FontSize="11"/>
+                                </RadioButton>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding Editor.ResizeByPercent, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <views:AdjustmentSlider Minimum="1" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="100" VerticalAlignment="Center"
+                                                            Value="{Binding Editor.ResizePercent, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditResizePercentValue"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.ResizePercent, StringFormat={}{0:0}%}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding Editor.ResizeByPixels, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Style="{StaticResource EditNumberBox}" Text="{Binding Editor.ResizeWidth}" AutomationProperties.AutomationId="Image_EditResizeWidth"/>
+                                    <TextBlock Style="{StaticResource EditCaption}" Text="×" Margin="6,0"/>
+                                    <TextBox Style="{StaticResource EditNumberBox}" Text="{Binding Editor.ResizeHeight}" AutomationProperties.AutomationId="Image_EditResizeHeight"/>
+                                    <TextBlock Style="{StaticResource EditCaption}" Text="px" Margin="6,0"/>
+                                </StackPanel>
+                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.LockAspect, Mode=TwoWay}" Margin="0,8,0,0"
+                                          Content="{loc:Str Images.Edit.Resize.Lock}" AutomationProperties.AutomationId="Image_EditResizeLock"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" FontSize="12" Text="{Binding Editor.OutputSizeText}"/>
+                            <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                    Command="{Binding Editor.ResetResizeCommand}" AutomationProperties.AutomationId="Image_EditResetResize">
+                                <TextBlock Text="{loc:Str Images.Edit.Resize.Reset}" FontSize="11"/>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- ── Export ── -->
+                        <StackPanel Visibility="{Binding Editor.IsExportTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.MetadataHeader}"/>
+                            <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.StripMetadata, Mode=TwoWay}"
+                                      Content="{loc:Str Images.Edit.Export.Strip}" AutomationProperties.AutomationId="Image_EditStripMetadata"/>
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.StripHint}"/>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.Quality}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <views:AdjustmentSlider Minimum="50" Maximum="100" SmallChange="1" LargeChange="5" DefaultValue="92" VerticalAlignment="Center"
+                                                        IsSnapToTickEnabled="True" TickFrequency="1"
+                                                        Value="{Binding Editor.Quality, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditQuality"/>
+                                <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.Quality}"/>
+                            </Grid>
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.QualityHint}"/>
+
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,16,0,0" Foreground="{StaticResource WarningBrush}"
+                                       Text="{Binding Editor.SaveNote}" Visibility="{Binding Editor.SaveNote, Converter={StaticResource NullToCollapsed}}"/>
+                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" Text="{loc:Str Images.Edit.Export.Hint}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

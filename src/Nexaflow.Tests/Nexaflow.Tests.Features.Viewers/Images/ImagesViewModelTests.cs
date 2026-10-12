@@ -3,6 +3,7 @@ using Nexaflow.Features.Images.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Features.Images.Editing.Recipe;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -23,30 +24,45 @@ public class ImagesViewModelTests
 
     [TestMethod]
     [CoversNode("images-rotate")]
-    public void RotateRight_Steps90_AndWrapsAt360()
+    public void RotateRight_IsAQuarterTurnInTheRecipe_AndWrapsAfterFour()
     {
         var vm = Make("a.png");
-        Assert.AreEqual(0d, vm.RotationAngle);
+        Assert.AreEqual(0, vm.CurrentRecipe.Geometry.QuarterTurns);
 
         vm.RotateRightCommand.Execute(null);
-        Assert.AreEqual(90d, vm.RotationAngle);
+        Assert.AreEqual(1, vm.CurrentRecipe.Geometry.QuarterTurns);
+        Assert.IsTrue(vm.IsEdited, "a turn is an edit, remembered with the photo");
 
         vm.RotateRightCommand.Execute(null);
         vm.RotateRightCommand.Execute(null);
-        vm.RotateRightCommand.Execute(null);   // 90 → 180 → 270 → 360 ≡ 0
-        Assert.AreEqual(0d, vm.RotationAngle);
+        vm.RotateRightCommand.Execute(null);   // four quarters: no turn at all
+        Assert.AreEqual(0, vm.CurrentRecipe.Geometry.QuarterTurns);
+        Assert.IsFalse(vm.IsEdited);
     }
 
     [TestMethod]
     [CoversNode("images-rotate")]
-    public void RotateLeft_Steps90_AndWrapsBelowZero()
+    [CoversNode("images-flip")]
+    [CoversNode("images-edit-history")]
+    public void RotateLeftAndFlips_AreUndoableEditsOfThePhoto()
     {
         var vm = Make("a.png");
-        vm.RotateLeftCommand.Execute(null);     // 0 → 270 (no negative angles)
-        Assert.AreEqual(270d, vm.RotationAngle);
-
         vm.RotateLeftCommand.Execute(null);
-        Assert.AreEqual(180d, vm.RotationAngle);
+        Assert.AreEqual(3, vm.CurrentRecipe.Geometry.QuarterTurns, "a quarter anticlockwise is three clockwise");
+
+        vm.FlipHorizontalCommand.Execute(null);
+        Assert.IsTrue(vm.CurrentRecipe.Geometry.FlipHorizontal);
+        vm.FlipVerticalCommand.Execute(null);
+        Assert.AreEqual(new RecipeGeometry { QuarterTurns = 1 }, vm.CurrentRecipe.Geometry, "both flips are a half turn");
+
+        Assert.IsTrue(vm.UndoEditCommand.CanExecute(null));
+        vm.UndoEditCommand.Execute(null);
+        vm.UndoEditCommand.Execute(null);
+        vm.UndoEditCommand.Execute(null);
+        Assert.IsFalse(vm.IsEdited);
+        Assert.IsFalse(vm.UndoEditCommand.CanExecute(null));
+        vm.RedoEditCommand.Execute(null);
+        Assert.AreEqual(3, vm.CurrentRecipe.Geometry.QuarterTurns);
     }
 
     // ── Fit ↔ actual size ─────────────────────────────────────────────────

@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Images.ViewModels"
+             xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ImageView"
@@ -12,193 +13,119 @@
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-        <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <!-- Momentary toolbar button (bordered chip). -->
-        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <cv:EnumToBoolConverter x:Key="EnumToBool"/>
 
-        <!-- Momentary button for the floating image-tools toolbar (borderless, hover wash). -->
-        <Style x:Key="FloatingToolButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="NavArrowStyle" TargetType="Button">
+                <Setter Property="Background" Value="#55000000"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width" Value="36"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#99000000"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-        <!-- Auto-advance toggle (accent when on). -->
-        <Style x:Key="ToolbarToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <!-- Right-click → Delete menus (defined before the templates that reference them, so the
+                 top-down StaticResource lookup can resolve them). -->
+            <ContextMenu x:Key="ThumbDeleteMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Delete}"
+                          Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            </ContextMenu>
+            <ContextMenu x:Key="CurrentDeleteMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Delete}"
+                          Command="{Binding PlacementTarget.DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            </ContextMenu>
 
-        <!-- Segmented sub-view selector button (Carousel / Album / Explore / Collage). -->
-        <Style x:Key="SegRadioStyle" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <!-- Shared thumbnail card (album / explore / collage). Size & placement are set by each view's
+                 ItemContainerStyle; the card fills its container. Accent border on hover or when selected. -->
+            <DataTemplate x:Key="ThumbCard" DataType="{x:Type vm:ImageThumbItem}">
+                <Border Cursor="Hand" BorderThickness="1.5" CornerRadius="4" ToolTip="{Binding FileName}"
+                        ContextMenu="{StaticResource ThumbDeleteMenu}"
+                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,4"/>
+                        <Grid Margin="6,6,6,2">
+                            <TextBlock Text="🖼" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Grid>
+                    </DockPanel>
+                </Border>
+            </DataTemplate>
 
-        <Style x:Key="SegDivider" TargetType="Border">
-            <Setter Property="Width" Value="1"/>
-            <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
-        </Style>
-
-        <Style x:Key="NavArrowStyle" TargetType="Button">
-            <Setter Property="Background" Value="#55000000"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width" Value="36"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#99000000"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Right-click → Delete menus (defined before the templates that reference them, so the
-             top-down StaticResource lookup can resolve them). -->
-        <ContextMenu x:Key="ThumbDeleteMenu" x:Shared="False">
-            <MenuItem Header="{loc:Str Images.Menu.Delete}"
-                      Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                      CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-        </ContextMenu>
-        <ContextMenu x:Key="CurrentDeleteMenu" x:Shared="False">
-            <MenuItem Header="{loc:Str Images.Menu.Delete}"
-                      Command="{Binding PlacementTarget.DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                      CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-        </ContextMenu>
-
-        <!-- Shared thumbnail card (album / explore / collage). Size & placement are set by each view's
-             ItemContainerStyle; the card fills its container. Accent border on hover or when selected. -->
-        <DataTemplate x:Key="ThumbCard" DataType="{x:Type vm:ImageThumbItem}">
-            <Border Cursor="Hand" BorderThickness="1.5" CornerRadius="4" ToolTip="{Binding FileName}"
-                    ContextMenu="{StaticResource ThumbDeleteMenu}"
-                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,4"/>
-                    <Grid Margin="6,6,6,2">
-                        <TextBlock Text="🖼" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
+            <!-- Collage card: thinner border, no name section (name shows on hover via the tooltip). -->
+            <DataTemplate x:Key="CollageCard" DataType="{x:Type vm:ImageThumbItem}">
+                <Border Cursor="Hand" BorderThickness="1" CornerRadius="3" ToolTip="{Binding FileName}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.4" Color="Black"/>
+                    </Border.Effect>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <!-- Card hugs the image: a square placeholder until it loads, then the image at its
+                         own aspect ratio (fixed height, width follows) so there's no padding around it. -->
+                    <Grid>
+                        <Border Width="150" Height="150" Background="{StaticResource Surface2Brush}">
+                            <Border.Style>
+                                <Style TargetType="Border">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
@@ -206,105 +133,138 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border.Style>
+                            <TextBlock Text="🖼" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                        </Border>
+                        <Image Source="{Binding Thumbnail}" Height="150" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Grid>
-                </DockPanel>
-            </Border>
-        </DataTemplate>
+                </Border>
+            </DataTemplate>
 
-        <!-- Collage card: thinner border, no name section (name shows on hover via the tooltip). -->
-        <DataTemplate x:Key="CollageCard" DataType="{x:Type vm:ImageThumbItem}">
-            <Border Cursor="Hand" BorderThickness="1" CornerRadius="3" ToolTip="{Binding FileName}">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.4" Color="Black"/>
-                </Border.Effect>
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <!-- Card hugs the image: a square placeholder until it loads, then the image at its
-                     own aspect ratio (fixed height, width follows) so there's no padding around it. -->
+            <!-- Floating image-tools toolbar (rotate / flip / scale), shared by the carousel and explore panes.
+                 Hosted on a Control so it inherits the view-model DataContext; empty areas stay click-through.
+                 A turn or a flip is an edit: it is remembered with the photo, and undone with Ctrl+Z. -->
+            <ControlTemplate x:Key="ImageToolsTemplate" TargetType="Control">
+                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Panel.ZIndex="10"
+                        Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.4" Color="Black"/>
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal" Margin="3">
+                        <Button Command="{Binding RotateLeftCommand}" ToolTip="{loc:Str Images.Tools.RotateLeft}" Style="{StaticResource FloatingToolButtonStyle}"
+                                AutomationProperties.AutomationId="Image_RotateLeft">
+                            <Grid Width="15" Height="15">
+                                <Path Data="M 7,1 A 6,6 0 1 0 13,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
+                                <Path Data="M 13,4 L 13,7 L 10,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            </Grid>
+                        </Button>
+                        <Button Command="{Binding RotateRightCommand}" ToolTip="{loc:Str Images.Tools.RotateRight}" Style="{StaticResource FloatingToolButtonStyle}"
+                                AutomationProperties.AutomationId="Image_RotateRight">
+                            <Grid Width="15" Height="15">
+                                <Path Data="M 7,1 A 6,6 0 1 1 1,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
+                                <Path Data="M 1,4 L 1,7 L 4,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            </Grid>
+                        </Button>
+                        <Button Command="{Binding FlipHorizontalCommand}" ToolTip="{loc:Str Images.Tools.FlipHorizontal}" Style="{StaticResource FloatingToolButtonStyle}"
+                                AutomationProperties.AutomationId="Image_FlipHorizontal">
+                            <!-- Two triangles mirrored about a dashed vertical axis. -->
+                            <Grid Width="15" Height="15">
+                                <Path Data="M 7.5,1 L 7.5,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1" StrokeDashArray="2 1.5"/>
+                                <Path Data="M 5.5,3 L 1,11 L 5.5,11 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" Fill="Transparent"/>
+                                <Path Data="M 9.5,3 L 14,11 L 9.5,11 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            </Grid>
+                        </Button>
+                        <Button Command="{Binding FlipVerticalCommand}" ToolTip="{loc:Str Images.Tools.FlipVertical}" Style="{StaticResource FloatingToolButtonStyle}"
+                                AutomationProperties.AutomationId="Image_FlipVertical">
+                            <!-- The same, mirrored about a horizontal axis. -->
+                            <Grid Width="15" Height="15">
+                                <Path Data="M 1,7.5 L 14,7.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1" StrokeDashArray="2 1.5"/>
+                                <Path Data="M 3,5.5 L 11,1 L 11,5.5 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" Fill="Transparent"/>
+                                <Path Data="M 3,9.5 L 11,14 L 11,9.5 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            </Grid>
+                        </Button>
+                        <Button Command="{Binding ToggleFitCommand}" ToolTip="{loc:Str Images.Tools.ToggleFit}" Style="{StaticResource FloatingToolButtonStyle}"
+                                AutomationProperties.AutomationId="Image_FitMode">
+                            <Grid Width="15" Height="15">
+                                <Path Data="M 6.5,1 A 5.5,5.5 0 1 0 6.5,12 A 5.5,5.5 0 1 0 6.5,1  M 10.5,10.5 L 14,14"
+                                      StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                    <Path.Style>
+                                        <Style TargetType="Path">
+                                            <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FitToWindow}" Value="True">
+                                                    <Setter Property="Stroke" Value="{StaticResource AccentBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+
+            <!-- The featured image, fitted or at actual size, with a note while it cannot be shown. Shared by the
+                 carousel and the explore pane. -->
+            <ControlTemplate x:Key="FeaturedImageTemplate" TargetType="Control">
                 <Grid>
-                    <Border Width="150" Height="150" Background="{StaticResource Surface2Brush}">
-                        <Border.Style>
-                            <Style TargetType="Border">
+                    <!-- Fit-to-window -->
+                    <Grid Margin="20">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
+                            <Border.Effect>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
+                            </Border.Effect>
+                            <Viewbox Stretch="Uniform" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                                <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Viewbox>
+                        </Border>
+                    </Grid>
+
+                    <!-- Actual size (scrollable) -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{StaticResource BgBrush}">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
                                         <Setter Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
-                        <TextBlock Text="🖼" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                    </Border>
-                    <Image Source="{Binding Thumbnail}" Height="150" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </ScrollViewer.Style>
+                        <Border Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
+                            <Border.Effect>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
+                            </Border.Effect>
+                            <Image Source="{Binding CurrentImage}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                    </ScrollViewer>
+
+                    <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding LoadFailed, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
-            </Border>
-        </DataTemplate>
-
-        <!-- Floating image-tools toolbar (rotate / scale), shared by the carousel and explore panes.
-             Hosted on a Control so it inherits the view-model DataContext; empty areas stay click-through. -->
-        <ControlTemplate x:Key="ImageToolsTemplate" TargetType="Control">
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Panel.ZIndex="10"
-                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.4" Color="Black"/>
-                </Border.Effect>
-                <StackPanel Orientation="Horizontal" Margin="3">
-                    <Button Command="{Binding RotateLeftCommand}" ToolTip="{loc:Str Images.Tools.RotateLeft}" Style="{StaticResource FloatingToolButtonStyle}"
-                            AutomationProperties.AutomationId="Image_RotateLeft">
-                        <Grid Width="15" Height="15">
-                            <Path Data="M 7,1 A 6,6 0 1 0 13,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
-                            <Path Data="M 13,4 L 13,7 L 10,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                        </Grid>
-                    </Button>
-                    <Button Command="{Binding RotateRightCommand}" ToolTip="{loc:Str Images.Tools.RotateRight}" Style="{StaticResource FloatingToolButtonStyle}"
-                            AutomationProperties.AutomationId="Image_RotateRight">
-                        <Grid Width="15" Height="15">
-                            <Path Data="M 7,1 A 6,6 0 1 1 1,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
-                            <Path Data="M 1,4 L 1,7 L 4,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                        </Grid>
-                    </Button>
-                    <Button Command="{Binding ToggleFitCommand}" ToolTip="{loc:Str Images.Tools.ToggleFit}" Style="{StaticResource FloatingToolButtonStyle}"
-                            AutomationProperties.AutomationId="Image_FitMode">
-                        <Grid Width="15" Height="15">
-                            <Path Data="M 6.5,1 A 5.5,5.5 0 1 0 6.5,12 A 5.5,5.5 0 1 0 6.5,1  M 10.5,10.5 L 14,14"
-                                  StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
-                                <Path.Style>
-                                    <Style TargetType="Path">
-                                        <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding FitToWindow}" Value="True">
-                                                <Setter Property="Stroke" Value="{StaticResource AccentBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Path.Style>
-                            </Path>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-            </Border>
-        </ControlTemplate>
-
+            </ControlTemplate>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="42"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -312,10 +272,10 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <Grid Margin="12,0">
 
-                <!-- Sub-view selector -->
+                <!-- Sub-view selector (browsing only) -->
                 <Border x:Name="SubViewSelector" HorizontalAlignment="Left" VerticalAlignment="Center"
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
-                        Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding ShowsSubViewSelector, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
                         <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.CarouselTip}"
                                      AutomationProperties.AutomationId="Image_ViewCarousel"
@@ -355,12 +315,27 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Heading -->
-                <TextBlock Text="{Binding HeaderText}" Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                <!-- Heading, and a mark when the shown photo carries edits -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding HeaderText}" Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                    <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="8" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
+                            ToolTip="{loc:Str Images.Edit.EditedTip}"
+                            Visibility="{Binding ShowsEditedMark, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
+                    </Border>
+                </StackPanel>
 
-                <!-- Playback controls (shown in every sub-view) -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <!-- Browsing: edit, then the playback controls -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVis}}">
+                    <Button Command="{Binding EnterEditModeCommand}" ToolTip="{loc:Str Images.Toolbar.EditTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
+                            AutomationProperties.AutomationId="Image_EditMode">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✎" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Toolbar.Edit}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="{loc:Str Images.Toolbar.AutoTip}" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
                                   AutomationProperties.AutomationId="Image_AutoAdvance">
                         <StackPanel Orientation="Horizontal">
@@ -386,11 +361,70 @@
                         </Grid>
                     </Button>
                 </StackPanel>
+
+                <!-- Editing: history, compare, revert, save, done -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
+                    <Button Command="{Binding UndoEditCommand}" ToolTip="{loc:Str Images.Edit.UndoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
+                            AutomationProperties.AutomationId="Image_EditUndo">
+                        <TextBlock Text="↶" FontSize="14"/>
+                    </Button>
+                    <Button Command="{Binding RedoEditCommand}" ToolTip="{loc:Str Images.Edit.RedoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
+                            AutomationProperties.AutomationId="Image_EditRedo">
+                        <TextBlock Text="↷" FontSize="14"/>
+                    </Button>
+                    <ToggleButton IsChecked="{Binding Editor.ShowOriginal, Mode=TwoWay}" ToolTip="{loc:Str Images.Edit.CompareTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,4,0"
+                                  AutomationProperties.AutomationId="Image_EditCompare">
+                        <TextBlock Text="{loc:Str Images.Edit.Compare}"/>
+                    </ToggleButton>
+                    <Button Command="{Binding RevertEditsCommand}" ToolTip="{loc:Str Images.Edit.RevertTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
+                            AutomationProperties.AutomationId="Image_EditRevert">
+                        <TextBlock Text="{loc:Str Images.Edit.Revert}"/>
+                    </Button>
+                    <Button Command="{Binding Editor.SaveCommand}" ToolTip="{loc:Str Images.Edit.SaveTip}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Margin="0,0,4,0"
+                            AutomationProperties.AutomationId="Image_EditSave">
+                        <TextBlock Text="{loc:Str Images.Edit.Save}"/>
+                    </Button>
+                    <Button Command="{Binding Editor.SaveCopyCommand}" ToolTip="{loc:Str Images.Edit.SaveCopyTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
+                            AutomationProperties.AutomationId="Image_EditSaveCopy">
+                        <TextBlock Text="{loc:Str Images.Edit.SaveCopy}"/>
+                    </Button>
+                    <Button Command="{Binding ExitEditModeCommand}" ToolTip="{loc:Str Images.Edit.DoneTip}" Style="{StaticResource ToolbarButtonStyle}"
+                            AutomationProperties.AutomationId="Image_EditDone">
+                        <TextBlock Text="{loc:Str Images.Edit.Done}"/>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
+        <!-- ══ Recipe notices ══ -->
+        <StackPanel Grid.Row="1">
+            <!-- The photo changed since its edits were made. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding HasChangedSourceNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding KeepChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
+                                AutomationProperties.AutomationId="Image_EditKeepChanged">
+                            <TextBlock Text="{loc:Str Images.Edit.Notice.Keep}"/>
+                        </Button>
+                        <Button Command="{Binding DiscardChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                AutomationProperties.AutomationId="Image_EditDiscardChanged">
+                            <TextBlock Text="{loc:Str Images.Edit.Notice.Discard}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{loc:Str Images.Edit.Notice.SourceChanged}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <!-- Edits that last only for the session. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding ShowsSessionOnlyNotice, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding SessionOnlyNotice}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+
         <!-- ══ Content: exactly one sub-view is shown ══ -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
 
             <!-- ── Carousel ── -->
             <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
@@ -399,59 +433,9 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" ClipToBounds="True" Background="Transparent"
-                      ContextMenu="{StaticResource CurrentDeleteMenu}">
-                    <!-- Fit-to-window -->
-                    <Grid Margin="20">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
-                        <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
-                            <Border.Effect>
-                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
-                            </Border.Effect>
-                            <Viewbox Stretch="Uniform" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
-                                <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
-                                    <Image.LayoutTransform>
-                                        <RotateTransform Angle="{Binding RotationAngle}"/>
-                                    </Image.LayoutTransform>
-                                </Image>
-                            </Viewbox>
-                        </Border>
-                    </Grid>
-
-                    <!-- Actual size (scrollable) -->
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{StaticResource BgBrush}">
-                        <ScrollViewer.Style>
-                            <Style TargetType="ScrollViewer">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ScrollViewer.Style>
-                        <Border Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
-                            <Border.Effect>
-                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
-                            </Border.Effect>
-                            <Image Source="{Binding CurrentImage}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
-                                <Image.LayoutTransform>
-                                    <RotateTransform Angle="{Binding RotationAngle}"/>
-                                </Image.LayoutTransform>
-                            </Image>
-                        </Border>
-                    </ScrollViewer>
+                <Grid x:Name="CarouselImageHost" Grid.Row="0" ClipToBounds="True" Background="Transparent"
+                      ContextMenu="{StaticResource CurrentDeleteMenu}" SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
+                    <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
                     <!-- Prev / Next -->
                     <Button Command="{Binding PreviousCommand}" Style="{StaticResource NavArrowStyle}" ToolTip="{loc:Str Images.Nav.Previous}" HorizontalAlignment="Left" VerticalAlignment="Center" Height="60" Margin="10,0" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
@@ -463,7 +447,7 @@
                         <Path Data="M 4 4 L 10 10 L 4 16" Stroke="{StaticResource TextBrush}" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
                     </Button>
 
-                    <!-- Floating image-tools toolbar (rotate / scale) — shared template, top-right of the image -->
+                    <!-- Floating image-tools toolbar (rotate / flip / scale) — shared template, top-right of the image -->
                     <Control Template="{StaticResource ImageToolsTemplate}" Focusable="False" IsTabStop="False"/>
                 </Grid>
 
@@ -581,61 +565,12 @@
 
                 <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
 
-                <Grid Grid.Column="2" ClipToBounds="True" Background="{StaticResource BgBrush}"
-                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentDeleteMenu}">
-                    <!-- Fit-to-window -->
-                    <Grid Margin="20">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
-                        <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
-                            <Border.Effect>
-                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
-                            </Border.Effect>
-                            <Viewbox Stretch="Uniform" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
-                                <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
-                                    <Image.LayoutTransform>
-                                        <RotateTransform Angle="{Binding RotationAngle}"/>
-                                    </Image.LayoutTransform>
-                                </Image>
-                            </Viewbox>
-                        </Border>
-                    </Grid>
+                <Grid x:Name="ExploreImageHost" Grid.Column="2" ClipToBounds="True" Background="{StaticResource BgBrush}"
+                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentDeleteMenu}"
+                      SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
+                    <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
-                    <!-- Actual size (scrollable) -->
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{StaticResource BgBrush}">
-                        <ScrollViewer.Style>
-                            <Style TargetType="ScrollViewer">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FitToWindow}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ScrollViewer.Style>
-                        <Border Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
-                            <Border.Effect>
-                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
-                            </Border.Effect>
-                            <Image Source="{Binding CurrentImage}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
-                                <Image.LayoutTransform>
-                                    <RotateTransform Angle="{Binding RotationAngle}"/>
-                                </Image.LayoutTransform>
-                            </Image>
-                        </Border>
-                    </ScrollViewer>
-
-                    <!-- Same rotate / scale tools as the carousel, over the selected image -->
+                    <!-- Same rotate / flip / scale tools as the carousel, over the selected image -->
                     <Control Template="{StaticResource ImageToolsTemplate}" Focusable="False" IsTabStop="False"/>
                 </Grid>
             </Grid>
@@ -675,6 +610,9 @@
                     </ItemsControl>
                 </vcl:PanZoomSurface.SurfaceContent>
             </vcl:PanZoomSurface>
+
+            <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
+            <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </Grid>
 </UserControl>

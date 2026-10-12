@@ -52,6 +52,23 @@ public class ImageRecipeTests
         Assert.AreEqual(RecipeReadStatus.Unreadable, ImageRecipeJson.Deserialize("[]").Status);
     }
 
+    [TestMethod]
+    [CoversNode("images-recipe-sidecar")]
+    public void ARecipeThatLeavesSectionsOut_ReadsAsHavingNone_AndWritesAgain()
+    {
+        var read = ImageRecipeJson.Deserialize("""{ "version": 1, "geometry": { "quarterTurns": 1 }, "markup": [ { "kind": "stroke" } ] }""");
+        Assert.AreEqual(RecipeReadStatus.Read, read.Status);
+        var recipe = read.Recipe!;
+
+        Assert.AreEqual(1, recipe.Geometry.QuarterTurns);
+        Assert.AreEqual(RecipeAdjustments.Identity, recipe.Adjustments, "a section left out is at identity");
+        Assert.AreEqual(0, ((MarkupStroke)recipe.Markup[0]).Points.Length, "a stroke with no points has none, not a missing list");
+        Assert.IsTrue(ImageRecipeJson.Deserialize("""{ "version": 1 }""").Recipe!.Markup.IsEmpty);
+
+        var again = ImageRecipeJson.Deserialize(ImageRecipeJson.Serialize(recipe with { Markup = [] }));
+        Assert.AreEqual(recipe with { Markup = [] }, again.Recipe, "and it is written back without complaint");
+    }
+
     // ── The sidecar ─────────────────────────────────────────────────────────
 
     private static string PhotoIn(string dir) => CopyOfSample(dir, PlainSample);

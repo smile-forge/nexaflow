@@ -7,8 +7,8 @@ namespace Nexaflow.Features.Images.Views;
 /// <summary>
 /// Borderless full-screen presentation of the current image. Navigation mirrors a photo viewer:
 /// Esc leaves (and stops auto-advance, keeping the current image); Space / → / left-click advance;
-/// ← / right-click go back. Binds to the same <see cref="ImageViewModel"/> as the tab, so auto-advance
-/// and rotation stay in sync.
+/// ← / right-click go back. Binds to the same <see cref="ImageViewModel"/> as the tab, so auto-advance stays in
+/// sync, and shows the same rendered picture — edits, turns and flips included.
 /// </summary>
 public partial class FullScreenImageWindow : Window
 {

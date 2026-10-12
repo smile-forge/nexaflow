@@ -34,20 +34,21 @@ public sealed class SkiaBitmapPresenter : IDisposable
     /// <summary>Raised on the UI thread when <see cref="Bitmap"/> is a new object, or none.</summary>
     public event Action? BitmapChanged;
 
-    /// <summary>Raised on the UI thread after each frame lands.</summary>
-    public event Action? Presented;
+    /// <summary>Raised on the UI thread after each frame lands, with the tag it was asked for with.</summary>
+    public event Action<object?>? Presented;
 
     /// <summary>
     /// Asks for a frame. <paramref name="render"/> runs off the UI thread, and hands its picture to the callback it is
     /// given while that picture is valid; it returns false when there is nothing to show yet.
     /// </summary>
     /// <param name="dpi">The bitmap's density, so a frame rendered at more pixels keeps its layout size.</param>
-    public void Present(Func<Action<SKImage>, bool> render, double dpi = 96)
+    /// <param name="tag">Handed back with <see cref="Presented"/> — what the frame is a picture of, for whoever draws over it.</param>
+    public void Present(Func<Action<SKImage>, bool> render, double dpi = 96, object? tag = null)
     {
         lock (_gate)
         {
             if (_disposed) return;
-            _pending = new Frame(render, dpi);
+            _pending = new Frame(render, dpi, tag);
             if (_running) return;
             _running = true;
         }
@@ -92,7 +93,7 @@ public sealed class SkiaBitmapPresenter : IDisposable
             }
             if (!rendered) continue;
 
-            await _runOnUi(() => Blit(frame.Dpi));
+            await _runOnUi(() => Blit(frame.Dpi, frame.Tag));
         }
     }
 
@@ -108,7 +109,7 @@ public sealed class SkiaBitmapPresenter : IDisposable
             throw new InvalidOperationException("The rendered picture could not be read back.");
     }
 
-    private void Blit(double dpi)
+    private void Blit(double dpi, object? tag)
     {
         if (_disposed || _staging is not { } staging) return;
         if (Bitmap is null || Bitmap.PixelWidth != staging.Width || Bitmap.PixelHeight != staging.Height || Math.Abs(Bitmap.DpiX - dpi) > 0.01)
@@ -117,7 +118,7 @@ public sealed class SkiaBitmapPresenter : IDisposable
             BitmapChanged?.Invoke();
         }
         Bitmap.WritePixels(new Int32Rect(0, 0, staging.Width, staging.Height), staging.GetPixels(), staging.ByteCount, staging.RowBytes);
-        Presented?.Invoke();
+        Presented?.Invoke(tag);
     }
 
     public void Dispose()
@@ -137,5 +138,5 @@ public sealed class SkiaBitmapPresenter : IDisposable
         _staging = null;
     }
 
-    private readonly record struct Frame(Func<Action<SKImage>, bool> Render, double Dpi);
+    private readonly record struct Frame(Func<Action<SKImage>, bool> Render, double Dpi, object? Tag);
 }
