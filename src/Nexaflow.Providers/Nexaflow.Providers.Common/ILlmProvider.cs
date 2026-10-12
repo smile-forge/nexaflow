@@ -31,11 +31,31 @@ public interface ILlmProvider : IAiProvider
         CancellationToken         ct = default);
 
     /// <summary>
+    /// The same, for a request of the given urgency. A provider whose model shares one GPU among requests schedules by
+    /// it — a reply being read goes before analysis nobody is watching; one whose requests go elsewhere has nothing to
+    /// schedule. Default: the urgency is not used.
+    /// </summary>
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => StreamAsync(messages, ct);
+
+    /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't
     /// know. Default implementation returns null.
     /// </summary>
     Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
         => Task.FromResult<ModelInfo?>(null);
+}
+
+/// <summary>Who is waiting on a request.</summary>
+public enum LlmUrgency
+{
+    /// <summary>Someone is reading the reply, or waiting on what it decides.</summary>
+    Interactive,
+    /// <summary>Work nobody is watching — page analysis.</summary>
+    Background,
 }
 
 /// <summary>Metadata about a specific LLM model.</summary>

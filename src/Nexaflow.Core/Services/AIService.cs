@@ -328,8 +328,9 @@ public sealed class AIService : IAIService
         var provider = GetProvider(AiAbility.Analysis);
         if (provider is null) return null;
 
+        // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
         return response?.RawText;
     }
 

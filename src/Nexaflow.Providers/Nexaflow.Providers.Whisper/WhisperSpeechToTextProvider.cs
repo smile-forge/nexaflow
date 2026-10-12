@@ -48,6 +48,9 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalM
 
     public DataResidency Residency => DataResidency.StaysOnMachine;
 
+    /// <summary>whisper.cpp runs in this process: Nexaflow is the whole harness.</summary>
+    public ModelHarness Harness => ModelHarness.Owned;
+
     /// <summary>whisper.cpp's CPU build needs AVX; the model must be on disk and verified.</summary>
     public bool IsAvailable => Avx.IsSupported && ModelPath is not null;
 

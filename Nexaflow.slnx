@@ -143,6 +143,9 @@
     </Project>
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Aria/Nexaflow.Providers.Aria.csproj">
       <Platform Project="x64" />
     </Project>

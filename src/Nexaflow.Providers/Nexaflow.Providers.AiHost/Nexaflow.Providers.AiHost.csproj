@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    "Nexaflow": the language models Nexaflow runs itself, in its AI host. The provider is the host's client for
+    one model — fetching its files and the runtime the machine needs, loading it, and turning a conversation into
+    the host's requests. The models it offers are in owned-models.json.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="owned-models.json" LogicalName="owned-models.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Providers" />
+  </ItemGroup>
+
+</Project>

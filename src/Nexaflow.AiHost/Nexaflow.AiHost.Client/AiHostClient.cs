@@ -9,7 +9,7 @@ namespace Nexaflow.AiHost.Client;
 /// heartbeat, or leaves a request silent past that request's stall limit. A host that keeps dying is not restarted
 /// until it has stayed down a while, so a broken install fails fast instead of looping.
 /// </summary>
-public sealed class AiHostClient : IAsyncDisposable
+public sealed class AiHostClient : IAiHost, IAsyncDisposable
 {
     private readonly IAiHostLauncher _launcher;
     private readonly AiHostTimings _timings;

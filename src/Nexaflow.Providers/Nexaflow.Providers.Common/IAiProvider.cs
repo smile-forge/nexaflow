@@ -24,6 +24,12 @@ public interface IAiProvider
     DataResidency Residency { get; }
 
     /// <summary>
+    /// Who runs the model's harness — its prompt, chat template and context. Independent of where it runs: Ollama is
+    /// bridged though it is on this machine. Default: bridged; a provider that is Nexaflow's own harness says so.
+    /// </summary>
+    ModelHarness Harness => ModelHarness.Bridged;
+
+    /// <summary>
     /// Whether this instance can take a request now. An ability's chain of models passes over an unavailable
     /// one to the next — unavailability, not a failed request, is what moves a chain on. Default: available.
     /// </summary>
@@ -64,6 +70,15 @@ public interface IAiProvider
     /// Default implementation is a no-op.
     /// </summary>
     Task CooldownAsync(CancellationToken ct = default) => Task.CompletedTask;
+}
+
+/// <summary>Who runs a model's harness.</summary>
+public enum ModelHarness
+{
+    /// <summary>Nexaflow is a client of a harness that is not its own — a cloud API, or a local server like Ollama.</summary>
+    Bridged,
+    /// <summary>Nexaflow is the whole harness: the model runs in Nexaflow's own process or its AI host.</summary>
+    Owned,
 }
 
 /// <summary>The kind of model a provider serves — an ability-grid row takes models of its own kind.</summary>

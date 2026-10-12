@@ -26,12 +26,26 @@
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj"
         }
       ]
+    },
+    "owned-llm": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedLlmProvider.cs",
+          "class": "OwnedLlmProvider"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 3,
   "touched_nodes": [
     "ai-host",
-    "ioterm-job"
+    "ioterm-job",
+    "owned-llm"
   ]
 }
