@@ -429,6 +429,7 @@ public sealed class AIService : IAIService
         messages.Add(new(LlmRole.User, input));
 
         var artifacts = new List<string>();   // files the tools read/created, for conversation context
+        var transcript = RunTranscript.Begin(input);   // off unless NEXAFLOW_AI_TRANSCRIPTS names a folder
         var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)
 
         try
@@ -439,6 +440,7 @@ public sealed class AIService : IAIService
                 ct.ThrowIfCancellationRequested();
 
                 var raw  = (await StreamStepAsync(provider, messages, approval, ct)).Trim();
+                transcript?.Step(messages, raw);
                 var turn = ClientBlockParser.Parse(raw, toolNames);
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.

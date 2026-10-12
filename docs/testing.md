@@ -289,7 +289,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   reply's language, and that the run ended by answering within a bounded number of corrected tool blocks — never the
   wording, which varies between models and runs; the one content check is a fact only a recording holds, spoken by
   the machine's own voice. `NEXAFLOW_TEST_TRANSCRIPTS` names a folder to write every run's turns to — what to read
-  when one fails.
+  when one fails. The app does the same for its own runs when started with `NEXAFLOW_AI_TRANSCRIPTS` naming a folder:
+  one file a run, every message the model was sent and everything it wrote back, whole — what to read when a journey
+  on the real models goes wrong.
 - **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a
   whole assembly rather than filtering on the category. In `Tests.Visuals` and `Tests.Core` it means only *renders
   WPF off-screen* — an STA thread, no window, safe to parallelise and safe on a runner, so those run in CI. In
