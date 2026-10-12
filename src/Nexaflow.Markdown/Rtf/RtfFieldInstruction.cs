@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 
 namespace Nexaflow.Markdown.Rtf;
 
@@ -43,6 +44,51 @@ internal static class RtfFieldInstruction
 
         return address is { Length: > 0 } ? address : null;
     }
+
+    /// <summary>
+    /// The character a <c>SYMBOL</c> field draws — <c>SYMBOL 74 \f "Wingdings" \s 12</c> — by its number, read as a byte of the
+    /// font's code page unless <c>\u</c> says it is Unicode or <c>\j</c> Shift-JIS, with the font and the size in points it names;
+    /// null for any other field, or one naming no character.
+    /// </summary>
+    public static RtfSymbol? Symbol(string instruction)
+    {
+        var words = Arguments(instruction);
+        if (words.Count < 2 || !string.Equals(words[0].Text, "SYMBOL", StringComparison.OrdinalIgnoreCase)) return null;
+        if (Number(words[1].Text) is not { } code || code <= 0) return null;
+
+        string? font = null;
+        double? points = null;
+        var set = RtfSymbolSet.Ansi;
+
+        for (var at = 2; at < words.Count; at++)
+        {
+            var (text, quoted) = words[at];
+            if (quoted || !text.StartsWith('\\')) continue;
+
+            switch (text.ToLowerInvariant())
+            {
+                case "\\f" when at + 1 < words.Count:
+                    font = words[++at].Text;
+                    break;
+
+                case "\\s" when at + 1 < words.Count:
+                    if (double.TryParse(words[++at].Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var size) && size > 0) points = size;
+                    break;
+
+                case "\\u": set = RtfSymbolSet.Unicode; break;
+                case "\\j": set = RtfSymbolSet.ShiftJis; break;
+                case "\\a": set = RtfSymbolSet.Ansi; break;
+            }
+        }
+
+        return new RtfSymbol(code, font, points, set);
+    }
+
+    /// <summary>A number as a field writes one: decimal, or hexadecimal after <c>0x</c>.</summary>
+    private static int? Number(string text) =>
+        text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? int.TryParse(text.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex) ? hex : null
+            : int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : null;
 
     /// <summary>
     /// The arguments of an instruction, each as written: a quoted one without its quotes and with a doubled backslash read
@@ -90,4 +136,20 @@ internal static class RtfFieldInstruction
 
         return words;
     }
+}
+
+/// <summary>A <c>SYMBOL</c> field's character: its number, the font it is in, its size in points, and how the number is read.</summary>
+internal sealed record RtfSymbol(int Code, string? Font, double? Points, RtfSymbolSet Set);
+
+/// <summary>How a <c>SYMBOL</c> field's number names its character.</summary>
+internal enum RtfSymbolSet
+{
+    /// <summary>A byte of the font's code page — or, in a symbol font, the glyph in that place.</summary>
+    Ansi,
+
+    /// <summary>A Unicode code point (<c>\u</c>).</summary>
+    Unicode,
+
+    /// <summary>A Shift-JIS double byte (<c>\j</c>).</summary>
+    ShiftJis,
 }

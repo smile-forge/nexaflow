@@ -295,6 +295,70 @@ public class RtfParserTests
     }
 
     [TestMethod]
+    public void APictureADrawingShapeShows_IsDrawnWhereTheShapeStands_AndItsResultIsNotDrawnAgain()
+    {
+        var tree = RtfParser.Parse(@"{\rtf1 Look:{\shp{\*\shpinst\shpleft0{\sp{\sn fillBlip}{\sv {\pict\jpegblip ffd8}}}{\sp{\sn pib}{\sv {\pict\pngblip 89504e47}}}}"
+                                 + @"{\shprslt{\*\do\dobxcolumn}{\pict\wmetafile8 0100}}}\par}");
+
+        var pictures = tree.SelfAndDescendants().Select(node => node.Held).OfType<EmbeddedPicture>().ToList();
+
+        Assert.AreEqual(1, pictures.Count, "the shape's own picture, and neither its fill nor the copy written for readers that draw no shapes");
+        Assert.AreEqual("image/png", pictures[0].MediaType);
+    }
+
+    [TestMethod]
+    public void TheWordsInADrawingShapeAreDrawn_WhereItShowsNoPicture()
+    {
+        var tree = RtfParser.Parse(@"{\rtf1 Before {\shp{\*\shpinst\shpleft0{\sp{\sn fLine}{\sv 0}}{\shptxt Boxed words\par}}{\shprslt Again\par}}}");
+        var text = string.Join("|", Paragraphs(tree).Select(Drawn));
+
+        StringAssert.Contains(text, "Boxed words");
+        Assert.IsFalse(text.Contains("Again"), "the shape's result is only for a reader that draws no shapes");
+    }
+
+    [TestMethod]
+    public void ASymbolFieldIsTheCharacterItNames_InTheFontItNames()
+    {
+        var tree = RtfParser.Parse(@"{\rtf1\ansi{\fonttbl{\f0 Arial;}{\f2\fcharset2 Wingdings;}}\pard Smile {\field{\*\fldinst SYMBOL 74 \\f ""Wingdings"" \\s 12}{\fldrslt\f2\fs24}} now\par}");
+        var symbol = tree.SelfAndDescendants().Single(node => node.Kind == MarkdownKinds.Encoded && node.Role == Roles.Element);
+        var set = Styled(tree).Single(run => run.SelfAndDescendants().Contains(symbol)).HeldAs(MarkdownRoles.Typeset) as TextLook;
+
+        Assert.AreEqual("\uF04A", symbol.HeldAs(MarkdownRoles.Decoded), "Wingdings is a symbol font, so its 74 is the glyph in that place");
+        Assert.AreEqual("Wingdings", set?.Font);
+        Assert.AreEqual("Smile \uF04A now", Drawn(Paragraphs(tree).Single()));
+    }
+
+    [TestMethod]
+    public void ASymbolFieldWithAResultShowsTheResult()
+    {
+        var tree = RtfParser.Parse(@"{\rtf1 {\field{\*\fldinst SYMBOL 65}{\fldrslt B}}\par}");
+
+        Assert.AreEqual("B", Drawn(Paragraphs(tree).Single()));
+    }
+
+    [TestMethod]
+    public void TheLastParagraph_WithNoMarkAfterIt_IsSetAsTheParagraphsBeforeIt()
+    {
+        var tree = RtfParser.Parse(@"{\rtf1\pard\fi720 Jane Doe\par (555) 123-4567" + "\n}");
+        var looks = Paragraphs(tree).Select(paragraph => paragraph.HeldAs(MarkdownRoles.Typeset)).OfType<ParagraphLook>().ToList();
+
+        Assert.AreEqual(2, looks.Count);
+        Assert.AreEqual(looks[0].FirstLine, looks[1].FirstLine, "the indent is the document's still when it closes");
+        Assert.AreEqual(3.0, looks[1].FirstLine, 1e-9);
+    }
+
+    [TestMethod]
+    public void APageBreakIsABlockOfItsOwn_BetweenTheParagraphsEitherSide()
+    {
+        const string Source = @"{\rtf1\pard\qc Title\page\pard Next page\par}";
+        var tree = RtfParser.Parse(Source);
+        var blocks = tree.Children.Where(block => block.Role != Roles.Trivia).Select(block => block.Kind).ToList();
+
+        CollectionAssert.AreEqual(new[] { MarkdownKinds.Paragraph, MarkdownKinds.Page, MarkdownKinds.Paragraph }, blocks);
+        Assert.AreEqual(Source, tree.Print());
+    }
+
+    [TestMethod]
     public void ADocumentsWordsComeOutAsPlainText()
     {
         var text = RtfParser.Text(Header + @"\pard One {\b bold}\par\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row\pard caf\'e9\tab end\par}");

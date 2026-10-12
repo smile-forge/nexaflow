@@ -23,52 +23,24 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="42"/> <!-- toolbar  -->
-            <RowDefinition Height="*"/>  <!-- document -->
-            <RowDefinition Height="28"/> <!-- footer   -->
+            <RowDefinition Height="Auto"/> <!-- search chip, while a search is shown -->
+            <RowDefinition Height="*"/>    <!-- document -->
+            <RowDefinition Height="28"/>   <!-- footer   -->
         </Grid.RowDefinitions>
 
-        <!-- ══════════════════════════════════════════════════════════
-             TOOLBAR — the file, the search chip a "?" search leaves behind, and the way out to an application that
-             writes rich text, since this page only shows it.
-             ══════════════════════════════════════════════════════════ -->
+        <!-- What a "?" search found, and how to step through or dismiss it: there only while there is a search to show. -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-            <Grid Margin="10,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding FileName}"
-                               Foreground="{StaticResource TextBrush}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
-
-                    <vc:SearchStatusChip PagePrefix="Rtf"
-                                         VerticalAlignment="Center" Margin="16,0,0,0"/>
-                </StackPanel>
-
-                <Button Grid.Column="1"
-                        Style="{StaticResource TbBtn}"
-                        AutomationProperties.AutomationId="Rtf_OpenExternal"
-                        ToolTip="{loc:Str Rtf.Toolbar.OpenExternalTip}"
-                        Command="{Binding OpenExternallyCommand}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="↗" FontSize="12" Margin="0,0,4,0"/>
-                        <TextBlock Text="{loc:Str Rtf.Toolbar.OpenExternal}" FontSize="12"/>
-                    </StackPanel>
-                </Button>
-            </Grid>
+                BorderThickness="0,0,0,1"
+                Padding="10,6"
+                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}">
+            <vc:SearchStatusChip PagePrefix="Rtf" HorizontalAlignment="Left"/>
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════
-             DOCUMENT — drawn on its own paper by the shared renderer's RTF language (+ minimap match strip)
+             DOCUMENT — drawn by the shared renderer's RTF language, in the theme's colours wherever the document leaves
+             them to the reader (+ minimap match strip)
              ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -77,17 +49,15 @@
             </Grid.ColumnDefinitions>
 
             <!-- The reading inset is ContentPadding, not a Margin, so the scrollbar sits flush against the minimap. -->
-            <Border Grid.Column="0" Background="{DynamicResource Rtf.Paper}">
-                <md:MarkdownSurface x:Name="Document"
-                                    ContentPadding="48,32,48,56"
-                                    IsReadOnly="True"
-                                    VerticalScrollBarVisibility="Auto"
-                                    BaseFontSize="{Binding Zoom.FontSize}"
-                                    AutomationProperties.AutomationId="Rtf_Document"
-                                    WrittenIn="{Binding Language, Mode=OneTime}"
-                                    Palette="{Binding Palette, Mode=OneTime}"
-                                    Markdown="{Binding Document}"/>
-            </Border>
+            <md:MarkdownSurface x:Name="Document"
+                                Grid.Column="0"
+                                ContentPadding="48,32,48,56"
+                                IsReadOnly="True"
+                                VerticalScrollBarVisibility="Auto"
+                                BaseFontSize="{Binding Zoom.FontSize}"
+                                AutomationProperties.AutomationId="Rtf_Document"
+                                WrittenIn="{Binding Language, Mode=OneTime}"
+                                Markdown="{Binding Document}"/>
 
             <!-- Shown in place of the document when there is none to show, and why. -->
             <Border Grid.Column="0"

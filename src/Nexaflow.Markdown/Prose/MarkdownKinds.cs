@@ -25,6 +25,12 @@ public static class MarkdownKinds
     /// <summary><c>---</c> on a line of its own.</summary>
     public const string Rule = "rule";
 
+    /// <summary>
+    /// A page break: where the writer's next page starts. A document shown as one continuous page draws it as the room a
+    /// few blank lines take.
+    /// </summary>
+    public const string Page = "page";
+
     /// <summary><c>&gt; quoted</c>.</summary>
     public const string Quote = "quote";
 

@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -38,12 +36,6 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <summary>The language the surface reads the document in.</summary>
     public string Language => RtfParser.Language;
-
-    /// <summary>
-    /// The colours the document is drawn in: its own, on paper. A writer chose theirs against white — black text, a yellow
-    /// highlight — so the page they wrote on is the one it is shown on, whatever the theme round it.
-    /// </summary>
-    public StyleFormat Palette => StyleFormat.Light;
 
     /// <summary>Where a link written relative to the document leads from.</summary>
     public string? BaseDirectory => Path.GetDirectoryName(FilePath) is { Length: > 0 } folder ? folder : null;
@@ -188,23 +180,6 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
     /// a path to the viewer for that kind of file — and nothing claiming it leaves it to open the way any other link does.
     /// </summary>
     public bool FollowLink(string url) => !string.IsNullOrWhiteSpace(url) && _shell.HandleObject(url);
-
-    /// <summary>
-    /// Opens the document in the application Windows has for rich text — where it is written in, since this page only shows
-    /// it. One inside an archive is extracted first, so the application has a file to open.
-    /// </summary>
-    [RelayCommand]
-    private void OpenExternally()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(VirtualFileSystem.Instance.MaterializeFile(FilePath)) { UseShellExecute = true });
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or Win32Exception or InvalidOperationException)
-        {
-            _shell.ShowError(Str.Format("Rtf.Error.OpenExternalFormat", e.Message));
-        }
-    }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 

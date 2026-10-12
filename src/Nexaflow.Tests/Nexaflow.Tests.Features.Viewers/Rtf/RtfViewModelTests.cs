@@ -61,14 +61,13 @@ public class RtfViewModelTests
 
     [TestMethod]
     [CoversNode("rtf-viewer-document")]
-    public async Task TheDocumentIsHandedToTheSurfaceAsTheRtfItIs_OnPaper()
+    public async Task TheDocumentIsHandedToTheSurfaceAsTheRtfItIs()
     {
         using var vm = await LoadedAsync(Letter);
 
         Assert.IsFalse(vm.HasError, vm.ErrorMessage);
         Assert.AreEqual(Letter, vm.Document, "drawn from the RTF itself, byte for byte");
         Assert.AreEqual("rtf", vm.Language);
-        Assert.AreSame(StyleFormat.Light, vm.Palette, "the writer's colours, on the paper they chose them against");
     }
 
     [TestMethod]
@@ -119,18 +118,6 @@ public class RtfViewModelTests
         Assert.IsTrue(vm.FollowLink("https://example.com"));
         Assert.IsFalse(vm.FollowLink(" "), "nothing to follow");
         shell.Received(1).HandleObject("https://example.com");
-    }
-
-    [TestMethod]
-    [CoversNode("rtf-open-externally")]
-    public void OpeningExternallyAFileThatIsGone_SaysWhy()
-    {
-        var shell = Shell();
-        using var vm = new RtfViewModel(Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf"), shell);
-
-        vm.OpenExternallyCommand.Execute(null);
-
-        shell.Received(1).ShowError(Arg.Is<string>(message => message.Contains("Couldn't open the document externally")));
     }
 
     // ── No document to show ───────────────────────────────────────────────────

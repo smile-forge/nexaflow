@@ -187,6 +187,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Written: Sourced(into, part, x, room); return;
             case MarkdownKinds.Heading: Heading(into, part, x, room); return;
             case MarkdownKinds.Rule: Rule(into, part, x, room); return;
+            case MarkdownKinds.Page: Paged(into, part, x, room); return;
             case MarkdownKinds.Quote:
             case MarkdownKinds.Alert: Quoted(into, part, x, room); return;
             case MarkdownKinds.List: Listed(into, part, x, room); return;
@@ -326,6 +327,25 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         into.Close();
 
         _y += thick + Gap;
+        Reached(x + room);
+    }
+
+    /// <summary>How many blank lines' room a page break takes.</summary>
+    private const int PageLines = 3;
+
+    /// <summary>
+    /// A page break, on a page that never breaks: the room <see cref="PageLines"/> blank lines take, which is what tells a
+    /// reader the writer's next page starts here. A piece of its own, so a press there still means the break.
+    /// </summary>
+    private void Paged(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var height = PageLines * Space.Height;
+
+        into.Open(MarkdownPieces.Page, part, new Point(x, _y), Stops.None);
+        into.Covers(new Rect(0, 0, Math.Max(room, 1), height));
+        into.Close();
+
+        _y += height;
         Reached(x + room);
     }
 

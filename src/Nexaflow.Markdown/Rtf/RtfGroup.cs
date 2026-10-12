@@ -25,6 +25,12 @@ internal enum RtfDestination
 
     /// <summary>A picture's bytes and what they are.</summary>
     Picture,
+
+    /// <summary>A drawing shape's description: read for what the shape shows, and never drawn itself.</summary>
+    Shape,
+
+    /// <summary>The name of one of a shape's properties, which says what the value after it is.</summary>
+    Property,
 }
 
 /// <summary>
@@ -114,6 +120,9 @@ internal sealed class RtfGroup
 
     /// <summary>Whether this is the group that opened <see cref="Picture"/>, so its close is where the picture ends.</summary>
     public bool OpensPicture { get; set; }
+
+    /// <summary>Whether this group is inside a drawing shape's description.</summary>
+    public bool Shaped { get; set; }
 
     /// <summary>What a group inside this one starts as.</summary>
     public RtfGroup Inner()

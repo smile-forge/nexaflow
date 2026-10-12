@@ -24,6 +24,9 @@ public static class MarkdownPieces
     public const string Marker = "MarkdownMarker";
     public const string Tick = "MarkdownTick";
     public const string Rule = "MarkdownRule";
+
+    /// <summary>The room a page break takes.</summary>
+    public const string Page = "MarkdownPage";
     public const string Row = "MarkdownRow";
     public const string Cell = "MarkdownCell";
     public const string Verbatim = "MarkdownVerbatim";

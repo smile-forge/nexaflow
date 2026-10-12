@@ -95,11 +95,6 @@
     "email-body": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Theming/EmailThemeContribution.cs",
-          "class": "EmailThemeContribution"
-        },
-        {
           "type": "node",
           "target": "markdown-from-html"
         }
@@ -205,8 +200,7 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Theming/RtfThemeContribution.cs",
-          "class": "RtfThemeContribution"
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Views/RtfView.xaml"
         }
       ],
       "concerns": {
@@ -215,13 +209,13 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
             "class": "RtfViewModelTests",
-            "method": "TheDocumentIsHandedToTheSurfaceAsTheRtfItIs_OnPaper"
+            "method": "ItsWordsAreTheOnesItDraws_NeverItsControlWords"
           },
           {
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Rtf/RtfViewModelTests.cs",
             "class": "RtfViewModelTests",
-            "method": "ItsWordsAreTheOnesItDraws_NeverItsControlWords"
+            "method": "TheDocumentIsHandedToTheSurfaceAsTheRtfItIs"
           }
         ]
       }
@@ -557,10 +551,52 @@
           }
         ]
       }
+    },
+    "rtf-reading": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Rtf/RtfParserTests.cs",
+            "class": "RtfParserTests",
+            "method": "APictureADrawingShapeShows_IsDrawnWhereTheShapeStands_AndItsResultIsNotDrawnAgain"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Rtf/RtfParserTests.cs",
+            "class": "RtfParserTests",
+            "method": "ASymbolFieldIsTheCharacterItNames_InTheFontItNames"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Rtf/RtfParserTests.cs",
+            "class": "RtfParserTests",
+            "method": "TheLastParagraph_WithNoMarkAfterIt_IsSetAsTheParagraphsBeforeIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Rtf/RtfParserTests.cs",
+            "class": "RtfParserTests",
+            "method": "APageBreakIsABlockOfItsOwn_BetweenTheParagraphsEitherSide"
+          }
+        ]
+      }
+    },
+    "rtf-drawing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/RtfDrawingTests.cs",
+            "class": "RtfDrawingTests",
+            "method": "APageBreakIsTheRoomOfAFewBlankLines_BetweenThePagesWords"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 41,
+  "changed_sets": 43,
   "touched_nodes": [
     "compound-file",
     "email-body",
@@ -569,12 +605,14 @@
     "markdown-paste",
     "markdown-pictures",
     "nested-loose-lists",
+    "rtf-drawing",
     "rtf-file-reading",
     "rtf-find",
     "rtf-load-gate",
     "rtf-open-actions",
     "rtf-open-externally",
     "rtf-read-text",
+    "rtf-reading",
     "rtf-reload",
     "rtf-text-extractor",
     "rtf-viewer",

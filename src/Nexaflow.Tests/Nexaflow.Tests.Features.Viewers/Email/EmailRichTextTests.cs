@@ -11,8 +11,8 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.Email;
 
 /// <summary>
-/// A message Outlook kept as rich text, in the viewer: its body drawn as the RTF it is — on paper, in the colours its writer
-/// chose — and read as plain text, by the view and by the assistant, as the words it draws.
+/// A message Outlook kept as rich text, in the viewer: its body drawn as the RTF it is, in the theme's colours with the ones
+/// its writer set kept, and read as plain text, by the view and by the assistant, as the words it draws.
 /// </summary>
 [TestClass]
 [CoversNode("email-body")]
@@ -21,14 +21,13 @@ public class EmailRichTextTests
     private const string Rtf = @"{\rtf1\ansi{\colortbl ;\red255\green0\blue0;}\pard Hello {\b Bob},\par See the {\cf1 figures}.\par}";
 
     [TestMethod]
-    public void ARichTextBodyIsDrawnAsRtf_OnPaper()
+    public void ARichTextBodyIsDrawnAsRtf()
     {
         Opened(new MsgBuilder().String(0x0037, "Figures").Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
         {
             Assert.AreEqual(RtfParser.Language, vm.RenderedLanguage);
             Assert.AreEqual(Rtf, vm.RenderedMarkdown, "drawn from the RTF itself, not from anything made of it");
             Assert.IsTrue(vm.IsRichText);
-            Assert.AreSame(StyleFormat.Light, vm.BodyPalette);
             Assert.IsFalse(vm.HasHtmlBody, "there is no HTML to show the source of, or to open in a browser");
         });
     }
@@ -45,13 +44,12 @@ public class EmailRichTextTests
     }
 
     [TestMethod]
-    public void AnHtmlBodyIsDrawnAsMarkdown_InTheThemesOwnColours()
+    public void AnHtmlBodyIsDrawnAsMarkdown()
     {
         Opened(new MsgBuilder().Binary(0x1013, System.Text.Encoding.UTF8.GetBytes("<p>Hello</p>")), vm =>
         {
             Assert.IsNull(vm.RenderedLanguage);
             Assert.IsFalse(vm.IsRichText);
-            Assert.IsNull(vm.BodyPalette);
         });
     }
 

@@ -53,6 +53,18 @@ public class RtfDrawingTests
     }
 
     [TestMethod]
+    public void APageBreakIsTheRoomOfAFewBlankLines_BetweenThePagesWords()
+    {
+        var laid = Lay(@"{\rtf1\pard Title\page\pard Next\par}");
+        var page = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == MarkdownPieces.Page).Bounds;
+        var words = Words(laid).Select(piece => piece.Bounds).ToList();
+
+        Assert.AreEqual(2, words.Count);
+        Assert.IsTrue(page.Height > 2 * words[0].Height, $"a page break should be several lines' room, not {page.Height:0.#}");
+        Assert.IsTrue(words[1].Top >= page.Bottom - 0.5, "the next page's words start below it");
+    }
+
+    [TestMethod]
     public void ACentredParagraphIsSetInTheMiddleOfItsRoom()
     {
         var laid = Lay(@"{\rtf1\pard\qc middle\par}", room: 400);

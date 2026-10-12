@@ -30,6 +30,15 @@ internal sealed class RtfFontTable
     /// <summary>The font <paramref name="number"/> names, or <see cref="RtfFont.Undeclared"/>.</summary>
     public RtfFont For(int number) => _fonts.TryGetValue(number, out var font) ? font : RtfFont.Undeclared;
 
+    /// <summary>The font the table declares by <paramref name="name"/>, or <see cref="RtfFont.Undeclared"/> where it declares none so called.</summary>
+    public RtfFont Named(string name)
+    {
+        foreach (var font in _fonts.Values)
+            if (string.Equals(font.Name, name, StringComparison.OrdinalIgnoreCase)) return font;
+
+        return RtfFont.Undeclared;
+    }
+
     /// <summary><c>\fN</c>: an entry begins, ending any still being read.</summary>
     public void Begin(int number, int documentPage)
     {

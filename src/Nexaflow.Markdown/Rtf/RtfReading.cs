@@ -99,6 +99,10 @@ internal sealed partial class RtfReading
             return;
         }
 
+        // The document's own group closing ends the paragraph written last with no mark after it — set as that group still says,
+        // which it no longer does once it has closed.
+        if (_outer.Count == 1) Unfinished();
+
         Machinery(Leaf(token, Kinds.Token, Roles.Close));
 
         var closing = _group;
@@ -106,6 +110,7 @@ internal sealed partial class RtfReading
         // The font table ends where its group does, and so does an entry with no ';' after its name.
         if (closing.Destination == RtfDestination.Fonts && _outer.Peek().Destination != RtfDestination.Fonts) _fonts.Commit(_codePage);
         if (closing.OpensPicture && closing.Picture is { } picture) Pictured(closing, picture);
+        if (closing.Field is { } field && !ReferenceEquals(_outer.Peek().Field, field)) Fielded(closing, field);
 
         _group = _outer.Pop();
     }
@@ -208,8 +213,12 @@ internal sealed partial class RtfReading
                 break;
 
             case RtfDestination.Picture:
-                _group.Picture?.Hex(_source.AsSpan(token.Start, token.Length));
-                break;
+            _group.Picture?.Hex(_source.AsSpan(token.Start, token.Length));
+            break;
+
+            case RtfDestination.Property:
+            _property.Append(_source, token.Start, token.Length);
+            break;
         }
 
         Silent(token, RtfKinds.Data);

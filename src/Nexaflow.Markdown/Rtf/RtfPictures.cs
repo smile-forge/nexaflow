@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 
+using System.Text;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 
@@ -213,10 +214,25 @@ internal sealed partial class RtfReading
         var inside = new List<ContentNode>(_line.Count - group.Begins + 1);
         for (var at = group.Begins; at < _line.Count; at++) inside.Add(_line[at].Node);
 
-        if (picture.Built(TwipsPerEm) is { } built) inside.Add(ContentNode.Holding(MarkdownKinds.Image, Roles.Derived, built));
+        if (picture.Built(TwipsPerEm) is { } built)
+        {
+            inside.Add(ContentNode.Holding(MarkdownKinds.Image, Roles.Derived, built));
+            if (group.Shaped) _shapePictured = true;
+        }
 
         _line.RemoveRange(group.Begins, _line.Count - group.Begins);
         _line.Add(new Inline(ContentNode.Branch(MarkdownKinds.Image, inside, Roles.Element, Begins(inside)),
                              Drawn: true, Look: null, group.Link));
     }
+
+    // ── Shapes ──────────────────────────────────────────────────────────────
+
+    /// <summary>The name of the shape property being read, which says what its value is.</summary>
+    private readonly StringBuilder _property = new();
+
+    /// <summary>Whether the shape being read has drawn its picture, so the words in it are that picture's again.</summary>
+    private bool _shapePictured;
+
+    /// <summary>Whether the shape property being read is the picture the shape shows (<c>pib</c>), rather than its fill or its outline's.</summary>
+    private bool Showing() => _property.ToString().Trim().Equals("pib", StringComparison.Ordinal);
 }

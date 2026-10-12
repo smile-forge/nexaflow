@@ -2,12 +2,10 @@
   "Rtf.Action.AsRtf": "As rich text",
   "Rtf.Action.AsRtfTip": "Show the document as it is laid out: its fonts, colours, tables and pictures",
   "Rtf.Action.AsRtfDescription": "Rich-text (RTF) document viewer: the document as it is laid out, searchable, with its words for the assistant (.rtf)",
-  "Rtf.Toolbar.OpenExternal": "Open externally",
-  "Rtf.Toolbar.OpenExternalTip": "Open in the application Windows uses for rich text, to edit it",
+
   "Rtf.Footer.Kind": "Rich text",
   "Rtf.Footer.WordsFormat": "{0:N0} words",
   "Rtf.Footer.ParagraphsFormat": "{0:N0} paragraphs",
   "Rtf.Error.NotRtf": "This file isn't a rich-text document: RTF opens with {\\rtf, and this doesn't.",
-  "Rtf.Error.UnreadableFormat": "Couldn't read this document: {0}",
-  "Rtf.Error.OpenExternalFormat": "Couldn't open the document externally: {0}"
+  "Rtf.Error.UnreadableFormat": "Couldn't read this document: {0}"
 }

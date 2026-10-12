@@ -360,32 +360,53 @@ internal sealed partial class RtfReading
 
     // ── The end ─────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// What is left once the tokens run out: a last paragraph with no mark after it, where it has any words, and the braces
-    /// closing the document.
-    /// </summary>
+    /// <summary>What is left once the tokens run out: a last paragraph with no mark after it, and the braces closing the document.</summary>
     private void Finish()
     {
-        Decoded();
-
-        if (_line.Any(piece => piece.Drawn))
-        {
-            var within = _group.Depth;
-            var paragraph = Paragraphed(null);
-
-            Tabled(within);
-
-            if (within > 0) CellAt(within).Blocks.Add(paragraph);
-            else _blocks.Add(paragraph);
-
-            _line.Clear();
-        }
-
+        Unfinished();
         Tabled(0);
 
         if (_line.Count > 0) _blocks.Add(Between([.. _line.Select(piece => piece.Node)]));
 
         _line.Clear();
+    }
+
+    /// <summary>The last paragraph, where it was written with no mark after it and has any words — set as the group it is in says.</summary>
+    private void Unfinished()
+    {
+        Decoded();
+
+        if (!_line.Any(piece => piece.Drawn)) return;
+
+        var within = _group.Depth;
+        var paragraph = Paragraphed(null);
+
+        Tabled(within);
+
+        if (within > 0) CellAt(within).Blocks.Add(paragraph);
+        else _blocks.Add(paragraph);
+
+        _line.Clear();
+        _lines++;
+    }
+
+    /// <summary>
+    /// A page break. The document is read as one continuous page, so it is drawn as the room a few blank lines take, which is
+    /// what tells a reader the writer started a new page here. A paragraph written across it goes on after it, as a paragraph
+    /// of its own set the same way.
+    /// </summary>
+    private void Paged(RtfToken token)
+    {
+        Unfinished();
+        Tabled(0);
+
+        var mark = Leaf(token, RtfKinds.Control, Roles.Name);
+        List<ContentNode> parts = [.. _line.Select(piece => piece.Node), mark];
+
+        _blocks.Add(ContentNode.Branch(MarkdownKinds.Page, parts, Roles.Element, Begins(parts)));
+
+        _line.Clear();
+        _lines++;
     }
 
     // ── Making nodes ────────────────────────────────────────────────────────

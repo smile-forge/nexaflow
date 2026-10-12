@@ -16,7 +16,7 @@ internal sealed partial class RtfReading
     private static readonly HashSet<string> Unread =
     [
         "stylesheet", "info", "header", "headerl", "headerr", "headerf", "footer", "footerl", "footerr", "footerf",
-        "footnote", "nonshppict", "xe", "tc", "txe", "rxe", "template", "author", "operator", "title", "subject",
+        "footnote", "nonshppict", "shprslt", "xe", "tc", "txe", "rxe", "template", "author", "operator", "title", "subject",
         "keywords", "doccomm", "comment", "company", "creatim", "revtim", "printim", "buptim",
     ];
 
@@ -89,7 +89,14 @@ internal sealed partial class RtfReading
             case "colortbl": Becomes(token, RtfDestination.Colours); return true;
 
             case "pict":
-                Becomes(token, RtfDestination.Picture);
+            // A shape's pictures are its properties' values, and only one of them is what the shape shows.
+            if (_group.Destination == RtfDestination.Shape && !Showing())
+            {
+                Becomes(token, RtfDestination.Skip);
+                return true;
+            }
+
+            Becomes(token, RtfDestination.Picture);
                 _group.Picture = new RtfPicture();
                 _group.OpensPicture = true;
                 return true;
@@ -102,6 +109,25 @@ internal sealed partial class RtfReading
                 Machinery(Leaf(token, RtfKinds.Control, Roles.Name));
                 _group.Destination = RtfDestination.Text;
                 _group.Link = _group.Field is { } field ? Linked(field) : 0;
+                return true;
+
+            // A drawing shape is a list of properties, of which the picture it shows is one (pib) and the words written in it are
+            // another (shptxt): those are what is drawn, where the shape stands. Its result — the same thing again for a reader that
+            // draws no shapes — is then passed over (Unread).
+            case "shpinst":
+                Becomes(token, RtfDestination.Shape);
+                _group.Shaped = true;
+                _shapePictured = false;
+                return true;
+
+            case "sn" when _group.Destination == RtfDestination.Shape:
+                Becomes(token, RtfDestination.Property);
+                _property.Clear();
+                return true;
+
+            // The words in a shape are drawn where it shows no picture; a picture shape's are the picture again.
+            case "shptxt" when _group.Destination == RtfDestination.Shape:
+                Becomes(token, _shapePictured ? RtfDestination.Skip : RtfDestination.Text);
                 return true;
 
             // A nested table's row is defined, and ended, in a destination of its own.
@@ -172,10 +198,15 @@ internal sealed partial class RtfReading
                     return true;
 
                 case "line":
-                case "page":
                 case "column":
-                    Broken(token);
-                    return true;
+                Broken(token);
+                return true;
+
+                // A page break inside a table's cell is a cell going on to the next page, which this continuous page has no use for.
+                case "page":
+                if (_group.Depth > 0) Broken(token);
+                else Paged(token);
+                return true;
 
                 case "u":
                     Coded(token, ((char)Unit(token.Parameter)).ToString());
@@ -376,5 +407,41 @@ internal sealed partial class RtfReading
         _links[field.Number] = destination;
 
         return field.Number;
+    }
+
+    /// <summary>
+    /// A field whose group has closed. A <c>SYMBOL</c> field is a character named by number in a font — the result Word writes
+    /// for it is often empty, the character being drawn from the instruction — so where its result drew nothing, the whole of
+    /// its source is drawn as that character, in that font, at the size it says.
+    /// </summary>
+    private void Fielded(RtfGroup group, RtfField field)
+    {
+        if (group.Line != _lines || group.Begins < 0 || group.Begins >= _line.Count) return;
+        if (RtfFieldInstruction.Symbol(field.Instruction.ToString()) is not { } symbol) return;
+
+        for (var at = group.Begins; at < _line.Count; at++)
+            if (_line[at].Drawn) return;
+
+        var font = symbol.Font is { Length: > 0 } named ? _fonts.Named(named) : Font();
+        var means = symbol.Set switch
+        {
+            RtfSymbolSet.Unicode => char.ConvertFromUtf32(symbol.Code),
+            RtfSymbolSet.ShiftJis => RtfCodePages.Decode([(byte)(symbol.Code >> 8), (byte)symbol.Code], 932, symbol: false),
+            _ when symbol.Code > byte.MaxValue => char.ConvertFromUtf32(symbol.Code),
+            _ => RtfCodePages.Decode([(byte)symbol.Code], CodePageOf(font), font.Symbol),
+        };
+
+        var look = Look() with
+        {
+            Font = symbol.Font is { Length: > 0 } family ? family : Look().Font,
+            Scale = symbol.Points is { } points ? points * 2 / OrdinarySize : Look().Scale,
+        };
+
+        List<ContentNode> inside = [];
+        for (var at = group.Begins; at < _line.Count; at++) inside.Add(_line[at].Node);
+        inside.Add(Fact(MarkdownKinds.Decoded, MarkdownRoles.Decoded, means));
+
+        _line.RemoveRange(group.Begins, _line.Count - group.Begins);
+        _line.Add(new Inline(ContentNode.Branch(MarkdownKinds.Encoded, inside, Roles.Element, Begins(inside)), Drawn: true, look, group.Link));
     }
 }
