@@ -414,7 +414,7 @@ public sealed partial class MarkdownBuilder
             return;
         }
 
-        var box = Fitted(picture);
+        var box = Fitted(picture, MarkdownPictureSize.Of(part.Node));
         var into = new LayoutBuilder();
 
         into.Open(MarkdownPieces.Picture, part);
@@ -426,15 +426,22 @@ public sealed partial class MarkdownBuilder
     }
 
     /// <summary>
-    /// How big a picture is drawn: its own size, down to whatever fits, never up. A picture is measured in
-    /// pixels and a document in the reader's own text size, so the two only agree by accident — which is why
-    /// there is a cap at all.
+    /// The box a picture is drawn into: the size it asks for where the writer gave one — a width alone keeping the
+    /// picture's own proportions — and otherwise its own size, brought down to fit the page and never blown up.
     /// </summary>
-    private static Rect Fitted(ImageSource picture)
+    private static Rect Fitted(ImageSource picture, MarkdownPictureSize? asked)
     {
         var (wide, tall) = (picture.Width, picture.Height);
+        var known = !double.IsNaN(wide) && !double.IsNaN(tall) && wide > 0 && tall > 0;
 
-        if (double.IsNaN(wide) || double.IsNaN(tall) || wide <= 0 || tall <= 0) return new Rect(0, 0, Biggest, Biggest);
+        if (asked is { } size)
+        {
+            var high = size.Height ?? (known ? size.Width * tall / wide : size.Width);
+
+            return new Rect(0, 0, Math.Max(1, size.Width), Math.Max(1, high));
+        }
+
+        if (!known) return new Rect(0, 0, Biggest, Biggest);
 
         var scale = Math.Min(1, Math.Min(Biggest / wide, Biggest / tall));
 

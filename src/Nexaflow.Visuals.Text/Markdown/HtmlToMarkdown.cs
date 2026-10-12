@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using HtmlAgilityPack;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -150,22 +151,56 @@ public static class HtmlToMarkdown
     /// Whether an image is too small to show anything: one declared a pixel or less each way, by its attributes or its
     /// style — the pixel a sender counts opens with, or a spacer.
     /// </summary>
-    private static bool Pixel(HtmlNode image)
+    private static bool Pixel(HtmlNode image) => Declared(image) is { Width: <= 1, Height: <= 1 };
+
+    /// <summary>
+    /// The size an image is declared to be shown at, in pixels — by its <c>width</c> and <c>height</c>, or by its style, which
+    /// wins. A size in anything but pixels (<c>100%</c>, <c>20em</c>) says nothing about the picture's own size and is not read.
+    /// </summary>
+    private static (double? Width, double? Height) Declared(HtmlNode image)
     {
-        double? width = Length(image.GetAttributeValue("width", null));
-        double? height = Length(image.GetAttributeValue("height", null));
+        var width = Pixels(image.GetAttributeValue("width", null));
+        var height = Pixels(image.GetAttributeValue("height", null));
 
         if (image.GetAttributeValue("style", null) is { Length: > 0 } style)
         {
             foreach (var (property, value) in Declarations(style))
             {
-                if (property == "width") width = Length(value) ?? width;
-                else if (property == "height") height = Length(value) ?? height;
+                if (property == "width") width = Pixels(value) ?? width;
+                else if (property == "height") height = Pixels(value) ?? height;
             }
         }
 
-        return width <= 1 && height <= 1;
+        return (width, height);
     }
+
+    /// <summary>A length in pixels — <c>120</c> or <c>120px</c> — or null for one in any other unit, or none.</summary>
+    private static double? Pixels(string? value)
+    {
+        if (Length(value) is not { } number) return null;
+
+        var unit = value!.Trim().TrimStart('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.').Trim();
+
+        return unit.Length == 0 || unit.Equals("px", StringComparison.OrdinalIgnoreCase) ? number : null;
+    }
+
+    /// <summary>
+    /// An image's words for markdown, with the size it is shown at after a bar where its width is declared — written the way
+    /// <see cref="MarkdownPictureSize"/> reads it, so the picture is drawn the size the sender laid it
+    /// out at. Words that would read as a size of their own have their bar escaped.
+    /// </summary>
+    private static string Described(HtmlNode image)
+    {
+        var alt = NormalizeWhitespace(HtmlEntity.DeEntitize(image.GetAttributeValue("alt", "")) ?? string.Empty).Trim();
+        if (MarkdownPictureSize.EndsLikeOne(alt)) alt = alt.Insert(alt.LastIndexOf('|'), @"\");
+
+        var (width, height) = Declared(image);
+        if (width is not > 0) return alt;
+
+        return height is > 0 ? $"{alt}|{Number(width.Value)}x{Number(height.Value)}" : $"{alt}|{Number(width.Value)}";
+    }
+
+    private static string Number(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>Whether an element holds any of <paramref name="kinds"/> anywhere under it that a reader would see.</summary>
     private static bool Holds(HtmlNode node, HashSet<string> kinds)
@@ -408,8 +443,7 @@ public static class HtmlToMarkdown
 
             case "img":
                 var src = node.GetAttributeValue("src", "");
-                var alt = node.GetAttributeValue("alt", "");
-                return string.IsNullOrEmpty(src) || Pixel(node) ? string.Empty : $"![{alt}]({src})";
+                return string.IsNullOrEmpty(src) || Pixel(node) ? string.Empty : $"![{Described(node)}]({src})";
 
             // Blocks met inside a line keep a space either side, so the words of two of them never run together.
             case "p": case "div": case "li": case "td": case "th": case "tr": case "table":

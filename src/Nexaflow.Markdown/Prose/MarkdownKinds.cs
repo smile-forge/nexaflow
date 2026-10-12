@@ -114,6 +114,12 @@ public static class MarkdownKinds
     /// <summary><c>![words](where)</c>.</summary>
     public const string Image = "image";
 
+    /// <summary>
+    /// The size a picture asks to be drawn at, as written at the end of its words — <c>|300</c> or <c>|300x200</c> — kept
+    /// where it was typed; what it says is hung on the picture (<see cref="MarkdownPictureSize"/>).
+    /// </summary>
+    public const string Size = "size";
+
     /// <summary><c>&amp;amp;</c> — a character spelled out because the text could not hold it.</summary>
     public const string Entity = "entity";
 
@@ -212,6 +218,9 @@ public static class MarkdownRoles
 
     /// <summary>What a link or an image says about itself when rested on.</summary>
     public const string Title = "title";
+
+    /// <summary>A picture's size: the characters spelling it, and what they say hung on the picture.</summary>
+    public const string Size = "size";
 
     /// <summary>The row of a table that names its columns.</summary>
     public const string Head = "head";

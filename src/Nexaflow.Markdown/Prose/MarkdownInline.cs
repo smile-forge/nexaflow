@@ -129,23 +129,25 @@ public static class MarkdownInline
         }
 
         var parts = new List<ContentNode>();
+        (ContentNode Written, MarkdownPictureSize Size)? asked = null;
 
         if (inline is ContainerInline container)
         {
             var body = new List<ContentNode>();
             Inside(container, body, read);
 
-            if (body.Count > 0)
+            // What stands before the first thing inside is what opened the construct.
+            if (body.Count > 0 && body[0].Role == Roles.Trivia && body[0].IsLeaf)
             {
-                // What stands before the first thing inside is what opened the construct.
-                if (body[0].Role == Roles.Trivia && body[0].IsLeaf)
-                {
-                    parts.Add(body[0].As(Roles.Open));
-                    body.RemoveAt(0);
-                }
-
-                parts.Add(ContentNode.Branch(Kinds.Words, body, Roles.Body));
+                parts.Add(body[0].As(Roles.Open));
+                body.RemoveAt(0);
             }
+
+            // A picture's words can end in the size it asks to be drawn at, which is no part of what they say.
+            if (inline is LinkInline { IsImage: true }) asked = MarkdownPictureSize.Taken(body);
+
+            if (body.Count > 0) parts.Add(ContentNode.Branch(Kinds.Words, body, Roles.Body));
+            if (asked is { } sized) parts.Add(sized.Written);
         }
 
         if (end > read.At) parts.AddRange(Tail(inline, read, end));
@@ -153,6 +155,8 @@ public static class MarkdownInline
         var node = parts.Count == 0
             ? read.Take(end, Roles.Element, Kind(inline))
             : ContentNode.Branch(Kind(inline), parts);
+
+        if (asked is { } said) node = node.Holding(MarkdownKinds.Size, MarkdownRoles.Size, said.Size);
 
         // A link naming a definition written elsewhere has no address in its own characters; the definition's is hung on it.
         return inline is LinkInline { Url.Length: > 0 } link && MarkdownLinks.Goes(node) is null

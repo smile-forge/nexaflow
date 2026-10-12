@@ -512,16 +512,62 @@
           "target": "markdown-from-html"
         }
       ]
+    },
+    "markdown-pictures": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutMark.cs",
+          "class": "PictureMark"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Pictured"
+        },
+        {
+          "type": "node",
+          "target": "md-image-resolver"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownPictureSize.cs",
+          "class": "MarkdownPictureSize"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownImageTests.cs",
+            "class": "MarkdownImageTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownInlineTests.cs",
+            "class": "MarkdownInlineTests",
+            "method": "APicturesWordsCanEndInTheSizeItIsDrawnAt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownImageTests.cs",
+            "class": "MarkdownImageTests",
+            "method": "AWidthAfterABarIsTheWidthDrawn_KeepingThePicturesProportions"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 39,
+  "changed_sets": 41,
   "touched_nodes": [
     "compound-file",
     "email-body",
     "email-parse",
     "markdown-from-html",
     "markdown-paste",
+    "markdown-pictures",
     "nested-loose-lists",
     "rtf-file-reading",
     "rtf-find",

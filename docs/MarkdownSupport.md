@@ -62,7 +62,7 @@ stands for — in `MarkdownBuilderTests` and `MarkdownParityTests`.
 | Strong (`**` / `__`) | ✅ | ✅ | Bold piece. |
 | Inline links | ✅ | ✅ | `MarkdownLinkTests`. A `#anchor` is the document's to answer; anything else goes to the host. A relative link that is not an anchor says nowhere and is inert. |
 | Reference links | ✅ | ✅ | `MarkdownParityTests`. The definition may be anywhere in the document — in a list, a quote, after the words — and is not drawn. |
-| Images `![]()` | ⚠️ | ✅ | `MarkdownImageTests`. **Local files only** (the host's resolver, then absolute, `file:`, or relative to the doc's base dir). Remote `http(s)`/`data:` images are never fetched — alt text is shown instead. |
+| Images `![]()` | ⚠️ | ✅ | `MarkdownImageTests`. **Local files only** (the host's resolver, then absolute, `file:`, or relative to the doc's base dir). Remote `http(s)`/`data:` images are never fetched — alt text is shown instead. A size after a bar at the end of the words, Obsidian's way (`![alt\|300](…)`, `![alt\|300x200](…)`), is the size drawn — a width alone keeps the picture's proportions; without one a picture is fitted down to 600 and never up (`MarkdownPictureSize`). |
 | Autolinks `<https://…>` | ✅ | ✅ | A link to itself, the brackets not drawn. |
 | Hard line breaks | ✅ | ✅ | Two trailing spaces / backslash, told apart by the reader (`MarkdownRoles.Hard`). |
 | Soft line breaks | ✅ | ✅ | Drawn as a space. |

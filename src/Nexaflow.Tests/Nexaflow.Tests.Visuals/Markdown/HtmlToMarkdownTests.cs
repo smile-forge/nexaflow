@@ -133,7 +133,7 @@ public class HtmlToMarkdownTests
                  + "<img src=\"https://t.example/b.gif\" style=\"width:1px;height:1px\">"
                  + "<img src=\"logo.png\" alt=\"Logo\" width=\"120\" height=\"40\"></p>";
 
-        Assert.AreEqual("![Logo](logo.png)", Convert(html));
+        Assert.AreEqual("![Logo|120x40](logo.png)", Convert(html));
     }
 
     [TestMethod]
@@ -158,5 +158,19 @@ public class HtmlToMarkdownTests
     {
         Assert.AreEqual("[Shop now](https://shop.example)",
             Convert("<a href=\"https://shop.example\"><table><tr><td><p>Shop now</p></td></tr></table></a>"));
+    }
+
+    [TestMethod]
+    public void AnImagesDeclaredSize_IsWrittenAfterABar()
+    {
+        Assert.AreEqual("![Chart|320](a.png)", Convert("<img src=\"a.png\" alt=\"Chart\" width=\"320\">"));
+        Assert.AreEqual("![Chart|200x100](a.png)", Convert("<img src=\"a.png\" alt=\"Chart\" width=\"50\" style=\"width:200px; height:100px\">"));
+        Assert.AreEqual("![Chart](a.png)", Convert("<img src=\"a.png\" alt=\"Chart\" width=\"100%\">"), "a share of the page is no size of the picture's");
+    }
+
+    [TestMethod]
+    public void WordsThatWouldReadAsASize_HaveTheirBarEscaped()
+    {
+        Assert.AreEqual(@"![Page 1\|2](a.png)", Convert("<img src=\"a.png\" alt=\"Page 1|2\">"));
     }
 }
