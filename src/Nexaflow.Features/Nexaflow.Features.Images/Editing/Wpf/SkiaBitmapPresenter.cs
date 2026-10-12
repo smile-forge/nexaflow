@@ -93,7 +93,15 @@ public sealed class SkiaBitmapPresenter : IDisposable
             }
             if (!rendered) continue;
 
-            await _runOnUi(() => Blit(frame.Dpi, frame.Tag));
+            try
+            {
+                await _runOnUi(() => Blit(frame.Dpi, frame.Tag));
+            }
+            catch (InvalidOperationException)
+            {
+                // A frame the screen could not take is skipped like one Skia could not draw: the loop must outlive
+                // it, or no later frame would ever be shown.
+            }
         }
     }
 
