@@ -28,6 +28,10 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Generate), "generate")]
 [JsonDerivedType(typeof(TextDelta), "delta")]
 [JsonDerivedType(typeof(GenerationEnded), "generated")]
+[JsonDerivedType(typeof(Listen), "listen")]
+[JsonDerivedType(typeof(ListenActivity), "heard-activity")]
+[JsonDerivedType(typeof(ListenPartial), "heard-partial")]
+[JsonDerivedType(typeof(ListenFinal), "heard-final")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

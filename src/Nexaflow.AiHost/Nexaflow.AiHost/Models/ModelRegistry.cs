@@ -9,11 +9,11 @@ namespace Nexaflow.AiHost.Models;
 /// Admission is against the runtime's VRAM budget, from each model's estimate: a model that would not fit is refused
 /// rather than over-committed, after unloading what may go.
 /// </summary>
-internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adapters, HostLog log) : IDisposable
+internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adapters, ModelRunners runners, HostLog log) : IDisposable
 {
-    internal sealed class Entry(LoadedModel model)
+    internal sealed class Entry(IHostModel model)
     {
-        public LoadedModel Model { get; } = model;
+        public IHostModel Model { get; } = model;
         public bool Resident { get; set; }
         /// <summary>The app let it go while a request was using it.</summary>
         public bool UnloadWhenIdle { get; set; }
@@ -42,10 +42,14 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
             MakeRoomFor(spec);
             await stage("loading");
             var started = Stopwatch.GetTimestamp();
-            LoadedModel model;
+            IHostModel model;
             try
             {
-                model = await Task.Run(() => LoadedModel.Load(spec, runtime.ExecutionProvider, adapters), ct);
+                model = await Task.Run(() =>
+                {
+                    if (spec.Adapter is { } adapter) adapters.EnsurePrepared(spec.Folder, adapter);
+                    return runners.Load(spec, runtime.ExecutionProvider);
+                }, ct);
             }
             catch (Exception ex) when (ex is not HostRequestException and not OperationCanceledException)
             {
@@ -143,7 +147,13 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
             _entry    = entry;
         }
 
-        public LoadedModel Model => _entry.Model;
+        public IHostModel Model => _entry.Model;
+
+        /// <summary>The model, as the kind of model a request needs.</summary>
+        /// <exception cref="HostRequestException">The request named a model of another kind.</exception>
+        public T As<T>() where T : class, IHostModel
+            => Model as T ?? throw new HostRequestException(HostErrorKind.Invalid,
+                $"{Model.Spec.Id} is a {Model.Spec.Runner} model, which cannot serve this request.");
 
         public void Dispose()
         {

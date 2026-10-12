@@ -177,7 +177,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
         var path   = _assets.Locate(file) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
         var inside = file.RelativePath[(model.Folder.Length + 1)..].Replace('/', Path.DirectorySeparatorChar);
         var folder = path[..^inside.Length].TrimEnd(Path.DirectorySeparatorChar);
-        return new ModelSpec(model.Id, folder, model.Adapter, model.MemoryBytes, model.ContextTokens);
+        return new ModelSpec(model.Id, "genai-chat", folder, null, model.Adapter, model.MemoryBytes, model.ContextTokens);
     }
 
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads

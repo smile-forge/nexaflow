@@ -10,7 +10,7 @@ namespace Nexaflow.AiHost.Generation;
 /// </summary>
 internal static class ChatPrompt
 {
-    public static string Render(LoadedModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, MediaPlan media)
+    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, MediaPlan media)
         => model.Tokenizer.ApplyChatTemplate(template_str: model.Template, messages: Messages(turns, media), tools: "",
                                              add_generation_prompt: generationPrompt);
 

@@ -17,7 +17,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     {
         using var lease = await models.AcquireAsync(request.Model, resident: false,
             stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
-        var model = lease.Model;
+        var model = lease.As<ChatModel>();
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
         try
@@ -48,11 +48,11 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <summary>What extends the conversation's context to <paramref name="turns"/> — see <see cref="ConversationMatch.Delta"/>.</summary>
-    private static string? Delta(LoadedModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns)
+    private static string? Delta(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns)
         => ConversationMatch.Delta(conversation.Read, turns,
                                    (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, MediaPlan.None));
 
-    private async Task<int> AppendAsync(LoadedModel model, LiveConversation conversation, string text, RequestPriority priority,
+    private async Task<int> AppendAsync(ChatModel model, LiveConversation conversation, string text, RequestPriority priority,
                                         CancellationToken ct)
     {
         using var sequences = model.Tokenizer.Encode(text);
@@ -69,7 +69,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
     /// <summary>Reads the whole conversation into a new context — with its newest image and recording.
     /// Returns the tokens read, or 0 when media is read and the count is known only once the first token is out.</summary>
-    private async Task<int> ReadAfreshAsync(LoadedModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns,
+    private async Task<int> ReadAfreshAsync(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns,
                                             RequestPriority priority, CancellationToken ct)
     {
         var media = MediaPlan.Of(turns);
@@ -107,7 +107,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     /// token comes out — a turn read with media is counted only then — and the end token a reply stops on is never kept,
     /// so the count after the reply would be one short.</summary>
     private async Task<(StopReason Reason, string Text, List<int> Tokens, int PromptTokens)> GenerateAsync(
-        LoadedModel model, LiveConversation conversation, Generate request, Func<HostReply, Task> reply, CancellationToken ct)
+        ChatModel model, LiveConversation conversation, Generate request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         using var stream = model.Tokenizer.CreateStream();
         var tokens = new List<int>();
@@ -136,7 +136,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         }
     }
 
-    private static void EnsureRoom(LoadedModel model, int tokens)
+    private static void EnsureRoom(ChatModel model, int tokens)
     {
         if (tokens >= model.Spec.ContextTokens)
             throw new HostRequestException(HostErrorKind.Invalid,

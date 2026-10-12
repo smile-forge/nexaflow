@@ -6,14 +6,14 @@ using Nexaflow.AiHost.Generation;
 namespace Nexaflow.AiHost.Models;
 
 /// <summary>
-/// One model in memory: its onnxruntime-genai objects, the chat template it renders conversations with, and the
-/// conversations it is keeping open.
+/// A language model in memory: its onnxruntime-genai objects, the chat template it renders conversations with, and
+/// the conversations it is keeping open.
 /// </summary>
-internal sealed class LoadedModel : IDisposable
+internal sealed class ChatModel : IHostModel
 {
     private readonly Config _config;
 
-    private LoadedModel(ModelSpec spec, Config config, Model model, string template)
+    private ChatModel(ModelSpec spec, Config config, Model model, string template)
     {
         Spec          = spec;
         _config       = config;
@@ -39,23 +39,11 @@ internal sealed class LoadedModel : IDisposable
 
     public ConversationLog Conversations { get; }
 
-    /// <summary>Prepares the folder if it needs it, writes its config for <paramref name="executionProvider"/>, and loads it.</summary>
-    public static LoadedModel Load(ModelSpec spec, string executionProvider, ModelAdapters adapters)
+    public static ChatModel Load(ModelSpec spec, string executionProvider)
     {
-        adapters.EnsurePrepared(spec.Folder, spec.Adapter);
-        GenAiConfigFile.WriteFor(spec.Folder, executionProvider);
-
-        var config = new Config(spec.Folder);
-        try
-        {
-            var model = new Model(config);
-            return new LoadedModel(spec, config, model, File.ReadAllText(Path.Combine(spec.Folder, "chat_template.jinja")));
-        }
-        catch
-        {
-            config.Dispose();
-            throw;
-        }
+        string template = File.ReadAllText(Path.Combine(spec.Folder, "chat_template.jinja"));
+        var (config, model) = GenAiConfigFile.Open(spec, executionProvider);
+        return new ChatModel(spec, config, model, template);
     }
 
     public void Dispose()
@@ -66,4 +54,12 @@ internal sealed class LoadedModel : IDisposable
         Model.Dispose();
         _config.Dispose();
     }
+}
+
+/// <summary>Language models onnxruntime-genai runs, chatted with through their own templates.</summary>
+internal sealed class ChatModelRunner : IModelRunner
+{
+    public string Id => "genai-chat";
+
+    public IHostModel Load(ModelSpec spec, string executionProvider) => ChatModel.Load(spec, executionProvider);
 }
