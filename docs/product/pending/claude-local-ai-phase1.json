@@ -208,16 +208,41 @@
           }
         ]
       }
+    },
+    "sysinfo-local-ai": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Services/SystemInfoCollector.cs",
+          "class": "SystemInfoCollector",
+          "method": "CollectLocalAi"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Hardware/ComputeHardware.cs",
+          "class": "ComputeHardware"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/ComputeHardwareTests.cs",
+            "class": "ComputeHardwareTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 12,
   "touched_nodes": [
     "aibar-context-residency",
     "aibar-reply-draft",
     "aichat-context-chips",
     "aichat-thread",
     "opt-ai-ability-grid",
-    "providers-common"
+    "providers-common",
+    "sysinfo-local-ai"
   ]
 }

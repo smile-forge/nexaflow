@@ -2,12 +2,13 @@ using System.Linq;
 using Nexaflow.Features.SystemInfo.Converters;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.Services;
+using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 /// <summary>
-/// The dashboard's five cards and the health colouring behind their values, asserted against a real
+/// The dashboard's six cards and the health colouring behind their values, asserted against a real
 /// <see cref="SystemInfoCollector"/> run on this machine. The collector's contract is that every probe is
 /// independently fault-tolerant — a WMI class that isn't there, a registry key that can't be read — so the
 /// card must still appear with its facts degraded to "—" rather than the whole snapshot failing. That
@@ -45,6 +46,46 @@ public class SystemInfoDashboardTests
         => Assert.IsTrue(Card("Display").Items.Count > 0);
 
     [TestMethod]
+    [CoversNode("sysinfo-local-ai")]
+    public void LocalAiCard_SaysWhatTheMachineCanRun()
+        => Assert.AreEqual("Local models", Card("Local AI").Items[0].Label);
+
+    [TestMethod]
+    [CoversNode("sysinfo-local-ai")]
+    public void LocalAiCard_NamesEachGpuAndNpu_AndWhatTheBestGpuIsEnoughFor()
+    {
+        var report = new ComputeHardwareReport(
+        [
+            new ComputeAdapter("AMD Radeon(TM) Graphics", ComputeVendor.Amd, 2L << 30, IsIntegrated: true, IsNpu: false),
+            new ComputeAdapter("NVIDIA RTX PRO 6000", ComputeVendor.Nvidia, 96L << 30, IsIntegrated: false, IsNpu: false),
+            new ComputeAdapter("Intel AI Boost", ComputeVendor.Intel, 0, IsIntegrated: true, IsNpu: true),
+        ], new Version(13, 0));
+
+        var card = SystemInfoCollector.CollectLocalAi(report);
+        var rows = card.Items.ToDictionary(i => i.Label, i => i);
+
+        Assert.AreEqual("The larger models, with voice", rows["Local models"].Value);
+        Assert.AreEqual(SystemInfoStatus.Good, rows["Local models"].Status);
+        StringAssert.StartsWith(rows["NVIDIA RTX PRO 6000"].Value, "NVIDIA GPU");
+        StringAssert.StartsWith(rows["AMD Radeon(TM) Graphics"].Value, "AMD integrated GPU");
+        Assert.AreEqual("Intel AI Boost", rows["NPU"].Value);
+        Assert.AreEqual("13.0", rows["CUDA driver"].Value);
+    }
+
+    [TestMethod]
+    [CoversNode("sysinfo-local-ai")]
+    public void LocalAiCard_WarnsWhenNoGpuIsEnough()
+    {
+        var report = new ComputeHardwareReport(
+            [new ComputeAdapter("Intel UHD", ComputeVendor.Intel, 128L << 20, IsIntegrated: true, IsNpu: false)], CudaDriver: null);
+
+        var fit = SystemInfoCollector.CollectLocalAi(report).Items[0];
+
+        Assert.AreEqual(SystemInfoStatus.Warning, fit.Status);
+        StringAssert.Contains(fit.Value, "24");
+    }
+
+    [TestMethod]
     [CoversNode("storage")]
     public void StorageCard_IsPresentAndPopulated()
         => Assert.IsTrue(Card("Storage").Items.Count > 0);
@@ -53,8 +94,7 @@ public class SystemInfoDashboardTests
     [CoversNode("windows-security")]
     public void SecurityCard_ReportsEachProtectionWithAVerdict_NotJustText()
     {
-        var card = Snapshot.Sections.Single(s => s.Items.Any(
-            i => i.Status is SystemInfoStatus.Good or SystemInfoStatus.Warning or SystemInfoStatus.Bad));
+        var card = Card("Windows Security");
 
         Assert.IsTrue(card.Items.Count > 0);
         Assert.IsTrue(card.Items.Any(i => i.Status != SystemInfoStatus.Neutral),
@@ -65,7 +105,7 @@ public class SystemInfoDashboardTests
     [CoversNode("sysinfoview")]
     public void EveryCard_FillsAMissingFactWithADash_RatherThanBlank()
     {
-        Assert.AreEqual(5, Snapshot.Sections.Count, "the dashboard is five cards");
+        Assert.AreEqual(6, Snapshot.Sections.Count, "the dashboard is six cards");
         Assert.IsFalse(Snapshot.Sections.SelectMany(s => s.Items).Any(i => string.IsNullOrWhiteSpace(i.Value)),
                        "a probe that couldn't read its value must render '—', never an empty cell");
         StringAssert.Contains(Snapshot.ToPlainText(), "Operating System",
