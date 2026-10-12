@@ -6,6 +6,9 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     public class CutFiles : IFileAction, IFolderAction, ICacheable
     {
+        private readonly IShellServices _shell;
+
+        public CutFiles(IShellServices shell) => _shell = shell;
         // ── IFileAction ───────────────────────────────────────────────────────
 
         public bool   IsDestructive          => false;
@@ -33,7 +36,8 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(string filePath)
         {
-            NativeMethods.ClipboardCutFiles(Services.ShellPath.Realize([filePath]));
+            // Companions ride along, so a paste anywhere — here or in Explorer — moves them too.
+            NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(Services.ShellPath.Realize([filePath])));
             return true;
         }
 
@@ -44,7 +48,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             var paths = Services.ShellPath.Realize(filePaths).ToList();
             if (paths.Count == 0) return false;
 
-            NativeMethods.ClipboardCutFiles(paths);
+            NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(paths));
             return true;
         }
     }

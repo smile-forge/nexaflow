@@ -295,6 +295,18 @@
            Text="Installer payload is incomplete: the libVLC native runtime (libvlc.dll under libvlc\win-x64\) is missing from $(_CoreOutDir), so video playback would not work. Core's CopyLibVlc target should copy it from the Video project's output into Core's output — clean/rebuild Nexaflow.Core, then rebuild the installer." />
 
     <!--
+      Completeness guard: the image editor's engine (SkiaSharp, via Nexaflow.Features.Images) needs its native
+      libraries — libSkiaSharp for decoding, rendering and encoding, libHarfBuzzSharp for shaping markup text. They
+      arrive through the package's runtimes\win-x64\native assets; if either is missing every image fails to open.
+    -->
+    <ItemGroup>
+      <_HarvestedSkia Include="@(_CoreFile)" Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.dll' or '%(Filename)%(Extension)' == 'libHarfBuzzSharp.dll'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_HarvestedSkia->Count())' &lt; '2'"
+           Text="Installer payload is incomplete: libSkiaSharp.dll and libHarfBuzzSharp.dll (the image viewer's native engine) must both be in $(_CoreOutDir); found: @(_HarvestedSkia->'%(Filename)', ', '). The SkiaSharp native asset packages flow from Nexaflow.Features.Images — clean/rebuild Nexaflow.Core, then rebuild the installer." />
+
+    <!--
       Generate one <Component> per file.
       Root-level files use no Subdirectory attribute.
       Files in subdirs use Subdirectory="path\to\subdir" (trailing backslash stripped via regex).

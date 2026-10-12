@@ -35,11 +35,30 @@
         Bitness="always32" />
 
     <!--
-      Opt-in for the MSI's Tools feature, surfaced as a checkbox on the theme's Options page and passed
-      through as a property below. Off by default. Overridable so an unattended install can request it:
-      nexaflowBundle.exe /quiet InstallTools=1
+      Opt-in for the MSI's Tools feature, surfaced as the checkbox on the theme's Install page and passed
+      through as INSTALLTOOLS below. Overridable so an unattended install can decide it:
+      nexaflowBundle.exe /quiet InstallTools=1   (or InstallTools=0 to take the tools away on an upgrade)
+
+      Left alone, it starts as whatever is installed now, so an upgrade keeps the tools someone already has
+      and the checkbox opens showing that. "auto" is the only value that lets the search below run: a value
+      from the command line replaces it, so what was asked for is never overwritten by what was found. The
+      search writes 1 or 0, which is what the checkbox reads; "auto" left unresolved reads as unticked.
     -->
-    <Variable Name="InstallTools" bal:Overridable="yes" Type="numeric" Value="0" />
+    <Variable Name="InstallTools" bal:Overridable="yes" Type="string" Value="auto" />
+
+    <!--
+      ToolsOnPath is the key path of the Tools feature's PATH component (Folders.wxs), so it exists exactly
+      when the feature is installed. HKMU in a per-machine x64 package is HKLM's 64-bit view.
+    -->
+    <util:RegistrySearch
+        Id="ToolsInstalledSearch"
+        Variable="InstallTools"
+        Condition="InstallTools = &quot;auto&quot;"
+        Root="HKLM"
+        Key="SOFTWARE\Smile-forge\Nexaflow"
+        Value="ToolsOnPath"
+        Result="exists"
+        Bitness="always64" />
 
     <!--
       Backs the Options page's "Install location" box. It was never declared, so the box opened EMPTY
@@ -82,8 +101,9 @@
                   SourceFile="$(var.nexaflowSetup.TargetPath)"
                   Visible="no"
                   Vital="yes">
-        <!-- Drives the MSI's Tools feature Level (Package.wxs). The MSI declares INSTALLTOOLS
-             Secure="yes" so it survives the handoff to the elevated execute sequence. -->
+        <!-- Drives the MSI's Tools feature Level (Package.wxs), which decides it alone because the MSI
+             does not migrate feature states on upgrade. The MSI declares INSTALLTOOLS Secure="yes" so it
+             survives the handoff to the elevated execute sequence. -->
         <MsiProperty Name="INSTALLTOOLS" Value="[InstallTools]" />
         <!-- Hands the Options page's location to the MSI. Without it the path was collected and then
              ignored — the MSI fell back to its own default, so the box was decorative as well as blank. -->

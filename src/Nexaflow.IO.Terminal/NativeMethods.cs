@@ -17,9 +17,7 @@ internal static class NativeMethods
     internal const uint PROCESS_TERMINATE                   = 0x00000001;
     internal static readonly IntPtr INVALID_HANDLE_VALUE    = new(-1);
 
-    // Job-object limits (winnt.h)
-    internal const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE  = 0x00002000;
-    internal const int  JobObjectExtendedLimitInformation   = 9;
+
 
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern int CreatePseudoConsole(
@@ -89,19 +87,6 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern uint ResumeThread(IntPtr hThread);
 
-    // ── Job objects — used to guarantee child shells die with this process ──
-
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    internal static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool SetInformationJobObject(
-        IntPtr hJob, int JobObjectInfoClass, IntPtr lpJobObjectInfo, uint cbJobObjectInfoLength);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
 
     // ── Process tree enumeration / termination (foreground hard-stop) ───────
 
@@ -193,40 +178,4 @@ internal struct STARTUPINFOEX
 {
     public STARTUPINFO StartupInfo;
     public IntPtr      lpAttributeList;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-internal struct IO_COUNTERS
-{
-    public ulong ReadOperationCount;
-    public ulong WriteOperationCount;
-    public ulong OtherOperationCount;
-    public ulong ReadTransferCount;
-    public ulong WriteTransferCount;
-    public ulong OtherTransferCount;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-internal struct JOBOBJECT_BASIC_LIMIT_INFORMATION
-{
-    public long  PerProcessUserTimeLimit;
-    public long  PerJobUserTimeLimit;
-    public uint  LimitFlags;
-    public nuint MinimumWorkingSetSize;
-    public nuint MaximumWorkingSetSize;
-    public uint  ActiveProcessLimit;
-    public nuint Affinity;
-    public uint  PriorityClass;
-    public uint  SchedulingClass;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-internal struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-{
-    public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
-    public IO_COUNTERS                        IoInfo;
-    public nuint                              ProcessMemoryLimit;
-    public nuint                              JobMemoryLimit;
-    public nuint                              PeakProcessMemoryUsed;
-    public nuint                              PeakJobMemoryUsed;
 }

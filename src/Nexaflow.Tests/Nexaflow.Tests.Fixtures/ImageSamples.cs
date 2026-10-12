@@ -1,7 +1,7 @@
 namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
-/// Image fixtures for the image viewer (carousel / album / explore / collage). A cross-section of the
+/// Image fixtures for the image viewer (carousel / album / explore / collage / edit). A cross-section of the
 /// formats the viewer opens — BMP, PNG, GIF and JPEG — in varied aspect ratios and hues: enough images
 /// to exercise the carousel's paged position indicator (which windows at 20) and varied shapes for the
 /// fit/scale and collage layouts.
@@ -11,6 +11,7 @@ namespace Nexaflow.Tests.Fixtures;
 /// <c>Random</c>, no System.Drawing, no compressor state to seed. GIF and JPEG can't be hand-encoded
 /// that simply, so one valid solid-colour sample of each is embedded as a fixed byte constant (produced
 /// once via WIC) — still byte-exact and dependency-free at runtime. Every file decodes as a real image.
+/// <see cref="OrientedPhotoSample"/> adds the one with metadata: EXIF orientation, camera, GPS and XMP.
 /// </summary>
 internal sealed class ImageSamples : ISampleSet
 {
@@ -52,7 +53,10 @@ internal sealed class ImageSamples : ISampleSet
         files.Add(SampleFile.Raw("photo_23.jpg",  Convert.FromBase64String(JpegBase64)));
         files.Add(SampleFile.Raw("photo_24.jpeg", Convert.FromBase64String(JpegBase64)));
 
-        return files;   // 24 total (>20), formats: bmp / png / gif / jpg / jpeg
+        // A photograph with metadata, stored on its side — what the editor stands upright and carries over on save.
+        files.Add(SampleFile.Raw(OrientedPhotoSample.FileName, OrientedPhotoSample.Bytes()));
+
+        return files;   // 25 total (>20), formats: bmp / png / gif / jpg / jpeg
     }
 
     // ── BMP: solid-colour 24-bit (BGR, bottom-up) — the simplest losslessly-encodable image ──────────

@@ -1,4 +1,5 @@
 using Microsoft.Win32.SafeHandles;
+using Nexaflow.IO.Common.Processes;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -22,7 +23,7 @@ namespace Nexaflow.IO.Terminal;
 ///   <see cref="ShellExecutable"/>/<see cref="ShellArguments"/> for PowerShell.
 ///
 /// • Lifetime: every child shell is assigned to a kill-on-close job object
-///   (<see cref="TerminalJobObject"/>) so it dies with this process even on a
+///   (<see cref="KillOnCloseJob"/>) so it dies with this process even on a
 ///   crash; <see cref="Dispose"/> additionally terminates it promptly.
 /// </summary>
 public class PseudoConsoleHostService : IDisposable
@@ -149,7 +150,7 @@ public class PseudoConsoleHostService : IDisposable
         _shellPid      = pi.dwProcessId;
 
         // ── 6. Bind the child to the kill-on-close job BEFORE it runs ─────
-        TerminalJobObject.Assign(pi.hProcess);
+        KillOnCloseJob.Assign(pi.hProcess);
 
         // ── 7. Wrap pipes in .NET streams ─────────────────────────────────
         // Use isAsync: false for both streams (required for non-overlapped handles)

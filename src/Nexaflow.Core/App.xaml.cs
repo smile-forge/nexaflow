@@ -27,6 +27,8 @@ using Updatum;
 using StageKit.Runtime;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Core.Localization;
+using Nexaflow.AiHost.Client;
+using Nexaflow.IO.Common.Hardware;
 
 namespace Nexaflow.Core;
 
@@ -255,9 +257,11 @@ public partial class App : Application
         // ── 3. Providers — union of all assembly file names across workspaces ──
         // Model files live outside the roaming profile; the folder voice models were once kept in is adopted from.
         // A UI journey fetches nothing: a download is minutes of network the run cannot wait on or count on.
+        // The AI host — the process models Nexaflow runs itself are loaded in — starts on the first request for one.
         ProviderManager.Instance.Initialize(activityManager,
             new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
-                                downloadsAllowed: !UiTest));
+                                downloadsAllowed: !UiTest),
+            StartAiHost(), ComputeHardware.Probe());
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -358,6 +362,18 @@ public partial class App : Application
         StartupTimings.Mark("Init.JumpListAndIpc");
     }
 
+    private static AiHostClient? _aiHost;
+
+    /// <summary>The app's one AI host client. A host that dies unasked is recorded like any crash: the next request
+    /// starts another, but the reason is worth keeping.</summary>
+    private static AiHostClient StartAiHost()
+    {
+        _aiHost = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
+                                                             ModelAssetStore.DefaultRoot()));
+        _aiHost.HostExited += (_, e) => CrashLog.Instance.Record(new AiHostException(AiHostFailure.Lost, e.Reason));
+        return _aiHost;
+    }
+
     /// <summary>
     /// Posts one message naming the settings that could not be read this launch and the workspaces
     /// recovered from their data folders. Persistent (not a passing toast): it is the record of settings
@@ -388,7 +404,9 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
-        
+
+        // Closing the pipe ends the host; it is killed if it lingers. The job object is the backstop for a crash.
+        _aiHost?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(6));
         _singleInstance.Dispose();
         base.OnExit(e);
     }

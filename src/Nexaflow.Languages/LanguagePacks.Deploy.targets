@@ -11,7 +11,7 @@
     <UpToDateCheckInput Include="$(MSBuildThisFileDirectory)..\*\Localization\**\*;$(MSBuildThisFileDirectory)..\*\*\Localization\**\*" />
   </ItemGroup>
 
-  <!-- Same shape as CopyPrivilegeBridge: the ProjectReference above already built each pack with this
+  <!-- Same shape as CopyHelperExes: the ProjectReference above already built each pack with this
        Configuration+Platform, so only ask where it put it - a nested Build would spawn a stray AnyCPU instance. -->
   <Target Name="CopyLanguagePacks" AfterTargets="Build">
     <MSBuild Projects="@(_NfLanguagePackProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">

@@ -146,6 +146,9 @@
     </Project>
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Aria/Nexaflow.Providers.Aria.csproj">
       <Platform Project="x64" />
     </Project>
@@ -165,6 +168,17 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Whisper/Nexaflow.Providers.Whisper.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/Nexaflow.AiHost/">
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj">
       <Platform Project="x64" />
     </Project>
   </Folder>
@@ -223,6 +237,9 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Nexaflow.Tests.AiHost.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">

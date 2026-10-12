@@ -764,6 +764,20 @@
                                                    Foreground="{StaticResource TextBrush}"
                                                    FontSize="13" VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"/>
+                                        <!-- A companion's badge: the file has one beside it (an edited photo's recipe). -->
+                                        <TextBlock Text="{Binding Companion.Badge}" ToolTip="{Binding Companion.BadgeTooltip}"
+                                                   Foreground="{StaticResource AccentBrush}" FontSize="12"
+                                                   Margin="6,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Companion}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>

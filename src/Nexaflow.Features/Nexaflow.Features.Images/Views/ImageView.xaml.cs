@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Controls.Primitives;
 
 namespace Nexaflow.Features.Images.Views;
 
@@ -48,25 +49,68 @@ public partial class ImageView : UserControl, IPageView
             ViewModel.ViewMode = ImageTabRegistration.ParseView(view);
     }
 
-    // ── Keyboard (carousel navigation; Esc exits full-screen + stops auto) ──
+    // ── Keyboard: carousel navigation, edit history and saving, edit mode in and out; Esc exits full-screen ──
 
     private void OnViewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.OriginalSource is TextBoxBase) return;   // a text box's own keys are its own
+        bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control), shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+        bool featured = ViewModel.IsCarousel || ViewModel.IsExplore || ViewModel.IsEditing;
+        var editor = ViewModel.Editor;
+
         switch (e.Key)
         {
+            case Key.Z when ctrl && shift && featured:
+            case Key.Y when ctrl && featured:
+                ViewModel.RedoEditCommand.Execute(null);
+                break;
+            case Key.Z when ctrl && featured:
+                ViewModel.UndoEditCommand.Execute(null);
+                break;
+            case Key.S when ctrl && shift && ViewModel.IsEditing:
+                editor.SaveCopyCommand.Execute(null);
+                break;
+            case Key.S when ctrl && ViewModel.IsEditing:
+                editor.SaveCommand.Execute(null);
+                break;
+            case Key.E when Keyboard.Modifiers == ModifierKeys.None && (ViewModel.IsCarousel || ViewModel.IsExplore):
+                ViewModel.EnterEditModeCommand.Execute(null);
+                break;
+            case Key.Delete when ViewModel.IsEditing && editor.IsMarkupTool:
+                editor.DeleteSelectedCommand.Execute(null);
+                break;
+            case Key.Enter when ViewModel.IsEditing && editor.IsCropTool:
+                editor.Tool = EditTool.Adjust;   // the crop is applied: show the cropped picture
+                break;
+            case Key.Escape when ViewModel.IsEditing:
+                if (!(editor.IsCropTool && editor.CancelCrop())) ViewModel.ExitEditModeCommand.Execute(null);
+                break;
             case Key.Escape:
                 ViewModel.ExitFullScreen();
-                e.Handled = true;
                 break;
             case Key.Space or Key.Right when ViewModel.IsCarousel:
                 ViewModel.StepNext();
-                e.Handled = true;
                 break;
             case Key.Left when ViewModel.IsCarousel:
                 ViewModel.StepPrevious();
-                e.Handled = true;
                 break;
+            default:
+                return;
         }
+        e.Handled = true;
+    }
+
+    // ── The featured image's surface reports its size, so it is rendered for the screen ──
+
+    private void ImageHost_SizeChanged(object sender, SizeChangedEventArgs e) => ReportViewport((FrameworkElement)sender);
+
+    private void ImageHost_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => ReportViewport((FrameworkElement)sender);
+
+    /// <summary>The visible image host's room for the picture (inside its 20 px margin), and the screen's density.</summary>
+    private void ReportViewport(FrameworkElement host)
+    {
+        if (!host.IsVisible || host.ActualWidth <= 40 || host.ActualHeight <= 40) return;
+        ViewModel.SetViewport(host.ActualWidth - 40, host.ActualHeight - 40, VisualTreeHelper.GetDpi(host).PixelsPerDip);
     }
 
     // ── Mouse wheel → step through images (carousel), clamped at the ends ──

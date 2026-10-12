@@ -57,7 +57,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
                     if (isDir)
                         Directory.Move(path, dest);
                     else
+                    {
                         File.Move(path, dest);
+                        Services.FileCompanions.For(_shell).Follow(path, dest, move: true);
+                    }
 
                     _shell.RequestRefresh();
                 },

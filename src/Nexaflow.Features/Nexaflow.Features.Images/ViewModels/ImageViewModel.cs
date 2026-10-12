@@ -2,11 +2,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
-using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -19,25 +23,14 @@ using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
-/// <summary>The viewer's sub-views, selected by the toolbar's segmented toggle.</summary>
-public enum ImageViewMode
-{
-    Carousel,   // one image at a time
-    Album,      // wrapping thumbnail grid
-    Explore,    // thumbnail strip on the left, selected image on the right
-    Collage,    // scattered, tilted thumbnails on a pan/zoom canvas
-}
-
-/// <summary>Represents a single dot in the image-navigator indicator strip.</summary>
-public partial class ImageDotItem : ObservableObject
-{
-    [ObservableProperty] private int  _index;
-    [ObservableProperty] private bool _isCurrent;
-}
-
 public partial class ImageViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int ThumbSize = 200;
+
+    /// <summary>The longest side the assistant is shown, in pixels.</summary>
+    private const int CaptureEdge = 2048;
+
+
 
     // Auto-advance intervals per speed slider position (Slow / Medium / Fast).
     private static readonly TimeSpan[] _autoIntervals =
@@ -52,6 +45,16 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     private bool _thumbsRequested;
     private bool _collageComputed;
 
+    // ── Editing ───────────────────────────────────────────────────────────
+
+    private readonly ImageEditingServices _editing;
+    private readonly bool _ownsEditing;
+    private readonly ImageSessionCache _sessions;
+    private readonly ImageDisplay _display;
+    private readonly DispatcherTimer _thumbRefresh;
+    private IFileWatch? _sidecarWatch;
+    private ImageViewMode _modeBeforeEdit = ImageViewMode.Carousel;
+
     [ObservableProperty] private int _currentIndex;
     [ObservableProperty] private BitmapSource? _currentImage;
 
@@ -64,6 +67,30 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(ImageCountText))]
     private int _totalImages;
 
+    /// <summary>The photo being shown, with its recipe and history; null while nothing is.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentRecipe))]
+    [NotifyPropertyChangedFor(nameof(HasChangedSourceNotice))]
+    [NotifyPropertyChangedFor(nameof(SessionOnlyNotice))]
+    [NotifyPropertyChangedFor(nameof(HasSessionOnlyNotice))]
+    [NotifyPropertyChangedFor(nameof(IsEdited))]
+    [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
+    [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
+    [NotifyCanExecuteChangedFor(nameof(RotateLeftCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RotateRightCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FlipHorizontalCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FlipVerticalCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RevertEditsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UndoEditCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RedoEditCommand))]
+    private ImageEditSession? _currentSession;
+
+    /// <summary>What the presented frame is a picture of; drawn over by the edit canvas.</summary>
+    [ObservableProperty] private EditCanvas? _canvas;
+
+    /// <summary>The current photo could not be decoded.</summary>
+    [ObservableProperty] private bool _loadFailed;
+
     // ── View mode ─────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -71,16 +98,25 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(IsAlbum))]
     [NotifyPropertyChangedFor(nameof(IsExplore))]
     [NotifyPropertyChangedFor(nameof(IsCollage))]
+    [NotifyPropertyChangedFor(nameof(IsEditing))]
+    [NotifyPropertyChangedFor(nameof(IsBrowsing))]
     [NotifyPropertyChangedFor(nameof(HeaderText))]
+    [NotifyPropertyChangedFor(nameof(ShowsSubViewSelector))]
+    [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
+    [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
     private ImageViewMode _viewMode = ImageViewMode.Carousel;
 
     public bool IsCarousel => ViewMode == ImageViewMode.Carousel;
     public bool IsAlbum    => ViewMode == ImageViewMode.Album;
     public bool IsExplore  => ViewMode == ImageViewMode.Explore;
     public bool IsCollage  => ViewMode == ImageViewMode.Collage;
+    public bool IsEditing  => ViewMode == ImageViewMode.Edit;
+
+    /// <summary>Any view but the editor — where the browsing controls (sub-views, slideshow, full screen) belong.</summary>
+    public bool IsBrowsing => !IsEditing;
 
     /// <summary>Toolbar heading: the current file when an image is featured, else the image count.</summary>
-    public string HeaderText => (IsCarousel || IsExplore)
+    public string HeaderText => (IsCarousel || IsExplore || IsEditing)
         ? CurrentFileName
         : ImageCountText;
 
@@ -89,16 +125,51 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         ? Str.Get("Images.Header.ImageCountOne")
         : Str.Format("Images.Header.ImageCountManyFormat", TotalImages);
 
+    /// <summary>The tools of edit mode, over the same photo.</summary>
+    public ImageEditorViewModel Editor { get; }
+
     // ── View state ────────────────────────────────────────────────────────
 
     /// <summary>When true the image is scaled to fit the viewer; when false it is shown at 100%.</summary>
     [ObservableProperty] private bool _fitToWindow = true;
 
-    /// <summary>Rotation angle in degrees (multiples of 90).</summary>
-    [ObservableProperty] private double _rotationAngle;
-
     /// <summary>When true the current image is presented full-screen in a borderless window.</summary>
     [ObservableProperty] private bool _isFullScreen;
+
+    // ── The recipe, as the viewer shows it ────────────────────────────────
+
+    /// <summary>The current photo's edits (nothing, while no photo is shown).</summary>
+    public ImageRecipe CurrentRecipe => CurrentSession?.Recipe ?? ImageRecipe.Identity;
+
+    /// <summary>The current photo carries edits — what the "edited" badge says.</summary>
+    public bool IsEdited => !CurrentRecipe.IsIdentity;
+
+    /// <summary>The photo changed after its edits were made; the user decides whether they still apply.</summary>
+    public bool HasChangedSourceNotice => CurrentSession?.LoadStatus == RecipeLoadStatus.SourceChanged;
+
+    /// <summary>Why edits to this photo last only as long as the viewer, or null when they are kept beside it.</summary>
+    public string? SessionOnlyNotice => CurrentSession switch
+    {
+        null                                                    => null,
+        { CanPersist: true }                                    => null,
+        { IsFileBacked: false }                                 => Str.Get("Images.Edit.Notice.Archive"),
+        { LoadStatus: RecipeLoadStatus.Newer }                  => Str.Get("Images.Edit.Notice.Newer"),
+        { LoadStatus: RecipeLoadStatus.Unreadable }             => Str.Get("Images.Edit.Notice.Unreadable"),
+        _                                                       => null,
+    };
+
+    public bool HasSessionOnlyNotice => SessionOnlyNotice is not null;
+
+    // ── What the toolbar and notices show, by view ────────────────────────
+
+    /// <summary>The sub-view selector: several images, and not editing.</summary>
+    public bool ShowsSubViewSelector => HasMultiple && IsBrowsing;
+
+    /// <summary>The "edited" mark beside the heading, where one photo is featured.</summary>
+    public bool ShowsEditedMark => IsEdited && (IsCarousel || IsExplore || IsEditing);
+
+    /// <summary>The session-only notice, once it matters: while editing, or once there are edits to lose.</summary>
+    public bool ShowsSessionOnlyNotice => HasSessionOnlyNotice && (IsEditing || IsEdited);
 
     // ── Auto-advance ──────────────────────────────────────────────────────
 
@@ -135,13 +206,22 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     partial void OnCurrentIndexChanged(int value) => LoadImage(value);
 
-    partial void OnViewModeChanged(ImageViewMode value)
+    partial void OnViewModeChanged(ImageViewMode oldValue, ImageViewMode newValue)
     {
-        if (value is ImageViewMode.Album or ImageViewMode.Explore or ImageViewMode.Collage)
+        if (newValue is ImageViewMode.Album or ImageViewMode.Explore or ImageViewMode.Collage)
             EnsureThumbnailsRequested();
-        if (value == ImageViewMode.Collage)
+        if (newValue == ImageViewMode.Collage)
             EnsureCollageLayout();
+        if (newValue == ImageViewMode.Edit)
+        {
+            _modeBeforeEdit = oldValue;
+            IsAuto = false;
+        }
+        Editor.OnEditModeChanged(newValue == ImageViewMode.Edit);
+        RequestRender();
     }
+
+    partial void OnFitToWindowChanged(bool value) => RequestRender();
 
     partial void OnIsAutoChanged(bool value)
     {
@@ -190,12 +270,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     }
 
     [RelayCommand]
-    private void RotateLeft() => RotationAngle = (RotationAngle - 90 + 360) % 360;
-
-    [RelayCommand]
-    private void RotateRight() => RotationAngle = (RotationAngle + 90) % 360;
-
-    [RelayCommand]
     private void ToggleFit() => FitToWindow = !FitToWindow;
 
     [RelayCommand]
@@ -213,6 +287,67 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (index >= 0 && index < _paths.Count)
             CurrentIndex = index;
+    }
+
+    // ── Edits the viewer offers everywhere (each remembered in the photo's recipe) ──
+
+    private bool HasSession() => CurrentSession is not null;
+
+    [RelayCommand(CanExecute = nameof(HasSession))]
+    private void RotateLeft() => Edit(r => r with { Geometry = r.Geometry.Turned(-1) });
+
+    [RelayCommand(CanExecute = nameof(HasSession))]
+    private void RotateRight() => Edit(r => r with { Geometry = r.Geometry.Turned(1) });
+
+    [RelayCommand(CanExecute = nameof(HasSession))]
+    private void FlipHorizontal() => Edit(r => r with { Geometry = r.Geometry.Flipped(horizontal: true) });
+
+    [RelayCommand(CanExecute = nameof(HasSession))]
+    private void FlipVertical() => Edit(r => r with { Geometry = r.Geometry.Flipped(horizontal: false) });
+
+    [RelayCommand(CanExecute = nameof(CanUndoEdit))]
+    private void UndoEdit() => CurrentSession?.History.Undo();
+    private bool CanUndoEdit() => CurrentSession?.History.CanUndo == true;
+
+    [RelayCommand(CanExecute = nameof(CanRedoEdit))]
+    private void RedoEdit() => CurrentSession?.History.Redo();
+    private bool CanRedoEdit() => CurrentSession?.History.CanRedo == true;
+
+    /// <summary>The photo changed since its edits were made: keep them, anchored to the photo as it is now.</summary>
+    [RelayCommand]
+    private void KeepChangedEdits() => CurrentSession?.KeepEditsForChangedSource();
+
+    /// <summary>The photo changed since its edits were made: drop them.</summary>
+    [RelayCommand]
+    private void DiscardChangedEdits()
+    {
+        if (CurrentSession is not { } session) return;
+        session.Revert();
+        session.KeepEditsForChangedSource();
+    }
+
+    /// <summary>Back to the photo as it is on disk — one undoable step; the sidecar goes with it.</summary>
+    [RelayCommand(CanExecute = nameof(HasSession))]
+    private void RevertEdits() => CurrentSession?.Revert();
+
+    [RelayCommand]
+    private void EnterEditMode()
+    {
+        if (CurrentSession is not null) ViewMode = ImageViewMode.Edit;
+    }
+
+    /// <summary>Done: back to the view edit mode was entered from, with the edits applied on view.</summary>
+    [RelayCommand]
+    private void ExitEditMode()
+    {
+        if (!IsEditing) return;
+        ViewMode = HasMultiple || _modeBeforeEdit == ImageViewMode.Carousel ? _modeBeforeEdit : ImageViewMode.Carousel;
+    }
+
+    /// <summary>Applies <paramref name="change"/> to the current photo's recipe as one undoable step.</summary>
+    internal void Edit(Func<ImageRecipe, ImageRecipe> change)
+    {
+        if (CurrentSession is { } session) session.History.Commit(change(session.Recipe));
     }
 
     // ── Position-indicator paging (20 dots per block) ─────────────────────
@@ -272,21 +407,27 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         ViewMode     = ImageViewMode.Carousel;
     }
 
-    /// <summary>Right-click → Delete: confirms, sends the image to the Recycle Bin, drops it from the view.</summary>
+    /// <summary>Right-click → Delete: confirms, sends the image (and its edits) to the Recycle Bin, drops it from the view.</summary>
     [RelayCommand]
     private async Task Delete(int index)
     {
         if (_shell is null || index < 0 || index >= _paths.Count) return;
 
-        var name = Path.GetFileName(_paths[index]);
+        var path = _paths[index];
+        var name = Path.GetFileName(path);
         if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format("Images.Delete.ConfirmMessageFormat", name)))
             return;
 
-        if (!RecycleBin.TryRecycle(_paths[index]))
+        // Closed first: closing writes any pending edit, which must land before the sidecar goes with the photo.
+        CloseSession(path);
+        if (!RecycleBin.TryRecycle(path))
         {
             _shell.ShowError(Str.Format("Images.Delete.FailedFormat", name));
+            if (index == CurrentIndex) LoadImage(index);
             return;
         }
+        var sidecar = ImageRecipeStore.SidecarPath(path);
+        if (File.Exists(sidecar)) RecycleBin.TryRecycle(sidecar);
         RemoveAt(index);
     }
 
@@ -304,12 +445,13 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         TotalImages = _paths.Count;
         OnPropertyChanged(nameof(HasMultiple));
+        OnPropertyChanged(nameof(ShowsSubViewSelector));
         _collageComputed = false;   // re-scatter the smaller set when the collage is next shown
         _dotBlock        = -1;      // force the dot window to rebuild
 
         if (_paths.Count == 0)
         {
-            CurrentImage    = null;
+            ShowNothing();
             CurrentFileName = string.Empty;
             VisibleDots.Clear();
             return;
@@ -327,16 +469,31 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (IsAuto) { _autoTimer.Interval = _autoIntervals[Math.Clamp(AutoSpeed, 0, 2)]; _autoTimer.Start(); }
     }
 
-    public void OnDeactivated() => _autoTimer.Stop();
+    public void OnDeactivated()
+    {
+        _autoTimer.Stop();
+        _editing.Recipes.Flush();
+    }
 
     // ── Construction ──────────────────────────────────────────────────────
 
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
-                          ImageViewMode initialMode = ImageViewMode.Carousel)
+                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null)
     {
-        _paths      = [.. paths];   // mutable copy — images can be deleted from the viewer
-        _shell      = shell;
-        TotalImages = _paths.Count;
+        _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
+        _shell       = shell;
+        _editing     = editing ?? new ImageEditingServices();
+        _ownsEditing = editing is null;
+        TotalImages  = _paths.Count;
+
+        _sessions = new ImageSessionCache(_editing);
+        _display  = new ImageDisplay(_editing, action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action), _cts.Token);
+        _display.ImageChanged += image => CurrentImage = image;
+        _display.Presented    += canvas => Canvas = canvas;
+        _display.Decoded      += OnDecoded;
+        _display.DecodeFailed += session => { if (ReferenceEquals(CurrentSession, session)) LoadFailed = true; };
+
+        Editor = new ImageEditorViewModel(this, shell, _editing);
 
         for (int i = 0; i < paths.Count; i++)
         {
@@ -353,10 +510,20 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _autoTimer = new DispatcherTimer(DispatcherPriority.Background);
         _autoTimer.Tick += (_, _) => Advance();
 
+        // A thumbnail follows the edits once they pause, rather than at every slider tick.
+        _thumbRefresh = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(600) };
+        _thumbRefresh.Tick += (_, _) => { _thumbRefresh.Stop(); RefreshCurrentThumbnail(); };
+
         LoadImage(0);
 
         // A single image has nothing to grid/scatter — the other modes only make sense with several.
-        if (paths.Count > 1) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
+        if (paths.Count > 1 || initialMode == ImageViewMode.Edit) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
+    }
+
+    private static Task RunHere(Action action)
+    {
+        action();
+        return Task.CompletedTask;
     }
 
     // ── Thumbnails ────────────────────────────────────────────────────────
@@ -365,7 +532,26 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (_thumbsRequested || _shell is null || Thumbnails.Count == 0) return;
         _thumbsRequested = true;
-        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell), ct: _cts.Token);
+        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing), ct: _cts.Token);
+    }
+
+    /// <summary>The current photo's thumbnail, redrawn with its edits — once the grids have thumbnails to show.</summary>
+    private void RefreshCurrentThumbnail()
+    {
+        if (!_thumbsRequested || CurrentSession is not { } session) return;
+        var item = Thumbnails.FirstOrDefault(t => string.Equals(t.FilePath, session.Path, StringComparison.OrdinalIgnoreCase));
+        if (item is null || session.Proxy is not { } proxy) return;
+
+        var recipe = session.Recipe;
+        var output = CropGeometry.OutputSize(recipe, proxy.SourceSize);
+        double scale = Math.Min(1, (double)ThumbSize / Math.Max(output.Width, output.Height));
+        _ = Task.Run(() =>
+        {
+            using var picture = session.Snapshot(recipe, new RenderRequest(RenderFrame.Output, scale));
+            if (picture is null) return;
+            var bitmap = SkiaWpf.ToFrozenBitmap(picture);
+            _ = (_shell?.RunOnUiAsync(() => item.Thumbnail = bitmap) ?? RunHere(() => item.Thumbnail = bitmap));
+        });
     }
 
     // ── Collage scatter (deterministic so it doesn't reshuffle on re-entry) ──
@@ -392,6 +578,11 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     // ── Image loading ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Shows the photo at <paramref name="index"/>: re-points the strips at once, opens (or reuses) its edit session —
+    /// recipe and history — and decodes it off the UI thread at the size the screen needs, rendering as soon as
+    /// there are pixels.
+    /// </summary>
     private void LoadImage(int index)
     {
         if (index < 0 || index >= _paths.Count) return;
@@ -409,36 +600,101 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         PreviousCommand.NotifyCanExecuteChanged();
         NextCommand.NotifyCanExecuteChanged();
 
-        try
-        {
-            var bi = new BitmapImage();
-            bi.BeginInit();
-            bi.CacheOption   = BitmapCacheOption.OnLoad;
-            bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            if (File.Exists(path))
-            {
-                // Real file: let WPF open it directly (the proven path).
-                bi.UriSource = new Uri(path, UriKind.Absolute);
-                bi.EndInit();
-            }
-            else
-            {
-                // In-archive image: decode through the VFS. OnLoad caches the whole frame at EndInit,
-                // so the backing stream is safe to dispose immediately after.
-                using var src = VirtualFileSystem.Instance.OpenRead(path);
-                using var ms = new MemoryStream();
-                src.CopyTo(ms);
-                ms.Position = 0;
-                bi.StreamSource = ms;
-                bi.EndInit();
-            }
-            bi.Freeze();
-            CurrentImage = bi;
-        }
-        catch
-        {
-            CurrentImage = null;
-        }
+        ShowSession(_sessions.Open(path));
+    }
+
+    private void ShowSession(ImageEditSession session)
+    {
+        if (ReferenceEquals(CurrentSession, session) && session.Proxy is not null) { RequestRender(); return; }
+
+        if (CurrentSession is { } previous) previous.RecipeChanged -= OnRecipeChanged;
+        _sidecarWatch?.Dispose();
+        _sidecarWatch = null;
+
+        CurrentSession = session;
+        _display.Show(session);
+        session.RecipeChanged += OnRecipeChanged;
+        LoadFailed = false;
+        Canvas = null;
+        Editor.OnSessionChanged();
+
+        if (session.CanPersist && _shell is not null)
+            _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
+
+        RequestRender();
+    }
+
+    private void CloseSession(string path)
+    {
+    if (_sessions.Remove(path) is not { } session) return;
+    if (ReferenceEquals(CurrentSession, session))
+    {
+        session.RecipeChanged -= OnRecipeChanged;
+        _sidecarWatch?.Dispose();
+        _sidecarWatch = null;
+        _display.Show(null);
+        CurrentSession = null;
+    }
+    session.Dispose();
+    }
+
+    /// <summary>Closes and reopens the current photo — after a save has replaced the file under it.</summary>
+    internal void ReloadCurrent()
+    {
+        if (CurrentSession is not { } session) return;
+        CloseSession(session.Path);
+        LoadImage(CurrentIndex);
+    }
+
+    private void ShowNothing()
+    {
+        if (CurrentSession is { } session) CloseSession(session.Path);
+        _display.Clear();
+        Canvas = null;
+    }
+
+    private void OnRecipeChanged()
+    {
+        OnPropertyChanged(nameof(CurrentRecipe));
+        OnPropertyChanged(nameof(IsEdited));
+        OnPropertyChanged(nameof(HasChangedSourceNotice));
+        OnPropertyChanged(nameof(SessionOnlyNotice));
+        OnPropertyChanged(nameof(HasSessionOnlyNotice));
+        OnPropertyChanged(nameof(ShowsEditedMark));
+        OnPropertyChanged(nameof(ShowsSessionOnlyNotice));
+        UndoEditCommand.NotifyCanExecuteChanged();
+        RedoEditCommand.NotifyCanExecuteChanged();
+        Editor.OnRecipeChanged();
+        RequestRender();
+
+        _thumbRefresh.Stop();
+        _thumbRefresh.Start();
+    }
+
+    // ── Rendering ─────────────────────────────────────────────────────────
+
+    /// <summary>The surface the current image is shown on changed size (device-independent pixels) or density.</summary>
+    public void SetViewport(double width, double height, double pixelsPerDip)
+    {
+    if (_display.SetViewport(width, height, pixelsPerDip)) RequestRender();
+    }
+
+    /// <summary>The edit canvas was zoomed: render more (or fewer) pixels for the same layout.</summary>
+    public void SetEditZoom(double zoom)
+    {
+    if (_display.SetEditZoom(zoom) && IsEditing) RequestRender();
+    }
+
+    /// <summary>Renders the current photo for the way it is being shown: on the edit canvas or not, before or after, fitted or at 100%.</summary>
+    internal void RequestRender() =>
+        _display.Render(new ImageDisplayMode(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow));
+
+    /// <summary>The current photo has pixels — its first decode, or a sharper one: the editor and the frame catch up.</summary>
+    private void OnDecoded(ImageEditSession session)
+    {
+        if (!ReferenceEquals(CurrentSession, session)) return;
+        Editor.OnSessionChanged();
+        RequestRender();
     }
 
     // ── IContextPreview ───────────────────────────────────────────────────
@@ -469,10 +725,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             ImageViewMode.Album   => "album grid",
             ImageViewMode.Explore => "explore",
             ImageViewMode.Collage => "collage",
+            ImageViewMode.Edit    => "editing",
             _                     => "carousel",
         };
         var position = TotalImages == 1 ? string.Empty : $" ({CurrentIndex + 1} of {TotalImages})";
-        return $"Image viewer ({mode}): '{CurrentFileName}'{position} — {DescribeCurrentImage()}. "
+        var edited = IsEdited ? " It has edits, shown as they would be saved." : string.Empty;
+        return $"Image viewer ({mode}): '{CurrentFileName}'{position} — {DescribeCurrentImage()}.{edited} "
              + "Call capture_image to see the picture itself, or get_image_info for its metadata.";
     }
 
@@ -480,8 +738,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     public string? GetAiSystemPromptGuidance() =>
         "One or more images are open. To see the picture the user is looking at, call capture_image — it "
-      + "returns the current image to you as a vision attachment. Use next_image / previous_image to move "
-      + "through a multi-image set, and get_image_info for dimensions, format and size.";
+      + "returns the current image to you as a vision attachment, with any edits applied. Use next_image / "
+      + "previous_image to move through a multi-image set, and get_image_info for dimensions, format and size.";
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -534,7 +792,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     ];
 
     /// <summary>Shared body for next_image / previous_image: steps the viewer and reports the new position.
-    /// Stepping mutates UI-bound state (CurrentImage, the dot/thumbnail strips, command CanExecute) via
+    /// Stepping mutates UI-bound state (the session, the dot/thumbnail strips, command CanExecute) via
     /// LoadImage, so the change is marshalled to the UI thread — client tools run off it.</summary>
     private async Task<ToolResult> StepAsync(bool forward)
     {
@@ -556,7 +814,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     private string DescribeCurrentImage()
     {
         var parts = new List<string> { CurrentFormat() };
-        if (CurrentImage is { } img) parts.Add($"{img.PixelWidth}×{img.PixelHeight}px");
+        if (CurrentPixelSize() is { } px) parts.Add($"{px.Width}×{px.Height}px");
         var size = CurrentFileSize();
         if (size >= 0) parts.Add(SizeFormatter.FormatBytes(size));
         return string.Join(", ", parts);
@@ -570,12 +828,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             $"File: {CurrentFileName}",
             $"Format: {CurrentFormat()}",
         };
-        if (CurrentImage is { } img) lines.Add($"Dimensions: {img.PixelWidth}×{img.PixelHeight} px");
+        if (CurrentPixelSize() is { } px) lines.Add($"Dimensions: {px.Width}×{px.Height} px{(IsEdited ? " (as edited)" : string.Empty)}");
         var size = CurrentFileSize();
         if (size >= 0) lines.Add($"Size: {SizeFormatter.FormatBytes(size)}");
         lines.Add(TotalImages == 1 ? "Position: single image" : $"Position: {CurrentIndex + 1} of {TotalImages}");
         return string.Join("\n", lines);
     }
+
+    /// <summary>The picture's size as shown — edits applied — once it is decoded.</summary>
+    private SKSizeI? CurrentPixelSize() => CurrentSession?.OutputSize(CurrentRecipe);
 
     /// <summary>Upper-case format name from the current file's extension (e.g. PNG, JPEG); "image" if none.</summary>
     private string CurrentFormat()
@@ -597,29 +858,29 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         catch { return -1; }
     }
 
-    /// <summary>Encodes the current (frozen) bitmap to PNG bytes for the model to view; null when nothing is loaded.</summary>
+    /// <summary>
+    /// The current picture, edits applied, as PNG bytes for the model to view — rendered by the same pipeline as the
+    /// screen, at most <see cref="CaptureEdge"/> on its longer side; null when nothing is decoded. Safe off the UI thread.
+    /// </summary>
     private byte[]? EncodeCurrentPng()
     {
-        var src = CurrentImage;
-        if (src is null) return null;
-        try
-        {
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(src));
-            using var ms = new MemoryStream();
-            encoder.Save(ms);
-            return ms.ToArray();
-        }
-        catch
-        {
-            return null;
-        }
+        if (CurrentSession is not { } session || session.OutputSize(session.Recipe) is not { } output) return null;
+        double scale = Math.Min(1, (double)CaptureEdge / Math.Max(output.Width, output.Height));
+        using var picture = session.Snapshot(session.Recipe, new RenderRequest(RenderFrame.Output, scale));
+        using var data = picture?.Encode(SKEncodedImageFormat.Png, 100);
+        return data?.ToArray();
     }
 
     public void Dispose()
     {
         _autoTimer.Stop();
+        _thumbRefresh.Stop();
         _cts.Cancel();
+        _sidecarWatch?.Dispose();
+        if (CurrentSession is { } current) CloseSession(current.Path);
+        _sessions.Dispose();
+        _display.Dispose();
+        if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }
 }

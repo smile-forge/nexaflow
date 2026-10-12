@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The AI host's wire protocol: the messages the app and Nexaflow.AiHost exchange over their private pipe, and the
+    channel that frames them. Shared by both ends so the format cannot drift. WPF-free and behaviour-free beyond the
+    framing — the host references nothing else of the app's.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+</Project>

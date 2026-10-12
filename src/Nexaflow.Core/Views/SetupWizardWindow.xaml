@@ -14,6 +14,7 @@
 
     <Window.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
 
         <!-- Step content: a ConfigEditViewModel renders via the shared editor view. -->
         <DataTemplate DataType="{x:Type vm:ConfigEditViewModel}">
@@ -44,6 +45,42 @@
                         </Style>
                     </ListBox.ItemContainerStyle>
                 </ListBox>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Who runs the AI. -->
+        <DataTemplate DataType="{x:Type vm:WizardHarnessContent}">
+            <StackPanel>
+                <TextBlock Text="Nexaflow can run a model itself on this machine, use a provider you choose, or both."
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,14" TextWrapping="Wrap"/>
+                <RadioButton GroupName="Harness" IsChecked="{Binding IsMixed, Mode=TwoWay}" Margin="0,0,0,12"
+                             AutomationProperties.AutomationId="WizardHarness_Mixed">
+                    <StackPanel>
+                        <TextBlock Text="Both" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding ModelName, StringFormat='{}{0} handles the frequent work — routing requests, analysing pages, describing images — and the provider you choose next holds the conversation. Each stands in for the other.'}"
+                                   FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="Harness" IsChecked="{Binding IsOwned, Mode=TwoWay}" Margin="0,0,0,12"
+                             AutomationProperties.AutomationId="WizardHarness_Owned">
+                    <StackPanel>
+                        <TextBlock Text="Nexaflow runs it" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding ModelName, StringFormat='{}{0} answers everything, on this machine. Nothing leaves it, and no subscription is needed; it is weaker than a frontier model.'}"
+                                   FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="Harness" IsChecked="{Binding IsBridged, Mode=TwoWay}" Margin="0,0,0,16"
+                             AutomationProperties.AutomationId="WizardHarness_Bridged">
+                    <StackPanel>
+                        <TextBlock Text="A provider you choose" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="Claude, OpenAI, Gemini, Ollama or Aria answers everything; nothing is downloaded."
+                                   FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </RadioButton>
+                <TextBlock Text="{Binding HardwareText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding DownloadText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                           Margin="0,4,0,0" Visibility="{Binding IsBridged, Converter={StaticResource InverseBoolVis}}"/>
             </StackPanel>
         </DataTemplate>
 

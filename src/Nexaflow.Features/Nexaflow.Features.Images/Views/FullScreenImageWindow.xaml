@@ -13,11 +13,7 @@
 
     <Grid>
         <Viewbox Stretch="Uniform" Margin="24">
-            <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
-                <Image.LayoutTransform>
-                    <RotateTransform Angle="{Binding RotationAngle}"/>
-                </Image.LayoutTransform>
-            </Image>
+            <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality"/>
         </Viewbox>
 
         <TextBlock Text="{Binding CurrentFileName}" Foreground="{StaticResource TextBrush}"

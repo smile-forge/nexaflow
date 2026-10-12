@@ -32,6 +32,7 @@ public sealed class ProviderManager
 
     private IBackgroundActivityManager? _activityManager;
     private ModelAssetStore?            _assets;
+    private IReadOnlyList<object>       _services = [];
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -58,10 +59,13 @@ public sealed class ProviderManager
     private ProviderManager() { }
 
     /// <summary>Must be called once at startup before any Load method.</summary>
-    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets)
+    /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
+    /// the machine's compute hardware.</param>
+    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets, params object[] services)
     {
         _activityManager = activityManager;
         _assets          = assets;
+        _services        = services;
     }
 
     /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
@@ -69,6 +73,14 @@ public sealed class ProviderManager
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
+
+    /// <summary>An app-wide service given to <see cref="Initialize"/>, or null.</summary>
+    public T? Service<T>() where T : class => _services.OfType<T>().FirstOrDefault();
+
+    /// <summary>Whether the loaded provider assembly <paramref name="assemblyFileName"/> defines no config — its providers
+    /// need nothing set to be used. False for an assembly not loaded.</summary>
+    public bool TakesNoConfig(string assemblyFileName)
+        => _descriptors.FirstOrDefault(d => string.Equals(d.FileName, assemblyFileName, StringComparison.OrdinalIgnoreCase)) is { ConfigTypes.Count: 0 };
 
     /// <summary>
     /// Loads only the assemblies listed in <paramref name="assemblyFileNames"/>.
@@ -206,7 +218,8 @@ public sealed class ProviderManager
             typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType) ? (object?)_activityManager
             : typeof(IModelAssetStore).IsAssignableFrom(p.ParameterType)           ? _assets
             : p.ParameterType == typeof(ProviderModel)                           ? new ProviderModel(model)
-            : configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
+            : _services.FirstOrDefault(p.ParameterType.IsInstanceOfType)
+              ?? configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
             .ToArray();
         return (IAiProvider)ctor.Invoke(args);
     }

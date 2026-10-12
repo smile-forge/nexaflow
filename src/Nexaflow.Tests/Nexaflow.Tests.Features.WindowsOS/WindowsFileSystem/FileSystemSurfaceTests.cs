@@ -466,7 +466,7 @@ public class FileSystemSurfaceTests
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" },
                                new FileSystemEntry { Name = "b.txt", FullPath = @"C:\work\b.txt" }]);
 
-        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles()));
+        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles(shell)));
 
         CollectionAssert.AreEqual(new[] { @"C:\work\a.txt", @"C:\work\b.txt" }, paths,
                                   "the pin remembers the files, so pressing it later re-runs on the same ones");
@@ -479,7 +479,7 @@ public class FileSystemSurfaceTests
         var vm = AtScratch(out var shell);
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
 
-        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles()));
+        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell)));
         var paths = PinnedPaths(vm, shell, folderAction);
 
         CollectionAssert.AreEqual(new[] { _scratch }, paths,

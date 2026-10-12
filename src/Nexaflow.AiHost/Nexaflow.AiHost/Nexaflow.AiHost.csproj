@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The AI host: the process every model Nexaflow runs itself is loaded in — onnxruntime-genai and ONNX Runtime, one
+    CUDA stack, one owner for the GPU. Started on demand by the app's AiHostClient, bound to its kill-on-close job,
+    and spoken to over a private pipe (Nexaflow.AiHost.Contracts). A native crash or a hang here costs a restart, not
+    the app; see docs/local-ai.md.
+
+    Ships in the base install without the CUDA pack: on machines that can use CUDA, the pack — ONNX Runtime and
+    onnxruntime-genai with their CUDA layers, and NVIDIA's cuBLAS and cuDNN — is downloaded into the AI folder and the
+    host loads its runtime from there (NativeRuntime). The install's own runtime is the CPU one, so the CUDA layers are
+    left out of this output (ExcludeCudaPack).
+  -->
+  <PropertyGroup>
+    <!-- WinExe: no console is allocated, so starting the host never flashes a window. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>Nexaflow.AiHost</AssemblyName>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.17.1" />
+    <!-- ONNX's protobuf schema (MIT), for the adapters that rewrite a downloaded model's graph headers. -->
+    <PackageReference Include="OnnxSharp" Version="0.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <!-- ComputeHardware: the GPU memory the VRAM budget is drawn from. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.AiHost" />
+  </ItemGroup>
+
+  <!-- The CUDA pack's files come from the AI folder at run time, never from the install. The packages hand their
+       natives over twice — as package assets and as None items their props copy — so both are filtered. -->
+  <PropertyGroup>
+    <_CudaPackFiles>;onnxruntime_providers_cuda;onnxruntime_providers_tensorrt;onnxruntime-genai-cuda;</_CudaPackFiles>
+  </PropertyGroup>
+
+  <Target Name="ExcludeCudaPackAssets" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)"
+                            Condition="'%(Extension)' == '.lib' or $(_CudaPackFiles.Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ExcludeCudaPackCopies" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <None Remove="@(None)" Condition="'%(Extension)' == '.dll' and $(_CudaPackFiles.Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>
