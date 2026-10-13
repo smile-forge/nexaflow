@@ -1,14 +1,16 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phases 1 and 2 built.** Replies stream through the agent harness; each ability is served by a chain of
+**Status: phases 1, 2 and 3 built.** Replies stream through the agent harness; each ability is served by a chain of
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
 models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
 transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on CUDA from a pack fetched from where NVIDIA and
 Microsoft publish it, or on the CPU — as the provider "Nexaflow", chosen when a workspace is set up; tools can hand a
-model recordings to hear; and an AI-path suite runs the agent loop on it. Voice (phase 3) and generation tools
-(phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and the
-order to build it in. Where it names a type, check for collisions before introducing it.
+model recordings to hear; and an AI-path suite runs the agent loop on it. Every model calls tools in its own protocol.
+A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
+Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. Generation
+tools (phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and
+the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -611,7 +613,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B prepared from the onnx-community export, with the append-only context; the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. Open: Windows ML's providers, with a model built for one | large |
-| 3. Voice | speech in the host; the text-to-speech contract; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay | large |
+| 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
