@@ -177,7 +177,6 @@ public sealed partial class ContentEngine
     internal ContentPart? Blocked(int offset)
     {
         if (_named is not null) return ReadRoot;
-        if (_window is { } window) return window.Blocked(offset);
 
         foreach (var block in ReadRoot.Children)
             if (!block.Derived && block.Role != Roles.Trivia && offset >= block.Start && offset < block.End)
@@ -195,9 +194,8 @@ public sealed partial class ContentEngine
         if (_named is not null) return null;
 
         var passed = false;
-        IEnumerable<ContentPart> blocks = _window is { } window ? window.Blocks() : ReadRoot.Children;
 
-        foreach (var block in blocks)
+        foreach (var block in ReadRoot.Children)
         {
             if (block.Derived || block.Role == Roles.Trivia) continue;
             if (passed) return block;

@@ -38,17 +38,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
-          "class": "LaidStretch"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
-          "class": "LayoutBuilder",
-          "method": "Graft"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
           "class": "ContentChunks",
           "method": "Edited"

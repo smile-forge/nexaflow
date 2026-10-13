@@ -158,20 +158,25 @@ public sealed class ContentChunks(string source, string language)
         _chunks[at] = chunk;
     }
 
-    /// <summary>The document as one tree: every chunk's own parts, what is still unread, and what the last chunk read said about the whole.</summary>
-    public ContentNode Tree()
+    /// <summary>
+    /// The document as one tree: the own parts of the first <paramref name="count"/> chunks — all of them, where it says none —
+    /// what is not among them held as written, and what the last of them said about the whole.
+    /// </summary>
+    public ContentNode Tree(int? count = null)
     {
+        var taken = Math.Min(count ?? _chunks.Count, _chunks.Count);
         var parts = new List<ContentNode>();
 
-        foreach (var chunk in _chunks)
-            foreach (var part in chunk.Placed.Children)
+        for (var at = 0; at < taken; at++)
+            foreach (var part in _chunks[at].Placed.Children)
                 if (!part.IsDerived) parts.Add(part);
 
-        if (Reached < source.Length)
-            parts.Add(ContentNode.Leaf(Kinds.Unreached, source[Reached..], Roles.Trivia, offset: Reached));
+        var reached = taken == 0 ? 0 : _chunks[taken - 1].End(source.Length);
+        if (reached < source.Length)
+            parts.Add(ContentNode.Leaf(Kinds.Unreached, source[reached..], Roles.Trivia, offset: reached));
 
-        if (_chunks.Count > 0)
-            foreach (var part in _chunks[^1].Placed.Children)
+        if (taken > 0)
+            foreach (var part in _chunks[taken - 1].Placed.Children)
                 if (part.IsDerived) parts.Add(part);
 
         return new BlockNode(language, parts, offset: source.Length > 0 ? 0 : null);

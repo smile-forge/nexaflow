@@ -30,8 +30,12 @@ public class WindowedLayoutTests
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
 
-    /// <summary>A stretch a few blocks long, and one most samples fit in a handful of.</summary>
-    private static readonly int[] Lengths = [64, 1024];
+    /// <summary>
+    /// How long the stretches <paramref name="text"/> is laid in are: a few blocks long and a handful of paragraphs long — or, for
+    /// a long sample, about thirty stretches and about eight. Every stretch taken in lays the reading again, so a long sample in
+    /// stretches of a few blocks is hundreds of layings out, where thirty seams test as much.
+    /// </summary>
+    private static int[] Lengths(string text) => text.Length < 16 * 1024 ? [64, 1024] : [text.Length / 32, text.Length / 8];
 
     [TestMethod]
     public void EveryMarkdownSample_LaidAStretchAtATime_IsTheSampleLaidWhole()
@@ -40,8 +44,12 @@ public class WindowedLayoutTests
         documents.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
 
         foreach (var path in documents)
-            foreach (var length in Lengths)
-                Same(Whole(File.ReadAllText(path), null), Stretched(File.ReadAllText(path), null, length), $"{Path.GetFileName(path)} at {length}");
+        {
+            var text = File.ReadAllText(path);
+
+            foreach (var length in Lengths(text))
+                Same(Whole(text, null), Stretched(text, null, length), $"{Path.GetFileName(path)} at {length}");
+        }
     }
 
     [TestMethod]
@@ -51,7 +59,7 @@ public class WindowedLayoutTests
         {
             var text = File.ReadAllText(path, Encoding.Latin1);
 
-            foreach (var length in Lengths)
+            foreach (var length in Lengths(text))
                 Same(Whole(text, RtfParser.Language), Stretched(text, RtfParser.Language, length), $"{Path.GetFileName(path)} at {length}");
         }
     }

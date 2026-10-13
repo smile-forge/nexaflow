@@ -73,13 +73,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// What the content read to when it was last laid out — its worked-over tree, the one the layout was drawn from — or null
     /// before it has been.
     /// </summary>
-    public ContentReading? Reading
-    {
-        get => _window is { } window ? window.Document ??= ContentReading.Of(window.Chunks.Tree(), 0, window.Source) : _readFrom;
-        private set => _readFrom = value;
-    }
-
-    private ContentReading? _readFrom;
+    public ContentReading? Reading { get; private set; }
 
     /// <summary>
     /// <paramref name="state"/>'s source laid out at <paramref name="room"/>, written in the language called
@@ -90,8 +84,16 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var language = Language(named);
 
         Turn();
-        var top = Parse(language, named, state.Source);
 
+        return LaidFrom(language, named, Parse(language, named, state.Source), state, style, room, readOnly);
+    }
+
+    /// <summary>
+    /// What <paramref name="top"/> — <paramref name="state"/>'s source as its language read it — comes to laid out at
+    /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is.
+    /// </summary>
+    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, StyleFormat style, double room, bool readOnly)
+    {
         Views(top);
         if (_top is { } opened) style = style with { Expansion = opened };
 
@@ -134,7 +136,6 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public void Forget()
     {
         _unchanged.Forget();
-        _window?.Laid.Clear();
         _before = [];
         _now = [];
     }
@@ -271,28 +272,27 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         if (_top is not null) return;
 
         Held(top.Tree, 0);
-    }
 
-    /// <summary>What the reader has opened in each diagram <paramref name="node"/> holds, which starts at <paramref name="at"/>, handed out next.</summary>
-    private void Held(ContentNode node, int at)
-    {
-        if (ContentNested.Language(node) is { } language)
+        void Held(ContentNode node, int at)
         {
-            if (!ContentLanguages.Reads(language)) return;
+            if (ContentNested.Language(node) is { } language)
+            {
+                if (!ContentLanguages.Reads(language)) return;
+
+                foreach (var child in node.Children)
+                {
+                    if (child.Kind == Kinds.Nested) { _views[at] = _opened.Next(); return; }
+                    at += child.Width;
+                }
+
+                return;
+            }
 
             foreach (var child in node.Children)
             {
-                if (child.Kind == Kinds.Nested) { _views[at] = _opened.Next(); return; }
+                Held(child, at);
                 at += child.Width;
             }
-
-            return;
-        }
-
-        foreach (var child in node.Children)
-        {
-            Held(child, at);
-            at += child.Width;
         }
     }
 
