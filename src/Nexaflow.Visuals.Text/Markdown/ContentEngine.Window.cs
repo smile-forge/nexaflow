@@ -206,7 +206,7 @@ public sealed partial class ContentEngine
         var first = ContentChunk.Read(parse, source, 0, StretchLength, null, null);
         var named = (first.Tree as BlockNode)?.Language ?? _named ?? string.Empty;
 
-        var window = new ContentWindow(language, source, new ContentChunks(source, named), parse) { Taken = 1 };
+        var window = new ContentWindow(language, source, new ContentChunks(source, named), parse) { Taken = 1, Length = StretchLength };
         window.Chunks.Add(first);
 
         return _window = window;
@@ -233,7 +233,7 @@ public sealed partial class ContentEngine
         var taken = 1;
         while (taken < chunks.Chunks.Count && chunks.Chunks[taken].From < laidTo) taken++;
 
-        return _window = new ContentWindow(window.Language, source, chunks, window.Parse) { Taken = taken };
+        return _window = new ContentWindow(window.Language, source, chunks, window.Parse) { Taken = taken, Length = StretchLength };
     }
 
     /// <summary>Stops showing content a stretch at a time, where it was.</summary>
@@ -290,27 +290,41 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// What the content reads as where that is what it draws (<see cref="ReadsAsDrawn"/>): what is laid, gathered from the page
-    /// — or, for a long document shown a stretch at a time, most of which is not laid, what all of it read to, read to its end
-    /// first, so a search or a copy reaches every word of it rather than what the reader has scrolled past.
+    /// What the content reads as where that is what it draws (<see cref="ReadsAsDrawn"/>), read from what it read to — for a long
+    /// document shown a stretch at a time, all of it, read to its end first, so a search or a copy reaches every word rather than
+    /// what the reader has scrolled past.
     /// </summary>
-    internal DrawnText DrawnWords => _window is { } window ? window.Words ??= DrawnText.Of(Everything(window)) : DrawnText.Of(_laid);
+    internal DrawnText DrawnWords
+    {
+        get
+        {
+            if (_window is { } window) return window.Words ??= DrawnText.Of(Everything(window));
 
-    /// <summary>Every block of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
-    private IEnumerable<ContentNode> Everything(ContentWindow window)
+            if (!ReferenceEquals(_wordsOf, Reading)) (_words, _wordsOf) = (DrawnText.Of((Reading?.Root ?? NothingRead).Node), Reading);
+
+            return _words!;
+        }
+    }
+
+    /// <summary>What <see cref="DrawnWords"/> came to, and the reading it was read from.</summary>
+    private DrawnText? _words;
+    private ContentReading? _wordsOf;
+
+    /// <summary>All of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
+    private static ContentNode Everything(ContentWindow window)
     {
         if (!window.Chunks.Done)
         {
             window.Read?.Wait();
             Received(window);
 
-            while (window.Chunks.Next(StretchLength) is { } next)
+            while (window.Chunks.Next(window.Length) is { } next)
                 window.Chunks.Add(ContentChunk.Read(window.Parse, window.Source, next.From, next.SoftMaxLength, next.Resume, null));
 
             window.Altered();
         }
 
-        return window.Chunks.Chunks.SelectMany(chunk => chunk.Placed.Children.Where(part => !part.IsDerived));
+        return window.Chunks.Tree();
     }
 
     /// <summary>Every chunk of a windowed document read so far, as one reading — for a heading the layout has not reached.</summary>
@@ -387,6 +401,9 @@ internal sealed class ContentWindow(ContentLanguage language, string source, Con
 
     /// <summary>The parse the stretches read here are read by — another reads them in the background.</summary>
     public Func<ContentStretch, ContentParse> Parse { get; } = parse;
+
+    /// <summary>How far a stretch is read before it looks for somewhere to stop.</summary>
+    public required int Length { get; init; }
 
     /// <summary>How many of the chunks, from the first, are taken into the reading that is laid.</summary>
     public int Taken { get; set; }

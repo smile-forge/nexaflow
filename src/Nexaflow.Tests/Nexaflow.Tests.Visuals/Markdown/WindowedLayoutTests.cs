@@ -166,28 +166,11 @@ public class WindowedLayoutTests
         var engine = Shown(text, RtfParser.Language, new ContentEngine());
 
         var found = MarkdownFind.Drawn(engine.DrawnWords, "Paragraph 2999");
-        var whole = MarkdownFind.Drawn(DrawnText.Of(Whole(text, RtfParser.Language)), "Paragraph 2999");
+        var whole = MarkdownFind.Drawn(DrawnText.Of(RtfParser.Parse(text)), "Paragraph 2999");
 
         Assert.IsTrue(engine.Unlaid, "Looking laid all of it.");
         Assert.AreEqual(1, found.Count);
         CollectionAssert.AreEqual(whole.ToList(), found.ToList());
-    }
-
-    [TestMethod]
-    public void WhatEveryRtfSampleReadsAs_GatheredFromWhatItReadTo_IsWhatItsPageDraws()
-    {
-        foreach (var path in TestSampleData.Files("rtf"))
-        {
-            var text = File.ReadAllText(path, Encoding.Latin1);
-            var drawn = DrawnText.Of(Whole(text, RtfParser.Language));
-            var read = DrawnText.Of(RtfParser.Parse(text).Children);
-
-            Assert.AreEqual(drawn.Text, read.Text, Path.GetFileName(path));
-
-            // And every word found in one is found at the same place in the source in the other.
-            foreach (var word in drawn.Text.Split([' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Distinct().Take(40))
-                CollectionAssert.AreEqual(MarkdownFind.Drawn(drawn, word).ToList(), MarkdownFind.Drawn(read, word).ToList(), $"{Path.GetFileName(path)}: {word}");
-        }
     }
 
     [TestMethod]

@@ -29,9 +29,7 @@ public class RtfDrawingTests
     [TestMethod]
     public void OnlyTheWordsAreDrawn_NeverTheControlWordsRoundThem()
     {
-        var laid = Lay(Header + @"\pard Plain {\b bold} and {\cf1 red}\par Next\par}");
-
-        Assert.AreEqual("Plain bold and red\nNext", DrawnText.Of(laid).Text);
+        Assert.AreEqual("Plain bold and red\nNext", Read(Header + @"\pard Plain {\b bold} and {\cf1 red}\par Next\par}").Text);
     }
 
     [TestMethod]
@@ -143,11 +141,11 @@ public class RtfDrawingTests
     public void ASearchFindsTheWordsDrawn_NotTheControlWords()
     {
         const string source = @"{\rtf1\pard\par Keep the {\b paragraph} here.\par}";
-        var laid = Lay(source);
+        var read = Read(source);
 
-        Assert.AreEqual(0, MarkdownFind.Drawn(laid, "pard").Count, "a control word is not a word");
+        Assert.AreEqual(0, MarkdownFind.Drawn(read, "pard").Count, "a control word is not a word");
 
-        var found = MarkdownFind.Drawn(laid, "paragraph").Single();
+        var found = MarkdownFind.Drawn(read, "paragraph").Single();
         Assert.AreEqual(source.IndexOf("paragraph", StringComparison.Ordinal), found.Start);
         Assert.AreEqual("paragraph".Length, found.Length);
     }
@@ -156,7 +154,7 @@ public class RtfDrawingTests
     public void ASearchFindsAWordWhoseLettersAreSetDifferently()
     {
         const string source = @"{\rtf1 hel{\b lo} world\par}";
-        var found = MarkdownFind.Drawn(Lay(source), "hello").Single();
+        var found = MarkdownFind.Drawn(Read(source), "hello").Single();
 
         Assert.AreEqual(source.IndexOf("hel", StringComparison.Ordinal), found.Start);
         Assert.AreEqual(source.IndexOf("lo}", StringComparison.Ordinal) + 2, found.Start + found.Length);
@@ -165,7 +163,7 @@ public class RtfDrawingTests
     [TestMethod]
     public void ACharacterWrittenAsACodeIsFoundAsTheCharacter()
     {
-        var found = MarkdownFind.Drawn(Lay(@"{\rtf1\ansi caf\'e9\par}"), "caf" + (char)0xE9);
+        var found = MarkdownFind.Drawn(Read(@"{\rtf1\ansi caf\'e9\par}"), "caf" + (char)0xE9);
 
         Assert.AreEqual(1, found.Count);
     }
@@ -175,7 +173,7 @@ public class RtfDrawingTests
     {
         var words = string.Join(" ", Enumerable.Repeat("filler", 30)) + " needle";
         var source = @"{\rtf1 " + words + @"\par}";
-        var found = MarkdownFind.Drawn(Lay(source, room: 200), "needle").Single();
+        var found = MarkdownFind.Drawn(Read(source), "needle").Single();
 
         Assert.AreEqual(source.IndexOf("needle", StringComparison.Ordinal), found.Start);
     }
@@ -184,7 +182,7 @@ public class RtfDrawingTests
     public void WhatIsPickedOutIsCopiedAsItsWords()
     {
         const string source = @"{\rtf1 one {\b two} three\par four\par}";
-        var read = DrawnText.Of(Lay(source));
+        var read = Read(source);
         var from = source.IndexOf("two", StringComparison.Ordinal);
         var to = source.IndexOf("four", StringComparison.Ordinal) + 4;
 
@@ -205,10 +203,10 @@ public class RtfDrawingTests
     [TestMethod]
     public void ATableIsDrawnAsItsCells()
     {
-        var laid = Lay(@"{\rtf1\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row}");
+        const string source = @"{\rtf1\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row}";
 
-        Assert.AreEqual(2, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == MarkdownPieces.Cell));
-        Assert.AreEqual("A\nB", DrawnText.Of(laid).Text);
+        Assert.AreEqual(2, Lay(source).Root.SelfAndDescendants().Count(piece => piece.Kind == MarkdownPieces.Cell));
+        Assert.AreEqual("A\nB", Read(source).Text);
     }
 
     [TestMethod]
@@ -222,6 +220,9 @@ public class RtfDrawingTests
 
     private static Laid Lay(string source, double room = 480) =>
         Laying.Lay(RtfParser.Language, source, room, StyleFormat.Light);
+
+    /// <summary>What the document reads as, read from what it read to.</summary>
+    private static DrawnText Read(string source) => DrawnText.Of(RtfParser.Parse(source));
 
     private static List<Piece> Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants()
