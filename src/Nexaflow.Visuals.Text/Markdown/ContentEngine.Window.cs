@@ -9,6 +9,7 @@ using System.Windows;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -32,6 +33,13 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>What is not taken yet is read in the background</strong> — its tree only — so the stretches the reader scrolls to
 /// are already read. What lands is taken in the next time the content is laid, and whatever shows the content is told
 /// (<see cref="Grew"/>) so that is soon.
+/// </para>
+/// <para>
+/// <strong>And worked over there, where its stages say what its links can name</strong> (<see cref="LinkTargets"/>): what a
+/// definition at the bottom says, or where a heading three pages down is, is known before anything there is laid. All of what
+/// is read is worked over by the content's stages, with nothing a host said — so nothing of the host's is asked off its thread
+/// — and what they found stands for everything past what is laid (<see cref="LinkTargets.Further"/>). Where that changes what a
+/// name means, the content is laid again, and every block reading as it did is set down as it was.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
@@ -122,7 +130,7 @@ public sealed partial class ContentEngine
 
         if (_reveal is { } target && window.LaidTo > target) (_revealed, _reveal) = (target, null);
         if (Short(window, reach, needed)) Grow();
-        if (window.Reading is null && (!window.Chunks.Done || window.Chunks.Unsettled().Any())) Background(window);
+        if (window.Reading is null && (!window.Chunks.Done || (window.Unstaged && _targets.Reported))) Background(window, style);
 
         // The page is as long as the whole document, going by what a character of what is laid came to.
         var (to, bottom) = (window.LaidTo, window.Bottom);
@@ -152,7 +160,7 @@ public sealed partial class ContentEngine
             {
                 if (chunks.Next(StretchLength) is not { } next) break;
 
-                chunks.Add(ContentChunk.Read(window.Parse, chunks.Source, next.From, next.SoftMaxLength, next.Resume, null));
+                chunks.Add(ContentChunk.Read(window.Parse, chunks.Source, next.From, next.SoftMaxLength, next.Resume));
                 window.Altered();
             }
 
@@ -201,9 +209,10 @@ public sealed partial class ContentEngine
     private ContentWindow Opened(ContentLanguage language, string source)
     {
         _window?.Reading?.Cancel();
+        _targets.Forget();
 
         var parse = language.Windowed!();
-        var first = ContentChunk.Read(parse, source, 0, StretchLength, null, null);
+        var first = ContentChunk.Read(parse, source, 0, StretchLength, null);
         var named = (first.Tree as BlockNode)?.Language ?? _named ?? string.Empty;
 
         var window = new ContentWindow(language, source, new ContentChunks(source, named), parse) { Taken = 1, Length = StretchLength };
@@ -216,6 +225,11 @@ public sealed partial class ContentEngine
     /// The window over what the document says now it has been written in: read again from where the change is
     /// (<see cref="ContentChunks.Edited"/>), and as much of it taken into the reading that is laid as was before — so the
     /// blocks laid before the change, and every one after it that reads as it did, are set down as they were laid.
+    ///
+    /// <para>
+    /// What was found past what is laid is moved along with it. Where the change read again past what is laid — a fence left
+    /// open — what is there may define otherwise than it did, and all of it is worked over again.
+    /// </para>
     /// </summary>
     private ContentWindow Rewritten(ContentWindow window, string source)
     {
@@ -233,46 +247,51 @@ public sealed partial class ContentEngine
         var taken = 1;
         while (taken < chunks.Chunks.Count && chunks.Chunks[taken].From < laidTo) taken++;
 
-        return _window = new ContentWindow(window.Language, source, chunks, window.Parse) { Taken = taken, Length = StretchLength };
+        _targets.Moved(window.LaidTo, by);
+
+        var was = new HashSet<ContentNode>(window.Chunks.Chunks.Select(chunk => chunk.Tree), ReferenceEqualityComparer.Instance);
+        var unstaged = window.Unstaged || chunks.Chunks.Skip(taken).Any(chunk => !was.Contains(chunk.Tree));
+
+        return _window = new ContentWindow(window.Language, source, chunks, window.Parse) { Taken = taken, Length = StretchLength, Unstaged = unstaged };
     }
 
     /// <summary>Stops showing content a stretch at a time, where it was.</summary>
     private void Closed()
     {
-        _window?.Reading?.Cancel();
+        if (_window is not { } window) return;
+
+        window.Reading?.Cancel();
+        _targets.Forget();
         _window = null;
         _reveal = null;
     }
 
-    /// <summary>Takes in what the background reading of <paramref name="window"/> has read since it was last asked.</summary>
-    private static void Received(ContentWindow window)
+    /// <summary>
+    /// Takes in what the background reading of <paramref name="window"/> has read and found since it was last asked; and says
+    /// whether what was found changes what any name past what is laid means.
+    /// </summary>
+    private bool Received(ContentWindow window)
     {
         var chunks = window.Chunks;
 
-        while (window.Arrived.TryDequeue(out var arrived))
+        // Read in the background from where the reading stood when it started; what was read here since is in already.
+        while (window.Arrived.TryDequeue(out var chunk))
         {
-            var chunk = arrived.Chunk;
+            if (chunk.From != chunks.Reached || chunks.Done) continue;
 
-            if (!arrived.Settles)
-            {
-                // Read in the background from where the reading stood when it started; what was read here since is in already.
-                if (chunk.From == chunks.Reached && !chunks.Done)
-                {
-                    chunks.Add(chunk);
-                    window.Altered();
-                }
-
-                continue;
-            }
-
-            // Read again knowing what the whole document says: laid again, where it is laid, as any block that reads otherwise is.
-            var at = chunks.Chunks.Count - 1;
-            while (at >= 0 && chunks.Chunks[at].From > chunk.From) at--;
-            if (at < 0 || chunks.Chunks[at].From != chunk.From) continue;
-
-            chunks.Settle(at, chunk);
+            chunks.Add(chunk);
             window.Altered();
         }
+
+        var further = false;
+
+        while (window.Staged.TryDequeue(out var staged))
+        {
+            further |= _targets.Further(staged.Reach, staged.Targets);
+            if (staged.Whole) window.Unstaged = false;
+        }
+
+        return further;
     }
 
     /// <summary>Says there is more to lay, once until it is laid.</summary>
@@ -311,26 +330,23 @@ public sealed partial class ContentEngine
     private ContentReading? _wordsOf;
 
     /// <summary>All of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
-    private static ContentNode Everything(ContentWindow window)
+    private ContentNode Everything(ContentWindow window)
     {
         if (!window.Chunks.Done)
         {
             window.Read?.Wait();
-            Received(window);
+
+            // What working all of it over found may make a name laid already mean something: it is laid again.
+            if (Received(window)) Grow();
 
             while (window.Chunks.Next(window.Length) is { } next)
-                window.Chunks.Add(ContentChunk.Read(window.Parse, window.Source, next.From, next.SoftMaxLength, next.Resume, null));
+                window.Chunks.Add(ContentChunk.Read(window.Parse, window.Source, next.From, next.SoftMaxLength, next.Resume));
 
             window.Altered();
         }
 
         return window.Chunks.Tree();
     }
-
-    /// <summary>Every chunk of a windowed document read so far, as one reading — for a heading the layout has not reached.</summary>
-    private ContentPart? WholeRead => _window is { } window
-        ? (window.Document ??= ContentReading.Of(window.Chunks.Tree(), 0, window.Source)).Root
-        : null;
 
     /// <summary>
     /// Where on the page what stands at <paramref name="offset"/> would come, going by what is laid — for what a long document
@@ -343,45 +359,52 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Reads the rest of <paramref name="window"/> away from the thread that lays content out — its tree only, a stretch at a
-    /// time, each handed back as it is read — and then, where the language reads a stretch by what the whole document says,
-    /// every stretch again knowing it. Says so when it is done.
+    /// time, each handed back as it is read — and, where the content's stages say what its links can name, works all of what is
+    /// read over with them: each time as much again has been read, so what the first stretches define is known early and all of
+    /// it costs no more than working the whole over twice, and once it is all read. Says so when it is done.
     /// </summary>
-    private void Background(ContentWindow window)
+    private void Background(ContentWindow window, StyleFormat style)
     {
         var cancel = new CancellationTokenSource();
         window.Reading = cancel;
 
-        // Read on from where reading here stopped, and kept, of every chunk, what is needed to read it again knowing what the
-        // whole document came to: where it starts and stops, what it started in, and what it was read knowing.
-        var chunks = window.Chunks;
-        var (source, length, done, whole) = (chunks.Source, StretchLength, chunks.Done, chunks.Whole);
-        var from = chunks.Reached;
-        var resume = chunks.Chunks[^1].Ended;
-        var read = chunks.Chunks.Select(chunk => (chunk.From, chunk.Stopped, chunk.Begun, chunk.Whole)).ToList();
-        var parse = window.Language.Windowed!();
+        // Read on from where reading here stopped, into chunks of its own.
+        var read = window.Chunks.Copy();
+        var (language, named, length) = (window.Language, _named ?? string.Empty, StretchLength);
+        var staging = window.Unstaged && _targets.Reported;
+        var parse = language.Windowed!();
 
         window.Read = Task.Run(() =>
         {
-            while (!done && !cancel.IsCancellationRequested)
-            {
-                var chunk = ContentChunk.Read(parse, source, from, length, resume, null);
-                window.Arrived.Enqueue((chunk, false));
-                read.Add((chunk.From, chunk.Stopped, chunk.Begun, chunk.Whole));
+            var staged = 0;
 
-                if (chunk.Stopped is { } stopped) (from, resume) = (stopped, chunk.Ended);
-                else (done, whole) = (true, chunk.Ended);
+            while (!cancel.IsCancellationRequested && read.Next(length) is { } next)
+            {
+                var chunk = ContentChunk.Read(parse, read.Source, next.From, next.SoftMaxLength, next.Resume);
+                read.Add(chunk);
+                window.Arrived.Enqueue(chunk);
+
+                if (staging && !read.Done && read.Reached >= 2 * staged) staged = Staged();
             }
 
-            foreach (var (at, stopped, begun, knew) in read)
-            {
-                if (cancel.IsCancellationRequested) return;
-                if (Equals(knew, whole)) continue;
-
-                var extent = stopped is { } end ? end - at : source.Length - at + 1;
-                window.Arrived.Enqueue((ContentChunk.Read(parse, source, at, extent, begun, whole), true));
-            }
-
+            if (staging && !cancel.IsCancellationRequested) Staged();
             if (!cancel.IsCancellationRequested) Grew?.Invoke(this, EventArgs.Empty);
+
+            // Everything read so far worked over from its top, as the reading that is laid is, with nothing the host said.
+            int Staged()
+            {
+                var targets = new LinkTargets();
+                var showing = new ContentShowing(named, style, false, null, 0, ContentInputs.None) { Reads = ContentLanguages.Reads, Targets = targets };
+                var tree = read.Tree();
+                var stages = language.Stages(tree, showing).OfType<IAstStage>().Where(stage => stage is not ISlowStage).ToList();
+
+                if (stages.Count > 0) new AstPipeline(stages).Run(tree);
+
+                window.Staged.Enqueue(new ContentStaging(targets.Reach, targets.Targets, read.Done));
+                Grow();
+
+                return read.Reached;
+            }
         }, cancel.Token);
     }
 }
@@ -412,16 +435,22 @@ internal sealed class ContentWindow(ContentLanguage language, string source, Con
     public double Bottom { get; set; }
 
     /// <summary>What the background reading has read, waiting to be taken in.</summary>
-    public ConcurrentQueue<(ContentChunk Chunk, bool Settles)> Arrived { get; } = new();
+    public ConcurrentQueue<ContentChunk> Arrived { get; } = new();
+
+    /// <summary>What working over all that the background reading had read found, waiting to be taken in.</summary>
+    public ConcurrentQueue<ContentStaging> Staged { get; } = new();
+
+    /// <summary>
+    /// Whether what the whole document defines is still to be found by working all of it over — until the background has, and
+    /// again once a change has read again past what is laid.
+    /// </summary>
+    public bool Unstaged { get; set; } = true;
 
     /// <summary>What stops the background reading, once one has started.</summary>
     public CancellationTokenSource? Reading { get; set; }
 
     /// <summary>The background reading, once one has started.</summary>
     public Task? Read { get; set; }
-
-    /// <summary>Every chunk read so far as one reading, made when something asks for it and let go when another is read.</summary>
-    public ContentReading? Document { get; set; }
 
     /// <summary>What all of it reads as, made when something asks for it and let go when another chunk is read.</summary>
     public DrawnText? Words { get; set; }
@@ -430,5 +459,8 @@ internal sealed class ContentWindow(ContentLanguage language, string source, Con
     public int LaidTo => Taken == 0 ? 0 : Chunks.Chunks[Taken - 1].End(Source.Length);
 
     /// <summary>Lets go of everything made of what was read, because more has been read, or read again.</summary>
-    public void Altered() => (Document, Words) = (null, null);
+    public void Altered() => Words = null;
 }
+
+/// <summary>What working over a windowed document as far as <paramref name="Reach"/> found its links can name — all of it, where <paramref name="Whole"/>.</summary>
+internal sealed record ContentStaging(int Reach, IReadOnlyList<LinkTarget> Targets, bool Whole);

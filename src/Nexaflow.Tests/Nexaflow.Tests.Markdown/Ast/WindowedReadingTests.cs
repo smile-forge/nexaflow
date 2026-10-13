@@ -82,28 +82,6 @@ public class WindowedReadingTests
     }
 
     [TestMethod]
-    public void ALinkDefinedFarBelow_IsReadAsALink_OnceTheWholeDocumentHasBeenRead()
-    {
-        var filler = string.Concat(Enumerable.Range(0, 40).Select(at => $"Paragraph {at} of filler.\n\n"));
-        var source = "See [the site][site] for more.\n\n" + filler + "[site]: https://example.com\n";
-
-        var chunks = new ContentChunks(source, MarkdownParser.Language);
-        var parse = MarkdownParser.Windowed();
-
-        while (chunks.Next(64) is { } next) chunks.Add(ContentChunk.Read(parse, source, next.From, next.SoftMaxLength, next.Resume, null));
-
-        // The first stretch was read before the definition was, so it holds no link yet — and is the one to read again.
-        Assert.IsFalse(Links(chunks.Chunks[0].Tree));
-        CollectionAssert.Contains(chunks.Unsettled().ToList(), 0);
-
-        Settled(chunks, parse);
-
-        Assert.IsTrue(Links(chunks.Chunks[0].Tree));
-        var whole = MarkdownParser.Parsing()(source).Tree;
-        Assert.IsTrue(chunks.Tree().Same(whole), Diverged(whole, chunks.Tree()));
-    }
-
-    [TestMethod]
     public void TwoReadingsStoppingInTheSameState_SayTheirStatesAreAlike()
     {
         const string Source = @"{\rtf1{\fonttbl{\f0 Arial;}}\tx720\tx1440 one\par two\par three\par}";
@@ -123,7 +101,7 @@ public class WindowedReadingTests
         var chunks = new ContentChunks(source, MarkdownParser.Language);
         var next = chunks.Next(32)!;
 
-        chunks.Add(ContentChunk.Read(MarkdownParser.Windowed(), source, next.From, next.SoftMaxLength, next.Resume, null));
+        chunks.Add(ContentChunk.Read(MarkdownParser.Windowed(), source, next.From, next.SoftMaxLength, next.Resume));
 
         var tree = chunks.Tree();
 
@@ -228,8 +206,7 @@ public class WindowedReadingTests
             step++;
             (chunks, _) = chunks.Edited(edit, parse, 64);
 
-            while (chunks.Next(64) is { } next) chunks.Add(ContentChunk.Read(parse, edit, next.From, next.SoftMaxLength, next.Resume, null));
-            Settled(chunks, parse);
+            while (chunks.Next(64) is { } next) chunks.Add(ContentChunk.Read(parse, edit, next.From, next.SoftMaxLength, next.Resume));
 
             var expected = whole(edit);
             var tree = chunks.Tree();
@@ -251,25 +228,10 @@ public class WindowedReadingTests
         var parse = windowed();
 
         while (chunks.Next(length) is { } next)
-            chunks.Add(ContentChunk.Read(parse, source, next.From, next.SoftMaxLength, next.Resume, null));
-
-        Settled(chunks, parse);
+            chunks.Add(ContentChunk.Read(parse, source, next.From, next.SoftMaxLength, next.Resume));
 
         return chunks;
     }
-
-    private static void Settled(ContentChunks chunks, Func<ContentStretch, ContentParse> parse)
-    {
-        foreach (var at in chunks.Unsettled().ToList())
-        {
-            var stretch = chunks.Settling(at);
-            var read = parse(stretch);
-
-            chunks.Settle(at, new ContentChunk(stretch.From, read.Stopped, stretch.Resume, read.Resume, stretch.Whole, read.Tree));
-        }
-    }
-
-    private static bool Links(ContentNode tree) => tree.SelfAndDescendants().Any(node => node.Kind == Kinds.Link);
 
     /// <summary>Where two trees first part: the path of kinds down to the first node that differs, and what each holds there.</summary>
     private static string Diverged(ContentNode want, ContentNode got, string path = "")

@@ -8,6 +8,7 @@ using System.Windows;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -189,6 +190,23 @@ public class WindowedLayoutTests
         Assert.AreEqual(1, brought.Count, "It was never brought onto the page.");
         Assert.AreEqual(engine.Laid.Root.CaretRect(far), brought[0]);
         Assert.IsTrue(engine.Unlaid, "Everything past it was laid too.");
+    }
+
+    [TestMethod]
+    [CoversNode("reference-links")]
+    public void ALinkDefinedAtTheEndOfALongDocument_IsALinkAtItsTop_BeforeTheEndIsLaid()
+    {
+        var text = "See [the site][site] first.\n\n" + Paragraphs(4000) + "[site]: https://example.com/site\n";
+        var engine = Shown(text, null, new ContentEngine());
+
+        Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
+        engine.Relay();
+
+        Assert.IsTrue(engine.Unlaid, "All of it was laid.");
+
+        var link = engine.Reading?.Root.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Link && part.Print() == "[the site][site]");
+        Assert.IsNotNull(link, "What the end defines never reached the top.");
+        Assert.AreEqual("https://example.com/site", MarkdownLinks.Goes(link!.Node));
     }
 
     /// <summary><paramref name="text"/> laid whole, with every slower reading of it landed.</summary>

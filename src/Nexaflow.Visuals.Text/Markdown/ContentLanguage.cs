@@ -126,6 +126,12 @@ public sealed record ContentShowing(string Named, StyleFormat Style, bool Writin
     /// </summary>
     public IAstStage? Unchanged { get; init; }
 
+    /// <summary>
+    /// Where the places the content's links can name are said and asked after (<see cref="LinkTargets"/>) — the engine's, kept for
+    /// the content it was asked to show; a list of the content's own for content inside it, and wherever nothing keeps one.
+    /// </summary>
+    public LinkTargets Targets { get; init; } = new();
+
     /// <summary><see cref="Shown"/> counted in this content's own source, or null where it is not inside it.</summary>
     public RawZone? Own(int length) =>
         Shown is { } zone && zone.Start >= At && zone.End <= At + length ? new RawZone(zone.Start - At, zone.End - At) : null;

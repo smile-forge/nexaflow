@@ -62,6 +62,10 @@ internal static class Shipped
         Parser: MarkdownParser.Parsing,
         Stages: static (_, show) =>
         [
+            // First, because what a link by name means is written anywhere in the document, and the links after ask for it.
+            new WithTargets(show.Targets),
+            new WithReferences(show.Targets),
+
             new WithImages(show.Inputs.Pictures),
             new WithLinks(show.Inputs.Links),
 
