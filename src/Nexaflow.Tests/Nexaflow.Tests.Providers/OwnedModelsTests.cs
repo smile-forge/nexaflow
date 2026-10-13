@@ -43,7 +43,7 @@ public class OwnedModelsTests
         var kokoro = OwnedModels.OfKind(ModelKind.TextToSpeech).Single();
 
         var english = kokoro.Voices.Single(v => v.Language == "en");
-        Assert.AreEqual(OwnedRoles.Synthesizer, english.Role);
+        Assert.AreEqual(OwnedRoles.Synthesizer, english.Part);
         CollectionAssert.Contains(kokoro.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/kokoro-82m/" + english.File);
     }
 
@@ -65,10 +65,33 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "files": [IN] }""", DisplayName = "a voice model with no voice")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "voices/x.bin" }], "files": [IN] }""", DisplayName = "a voice not among its files")]
+    [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "fr", "part": "synthesizer", "file": "w.bin", "lexicon": "fr.tsv.gz" }], "files": [IN] }""", DisplayName = "a lexicon not among its files")]
+    [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }, { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "w.bin" }], "files": [IN] }""", DisplayName = "two synthesizers of one name")]
     public void AModelThatDoesNotSayWhatItIsOrHowItRuns_OrStraysFromItsFolders_IsRefused(string model)
     {
         var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";
 
         Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+    }
+
+    [TestMethod]
+    public void AVoiceModel_MayHaveASynthesizerForEachSetOfVoices_EachVoiceNamingItsPartAndLexicon()
+    {
+        var json = $$"""
+            { "models": [ { "id": "m", "kind": "textToSpeech",
+                "parts": [ { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" },
+                           { "role": "synthesizer", "name": "german", "runner": "kokoro", "folder": "models/de" } ],
+                "voices": [ { "language": "fr", "part": "synthesizer", "file": "voices/ff.bin", "lexicon": "lexicons/fr.tsv.gz" },
+                            { "language": "de", "part": "german", "file": "voices/df.bin", "lexicon": "lexicons/de.tsv.gz" } ],
+                "files": [ {{File("models/m/voices/ff.bin")}}, {{File("models/m/lexicons/fr.tsv.gz")}},
+                           {{File("models/de/voices/df.bin")}}, {{File("models/de/lexicons/de.tsv.gz")}} ] } ] }
+            """;
+
+        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+
+        var german = model.Voices.Single(v => v.Language == "de");
+        Assert.AreEqual(("german", "lexicons/de.tsv.gz"), (german.Part, german.Lexicon));
+        Assert.AreEqual("models/de", model.PartNamed("german", OwnedModels.Cuda).Folder);
+        Assert.AreEqual("synthesizer", model.PartNamed("synthesizer", OwnedModels.Cpu).Name, "a part's name is its role unless it is given one");
     }
 }

@@ -108,6 +108,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         return new ModelSpec(PartId(model, part), part.Runner, folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions);
     }
 
+    /// <summary>Where one of <paramref name="part"/>'s files is on this machine.</summary>
+    /// <exception cref="LlmProviderException">It is not here yet.</exception>
+    public string Locate(OwnedModel model, OwnedPart part, string file)
+    {
+        var asset = model.Catalog.Files.First(f => f.RelativePath == $"{part.Folder}/{file}");
+        return assets.Locate(asset) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
+    }
+
     /// <summary>The host's name for a part: the model's id, and the part's role in it.</summary>
-    private static string PartId(OwnedModel model, OwnedPart part) => $"{model.Id}/{part.Role}";
+    private static string PartId(OwnedModel model, OwnedPart part) => $"{model.Id}/{part.Name}";
 }

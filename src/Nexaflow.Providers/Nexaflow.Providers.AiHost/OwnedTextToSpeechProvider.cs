@@ -52,7 +52,11 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     public async Task<ITextToSpeechSession> StartSessionAsync(TextToSpeechOptions options, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no voice model of that name.");
-        var voices = _model.Voices.Select(v => new VoiceSpec(v.Language, _runtime.Spec(_model, v.Role), v.File)).ToList();
+        var voices = _model.Voices.Select(v =>
+        {
+            var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
+            return new VoiceSpec(v.Language, _runtime.Spec(_model, part), v.File, v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null);
+        }).ToList();
 
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
