@@ -54,6 +54,13 @@ public sealed record ContentLanguage(
     /// </summary>
     public Func<string, ContentParse>? SlowParser { get; init; }
 
+    /// <summary>
+    /// Makes a parse that reads a large document a stretch at a time (<see cref="ContentStretch"/>), or null for a language only
+    /// ever read whole. Content in a language that has one, past a length, is read and laid only as far as the reader has
+    /// looked (<see cref="ContentEngine"/>) — laid by the same builder, which never learns it is laying part of something.
+    /// </summary>
+    public Func<Func<ContentStretch, ContentParse>>? Windowed { get; init; }
+
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 

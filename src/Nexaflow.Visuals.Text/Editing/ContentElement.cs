@@ -78,6 +78,7 @@ public class ContentElement : FrameworkElement
         _engine.Revealing += OnRevealing;
         _engine.Rebound += OnRebound;
         _engine.Reread += OnReread;
+        _engine.Grew += OnGrew;
 
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
@@ -110,6 +111,7 @@ public class ContentElement : FrameworkElement
         _engine.Revealing -= OnRevealing;
         _engine.Rebound -= OnRebound;
         _engine.Reread -= OnReread;
+        _engine.Grew -= OnGrew;
 
         StopBlinking();
     }
@@ -135,6 +137,19 @@ public class ContentElement : FrameworkElement
 
     /// <summary>A slower reading of what is shown landed on whatever thread read it; the content is laid out again here, on this element's.</summary>
     private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
+
+    /// <summary>
+    /// A long document has more to lay — the reader came near what was not laid yet, or more of it has been read — on whatever
+    /// thread said so. It is laid here, on this element's, keeping everything already laid.
+    /// </summary>
+    private void OnGrew(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Grown);
+
+    private void Grown()
+    {
+        _engine.Relay();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
 
     private void OnCaretTaken(object? sender, EventArgs args)
     {

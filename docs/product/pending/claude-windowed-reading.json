@@ -29,6 +29,23 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Rtf/RtfResume.cs",
           "class": "RtfResume"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "LaidStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
+          "class": "LayoutBuilder",
+          "method": "Graft"
         }
       ],
       "concerns": {
@@ -37,6 +54,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/WindowedReadingTests.cs",
             "class": "WindowedReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests"
           }
         ]
       }

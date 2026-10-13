@@ -278,14 +278,35 @@ public sealed class LayoutBuilder
     /// set down in the layout of the next, where the same parts stand somewhere else.
     /// </param>
     public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0,
-                     IReadOnlyList<ISourcePart?>? parts = null)
-    {
-        if (tree.Count == 0) return -1;
+                     IReadOnlyList<ISourcePart?>? parts = null) =>
+        tree.Count == 0 ? -1 : Grafted(tree, 0, tree.Count, new Vector(at.X, at.Y), against, clear, parts);
 
+    /// <summary>
+    /// One piece of a finished tree and everything inside it, put down inside whatever is open the way a whole tree is: where
+    /// it stood in that tree, moved by <paramref name="by"/> — so pieces laid as parts of several trees can be gathered into
+    /// one, each where its own tree put it. The runs lying wholly inside it come with it; one reaching outside it has nothing
+    /// to run along here, and is left.
+    /// </summary>
+    public int Graft(Piece piece, Vector by)
+    {
+        if (piece.Tree is not { } tree || piece.At < 0) return -1;
+
+        var stored = tree.Piece(piece.At);
+
+        // Where it stood in its own tree, less where the piece it is going into stands in this one.
+        var stood = tree.AnchorOf(piece.At) - stored.Offset;
+
+        return Grafted(tree, piece.At, stored.Extent, stood + by - Anchor, null, 0, null);
+    }
+
+    /// <summary>The <paramref name="count"/> pieces of <paramref name="tree"/> from <paramref name="from"/> — a subtree, or all of it — put down, the pieces at its top moved by <paramref name="by"/>.</summary>
+    private int Grafted(LayoutTree tree, int from, int count, Vector by, Side? against, double clear, IReadOnlyList<ISourcePart?>? parts)
+    {
         var first = _pieces.Count;
         var parent = _open.Count == 0 ? -1 : _open.Peek().At;
+        var end = from + count;
 
-        for (var piece = 0; piece < tree.Count; piece++)
+        for (var piece = from; piece < end; piece++)
         {
             var stored = tree.Piece(piece);
             var marks = _marks.Count;
@@ -295,16 +316,16 @@ public sealed class LayoutBuilder
             // several — a diagram built as its layers — would otherwise have one layer put where it was asked for and
             // the rest left claiming a parent they are nowhere inside, which paints them in one place and measures them
             // in another.
-            var root = stored.Parent < 0;
+            var root = stored.Parent < from;
 
             _pieces.Add(stored with
             {
-                Offset = root ? stored.Offset + new Vector(at.X, at.Y) : stored.Offset,
-                Parent = root ? parent : stored.Parent + first,
+                Offset = root ? stored.Offset + by : stored.Offset,
+                Parent = root ? parent : stored.Parent - from + first,
                 Marks = marks,
             });
 
-            _parts.Add(parts is null ? tree.PartOf(piece) : parts[piece]);
+            _parts.Add(parts is null ? tree.PartOf(piece) : parts[piece - from]);
             _kinds.Add(tree.KindOf(piece));
             _paints.Add(tree.PaintOf(piece));
             _regions.Add(tree.RegionOf(piece));
@@ -318,8 +339,15 @@ public sealed class LayoutBuilder
             if (members.IsEmpty) continue;
 
             var moved = new int[members.Length];
-            for (var member = 0; member < members.Length; member++) moved[member] = members[member] + first;
-            _runs.Add((moved, tree.RunOf(members[0], vertical: true) == run));
+            var inside = true;
+
+            for (var member = 0; member < members.Length && inside; member++)
+            {
+                inside = members[member] >= from && members[member] < end;
+                moved[member] = members[member] - from + first;
+            }
+
+            if (inside) _runs.Add((moved, tree.RunOf(members[0], vertical: true) == run));
         }
 
         // What it covers, whatever holds it holds too — as for any piece closed inside it, and for every one of its

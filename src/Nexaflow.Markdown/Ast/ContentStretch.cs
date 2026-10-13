@@ -66,6 +66,9 @@ public sealed class ContentChunks(string source, string language)
     /// <summary>The whole document.</summary>
     public string Source => source;
 
+    /// <summary>The language it is written in, which its tree says.</summary>
+    public string Language => language;
+
     /// <summary>The chunks read so far, in the order they stand.</summary>
     public IReadOnlyList<ContentChunk> Chunks => _chunks;
 

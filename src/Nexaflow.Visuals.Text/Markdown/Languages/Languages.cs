@@ -74,6 +74,7 @@ internal static class Shipped
         Builder: typeof(MarkdownBuilder))
         {
             Writable = true,
+            Windowed = MarkdownParser.Windowed,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
         };
@@ -97,6 +98,7 @@ internal static class Shipped
         ],
         Builder: typeof(MarkdownBuilder))
         {
+            Windowed = RtfParser.Windowed,
             Editing = new ReadAsDrawn(),
         };
 
