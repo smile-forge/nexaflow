@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
+using Nexaflow.AiHost.Drawing;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Speech;
 using Nexaflow.IO.Common.Hardware;
@@ -50,6 +51,7 @@ internal static class HostProgram
                 new GenerateHandler(models, scheduler),
                 new ListenHandler(models, scheduler),
                 new SpeakHandler(models, scheduler, new SpeechPhonemizers()),
+                new DrawHandler(models, scheduler),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");
