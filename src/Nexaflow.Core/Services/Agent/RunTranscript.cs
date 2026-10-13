@@ -30,8 +30,9 @@ internal sealed class RunTranscript
         return new RunTranscript(Path.Combine(folder, $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-{name}.txt"));
     }
 
-    /// <summary>A step of the run: the messages sent that were not in an earlier step, the tools offered and the
-    /// instructions when they were chosen again, and what the model wrote.</summary>
+    /// <summary>A step of the run: the messages sent that were not in an earlier step — the calls a reply made, and the call
+    /// a tool message answers — the tools offered and the instructions when they were chosen again, and what the model
+    /// wrote.</summary>
     public void Step(IReadOnlyList<LlmMessage> sent, IReadOnlyList<IClientTool> offered, string written)
     {
         var text = new StringBuilder();
@@ -46,7 +47,15 @@ internal sealed class RunTranscript
         if (sent.Count > 0) _instructions = sent[0].Text;
 
         for (; _written < sent.Count; _written++)
-            text.Append(">>> ").Append(sent[_written].Role).Append('\n').Append(sent[_written].Text).Append("\n\n");
+        {
+            var message = sent[_written];
+            text.Append(">>> ").Append(message.Role);
+            if (message.Answers is { } answered) text.Append(", answering ").Append(answered.Name).Append(' ').Append(answered.Id);
+            text.Append('\n').Append(message.Text);
+            foreach (var call in message.ToolCalls ?? [])
+                text.Append("\n[call ").Append(call.Name).Append(' ').Append(call.Id).Append(' ').Append(call.Arguments.ToJsonString(ToolCatalog.Readable)).Append(']');
+            text.Append("\n\n");
+        }
         text.Append("<<< written\n").Append(written).Append("\n\n");
         Append(text.ToString());
     }
