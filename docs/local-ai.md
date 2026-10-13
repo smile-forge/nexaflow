@@ -484,23 +484,26 @@ as a process per phrase it cost 65–300 ms on the voice path.
 
 So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is in the repository:
 
-- **Lexicons, built once and published.** `tools/ai-models/kokoro-lexicons` runs espeak-ng 1.52.0 over merged
-  frequency lists (hermitdave/OpenSubtitles, Leipzig news and Wikipedia) with `--tie`, and its output goes through
+- **Lexicons, built once and published, CC0.** `tools/ai-models/kokoro-lexicons` runs espeak-ng 1.52.0 over the words
+  of Mozilla Common Voice's French and German sentences (CC0, pinned by commit) with `--tie`, and its output goes through
   misaki's post-processing — the form both voices were trained on: language-switch flags removed, affricates and
   diphthongs as single tokens (`t^s`→`ʦ`, `a^ɪ`→`I`), and for German kikiri's `ʏ`→`y`. Plain `--ipa` output is wrong
   input for these voices: `ʏ` is not in Kokoro's vocabulary ("fünf" loses its vowel), and untied pairs arrive as two
-  tokens. 200,000 French words (2.0 MB) and 400,000 German (5.1 MB), in about a minute, byte for byte the same on a
-  rebuild; hosted on Hugging Face beside the recipe, as the Whisper export is. Keys whose case changes the
+  tokens. 148,000 French words (1.4 MB) and 269,000 German (3.1 MB) — every word seen more than once — in about a
+  minute, byte for byte the same on a rebuild; hosted on Hugging Face beside the recipe, as the Whisper export is.
+  Frequency lists with more words (OpenSubtitles, CC BY-SA; Leipzig, CC BY) were measured too: they cover more of a
+  reply's words but are understood no better, since the fallbacks say the rest, and their licences would bind the
+  lexicons. Keys whose case changes the
   pronunciation (German `Weg`/`weg`) stay separate, so lookup tries a word as written before lower-casing it.
 - **A C# phonemiser at runtime** (`Speech/Phonemes` in the host), in this order: normalisation, lookup, context
   rules, fallback. Lookup costs ~0.15 µs a word; espeak as a process costs ~54 ms a phrase.
 - **Measured whole**: 100 real replies in each language, spoken by Kokoro and heard back by Whisper large-v3-turbo.
   French: 3.4% of words wrong, as with espeak-ng reading each sentence whole (3.4%) and with MisakiSharp's espeak-free
-  French (3.5%). German: 3.4%, against espeak-ng's 3.6%. Where they differ the differences favour ours: English words
+  French (3.5%). German: 3.3%, against espeak-ng's 3.5%. Where they differ the differences favour ours: English words
   said in English (`checkout`, `joyful`), the product's name, no optional liaison said wrong (espeak's `êtes en` as
   `ɛtz`), German compounds split where espeak guesses. The read-back is `PhonemizerReadBackTests`; sameness with
-  espeak-ng sentence by sentence is `PhonemizerAgainstEspeakTests` (French 135 of 200, German 168 of 200, nearly all
-  the rest espeak's liaisons and guesses).
+  espeak-ng sentence by sentence is `PhonemizerAgainstEspeakTests` (French 128 of 200, German 153 of 200, nearly all
+  the rest espeak's liaisons and guesses, and words the fallbacks say a little differently).
 - **Normalisation is the larger job** — 6.6–6.9% of the words in measured replies never reach the lexicon: numbers
   with their contextual forms (un/une, ein/eins/einen, ordinals), times (15h30, 14:30 Uhr), dates, versions, IP
   addresses, units (Go → gigaoctets), a spell-or-read list for acronyms (USB, JSON, IA), abbreviations (z. B., etc.),
@@ -511,9 +514,8 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
   aspiré or across a pause — and not the optional ones espeak-ng makes (and gets wrong); `six`, `dix`, `huit` and
   `tous` are said by what follows. Both say the function words without stress inside a phrase, from the lists measured
   against espeak-ng on real replies; an elided clitic (`l'`, `j'`, `jusqu'`) hangs on the word after it.
-- **The fallback** runs rarely in spoken replies — with 200k keys, in 12% of French and 39% of German replies, under
-  one word each — and in most assistant-style replies, where what it meets is mostly English: product names, camelCase
-  brands, tech terms. So it is, in order: the language's fixed words (Nexaflow), camelCase splitting, English from
+- **The fallback** meets 4–7% of a reply's words — mostly English (product names, camelCase brands, tech terms) and
+  the second-person and imperative forms an assistant uses more than the sentences the lexicons come from. So it is, in order: the language's fixed words (Nexaflow), camelCase splitting, English from
   MisakiSharp's English lexicon — only words it rates as known, never its guesses — a guarded German compound splitter
   (fewest words of three letters or more, linking sounds between, never ending on a suffix; better than espeak's own
   guess in about 60% of disagreements), and only then letter-to-sound rules: MisakiSharp's espeak-free French

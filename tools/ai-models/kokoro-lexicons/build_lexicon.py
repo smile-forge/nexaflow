@@ -1,13 +1,13 @@
 """Builds the French or German lexicon Nexaflow's Kokoro voices read: word -> phonemes, in the form the voices were
-trained on, ranked by how often the word is used.
+trained on, most used words first.
 
-  python -I build_lexicon.py <lang> <sources dir> <espeak dir> <keys> <out file>
+  python -I build_lexicon.py <lang> <sentences dir> <espeak dir> <keys> <out file>
 
-<sources dir> holds hermitdave/<lang>_full.txt and leipzig/<corpus>/<corpus>-words.txt for the news and Wikipedia
-corpora; <espeak dir> holds espeak-ng.exe and espeak-ng-data. Only the standard library is used.
+<sentences dir> is Mozilla Common Voice's server/data folder (CC0): <lang>/*.txt, a sentence a line; <espeak dir>
+holds espeak-ng.exe and espeak-ng-data. Only the standard library is used.
 
-Ranking: the mean per-million frequency of each lower-cased word across the three sources; words seen once in all of
-them (mostly typos and tokenisation debris) are left out, and the <keys> most frequent kept.
+Words: each word of the sentences as written, the punctuation around it taken off; words seen once (mostly typos and
+tokenisation debris) are left out, and the <keys> most used kept.
 Keys are lower-cased, except where a word's case variants are each a sizeable share of its uses and espeak-ng says
 them differently (German Weg / weg): then each is kept under its own spelling, so lookup is case-sensitive.
 French elided clitics (l', d', qu', ...) are split off; the lexicon holds the host word.
@@ -22,7 +22,8 @@ import sys
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
-LEIPZIG = {"fr": ("fra_news_2023_1M", "fra_wikipedia_2021_1M"), "de": ("deu_news_2023_1M", "deu_wikipedia_2021_1M")}
+# What is taken off a word's ends: punctuation, quotes, brackets and the markup a sentence may carry.
+EDGES = ".,;:!?\u2026\"\u00ab\u00bb\u201c\u201d\u201e()[]{}*_`\u2013\u2014/"
 
 # French clitics that elide before a vowel or mute h. The lexicon keys the host word: l'ordinateur -> ordinateur.
 # Words whose apostrophe is part of them (aujourd'hui) are keyed whole.
@@ -79,22 +80,17 @@ def main():
     exe = os.path.join(espeak_dir, "espeak-ng.exe")
     env = dict(os.environ, ESPEAK_DATA_PATH=os.path.join(espeak_dir, "espeak-ng-data"))
 
-    counts = {}
-    subs = collections.Counter()   # OpenSubtitles: "word count", already lower-cased
-    with open(os.path.join(sources, "hermitdave", f"{lang}_full.txt"), encoding="utf-8") as f:
-        for line in f:
-            parts = line.rstrip("\n").split(" ")
-            if len(parts) == 2:
-                subs[norm(parts[0])] += int(parts[1])
-    counts["subs"] = subs
-    for corpus in LEIPZIG[lang]:   # "id\tword\tcount", case kept
-        c = collections.Counter()
-        with open(os.path.join(sources, "leipzig", corpus, f"{corpus}-words.txt"), encoding="utf-8") as f:
+    written = collections.Counter()   # each word as written, case kept
+    folder = os.path.join(sources, lang)
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".txt"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as f:
             for line in f:
-                parts = line.rstrip("\n").split("\t")
-                if len(parts) >= 3:
-                    c[norm(parts[1])] += int(parts[2])
-        counts[corpus] = c
+                for raw in norm(line).split():
+                    word = raw.strip(EDGES)
+                    if word:
+                        written[word] += 1
 
     def host(word):
         if lang == "fr" and "'" in word:
@@ -103,22 +99,16 @@ def main():
                 return rest
         return word
 
-    by_key = {s: collections.Counter() for s in counts}
+    seen = collections.Counter()
     variants = collections.defaultdict(collections.Counter)
-    for source, counter in counts.items():
-        for w, n in counter.items():
-            w = host(w)
-            if not w or len(w) > 40 or not WORD.match(w) or w.endswith("'"):
-                continue
-            k = w.lower()
-            by_key[source][k] += n
-            if source != "subs":
-                variants[k][w] += n
-    totals = {s: sum(c.values()) for s, c in by_key.items()}
-    every = set().union(*by_key.values())
-    score = {k: sum(by_key[s][k] / totals[s] for s in counts) for k in every}
-    seen = {k: sum(by_key[s][k] for s in counts) for k in every}
-    ranked = sorted((k for k in every if seen[k] >= 2), key=lambda k: (-score[k], k))[:keys]
+    for w, n in written.items():
+        w = host(w)
+        if not w or len(w) > 40 or not WORD.match(w) or w.endswith("'"):
+            continue
+        k = w.lower()
+        seen[k] += n
+        variants[k][w] += n
+    ranked = sorted((k for k in seen if seen[k] >= 2), key=lambda k: (-seen[k], k))[:keys]
 
     # The spellings to say for each key: the usual one, and any other with at least 15% of the case-kept uses.
     spellings = {}
