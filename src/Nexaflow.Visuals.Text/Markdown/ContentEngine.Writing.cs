@@ -109,10 +109,6 @@ public sealed partial class ContentEngine
     internal void Relay()
     {
         _laid = LaidOut(_state);
-
-        // A long document laid further, or laid again from part-way down, has places the caret's index was not taken from.
-        if (_window is not null) _at = _laid.Root.StopAt(_state.Caret);
-
         Repick();
         Recornered();
 
