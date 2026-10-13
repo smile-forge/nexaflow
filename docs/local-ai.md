@@ -1,6 +1,6 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phases 1, 2 and 3 built.** Replies stream through the agent harness; each ability is served by a chain of
+**Status: phases 1, 2 and 3 built; phase 4 under way.** Replies stream through the agent harness; each ability is served by a chain of
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
 models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
 transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
@@ -8,9 +8,10 @@ machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on CUDA fr
 Microsoft publish it, or on the CPU — as the provider "Nexaflow", chosen when a workspace is set up; tools can hand a
 model recordings to hear; and an AI-path suite runs the agent loop on it. Every model calls tools in its own protocol.
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
-Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. Generation
-tools (phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and
-the order to build it in. Where it names a type, check for collisions before introducing it.
+Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
+makes pictures, speech and video clips with the workspace's models (phase 4) — pictures and clips through OpenAI and
+Gemini so far, with pictures and music on this machine to come. This records what was measured, the decisions taken,
+the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -259,11 +260,11 @@ arguments did not read, the arguments as written (`Unread`). Beside it, in `Prov
 |---|---|
 | speech to text | streaming: audio frames in, partial and final transcripts out; VAD events |
 | text to speech | streaming: text segments in, audio chunks out; cancel; how much was spoken |
-| image generation | job: prompt (+ optional source image, mask) in, image file out, progress |
-| audio generation | job: prompt in, audio file out, progress (sound effects, music) |
-| video generation | job; cloud only for now |
+| image generation | job: prompt (+ pictures to work from, a mask) in, one picture out; progress on the activity |
+| audio generation | job: prompt in, audio file out, progress (sound effects, music) — arrives with music |
+| video generation | job: prompt (+ a first frame) in, one clip out; progress on the activity; cloud only |
 
-Every capability has owned and bridged implementations — OpenAI and Gemini already do speech and images — so a
+Every capability has owned and bridged implementations — OpenAI and Gemini serve speech, pictures and video — so a
 bridged workspace gets voice and generation without a GPU, and an owned one gets them on the machine. A provider
 declares what it offers: input and output kinds, streaming, tools, context window, **whose harness and where its
 data goes**, and a cost class.
@@ -351,9 +352,9 @@ maps roles to models:
   goes to the chain's model like any other; when that model sends data off this machine, the user is asked first,
   and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
   about.
-- **Rows become reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
-  **media capabilities** (speech in, speech out, image, audio, video) — the media rows arrive with the capability
-  contracts they route; today's `ImageGeneration` and `AudioRecognition` rows are read by nothing.
+- **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
+  **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
+  its kind; an Audio Generation row arrives with its contract.
 - **Resources become visible**: the resident set and its VRAM shown; assignments that cannot coexist on the card are
   refused at configuration time.
 
@@ -526,17 +527,29 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 
 ## Generation tools
 
-Each is an `IClientTool` the agent calls (`generate_image`, `speak`, `generate_sound`, …) that runs a generation
-capability as a job, reports through `IBackgroundActivityManager`, and returns a file plus a `ContextImage` where
-there is one — the existing loop, approvals and context handling apply unchanged.
+Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
+row, `generate_speech` on Speech Out, `generate_video` on Video Generation. It runs its capability as a job whose
+progress shows on the activity ticker, saves the result where the model asked — else under Pictures, Music or Videos,
+in a `Nexaflow` folder — never over a file already there, and opens it as a double-click would, in Nexaflow's own
+image, audio or video viewer. The model is told where it went, the conversation carries the file, and a picture goes
+back as a `ContextImage`, so the model sees what it drew; the existing loop, approvals and context handling apply
+unchanged.
 
-| | Local path | Fit |
-|---|---|---|
-| Speech | Kokoro | ready |
-| Images | SDXL-Turbo (official ONNX) first, FLUX.1-schnell or FLUX.2 klein later; a C# diffusion pipeline (TensorStack has one, Apache-2.0) | ready to build; one generation slot |
-| Music | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort |
-| Sound effects | no maintained ONNX model; Stable Audio Open would need exporting | gap |
-| Video | Wan2.1-1.3B only, minutes per clip | cloud providers only |
+- **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
+  to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
+  (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **Speech is read a sentence at a time**, cut by the voice conversation's segmenter, into one WAV.
+- **A clip costs minutes and money**, so `generate_video` is approved before it runs and announced in a voice
+  conversation, at the length it will run — the one the model has nearest to the length asked for. A first frame is
+  cut and scaled to the exact size a model starts from (Sora's 720p); Veo takes any.
+
+| | Cloud | On this machine | Status |
+|---|---|---|---|
+| Speech | OpenAI's speech models | Kokoro | built |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | SDXL-Turbo (official ONNX) first, FLUX.1-schnell or FLUX.2 klein later; a C# diffusion pipeline (TensorStack has one, Apache-2.0) | cloud built; on this machine next, in one generation slot |
+| Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
+| Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
+| Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.1-1.3B only, minutes per clip | cloud built; cloud only |
 
 ## Models
 
@@ -614,7 +627,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B prepared from the onnx-community export, with the append-only context; the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
-| 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
+| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools. To come: pictures on this machine (SDXL-Turbo in the host), then the audio generation contract with music (ACE-Step) | medium per tool |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 
