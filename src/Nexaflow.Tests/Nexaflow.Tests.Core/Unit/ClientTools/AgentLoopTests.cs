@@ -13,6 +13,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Core;
 
 namespace Nexaflow.Tests.Core.Unit.ClientTools;
 
@@ -660,6 +661,7 @@ public class AgentLoopTests
         var system = provider.Conversations.Single()[0].Text;
         Assert.IsFalse(system.Contains("Openable pages"), "the catalogue is not in the prompt");
         StringAssert.Contains(system, "get_openable_pages", "the tool that lists it is offered");
-        StringAssert.Contains(pages.ModelText, "AIChat", "and on a wired runtime it lists every page");
+    foreach (var (kind, _) in FeatureManager.Instance.GetPageCatalog(runtime))
+            StringAssert.Contains(pages.ModelText, $"- {kind}", "the tool lists every page the runtime can open");
     }
 }

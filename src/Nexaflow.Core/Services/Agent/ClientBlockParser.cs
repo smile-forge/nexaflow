@@ -221,7 +221,7 @@ public static class ClientBlockParser
         }
     }
 
-    private static ClientPlan ParsePlan(JsonObject obj)
+    internal static ClientPlan ParsePlan(JsonObject obj)
     {
         var steps = new List<ClientPlanStep>();
         if (obj["steps"] is JsonArray arr)

@@ -426,7 +426,9 @@ public sealed class AIService : IAIService
         catch (OperationCanceledException) { return null; }
         exposed = [.. exposed.Except(options.Tools), .. options.Tools];   // the caller's own are never ranked away
 
-        string system = BuildSystemPrompt(page, context, exposed, options.ReplyStyle);
+        // The model is offered its tools in its own protocol where it has one; otherwise its instructions describe them.
+        var protocol = ToolProtocol.For(provider);
+        string system = BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle);
         var messages = new List<LlmMessage> { new(LlmRole.System, system) };
         messages.AddRange(options.History);
         messages.Add(new(LlmRole.User, input));
@@ -442,24 +444,20 @@ public sealed class AIService : IAIService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var raw  = (await StreamStepAsync(provider, messages, approval, ct)).Trim();
-                transcript?.Step(messages, raw);
-                var turn = ClientBlockParser.Parse(raw, toolNames);
+                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, ct);
+                transcript?.Step(messages, taken.Written);
+                var turn = taken.Turn;
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.
                 if (turn.Plan is not null && !planMode)
                 {
-                    messages.Add(new(LlmRole.Assistant, raw));
+                    messages.Add(protocol.Said(taken));
                     KeepNarration(approval, turn);
-                    if (!await approval.RequestPlanApprovalAsync(turn.Plan, ct))
-                    {
-                        messages.Add(new(LlmRole.User,
-                            "TOOL RESULTS\nThe user declined the plan. Stop, or suggest a different approach."));
-                        continue;
-                    }
-                    planMode = true;
-                    messages.Add(new(LlmRole.User,
-                        "TOOL RESULTS\nThe user approved the plan. Begin executing the steps by emitting client_tool blocks."));
+                    planMode = await approval.RequestPlanApprovalAsync(turn.Plan, ct);
+                    var decided = new ToolOutcome(planMode
+                        ? "The plan is approved: carry out its steps."
+                        : "The plan was declined: stop, or suggest a different approach.");
+                    messages.AddRange(protocol.Answer(taken, [decided, .. taken.Calls.Select(_ => NotRun("the plan comes first"))], null, null));
                     continue;
                 }
 
@@ -477,7 +475,7 @@ public sealed class AIService : IAIService
                     {
                         // The model tried to act but emitted something malformed — let it self-correct.
                         approval.EndReplyDraft(keep: false);
-                        messages.Add(new(LlmRole.Assistant, raw));
+                        messages.Add(protocol.Said(taken));
                         messages.Add(new(LlmRole.User,
                             "TOOL RESULTS\n" + string.Join('\n', turn.ParseErrors) +
                             "\nFix the block and try again, or just answer."));
@@ -489,18 +487,18 @@ public sealed class AIService : IAIService
                     if (lateInterjections.Count > 0)
                     {
                         KeepNarration(approval, turn);
-                        messages.Add(new(LlmRole.Assistant, raw));
+                        messages.Add(protocol.Said(taken));
                         messages.Add(new(LlmRole.User, FormatInterjections(lateInterjections)));
                         continue;
                     }
 
-                    var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : raw;
+                    var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : taken.Written;
                     approval.ShowFinal(final);
                     return AiResponse.AsMessage(final, artifacts);
                 }
 
                 // 4. A batch of tool calls.
-                messages.Add(new(LlmRole.Assistant, raw));
+                messages.Add(protocol.Said(taken));
 
                 var calls = turn.ToolCalls
                     .Select(c => (Call: c, Tool: FindTool(fullCatalog, c.Tool)))
@@ -537,12 +535,11 @@ public sealed class AIService : IAIService
                 IReadOnlyList<ToolCall> batch = [.. calls.Select(c => c.Call with { Announcement = c.Tool?.Announce(c.Call.Arguments) })];
                 if (needApproval && !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, batch, ct))
                 {
-                    var denied = string.Join(", ", turn.ToolCalls.Select(c => c.Tool));
-                    var deniedText = $"TOOL RESULTS\nThe user denied: {denied}. Do not retry — ask what they would prefer, or finish.";
                     // What the user said while deciding is part of the answer.
                     var meanwhile = approval.TakeInterjections();
-                    if (meanwhile.Count > 0) deniedText += "\n\n" + FormatInterjections(meanwhile);
-                    messages.Add(new(LlmRole.User, deniedText));
+                    var stopped   = NotRun("the user chose not to. Do not try it again — ask what they would prefer, or finish");
+                    messages.AddRange(protocol.Answer(taken, [.. taken.Calls.Select(_ => stopped)],
+                                                      meanwhile.Count > 0 ? FormatInterjections(meanwhile) : null, null));
                     continue;
                 }
 
@@ -563,7 +560,11 @@ public sealed class AIService : IAIService
                         foreach (var p in att)
                             if (!artifacts.Contains(p)) artifacts.Add(p);
 
-                var toolResultsText = FormatToolResults(results);
+                // The tools get_client_commands has just listed can be called from the next step on.
+                if (results.Any(r => r.Tool == getCommands.Name))
+                    exposed = [.. exposed, .. fullCatalog.Except(exposed)];
+
+                var besides = new List<string>();
 
                 // A tool may have captured an image for the model to see (e.g. the web view screenshot).
                 // How it reaches the conversation model depends on the Image Recognition ability: same model
@@ -574,7 +575,7 @@ public sealed class AIService : IAIService
                 {
                     var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, approval, ct);
                     toolAttachments.AddRange(atts ?? []);
-                    if (note is not null) toolResultsText += "\n\n" + note;
+                    if (note is not null) besides.Add(note);
                 }
 
                 // A tool may have produced a recording to hear (the audio player's listen_to_track): attached for a
@@ -584,14 +585,15 @@ public sealed class AIService : IAIService
                 {
                     var (atts, note) = await ResolveToolAudioAsync(provider, toolAudio, approval, ct);
                     toolAttachments.AddRange(atts ?? []);
-                    if (note is not null) toolResultsText += "\n\n" + note;
+                    if (note is not null) besides.Add(note);
                 }
 
                 // Fold in any messages the user interjected while the batch ran, so the model can steer.
-                var interjections   = approval.TakeInterjections();
-                if (interjections.Count > 0)
-                    toolResultsText += "\n\n" + FormatInterjections(interjections);
-                messages.Add(new(LlmRole.User, toolResultsText) { Attachments = toolAttachments.Count > 0 ? toolAttachments : null });
+                var interjections = approval.TakeInterjections();
+                if (interjections.Count > 0) besides.Add(FormatInterjections(interjections));
+
+                messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))],
+                                                  besides.Count > 0 ? string.Join("\n\n", besides) : null, toolAttachments));
             }
         }
         catch (OperationCanceledException) { return null; }
@@ -600,40 +602,8 @@ public sealed class AIService : IAIService
                               "_(stopped: max steps reached)_";
         approval.ShowFinal(capped);
         return AiResponse.AsMessage(capped, artifacts);
-    }
 
-    /// <summary>Draft updates reach the handler at most this often — quick enough to read as live, slow enough
-    /// that a long reply is not laid out again for every token.</summary>
-    private static readonly TimeSpan DraftInterval = TimeSpan.FromMilliseconds(50);
-
-    /// <summary>
-    /// Runs one model step, showing its prose to <paramref name="handler"/> as a draft while it streams, and
-    /// returns the whole reply. The draft is left open: what the step turns out to be decides how it ends.
-    /// </summary>
-    private static async Task<string> StreamStepAsync(
-        ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IAIResponseHandler handler, CancellationToken ct)
-    {
-        var raw   = new StringBuilder();
-        var draft = new ReplyDraft();
-        var shown = string.Empty;
-        var next  = 0L;   // the first words show at once; later ones wait out the interval
-
-        await foreach (var e in provider.StreamAsync(messages, ct))
-        {
-            if (e is not LlmTextDelta delta) continue;
-
-            raw.Append(delta.Text);
-            draft.Append(delta.Text);
-            if (Stopwatch.GetTimestamp() < next) continue;
-
-            var text = draft.Text;
-            if (text.Length == 0 || string.Equals(text, shown, StringComparison.Ordinal)) continue;
-
-            handler.ShowReplyDraft(text);
-            shown = text;
-            next  = Stopwatch.GetTimestamp() + (long)(DraftInterval.TotalSeconds * Stopwatch.Frequency);
-        }
-        return raw.ToString();
+        static ToolOutcome NotRun(string why) => new($"Not run: {why}.");
     }
 
     /// <summary>Ends a step's draft as narration: the step's prose stands in full, as the parser read it, or —
@@ -705,18 +675,6 @@ public sealed class AIService : IAIService
             "conversation either way:\n");
         foreach (var msg in interjections)
             sb.Append("- ").Append(msg).Append('\n');
-        return sb.ToString().TrimEnd();
-    }
-
-    private static string FormatToolResults(IReadOnlyList<(string Tool, ToolResult Result)> results)
-    {
-        var sb = new StringBuilder("TOOL RESULTS\n");
-        foreach (var (tool, r) in results)
-        {
-            sb.Append("## ").Append(tool);
-            if (r.IsError) sb.Append(" (error)");
-            sb.Append('\n').Append(r.ModelText).Append("\n\n");
-        }
         return sb.ToString().TrimEnd();
     }
 
@@ -875,15 +833,16 @@ public sealed class AIService : IAIService
             [],
             ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok(
-                $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
+                $"{pageTools.Count} tool(s) available", Agent.ToolCatalog.Describe(pageTools))),
             parallelizable: true);
 
     /// <summary>
     /// What the model is told, in the order it matters: who it is and what its replies can draw; how to reply in this
-    /// mode; what the user is looking at; and how to act. Nothing it cannot use — approval is the app's business, not the
+    /// mode; what the user is looking at; and, for a model offered no tools of its own, how to act. Nothing it cannot use —
+    /// approval is the app's business, not the
     /// model's, and what it does is shown from the calls themselves, so it is never asked to explain before acting.
     /// </summary>
-    private string BuildSystemPrompt(IPageViewModel? page, string context, IReadOnlyList<IClientTool> tools, string? replyStyle)
+    private string BuildSystemPrompt(IPageViewModel? page, string context, string? acting, string? replyStyle)
     {
         var persona = _workspace.Workspace.Persona;
         var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
@@ -911,43 +870,8 @@ public sealed class AIService : IAIService
         if (!string.IsNullOrWhiteSpace(guidance))
             sb.Append(guidance!.Trim()).Append("\n\n");
 
-        sb.Append("# Acting\n")
-          .Append("You act in the app by calling its tools. To call one, write a fenced block tagged `client_tool` holding ")
-          .Append("one JSON object, and stop — the results come back in a message beginning \"TOOL RESULTS\":\n\n")
-          .Append("```client_tool\n{\"tool\": \"tool_name\", \"arguments\": {\"key\": \"value\"}}\n```\n\n")
-          .Append("- Tools that do not depend on each other can be called together: one block each, in the same reply.\n")
-          .Append("- Text outside a block is your message to the user; a reply with no block is your final answer.\n")
-          .Append("- get_client_commands lists every tool this page has, if the one you need is not below.\n")
-          .Append("- To suggest something for the user to run instead of doing it, fill in their input box with:\n\n")
-          .Append("```client_prefill\n{\"text\": \"suggested input\"}\n```\n\n")
-          .Append("For work of several steps you may lay out a plan first, then carry it out:\n\n")
-          .Append("```client_plan\n{\"title\": \"…\", \"mermaid\": \"flowchart TD; A[…]-->B[…]\", ")
-          .Append("\"steps\": [{\"title\":\"…\",\"tool\":\"tool_name\"},{\"title\":\"Decide …\",\"decision\":true}]}\n```\n\n")
-          .Append("Then carry out its tool steps in order, stopping to reassess at a step marked \"decision\": true.\n\n");
-
-        sb.Append("# Tools\n").Append(DescribeCatalog(tools));
-        return sb.ToString();
-    }
-
-    private static string DescribeCatalog(IEnumerable<IClientTool> tools)
-    {
-        var sb = new StringBuilder();
-        foreach (var t in tools)
-            sb.Append(DescribeTool(t)).Append('\n');
-        var s = sb.ToString().TrimEnd();
-        return s.Length == 0 ? "(no tools available here)" : s;
-    }
-
-    private static string DescribeTool(IClientTool t)
-    {
-        var sb = new StringBuilder();
-        sb.Append("- ").Append(t.Name).Append(": ").Append(t.Description);
-        foreach (var p in t.Parameters)
-        {
-            sb.Append("\n    • ").Append(p.Name).Append(" (").Append(p.Type);
-            if (!p.Required) sb.Append(", optional");
-            sb.Append("): ").Append(p.Description);
-        }
-        return sb.ToString();
+        // How to act — only for a model with no tool calling of its own; any other is offered its tools in it.
+        if (acting is { Length: > 0 }) sb.Append(acting);
+        return sb.ToString().TrimEnd();
     }
 }
