@@ -167,22 +167,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
     {
         try
         {
-            var pager = await Client.Models.ListAsync(cancellationToken: ct);
-            var names = new List<string>();
-
-            await foreach (var m in pager.WithCancellation(ct))
-            {
-                if (m.Name is null || !m.Name.Contains("gemini", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // API returns "models/gemini-2.0-flash" — strip the prefix
-                var name = m.Name.StartsWith("models/", StringComparison.Ordinal)
-                    ? m.Name["models/".Length..]
-                    : m.Name;
-                names.Add(name);
-            }
-
-            names.Sort();
+            var names = await GeminiModels.ListAsync(Client, n => n.Contains("gemini", StringComparison.OrdinalIgnoreCase), ct);
             LastModelListError = null;
             return names;
         }

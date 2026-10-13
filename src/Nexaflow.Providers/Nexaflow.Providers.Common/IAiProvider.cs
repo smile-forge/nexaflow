@@ -4,8 +4,8 @@ namespace Nexaflow.Providers.Common;
 /// What every provider instance has, whatever kind of model it serves: a name, where its requests go, whether it
 /// can take one now, the models it offers, and a lifetime. A provider serves one <see cref="ModelKind"/>, through
 /// the contract for that kind (<see cref="ILlmProvider"/>, <see cref="ISpeechToTextProvider"/>,
-/// <see cref="ITextToSpeechProvider"/>); one backend offering
-/// several kinds ships a provider type per kind under the same <see cref="Name"/>.
+/// <see cref="ITextToSpeechProvider"/>, <see cref="IImageGenerationProvider"/>, <see cref="IVideoGenerationProvider"/>); one
+/// backend offering several kinds ships a provider type per kind under the same <see cref="Name"/>.
 /// <para>
 /// One instance is created per (config, model) the user assigns — the model is injected at construction via
 /// <see cref="ProviderModel"/>. A model-agnostic instance (constructed with an empty <see cref="ProviderModel"/>) is
@@ -93,6 +93,12 @@ public enum ModelKind
 
     /// <summary>Text in, speech out — <see cref="ITextToSpeechProvider"/>.</summary>
     TextToSpeech,
+
+    /// <summary>A prompt in, a picture out — <see cref="IImageGenerationProvider"/>.</summary>
+    ImageGeneration,
+
+    /// <summary>A prompt in, a video out — <see cref="IVideoGenerationProvider"/>.</summary>
+    VideoGeneration,
 }
 
 public static class ModelKinds
@@ -101,18 +107,22 @@ public static class ModelKinds
     public static IReadOnlyList<ModelKind> Of(Type providerType)
     {
         var kinds = new List<ModelKind>();
-        if (typeof(ILlmProvider).IsAssignableFrom(providerType))          kinds.Add(ModelKind.Language);
-        if (typeof(ISpeechToTextProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.SpeechToText);
-        if (typeof(ITextToSpeechProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.TextToSpeech);
+        if (typeof(ILlmProvider).IsAssignableFrom(providerType))             kinds.Add(ModelKind.Language);
+        if (typeof(ISpeechToTextProvider).IsAssignableFrom(providerType))    kinds.Add(ModelKind.SpeechToText);
+        if (typeof(ITextToSpeechProvider).IsAssignableFrom(providerType))    kinds.Add(ModelKind.TextToSpeech);
+        if (typeof(IImageGenerationProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.ImageGeneration);
+        if (typeof(IVideoGenerationProvider).IsAssignableFrom(providerType)) kinds.Add(ModelKind.VideoGeneration);
         return kinds;
     }
 
     /// <summary>Whether <paramref name="provider"/> serves models of <paramref name="kind"/>.</summary>
     public static bool Serves(this IAiProvider provider, ModelKind kind) => kind switch
     {
-        ModelKind.Language     => provider is ILlmProvider,
-        ModelKind.SpeechToText => provider is ISpeechToTextProvider,
-        ModelKind.TextToSpeech => provider is ITextToSpeechProvider,
-        _                      => false,
+        ModelKind.Language        => provider is ILlmProvider,
+        ModelKind.SpeechToText    => provider is ISpeechToTextProvider,
+        ModelKind.TextToSpeech    => provider is ITextToSpeechProvider,
+        ModelKind.ImageGeneration => provider is IImageGenerationProvider,
+        ModelKind.VideoGeneration => provider is IVideoGenerationProvider,
+        _                         => false,
     };
 }

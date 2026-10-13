@@ -296,6 +296,11 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
   then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).
     Unset, each is **inconclusive**. The cloud providers' tool mapping is pinned without a network in `RequestMappingTests`.
+    - **`CloudGenerationTests`** *(`Tests.Providers`)* — pictures and clips from the real OpenAI and Gemini APIs, each
+      billed: `NEXAFLOW_TEST_OPENAI_KEY` / `NEXAFLOW_TEST_GEMINI_KEY` with `NEXAFLOW_TEST_<OPENAI|GEMINI>_IMAGE_MODEL` (it
+      must draw a picture, then work from it where the model takes pictures) or `…_VIDEO_MODEL` (it must make an MP4 at
+      the model's shortest length). Unset, each is **inconclusive**; how a request is put and an answer read is pinned
+      without a network in `GenerationProviderTests`.
   - **The French and German phonemisers on real replies** *(`Tests.AiHost`)* — `NEXAFLOW_TEST_LEXICONS` names a folder
     holding the built lexicons (`fr.tsv.gz`, `de.tsv.gz`, from `tools/ai-models/kokoro-lexicons`) and espeak-ng's
     readings of real reply sentences (`context-fr-sentences.jsonl`, `context-de-sentences.jsonl`).
