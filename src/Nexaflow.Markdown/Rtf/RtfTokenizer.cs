@@ -69,26 +69,25 @@ public static class RtfTokenizer
     private const int LongestNumber = 10;
 
     /// <summary>Every token in <paramref name="source"/>, in order, covering every character of it.</summary>
-    public static List<RtfToken> Read(string source)
-    {
-        var tokens = new List<RtfToken>(Math.Max(16, source.Length / 6));
+    public static List<RtfToken> Read(string source) => [.. From(source, 0)];
 
-        for (var at = 0; at < source.Length;)
+    /// <summary>The tokens of <paramref name="source"/> from <paramref name="at"/> on, read as they are asked for.</summary>
+    public static IEnumerable<RtfToken> From(string source, int at)
+    {
+        while (at < source.Length)
         {
             var token = Next(source, at);
-            tokens.Add(token);
+            yield return token;
             at = token.End;
 
             // What a \bin says follows it is bytes, whatever they look like: a brace in there closes nothing.
             if (token.Is("bin") && token.Parameter is > 0 and var count && at < source.Length)
             {
                 var length = Math.Min(count, source.Length - at);
-                tokens.Add(new RtfToken(RtfTokenKind.Binary, at, length, string.Empty, null));
+                yield return new RtfToken(RtfTokenKind.Binary, at, length, string.Empty, null);
                 at += length;
             }
         }
-
-        return tokens;
     }
 
     private static RtfToken Next(string source, int at)

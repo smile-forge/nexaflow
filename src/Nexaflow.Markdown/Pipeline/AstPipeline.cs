@@ -21,9 +21,9 @@ namespace Nexaflow.Markdown.Pipeline;
 /// downstream a week later.
 /// </para>
 /// <para>
-/// A parser is not a stage. What a name is shorthand for, and where one token stops and the next begins,
-/// are facts about the text that no later stage can change — so they happen as the text is read. Every
-/// stage here is about what the text <em>amounts to</em>.
+/// A parser is not a stage. A parser reads what the text is as written, and holds nothing of what it means.
+/// Every stage here is about what the text <em>amounts to</em>, and the source is the one thing each must
+/// keep: it may cut, join, re-nest or rewrite the pieces it was handed however it likes.
 /// </para>
 /// </summary>
 public sealed class AstPipeline

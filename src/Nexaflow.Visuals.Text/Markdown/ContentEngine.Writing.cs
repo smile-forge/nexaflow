@@ -113,6 +113,15 @@ public sealed partial class ContentEngine
         Recornered();
 
         PreRender?.Invoke(this, EventArgs.Empty);
+
+        // What the reader moved to in a long document, laid now, is brought onto the page.
+        if (_revealed is { } shown)
+        {
+            _revealed = null;
+
+            var at = _laid.Root.CaretRect(shown);
+            if (!at.IsEmpty) Revealing?.Invoke(this, at);
+        }
     }
 
     /// <summary>
@@ -131,6 +140,12 @@ public sealed partial class ContentEngine
 
         try
         {
+            // The content as it is shown is laid as far as the reader has looked, where it is long enough to be shown a stretch at a
+            // time. A picture of it — laid read-only, whatever it is shown as — is of the whole of it.
+            var language = Language(_named);
+            if (readOnly is null && Windows(language, state.Source)) return Windowed(language, state, _style, Room, only);
+            if (readOnly is null) Closed();
+
             return Lay(_named, state, _style, Room, only);
         }
         catch (Exception error)
@@ -163,12 +178,15 @@ public sealed partial class ContentEngine
 
         _state = next;
 
-        if (resized) Relay();
+        // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
+        // found further down, a jump to the end or a line, and choosing everything all come to be on the page.
+        var relaid = resized || Reaches(next);
+        if (relaid) Relay();
 
         // An index is only ever true of the tree it was taken from, so one handed in from before laying out again says nothing
         // about the tree there is now — and the caret goes back to the innermost place at its offset. That is also why nothing
         // has to remember to clear it.
-        _at = resized || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(_state.Caret) : at;
+        _at = relaid || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(_state.Caret) : at;
 
         var moved = was != (_state.Caret, _at);
 

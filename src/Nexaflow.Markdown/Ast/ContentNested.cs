@@ -72,4 +72,16 @@ public static class ContentNested
 public sealed record ContentParse(ContentNode Tree)
 {
     public static ContentParse Of(ContentNode tree) => new(tree);
+
+    /// <summary>
+    /// Where a reading asked to stop softly stopped (<see cref="ContentStretch"/>) — where the next stretch starts — or null
+    /// where it read to the end of the source.
+    /// </summary>
+    public int? Stopped { get; init; }
+
+    /// <summary>
+    /// What the parser needs to carry on reading from <see cref="Stopped"/> as though it had never stopped, compared by value: two
+    /// readings that stop in equal states read the same from there on. Null where nothing is carried.
+    /// </summary>
+    public object? Resume { get; init; }
 }

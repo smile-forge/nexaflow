@@ -49,9 +49,9 @@ $written = Get-ChildItem $Out -Filter 'markdown-bench-*.json' | Sort-Object Last
 if (-not $written) { throw "the run wrote nothing to $Out" }
 
 $run = Get-Content $written.FullName -Raw | ConvertFrom-Json
-"{0}  open {1:N0} ms  edit {2:N0} ms  paint {3:N0} ms  ({4} documents, {5} {6})" -f `
-    $written.FullName, $run.totals.open, $run.totals.edit, $run.totals.paint, $run.documents.Count, $run.configuration, $run.commit
+"{0}  open {1:N0} ms  opened as a page {2:N0} ms  edit {3:N0} ms  paint {4:N0} ms  ({5} documents, {6} {7})" -f `
+    $written.FullName, $run.totals.open, $run.totals.opened, $run.totals.edit, $run.totals.paint, $run.documents.Count, $run.configuration, $run.commit
 if ($run.rtfTotals) {
-    "rich text: open {0:N0} ms  edit {1:N0} ms  paint {2:N0} ms  a screen {3:N0} ms" -f `
-        $run.rtfTotals.open, $run.rtfTotals.edit, $run.rtfTotals.paint, $run.rtfTotals.paintShown
+    "rich text: open {0:N0} ms  opened as a page {1:N0} ms  edit {2:N0} ms  paint {3:N0} ms  a screen {4:N0} ms  held open {5:N0} KB" -f `
+        $run.rtfTotals.open, $run.rtfTotals.opened, $run.rtfTotals.edit, $run.rtfTotals.paint, $run.rtfTotals.paintShown, $run.rtfTotals.retainedOpenedKb
 }

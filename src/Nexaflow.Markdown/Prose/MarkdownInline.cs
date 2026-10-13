@@ -30,13 +30,9 @@ namespace Nexaflow.Markdown.Prose;
 /// </summary>
 public static class MarkdownInline
 {
-    /// <summary>
-    /// <paramref name="source"/> as the words and marks it is made of — read beside <paramref name="besides"/>, the
-    /// definitions written elsewhere in the document it belongs to, so a <c>[text][name]</c> link and an abbreviation
-    /// mean what the document says they do. Nothing of those is read into what comes back.
-    /// </summary>
+    /// <summary><paramref name="source"/> as the words and marks it is made of.</summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null, int at = 0)
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Words, [], offset: at);
@@ -46,9 +42,7 @@ public static class MarkdownInline
 
         try
         {
-            var told = besides is { Length: > 0 } ? $"{text}\n\n{besides}\n" : text;
-
-            Words(Markdig.Markdown.Parse(told, pipeline ?? MarkdownParser.Pipeline), parts, read);
+            Words(Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline), parts, read);
         }
         catch
         {
@@ -66,8 +60,7 @@ public static class MarkdownInline
     /// </summary>
     private static void Words(ContainerBlock blocks, List<ContentNode> parts, Cut read)
     {
-        // What was read beside the text comes after it, and is never part of it.
-        foreach (var block in blocks.TakeWhile(block => block.Span.Start < read.Length))
+        foreach (var block in blocks)
             switch (block)
             {
                 case LeafBlock { Inline: not null } leaf: Inside(leaf.Inline, parts, read); break;
@@ -170,8 +163,8 @@ public static class MarkdownInline
     /// <para>
     /// <c>\*</c> is two characters that mean one, which is exactly what an entity is — so it is read as its
     /// own piece, and drawn as the character it stands for while still being the two that were typed. Split
-    /// here rather than left to a builder, because where one token stops and the next begins is a fact about
-    /// the text and no later stage can change it.
+    /// here rather than left to a builder, because it is how the text is written, and saying that is the
+    /// parser's: a builder only draws what it is handed.
     /// </para>
     /// </summary>
     private static ContentNode Escaped(Cut read, int end)

@@ -198,37 +198,6 @@ public class MarkdownParserTests
     }
 
     [TestMethod]
-    public void WhatTheDocumentDefinesIsWrittenDownForItsWords()
-    {
-        var read = MarkdownParser.Read("see [one][ref] and HTML\n\n[ref]: https://example.org\n\n*[HTML]: HyperText Markup Language\n");
-
-        var defined = MarkdownDefinitions.Of(read)?.Text ?? string.Empty;
-
-        StringAssert.Contains(defined, "[ref]: https://example.org");
-        StringAssert.Contains(defined, "*[HTML]: HyperText Markup Language");
-        Assert.AreEqual("see [one][ref] and HTML\n\n[ref]: https://example.org\n\n*[HTML]: HyperText Markup Language\n", read.Print(),
-                        "and nothing of it is written twice");
-    }
-
-    [TestMethod]
-    public void ALinkNamingADefinitionGoesWhereTheDefinitionSays()
-    {
-        var read = MarkdownParser.Parsing()("see [one][ref]\n\n[ref]: https://example.org\n").Tree;
-
-        var link = read.SelfAndDescendants().First(node => node.Kind == Kinds.Link);
-
-        Assert.AreEqual("https://example.org", MarkdownLinks.Goes(link));
-    }
-
-    [TestMethod]
-    public void AnAbbreviationDefinedElsewhereIsKnownInTheSentence()
-    {
-        var read = MarkdownParser.Parsing()("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n").Tree;
-
-        Assert.IsTrue(read.SelfAndDescendants().Any(node => node.Kind == MarkdownKinds.Abbreviation));
-    }
-
-    [TestMethod]
     public void APipeTableUnderALineOfWordsIsABlockOfItsOwn()
     {
         // GFM lets a table interrupt a paragraph, and the paragraph's own span is left reaching over it.

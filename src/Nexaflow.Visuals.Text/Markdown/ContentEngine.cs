@@ -45,6 +45,12 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
     private readonly Stages.WithUnchanged _unchanged = new();
 
+    /// <summary>
+    /// The places the links of the content being shown can name, as its stages found them (<see cref="LinkTargets"/>) — and, for a
+    /// long document laid a stretch at a time, as working all of it over found them past what is laid.
+    /// </summary>
+    private readonly LinkTargets _targets = new();
+
     private Nesting? _nesting;
 
     /// <summary>The parse each language keeps for the content asked for, and the one for what is written inside it.</summary>
@@ -84,12 +90,20 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var language = Language(named);
 
         Turn();
-        var top = Parse(language, named, state.Source);
 
+        return LaidFrom(language, named, Parse(language, named, state.Source), state, style, room, readOnly);
+    }
+
+    /// <summary>
+    /// What <paramref name="top"/> — <paramref name="state"/>'s source as its language read it — comes to laid out at
+    /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is.
+    /// </summary>
+    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, StyleFormat style, double room, bool readOnly)
+    {
         Views(top);
         if (_top is { } opened) style = style with { Expansion = opened };
 
-        var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged };
+        var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
         var staged = Staged(top, showing);
 
         Reading = ContentReading.Of(staged, 0, state.Source);

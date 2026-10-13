@@ -64,6 +64,7 @@ public sealed partial class ContentEngine
 
             _showing = value;
             Recornered();
+            Approached();
         }
     }
 

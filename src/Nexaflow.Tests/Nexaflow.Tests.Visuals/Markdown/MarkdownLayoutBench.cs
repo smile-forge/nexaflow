@@ -129,6 +129,12 @@ public class MarkdownLayoutBench
     {
         var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(language, EditState.For(text), style, Room, false));
 
+        // Opening it as a page does: shown at the room with a screen of it on screen, which for a document long enough to be
+        // shown a stretch at a time lays only as far as that — and what the page holds once the rest has been read behind it.
+        var (opened, openedKb) = Opening(text, language, style, inputs);
+        var openedPieces = Opened(text, language, style, inputs).Laid.Tree.Count;
+        var retainedOpened = Retained(() => Opened(text, language, style, inputs));
+
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
         var content = new ContentEngine(inputs);
@@ -249,6 +255,10 @@ public class MarkdownLayoutBench
             ["nestedCount"] = count,
             ["pieces"] = laid.Root.SelfAndDescendants().Count(),
             ["open"] = Round(open),
+            ["opened"] = Round(opened),
+            ["openedKb"] = Math.Round(openedKb, 1),
+            ["openedPieces"] = openedPieces,
+            ["retainedOpenedKb"] = Math.Round(retainedOpened, 1),
             ["edit"] = Round(edit),
             ["read"] = Round(tRead),
             ["stages"] = staged,
@@ -312,6 +322,58 @@ public class MarkdownLayoutBench
         return at;
     }
 
+    /// <summary>
+    /// <paramref name="text"/> opened as a page opens it: an engine showing it, a screen of it on screen, laid at the room — with
+    /// whatever it reads in the background read, so what it holds is what an open page holds once that is done.
+    /// </summary>
+    private static ContentEngine Opened(string text, string? language, StyleFormat style, ContentInputs inputs)
+    {
+        var engine = Shown(text, language, style, inputs);
+        engine.ReadingRest.Wait();
+
+        return engine;
+    }
+
+    private static ContentEngine Shown(string text, string? language, StyleFormat style, ContentInputs inputs)
+    {
+        var engine = new ContentEngine(inputs);
+        engine.Show(language, style);
+        engine.OnScreen = Screen;
+        engine.Start(text);
+        engine.Fit(Room);
+
+        return engine;
+    }
+
+    /// <summary>
+    /// The medians of <see cref="Runs"/> openings, after one to warm up: how long the page took to show, and how much that
+    /// allocated — the reading of the rest behind it waited for between runs, untimed, so no run is slowed by the last.
+    /// </summary>
+    private static (double Ms, double Kb) Opening(string text, string? language, StyleFormat style, ContentInputs inputs)
+    {
+        Opened(text, language, style, inputs);
+
+        var times = new double[Runs];
+        var bytes = new double[Runs];
+
+        for (var at = 0; at < Runs; at++)
+        {
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            var clock = Stopwatch.StartNew();
+
+            var engine = Shown(text, language, style, inputs);
+
+            times[at] = clock.Elapsed.TotalMilliseconds;
+            bytes[at] = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024.0;
+
+            engine.ReadingRest.Wait();
+        }
+
+        Array.Sort(times);
+        Array.Sort(bytes);
+        return (times[Runs / 2], bytes[Runs / 2]);
+    }
+
     /// <summary>How many paragraphs the long rich-text document has: enough that laying all of it is what opening it costs.</summary>
     private const int LongRichText = 2000;
 
@@ -355,6 +417,9 @@ public class MarkdownLayoutBench
         return new Dictionary<string, object>
         {
             ["open"] = Sum("open"),
+            ["opened"] = Sum("opened"),
+            ["openedKb"] = Sum("openedKb"),
+            ["retainedOpenedKb"] = Sum("retainedOpenedKb"),
             ["edit"] = Sum("edit"),
             ["read"] = Sum("read"),
             ["stages"] = Round(rows.Sum(row => ((Dictionary<string, object>)row["stages"]).Values.Sum(Convert.ToDouble))),
