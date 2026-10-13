@@ -5,6 +5,7 @@ using OllamaSharp.Models.Chat;
 using System.Text;
 using System.Text.Json;
 using ModelInfo = Nexaflow.Providers.Common.ModelInfo;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Providers.Ollama;
 
@@ -27,6 +28,9 @@ public sealed class OllamaLlmProvider : ILlmProvider
     /// <summary>Context window (tokens) for the bound model, fetched on warm-up via /api/show.</summary>
     private int? _contextLength;
 
+    /// <summary>Whether the bound model calls tools, once its details are read.</summary>
+    private bool? _toolCalls;
+
     public string? LastModelListError { get; private set; }
 
     public OllamaLlmProvider(IBackgroundActivityManager activityManager, OllamaConfig config, ProviderModel model)
@@ -44,51 +48,99 @@ public sealed class OllamaLlmProvider : ILlmProvider
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+        => Stream(messages, [], ct);
+
+    /// <summary>Whether the bound model's template calls tools — Ollama names it among the model's capabilities, read with
+    /// its details at warm-up. Until they are read, its tools are described in the conversation instead.</summary>
+    public bool SupportsToolCalls => _toolCalls == true;
+
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => Stream(messages, tools, ct);
+
+    private IAsyncEnumerable<LlmStreamEvent> Stream(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, CancellationToken ct)
     {
-        var msgList = BuildMessages(messages);
         var request = new ChatRequest
         {
             Model     = _model,
-            Messages  = msgList,
+            Messages  = BuildMessages(messages),
             KeepAlive = _config.KeepAliveValue,
             // Thinking mode == --think; we never yield Message.Thinking, so it's --hidethinking too.
-            Think     = _config.ThinkingMode ? true : null
+            Think     = _config.ThinkingMode ? true : null,
+            Tools     = tools.Count > 0 ? [.. tools.Select(Declare)] : null,
         };
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Ollama ({_model})…", ProviderName,
-            ct => Events(request, ct), ct);
+            ct => Events(Client.ChatAsync(request, ct)), ct);
     }
 
-    private async IAsyncEnumerable<LlmStreamEvent> Events(
-        ChatRequest request,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    /// <summary>A tool as Ollama declares it: a function, its parameters' JSON Schema as given.</summary>
+    internal static JsonObject Declare(LlmTool tool) => new()
     {
-        await foreach (var chunk in Client.ChatAsync(request, ct))
+        ["type"]     = "function",
+        ["function"] = new JsonObject
+        {
+            ["name"]        = tool.Name,
+            ["description"] = tool.Description,
+            ["parameters"]  = tool.Parameters.DeepClone(),
+        },
+    };
+
+    /// <summary>The reply as it streams: its text, and each call whole in the chunk that carries it. A call Ollama gives no
+    /// id is numbered.</summary>
+    internal static async IAsyncEnumerable<LlmStreamEvent> Events(IAsyncEnumerable<ChatResponseStream?> chunks)
+    {
+        int made = 0;
+        await foreach (var chunk in chunks)
+        {
             if (chunk?.Message?.Content is { Length: > 0 } text)
                 yield return new LlmTextDelta(text);
+            foreach (var call in chunk?.Message?.ToolCalls ?? [])
+            {
+                var arguments = call.Function?.Arguments is { } args ? JsonSerializer.Serialize(args) : null;
+                yield return new LlmToolCallRequested(LlmToolCall.Read(call.Id ?? $"call_{made}", call.Function?.Name ?? "", arguments));
+                made++;
+            }
+        }
     }
 
     /// <summary>Maps the neutral message list to Ollama chat messages (system inline; attachments
-    /// listed as paths — image bytes go via vision-capable models only when the host allows).
-    /// Internal + static so the mapping is unit-testable.</summary>
+    /// listed as paths — image bytes go via vision-capable models only when the host allows; a reply's tool calls on its
+    /// message, and what came of each as a tool message naming the tool). Internal + static so the mapping is unit-testable.</summary>
     internal static List<Message> BuildMessages(IReadOnlyList<LlmMessage> messages)
     {
         // Ollama's API accepts system messages inline in the messages array
         var msgList = new List<Message>();
         foreach (var msg in messages)
         {
-            ChatRole role = msg.Role switch
+            msgList.Add(msg.Role switch
             {
-                LlmRole.System    => ChatRole.System,
-                LlmRole.Assistant => ChatRole.Assistant,
-                _                 => ChatRole.User
-            };
-            var content = msg.Role == LlmRole.User ? BuildUserContent(msg.Text, msg.Attachments) : msg.Text;
-
-            msgList.Add(new Message { Role = role, Content = content });
+                LlmRole.System    => new Message { Role = ChatRole.System, Content = msg.Text },
+                LlmRole.Assistant => new Message
+                {
+                    Role      = ChatRole.Assistant,
+                    Content   = msg.Text,
+                    ToolCalls = msg.ToolCalls is { Count: > 0 } calls ? [.. calls.Select(Called)] : null,
+                },
+                LlmRole.Tool      => new Message { Role = ChatRole.Tool, Content = msg.Text, ToolName = msg.Answers?.Name },
+                _                 => new Message { Role = ChatRole.User, Content = BuildUserContent(msg.Text, msg.Attachments) },
+            });
         }
         return msgList;
     }
+
+    private static Message.ToolCall Called(LlmToolCall call) => new()
+    {
+        Id       = call.Id,
+        Function = new Message.Function
+        {
+            Name      = call.Name,
+            Arguments = JsonSerializer.Deserialize<Dictionary<string, object>>(call.Arguments.ToJsonString()),
+        },
+    };
 
     /// <summary>Name heuristic for locally-hosted vision models.</summary>
     internal static bool ModelSupportsVision(string model)
@@ -121,19 +173,19 @@ public sealed class OllamaLlmProvider : ILlmProvider
     public async Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(_model)) return null;
-        var len = _contextLength ??= await FetchContextLengthAsync(ct);
-        return len > 0 ? new ModelInfo(len, _model) : null;
+        if (_contextLength is null) await ReadModelAsync(ct);
+        return _contextLength > 0 ? new ModelInfo(_contextLength.Value, _model) : null;
     }
 
     /// <summary>
-    /// Warm-up: cache the bound model's context window (via /api/show) and trigger Ollama to load it
+    /// Warm-up: read the bound model's details (via /api/show) and trigger Ollama to load it
     /// into memory by issuing an empty generate with the configured keep_alive. Best-effort; never throws.
     /// </summary>
     public async Task WarmupAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(_model)) return;
 
-        _contextLength = await FetchContextLengthAsync(ct);
+        await ReadModelAsync(ct);
 
         try
         {
@@ -169,15 +221,17 @@ public sealed class OllamaLlmProvider : ILlmProvider
         catch { /* best-effort */ }
     }
 
-    /// <summary>Queries /api/show for the bound model's context length (0 on failure).</summary>
-    private async Task<int> FetchContextLengthAsync(CancellationToken ct)
+    /// <summary>Reads the bound model's details from /api/show: its context length (0 on failure) and whether it calls
+    /// tools.</summary>
+    private async Task ReadModelAsync(CancellationToken ct)
     {
         try
         {
-            var show   = await Client.ShowModelAsync(new ShowModelRequest { Model = _model }, ct);
-            return ExtractContextLength(show);
+            var show = await Client.ShowModelAsync(new ShowModelRequest { Model = _model }, ct);
+            _contextLength = ExtractContextLength(show);
+            _toolCalls     = show?.Capabilities?.Contains("tools", StringComparer.OrdinalIgnoreCase) ?? false;
         }
-        catch { return 0; }
+        catch { _contextLength = 0; }
     }
 
     /// <summary>

@@ -305,6 +305,50 @@ public class RequestMappingTests
     }
 
     [TestMethod]
+    public void Ollama_ACallRidesOnTheReply_AndWhatCameOfIt_IsAToolMessageNamingTheTool()
+    {
+        var messages = OllamaLlmProvider.BuildMessages(ToolStep());
+
+        Assert.AreEqual(5, messages.Count);
+        var call = messages[2].ToolCalls!.Single();
+        Assert.AreEqual(("c1", "delete_file", "old"), (call.Id, call.Function!.Name, call.Function.Arguments!["name"].ToString()));
+        Assert.AreEqual((ChatRole.Tool, "deleted", "delete_file"), (messages[3].Role, messages[3].Content, messages[3].ToolName));
+        Assert.AreEqual(ChatRole.User, messages[4].Role);
+    }
+
+    /// <summary>Answers a chat request with the lines given, keeping the request it was sent.</summary>
+    private sealed class OllamaServer(params string[] lines) : HttpMessageHandler
+    {
+        public string? Sent { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Sent = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(string.Join('\n', lines) + "\n") };
+        }
+    }
+
+    [TestMethod]
+    public async Task Ollama_ToolsGoOutWithTheirSchema_AndACallComesBackWhole()
+    {
+        var server = new OllamaServer(
+            """{"model":"m","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"On it."},"done":false}""",
+            """{"model":"m","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"delete_file","arguments":{"name":"old"}}}]},"done":false}""",
+            """{"model":"m","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}""");
+        var client  = new OllamaSharp.OllamaApiClient(new HttpClient(server) { BaseAddress = new Uri("http://localhost:11434") });
+        var request = new ChatRequest { Model = "m", Messages = OllamaLlmProvider.BuildMessages(ToolStep()), Tools = [OllamaLlmProvider.Declare(DeleteFile)] };
+
+        var read = new List<LlmStreamEvent>();
+        await foreach (var e in OllamaLlmProvider.Events(client.ChatAsync(request))) read.Add(e);
+
+        StringAssert.Contains(server.Sent, "\"parameters\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"");
+        StringAssert.Contains(server.Sent, "\"tool_name\":\"delete_file\"");
+        Assert.AreEqual("On it.", ((LlmTextDelta)read[0]).Text);
+        var call = ((LlmToolCallRequested)read[1]).Call;
+        Assert.AreEqual(("call_0", "delete_file", "old"), (call.Id, call.Name, (string?)call.Arguments["name"]));
+    }
+
+    [TestMethod]
     public void Ollama_VisionHeuristic_MatchesKnownFamilies()
     {
         Assert.IsTrue(OllamaLlmProvider.ModelSupportsVision("llava:13b"));
