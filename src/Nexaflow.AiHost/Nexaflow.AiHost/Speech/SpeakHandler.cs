@@ -18,8 +18,8 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
     protected override async Task HandleAsync(Speak request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
         if (request.Voices.Count == 0) throw new HostRequestException(HostErrorKind.Invalid, "Speaking needs a voice.");
-        if (request.Voices.FirstOrDefault(v => !phonemizers.Has(v.Language)) is { } unread)
-            throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice.");
+        if (request.Voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
+            throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice{(unread.Lexicon is null ? " without its lexicon" : "")}.");
 
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         var leases = new Dictionary<string, ModelRegistry.Lease>(StringComparer.Ordinal);
@@ -27,7 +27,7 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
         {
             foreach (var spec in request.Voices.Select(v => v.Model).DistinctBy(m => m.Id))
                 leases[spec.Id] = await models.AcquireAsync(spec, resident: false, Stage, ct);
-            var voices = request.Voices.Select(v => new Voice(v.Language, leases[v.Model.Id].As<KokoroSynthesizer>(), v.VoiceFile)).ToList();
+            var voices = request.Voices.Select(v => new Voice(v.Language, leases[v.Model.Id].As<KokoroSynthesizer>(), v.VoiceFile, v.Lexicon)).ToList();
 
             int spokenSamples = 0;
             Task Alive() => reply(new Progress(request.RequestId, "speaking", spokenSamples * 1000L / KokoroSynthesizer.SampleRate, 0));
@@ -35,7 +35,7 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
             {
                 if (item is not TextToSpeak text) continue;
                 var voice = voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? voices[0];
-                string phonemes = phonemizers.For(voice.Language).Phonemize(text.Text);
+                string phonemes = phonemizers.For(voice.Language, voice.Lexicon).Phonemize(text.Text);
                 foreach (var piece in voice.Synthesizer.Tokenize(phonemes))
                 {
                     float[] wave;
@@ -57,5 +57,5 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
         }
     }
 
-    private sealed record Voice(string Language, KokoroSynthesizer Synthesizer, string File);
+    private sealed record Voice(string Language, KokoroSynthesizer Synthesizer, string File, string? Lexicon);
 }
