@@ -7,9 +7,11 @@ namespace Nexaflow.Features.Common.ClientTools;
 /// <param name="Type">Its JSON Schema type (string, number, boolean, array, object).</param>
 /// <param name="ItemType">For an array: the JSON Schema type of each item. An array declared without one takes items
 /// of any kind.</param>
+/// <param name="Choices">The only values it takes, where there are a few — declared to the model as an enum.</param>
 public sealed record ClientToolParameter(
     string Name,
     string Description,
     bool Required = true,
     string Type = "string",
-    string? ItemType = null);
+    string? ItemType = null,
+    IReadOnlyList<string>? Choices = null);

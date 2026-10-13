@@ -29,6 +29,7 @@ internal static class ToolCatalog
         {
             sb.Append("\n    • ").Append(p.Name).Append(" (").Append(p.Type);
             if (!p.Required) sb.Append(", optional");
+            if (p.Choices is { Count: > 0 } choices) sb.Append(", one of ").Append(string.Join(" | ", choices));
             sb.Append("): ").Append(p.Description);
         }
         return sb.ToString();
@@ -47,7 +48,7 @@ internal static class ToolCatalog
                 "boolean"             => true,
                 "array"               => new JsonArray(),
                 "object"              => new JsonObject(),
-                _                     => $"<{p.Name}>",
+                _                     => p.Choices is [var first, ..] ? first : $"<{p.Name}>",
             };
         return arguments;
     }
