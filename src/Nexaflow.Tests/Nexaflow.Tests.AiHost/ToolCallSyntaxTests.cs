@@ -30,11 +30,11 @@ public class ToolCallSyntaxTests
     }
 
     [TestMethod]
-    public void ArgumentsThatWillNotRead_AreNone_SoTheToolSaysWhatItIsMissing()
+    public void ArgumentsThatWillNotRead_AreKeptAsWritten_ForTheAppToHaveWrittenAgain()
     {
         var call = ToolCallSyntax.Parse("call:delete_file{name:\"test.zip\"", "call_1");
 
-        Assert.AreEqual(("delete_file", "{}"), (call.Name, call.Arguments));
+        Assert.AreEqual(("delete_file", "{name:\"test.zip\""), (call.Name, call.Arguments));
     }
 
     [TestMethod]

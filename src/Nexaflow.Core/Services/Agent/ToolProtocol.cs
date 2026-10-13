@@ -46,6 +46,20 @@ internal abstract class ToolProtocol
     public abstract IEnumerable<LlmMessage> Answer(AgentStep step, IReadOnlyList<ToolOutcome> outcomes, string? besides,
                                                    IReadOnlyList<LlmAttachment>? attachments);
 
+    /// <summary>What in the step could not be read — calls the model meant, written so they cannot run. Empty when every
+    /// call was read.</summary>
+    public abstract IReadOnlyList<string> Misread(AgentStep step);
+
+    /// <summary>
+    /// The step with what could not be read written again: the model is asked, in a context of its own that holds only the
+    /// call as written, why it did not read and an example of it made from the tool's definition, to write it so it reads.
+    /// The step it returns takes the misread one's place, so the conversation never holds the attempt. Null when the call
+    /// still cannot be read, or what it meant to call is not known.
+    /// </summary>
+    /// <param name="tools">Every tool the run can call — the misread call may name one not offered this step.</param>
+    public abstract Task<AgentStep?> RepairAsync(ILlmProvider provider, AgentStep step, IReadOnlyList<IClientTool> tools,
+                                                 IReadOnlyCollection<string> toolNames, CancellationToken ct);
+
     /// <summary>The model's reply streamed: its prose to the handler as a draft, kept clear of anything it acts on, and
     /// the calls it made in its own protocol.</summary>
     protected static async Task<(string Text, IReadOnlyList<LlmToolCall> Calls)> StreamAsync(IAsyncEnumerable<LlmStreamEvent> events,

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 
@@ -54,5 +55,39 @@ internal sealed class FencedToolProtocol : ToolProtocol
         }
         if (besides is { Length: > 0 }) text.Append(besides);
         yield return new LlmMessage(LlmRole.User, text.ToString().TrimEnd()) { Attachments = attachments is { Count: > 0 } ? attachments : null };
+    }
+
+    public override IReadOnlyList<string> Misread(AgentStep step) => step.Turn.ParseErrors;
+
+    /// <summary>The reply's calls written again as fenced blocks, from the tools it names. A reply naming none is not
+    /// repaired: what it meant is not known.</summary>
+    public override async Task<AgentStep?> RepairAsync(ILlmProvider provider, AgentStep step, IReadOnlyList<IClientTool> tools,
+                                                       IReadOnlyCollection<string> toolNames, CancellationToken ct)
+    {
+        var named = tools.Where(t => step.Written.Contains(t.Name, StringComparison.Ordinal)).ToList();
+        if (named.Count == 0) return null;
+
+        var example = new JsonObject { ["tool"] = named[0].Name, ["arguments"] = ToolCatalog.Example(named[0]) };
+        var asked = new StringBuilder()
+            .Append("# The tools it names\n").Append(ToolCatalog.Describe(named)).Append("\n\n")
+            .Append("# A call, written so it runs\n```client_tool\n").Append(example.ToJsonString(ToolCatalog.Readable)).Append("\n```\n\n")
+            .Append("# The reply\n").Append(step.Written).Append("\n\n")
+            .Append("# Why its calls did not run\n").AppendJoin('\n', step.Turn.ParseErrors.Select(e => "- " + e));
+        LlmMessage[] repair =
+        [
+            new(LlmRole.System, "A reply meant to call tools, but wrote the calls so they could not be read. Write each call it "
+                              + "meant again, as the example is written: one fenced client_tool block for each, holding the tool "
+                              + "and the arguments the reply meant. Write nothing else."),
+            new(LlmRole.User, asked.ToString()),
+        ];
+
+        var turn = ClientBlockParser.Parse((await provider.CompleteAsync(repair, ct))?.RawText ?? "", toolNames);
+        if (turn.ToolCalls.Count == 0 || turn.ParseErrors.Count > 0) return null;
+
+        // The conversation remembers the calls exactly as a reply that read would have written them, and nothing besides.
+        var written = string.Join("\n\n", turn.ToolCalls.Select(c =>
+            "```client_tool\n" + new JsonObject { ["tool"] = c.Tool, ["arguments"] = c.Arguments.DeepClone() }.ToJsonString(ToolCatalog.Readable) + "\n```"));
+        var calls = turn.ToolCalls.Select((c, i) => new LlmToolCall($"call-{i}", c.Tool, c.Arguments)).ToList();
+        return new AgentStep(written, new ParsedAssistantTurn("", turn.ToolCalls, null, null, []), calls, null);
     }
 }

@@ -96,8 +96,8 @@ internal sealed class ToolCallSyntax
     }
 
     /// <summary>A call as written — <c>call:name{key:value,…}</c>, its strings already quoted — as a tool, and its
-    /// arguments as a JSON object: the keys, written bare, quoted. Arguments that still will not read are none, so the
-    /// tool says what it is missing.</summary>
+    /// arguments as a JSON object: the keys, written bare, quoted. Arguments that still will not read are passed on as the
+    /// model wrote them, so the app can have the call written again rather than run it with none.</summary>
     internal static ChatToolCall Parse(string written, string id)
     {
         var text = written.Trim();
@@ -106,8 +106,8 @@ internal sealed class ToolCallSyntax
         string name = (open < 0 ? text : text[..open]).Trim();
         string body = open < 0 ? "{}" : text[open..];
         string arguments;
-        try { arguments = JsonNode.Parse(Quoted(body)) is JsonObject args ? args.ToJsonString() : "{}"; }
-        catch (JsonException) { arguments = "{}"; }
+        try { arguments = JsonNode.Parse(Quoted(body)) is JsonObject args ? args.ToJsonString() : body; }
+        catch (JsonException) { arguments = body; }
         return new ChatToolCall(id, name, arguments);
     }
 

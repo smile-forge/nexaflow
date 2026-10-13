@@ -430,7 +430,16 @@ public sealed class AIService : IAIService
                 messages[0] = new(LlmRole.System, BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle));
 
                 var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, ct);
-                transcript?.Step(messages, taken.Written);
+                transcript?.Step(messages, exposed, taken.Written);
+
+                // A call the model meant but wrote so it cannot run is written again in a context of its own, and takes the
+                // attempt's place: the conversation goes on as if it had been written so, rather than holding the attempt and its
+                // correction. One that still cannot be read is told why, below.
+                if (protocol.Misread(taken).Count > 0 && await protocol.RepairAsync(provider, taken, chooser.All, toolNames, ct) is { } repaired)
+                {
+                    transcript?.Repaired(repaired.Written);
+                    taken = repaired;
+                }
                 var turn = taken.Turn;
 
                 // 1. A plan was proposed and not yet approved — approve once, then run unattended.

@@ -65,7 +65,7 @@ internal sealed class ToolChooser
     public void Did(string tool, JsonObject arguments, string outcome)
     {
         var shown = outcome.Length <= OutcomeShown ? outcome : outcome[..OutcomeShown] + "…";
-        _done.Add($"{tool} {arguments.ToJsonString()}: {shown.ReplaceLineEndings(" ")}");
+        _done.Add($"{tool} {arguments.ToJsonString(ToolCatalog.Readable)}: {shown.ReplaceLineEndings(" ")}");
         _chosen = null;
     }
 

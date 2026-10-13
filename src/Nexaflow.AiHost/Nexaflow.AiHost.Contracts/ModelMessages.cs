@@ -48,7 +48,8 @@ public enum TurnRole { System, User, Assistant, Tool }
 /// object.</summary>
 public sealed record ChatTool(string Name, string Description, string Parameters);
 
-/// <summary>A call the model made: the id its result answers, the tool, and its arguments as a JSON object.</summary>
+/// <summary>A call the model made: the id its result answers, the tool, and its arguments as a JSON object — or, when
+/// they would not read as one, as the model wrote them, for the app to have the call written again.</summary>
 public sealed record ChatToolCall(string Id, string Name, string Arguments);
 
 public enum MediaKind { Image, Audio }

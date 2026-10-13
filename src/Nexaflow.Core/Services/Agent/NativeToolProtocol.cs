@@ -75,6 +75,41 @@ internal sealed class NativeToolProtocol : ToolProtocol
             yield return new LlmMessage(LlmRole.User, besides ?? "") { Attachments = attachments is { Count: > 0 } ? attachments : null };
     }
 
+    public override IReadOnlyList<string> Misread(AgentStep step)
+        => [.. step.Calls.Where(c => c.Unread is not null).Select(c => $"{c.Name}: its arguments did not read as a JSON object: {c.Unread}")];
+
+    /// <summary>Each call whose arguments did not read, made again in the model's own protocol with only its tool offered;
+    /// the call keeps its place, its id and its signature, so the step reads as if it had been written so.</summary>
+    public override async Task<AgentStep?> RepairAsync(ILlmProvider provider, AgentStep step, IReadOnlyList<IClientTool> tools,
+                                                       IReadOnlyCollection<string> toolNames, CancellationToken ct)
+    {
+        var calls = step.Calls.ToList();
+        for (int i = 0; i < calls.Count; i++)
+        {
+            if (calls[i].Unread is not { } unread) continue;
+            if (tools.FirstOrDefault(t => t.Name == calls[i].Name) is not { } tool) return null;
+
+            LlmMessage[] repair =
+            [
+                new(LlmRole.System, $"A call to {tool.Name} was written with arguments that could not be read. Call {tool.Name} "
+                                  + "again with the arguments it meant, as its parameters describe — for example "
+                                  + $"{tool.Name}({ToolCatalog.Example(tool).ToJsonString(ToolCatalog.Readable)})."),
+                new(LlmRole.User, $"The arguments as written: {unread}"),
+            ];
+            LlmToolCall? made = null;
+            await foreach (var e in provider.StreamAsync(repair, [Declare(tool)], LlmUrgency.Interactive, ct))
+                if (e is LlmToolCallRequested { Call: { Unread: null } call } && call.Name == tool.Name)
+                    made ??= call;
+            if (made is null) return null;
+
+            calls[i] = calls[i] with { Arguments = made.Arguments, Unread = null };
+        }
+
+        var turn = step.Turn with { ToolCalls = [.. calls.Select(c => new ToolCall(c.Name, c.Arguments))] };
+        var written = Written(step.Turn.ExplanationMarkdown, step.PlanCall is { } plan ? [plan, .. calls] : calls);
+        return step with { Written = written, Turn = turn, Calls = calls };
+    }
+
     /// <summary>A tool as the model's protocol declares it: its parameters as a JSON Schema object.</summary>
     internal static LlmTool Declare(IClientTool tool)
         => new(tool.Name, tool.Description,
@@ -106,5 +141,5 @@ internal sealed class NativeToolProtocol : ToolProtocol
 
     /// <summary>The step as a transcript shows it: the prose, then each call.</summary>
     private static string Written(string text, IReadOnlyList<LlmToolCall> calls)
-        => string.Join('\n', [text, .. calls.Select(c => $"[call {c.Name} {c.Arguments.ToJsonString()}]")]).Trim();
+        => string.Join('\n', [text, .. calls.Select(c => $"[call {c.Name} {c.Arguments.ToJsonString(ToolCatalog.Readable)}]")]).Trim();
 }
