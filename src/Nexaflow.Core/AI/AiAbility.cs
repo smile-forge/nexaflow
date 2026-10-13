@@ -4,7 +4,7 @@ namespace Nexaflow.Core.AI;
 
 /// <summary>What the workspace asks of a model. Each takes models of one <see cref="ModelKind"/>
 /// (<see cref="AiAbilityNames.Kind"/>): the reasoning roles a language model, Speech In a speech-to-text one, Speech
-/// Out a text-to-speech one.</summary>
+/// Out a text-to-speech one, and the generation rows a model that makes pictures or videos.</summary>
 public enum AiAbility
 {
     Disambiguation,
@@ -14,6 +14,8 @@ public enum AiAbility
     Analysis,
     SpeechIn,
     SpeechOut,
+    ImageGeneration,
+    VideoGeneration,
 }
 
 internal static class AiAbilityNames
@@ -27,14 +29,18 @@ internal static class AiAbilityNames
         AiAbility.Analysis         => "Analysis",
         AiAbility.SpeechIn         => "Speech In",
         AiAbility.SpeechOut        => "Speech Out",
+        AiAbility.ImageGeneration  => "Image Generation",
+        AiAbility.VideoGeneration  => "Video Generation",
         _                          => a.ToString()
     };
 
     /// <summary>The kind of model an ability takes — the grid offers it only columns of that kind.</summary>
     public static ModelKind Kind(AiAbility a) => a switch
     {
-        AiAbility.SpeechIn  => ModelKind.SpeechToText,
-        AiAbility.SpeechOut => ModelKind.TextToSpeech,
-        _                   => ModelKind.Language,
+        AiAbility.SpeechIn        => ModelKind.SpeechToText,
+        AiAbility.SpeechOut       => ModelKind.TextToSpeech,
+        AiAbility.ImageGeneration => ModelKind.ImageGeneration,
+        AiAbility.VideoGeneration => ModelKind.VideoGeneration,
+        _                         => ModelKind.Language,
     };
 }
