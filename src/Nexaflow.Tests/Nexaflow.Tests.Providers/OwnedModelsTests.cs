@@ -38,13 +38,21 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
-    public void TheShippedVoice_HasAnEnglishVoiceAmongItsFiles()
+    public void TheShippedVoices_SpeakEnglishFrenchAndGerman_EachWithItsFilesAndLexicon()
     {
         var kokoro = OwnedModels.OfKind(ModelKind.TextToSpeech).Single();
+        var files  = kokoro.Catalog.Files.Select(f => f.RelativePath).ToArray();
 
-        var english = kokoro.Voices.Single(v => v.Language == "en");
-        Assert.AreEqual(OwnedRoles.Synthesizer, english.Part);
-        CollectionAssert.Contains(kokoro.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/kokoro-82m/" + english.File);
+        Assert.AreEqual("en", kokoro.Voices[0].Language, "English reads any language none of the voices is for");
+        foreach (var language in new[] { "en", "fr", "de" })
+        {
+            var voice = kokoro.Voices.Single(v => v.Language == language);
+            var part  = kokoro.PartNamed(voice.Part, OwnedModels.Cuda);
+            CollectionAssert.Contains(files, $"{part.Folder}/{voice.File}");
+            if (language != "en") CollectionAssert.Contains(files, $"{part.Folder}/{voice.Lexicon}", $"{language} is read from its lexicon");
+        }
+        Assert.AreEqual("models/kokoro-82m-german", kokoro.PartNamed(kokoro.Voices.Single(v => v.Language == "de").Part, OwnedModels.Cpu).Folder,
+                        "German is spoken by its own fine-tune");
     }
 
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";

@@ -142,6 +142,39 @@ public class SpeechModelTests
         StringAssert.Contains(text, "morning");
     }
 
+    [TestMethod]
+    [DataRow("fr", "kokoro-82m", "voices/ff_siwis.bin", "Il reste 3,5 Go sur le disque.", "disque")]
+    [DataRow("de", "kokoro-82m-german", "voices/df_kerstin.bin", "Die Datei liegt im Ordner Dokumente.", "ordner")]
+    public async Task FrenchAndGerman_AreSpokenFromTheirLexicons_AndHeardBack(string language, string folder, string voiceFile, string written, string heardWord)
+    {
+        if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
+        string root = System.IO.Path.GetDirectoryName(_voice!.Model.Folder)!;
+        var voice = new VoiceSpec(language, new ModelSpec($"speech/kokoro-{language}", "kokoro", System.IO.Path.Combine(root, folder), "onnx/model.onnx", null, 1L << 30, 0),
+                                  voiceFile, System.IO.Path.Combine(root, folder, "lexicons", $"{language}.tsv.gz"));
+
+        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!, voice], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(3));
+        await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, written, language));
+        await stream.WriteAsync(new InputEnd(stream.RequestId));
+        var replies = new List<HostReply>();
+        await foreach (var reply in stream.ReadAsync()) if (reply is not Progress) replies.Add(reply);
+        byte[] speech = [.. replies.OfType<SpokenAudio>().SelectMany(a => a.Pcm)];
+
+        await using var listening = await _client.OpenStreamAsync(id => new Listen(id, _models!, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        var reading = Task.Run(async () =>
+        {
+            var finals = new List<string>();
+            await foreach (var reply in listening.ReadAsync()) if (reply is ListenFinal final) finals.Add(final.Text);
+            return string.Join(' ', finals);
+        });
+        byte[] audio = [.. new Nexaflow.IO.Common.Audio.PcmResampler(24_000, 16_000).Convert(speech), .. new byte[16_000 * 2 * 2]];
+        for (int at = 0; at < audio.Length; at += 3_200)
+            await listening.WriteAsync(new AudioInput(listening.RequestId, audio[at..Math.Min(audio.Length, at + 3_200)]));
+        await listening.WriteAsync(new InputEnd(listening.RequestId));
+        string heard = (await reading.WaitAsync(TimeSpan.FromMinutes(1))).ToLowerInvariant();
+
+        StringAssert.Contains(heard, heardWord, $"heard: {heard}");
+    }
+
     /// <summary>Streams the audio in 100 ms pieces, then 2 s of quiet, and returns everything the host replied.</summary>
     private static async Task<List<HostReply>> ListenAsync(byte[] pcm, UtteranceEnd end)
     {

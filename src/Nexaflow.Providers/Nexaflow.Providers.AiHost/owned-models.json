@@ -341,6 +341,14 @@
           "folder": "models/kokoro-82m",
           "file": "onnx/model.onnx",
           "memoryBytes": 1073741824
+        },
+        {
+          "role": "synthesizer",
+          "name": "german",
+          "runner": "kokoro",
+          "folder": "models/kokoro-82m-german",
+          "file": "onnx/model.onnx",
+          "memoryBytes": 1073741824
         }
       ],
       "voices": [
@@ -348,6 +356,18 @@
           "language": "en",
           "part": "synthesizer",
           "file": "voices/af_heart.bin"
+        },
+        {
+          "language": "fr",
+          "part": "synthesizer",
+          "file": "voices/ff_siwis.bin",
+          "lexicon": "lexicons/fr.tsv.gz"
+        },
+        {
+          "language": "de",
+          "part": "german",
+          "file": "voices/df_kerstin.bin",
+          "lexicon": "lexicons/de.tsv.gz"
         }
       ],
       "files": [
@@ -368,6 +388,42 @@
           "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/af_heart.bin",
           "size": 522240,
           "sha256": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+        },
+        {
+          "path": "models/kokoro-82m/voices/ff_siwis.bin",
+          "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/ff_siwis.bin",
+          "size": 522240,
+          "sha256": "a35f5675ad08948e326ae75fd0ea16ba5d0042e4f76b5f3d1df77d0a48c54861"
+        },
+        {
+          "path": "models/kokoro-82m/lexicons/fr.tsv.gz",
+          "url": "https://huggingface.co/smile-forge/kokoro-lexicons-fr-de/resolve/4ccf7fd4581d75f75ef188b821c5fb23dc1311b4/fr.tsv.gz",
+          "size": 1351039,
+          "sha256": "62b275e07d554d0ba39a3f1c4222acf429bf86cdfb0bfb037d4e710c57b0a25d"
+        },
+        {
+          "path": "models/kokoro-82m-german/onnx/model.onnx",
+          "url": "https://huggingface.co/crane-local-ai/Kokoro-82M-v1.0-German-ONNX/resolve/eeccb15741604cdc894053e1f4c72bb56c1a59be/onnx/model.onnx",
+          "size": 336987079,
+          "sha256": "f541f868499a8186803c72166a09469821e971dbb1e4cd8eb7dcf593f49da0b1"
+        },
+        {
+          "path": "models/kokoro-82m-german/tokenizer.json",
+          "url": "https://huggingface.co/crane-local-ai/Kokoro-82M-v1.0-German-ONNX/resolve/eeccb15741604cdc894053e1f4c72bb56c1a59be/tokenizer.json",
+          "size": 3497,
+          "sha256": "77a02c8e164413299b4b4c403b14f8e0e1c1b727db4d46a09d6327b861060a34"
+        },
+        {
+          "path": "models/kokoro-82m-german/voices/df_kerstin.bin",
+          "url": "https://huggingface.co/crane-local-ai/Kokoro-82M-v1.0-German-ONNX/resolve/eeccb15741604cdc894053e1f4c72bb56c1a59be/voices/df_kerstin.bin",
+          "size": 522240,
+          "sha256": "f96576f656c58221b42ce46c74398dc2a6ffc03b8408abe530d85ebd717ca062"
+        },
+        {
+          "path": "models/kokoro-82m-german/lexicons/de.tsv.gz",
+          "url": "https://huggingface.co/smile-forge/kokoro-lexicons-fr-de/resolve/4ccf7fd4581d75f75ef188b821c5fb23dc1311b4/de.tsv.gz",
+          "size": 3111574,
+          "sha256": "d0b319237c7d95d522966be6e571739e7a9c806ed49e74437c18ddd717727829"
         }
       ]
     }
