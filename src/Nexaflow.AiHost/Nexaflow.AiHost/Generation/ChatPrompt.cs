@@ -10,21 +10,43 @@ namespace Nexaflow.AiHost.Generation;
 /// </summary>
 internal static class ChatPrompt
 {
-    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, MediaPlan media)
-        => model.Tokenizer.ApplyChatTemplate(template_str: model.Template, messages: Messages(turns, media), tools: "",
+    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, MediaPlan media,
+                                IReadOnlyList<ChatTool>? tools = null)
+        => model.Tokenizer.ApplyChatTemplate(template_str: model.Template, messages: Messages(turns, media, tools), tools: "",
                                              add_generation_prompt: generationPrompt);
 
     /// <summary>The template's input: the turns as chat messages, with placeholders for the media read and a note
-    /// in place of any other.</summary>
-    internal static string Messages(IReadOnlyList<ChatTurn> turns, MediaPlan media)
+    /// in place of any other; a turn's tool calls, and what answers one, as chat templates take them. The tools offered,
+    /// and the arguments of calls already made, are written in the model's own syntax (<see cref="ToolCallSyntax"/>): the
+    /// declarations end the system turn, the arguments go as the template's written form.</summary>
+    internal static string Messages(IReadOnlyList<ChatTurn> turns, MediaPlan media, IReadOnlyList<ChatTool>? tools = null)
     {
         var messages = new JsonArray();
-        foreach (var turn in turns)
-            messages.Add(new JsonObject
+        for (int i = 0; i < turns.Count; i++)
+        {
+            var turn = turns[i];
+            var content = Content(turn, media);
+            if (i == 0 && turn.Role == TurnRole.System && tools is { Count: > 0 })
+                content = content.GetValue<string>() + ToolCallSyntax.Declarations(tools);
+            var message = new JsonObject
             {
-                ["role"]    = turn.Role switch { TurnRole.System => "system", TurnRole.Assistant => "assistant", _ => "user" },
-                ["content"] = Content(turn, media),
-            });
+                ["role"]    = turn.Role switch { TurnRole.System => "system", TurnRole.Assistant => "assistant", TurnRole.Tool => "tool", _ => "user" },
+                ["content"] = content,
+            };
+            if (turn.ToolCalls is { Count: > 0 } calls)
+                message["tool_calls"] = new JsonArray([.. calls.Select(c => (JsonNode)new JsonObject
+                {
+                    ["id"]       = c.Id,
+                    ["type"]     = "function",
+                    ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = ToolCallSyntax.Arguments(c.Arguments) },
+                })]);
+            if (turn.Answers is { } answered)
+            {
+                message["tool_call_id"] = answered.Id;
+                message["name"]         = answered.Name;
+            }
+            messages.Add(message);
+        }
         return messages.ToJsonString();
     }
 

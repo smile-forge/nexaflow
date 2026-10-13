@@ -41,7 +41,15 @@ public enum RequestPriority
     Job,
 }
 
-public enum TurnRole { System, User, Assistant }
+/// <summary>Who a turn is from. <see cref="Tool"/> is what came of one of the model's tool calls.</summary>
+public enum TurnRole { System, User, Assistant, Tool }
+
+/// <summary>A tool the model may call, in its own protocol: its name, what it does, and its arguments as a JSON Schema
+/// object.</summary>
+public sealed record ChatTool(string Name, string Description, string Parameters);
+
+/// <summary>A call the model made: the id its result answers, the tool, and its arguments as a JSON object.</summary>
+public sealed record ChatToolCall(string Id, string Name, string Arguments);
 
 public enum MediaKind { Image, Audio }
 
@@ -49,17 +57,29 @@ public enum MediaKind { Image, Audio }
 public sealed record ChatMedia(MediaKind Kind, string? Path, byte[]? Bytes);
 
 /// <summary>One turn of a conversation, as the app holds it.</summary>
-public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedia>? Media = null);
+public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedia>? Media = null)
+{
+    /// <summary>On an <see cref="TurnRole.Assistant"/> turn: the tools it called, in order.</summary>
+    public IReadOnlyList<ChatToolCall>? ToolCalls { get; init; }
+
+    /// <summary>On a <see cref="TurnRole.Tool"/> turn: the call it answers.</summary>
+    public ChatToolCall? Answers { get; init; }
+}
 
 /// <summary>
-/// Generates the model's next turn of <see cref="Turns"/>. The text streams back as <see cref="TextDelta"/>s and the
-/// request ends with <see cref="GenerationEnded"/>. A conversation whose earlier turns the host has already read
-/// costs only its new turns: the host keeps what each conversation has read, and appends.
+/// Generates the model's next turn of <see cref="Turns"/>. The text streams back as <see cref="TextDelta"/>s, a call of
+/// one of <see cref="Tools"/> as a <see cref="ToolCallMade"/>, and the request ends with <see cref="GenerationEnded"/>.
+/// A conversation whose earlier turns the host has already read costs only its new turns: the host keeps what each
+/// conversation has read, and appends.
 /// </summary>
+/// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
 public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int MaxNewTokens,
-                              RequestPriority Priority) : HostRequest(RequestId);
+                              RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null) : HostRequest(RequestId);
 
 public sealed record TextDelta(long RequestId, string Text) : HostReply(RequestId);
+
+/// <summary>The model called one of the tools it was offered; its turn ends with its calls.</summary>
+public sealed record ToolCallMade(long RequestId, ChatToolCall Call) : HostReply(RequestId);
 
 public enum StopReason
 {
@@ -69,6 +89,8 @@ public enum StopReason
     MaxTokens,
     /// <summary>The conversation reached the model's context.</summary>
     ContextFull,
+    /// <summary>The model called tools, and waits for what came of them.</summary>
+    ToolCalls,
 }
 
 /// <param name="PromptTokens">The whole conversation, as the model has now read it.</param>

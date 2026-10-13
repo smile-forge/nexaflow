@@ -22,6 +22,7 @@ internal sealed class ChatModel : IHostModel
         Processor     = new MultiModalProcessor(model);
         Template      = template;
         EndTokens     = new HashSet<int>(Tokenizer.GetEosTokenIds().ToArray());
+        ToolCalls     = ToolCallSyntax.Of(Tokenizer);
 
         Conversations = new ConversationLog(this);
     }
@@ -36,6 +37,9 @@ internal sealed class ChatModel : IHostModel
 
     /// <summary>The tokens that end the model's turn.</summary>
     public IReadOnlySet<int> EndTokens { get; }
+
+    /// <summary>How the model writes its tool calls, when its vocabulary holds a syntax for them; null when it has none.</summary>
+    public ToolCallSyntax? ToolCalls { get; }
 
     public ConversationLog Conversations { get; }
 

@@ -136,19 +136,25 @@ internal sealed class RecordingModel(ILlmProvider inner) : ILlmProvider
     public ModelHarness Harness => inner.Harness;
     public bool SupportsImages => inner.SupportsImages;
     public bool SupportsAudio => inner.SupportsAudio;
+    public bool SupportsToolCalls => inner.SupportsToolCalls;
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => inner.GetAvailableModelsAsync(ct);
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default) => inner.GetModelInfoAsync(ct);
 
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         => StreamAsync(messages, LlmUrgency.Interactive, ct);
 
-    public async IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, LlmUrgency urgency,
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, LlmUrgency urgency, CancellationToken ct = default)
+        => StreamAsync(messages, [], urgency, ct);
+
+    /// <summary>The reply, recorded as the model wrote it: its prose, then each call it made in its own protocol.</summary>
+    public async IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
                                                               [EnumeratorCancellation] CancellationToken ct = default)
     {
         var answer = new StringBuilder();
-        await foreach (var e in inner.StreamAsync(messages, urgency, ct))
+        await foreach (var e in inner.StreamAsync(messages, tools, urgency, ct))
         {
             if (e is LlmTextDelta delta) answer.Append(delta.Text);
+            if (e is LlmToolCallRequested call) answer.Append($"\n[call {call.Call.Name} {call.Call.Arguments.ToJsonString()}]");
             yield return e;
         }
         Turns.Add(([.. messages], answer.ToString()));

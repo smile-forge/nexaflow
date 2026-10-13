@@ -26,9 +26,10 @@ internal static class ConversationMatch
     /// <summary>
     /// What extends a context that has read <paramref name="read"/> to <paramref name="turns"/>: the template's closing
     /// for the last reply, then the new turns and the generation prompt. The closing is read whole — onnxruntime-genai
-    /// does not keep the end token a reply stopped on, so the model has not read it. Earlier text the template would now
-    /// render differently (Gemma's adds and strips thought blocks) stays as it was read. Null when the turns do not
-    /// render as an extension of what was read.
+    /// does not keep the end token a reply stopped on, so the model has not read it. A reply that ended in tool calls
+    /// stopped where the model waits for what came of them, a token it did read: the extension is the rest. Earlier text
+    /// the template would now render differently (Gemma's adds and strips thought blocks, and orders a call's arguments)
+    /// stays as it was read. Null when the turns do not render as an extension of what was read.
     /// </summary>
     /// <param name="render">The template: turns, and whether to end with the generation prompt.</param>
     public static string? Delta(IReadOnlyList<ChatTurn> read, IReadOnlyList<ChatTurn> turns, Func<IReadOnlyList<ChatTurn>, bool, string> render)
@@ -36,6 +37,7 @@ internal static class ConversationMatch
         string history = render(read, false);
         string prompt  = render(turns, true);
         if (!prompt.StartsWith(history, StringComparison.Ordinal)) return null;
+        if (read[^1].ToolCalls is { Count: > 0 }) return prompt[history.Length..];
 
         string reply = read[^1].Text.Trim();
         int at = reply.Length == 0 ? -1 : history.LastIndexOf(reply, StringComparison.Ordinal);
@@ -45,11 +47,13 @@ internal static class ConversationMatch
     }
 
     /// <summary>When two turns are the same turn — the app's copy of a reply against the one generated, whitespace
-    /// at its ends aside.</summary>
+    /// at its ends aside — with the same calls, or answering the same call.</summary>
     public static bool Same(ChatTurn a, ChatTurn b)
         => a.Role == b.Role
         && (a.Role == TurnRole.Assistant ? a.Text.Trim() == b.Text.Trim() : a.Text == b.Text)
-        && SameMedia(a.Media ?? [], b.Media ?? []);
+        && SameMedia(a.Media ?? [], b.Media ?? [])
+        && (a.ToolCalls ?? []).SequenceEqual(b.ToolCalls ?? [])
+        && a.Answers == b.Answers;
 
     private static bool SameMedia(IReadOnlyList<ChatMedia> a, IReadOnlyList<ChatMedia> b)
         => a.Count == b.Count && a.Zip(b).All(p => p.First.Kind == p.Second.Kind

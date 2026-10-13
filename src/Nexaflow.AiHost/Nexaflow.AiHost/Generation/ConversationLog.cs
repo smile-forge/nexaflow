@@ -85,7 +85,8 @@ internal sealed class LiveConversation : IDisposable
 
     public bool IsContinuedBy(IReadOnlyList<ChatTurn> turns) => ConversationMatch.Continues(Read, turns);
 
-    public void Answered(IReadOnlyList<ChatTurn> turns, string reply) => Read = [.. turns, new ChatTurn(TurnRole.Assistant, reply)];
+    public void Answered(IReadOnlyList<ChatTurn> turns, string reply, IReadOnlyList<ChatToolCall> calls)
+        => Read = [.. turns, new ChatTurn(TurnRole.Assistant, reply) { ToolCalls = calls.Count > 0 ? calls : null }];
 
     public void Dispose()
     {

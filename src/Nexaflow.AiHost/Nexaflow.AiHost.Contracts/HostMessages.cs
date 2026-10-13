@@ -27,6 +27,7 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(UnloadModel), "unload")]
 [JsonDerivedType(typeof(Generate), "generate")]
 [JsonDerivedType(typeof(TextDelta), "delta")]
+[JsonDerivedType(typeof(ToolCallMade), "tool-call")]
 [JsonDerivedType(typeof(GenerationEnded), "generated")]
 [JsonDerivedType(typeof(Listen), "listen")]
 [JsonDerivedType(typeof(ListenActivity), "heard-activity")]

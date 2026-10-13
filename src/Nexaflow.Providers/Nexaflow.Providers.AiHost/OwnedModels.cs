@@ -45,7 +45,7 @@ internal static class OwnedRoles
 /// fetched and run only on that runtime.
 /// </summary>
 internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
-                                  bool Images, bool Audio)
+                                  bool Images, bool Audio, bool ToolCalls = false)
 {
     public string Id => Catalog.Id;
 
@@ -83,7 +83,7 @@ internal static class OwnedModels
     };
 
     private sealed record Manifest(List<Entry>? Models);
-    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, List<Part>? Parts, List<Voice>? Voices);
+    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices);
     private sealed record Voice(string? Language, string? Part, string? File);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider);
@@ -116,7 +116,7 @@ internal static class OwnedModels
             var parts  = (e.Parts ?? []).Select(p => ToPart(e.Id, kind, p)).ToList();
             var voices = (e.Voices ?? []).Select(v => ToVoice(e.Id, model, parts, v)).ToList();
             if (kind == ModelKind.TextToSpeech && voices.Count == 0) throw new InvalidDataException($"Owned model '{e.Id}' speaks with no voice.");
-            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio);
+            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls);
             foreach (var runtime in new[] { Cuda, Cpu })
             {
                 var roles = owned.PartsFor(runtime).Select(p => p.Role).ToList();

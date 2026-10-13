@@ -504,7 +504,8 @@ public class VoiceSessionTests
         await Until(() => rig.Voice.Texts.Contains("Goodbye!"));
         Assert.AreNotEqual(VoiceState.Ended, rig.Session.State, $"not before it is said (ended: {rig.EndedBecause})");
         rig.Speaker.Play();
-        await Until(() => rig.Session.State == VoiceState.Ended, "the end");
+        // The state turns to Ended before the closing is done and Ended is raised: the event is what is waited on.
+        await Until(() => rig.Session.State == VoiceState.Ended && rig.EndedBecause != "still going", "the end");
 
         Assert.IsNull(rig.EndedBecause);
         Assert.IsTrue(rig.Microphone.Disposed);
