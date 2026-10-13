@@ -92,7 +92,8 @@ public class ContentNode
     /// A width alone says what a piece prints as, and only in the order it is printed in. This says <em>where</em>, so a stage
     /// may regroup, reorder and share the pieces it was handed and the source still comes out as it was written. A piece that
     /// says nothing follows the one printed before it, which is what a tree of them did before any of them said anything.
-    /// Only a parser says it, because a parser is the only thing that reads source.
+    /// A parser says it for what it reads, and a stage that cuts or joins pieces says it for the pieces it makes, from the
+    /// ones it was handed.
     /// </para>
     /// </summary>
     public int? Offset { get; }

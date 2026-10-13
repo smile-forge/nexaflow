@@ -53,7 +53,6 @@ public static class AstRewrite
     /// <remarks>
     /// A stage that gathers a run into one node is doing this, and the rule it must keep is the
     /// pipeline's: the children coming back print as the children going in, in the same order.
-    /// Re-nesting them, and hanging derived pieces among them, is all a stage may do.
     /// </remarks>
     public static ContentNode Regrouping(
         ContentNode node,

@@ -163,8 +163,8 @@ public static class MarkdownInline
     /// <para>
     /// <c>\*</c> is two characters that mean one, which is exactly what an entity is — so it is read as its
     /// own piece, and drawn as the character it stands for while still being the two that were typed. Split
-    /// here rather than left to a builder, because where one token stops and the next begins is a fact about
-    /// the text and no later stage can change it.
+    /// here rather than left to a builder, because it is how the text is written, and saying that is the
+    /// parser's: a builder only draws what it is handed.
     /// </para>
     /// </summary>
     private static ContentNode Escaped(Cut read, int end)
