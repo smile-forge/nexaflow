@@ -370,9 +370,6 @@ public sealed class AIService : IAIService
     /// <summary>Stop once the model emits the same tool batch (tool + args) this many times — it's spinning.</summary>
     private const int MaxIdenticalBatches = 3;
 
-    /// <summary>Above this many page tools, filter to the most relevant + get_client_commands.</summary>
-    private const int MaxUnfilteredTools = 4;
-
     public Task<AiResponse?> RunAgentAsync(IPageViewModel? page, string input, bool includeContext, IAIResponseHandler approval,
                                           CancellationToken ct = default)
         => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed, ct);
@@ -385,7 +382,7 @@ public sealed class AIService : IAIService
         if (provider is null) return null;
 
         var (context, pageTools) = GatherContext(page, includeContext);
-        var ranker = pageTools.Count > MaxUnfilteredTools ? GetProvider(AiAbility.Disambiguation) : null;
+        var ranker = ToolChooser.Picks(pageTools.Count) ? GetProvider(AiAbility.Disambiguation) : null;
 
         // A page whose contents are high-risk sends them off this machine only when the user agrees: every model
         // that would read them and sends what it reads elsewhere is named, and a refusal cancels the request.
@@ -406,30 +403,15 @@ public sealed class AIService : IAIService
             catch (OperationCanceledException) { return null; }
         }
 
-        // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
+        // The tools offered are chosen again as the work moves on; any of them, offered or not, is run when called.
         var getCommands = BuildGetClientCommandsTool(pageTools);
-        var fullCatalog = new List<IClientTool>(pageTools) { getCommands };
-        fullCatalog.AddRange(options.Tools);
-        var toolNames   = fullCatalog.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var chooser     = new ToolChooser(pageTools, getCommands, options.Tools, ranker, context, input);
+        var toolNames   = chooser.All.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Expose at most MaxUnfilteredTools page tools (most relevant first) + get_client_commands.
-        IReadOnlyList<IClientTool> exposed;
-        try
-        {
-            if (pageTools.Count <= MaxUnfilteredTools)
-                exposed = fullCatalog;
-            else if (ranker is null)
-                exposed = [.. pageTools.Take(MaxUnfilteredTools), getCommands];
-            else
-                exposed = [.. await RankToolsAsync(ranker, input, pageTools, context, ct), getCommands];
-        }
-        catch (OperationCanceledException) { return null; }
-        exposed = [.. exposed.Except(options.Tools), .. options.Tools];   // the caller's own are never ranked away
-
-        // The model is offered its tools in its own protocol where it has one; otherwise its instructions describe them.
+        // The model is offered its tools in its own protocol where it has one; otherwise its instructions describe them, so
+        // its instructions are written for each step's tools.
         var protocol = ToolProtocol.For(provider);
-        string system = BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle);
-        var messages = new List<LlmMessage> { new(LlmRole.System, system) };
+        var messages = new List<LlmMessage> { new(LlmRole.System, "") };
         messages.AddRange(options.History);
         messages.Add(new(LlmRole.User, input));
 
@@ -443,6 +425,9 @@ public sealed class AIService : IAIService
             for (var step = 0; step < MaxAgentSteps; step++)
             {
                 ct.ThrowIfCancellationRequested();
+
+                var exposed = await chooser.ChooseAsync(ct);
+                messages[0] = new(LlmRole.System, BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle));
 
                 var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, ct);
                 transcript?.Step(messages, taken.Written);
@@ -486,6 +471,7 @@ public sealed class AIService : IAIService
                     var lateInterjections = approval.TakeInterjections();
                     if (lateInterjections.Count > 0)
                     {
+                        chooser.Asked(lateInterjections);
                         KeepNarration(approval, turn);
                         messages.Add(protocol.Said(taken));
                         messages.Add(new(LlmRole.User, FormatInterjections(lateInterjections)));
@@ -501,7 +487,7 @@ public sealed class AIService : IAIService
                 messages.Add(protocol.Said(taken));
 
                 var calls = turn.ToolCalls
-                    .Select(c => (Call: c, Tool: FindTool(fullCatalog, c.Tool)))
+                    .Select(c => (Call: c, Tool: FindTool(chooser.All, c.Tool)))
                     .ToList();
 
                 // Loop guard: if the model keeps emitting the SAME batch (tool + args), it's spinning
@@ -537,6 +523,7 @@ public sealed class AIService : IAIService
                 {
                     // What the user said while deciding is part of the answer.
                     var meanwhile = approval.TakeInterjections();
+                    chooser.Asked(meanwhile);
                     var stopped   = NotRun("the user chose not to. Do not try it again — ask what they would prefer, or finish");
                     messages.AddRange(protocol.Answer(taken, [.. taken.Calls.Select(_ => stopped)],
                                                       meanwhile.Count > 0 ? FormatInterjections(meanwhile) : null, null));
@@ -560,9 +547,12 @@ public sealed class AIService : IAIService
                         foreach (var p in att)
                             if (!artifacts.Contains(p)) artifacts.Add(p);
 
-                // The tools get_client_commands has just listed can be called from the next step on.
+                // What each call did moves the work on, so the next step's tools are chosen again; the tools get_client_commands has
+                // just listed are all offered from the next step on.
+                foreach (var ((call, _), (_, result)) in calls.Zip(results))
+                    chooser.Did(call.Tool, call.Arguments, result.ModelText);
                 if (results.Any(r => r.Tool == getCommands.Name))
-                    exposed = [.. exposed, .. fullCatalog.Except(exposed)];
+                    chooser.Listed();
 
                 var besides = new List<string>();
 
@@ -590,6 +580,7 @@ public sealed class AIService : IAIService
 
                 // Fold in any messages the user interjected while the batch ran, so the model can steer.
                 var interjections = approval.TakeInterjections();
+                chooser.Asked(interjections);
                 if (interjections.Count > 0) besides.Add(FormatInterjections(interjections));
 
                 messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))],
@@ -778,52 +769,6 @@ public sealed class AIService : IAIService
         }
         catch (OperationCanceledException) { throw; }
         catch { return null; }
-    }
-
-    /// <summary>
-    /// Asks the Disambiguation-ability model to pick the most relevant page tools for the request.
-    /// Falls back to the first <see cref="MaxUnfilteredTools"/> when no ranker is configured.
-    /// </summary>
-    private static async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
-        ILlmProvider provider, string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
-    {
-
-        var list   = string.Join('\n', tools.Select((t, i) => $"{i + 1}. {t.Name} — {t.Description}"));
-        var system = "You select the tools most relevant to a user request. Reply with the numbers of up to " +
-                     $"{MaxUnfilteredTools} relevant tools, comma-separated, most relevant first. Reply 0 if none seem relevant.";
-        var user   = $"Context: {context}\nUser request: \"{input}\"\n\nTools:\n{list}\n\nMost relevant tool numbers:";
-
-        string raw;
-        try
-        {
-            var resp = await provider.CompleteAsync(
-                [new(LlmRole.System, system), new(LlmRole.User, user)], ct);
-            raw = resp?.RawText ?? string.Empty;
-        }
-        catch (OperationCanceledException) { throw; }
-        catch { return [.. tools.Take(MaxUnfilteredTools)]; }
-
-        var picked = new List<IClientTool>();
-        foreach (var n in ExtractNumbers(raw))
-        {
-            if (n < 1 || n > tools.Count) continue;
-            var tool = tools[n - 1];
-            if (!picked.Contains(tool)) picked.Add(tool);
-            if (picked.Count >= MaxUnfilteredTools) break;
-        }
-        return picked.Count > 0 ? picked : [.. tools.Take(MaxUnfilteredTools)];
-    }
-
-    private static IEnumerable<int> ExtractNumbers(string s)
-    {
-        var i = 0;
-        while (i < s.Length)
-        {
-            if (!char.IsDigit(s[i])) { i++; continue; }
-            var start = i;
-            while (i < s.Length && char.IsDigit(s[i])) i++;
-            if (int.TryParse(s.AsSpan(start, i - start), out var n)) yield return n;
-        }
     }
 
     private static IClientTool BuildGetClientCommandsTool(IReadOnlyList<IClientTool> pageTools)

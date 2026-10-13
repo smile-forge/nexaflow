@@ -578,6 +578,20 @@ public class AgentLoopTests
     }
 
     [TestMethod]
+    public async Task ManyTools_AreChosenAgain_OnceAStepsCallsAreAnswered()
+    {
+        var tools    = Enumerable.Range(1, 6)
+                                 .Select(i => (IClientTool)new RecordingTool($"tool_{i}", ToolSafety.SafeOperation))
+                                 .ToArray();
+        var provider = new ScriptedLlmProvider([ToolBlock("tool_1"), "done"], rankReply: "1,2");
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tools), "hi", true, new FakeApprover(), default);
+
+        Assert.AreEqual(2, provider.Conversations.Count);
+        Assert.AreEqual(2, provider.Calls - provider.Conversations.Count, "one choice for the instruction, one once tool_1 was answered");
+    }
+
+    [TestMethod]
     public async Task UnknownTool_IsReportedNotExecuted_AndLoopContinues()
     {
         var provider = new ScriptedLlmProvider([ToolBlock("does_not_exist"), "Recovered."]);
