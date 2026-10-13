@@ -5,8 +5,8 @@ using Whisper.net;
 namespace Nexaflow.Providers.Whisper;
 
 /// <summary>
-/// Speech to text on this machine, through whisper.cpp (Whisper.net): on the GPU when CUDA is there, otherwise on a
-/// CPU with AVX. The model's file comes from the asset store, described by the catalog this assembly ships; it is
+/// Speech to text on this machine, through whisper.cpp (Whisper.net) on a CPU with AVX — what listens wherever
+/// Nexaflow's own speech models are not there yet, or not chosen. The model's file comes from the asset store, described by the catalog this assembly ships; it is
 /// fetched when the model is first assigned, and the provider is available once it is on disk.
 /// </summary>
 public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IDisposable
@@ -62,8 +62,8 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalM
         => Task.FromResult<IReadOnlyList<string>>([.. Models.Select(m => m.Id)]);
 
     /// <summary>
-    /// Fetches the model when it is not on disk yet, reporting how far it has got, then loads it — the weights, and on
-    /// an NVIDIA GPU the CUDA runtime, take a second or more, which the first press of the mic should not wait for.
+    /// Fetches the model when it is not on disk yet, reporting how far it has got, then loads it — the weights take a
+    /// second or more, which the first press of the mic should not wait for.
     /// </summary>
     public async Task WarmupAsync(CancellationToken ct = default)
     {

@@ -39,6 +39,13 @@ public interface IClientTool
     bool ExemptFromRepeatGuard => false;
 
     /// <summary>
+    /// How a call of this tool is announced where it is not shown for approval — in a voice conversation, which says
+    /// it, then does it unless told to stop. Null leaves the announcement to the tool's name. Worth giving for a tool
+    /// that <see cref="ToolSafety.RequiresApproval"/>. Default: null.
+    /// </summary>
+    ToolCallAnnouncement? Announce(JsonObject arguments) => null;
+
+    /// <summary>
     /// Executes the tool. The harness keeps the UI synchronization context, so implementations may
     /// read and mutate ViewModel state directly and should offload blocking work with
     /// <c>await … Async</c> / <c>Task.Run</c>. Do not throw for an expected failure — return a

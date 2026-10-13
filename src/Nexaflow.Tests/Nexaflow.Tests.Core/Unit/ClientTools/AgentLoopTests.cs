@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using Nexaflow.Core.Services.ShellAi;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +13,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Core;
 
 namespace Nexaflow.Tests.Core.Unit.ClientTools;
 
@@ -24,6 +27,9 @@ public class AgentLoopTests
     {
         private readonly Queue<string> _responses = new(responses);
         public List<string> SystemPrompts { get; } = [];
+
+        /// <summary>Every conversation this model was asked to continue, tool ranking aside.</summary>
+        public List<IReadOnlyList<LlmMessage>> Conversations { get; } = [];
 
         /// <summary>Every request this model was sent, tool ranking included.</summary>
         public int Calls { get; private set; }
@@ -44,6 +50,7 @@ public class AgentLoopTests
                 return Streamed(rankReply, ct);
 
             SystemPrompts.Add(messages.FirstOrDefault(m => m.Role == LlmRole.System)?.Text ?? string.Empty);
+            Conversations.Add([.. messages]);
             return Streamed(_responses.Count > 0 ? _responses.Dequeue() : "done", ct);
         }
 
@@ -199,10 +206,10 @@ public class AgentLoopTests
     /// An AIService on a runtime that carries both live services, the way
     /// <c>WorkspaceManager.BootstrapServices</c> leaves one before any feature sees it.
     /// <para>
-    /// It matters here because the agent loop builds its page catalog from this runtime
-    /// (<c>RunAgentAsync</c> → <c>ShellAiContext.BuildContext</c> → <c>GetPageCatalog</c>), and that catalog
-    /// is what tells the agent which pages it may open. A half-wired runtime silently dropped every
-    /// registration needing a service it lacked — so the agent was told AI Chat did not exist.
+    /// It matters here because the agent's page catalog is built from this runtime
+    /// (<c>get_openable_pages</c> → <c>GetPageCatalog</c>), and that catalog is what tells the agent which
+    /// pages it may open. A half-wired runtime silently dropped every registration needing a service it
+    /// lacked — so the agent was told AI Chat did not exist.
     /// </para>
     /// </summary>
     private static AIService NewServiceOnAWiredRuntime()
@@ -300,6 +307,31 @@ public class AgentLoopTests
             "every draft is the reply so far");
         Assert.AreEqual(0, approver.DraftEnds.Count, "the final answer takes the draft's place; it is not ended");
         Assert.AreEqual(answer, approver.Final);
+    }
+
+    [TestMethod]
+    public async Task ARunWithOptions_ContinuesItsConversation_WritesInTheStyleAsked_AndAlwaysOffersItsOwnTools()
+    {
+        var provider = new ScriptedLlmProvider(["Three o'clock."]);
+        var pageTools = Enumerable.Range(1, 6).Select(i => (IClientTool)new RecordingTool($"page_tool_{i}", ToolSafety.SafeOperation)).ToArray();
+        var options = new AgentRunOptions
+        {
+            History    = [new(LlmRole.User, "Hello."), new(LlmRole.Assistant, "Hi —")],
+            ReplyStyle = "Speak briefly.",
+            Tools      = [new RecordingTool("end_voice_session", ToolSafety.SafeOperation)],
+        };
+
+        await BuildService(provider).RunAgentAsync(new TestPage(pageTools), "What time is it?", true, new FakeApprover(), options);
+
+        var conversation = provider.Conversations.Single();
+        CollectionAssert.AreEqual(new[] { LlmRole.System, LlmRole.User, LlmRole.Assistant, LlmRole.User }, conversation.Select(m => m.Role).ToArray());
+        Assert.AreEqual("Hi —", conversation[2].Text, "what was said before comes between the instructions and the question");
+        var system = conversation[0].Text;
+        Assert.IsTrue(system.IndexOf("Speak briefly.", StringComparison.Ordinal) is var style and > 0
+                      && style < system.IndexOf("# What the user is looking at", StringComparison.Ordinal),
+                      "how to reply comes straight after who it is, before what the user is looking at");
+        StringAssert.Contains(conversation[0].Text, "end_voice_session", "the caller's own tool is offered though the page's were ranked down");
+        Assert.IsFalse(conversation[0].Text.Contains("page_tool_6"), "the page's tools were ranked: four of six");
     }
 
     [TestMethod]
@@ -546,6 +578,20 @@ public class AgentLoopTests
     }
 
     [TestMethod]
+    public async Task ManyTools_AreChosenAgain_OnceAStepsCallsAreAnswered()
+    {
+        var tools    = Enumerable.Range(1, 6)
+                                 .Select(i => (IClientTool)new RecordingTool($"tool_{i}", ToolSafety.SafeOperation))
+                                 .ToArray();
+        var provider = new ScriptedLlmProvider([ToolBlock("tool_1"), "done"], rankReply: "1,2");
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tools), "hi", true, new FakeApprover(), default);
+
+        Assert.AreEqual(2, provider.Conversations.Count);
+        Assert.AreEqual(2, provider.Calls - provider.Conversations.Count, "one choice for the instruction, one once tool_1 was answered");
+    }
+
+    [TestMethod]
     public async Task UnknownTool_IsReportedNotExecuted_AndLoopContinues()
     {
         var provider = new ScriptedLlmProvider([ToolBlock("does_not_exist"), "Recovered."]);
@@ -614,5 +660,22 @@ public class AgentLoopTests
         // ...and the conversation model got the description as TEXT, with no image attachment.
         Assert.IsNull(conv.Calls[1], "the text-only conversation model must not receive the image");
         StringAssert.Contains(conv.LastToolResultsText, "WEBVIEW2 TEST PAGE");
+    }
+
+    [TestMethod]
+    public async Task ThePagesItCanOpen_AreAskedFor_NotCarriedInEveryRequest()
+    {
+        var provider = new ScriptedLlmProvider(["Done."]);
+        var svc      = BuildService(provider);
+        var runtime  = (WorkspaceRuntime)typeof(AIService).GetField("_workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(svc)!;
+
+        await svc.RunAgentAsync(new TestPage([]), "Open the AI chat.", true, new FakeApprover());
+        var pages = await new GetOpenablePagesTool(runtime).InvokeAsync([], CancellationToken.None);
+
+        var system = provider.Conversations.Single()[0].Text;
+        Assert.IsFalse(system.Contains("Openable pages"), "the catalogue is not in the prompt");
+        StringAssert.Contains(system, "get_openable_pages", "the tool that lists it is offered");
+    foreach (var (kind, _) in FeatureManager.Instance.GetPageCatalog(runtime))
+            StringAssert.Contains(pages.ModelText, $"- {kind}", "the tool lists every page the runtime can open");
     }
 }

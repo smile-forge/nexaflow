@@ -11,7 +11,7 @@ namespace Nexaflow.AiHost.Generation;
 /// starts a conversation afresh. Requests carry whole conversations, so nothing in the app has to know this cache
 /// exists; a few are kept, least recently used dropped first.
 /// </summary>
-internal sealed class ConversationLog(LoadedModel model) : IDisposable
+internal sealed class ConversationLog(ChatModel model) : IDisposable
 {
     internal const int Capacity = 4;
 
@@ -67,7 +67,7 @@ internal sealed class LiveConversation : IDisposable
 
     private readonly GeneratorParams _params;
 
-    public LiveConversation(LoadedModel model)
+    public LiveConversation(ChatModel model)
     {
         _params = new GeneratorParams(model.Model);
         _params.SetSearchOption("max_length", model.Spec.ContextTokens);
@@ -85,7 +85,8 @@ internal sealed class LiveConversation : IDisposable
 
     public bool IsContinuedBy(IReadOnlyList<ChatTurn> turns) => ConversationMatch.Continues(Read, turns);
 
-    public void Answered(IReadOnlyList<ChatTurn> turns, string reply) => Read = [.. turns, new ChatTurn(TurnRole.Assistant, reply)];
+    public void Answered(IReadOnlyList<ChatTurn> turns, string reply, IReadOnlyList<ChatToolCall> calls)
+        => Read = [.. turns, new ChatTurn(TurnRole.Assistant, reply) { ToolCalls = calls.Count > 0 ? calls : null }];
 
     public void Dispose()
     {

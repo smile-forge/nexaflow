@@ -22,6 +22,14 @@ public interface ILlmProvider : IAiProvider
     bool SupportsAudio => false;
 
     /// <summary>
+    /// Whether the bound model calls tools in a protocol of its own — the tools offered with
+    /// <see cref="StreamAsync(IReadOnlyList{LlmMessage}, IReadOnlyList{LlmTool}, LlmUrgency, CancellationToken)"/>, its
+    /// calls coming back as <see cref="LlmToolCallRequested"/>. Without it, a caller that wants the model to act describes
+    /// its tools in the conversation itself. Default false.
+    /// </summary>
+    bool SupportsToolCalls => false;
+
+    /// <summary>
     /// Sends an ordered list of messages to this provider's bound model and streams its reply as it is written.
     /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt; subsequent
     /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>. A message may
@@ -46,7 +54,20 @@ public interface ILlmProvider : IAiProvider
         IReadOnlyList<LlmMessage> messages,
         LlmUrgency                urgency,
         CancellationToken         ct = default)
-        => StreamAsync(messages, ct);
+            => StreamAsync(messages, ct);
+
+    /// <summary>
+    /// The same, offering the model <paramref name="tools"/> to call in its own protocol. A call comes back as an
+    /// <see cref="LlmToolCallRequested"/>; what came of it goes back as an <see cref="LlmRole.Tool"/> message that
+    /// <see cref="LlmMessage.Answers"/> it, after the <see cref="LlmRole.Assistant"/> message carrying the calls. Only for
+    /// a provider that <see cref="SupportsToolCalls"/>; the default offers none.
+    /// </summary>
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => StreamAsync(messages, urgency, ct);
 
     /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't

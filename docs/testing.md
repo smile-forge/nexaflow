@@ -289,7 +289,20 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   reply's language, and that the run ended by answering within a bounded number of corrected tool blocks — never the
   wording, which varies between models and runs; the one content check is a fact only a recording holds, spoken by
   the machine's own voice. `NEXAFLOW_TEST_TRANSCRIPTS` names a folder to write every run's turns to — what to read
-  when one fails.
+  when one fails. The app does the same for its own runs when started with `NEXAFLOW_AI_TRANSCRIPTS` naming a folder:
+  one file a run, every message the model was sent and everything it wrote back, whole — what to read when a journey
+  on the real models goes wrong.
+- **`OllamaToolCallTests`** *(`Tests.Providers`)* — native tool calling against the Ollama server on this machine:
+  `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
+  then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).
+    Unset, each is **inconclusive**. The cloud providers' tool mapping is pinned without a network in `RequestMappingTests`.
+  - **The French and German phonemisers on real replies** *(`Tests.AiHost`)* — `NEXAFLOW_TEST_LEXICONS` names a folder
+    holding the built lexicons (`fr.tsv.gz`, `de.tsv.gz`, from `tools/ai-models/kokoro-lexicons`) and espeak-ng's
+    readings of real reply sentences (`context-fr-sentences.jsonl`, `context-de-sentences.jsonl`).
+    `PhonemizerAgainstEspeakTests` counts the sentences that come out with espeak-ng's sounds;
+    `PhonemizerReadBackTests` (`TestCategory("OwnedModel")`, with `NEXAFLOW_TEST_SPEECH` too) speaks them through Kokoro,
+    hears them back through Whisper and fails when ours is understood worse than espeak-ng's own reading. Unset, they are
+    **inconclusive**; the rules themselves are pinned without models in `SpeechNormalizerTests` and `LexiconPhonemizerTests`.
 - **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a
   whole assembly rather than filtering on the category. In `Tests.Visuals` and `Tests.Core` it means only *renders
   WPF off-screen* — an STA thread, no window, safe to parallelise and safe on a runner, so those run in CI. In

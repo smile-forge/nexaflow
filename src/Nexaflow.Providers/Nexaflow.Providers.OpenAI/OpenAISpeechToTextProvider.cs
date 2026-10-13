@@ -71,7 +71,11 @@ public sealed class OpenAISpeechToTextProvider : ISpeechToTextProvider
                     {
                         AudioFormat               = new RealtimePcmAudioFormat(),
                         AudioTranscriptionOptions = new RealtimeAudioTranscriptionOptions { Model = _model, Language = options.Language },
-                        TurnDetection             = new RealtimeServerVadTurnDetection(),
+                        // A conversation's turn ends when the speaker has finished, which the server's semantic
+                        // detector judges from the words; dictation's at each pause.
+                        TurnDetection             = options.Segmentation == SpeechSegmentation.Turns
+                                                        ? new RealtimeSemanticVadTurnDetection()
+                                                        : new RealtimeServerVadTurnDetection(),
                     },
                 },
             }, ct);

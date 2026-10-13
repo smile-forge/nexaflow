@@ -7,7 +7,11 @@ namespace Nexaflow.Features.Common;
 /// </summary>
 public interface IPageViewModel
 {
-    /// <summary>Short description of what the user is currently looking at, for the LLM.</summary>
+    /// <summary>
+    /// What the page holds, for the assistant to act on: everything a request about this page needs, so the model
+    /// never has to guess — what is open, what is in it, what is selected. Called on the UI thread, where the page's
+    /// state changes, so it is read directly.
+    /// </summary>
     string GetContext();
 
     /// <summary>

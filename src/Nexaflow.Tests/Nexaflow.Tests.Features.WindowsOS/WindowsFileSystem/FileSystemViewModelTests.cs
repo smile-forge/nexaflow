@@ -129,6 +129,23 @@ public class FileSystemViewModelTests
         StringAssert.Contains(vm.GetContext(), vm.CurrentPath);
     }
 
+    [TestMethod]
+    [CoversNode("win-file-system-ai-context")]
+    public async Task GetContext_NamesTheEntriesListed_AndWhatIsSelected()
+    {
+        Directory.CreateDirectory(Path.Combine(_scratch, "old"));
+        File.WriteAllText(Path.Combine(_scratch, "test.zip"), "x");
+
+        var vm = AtPath(_scratch);
+        await WaitForLoadAsync(vm);
+        vm.OnSelectionChanged([vm.Entries.Single(e => e.Name == "test.zip")]);
+
+        var context = vm.GetContext();
+        StringAssert.Contains(context, "Folders (1): old");
+        StringAssert.Contains(context, "Files (1): test.zip");
+        StringAssert.Contains(context, "Selected: test.zip");
+    }
+
     // ── IPageViewModel – GetClientTools ───────────────────────────────────────
 
     [TestMethod]
@@ -535,6 +552,26 @@ public class FileSystemViewModelTests
                 new JsonObject { ["name"] = "does-not-exist.txt" }, default);
 
             Assert.IsTrue(result.IsError);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-delete-file")]
+    public void DeleteFileTool_Announces_AFileOrAFolder_InFixedWords()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "test.zip"), "");
+            Directory.CreateDirectory(Path.Combine(dir, "old"));
+            var tool = new DeleteTool(AtPath(dir));
+
+            Assert.AreEqual(new ToolCallAnnouncement("delete", "file test.zip", "Deleting file test.zip", "File deleted.", "The file is unchanged."),
+                            tool.Announce(new JsonObject { ["name"] = "test.zip" }));
+            Assert.AreEqual(new ToolCallAnnouncement("delete", "folder old", "Deleting folder old", "Folder deleted.", "The folder is unchanged."),
+                            tool.Announce(new JsonObject { ["name"] = "old" }));
+            Assert.IsNull(tool.Announce([]), "nothing named: the call is announced by the tool's name");
         }
         finally { Directory.Delete(dir, recursive: true); }
     }

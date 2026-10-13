@@ -45,6 +45,7 @@ public sealed record ProviderOffer(string ProviderName, ModelKind Kind)
     public static string KindLabel(ModelKind kind) => kind switch
     {
         ModelKind.SpeechToText => Str.Get("Shell.Config.AiGrid.Kind.SpeechToText"),
+        ModelKind.TextToSpeech => Str.Get("Shell.Config.AiGrid.Kind.TextToSpeech"),
         _                      => string.Empty,
     };
 }

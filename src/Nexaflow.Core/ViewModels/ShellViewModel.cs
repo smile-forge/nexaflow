@@ -241,6 +241,15 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>This window's dictation — the microphone streamed into the Speech In model.</summary>
     private readonly DictationService _dictation = new();
 
+    /// <summary>The mic holds a spoken conversation rather than dictating: the workspace's models can.</summary>
+    [ObservableProperty] private bool _voiceConverses;
+
+    /// <summary>Dictation owns the box: the user's words fill it, and typing would fight them.</summary>
+    [ObservableProperty] private bool _isDictating;
+
+    /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
+    public VoiceConversationViewModel Voice { get; }
+
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
 
@@ -623,6 +632,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _currentRuntime = workspace;
         _shellServices = workspace.ShellServices!;
         Ai = new ShellAIResponseHandler(this);
+        Voice = new VoiceConversationViewModel(_ui);
 
         // Modal-overlay state machine; the flags stay here (they gate switching/deep-links), the
         // coordinator owns everything else. Re-raise its changes under the same property names so
@@ -667,13 +677,33 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
 
         _dictation.RecordingChanged += (_, rec) =>
-            _ui.Invoke(() => { IsRecording = rec; VoiceActive = rec; });
+            _ui.Invoke(() => { IsDictating = rec; IsRecording = VoiceActive = rec || Voice.IsActive; });
         // Voice owns the input display while listening — set, don't append; the text is everything heard so
         // far, revised as the model hears more, and its last word lands when listening stops.
         _dictation.TranscriptUpdated += (_, text) =>
             _ui.Invoke(() => AiInputText = text);
         _dictation.Failed += (_, msg) =>
             _ui.Invoke(() => ShowError("Voice", msg));
+
+        // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
+        Voice.Heard += text => AiInputText = text;
+        Voice.TurnTaken += _ => AiInputText = string.Empty;
+        Voice.OpenInConversationRequested += said => _ = OpenVoiceConversationAsync(said);
+        Voice.Ended += reason =>
+        {
+            AiInputText = string.Empty;
+            if (reason is not null) ShowError("Voice", reason);
+        };
+        Voice.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
+            {
+                IsRecording = VoiceActive = Voice.IsActive || _dictation.IsRecording;
+                ToggleVoiceCommand.NotifyCanExecuteChanged();
+            }
+            else if (e.PropertyName == nameof(VoiceConversationViewModel.State))
+                AiIsListening = Voice.State == Services.Voice.VoiceState.Listening;
+        };
 
         RecomputeVoiceAvailable();
 
@@ -737,7 +767,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeUnread() => UnreadCount = Notifications.Count(n => !n.IsRead);
 
     private void RecomputeVoiceAvailable()
-        => VoiceAvailable = CurrentRuntime.AiService?.SpeechToText is not null;
+    {
+        var ai = CurrentRuntime.AiService;
+        VoiceAvailable = ai?.SpeechToText is not null;
+        VoiceConverses = ai?.CanConverse(SpokenLanguage()) == true;
+    }
+
+    /// <summary>The language a conversation is held in: the app's.</summary>
+    private static string SpokenLanguage() => (LanguageManager.TryInstance?.Current ?? LanguageManager.FallbackCode)[..2].ToLowerInvariant();
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
@@ -1372,6 +1409,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
+        // Talking: a typed turn is a turn of the spoken conversation, answered aloud.
+        if (Voice.IsActive)
+        {
+            AiInputText = string.Empty;
+            Voice.Submit(text);
+            return;
+        }
+
         AiInputText            = string.Empty;
         AiHandlerSymbol        = null;
         AiIsListening          = false;
@@ -1532,15 +1577,51 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     // Mic is usable when the host can run Whisper and no AI request is processing.
     // While recording, AiIsBusy stays false so this remains true (to allow stop).
-    private bool CanToggleVoice => VoiceAvailable && !AiIsBusy;
+    private bool CanToggleVoice => Voice.IsActive || (VoiceAvailable && !AiIsBusy);
 
+    /// <summary>
+    /// The mic: a spoken conversation where the workspace's models can hold one — something listening for turns, a voice
+    /// for the app's language, a model to answer — dictation into the box where they cannot. Pressed again, it stops.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanToggleVoice))]
     private async Task ToggleVoice()
     {
-        if (_dictation.IsRecording)
-            await _dictation.StopAsync();   // manual early stop; it also stops by itself after a silence
-        else if (CurrentRuntime.AiService?.SpeechToText is { } model)
-            await _dictation.StartAsync(model);
+        if (Voice.IsActive) { await Voice.StopAsync(); return; }
+        if (_dictation.IsRecording) { await _dictation.StopAsync(); return; }   // manual early stop; it also stops by itself after a silence
+
+        var ai = CurrentRuntime.AiService;
+        string language = SpokenLanguage();
+        if (ai is not null && ai.CanConverse(language))
+        {
+            var pageVm = (CurrentPage as IPageView)?.ViewModel;
+            try
+            {
+                await Voice.StartAsync(ai, () => (CurrentPage as IPageView)?.ViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
+            }
+            catch (Exception ex)
+            {
+                ShowError("Voice", ex.Message);
+            }
+            return;
+        }
+        if (ai?.SpeechToText is { } model) await _dictation.StartAsync(model);
+    }
+
+    /// <summary>Carries a voice conversation on in a conversation page: what was said becomes the conversation's first
+    /// messages, saved like any other, and the mic there carries it on by voice.</summary>
+    private async Task OpenVoiceConversationAsync(IReadOnlyList<LlmMessage> said)
+    {
+        var now = DateTime.Now;
+        var record = new ConversationRecord
+        {
+            Id        = Guid.NewGuid().ToString(),
+            StartedAt = now,
+            Messages  = [.. said.Select(m => new ConversationMessage { Text = m.Text, IsUser = m.Role == LlmRole.User, Timestamp = now })],
+        };
+        record.DeriveTitle();
+        try { await CurrentRuntime.AiService!.SaveConversationAsync(record); }
+        catch { /* persistence failures shouldn't block opening the tab */ }
+        ShellServices.OpenTab("Conversation", new Dictionary<string, string> { ["conversationId"] = record.Id });
     }
 
     /// <summary>

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
 
@@ -232,6 +233,20 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
     ];
     public ToolSafety Safety => ToolSafety.RequiresApproval;
     public bool Parallelizable => true;
+
+    public ToolCallAnnouncement? Announce(JsonObject arguments)
+    {
+        string name = Path.GetFileName(ToolArgs.Str(arguments, "name", "path", "file") ?? "");
+        if (name.Length == 0) return null;
+        bool folder = FsTool.TryResolve(vm, name, out var full, out _) && Directory.Exists(full);
+        return folder
+            ? new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FolderFormat", name),
+                  Str.Format("WindowsFileSystem.Announce.DeletingFolderFormat", name),
+                  Str.Get("WindowsFileSystem.Announce.FolderDeleted"), Str.Get("WindowsFileSystem.Announce.FolderUnchanged"))
+            : new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FileFormat", name),
+                  Str.Format("WindowsFileSystem.Announce.DeletingFileFormat", name),
+                  Str.Get("WindowsFileSystem.Announce.FileDeleted"), Str.Get("WindowsFileSystem.Announce.FileUnchanged"));
+    }
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {

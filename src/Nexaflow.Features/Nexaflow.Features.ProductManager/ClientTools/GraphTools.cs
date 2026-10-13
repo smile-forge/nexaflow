@@ -185,7 +185,7 @@ public static class GraphTools
                  new ClientToolParameter("edits",
                      "Several edits as one: an array of objects, each with this tool's own fields (node_id, op, text, find, to, ...). "
                    + "Planned in order, each against the files as the ones before it left them, and written together or not at "
-                   + "all. When given, the top-level edit fields are ignored.", Required: false, Type: "array")],
+                   + "all. When given, the top-level edit fields are ignored.", Required: false, Type: "array", ItemType: "object")],
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(Edit(productRoot, a))),
 

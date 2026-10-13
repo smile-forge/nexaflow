@@ -195,4 +195,57 @@ public class AiHostClientTests
         Assert.AreEqual(2, host.Starts);
         CollectionAssert.AreEqual(new[] { AiHostEnvironment.Cpu, pack }, host.Environments.ToArray());
     }
+
+    [TestMethod]
+    public async Task AStream_TakesInputWhileItRuns_AndReadsWhatTheHostMakesOfIt()
+    {
+        var host = new FakeHost
+        {
+            Serve   = FakeHost.Silent,
+            Receive = (input, channel) => input switch
+            {
+                AudioInput audio => channel.SendAsync(new Progress(audio.RequestId, "heard", audio.Pcm.Length, 0)),
+                InputEnd end     => channel.SendAsync(new Completed(end.RequestId)),
+                _                => Task.CompletedTask,
+            },
+        };
+        await using var client = new AiHostClient(host, Fast);
+
+        await using var stream = await client.OpenStreamAsync(id => new DescribeHost(id), Generous);
+        await stream.WriteAsync(new AudioInput(stream.RequestId, [1, 2, 3]));
+        await stream.WriteAsync(new InputEnd(stream.RequestId));
+        var replies = new List<HostReply>();
+        await foreach (var reply in stream.ReadAsync()) replies.Add(reply);
+
+        Assert.AreEqual(new Progress(stream.RequestId, "heard", 3, 0), replies.Single());
+        CollectionAssert.AreEqual(new[] { typeof(AudioInput), typeof(InputEnd) }, host.InputsReceived.Select(i => i.GetType()).ToArray());
+    }
+
+    [TestMethod]
+    public async Task InputForAnotherRequest_IsRefused()
+    {
+        var host = new FakeHost { Serve = FakeHost.Silent };
+        await using var client = new AiHostClient(host, Fast);
+        await using var stream = await client.OpenStreamAsync(id => new DescribeHost(id), Generous);
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => stream.WriteAsync(new InputEnd(stream.RequestId + 1)));
+    }
+
+    [TestMethod]
+    public async Task WritingToAStreamWhoseHostHasGone_IsALostHost()
+    {
+        var host = new FakeHost { Serve = FakeHost.Silent };
+        await using var client = new AiHostClient(host, Fast);
+        await using var stream = await client.OpenStreamAsync(id => new DescribeHost(id), Generous);
+
+        host.Last!.Kill();
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(async () =>
+        {
+            // The exit is noticed on the client's own loop; until then a write may still reach the closing pipe.
+            for (var deadline = DateTime.UtcNow.AddSeconds(5); DateTime.UtcNow < deadline; await Task.Delay(20))
+                await stream.WriteAsync(new AudioInput(stream.RequestId, [1]));
+        });
+
+        Assert.AreEqual(AiHostFailure.Lost, ex.Failure);
+    }
 }

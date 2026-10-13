@@ -31,7 +31,7 @@ public class OwnedModelTests
         {
             Environment = new AiHostEnvironment(Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack ? pack : null),
         };
-        _model = new ModelSpec("gemma-4-e4b-it", folder, "gemma4-onnx-community-q4f16", 8L << 30, 16_384);
+        _model = new ModelSpec("gemma-4-e4b-it", "genai-chat", folder, null, "gemma4-onnx-community-q4f16", 8L << 30, 16_384);
         await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
     }
 

@@ -167,6 +167,8 @@ public class ClientBlockParserTests
     [DataRow("client_tool\n{\"tool\": \"add_note\",\n \"arguments\": {\"text\": \"buy milk\"}}")]
     [DataRow("{\"tool\": \"add_note\", \"arguments\": {\"text\": \"buy milk\"}}")]
     [DataRow("call:client_tool{\"tool\": \"add_note\", \"arguments\": {\"text\": \"buy milk\"}}")]
+    [DataRow("call:client_tool {\"tool\": add_note, \"arguments\": {\"text\": \"buy milk\"}}")]
+    [DataRow("call:client_tool {tool: add_note, arguments: {text: \"buy milk\"}}")]
     public void ACallBodyWithoutItsFence_IsTheCallItPlainlyIs(string reply)
     {
         var turn = ClientBlockParser.Parse(reply, Tools);
@@ -174,6 +176,17 @@ public class ClientBlockParserTests
         Assert.AreEqual(0, turn.ParseErrors.Count);
         var call = turn.ToolCalls.Single();
         Assert.AreEqual(("add_note", "buy milk"), (call.Tool, (string?)call.Arguments["text"]));
+    }
+
+    [TestMethod]
+    [DataRow("call:client_tool {\"tool\": add_note, \"arguments\": {\"text\": buy milk}}")]
+    [DataRow("client_tool {\"tool\": \"add_note\", \"arguments\": ")]
+    public void ACallOpenedOutsideAFence_ThatCannotBeRead_IsAMalformedBlock_NotTheAnswer(string reply)
+    {
+        var turn = ClientBlockParser.Parse(reply, Tools);
+
+        Assert.AreEqual(0, turn.ToolCalls.Count);
+        Assert.AreEqual(1, turn.ParseErrors.Count, "so the model is asked to write it again");
     }
 
     [TestMethod]

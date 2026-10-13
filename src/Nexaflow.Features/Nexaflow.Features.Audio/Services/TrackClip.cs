@@ -31,10 +31,7 @@ internal static class TrackClip
         int read = 0, n;
         while (read < buffer.Length && (n = samples.Read(buffer.AsSpan(read))) > 0) read += n;
 
-        var pcm = new byte[read * 2];
-        for (int i = 0; i < read; i++)
-            BinaryPrimitives.WriteInt16LittleEndian(pcm.AsSpan(i * 2), (short)Math.Clamp(buffer[i] * 32767f, short.MinValue, short.MaxValue));
-        return (WavAudio.Write(pcm, WavAudio.SpeechRate), TimeSpan.FromSeconds((double)read / WavAudio.SpeechRate));
+        return (WavAudio.Write(Pcm16.FromSamples(buffer.AsSpan(0, read)), WavAudio.SpeechRate), TimeSpan.FromSeconds((double)read / WavAudio.SpeechRate));
     }
 
     /// <summary>Every channel's samples averaged into one.</summary>

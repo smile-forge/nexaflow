@@ -234,29 +234,6 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>
-    /// Selects <paramref name="name"/> in the file list and returns once the ActionStrip has caught up.
-    /// <para>
-    /// Scoped to the list on purpose. A window-wide search by name also matches the folder tree, whose
-    /// node may be scrolled out of view — FlaUI then clicks the centre of an off-screen rectangle, which
-    /// lands on the desktop, selects nothing, and leaves the next step waiting for an action that never
-    /// appears.
-    /// </para>
-    /// </summary>
-    private bool SelectInFileList(string name, int seconds = 30)
-    {
-        var list = WaitForId("FileListView", seconds);
-        if (list is null) return false;
-
-        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByName(name)), seconds);
-        if (row is null) return false;
-
-        row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-        row.Click();
-        Wait.UntilInputIsProcessed();
-        return true;
-    }
-
-    /// <summary>
     /// A copy belongs to the workspace, not to the tab that started it. Opening a second file browser
     /// while one is running has to show the same work — otherwise the panel looks like a property of
     /// whichever tab you happened to be on when you started it.

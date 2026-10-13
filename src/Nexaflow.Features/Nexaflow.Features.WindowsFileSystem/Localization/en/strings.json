@@ -257,5 +257,14 @@
   "WindowsFileSystem.Templates.TemplateFile": "Template file",
   "WindowsFileSystem.Templates.Stored": "A template file is already stored. Pick a new file only to replace it.",
   "WindowsFileSystem.Templates.NewTemplate": "New Template",
-  "WindowsFileSystem.Templates.AllFilesFilter": "All files (*.*)|*.*"
+  "WindowsFileSystem.Templates.AllFilesFilter": "All files (*.*)|*.*",
+  "WindowsFileSystem.Announce.Delete": "delete",
+  "WindowsFileSystem.Announce.FileFormat": "file {0}",
+  "WindowsFileSystem.Announce.FolderFormat": "folder {0}",
+  "WindowsFileSystem.Announce.DeletingFileFormat": "Deleting file {0}",
+  "WindowsFileSystem.Announce.DeletingFolderFormat": "Deleting folder {0}",
+  "WindowsFileSystem.Announce.FileDeleted": "File deleted.",
+  "WindowsFileSystem.Announce.FolderDeleted": "Folder deleted.",
+  "WindowsFileSystem.Announce.FileUnchanged": "The file is unchanged.",
+  "WindowsFileSystem.Announce.FolderUnchanged": "The folder is unchanged."
 }

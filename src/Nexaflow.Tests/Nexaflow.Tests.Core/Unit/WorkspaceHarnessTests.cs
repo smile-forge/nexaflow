@@ -16,19 +16,25 @@ public class WorkspaceHarnessTests
 {
     private static readonly ProviderModelPair Claude = new() { ProviderName = "Claude", Model = "claude-sonnet-4-6", AssemblyFileName = "Nexaflow.Providers.Claude.dll" };
     private static readonly ProviderModelPair Gemma  = new() { ProviderName = "Nexaflow", Model = "gemma-4-e4b-it", AssemblyFileName = "Nexaflow.Providers.AiHost.dll" };
+    private static readonly ProviderModelPair Ears   = new() { ProviderName = "Nexaflow", Model = "nemotron-whisper-turbo", Kind = ModelKind.SpeechToText, AssemblyFileName = "Nexaflow.Providers.AiHost.dll" };
+    private static readonly ProviderModelPair Voice  = new() { ProviderName = "Nexaflow", Model = "kokoro-82m", Kind = ModelKind.TextToSpeech, AssemblyFileName = "Nexaflow.Providers.AiHost.dll" };
+    private static readonly OwnedColumns Owned = new(Gemma, Ears, Voice);
 
     private static string[] Chain(AiConfig config, AiAbility ability) => [.. config.Assignments[ability.ToString()].ColumnIds];
 
     [TestMethod]
-    public void NexaflowAlone_AnswersEveryLanguageRole()
+    public void NexaflowAlone_AnswersEveryLanguageRole_ListensWithItsOwnSpeechModel_WhisperBehindIt_AndSpeaksWithItsOwnVoice()
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, bridged: null, owned: Gemma, whisperModel: "base.en");
+        WorkspaceAiDefaults.Assign(config, bridged: null, Owned, whisperModel: "base.en");
 
-        foreach (var ability in Enum.GetValues<AiAbility>().Where(a => a != AiAbility.SpeechIn))
+        foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == ModelKind.Language))
             CollectionAssert.AreEqual(new[] { Gemma.Id }, Chain(config, ability), ability.ToString());
-        Assert.IsTrue(config.Assignments.ContainsKey(nameof(AiAbility.SpeechIn)), "Speech In starts on Whisper as for any workspace");
+        var speechIn = Chain(config, AiAbility.SpeechIn);
+        Assert.AreEqual(Ears.Id, speechIn[0]);
+        Assert.AreEqual("Whisper", config.Columns.Single(c => c.Id == speechIn[1]).ProviderName, "Whisper listens while Nexaflow's own is still downloading");
+        CollectionAssert.AreEqual(new[] { Voice.Id }, Chain(config, AiAbility.SpeechOut));
     }
 
     [TestMethod]
@@ -36,7 +42,7 @@ public class WorkspaceHarnessTests
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, Claude, Gemma, "base.en");
+        WorkspaceAiDefaults.Assign(config, Claude, Owned, "base.en");
 
         foreach (var ability in new[] { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition })
             CollectionAssert.AreEqual(new[] { Gemma.Id, Claude.Id }, Chain(config, ability), ability.ToString());
@@ -45,7 +51,7 @@ public class WorkspaceHarnessTests
     }
 
     [TestMethod]
-    public void AProviderAlone_AnswersEveryLanguageRole_AsBefore()
+    public void AProviderAlone_AnswersEveryLanguageRole_AndListensWithWhisper()
     {
         var config = new AiConfig();
 
@@ -53,6 +59,7 @@ public class WorkspaceHarnessTests
 
         Assert.AreEqual(1, config.Columns.Count(c => c.Kind == ModelKind.Language));
         CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.Conversation));
+        Assert.AreEqual("Whisper", config.Columns.Single(c => c.Id == Chain(config, AiAbility.SpeechIn).Single()).ProviderName);
     }
 
     /// <summary>A step that applies or not as the test says.</summary>

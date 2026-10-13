@@ -292,7 +292,7 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.Claude` | Anthropic Claude API over HTTPS. |
 | `Nexaflow.Providers.Gemini` | Google Gemini API over HTTPS. |
 | `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS: chat models, and the realtime transcription API for speech to text. |
-| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine, CUDA or CPU, for speech to text; its models come from the asset store. |
+| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU, for speech to text; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 
 ---

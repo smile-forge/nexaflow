@@ -1,14 +1,16 @@
 # Local AI — voice conversation, on-device models, media generation
 
-**Status: phases 1 and 2 built.** Replies stream through the agent harness; each ability is served by a chain of
+**Status: phases 1, 2 and 3 built.** Replies stream through the agent harness; each ability is served by a chain of
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
 models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
 transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on CUDA from a pack fetched from where NVIDIA and
 Microsoft publish it, or on the CPU — as the provider "Nexaflow", chosen when a workspace is set up; tools can hand a
-model recordings to hear; and an AI-path suite runs the agent loop on it. Voice (phase 3) and generation tools
-(phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and the
-order to build it in. Where it names a type, check for collisions before introducing it.
+model recordings to hear; and an AI-path suite runs the agent loop on it. Every model calls tools in its own protocol.
+A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
+Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. Generation
+tools (phase 4) are not built yet. This records what was measured, the decisions taken, the design that follows, and
+the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
 `README.md` says how to re-run each measurement), until the implementation is done.
@@ -40,7 +42,7 @@ policy and scheduling.
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPU minimum | **24 GB** for the default resident model (Gemma 4 E4B) with voice; **32 GB** for the larger models (Qwen 3.8 27B, Gemma 4 26B-A4B) with voice. Bringing the larger models to 24 GB is the longer-term goal: their own exports, and a context that never re-reads what it has already read (below). |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
-| Tool calls | **Prompt convention**, for every model: fenced `client_tool` blocks the harness parses. A model that writes a call in its own framing is read where the call is plain — an unfenced `client_tool` body naming a known tool — and asked to rewrite it where it is not (below). Native tool calls stay deferred. |
+| Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax, read from its tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
 
 ## What was measured
 
@@ -247,8 +249,11 @@ onnxruntime-genai's API can set only the decoder's providers.
 
 `ILlmProvider` stays the text-generation contract. It streams its reply as events (`StreamAsync`), takes **audio
 attachments** beside image ones (`LlmAttachment.IsAudio`, `SupportsAudio`) — a recording a tool hands over
-(`ToolResult.Audio`) reaches a model that hears as audio and any other as what the Speech In model heard in it — and
-native tool calls arrive later as one more kind of event, for a provider that opts in. Beside it, in `Providers.Common`:
+(`ToolResult.Audio`) reaches a model that hears as audio and any other as what the Speech In model heard in it — and,
+for a provider that `SupportsToolCalls`, takes the tools it may call (`LlmTool`, a JSON Schema each) and streams each
+call it makes as an `LlmToolCallRequested`; what came of a call goes back as an `LlmRole.Tool` message that `Answers`
+it. A call carries what its provider wants back with it (`Signature`, Gemini's thought signature) and, when its
+arguments did not read, the arguments as written (`Unread`). Beside it, in `Providers.Common`:
 
 | Capability | Shape |
 |---|---|
@@ -355,13 +360,26 @@ maps roles to models:
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
 to the owned model, which is where API cost actually goes.
 
-Prompt-convention tools are an advantage here: with the chat template coming from the model itself
-(`Tokenizer.ApplyChatTemplate`), a new local model needs no per-family harness — the part PR #74 had to write by
-hand for Gemma and Qwen. A model's own call syntax still surfaces: Gemma 4 E4B, asked for a tool the request names
-directly, often writes `call:add_note{text:buy milk}`, and when told to use a block, writes the block's JSON in its
-own framing without the fence. The harness takes an unfenced `client_tool` body naming a known tool as the call it
-is, and sends a known tool called as text back to be rewritten — so the call never reaches the user as the answer.
-The AI-path suite allows two such corrections a run.
+### What the model is handed
+
+The harness hands the model what it needs to act and nothing it has to dig for:
+
+- **The page describes itself** in what it holds: the file browser names its folders, files and selection, so "delete
+  the folder called old" is answered from the page. What the app could open is a tool (`get_openable_pages`), not
+  context sent with every request; so is which Markdown it draws (`get_markdown_syntaxes`, `get_markdown_syntax`).
+- **No approval talk.** Whether a call needs the user's approval is the harness's business: the model is never told,
+  and never asked to explain before it acts.
+- **The tools follow the work.** A page with more than four tools has the Disambiguation model pick the few the next
+  step needs — again whenever an instruction is added or a step's calls are answered, from everything asked and what
+  the calls did. Tools the model had listed with `get_client_commands` stay offered.
+- **A call that cannot be read is rewound, not argued with.** It is written again by the Conversation model in a small
+  context of its own — the call as written, why it did not read, and an example built from the tool's definition — and
+  the call written again takes the attempt's place, so the conversation only ever holds calls that read. Only when that
+  fails is the model told why. JSON the model reads is written unescaped (`café`, not `caf\u00E9`).
+- **A voice turn is remembered as it ran**: the calls made and what came of them, then what of the reply was heard.
+
+`NEXAFLOW_AI_TRANSCRIPTS` names a folder for the app to write each run to: every message the model was sent, the tools
+offered and what it wrote — what to read when a run goes wrong.
 
 ## Voice conversation
 
@@ -466,30 +484,45 @@ runs on the user's machine, for every reply. MisakiSharp covers English only. es
 and is the convention both voices were trained on (the German fine-tune's authors say so), but it is GPL, and run
 as a process per phrase it cost 65–300 ms on the voice path.
 
-So espeak-ng is a **build-time tool, not a shipped one**:
+So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is in the repository:
 
-- **Lexicons, generated in CI.** espeak-ng runs over merged frequency lists (hermitdave/OpenSubtitles, Leipzig news
-  and Wikipedia) with `--tie`, and its output goes through misaki's post-processing — the form both voices were
-  trained on: language-switch flags removed, affricates and diphthongs as single tokens (`t^s`→`ʦ`, `a^ɪ`→`I`), and
-  for German kikiri's `ʏ`→`y`. Plain `--ipa` output is wrong input for these voices: `ʏ` is not in Kokoro's
-  vocabulary ("fünf" loses its vowel), and untied pairs arrive as two tokens. About 200k keys for French and
-  200k–400k for German: 1.6–3.8 MB compressed, under a minute to build. Keys whose case changes the pronunciation
-  (German `Weg`/`weg`) stay separate, so lookup is case-sensitive.
-- **A C# phonemiser at runtime**, in this order: normalisation, lookup, context rules, fallback. Lookup costs
-  ~0.15 µs a word; espeak as a process costs ~54 ms a phrase.
+- **Lexicons, built once and published, CC0.** `tools/ai-models/kokoro-lexicons` runs espeak-ng 1.52.0 over the words
+  of Mozilla Common Voice's French and German sentences (CC0, pinned by commit) with `--tie`, and its output goes through
+  misaki's post-processing — the form both voices were trained on: language-switch flags removed, affricates and
+  diphthongs as single tokens (`t^s`→`ʦ`, `a^ɪ`→`I`), and for German kikiri's `ʏ`→`y`. Plain `--ipa` output is wrong
+  input for these voices: `ʏ` is not in Kokoro's vocabulary ("fünf" loses its vowel), and untied pairs arrive as two
+  tokens. 148,000 French words (1.4 MB) and 269,000 German (3.1 MB) — every word seen more than once — in about a
+  minute, byte for byte the same on a rebuild; hosted on Hugging Face beside the recipe, as the Whisper export is.
+  Frequency lists with more words (OpenSubtitles, CC BY-SA; Leipzig, CC BY) were measured too: they cover more of a
+  reply's words but are understood no better, since the fallbacks say the rest, and their licences would bind the
+  lexicons. Keys whose case changes the
+  pronunciation (German `Weg`/`weg`) stay separate, so lookup tries a word as written before lower-casing it.
+- **A C# phonemiser at runtime** (`Speech/Phonemes` in the host), in this order: normalisation, lookup, context
+  rules, fallback. Lookup costs ~0.15 µs a word; espeak as a process costs ~54 ms a phrase.
+- **Measured whole**: 100 real replies in each language, spoken by Kokoro and heard back by Whisper large-v3-turbo.
+  French: 3.4% of words wrong, as with espeak-ng reading each sentence whole (3.4%) and with MisakiSharp's espeak-free
+  French (3.5%). German: 3.3%, against espeak-ng's 3.5%. Where they differ the differences favour ours: English words
+  said in English (`checkout`, `joyful`), the product's name, no optional liaison said wrong (espeak's `êtes en` as
+  `ɛtz`), German compounds split where espeak guesses. The read-back is `PhonemizerReadBackTests`; sameness with
+  espeak-ng sentence by sentence is `PhonemizerAgainstEspeakTests` (French 128 of 200, German 153 of 200, nearly all
+  the rest espeak's liaisons and guesses, and words the fallbacks say a little differently).
 - **Normalisation is the larger job** — 6.6–6.9% of the words in measured replies never reach the lexicon: numbers
   with their contextual forms (un/une, ein/eins/einen, ordinals), times (15h30, 14:30 Uhr), dates, versions, IP
   addresses, units (Go → gigaoctets), a spell-or-read list for acronyms (USB, JSON, IA), abbreviations (z. B., etc.),
   slash pairs, and dropping emoji, LaTeX, markdown and code. espeak itself gets much of this wrong in context.
-- **Context rules.** Looked up word by word, German loses nothing; French loses liaison (5% of words, more than half
-  of sentences), number voicing (six, dix) and a few homographs. Both lose phrase stress on function words, which a
-  closed list of ~50 words restores.
-- **The fallback** runs rarely in spoken replies — with 200k keys, in 12% of French and 39% of German replies, under
-  one word each — and in most assistant-style replies, where what it meets is mostly English: product names, camelCase
-  brands, tech terms. So it is, in order: a product lexicon (Nexaflow, app names), camelCase splitting, an English
-  path (an English lexicon mapped to Kokoro's symbols), a guarded German compound splitter (better than espeak's own
-  guess in about 60% of disagreements, but it must not split suffixes or English words), and only then letter-to-sound
-  rules. A port of [Crane](https://github.com/lucasjinreal/Crane)'s German G2P (MIT) covers the last step for German.
+- **Context rules.** Looked up word by word, German loses only phrase stress; French also loses liaison (5% of words,
+  more than half of sentences) and number voicing (six, dix). French says the liaisons that are always made — after
+  determiners, pronouns, `est`, `très`, `quand` and their like, by the next word's sound and never before an h
+  aspiré or across a pause — and not the optional ones espeak-ng makes (and gets wrong); `six`, `dix`, `huit` and
+  `tous` are said by what follows. Both say the function words without stress inside a phrase, from the lists measured
+  against espeak-ng on real replies; an elided clitic (`l'`, `j'`, `jusqu'`) hangs on the word after it.
+- **The fallback** meets 4–7% of a reply's words — mostly English (product names, camelCase brands, tech terms) and
+  the second-person and imperative forms an assistant uses more than the sentences the lexicons come from. So it is, in order: the language's fixed words (Nexaflow), camelCase splitting, English from
+  MisakiSharp's English lexicon — only words it rates as known, never its guesses — a guarded German compound splitter
+  (fewest words of three letters or more, linking sounds between, never ending on a suffix; better than espeak's own
+  guess in about 60% of disagreements), and only then letter-to-sound rules: MisakiSharp's espeak-free French
+  (Apache-2.0) for French, a port of [Crane](https://github.com/lucasjinreal/Crane)'s German rules (MIT) for German,
+  written in espeak-ng's form — stress before the vowel, its `r`, `ɾ` and `ɜ` — and saying a doubled consonant once.
 
 ## Generation tools
 
@@ -580,7 +613,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B prepared from the onnx-community export, with the append-only context; the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. Open: Windows ML's providers, with a model built for one | large |
-| 3. Voice | speech in the host; the text-to-speech contract; voice session with turn detection and barge-in; the French and German phonemiser and lexicons; the input-bar voice mode and overlay | large |
+| 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | the image, audio and video generation contracts with their tools: speech and image first; music after; video through cloud providers | medium per tool |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.

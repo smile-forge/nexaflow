@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Google.GenAI;
 using Google.GenAI.Types;
 using Nexaflow.Providers.Common;
@@ -41,28 +42,61 @@ public sealed class GeminiLlmProvider : ILlmProvider
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+        => Stream(messages, [], ct);
+
+    /// <summary>Gemini calls the tools it is offered as function calls, each whole in the chunk that carries it.</summary>
+    public bool SupportsToolCalls => true;
+
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => Stream(messages, tools, ct);
+
+    private IAsyncEnumerable<LlmStreamEvent> Stream(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, CancellationToken ct)
     {
         var (systemInstruction, contents) = BuildRequest(messages);
-        var config = systemInstruction is not null
-            ? new GenerateContentConfig { SystemInstruction = systemInstruction }
+        var config = systemInstruction is not null || tools.Count > 0
+            ? new GenerateContentConfig
+            {
+                SystemInstruction = systemInstruction,
+                Tools             = tools.Count > 0 ? [new Tool { FunctionDeclarations = [.. tools.Select(Declare)] }] : null,
+            }
             : null;
 
         return LlmStreamRunner.RunAsync(_activityManager, $"Gemini ({_model})…", ProviderName,
-            ct => Events(contents, config, ct), ct);
+            ct => Events(Client.Models.GenerateContentStreamAsync(model: _model, contents: contents, config: config, cancellationToken: ct)), ct);
     }
 
-    private async IAsyncEnumerable<LlmStreamEvent> Events(
-        List<Content> contents, GenerateContentConfig? config,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    /// <summary>A tool as Gemini declares it: a function, its parameters' JSON Schema as given.</summary>
+    internal static FunctionDeclaration Declare(LlmTool tool)
+        => new() { Name = tool.Name, Description = tool.Description, ParametersJsonSchema = tool.Parameters };
+
+    /// <summary>The reply as it streams: its text — never its thoughts — and each call it makes, with the signature a
+    /// thinking model sends to have back with it. Gemini gives a call an id only sometimes; one without is numbered.</summary>
+    internal static async IAsyncEnumerable<LlmStreamEvent> Events(IAsyncEnumerable<GenerateContentResponse> chunks)
     {
-        await foreach (var chunk in Client.Models.GenerateContentStreamAsync(
-                           model: _model, contents: contents, config: config, cancellationToken: ct))
-            if (!string.IsNullOrEmpty(chunk.Text))
-                yield return new LlmTextDelta(chunk.Text);
+        int made = 0;
+        await foreach (var chunk in chunks)
+            foreach (var part in chunk.Candidates?.FirstOrDefault()?.Content?.Parts ?? [])
+            {
+                if (part.FunctionCall is { } call)
+                {
+                    var arguments = call.Args is null ? null : JsonSerializer.Serialize(call.Args);
+                    yield return new LlmToolCallRequested(
+                        LlmToolCall.Read(call.Id ?? $"call_{made}", call.Name ?? "", arguments) with { Signature = part.ThoughtSignature });
+                    made++;
+                }
+                else if (part.Thought != true && !string.IsNullOrEmpty(part.Text))
+                    yield return new LlmTextDelta(part.Text);
+            }
     }
 
     /// <summary>Maps the neutral message list to Gemini's wire shape (system instruction split out;
-    /// user/model roles; images as inline-data parts). Internal + static so the mapping is unit-testable.</summary>
+    /// user/model roles; images as inline-data parts; a reply's calls as function-call parts). What came of a step's calls
+    /// is the user turn after it — every function response, then anything the user says besides. Internal + static so the
+    /// mapping is unit-testable.</summary>
     internal static (Content? SystemInstruction, List<Content> Contents) BuildRequest(
         IReadOnlyList<LlmMessage> messages)
     {
@@ -73,19 +107,60 @@ public sealed class GeminiLlmProvider : ILlmProvider
             : new Content { Parts = [new Part { Text = systemText }] };
 
         var contents = new List<Content>();
+        List<Part>? results = null;   // a step's function responses, awaiting the user turn they open
         foreach (var msg in turns)
         {
-            List<Part> parts = msg.Role == LlmRole.User
-                ? BuildUserParts(msg.Text, msg.Attachments)
-                : [new Part { Text = msg.Text }];
+            if (msg.Role == LlmRole.Tool)
+            {
+                (results ??= []).Add(new Part
+                {
+                    FunctionResponse = new FunctionResponse
+                    {
+                        Id       = msg.Answers?.Id,
+                        Name     = msg.Answers?.Name,
+                        Response = new Dictionary<string, object> { ["output"] = msg.Text },
+                    },
+                });
+                continue;
+            }
+            if (results is not null)
+            {
+                if (msg.Role == LlmRole.User) results.AddRange(BuildUserParts(msg.Text, msg.Attachments));
+                contents.Add(new Content { Role = "user", Parts = results });
+                results = null;
+                if (msg.Role == LlmRole.User) continue;
+            }
 
             contents.Add(new Content
             {
                 Role  = msg.Role == LlmRole.User ? "user" : "model",
-                Parts = parts
+                Parts = msg.Role == LlmRole.User ? BuildUserParts(msg.Text, msg.Attachments) : ModelParts(msg),
             });
         }
+        if (results is not null)
+            contents.Add(new Content { Role = "user", Parts = results });
         return (systemInstruction, contents);
+    }
+
+    /// <summary>A reply: its text, then each call it made, with the signature it came with.</summary>
+    private static List<Part> ModelParts(LlmMessage msg)
+    {
+        if (msg.ToolCalls is not { Count: > 0 } calls) return [new Part { Text = msg.Text }];
+
+        var parts = new List<Part>();
+        if (!string.IsNullOrWhiteSpace(msg.Text)) parts.Add(new Part { Text = msg.Text });
+        foreach (var call in calls)
+            parts.Add(new Part
+            {
+                FunctionCall     = new FunctionCall
+                {
+                    Id   = call.Id,
+                    Name = call.Name,
+                    Args = JsonSerializer.Deserialize<Dictionary<string, object>>(call.Arguments.ToJsonString()),
+                },
+                ThoughtSignature = call.Signature,
+            });
+        return parts;
     }
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
@@ -136,14 +211,15 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
     /// <summary>
     /// Builds the final user turn's parts. Image attachments become inline-data parts; non-image
-    /// attachments keep the path-as-text behaviour appended to the prompt text part.
+    /// attachments keep the path-as-text behaviour appended to the prompt text part, which is left out when empty.
     /// </summary>
     internal static List<Part> BuildUserParts(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         var (images, files) = PromptComposer.PartitionAttachments(attachments);
         var text = PromptComposer.AppendFileList(prompt, files);
 
-        var parts = new List<Part> { new Part { Text = text } };
+        var parts = new List<Part>();
+        if (text.Length > 0) parts.Add(new Part { Text = text });   // Gemini refuses an empty text part
         foreach (var img in images)
             parts.Add(new Part
             {

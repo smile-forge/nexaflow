@@ -57,6 +57,9 @@
     <!-- Panel behind the status/clear and context/mic button clusters. Transparent by default (Dark:
          buttons sit bare on the bar); a theme can darken it to group them like the input. -->
     <SolidColorBrush x:Key="AiBar.ClusterBg" Color="Transparent"/>
+    <!-- Voice mode: the assistant's words and the border of its field above the box, told apart from the user's by colour
+         alone. The second accent by default, so it is never the user's text colour; red while an action is held. -->
+    <SolidColorBrush x:Key="AiBar.Voice.Assistant" Color="{StaticResource Accent2Color}"/>
 
     <!-- ── File view secondary panels (tree + action strip). Default to the panel surface so Dark is
          unchanged; a theme can make them transparent-to-scene like the file list. ── -->

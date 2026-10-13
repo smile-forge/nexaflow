@@ -3,6 +3,9 @@ using Anthropic.Core;
 using Anthropic.Models.Messages;
 using Nexaflow.Providers.Common;
 using AnthropicModelList = Anthropic.Models.Models;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Providers.Claude;
 
@@ -44,6 +47,24 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+        => Stream(Request(messages, []), ct);
+
+    /// <summary>Claude calls the tools it is offered in its own protocol: each declared with its JSON Schema, each call
+    /// streamed back as a <c>tool_use</c> block.</summary>
+    public bool SupportsToolCalls => true;
+
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => Stream(Request(messages, tools), ct);
+
+    private IAsyncEnumerable<LlmStreamEvent> Stream(MessageCreateParams request, CancellationToken ct)
+        => LlmStreamRunner.RunAsync(_activityManager, $"Claude ({_model})…", ProviderName,
+            ct => Events(Client.Messages.CreateStreaming(request, ct)), ct);
+
+    private MessageCreateParams Request(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools)
     {
         var (systemPrompt, msgParams) = BuildRequest(messages);
 
@@ -55,28 +76,48 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         };
         if (!string.IsNullOrWhiteSpace(systemPrompt))
             request = request with { System = new MessageCreateParamsSystem(systemPrompt, null) };
-
-        return LlmStreamRunner.RunAsync(_activityManager, $"Claude ({_model})…", ProviderName,
-            ct => Events(request, ct), ct);
+        if (tools.Count > 0)
+            request = request with { Tools = [.. tools.Select(Declare)] };
+        return request;
     }
 
-    private async IAsyncEnumerable<LlmStreamEvent> Events(
-        MessageCreateParams request,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    /// <summary>The reply as it streams: its text, and each tool call once its block closes — the arguments arrive as
+    /// pieces of JSON between the block's start and its stop.</summary>
+    internal static async IAsyncEnumerable<LlmStreamEvent> Events(IAsyncEnumerable<RawMessageStreamEvent> stream)
     {
-        await foreach (var evt in Client.Messages.CreateStreaming(request, ct))
+        var calls = new Dictionary<long, (string Id, string Name, StringBuilder Arguments)>();
+        await foreach (var evt in stream)
         {
-            if (evt.TryPickContentBlockDelta(out var deltaEvt) &&
-                deltaEvt.Delta.TryPickText(out var textDelta) &&
-                !string.IsNullOrEmpty(textDelta.Text))
-                yield return new LlmTextDelta(textDelta.Text);
+            if (evt.TryPickContentBlockStart(out var start) && start.ContentBlock.TryPickToolUse(out var use))
+                calls[start.Index] = (use.ID, use.Name, new StringBuilder());
+            else if (evt.TryPickContentBlockDelta(out var deltaEvt))
+            {
+                if (deltaEvt.Delta.TryPickText(out var textDelta) && !string.IsNullOrEmpty(textDelta.Text))
+                    yield return new LlmTextDelta(textDelta.Text);
+                else if (deltaEvt.Delta.TryPickInputJson(out var json) && calls.TryGetValue(deltaEvt.Index, out var writing))
+                    writing.Arguments.Append(json.PartialJson);
+            }
+            else if (evt.TryPickContentBlockStop(out var stop) && calls.Remove(stop.Index, out var made))
+                yield return new LlmToolCallRequested(LlmToolCall.Read(made.Id, made.Name, made.Arguments.ToString()));
         }
     }
 
+    /// <summary>A tool as Claude declares it: its parameters' JSON Schema is the tool's input schema.</summary>
+    internal static ToolUnion Declare(LlmTool tool) => new Tool
+    {
+        Name        = tool.Name,
+        Description = tool.Description,
+        InputSchema = InputSchema.FromRawUnchecked(Raw(tool.Parameters)),
+    };
+
+    private static Dictionary<string, JsonElement> Raw(JsonObject json)
+        => json.ToDictionary(p => p.Key, p => JsonSerializer.SerializeToElement(p.Value));
+
     /// <summary>
     /// Maps the neutral message list to Claude's wire shape (system prompt split out; image
-    /// attachments as base64 vision blocks). Internal + static so the mapping is unit-testable
-    /// without a network call.
+    /// attachments as base64 vision blocks; a reply's tool calls as <c>tool_use</c> blocks). What came of a step's calls
+    /// is the user turn after it — every <c>tool_result</c>, then anything the user says besides. Internal + static so the
+    /// mapping is unit-testable without a network call.
     /// </summary>
     internal static (string? SystemPrompt, List<MessageParam> Messages) BuildRequest(
         IReadOnlyList<LlmMessage> messages)
@@ -85,19 +126,43 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         var (systemPrompt, turns) = PromptComposer.SplitSystemPrompt(messages);
 
         var msgParams = new List<MessageParam>();
+        List<ContentBlockParam>? results = null;   // a step's tool results, awaiting the user turn they open
         foreach (var msg in turns)
         {
-            var content = msg.Role == LlmRole.User
-                ? BuildUserContent(msg.Text, msg.Attachments)
-                : new MessageParamContent(msg.Text);
+            if (msg.Role == LlmRole.Tool)
+            {
+                (results ??= []).Add(new ToolResultBlockParam(msg.Answers?.Id ?? "") { Content = msg.Text });
+                continue;
+            }
+            if (results is not null)
+            {
+                if (msg.Role == LlmRole.User) results.AddRange(UserBlocks(msg.Text, msg.Attachments));
+                msgParams.Add(new MessageParam { Role = Role.User, Content = results });
+                results = null;
+                if (msg.Role == LlmRole.User) continue;
+            }
 
             msgParams.Add(new MessageParam
             {
                 Role    = msg.Role == LlmRole.User ? Role.User : Role.Assistant,
-                Content = content
+                Content = msg.Role == LlmRole.User ? BuildUserContent(msg.Text, msg.Attachments) : AssistantContent(msg),
             });
         }
+        if (results is not null)
+            msgParams.Add(new MessageParam { Role = Role.User, Content = results });
         return (systemPrompt, msgParams);
+    }
+
+    /// <summary>A reply: its text, then each tool it called.</summary>
+    private static MessageParamContent AssistantContent(LlmMessage msg)
+    {
+        if (msg.ToolCalls is not { Count: > 0 } calls) return new MessageParamContent(msg.Text);
+
+        var blocks = new List<ContentBlockParam>();
+        if (!string.IsNullOrWhiteSpace(msg.Text)) blocks.Add(new TextBlockParam(msg.Text));
+        foreach (var call in calls)
+            blocks.Add(new ToolUseBlockParam { ID = call.Id, Name = call.Name, Input = Raw(call.Arguments) });
+        return blocks;
     }
 
     /// <summary>Per-model output ceiling, used when the config doesn't override it. Values are
@@ -159,12 +224,19 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     internal static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         var (images, files) = PromptComposer.PartitionAttachments(attachments);
+        return images.Count == 0
+            ? new MessageParamContent(PromptComposer.AppendFileList(prompt, files))
+            : UserBlocks(prompt, attachments);   // implicit List<ContentBlockParam> -> MessageParamContent
+    }
+
+    /// <summary>What the user says as blocks: the text, unless there is none, then each image as a vision block.</summary>
+    private static List<ContentBlockParam> UserBlocks(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    {
+        var (images, files) = PromptComposer.PartitionAttachments(attachments);
         var text = PromptComposer.AppendFileList(prompt, files);
 
-        if (images.Count == 0)
-            return new MessageParamContent(text);
-
-        var blocks = new List<ContentBlockParam> { new TextBlockParam(text) };
+        var blocks = new List<ContentBlockParam>();
+        if (!string.IsNullOrWhiteSpace(text)) blocks.Add(new TextBlockParam(text));
         foreach (var img in images)
             blocks.Add(new ImageBlockParam
             {
@@ -174,8 +246,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
                     MediaType = ToMediaType(img.ResolvedMimeType),
                 },
             });
-
-        return blocks;   // implicit List<ContentBlockParam> -> MessageParamContent
+        return blocks;
     }
 
     private static MediaType ToMediaType(string mime) => mime switch

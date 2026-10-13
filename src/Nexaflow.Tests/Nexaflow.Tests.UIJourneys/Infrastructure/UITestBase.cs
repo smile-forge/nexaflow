@@ -61,6 +61,10 @@ public abstract class UITestBase
     /// </summary>
     protected virtual string? LaunchTabKind => null;
 
+    /// <summary>Environment the app is started with besides its isolated config dir — read after <see cref="SeedConfig"/>,
+    /// so a seed can decide it (where the AI models are, say).</summary>
+    protected virtual IReadOnlyDictionary<string, string> LaunchEnvironment { get; } = new Dictionary<string, string>();
+
     /// <summary>
     /// Override to seed files/config into the isolated config dir (<paramref name="configDir"/> =
     /// <c>NEXAFLOW_CONFIG_DIR</c>) BEFORE the app launches — e.g. write a workspace-scoped feature config
@@ -111,6 +115,7 @@ public abstract class UITestBase
             psi.ArgumentList.Add(kind);
         }
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
+        foreach (var (name, value) in LaunchEnvironment) psi.EnvironmentVariables[name] = value;
 
         App = Application.Launch(psi);
 
@@ -196,6 +201,13 @@ public abstract class UITestBase
                 "The Nexaflow window would not come to the foreground, so every click would land in "
                 + "whatever window is on top. Re-run with the desktop free.");
     }
+
+    /// <summary>
+    /// Brings the app in front before input is sent the way a user sends it. Keystrokes and clicks go to whichever window
+    /// is in front, so input sent while another app holds the foreground lands in that app. False when the app will not
+    /// come forward — send nothing then.
+    /// </summary>
+    protected bool InFront() => UiTestGate.BringToForeground(MainWindow.Properties.NativeWindowHandle, TimeSpan.FromSeconds(5));
 
     private Window ResolveShellWindow()
     {

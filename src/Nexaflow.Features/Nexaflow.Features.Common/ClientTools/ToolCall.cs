@@ -6,4 +6,6 @@ namespace Nexaflow.Features.Common.ClientTools;
 /// <param name="Tool">The requested tool name.</param>
 /// <param name="Arguments">The JSON arguments object (never null; empty when none supplied).</param>
 /// <param name="RawBlock">The original block body, for diagnostics.</param>
-public sealed record ToolCall(string Tool, JsonObject Arguments, string? RawBlock = null);
+/// <param name="Announcement">How the call is announced, where the tool says — set by the agent loop when it asks
+/// for approval.</param>
+public sealed record ToolCall(string Tool, JsonObject Arguments, string? RawBlock = null, ToolCallAnnouncement? Announcement = null);

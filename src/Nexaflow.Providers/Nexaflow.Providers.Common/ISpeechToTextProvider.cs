@@ -14,7 +14,19 @@ public interface ISpeechToTextProvider : IAiProvider
 
 /// <param name="Language">The language being spoken, as an ISO 639-1 code ("en", "fr", "de"); null lets the model
 /// detect it. Short utterances are misheard when it has to guess, so callers that know should say.</param>
-public sealed record SpeechToTextOptions(string? Language = null);
+/// <param name="Segmentation">Where one utterance ends and the next begins.</param>
+public sealed record SpeechToTextOptions(string? Language = null, SpeechSegmentation Segmentation = SpeechSegmentation.Phrases);
+
+/// <summary>Where a session ends one utterance — a <see cref="TranscriptFinal"/> — and starts the next.</summary>
+public enum SpeechSegmentation
+{
+    /// <summary>At each pause: dictation, where every phrase is text as soon as the speaker stops.</summary>
+    Phrases,
+
+    /// <summary>When the speaker has finished their turn: a conversation, which must not answer a thinking pause. A
+    /// backend that cannot tell ends at pauses, as for <see cref="Phrases"/>.</summary>
+    Turns,
+}
 
 /// <summary>
 /// One stretch of listening. Audio goes in as it is captured; <see cref="ReadEventsAsync"/> yields what the model
