@@ -229,6 +229,69 @@ public class RequestMappingTests
         Assert.IsNotNull(contents[0].Parts![1].InlineData);
     }
 
+    [TestMethod]
+    public void Gemini_ACallIsAFunctionCallPart_WithItsSignature_AndWhatCameOfIt_OpensTheNextUserTurn()
+    {
+        var step = ToolStep();
+        step[2] = step[2] with { ToolCalls = [step[2].ToolCalls![0] with { Signature = [7, 7] }] };
+
+        var (_, contents) = GeminiLlmProvider.BuildRequest(step);
+
+        Assert.AreEqual(3, contents.Count, "the responses and the user's words are one user turn");
+        var called = contents[1].Parts!.Single();
+        Assert.AreEqual(("model", "c1", "delete_file"), (contents[1].Role, called.FunctionCall?.Id, called.FunctionCall?.Name));
+        Assert.AreEqual("old", called.FunctionCall!.Args!["name"].ToString());
+        CollectionAssert.AreEqual(new byte[] { 7, 7 }, called.ThoughtSignature, "a thinking model's signature goes back with its call");
+        var answered = contents[2].Parts!;
+        Assert.AreEqual(("c1", "deleted"), (answered[0].FunctionResponse?.Id, answered[0].FunctionResponse?.Response?["output"]));
+        Assert.AreEqual("and the zip too", answered[1].Text);
+    }
+
+    [TestMethod]
+    public void Gemini_ATool_IsAFunctionWithItsSchema()
+    {
+        var declared = GeminiLlmProvider.Declare(DeleteFile);
+
+        Assert.AreEqual("delete_file", declared.Name);
+        Assert.AreSame(DeleteFile.Parameters, declared.ParametersJsonSchema);
+    }
+
+    [TestMethod]
+    public async Task Gemini_ACallIsRead_WithItsSignature_AndItsThoughtsAreNeverText()
+    {
+        var chunk = new global::Google.GenAI.Types.GenerateContentResponse
+        {
+            Candidates =
+            [
+                new global::Google.GenAI.Types.Candidate
+                {
+                    Content = new global::Google.GenAI.Types.Content
+                    {
+                        Parts =
+                        [
+                            new global::Google.GenAI.Types.Part { Text = "Weighing it up.", Thought = true },
+                            new global::Google.GenAI.Types.Part { Text = "On it." },
+                            new global::Google.GenAI.Types.Part
+                            {
+                                FunctionCall     = new global::Google.GenAI.Types.FunctionCall { Name = "delete_file", Args = new() { ["name"] = "old" } },
+                                ThoughtSignature = [1, 2],
+                            },
+                        ],
+                    },
+                },
+            ],
+        };
+
+        var read = new List<LlmStreamEvent>();
+        await foreach (var e in GeminiLlmProvider.Events(Streamed([chunk]))) read.Add(e);
+
+        Assert.AreEqual(2, read.Count);
+        Assert.AreEqual("On it.", ((LlmTextDelta)read[0]).Text);
+        var call = ((LlmToolCallRequested)read[1]).Call;
+        Assert.AreEqual(("call_0", "delete_file", "old"), (call.Id, call.Name, (string?)call.Arguments["name"]));
+        CollectionAssert.AreEqual(new byte[] { 1, 2 }, call.Signature);
+    }
+
     // ── Ollama ────────────────────────────────────────────────────────────
 
     [TestMethod]
