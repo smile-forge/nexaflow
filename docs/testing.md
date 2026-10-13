@@ -292,6 +292,10 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   when one fails. The app does the same for its own runs when started with `NEXAFLOW_AI_TRANSCRIPTS` naming a folder:
   one file a run, every message the model was sent and everything it wrote back, whole — what to read when a journey
   on the real models goes wrong.
+- **`OllamaToolCallTests`** *(`Tests.Providers`)* — native tool calling against the Ollama server on this machine:
+  `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
+  then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).
+  Unset, each is **inconclusive**. The cloud providers' tool mapping is pinned without a network in `RequestMappingTests`.
 - **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a
   whole assembly rather than filtering on the category. In `Tests.Visuals` and `Tests.Core` it means only *renders
   WPF off-screen* — an STA thread, no window, safe to parallelise and safe on a runner, so those run in CI. In
