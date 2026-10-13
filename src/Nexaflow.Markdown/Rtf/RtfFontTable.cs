@@ -116,4 +116,23 @@ internal sealed class RtfFontTable
         _name.Append(RtfCodePages.Decode([.. _bytes], page, symbol: false));
         _bytes.Clear();
     }
+
+    /// <summary>A copy of the table as it stands, to be read on separately.</summary>
+    public RtfFontTable Copy()
+    {
+        var copy = new RtfFontTable { _number = _number, _charset = _charset, _codePage = _codePage };
+
+        foreach (var (number, font) in _fonts) copy._fonts[number] = font;
+        copy._name.Append(_name);
+        copy._bytes.AddRange(_bytes);
+
+        return copy;
+    }
+
+    /// <summary>Whether <paramref name="other"/> declares the same fonts, and is part-way through the same entry.</summary>
+    public bool Alike(RtfFontTable other) =>
+        _number == other._number && _charset == other._charset && _codePage == other._codePage
+        && _name.Equals(other._name) && _bytes.SequenceEqual(other._bytes)
+        && _fonts.Count == other._fonts.Count
+        && _fonts.All(entry => other._fonts.TryGetValue(entry.Key, out var font) && font == entry.Value);
 }

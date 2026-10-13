@@ -31,24 +31,33 @@ public sealed record MarkdownDefinitions(string Text)
         return null;
     }
 
-    /// <summary>Every definition <paramref name="document"/> was read to hold, cut from <paramref name="source"/>.</summary>
-    internal static MarkdownDefinitions? In(MarkdownDocument document, string source)
+    /// <summary>
+    /// Every definition <paramref name="document"/> was read to hold that starts before <paramref name="before"/>, cut from
+    /// <paramref name="source"/> in the order they were written — so the definitions of two stretches of a document read one
+    /// after the other join into what the whole document's reading says (<see cref="Joined"/>).
+    /// </summary>
+    internal static MarkdownDefinitions? In(MarkdownDocument document, string source, int before = int.MaxValue)
     {
-        var lines = new List<string>();
+        var lines = new List<(int At, string Line)>();
 
-        foreach (var link in document.Descendants<LinkReferenceDefinition>()) lines.Add(Cut(link));
+        foreach (var link in document.Descendants<LinkReferenceDefinition>()) Add(link);
 
         if (document.GetAbbreviations() is { } abbreviations)
-            foreach (var abbreviation in abbreviations.Values) lines.Add(Cut(abbreviation));
+            foreach (var abbreviation in abbreviations.Values) Add(abbreviation);
 
-        return lines.Count == 0 ? null : new MarkdownDefinitions(string.Join('\n', lines));
+        return lines.Count == 0 ? null : new MarkdownDefinitions(string.Join('\n', lines.OrderBy(line => line.At).Select(line => line.Line)));
 
-        string Cut(Block block)
+        void Add(Block block)
         {
             var start = Math.Clamp(block.Span.Start, 0, source.Length);
-            var end = Math.Clamp(block.Span.End + 1, start, source.Length);
+            if (start >= before) return;
 
-            return source[start..end].TrimEnd('\r', '\n');
+            var end = Math.Clamp(block.Span.End + 1, start, source.Length);
+            lines.Add((start, source[start..end].TrimEnd('\r', '\n')));
         }
     }
+
+    /// <summary>What <paramref name="above"/> defines, then what <paramref name="below"/> does: two stretches of one document, the first written first.</summary>
+    public static MarkdownDefinitions? Joined(MarkdownDefinitions? above, MarkdownDefinitions? below) =>
+        above is null ? below : below is null ? above : new MarkdownDefinitions(above.Text + "\n" + below.Text);
 }

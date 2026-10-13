@@ -156,6 +156,24 @@ internal sealed class RtfGroup
         Stops = [];
         Depth = 0;
     }
+
+    /// <summary>A copy of this group, to be read on from where this one stands.</summary>
+    public RtfGroup Copy() => (RtfGroup)MemberwiseClone();
+
+    /// <summary>
+    /// Whether <paramref name="other"/> sets everything this one does — leaving out where in the paragraph being read each
+    /// began, which says nothing about what follows.
+    /// </summary>
+    public bool Alike(RtfGroup other) =>
+        Destination == other.Destination && Starred == other.Starred
+        && Font == other.Font && Size == other.Size && Bold == other.Bold && Italic == other.Italic
+        && Underline == other.Underline && Strike == other.Strike && Capitals == other.Capitals && Hidden == other.Hidden
+        && Script == other.Script && Ink == other.Ink && Highlight == other.Highlight && Background == other.Background
+        && Fallback == other.Fallback && Skipping == other.Skipping
+        && Align == other.Align && Indent == other.Indent && EndIndent == other.EndIndent && FirstLine == other.FirstLine
+        && Before == other.Before && After == other.After && Stops.AsSpan().SequenceEqual(other.Stops) && Depth == other.Depth
+        && ReferenceEquals(Field, other.Field) && Link == other.Link && ReferenceEquals(Picture, other.Picture)
+        && OpensPicture == other.OpensPicture && Shaped == other.Shaped;
 }
 
 /// <summary>A field: what it is, read from its instruction, and the link its result leads along where it is one.</summary>

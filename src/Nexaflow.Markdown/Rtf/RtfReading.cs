@@ -18,11 +18,13 @@ internal sealed partial class RtfReading
     private const double TwipsPerEm = OrdinarySize * 10;
 
     private readonly string _source;
-    private readonly List<RtfToken> _tokens;
+
+    /// <summary>Where this reading starts: nought, or where a reading before it stopped (<see cref="Resumed"/>).</summary>
+    private readonly int _from;
 
     // ── What the document declares ──────────────────────────────────────────
 
-    private readonly RtfFontTable _fonts = new();
+    private readonly RtfFontTable _fonts;
     private readonly List<uint?> _colours = [];
     private readonly Dictionary<int, string> _links = [];
     private int _codePage = RtfCodePages.Western;
@@ -39,20 +41,97 @@ internal sealed partial class RtfReading
     private RtfGroup _group = new();
     private readonly Stack<RtfGroup> _outer = new();
 
-    public RtfReading(string source)
+    /// <param name="source">The whole document.</param>
+    /// <param name="from">Where to start reading it: nought, or where a reading before this one stopped.</param>
+    /// <param name="resume">What that reading stopped in, or null to read from the start of the document.</param>
+    public RtfReading(string source, int from = 0, RtfResume? resume = null)
     {
         _source = source;
-        _tokens = RtfTokenizer.Read(source);
+        _from = from;
+
+        if (resume is null)
+        {
+            _fonts = new RtfFontTable();
+
+            return;
+        }
+
+        _fonts = resume.Fonts.Copy();
+        _colours.AddRange(resume.Colours);
+        (_codePage, _defaultFont, _defaultStop, _fields) = (resume.CodePage, resume.DefaultFont, resume.DefaultStop, resume.Fields);
+        (_red, _green, _blue, _coloured) = resume.Mixing;
+
+        foreach (var group in resume.Groups[..^1]) _outer.Push(group.Copy());
+        _group = resume.Groups[^1].Copy();
+
+        foreach (var (depth, cells) in resume.Defined) _defined[depth] = [.. cells.Select(cell => cell with { })];
+        _defining = resume.Defining with { };
+        _property.Append(resume.Property);
+        _shapePictured = resume.ShapePictured;
     }
 
-    /// <summary>Reads the whole document.</summary>
-    public ContentNode Read()
+    /// <summary>
+    /// Reads the document from where this reading starts — to its end, or, once <paramref name="softMaxLength"/> characters are
+    /// behind it, to the end of the next paragraph that leaves nothing open but the groups round the text (<see cref="Settled"/>),
+    /// saying where that was and what it stopped in.
+    /// </summary>
+    public ContentParse Read(int softMaxLength = int.MaxValue)
     {
-        foreach (var token in _tokens) Take(token);
+        foreach (var token in RtfTokenizer.From(_source, _from))
+        {
+            var ended = _lines;
+
+            Take(token);
+
+            if (_lines != ended && token.End - _from >= softMaxLength && token.End < _source.Length && Settled())
+                return new ContentParse(Blocked()) { Stopped = token.End, Resume = Resumed() };
+        }
 
         Finish();
 
-        return new BlockNode(RtfParser.Language, _blocks, offset: _source.Length > 0 ? 0 : null);
+        return ContentParse.Of(Blocked());
+    }
+
+    /// <summary>What has been read, as a block of the document starting where this reading did.</summary>
+    private BlockNode Blocked() => new(RtfParser.Language, _blocks, offset: _source.Length > _from ? _from : null);
+
+    /// <summary>
+    /// Whether the reading stands where it could stop and be carried on from what it hands on (<see cref="Resumed"/>): a paragraph
+    /// has just ended outside any table, nothing of it is left over, and every group still open is only round the document's
+    /// text — not in a field, a picture, a shape or a link, whose pieces would fall either side of the stop.
+    /// </summary>
+    private bool Settled() => _line.Count == 0 && _codes.Count == 0 && _tables.Count == 0 && Plain(_group) && _outer.All(Plain);
+
+    private static bool Plain(RtfGroup group) =>
+        group.Destination == RtfDestination.Text && group.Field is null && group.Picture is null && !group.Shaped
+        && group.Link == 0 && group.Skipping == 0;
+
+    /// <summary>
+    /// What a reading carrying on from here starts from: what the document has declared and every group still open, copied. No
+    /// group began in the paragraph a reading from here reads first, so where each began is left saying so.
+    /// </summary>
+    private RtfResume Resumed() => new()
+    {
+        Fonts = _fonts.Copy(),
+        Colours = [.. _colours],
+        CodePage = _codePage,
+        DefaultFont = _defaultFont,
+        DefaultStop = _defaultStop,
+        Fields = _fields,
+        Mixing = (_red, _green, _blue, _coloured),
+        Groups = [.. _outer.Reverse().Append(_group).Select(Before)],
+        Defined = _defined.ToDictionary(row => row.Key, row => row.Value.Select(cell => cell with { }).ToArray()),
+        Defining = _defining with { },
+        Property = _property.ToString(),
+        ShapePictured = _shapePictured,
+    };
+
+    private static RtfGroup Before(RtfGroup group)
+    {
+        var copy = group.Copy();
+        (copy.Begins, copy.Line) = (0, -1);
+
+        return copy;
     }
 
     private void Take(RtfToken token)

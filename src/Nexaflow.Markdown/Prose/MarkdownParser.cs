@@ -65,6 +65,137 @@ public sealed class MarkdownParser : ITranspile
         return source => ContentParse.Of(blocks.Read(Read(source), source));
     }
 
+    /// <summary>
+    /// A parse for one large document read a stretch at a time (<see cref="ContentStretch"/>), reading each stretch as the whole
+    /// document would read it.
+    ///
+    /// <para>
+    /// A block is only known to be finished once the next one has started — a paragraph followed by <c>===</c> is a heading, a
+    /// list goes on past a blank line — so a stretch is read on to the end of a line past its length and stops where the last
+    /// block in it starts: every block before that one is whole, and that one is the next stretch's first. A stretch holding
+    /// only one block is read further, until it holds two or reaches the end — which is reading a container whole, however long.
+    /// </para>
+    /// <para>
+    /// The link definitions read so far are carried from each stretch to the next (<see cref="ContentParse.Resume"/>), and a
+    /// stretch's words are read with them — or, once the whole document has been read, with every one in it
+    /// (<see cref="ContentStretch.Whole"/>), which is how the whole document's reading reads them.
+    /// </para>
+    /// </summary>
+    public static Func<ContentStretch, ContentParse> Windowed()
+    {
+        var blocks = new MarkdownBlocks();
+        return stretch => Stretched(stretch, blocks);
+    }
+
+    private static ContentParse Stretched(ContentStretch stretch, MarkdownBlocks blocks)
+    {
+        var source = stretch.Source;
+        var rest = source.Length - stretch.From;
+        var least = stretch.From == 0 ? FrontMatterEnd(source) : 0;
+
+        for (var length = Math.Clamp(stretch.SoftMaxLength, 1, Math.Max(rest, 1)); ; length = (int)Math.Min(length * 2L, rest))
+        {
+            var end = LineEnd(source, Math.Max(stretch.From + length, least));
+
+            if (Stretch(source, stretch.From, end, stopping: end < source.Length) is not { } read) continue;
+
+            var known = MarkdownDefinitions.Joined(stretch.Resume as MarkdownDefinitions, read.Defined);
+            var beside = stretch.Whole as MarkdownDefinitions ?? known;
+            var document = beside is null ? read.Tree : read.Tree.Holding(MarkdownKinds.Definitions, Roles.Derived, beside);
+
+            return new ContentParse(blocks.Read(document, source)) { Stopped = read.Stopped, Resume = known };
+        }
+    }
+
+    /// <summary>Where the line <paramref name="at"/> stands on ends, past its line break — or the end of <paramref name="source"/>.</summary>
+    private static int LineEnd(string source, int at)
+    {
+        if (at >= source.Length) return source.Length;
+
+        var end = source.IndexOf('\n', at);
+        return end < 0 ? source.Length : end + 1;
+    }
+
+    /// <summary>
+    /// Where the front matter a document opens with ends — past the line closing it — or nought where it opens with none.
+    ///
+    /// <para>
+    /// The one block whose reading the lines after it change all the way back: an opening <c>---</c> is only front matter once
+    /// a <c>---</c> or <c>...</c> closes it, and until then it reads as a rule with paragraphs under it. So the first stretch of a
+    /// document is read at least this far, and front matter is never split.
+    /// </para>
+    /// </summary>
+    private static int FrontMatterEnd(string source)
+    {
+        var first = LineEnd(source, 0);
+        if (source[..first].TrimEnd('\r', '\n').TrimEnd() != "---") return 0;
+
+        for (var at = first; at < source.Length;)
+        {
+            var next = LineEnd(source, at);
+            var line = source[at..next].TrimEnd('\r', '\n').TrimEnd();
+
+            if (line is "---" or "...") return next;
+            at = next;
+        }
+
+        return 0;
+    }
+
+    /// <summary>What one stretch of a document read to, where it stopped, and the link definitions it holds.</summary>
+    private sealed record Stretching(ContentNode Tree, int? Stopped, MarkdownDefinitions? Defined);
+
+    /// <summary>
+    /// The blocks of <paramref name="source"/> from <paramref name="from"/> to <paramref name="end"/>, read as <see cref="Read"/>
+    /// reads a document — and, where <paramref name="stopping"/>, all but the last of them, stopping where it starts; null where
+    /// there are not two blocks to stop between.
+    /// </summary>
+    private static Stretching? Stretch(string source, int from, int end, bool stopping)
+    {
+        var text = source[from..end];
+        var read = new Cut(text, from);
+        var parts = new List<ContentNode>();
+        int? stop = null;
+        MarkdownDefinitions? defined = null;
+
+        try
+        {
+            var document = Markdig.Markdown.Parse(text, Pipeline);
+            var blocks = Placed(document);
+            var count = blocks.Count;
+
+            if (stopping)
+            {
+                if (count < 2) return null;
+
+                var last = read.Original(blocks[count - 1].Span.Start);
+                if (last <= 0) return null;
+
+                (stop, count) = (last, count - 1);
+            }
+
+            for (var at = 0; at < count; at++)
+                One(blocks[at], parts, read, at + 1 < blocks.Count ? read.Original(blocks[at + 1].Span.Start) : null);
+
+            defined = MarkdownDefinitions.In(document, text, stop ?? int.MaxValue);
+        }
+        catch
+        {
+            // A reader that threw on a stretch may read the longer one; at the end there is nothing longer, and what is left is
+            // shown as it was typed, as the whole document's reading shows it.
+            if (stopping) return null;
+
+            parts.Add(read.Unaccounted());
+        }
+
+        var length = stop ?? read.Length;
+        read.Gap(parts, length);
+
+        var tree = new BlockNode(Language, Checked(Kinds.Block, parts, text[..length], Roles.Element, from).Children, offset: from);
+
+        return new Stretching(tree, stop is { } stopped ? from + stopped : null, defined);
+    }
+
     /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>
     public const string Language = "markdown";
 
@@ -211,8 +342,57 @@ public sealed class MarkdownParser : ITranspile
     /// <summary>The blocks a container holds, each as its own piece — from the <paramref name="first"/> of them.</summary>
     internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read, int first = 0)
     {
+        var placed = Placed(blocks, first);
+
+        for (var at = 0; at < placed.Count; at++)
+            One(placed[at], parts, read, at + 1 < placed.Count ? read.Original(placed[at + 1].Span.Start) : null);
+    }
+
+    /// <summary>
+    /// A container's blocks from <paramref name="first"/> on, in the order they were written.
+    ///
+    /// <para>
+    /// Markdig takes every link definition out of where it was written and gathers them into one group it puts last, whose own
+    /// span says nothing about where any of them stand. So each is put back where it was written, as a block of its own — unless
+    /// it was written inside another block, whose reading finds it in its turn.
+    /// </para>
+    /// </summary>
+    internal static List<Block> Placed(ContainerBlock blocks, int first = 0)
+    {
+        var placed = new List<Block>(blocks.Count);
+        LinkReferenceDefinitionGroup? defined = null;
+
         for (var at = first; at < blocks.Count; at++)
-            One(blocks[at], parts, read, at + 1 < blocks.Count ? read.Original(blocks[at + 1].Span.Start) : null);
+            if (blocks[at] is LinkReferenceDefinitionGroup group) defined = group;
+            else placed.Add(blocks[at]);
+
+        if (defined is null) return placed;
+
+        var written = placed.Count;
+
+        foreach (var definition in defined.OfType<LinkReferenceDefinition>())
+            if (!Inside(placed, written, definition.Span.Start)) placed.Add(definition);
+
+        placed.Sort((one, other) => one.Span.Start.CompareTo(other.Span.Start));
+
+        return placed;
+
+        // Whether a block written before the definitions were put back stands over the position — found by halving, since
+        // they are in the order they were written.
+        static bool Inside(List<Block> blocks, int count, int position)
+        {
+            var (low, high) = (0, count - 1);
+
+            while (low <= high)
+            {
+                var middle = (low + high) / 2;
+
+                if (blocks[middle].Span.Start <= position) low = middle + 1;
+                else high = middle - 1;
+            }
+
+            return high >= 0 && position <= blocks[high].Span.End;
+        }
     }
 
     /// <summary>
@@ -341,7 +521,7 @@ public sealed class MarkdownParser : ITranspile
         Markdig.Extensions.Figures.Figure => MarkdownKinds.Figure,
         Markdig.Extensions.Footers.FooterBlock => MarkdownKinds.Footer,
         HtmlBlock => MarkdownKinds.Html,
-        LinkReferenceDefinitionGroup => MarkdownKinds.Reference,
+        LinkReferenceDefinitionGroup or LinkReferenceDefinition => MarkdownKinds.Reference,
         CodeBlock => MarkdownKinds.Code,
         ParagraphBlock => MarkdownKinds.Paragraph,
         _ => Kinds.Verbatim,

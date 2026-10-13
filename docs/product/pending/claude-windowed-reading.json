@@ -1,0 +1,50 @@
+{
+  "branch": "claude/windowed-reading",
+  "nodes": {
+    "windowed-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentChunks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfParser.cs",
+          "class": "RtfParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfResume.cs",
+          "class": "RtfResume"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/WindowedReadingTests.cs",
+            "class": "WindowedReadingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "windowed-reading"
+  ]
+}
