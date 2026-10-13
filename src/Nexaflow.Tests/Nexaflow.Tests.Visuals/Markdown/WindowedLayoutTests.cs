@@ -115,6 +115,42 @@ public class WindowedLayoutTests
 
     // ── Laying ──────────────────────────────────────────────────────────────
 
+    [TestMethod]
+    public void ALongDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
+    {
+        var path = Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md"));
+        var text = File.ReadAllText(path);
+        var engine = new ContentEngine { WindowedFrom = 0, StretchLength = 1024 };
+        Shown(text, null, engine);
+        ToTheEnd(engine);
+
+        var middle = text.IndexOf("\n\n", text.Length / 2, StringComparison.Ordinal) + 2;
+
+        string[] edits = [text.Insert(middle, "Typed in the middle. "), "Opening words.\n\n" + text.Insert(middle, "Typed in the middle. "), text];
+
+        foreach (var edit in edits)
+        {
+            engine.Apply(engine.State with { Source = edit, Caret = Math.Min(engine.State.Caret, edit.Length), Selected = null }, notify: false);
+
+            Same(Whole(edit, null), ToTheEnd(engine), $"written in, {edit.Length} characters");
+        }
+    }
+
+    [TestMethod]
+    public void ALongRtfDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
+    {
+        var text = RtfParagraphs(1500);
+        var engine = Shown(text, RtfParser.Language, new ContentEngine { StretchLength = 4096 });
+        ToTheEnd(engine);
+
+        var middle = text.IndexOf("Paragraph 700 ", StringComparison.Ordinal);
+        var edit = text.Insert(middle, @"\b more\b0  ");
+
+        engine.Apply(engine.State with { Source = edit, Caret = 0, Selected = null }, notify: false);
+
+        Same(Whole(edit, RtfParser.Language), ToTheEnd(engine), "a long RTF document written in");
+    }
+
     /// <summary><paramref name="text"/> laid whole, with every slower reading of it landed.</summary>
     private static Laid Whole(string text, string? named)
     {

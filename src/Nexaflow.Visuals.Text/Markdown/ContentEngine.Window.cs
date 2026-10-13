@@ -85,9 +85,8 @@ public sealed partial class ContentEngine
     {
         Interlocked.Exchange(ref _growing, 0);
 
-        if (_window is not { } window || !ReferenceEquals(window.Language, language)
-            || !string.Equals(window.Source, state.Source, StringComparison.Ordinal))
-            window = Opened(language, state.Source);
+        if (_window is not { } window || !ReferenceEquals(window.Language, language)) window = Opened(language, state.Source);
+        else if (!string.Equals(window.Source, state.Source, StringComparison.Ordinal)) window = Rewritten(window, state.Source);
 
         Received(window);
 
@@ -98,12 +97,21 @@ public sealed partial class ContentEngine
         _top = language == ContentLanguages.Markdown ? null : _opened.Next();
         if (_top is { } opened) style = style with { Expansion = opened };
 
-        // Laid in another style, at another width, or with another stretch shown as written, nothing laid is what it would be now.
-        var shown = (style, room, readOnly, state.Raw);
+        // Laid in another style, at another width, or read-only where it is now written in, nothing laid is what it would be now.
+        var shown = (style, room, readOnly);
         if (!Equals(window.LaidAs, shown))
         {
             window.Laid.Clear();
             window.LaidAs = shown;
+        }
+
+        // A block shown as written, or no longer, is laid again — and everything after it, which stood where it did because of it.
+        if (window.Raw != state.Raw)
+        {
+            var touched = window.Laid.FindIndex(stretch => Touches(stretch, window.Raw) || Touches(stretch, state.Raw));
+            if (touched >= 0) window.Laid.RemoveRange(touched, window.Laid.Count - touched);
+
+            window.Raw = state.Raw;
         }
 
         foreach (var stretch in window.Laid) Viewed(stretch.Chunk);
@@ -122,6 +130,29 @@ public sealed partial class ContentEngine
         if (window.Reading is null && (!window.Chunks.Done || window.Chunks.Unsettled().Any())) Background(window);
 
         return Composed(window);
+    }
+
+    /// <summary>Whether <paramref name="zone"/> — a stretch shown as written — lies in what <paramref name="stretch"/> was laid from.</summary>
+    private static bool Touches(LaidStretch stretch, RawZone? zone) =>
+        zone is { } shown && shown.Start <= stretch.To && stretch.Reading.Root.Start <= shown.End;
+
+    /// <summary>
+    /// The window over what the document says now it has been written in: the stretches read and laid before the change kept
+    /// as they are, the change read again, and every stretch after it that reads as it did kept, moved along — laid again only
+    /// as the reader comes to it (<see cref="ContentChunks.Edited"/>).
+    /// </summary>
+    private ContentWindow Rewritten(ContentWindow window, string source)
+    {
+        window.Reading?.Cancel();
+
+        // What the background had read of the document as it was is the document still, after the change.
+        Received(window);
+
+        var (chunks, kept) = window.Chunks.Edited(source, window.Parse, StretchLength);
+        var rewritten = new ContentWindow(window.Language, source, chunks, window.Parse) { LaidAs = window.LaidAs, Raw = window.Raw };
+        rewritten.Laid.AddRange(window.Laid.Take(Math.Min(kept, window.Laid.Count)));
+
+        return _window = rewritten;
     }
 
     /// <summary>Whether what is laid falls short of where it has to reach, with more of the document still to lay.</summary>
@@ -180,9 +211,11 @@ public sealed partial class ContentEngine
     {
         var chunks = window.Chunks;
 
-        while (window.Arrived.TryDequeue(out var chunk))
+        while (window.Arrived.TryDequeue(out var arrived))
         {
-            if (chunk.Whole is null)
+            var chunk = arrived.Chunk;
+
+            if (!arrived.Settles)
             {
                 // Read in the background from where the reading stood when it started; what was read here since is in already.
                 if (chunk.From == chunks.Reached && !chunks.Done)
@@ -255,12 +288,12 @@ public sealed partial class ContentEngine
             while (from > 0 && chunks[from].From > block.Start) from--;
 
             for (var at = from; at < index; at++)
-                foreach (var part in chunks[at].Tree.Children)
+                foreach (var part in chunks[at].Placed.Children)
                     if (!part.IsDerived && part.Offset >= block.Start) parts.Add(part);
         }
 
-        foreach (var part in chunk.Tree.Children) if (!part.IsDerived) parts.Add(part);
-        foreach (var part in chunk.Tree.Children) if (part.IsDerived) parts.Add(part);
+        foreach (var part in chunk.Placed.Children) if (!part.IsDerived) parts.Add(part);
+        foreach (var part in chunk.Placed.Children) if (part.IsDerived) parts.Add(part);
 
         var start = parts.Count > 0 && parts[0].Offset is { } first ? Math.Min(first, chunk.From) : chunk.From;
         var text = source[start..end];
@@ -290,7 +323,7 @@ public sealed partial class ContentEngine
     {
         if (_top is not null) return;
 
-        foreach (var part in chunk.Tree.Children)
+        foreach (var part in chunk.Placed.Children)
             if (!part.IsDerived && part.Offset is { } at) Held(part, at);
     }
 
@@ -348,11 +381,13 @@ public sealed partial class ContentEngine
         var cancel = new CancellationTokenSource();
         window.Reading = cancel;
 
+        // Read on from where reading here stopped, and kept, of every chunk, what is needed to read it again knowing what the
+        // whole document came to: where it starts and stops, what it started in, and what it was read knowing.
         var chunks = window.Chunks;
         var (source, length, done, whole) = (chunks.Source, StretchLength, chunks.Done, chunks.Whole);
         var from = chunks.Reached;
         var resume = chunks.Chunks[^1].Ended;
-        var read = chunks.Chunks.Select(chunk => (chunk.From, chunk.Begun)).ToList();
+        var read = chunks.Chunks.Select(chunk => (chunk.From, chunk.Stopped, chunk.Begun, chunk.Whole)).ToList();
         var parse = window.Language.Windowed!();
 
         window.Read = Task.Run(() =>
@@ -360,19 +395,21 @@ public sealed partial class ContentEngine
             while (!done && !cancel.IsCancellationRequested)
             {
                 var chunk = ContentChunk.Read(parse, source, from, length, resume, null);
-                window.Arrived.Enqueue(chunk);
-                read.Add((chunk.From, chunk.Begun));
+                window.Arrived.Enqueue((chunk, false));
+                read.Add((chunk.From, chunk.Stopped, chunk.Begun, chunk.Whole));
 
                 if (chunk.Stopped is { } stopped) (from, resume) = (stopped, chunk.Ended);
                 else (done, whole) = (true, chunk.Ended);
             }
 
-            if (whole is not null)
-                foreach (var (at, begun) in read)
-                {
-                    if (cancel.IsCancellationRequested) return;
-                    window.Arrived.Enqueue(ContentChunk.Read(parse, source, at, length, begun, whole));
-                }
+            foreach (var (at, stopped, begun, knew) in read)
+            {
+                if (cancel.IsCancellationRequested) return;
+                if (Equals(knew, whole)) continue;
+
+                var extent = stopped is { } end ? end - at : source.Length - at + 1;
+                window.Arrived.Enqueue((ContentChunk.Read(parse, source, at, extent, begun, whole), true));
+            }
 
             if (!cancel.IsCancellationRequested) Grew?.Invoke(this, EventArgs.Empty);
         }, cancel.Token);
@@ -398,11 +435,14 @@ internal sealed class ContentWindow(ContentLanguage language, string source, Con
     /// <summary>The stretches laid, one for each chunk from the first, in order.</summary>
     public List<LaidStretch> Laid { get; } = [];
 
-    /// <summary>What they were laid as: the style, the room, whether only read, and what was shown as written.</summary>
+    /// <summary>What they were laid as: the style, the room, and whether only read.</summary>
     public object? LaidAs { get; set; }
 
+    /// <summary>What was shown as written when they were laid.</summary>
+    public RawZone? Raw { get; set; }
+
     /// <summary>What the background reading has read, waiting to be taken in.</summary>
-    public ConcurrentQueue<ContentChunk> Arrived { get; } = new();
+    public ConcurrentQueue<(ContentChunk Chunk, bool Settles)> Arrived { get; } = new();
 
     /// <summary>What stops the background reading, once one has started.</summary>
     public CancellationTokenSource? Reading { get; set; }

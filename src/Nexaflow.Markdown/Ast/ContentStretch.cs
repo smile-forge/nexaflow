@@ -27,11 +27,29 @@ public sealed record ContentStretch(string Source, int From, int SoftMaxLength, 
 /// <param name="Begun">What it was read from: the stretch before's <see cref="Ended"/>.</param>
 /// <param name="Ended">What it stopped in (<see cref="ContentParse.Resume"/>).</param>
 /// <param name="Whole">What the whole document came to when it was read (<see cref="ContentStretch.Whole"/>), or null where that was not known.</param>
-/// <param name="Tree">What it read to: a block in the document's language, standing for its characters and no others.</param>
+/// <param name="Tree">What it read to: a block in the document's language, standing for its characters and no others, as they stood when it was read.</param>
 public sealed record ContentChunk(int From, int? Stopped, object? Begun, object? Ended, object? Whole, ContentNode Tree)
 {
+    private ContentNode? _placed;
+
+    /// <summary>How far what was written or taken away before it has moved it since it was read — what every offset in its tree moves by.</summary>
+    public int Moved { get; private init; }
+
+    /// <summary>
+    /// Its tree, standing where it stands now: <see cref="Tree"/> as it was read, moved along by whatever has been written before
+    /// it since — worked out once, when something first asks.
+    /// </summary>
+    public ContentNode Placed => Moved == 0 ? Tree : _placed ??= Tree.FurtherOn(Moved);
+
     /// <summary>Where it ends in a document <paramref name="length"/> characters long.</summary>
     public int End(int length) => Stopped ?? length;
+
+    /// <summary>
+    /// The same stretch, <paramref name="by"/> characters further on: what was written before it changed, and it reads exactly as
+    /// it did. Nothing in it is read again, or moved until it is asked for (<see cref="Placed"/>).
+    /// </summary>
+    public ContentChunk Shifted(int by) =>
+        by == 0 ? this : new ContentChunk(From + by, Stopped + by, Begun, Ended, Whole, Tree) { Moved = Moved + by };
 
     /// <summary>The stretch of <paramref name="source"/> from <paramref name="from"/> read by <paramref name="parse"/>.</summary>
     public static ContentChunk Read(Func<ContentStretch, ContentParse> parse, string source, int from, int softMaxLength,
@@ -98,15 +116,31 @@ public sealed class ContentChunks(string source, string language)
     }
 
     /// <summary>
-    /// The chunks that were read without knowing what the whole document came to, or knowing something else — each to be read
-    /// again with <see cref="Whole"/> (<see cref="Settle"/>). None before everything is read.
+    /// The chunks read knowing something other than what the whole document came to — not knowing it yet, or knowing what it
+    /// came to before a change — each to be read again knowing it (<see cref="Settling"/>, <see cref="Settle"/>). None before
+    /// everything is read.
     /// </summary>
     public IEnumerable<int> Unsettled()
     {
-        if (Whole is not { } whole) yield break;
+        if (!Done) yield break;
+
+        var whole = Whole;
 
         for (var at = 0; at < _chunks.Count; at++)
             if (!Equals(_chunks[at].Whole, whole)) yield return at;
+    }
+
+    /// <summary>
+    /// The stretch to read the chunk at <paramref name="at"/> again as, knowing what the whole document came to: from where it
+    /// starts, in what it started in, and asked to stop exactly where it stopped — which it does, since knowing more about the
+    /// document changes what a stretch reads to and never where it ends.
+    /// </summary>
+    public ContentStretch Settling(int at)
+    {
+        var chunk = _chunks[at];
+
+        return new ContentStretch(source, chunk.From, chunk.Stopped is { } stopped ? stopped - chunk.From : source.Length - chunk.From + 1,
+                                  chunk.Begun, Whole);
     }
 
     /// <summary>
@@ -130,16 +164,81 @@ public sealed class ContentChunks(string source, string language)
         var parts = new List<ContentNode>();
 
         foreach (var chunk in _chunks)
-            foreach (var part in chunk.Tree.Children)
+            foreach (var part in chunk.Placed.Children)
                 if (!part.IsDerived) parts.Add(part);
 
         if (Reached < source.Length)
             parts.Add(ContentNode.Leaf(Kinds.Unreached, source[Reached..], Roles.Trivia, offset: Reached));
 
         if (_chunks.Count > 0)
-            foreach (var part in _chunks[^1].Tree.Children)
+            foreach (var part in _chunks[^1].Placed.Children)
                 if (part.IsDerived) parts.Add(part);
 
         return new BlockNode(language, parts, offset: source.Length > 0 ? 0 : null);
+    }
+
+    /// <summary>
+    /// The document as it reads once <paramref name="edited"/> has replaced it, read again only where it has to be.
+    ///
+    /// <para>
+    /// The chunks before the change are kept as they are. The change is read from the chunk before the one it falls in, because
+    /// the first line of a block can change what the block before it is — a <c>===</c> under a paragraph makes it a heading — and
+    /// nothing further back. It is read on only until a stretch stops where one of the old chunks after the change started,
+    /// moved along by the change, and stops in exactly the state that chunk started in: from there every old chunk reads as it
+    /// did, and is kept, moved along (<see cref="ContentChunk.Shifted"/>). A change that leaves a fence open, or an RTF group,
+    /// simply reads on further, as far as it reaches. What was not read before is still not read.
+    /// </para>
+    /// <para>
+    /// Each stretch read again is read knowing what the whole document came to before the change, so a change that does not
+    /// touch what the whole document says reads as the whole document reads it at once; one that does stops in another state,
+    /// and reads on to the end.
+    /// </para>
+    /// </summary>
+    /// <returns>The document, and how many of its chunks are the old ones before the change, read as they were.</returns>
+    public (ContentChunks Chunks, int Kept) Edited(string edited, Func<ContentStretch, ContentParse> parse, int softMaxLength)
+    {
+        var into = new ContentChunks(edited, language);
+        if (_chunks.Count == 0) return (into, 0);
+
+        // Where the change starts, and where it ends in what was written before it: the stretch the two sources do not share.
+        var shortest = Math.Min(source.Length, edited.Length);
+        var same = 0;
+        while (same < shortest && source[same] == edited[same]) same++;
+
+        var tail = 0;
+        while (tail < shortest - same && source[^(tail + 1)] == edited[^(tail + 1)]) tail++;
+
+        var (changed, by) = (source.Length - tail, edited.Length - source.Length);
+
+        var holding = _chunks.Count - 1;
+        while (holding > 0 && _chunks[holding].From > same) holding--;
+
+        var kept = Math.Max(holding - 1, 0);
+        for (var at = 0; at < kept; at++) into._chunks.Add(_chunks[at]);
+
+        var (from, begun, next) = (_chunks[kept].From, _chunks[kept].Begun, kept);
+
+        while (true)
+        {
+            // Asked to stop where the next old chunk past the change starts, moved along — a block starts there still, unless the
+            // change reached it — so a stretch stops in step with the old ones rather than a few characters off them for ever.
+            while (next < _chunks.Count && (_chunks[next].From < changed || _chunks[next].From + by <= from)) next++;
+
+            var length = next < _chunks.Count ? _chunks[next].From + by - from : softMaxLength;
+            var read = ContentChunk.Read(parse, edited, from, length, begun, Whole);
+            into._chunks.Add(read);
+
+            if (read.Stopped is not { } stop) return (into, kept);
+
+            if (next < _chunks.Count && _chunks[next].From + by == stop && Equals(_chunks[next].Begun, read.Ended))
+            {
+                for (var at = next; at < _chunks.Count; at++) into._chunks.Add(_chunks[at].Shifted(by));
+                return (into, kept);
+            }
+
+            if (!Done && stop >= Reached + by) return (into, kept);
+
+            (from, begun) = (stop, read.Ended);
+        }
     }
 }

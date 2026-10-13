@@ -96,7 +96,7 @@ public class WindowedReadingTests
         Assert.IsFalse(Links(chunks.Chunks[0].Tree));
         CollectionAssert.Contains(chunks.Unsettled().ToList(), 0);
 
-        Settled(chunks, parse, 64);
+        Settled(chunks, parse);
 
         Assert.IsTrue(Links(chunks.Chunks[0].Tree));
         var whole = MarkdownParser.Parsing()(source).Tree;
@@ -134,6 +134,67 @@ public class WindowedReadingTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    [TestMethod]
+    public void EveryMarkdownSample_WrittenIn_IsReadAgainFromWhereItChanged_AsTheWrittenDocumentReadsWhole()
+    {
+        var documents = TestSampleData.Files("markdown").ToList();
+        documents.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
+
+        foreach (var path in documents)
+        {
+            var source = File.ReadAllText(path);
+            if (source.Length < 20) continue;
+
+            var middle = WordStart(source, source.Length / 2);
+            var near = WordStart(source, source.Length - 10);
+
+            string[] edits =
+            [
+                source.Insert(middle, "typed "),
+                "Opening words.\n\n" + source,
+                source.Remove(near, 1),
+                source.Insert(middle, "\n```\n"),
+                source.Insert(middle, "\n\n[late]: https://example.com/late\n\n"),
+                source,
+            ];
+
+            Edited(source, edits, Path.GetFileName(path), MarkdownParser.Language, MarkdownParser.Windowed,
+                   text => MarkdownParser.Parsing()(text).Tree);
+        }
+    }
+
+    [TestMethod]
+    public void EveryRtfSample_WrittenIn_IsReadAgainFromWhereItChanged_AsTheWrittenDocumentReadsWhole()
+    {
+        foreach (var path in TestSampleData.Files("rtf"))
+        {
+            var source = File.ReadAllText(path, System.Text.Encoding.Latin1);
+            var middle = WordStart(source, source.Length / 2);
+            var closing = source.IndexOf('}', source.Length / 3);
+
+            List<string> edits = [source.Insert(middle, "typed "), source.Insert(middle, @"\par "), source.Insert(middle, @"{\b ")];
+            if (closing > 0) edits.Add(source.Remove(closing, 1));
+
+            Edited(source, [.. edits, source], Path.GetFileName(path), RtfParser.Language, RtfParser.Windowed, RtfParser.Parse);
+        }
+    }
+
+    [TestMethod]
+    public void AWordTypedInALongDocument_IsReadInTheStretchesAroundIt_AndEveryOneAfterIsKept()
+    {
+        var source = string.Concat(Enumerable.Range(0, 400).Select(at => $"Paragraph {at} has words in it.\n\n"));
+        var parse = MarkdownParser.Windowed();
+        var chunks = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 256);
+        var edited = source.Insert(source.IndexOf("Paragraph 200 ", StringComparison.Ordinal), "typed ");
+
+        var (rewritten, kept) = chunks.Edited(edited, parse, 256);
+        var moved = rewritten.Chunks.Count(chunk => chunk.Moved != 0);
+
+        Assert.IsTrue(kept > 0, "Nothing before the change was kept.");
+        Assert.IsTrue(rewritten.Chunks.Count - kept - moved <= 3, $"{rewritten.Chunks.Count - kept - moved} stretches were read again.");
+        Assert.IsTrue(rewritten.Tree().Same(MarkdownParser.Parsing()(edited).Tree));
+    }
+
     private static void Stitched(string source, string name, string language, Func<Func<ContentStretch, ContentParse>> windowed,
                                  Func<string, ContentNode> whole)
     {
@@ -151,6 +212,39 @@ public class WindowedReadingTests
         }
     }
 
+    /// <summary>
+    /// <paramref name="source"/> read a stretch at a time and then written in, one edit after another, each read again from where
+    /// it changed — and every one the same as the document it became read whole.
+    /// </summary>
+    private static void Edited(string source, IReadOnlyList<string> edits, string name, string language,
+                               Func<Func<ContentStretch, ContentParse>> windowed, Func<string, ContentNode> whole)
+    {
+        var parse = windowed();
+        var chunks = Read(source, language, windowed, 64);
+        var step = 0;
+
+        foreach (var edit in edits)
+        {
+            step++;
+            (chunks, _) = chunks.Edited(edit, parse, 64);
+
+            while (chunks.Next(64) is { } next) chunks.Add(ContentChunk.Read(parse, edit, next.From, next.SoftMaxLength, next.Resume, null));
+            Settled(chunks, parse);
+
+            var expected = whole(edit);
+            var tree = chunks.Tree();
+
+            Assert.AreEqual(edit, tree.Print(), $"{name}, edit {step}, does not print as itself.");
+            Assert.IsTrue(tree.Same(expected), $"{name}, edit {step}: {Diverged(expected, tree)}");
+        }
+    }
+
+    private static int WordStart(string text, int at)
+    {
+        while (at > 0 && !char.IsWhiteSpace(text[at - 1])) at--;
+        return at;
+    }
+
     private static ContentChunks Read(string source, string language, Func<Func<ContentStretch, ContentParse>> windowed, int length)
     {
         var chunks = new ContentChunks(source, language);
@@ -159,17 +253,19 @@ public class WindowedReadingTests
         while (chunks.Next(length) is { } next)
             chunks.Add(ContentChunk.Read(parse, source, next.From, next.SoftMaxLength, next.Resume, null));
 
-        Settled(chunks, parse, length);
+        Settled(chunks, parse);
 
         return chunks;
     }
 
-    private static void Settled(ContentChunks chunks, Func<ContentStretch, ContentParse> parse, int length)
+    private static void Settled(ContentChunks chunks, Func<ContentStretch, ContentParse> parse)
     {
         foreach (var at in chunks.Unsettled().ToList())
         {
-            var was = chunks.Chunks[at];
-            chunks.Settle(at, ContentChunk.Read(parse, chunks.Source, was.From, length, was.Begun, chunks.Whole));
+            var stretch = chunks.Settling(at);
+            var read = parse(stretch);
+
+            chunks.Settle(at, new ContentChunk(stretch.From, read.Stopped, stretch.Resume, read.Resume, stretch.Whole, read.Tree));
         }
     }
 
