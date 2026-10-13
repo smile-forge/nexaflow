@@ -37,6 +37,8 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(TextToSpeak), "text")]
 [JsonDerivedType(typeof(SpokenAudio), "spoken-audio")]
 [JsonDerivedType(typeof(SpokenSegmentEnd), "spoken-end")]
+[JsonDerivedType(typeof(Draw), "draw")]
+[JsonDerivedType(typeof(Drawn), "drawn")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

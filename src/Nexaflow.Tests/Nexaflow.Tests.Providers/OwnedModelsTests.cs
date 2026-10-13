@@ -55,11 +55,35 @@ public class OwnedModelsTests
                         "German is spoken by its own fine-tune");
     }
 
+    [TestMethod]
+    public void TheShippedImageModel_IsZImageTurbo_BuiltForCuda_WithItsSamplerAndTokenizer()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single();
+
+        Assert.AreEqual("z-image-turbo", image.Id);
+        Assert.AreEqual(new OwnedSampler(9, 3f), image.Sampler);
+        Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its fp16 graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder" },
+                                       image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        Assert.IsTrue(image.Parts.All(p => p.MemoryBytes > 0), "each part's peak is what admission counts");
+        var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
+        CollectionAssert.Contains(files, "models/z-image-turbo/encoder/tokenizer.json");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.ToString().Contains("smile-forge/z-image-turbo-onnx/resolve/4e7bc3c4")),
+                      "every file from the one published revision");
+    }
+
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";
 
     private const string Chat = """{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1 }""";
+
+    private const string Image = """
+        { "role": "promptEncoder", "runner": "e", "folder": "models/m", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "denoiser", "runner": "d", "folder": "models/d", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1, "executionProvider": "cuda" }
+        """;
 
     [TestMethod]
     [DataRow("""{ "id": "m", "parts": [CHAT], "files": [IN] }""", DisplayName = "no kind")]
@@ -69,7 +93,8 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT], "files": [IN, OUT] }""", DisplayName = "a file astray")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT, { "role": "chat", "runner": "genai-chat", "folder": "models/n", "memoryBytes": 1, "contextTokens": 1 }], "files": [IN] }""", DisplayName = "two of a part")]
     [DataRow("""{ "id": "m", "kind": "speechToText", "parts": [{ "role": "recognizer", "runner": "r", "folder": "models/m" }], "files": [IN] }""", DisplayName = "parts missing")]
-    [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "cuda" }], "files": [IN] }""", DisplayName = "none for the CPU")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model that does not say how it samples")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3 }, "parts": [{ "role": "promptEncoder", "runner": "e", "folder": "models/m" }, { "role": "denoiser", "runner": "d", "folder": "models/d", "memoryBytes": 1 }, { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1 }], "files": [IN, IN2, IN3] }""", DisplayName = "an image part without its memory")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "files": [IN] }""", DisplayName = "a voice model with no voice")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "voices/x.bin" }], "files": [IN] }""", DisplayName = "a voice not among its files")]
@@ -77,9 +102,26 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }, { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "w.bin" }], "files": [IN] }""", DisplayName = "two synthesizers of one name")]
     public void AModelThatDoesNotSayWhatItIsOrHowItRuns_OrStraysFromItsFolders_IsRefused(string model)
     {
-        var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";
+        var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IMAGE", Image).Replace("IN2", File("models/d/w.bin")).Replace("IN3", File("models/v/w.bin"))
+                                           .Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";
 
         Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+    }
+
+    [TestMethod]
+    public void AModel_MayBeBuiltForCudaAlone_AndThenDoesNotRunOnTheCpu()
+    {
+        var json = $$"""
+            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3 }, "parts": [ {{Image}} ],
+                "files": [ {{File("models/m/e.onnx")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ] } ] }
+            """;
+
+        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+
+        Assert.IsTrue(model.RunsOn(OwnedModels.Cuda));
+        Assert.IsFalse(model.RunsOn(OwnedModels.Cpu));
+        Assert.AreEqual(new OwnedSampler(9, 3f), model.Sampler);
+        Assert.AreEqual(0, model.CatalogFor(OwnedModels.Cpu).Files.Count, "nothing is fetched for a runtime it has no build for");
     }
 
     [TestMethod]

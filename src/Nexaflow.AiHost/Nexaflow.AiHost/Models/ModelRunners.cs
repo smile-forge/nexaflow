@@ -34,7 +34,10 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
         new Speech.StreamingRecognizerRunner(),
         new Speech.WhisperTranscriberRunner(),
     new Speech.SmartTurnRunner(),
-        new Speech.KokoroSynthesizerRunner(),
+    new Speech.KokoroSynthesizerRunner(),
+    new Drawing.ZImagePromptEncoderRunner(),
+    new Drawing.ZImageDenoiserRunner(),
+    new Drawing.ZImageDecoderRunner(),
     ]);
 
     /// <exception cref="HostRequestException">This host has no runner of that name.</exception>

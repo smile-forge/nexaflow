@@ -49,6 +49,9 @@ public sealed class AIService : IAIService
     /// <summary>The Image Generation chain's first model that can draw now, or null.</summary>
     public IImageGenerationProvider? ImageGenerator => Candidates<IImageGenerationProvider>(AiAbility.ImageGeneration).FirstOrDefault();
 
+    /// <summary>The Image Generation (HQ) chain's first model that can draw now, or null.</summary>
+    public IImageGenerationProvider? HighQualityImageGenerator => Candidates<IImageGenerationProvider>(AiAbility.HighQualityImageGeneration).FirstOrDefault();
+
     /// <summary>The Video Generation chain's first model that can make a clip now, or null.</summary>
     public IVideoGenerationProvider? VideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.VideoGeneration).FirstOrDefault();
 
@@ -111,7 +114,8 @@ public sealed class AIService : IAIService
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
         if (_workspace.ShellServices is { } shell)
-            tools.AddRange(new Generation.GenerationTools(ImageGenerator, TextToSpeech, VideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
+            tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
+                                                          Generation.GeneratedFiles.For(shell)).Tools);
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
@@ -535,7 +539,7 @@ public sealed class AIService : IAIService
                 }
 
                 var needApproval = !planMode &&
-                    calls.Any(rc => rc.Tool is { Safety: ToolSafety.RequiresApproval });
+                    calls.Any(rc => rc.Tool?.SafetyOf(rc.Call.Arguments) == ToolSafety.RequiresApproval);
 
                 // An approval request carries the step's prose as its explanation, so the draft gives way to it;
                 // a batch that runs unasked leaves the prose standing as the account of what it is doing.

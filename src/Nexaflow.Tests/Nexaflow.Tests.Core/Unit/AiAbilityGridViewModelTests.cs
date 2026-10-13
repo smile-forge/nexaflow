@@ -138,9 +138,12 @@ public class AiAbilityGridViewModelTests
             {
                 ["ImageGeneration"] = AbilityChain.Of("llm", "draw", "film"),
                 ["VideoGeneration"] = AbilityChain.Of("draw", "film"),
+                ["HighQualityImageGeneration"] = AbilityChain.Of("film", "draw"),
             },
         };
         var grid = new AiAbilityGridViewModel(config);
+        CollectionAssert.AreEqual(new[] { "draw" }, grid.Rows.Single(r => r.Ability == AiAbility.HighQualityImageGeneration).Chain.ToArray(),
+                                  "the high-quality row takes image models, as the standard one does");
 
         CollectionAssert.AreEqual(new[] { "draw" }, grid.Rows.Single(r => r.Ability == AiAbility.ImageGeneration).Chain.ToArray());
         CollectionAssert.AreEqual(new[] { "film" }, grid.Rows.Single(r => r.Ability == AiAbility.VideoGeneration).Chain.ToArray());

@@ -11,16 +11,19 @@ internal sealed class FakeActivityManager : IBackgroundActivityManager
 {
     public int StartedCount { get; private set; }
 
+    /// <summary>What the activities said they were doing as they went, in order.</summary>
+    public List<string> Updates { get; } = [];
+
     public IActivityHandle StartActivity(string description)
     {
         StartedCount++;
-        return new Handle();
+        return new Handle(this);
     }
 
-    private sealed class Handle : IActivityHandle
+    private sealed class Handle(FakeActivityManager manager) : IActivityHandle
     {
         public void Complete() { }
         public void Fail(string? reason = null) { }
-        public void Update(string description) { }
+        public void Update(string description) => manager.Updates.Add(description);
     }
 }

@@ -31,6 +31,8 @@
     <PackageReference Include="OnnxSharp" Version="0.3.2" />
     <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
     <PackageReference Include="MisakiSharp" Version="2.1.1" />
+    <!-- Qwen3's byte-level BPE, for the prompts the image model reads (MIT). -->
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>

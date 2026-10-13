@@ -25,6 +25,8 @@ internal sealed class FakeAiHost : IAiHost
 
     public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
 
+    /// <summary>Like the real client: a <see cref="Failed"/> reply arrives as an <see cref="AiHostException"/>, and
+    /// <see cref="Completed"/> ends the replies.</summary>
     public async IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit,
                                                        [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -32,6 +34,8 @@ internal sealed class FakeAiHost : IAiHost
         foreach (var reply in Reply(request, Attempt(request)))
         {
             await Task.Yield();
+            if (reply is Failed failed) throw new AiHostException(AiHostFailure.Request, failed.Message, failed.Kind);
+            if (reply is Completed) yield break;
             yield return reply;
         }
     }
