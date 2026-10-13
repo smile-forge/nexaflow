@@ -92,18 +92,23 @@ public sealed class MarkdownParser : ITranspile
         var source = stretch.Source;
         var rest = source.Length - stretch.From;
         var least = stretch.From == 0 ? FrontMatterEnd(source) : 0;
+        var carried = stretch.Resume as MarkdownCarried;
 
         for (var length = Math.Clamp(stretch.SoftMaxLength, 1, Math.Max(rest, 1)); ; length = (int)Math.Min(length * 2L, rest))
         {
             var end = LineEnd(source, Math.Max(stretch.From + length, least));
 
-            if (Stretch(source, stretch.From, end, stopping: end < source.Length) is not { } read) continue;
+            if (Stretch(source, stretch.From, end, stopping: end < source.Length, carried?.Named ?? []) is not { } read) continue;
 
-            var known = MarkdownDefinitions.Joined(stretch.Resume as MarkdownDefinitions, read.Defined);
+            var known = MarkdownDefinitions.Joined(carried?.Defined, read.Defined);
             var beside = stretch.Whole as MarkdownDefinitions ?? known;
             var document = beside is null ? read.Tree : read.Tree.Holding(MarkdownKinds.Definitions, Roles.Derived, beside);
 
-            return new ContentParse(blocks.Read(document, source)) { Stopped = read.Stopped, Resume = known };
+            // What the next stretch carries on with — or, from the last, what the whole document says its words are read beside,
+            // which is what a stretch read again knowing the whole document is told.
+            object? resume = read.Stopped is null ? known : new MarkdownCarried(known, [.. carried?.Named ?? [], .. read.Named]);
+
+            return new ContentParse(blocks.Read(document, source)) { Stopped = read.Stopped, Resume = resume };
         }
     }
 
@@ -142,25 +147,30 @@ public sealed class MarkdownParser : ITranspile
         return 0;
     }
 
-    /// <summary>What one stretch of a document read to, where it stopped, and the link definitions it holds.</summary>
-    private sealed record Stretching(ContentNode Tree, int? Stopped, MarkdownDefinitions? Defined);
+    /// <summary>What one stretch of a document read to, where it stopped, the link definitions it holds and the names its headings were given.</summary>
+    private sealed record Stretching(ContentNode Tree, int? Stopped, MarkdownDefinitions? Defined, string[] Named);
 
     /// <summary>
     /// The blocks of <paramref name="source"/> from <paramref name="from"/> to <paramref name="end"/>, read as <see cref="Read"/>
     /// reads a document — and, where <paramref name="stopping"/>, all but the last of them, stopping where it starts; null where
     /// there are not two blocks to stop between.
     /// </summary>
-    private static Stretching? Stretch(string source, int from, int end, bool stopping)
+    /// <param name="named">The names headings before this stretch were given, which none in it is given again.</param>
+    private static Stretching? Stretch(string source, int from, int end, bool stopping, string[] named)
     {
         var text = source[from..end];
         var read = new Cut(text, from);
         var parts = new List<ContentNode>();
         int? stop = null;
         MarkdownDefinitions? defined = null;
+        string[] given = [];
 
         try
         {
-            var document = Markdig.Markdown.Parse(text, Pipeline);
+            var context = new MarkdownParserContext();
+            context.Properties[MarkdownHeadingNames.Taken] = new HashSet<string>(named);
+
+            var document = Markdig.Markdown.Parse(text, Pipeline, context);
             var blocks = Placed(document);
             var count = blocks.Count;
 
@@ -178,6 +188,12 @@ public sealed class MarkdownParser : ITranspile
                 One(blocks[at], parts, read, at + 1 < blocks.Count ? read.Original(blocks[at + 1].Span.Start) : null);
 
             defined = MarkdownDefinitions.In(document, text, stop ?? int.MaxValue);
+
+            // The names given to the headings before the stop, in the order they were given — the last block's are the next
+            // stretch's to give, read again there.
+            given = [.. document.Descendants<HeadingBlock>()
+                                .Where(heading => heading.Span.Start < (stop ?? int.MaxValue) && heading.GetAttributes().Id is not null)
+                                .Select(heading => heading.GetAttributes().Id!)];
         }
         catch
         {
@@ -193,7 +209,7 @@ public sealed class MarkdownParser : ITranspile
 
         var tree = new BlockNode(Language, Checked(Kinds.Block, parts, text[..length], Roles.Element, from).Children, offset: from);
 
-        return new Stretching(tree, stop is { } stopped ? from + stopped : null, defined);
+        return new Stretching(tree, stop is { } stopped ? from + stopped : null, defined, given);
     }
 
     /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>
@@ -223,7 +239,7 @@ public sealed class MarkdownParser : ITranspile
             .UseCitations()
             .UseMathematics()
             .UseDiagrams()
-            .UseAutoIdentifiers(AutoIdentifierOptions.GitHub);
+            .Use<MarkdownHeadingNames>();
 
     /// <summary><paramref name="source"/> as the blocks it is written in.</summary>
     public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)

@@ -365,7 +365,9 @@ visible area, or a group dropped before it reached the canvas — a before/after
 ### Measuring markdown layout (opt-in, by hand)
 
 `MarkdownLayoutBench` times laying a document out, step by step, over the sample corpus and
-`docs/MarkdownSupport.md`: what **opening** a document costs, what **one keystroke** in the middle of it costs, and
+`docs/MarkdownSupport.md`: what **opening** a document costs laid whole, what **opening it as a page** costs — shown at the
+room with a screen of it on screen, which lays a long document only as far as that (`opened`, how many pieces that laid, and
+what the page holds once the rest has been read behind it) — what **one keystroke** in the middle of it costs, and
 each step on its own — Markdig, every stage the document is read by, the builder (nested languages apart from
 markdown's own), painting (a fresh tree — all of it, and a screen of it — the same tree again, and what a keystroke laid where the page
 was painted before it), and memory (what opening, a keystroke and each paint allocate, and what a document laid and painted

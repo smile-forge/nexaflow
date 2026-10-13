@@ -194,8 +194,14 @@ public sealed class ContentChunks(string source, string language)
     /// and reads on to the end.
     /// </para>
     /// </summary>
+    /// <param name="enough">
+    /// How far reading again has to go before it may stop without having come back into step: past there, what was read before is
+    /// let go and left unread, for whatever reads the rest to read again — so a change that moves everything after it, a heading
+    /// renamed, costs what is needed and not the whole document.
+    /// </param>
     /// <returns>The document, and how many of its chunks are the old ones before the change, read as they were.</returns>
-    public (ContentChunks Chunks, int Kept) Edited(string edited, Func<ContentStretch, ContentParse> parse, int softMaxLength)
+    public (ContentChunks Chunks, int Kept) Edited(string edited, Func<ContentStretch, ContentParse> parse, int softMaxLength,
+                                                   int enough = int.MaxValue)
     {
         var into = new ContentChunks(edited, language);
         if (_chunks.Count == 0) return (into, 0);
@@ -236,7 +242,7 @@ public sealed class ContentChunks(string source, string language)
                 return (into, kept);
             }
 
-            if (!Done && stop >= Reached + by) return (into, kept);
+            if ((!Done && stop >= Reached + by) || stop >= enough) return (into, kept);
 
             (from, begun) = (stop, read.Ended);
         }

@@ -46,6 +46,26 @@
           "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
           "class": "LayoutBuilder",
           "method": "Graft"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentChunks",
+          "method": "Edited"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DrawnText.cs",
+          "class": "DrawnText",
+          "method": "Of"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/markdown-ast.md",
+          "title_path": [
+            "The content pipeline",
+            "8. The engine"
+          ]
         }
       ],
       "concerns": {
@@ -62,11 +82,44 @@
           }
         ]
       }
+    },
+    "md-anchor-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownAnchors.cs",
+          "class": "MarkdownAnchors"
+        },
+        {
+          "type": "node",
+          "target": "markdown-anchors"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownHeadingNames.cs",
+          "class": "MarkdownHeadingNames"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownAnchorTests.cs",
+            "class": "MarkdownAnchorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownHeadingNamesTests.cs",
+            "class": "MarkdownHeadingNamesTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 4,
   "touched_nodes": [
+    "md-anchor-links",
     "windowed-reading"
   ]
 }

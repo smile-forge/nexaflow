@@ -162,6 +162,21 @@ shipped language and the tests read a block the same way.
 **A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
 change.
 
+**A parser may read a stretch, and stop where nothing is open.** `Windowed`, where a language has one, is asked for a
+stretch of a long document (`ContentStretch`): read from where the last stretch stopped, in what that one stopped in, and
+once a length is behind it, stop at the next place nothing is left open — saying where (`ContentParse.Stopped`) and what it
+needs to carry on (`ContentParse.Resume`, compared by value). Where that is, only the parser knows: markdown stops where
+the last block it read starts, because a block is only finished once the next has begun, and never inside front matter;
+RTF stops after a paragraph outside any table, carrying its declared tables and every group still open. A container longer
+than the stretch is read whole. Stretches read in order stitch into exactly the tree the whole document reads to
+(`ContentChunks`, held to it by `WindowedReadingTests`), what is not read yet standing at the end as one leaf of trivia
+(`Kinds.Unreached`), so the tree still prints as the document.
+
+What the whole document says is carried too. Markdown's link definitions are read beside every block's words, so a stretch
+read before a definition further down is read again once the whole document has been (`ContentStretch.Whole`); and a
+heading's name is unique across the whole document — the second "Notes" is `notes-1` in whichever stretch it is read — so
+the names given so far are handed to each stretch (`MarkdownHeadingNames`).
+
 **A language may have a second, slower parser.** `Parser` is fast; `SlowParser`, where a language has one, reads the
 same characters more fully. Code is the example: read as written at once, and by its grammar (tree-sitter) in the
 background, where every stretch becomes a piece of the kind the grammar called it. The engine runs it — see
@@ -323,6 +338,21 @@ element again.
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
 says that nothing laid before is to be set down again as it was.
 
+**A long document is shown a stretch at a time, and the window is the engine's** (`ContentEngine.Windowed`). Content in a
+language with a windowed parse, past a length, is read and laid only as far as the reader has looked: the screen and a
+screen past it, as the element says what is on screen (`OnScreen`), and wherever the caret or what is picked out has gone,
+which is laid to and then brought onto the page. A stretch is laid as nested content is — its own reading, worked over by
+the language's stages, laid by the language's builder — with the last block laid before it in front, so what stands between
+the two is the builder's to say; only the pieces after that block are kept, moved to stand where it stands, and every
+stretch's pieces are gathered into one tree (`LaidStretch`, `LayoutBuilder.Graft`). The page is as long as the whole
+document, going by what the laid part came to. No builder knows any of this, and `WindowedLayoutTests` holds a document laid
+a stretch at a time and on to its end to the same document laid whole, piece for piece.
+
+What is not read yet is read in the background — its tree only, never laid — and taken in at the next laying out, so the
+stretches a reader scrolls to are already read and what asks of the whole document finds all of it: a heading followed from
+a link, and the words of a page read as what it draws (`DrawnText` gathered from what the stretches read to). A search or a
+copy of such a page waits for the rest to be read, because what it answers is about every word.
+
 **What is slow is never waited on** (`ContentEngine.Slow`). A `SlowParser` and an `ISlowStage` are the engine's to run,
 never a language's. The content is laid without them first; the engine starts the work, keeps what it comes to by the
 language, the stage and the characters — a few hundred deep, for every engine, so content shown again is shown as it
@@ -353,9 +383,15 @@ inside.
 characters — a paste into a label — the handler names the part and the words (`ContentWrite.Words`) and the parser
 makes them safe for that part (§3). A handler that concatenates syntax is doing the parser's job in the wrong place.
 
-**Whatever the edit came to, the whole content is read again from its source.** An edit to the AST is provisional — the
-stages do not re-derive themselves underneath it — so it prints, and what it prints is parsed and laid again. An edit
-against a part knows what it touched, so trouble afterwards is blamed on the keystroke that caused it.
+**Whatever the edit came to, the content is read again from its source** — all of it, or, for a long document shown a
+stretch at a time, from the stretch before the one the edit falls in (the first line of a block can change what the block
+before it is), on until a stretch stops where an old one started, moved along by the edit, in the state that one started in;
+every stretch from there reads as it did and is kept, moved along (`ContentChunks.Edited`). A change that moves everything
+after it — a fence left open, a heading renamed — reads on as far as is laid, and the rest is read again behind it.
+
+An edit to the AST is provisional — the stages do not re-derive themselves underneath it — so it prints, and what it prints
+is parsed and laid again. An edit against a part knows what it touched, so trouble afterwards is blamed on the keystroke
+that caused it.
 
 Offsets are the document's, because a language is laid at the offset its source starts at. Space and Enter both arrive
 as settling, so a formula settles what is half-written where a document starts its next paragraph. Markdown writes
@@ -439,7 +475,8 @@ block scrolled far away is let go.
 
 ## 11. Speed
 
-**Nothing is incremental.** An edit can reshape everything after it — a closing brace, a bar line — so the whole
+**Nothing is incremental, except by the parser's own say-so.** An edit can reshape everything after it — a closing brace, a
+bar line — so where a parser cannot say where its reading is back in step, the whole
 content is parsed and worked over again: one path, always taken, therefore always right.
 
 What is saved is reuse, and it is keyed on identity, never on a guess about what an edit touched:
@@ -456,6 +493,9 @@ What is saved is reuse, and it is keyed on identity, never on a guess about what
   chart's today — is part of its reading, so it is laid again when it is read again. `LaidBlocksTests` holds every
   sample, typed into and taken back, to the same source laid from nothing.
 - **Slow work is never waited on** — see [§8](#8-the-engine).
+- **A long document is read and laid as far as the reader has looked** — see [§8](#8-the-engine) — and read again after an
+  edit only as far as the parser's own stopping places say the edit reaches: they are where nothing is open, and two
+  readings stopping at the same place in equal states read alike from there on.
 
 ## 12. Adding a language
 

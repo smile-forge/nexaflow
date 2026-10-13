@@ -130,6 +130,10 @@ public static class MarkdownFind
         Editing.Laid? laid, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
         laid is null ? [] : DrawnText.Of(laid).Every(occurrences);
 
+    /// <summary>Everywhere <paramref name="term"/> appears in what <paramref name="drawn"/> reads as, given back as the source it was drawn for.</summary>
+    public static IReadOnlyList<(int Start, int Length)> Drawn(DrawnText drawn, string? term) =>
+        term is { Length: > 0 } looking ? drawn.Every(Looking(looking)) : [];
+
     /// <summary>
     /// Where a line begins and how long it is, counting from one.
     ///

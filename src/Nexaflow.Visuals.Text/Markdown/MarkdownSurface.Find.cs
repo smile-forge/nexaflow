@@ -33,13 +33,13 @@ public sealed partial class MarkdownSurface
     /// drawn, which is what a reader means by what the page says.
     /// </summary>
     public int Find(string? term) => Looked(_engine.ReadsAsDrawn
-        ? MarkdownFind.Drawn(_shown.Laid, term)
+        ? MarkdownFind.Drawn(_engine.DrawnWords, term)
         : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
     /// <summary>The same, for a question more complicated than a word — what a search box worked out.</summary>
     public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
         Looked(_engine.ReadsAsDrawn
-            ? MarkdownFind.Drawn(_shown.Laid, occurrences)
+            ? _engine.DrawnWords.Every(occurrences)
             : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences));
 
     /// <summary>
@@ -91,7 +91,7 @@ public sealed partial class MarkdownSurface
         var (start, _) = Found[at];
 
         // A page read as what it draws is quoted as what it draws: its source is formatting nobody would recognise.
-        if (_engine.ReadsAsDrawn) return DrawnText.Of(_shown.Laid).LineAt(start);
+        if (_engine.ReadsAsDrawn) return _engine.DrawnWords.LineAt(start);
         var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
 
         return _shown.Markdown.Substring(line.Start, line.Length).Trim();
@@ -99,7 +99,8 @@ public sealed partial class MarkdownSurface
 
     /// <summary>
     /// How far down the document each place found is, from nought at the top to one at the bottom — for a strip beside the
-    /// scrollbar marking where they are.
+    /// scrollbar marking where they are. A place a long document has not laid yet is marked where it would come, going by what
+    /// is laid.
     /// </summary>
     public IReadOnlyList<double> SearchMarkPositions()
     {
@@ -107,9 +108,9 @@ public sealed partial class MarkdownSurface
         if (height <= 0) return [];
 
         return [.. Found
-            .Select(place => _shown.Laid.Root.RangeRects(place.Start, place.Length))
-            .Where(rects => rects.Count > 0)
-            .Select(rects => Math.Clamp(rects[0].Y / height, 0, 1))];
+            .Select(place => _shown.Laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects ? rects[0].Y : _engine.UnlaidTop(place.Start))
+            .OfType<double>()
+            .Select(top => Math.Clamp(top / height, 0, 1))];
     }
 
     /// <summary>The next place, coming back round to the first.</summary>

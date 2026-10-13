@@ -459,7 +459,9 @@ public sealed partial class ContentEngine
         if (act.Intent is not { Verb: LayoutVerbs.Navigate, Target: { } where }) return false;
         if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
 
+        // A long document may not have laid the heading yet; what it read to has it, and says where to lay to.
         if (MarkdownAnchors.Sought(_laid, anchor) is { Exists: true } heading) Revealing?.Invoke(this, heading.Bounds);
+        else if (_window is not null && MarkdownAnchors.Heading(ReadRoot, anchor) is { } written) Uncovering(written.Start);
 
         return true;
     }

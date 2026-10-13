@@ -109,10 +109,23 @@ public sealed partial class ContentEngine
     internal void Relay()
     {
         _laid = LaidOut(_state);
+
+        // A long document laid further, or laid again from part-way down, has places the caret's index was not taken from.
+        if (_window is not null) _at = _laid.Root.StopAt(_state.Caret);
+
         Repick();
         Recornered();
 
         PreRender?.Invoke(this, EventArgs.Empty);
+
+        // What the reader moved to in a long document, laid now, is brought onto the page.
+        if (_revealed is { } shown)
+        {
+            _revealed = null;
+
+            var at = _laid.Root.CaretRect(shown);
+            if (!at.IsEmpty) Revealing?.Invoke(this, at);
+        }
     }
 
     /// <summary>

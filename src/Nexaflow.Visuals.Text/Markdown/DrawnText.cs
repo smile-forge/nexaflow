@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -40,6 +41,78 @@ public sealed class DrawnText
 
     /// <summary>What <paramref name="laid"/> reads as — worked out once for each laying out.</summary>
     public static DrawnText Of(Laid laid) => Read.GetValue(laid, Gathered);
+
+    /// <summary>
+    /// What content reads as, gathered from what it read to rather than from what was laid — for a long document most of which
+    /// is not laid (<see cref="ContentEngine"/>): its words in the order a reader comes to them, a line where a paragraph, a
+    /// cell, a heading or an item begins, and every character with the stretch of source it stands for, as <see cref="Of(Laid)"/>
+    /// gathers them from the page. A character drawn as other than what was written — decoded, set in capitals — stands for
+    /// the whole of what it was drawn from.
+    /// </summary>
+    /// <param name="blocks">The blocks, in order, each saying where it stands.</param>
+    public static DrawnText Of(IEnumerable<ContentNode> blocks)
+    {
+        var text = new StringBuilder();
+        var from = new List<SourcePlace>();
+
+        foreach (var block in blocks) Gathered(block, text, from, capitals: false);
+
+        return new DrawnText(text.ToString(), [.. from]);
+    }
+
+    private static void Gathered(ContentNode node, StringBuilder text, List<SourcePlace> from, bool capitals)
+    {
+        if (node.IsDerived || node.Role is Roles.Silent or Roles.Name or Roles.Open or Roles.Close or Roles.Trivia) return;
+
+        var at = node.Offset ?? 0;
+
+        switch (node.Kind)
+        {
+            case MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell or MarkdownKinds.Item or MarkdownKinds.Page:
+                Lined(text, from);
+                break;
+
+            case MarkdownKinds.Word:
+                text.Append(capitals ? node.Text.ToUpperInvariant() : node.Text);
+                for (var letter = 0; letter < node.Text.Length; letter++)
+                    from.Add(capitals ? new SourcePlace(at, node.Width) : new SourcePlace(at + letter, 1));
+                return;
+
+            case MarkdownKinds.Encoded:
+                if (node.Fact(MarkdownRoles.Decoded)?.Held is not string decoded) return;
+
+                text.Append(capitals ? decoded.ToUpperInvariant() : decoded);
+                for (var letter = 0; letter < decoded.Length; letter++) from.Add(new SourcePlace(at, node.Width));
+                return;
+
+            case MarkdownKinds.Tab:
+                text.Append('\t');
+                from.Add(new SourcePlace(at, node.Width));
+                return;
+
+            case MarkdownKinds.Break:
+                Lined(text, from);
+                return;
+
+            case MarkdownKinds.Image:
+                return;
+
+            case MarkdownKinds.Styled:
+                capitals |= node.Fact(MarkdownRoles.Typeset)?.Held is TextLook { Capitals: true };
+                break;
+        }
+
+        foreach (var child in node.Children) Gathered(child, text, from, capitals);
+    }
+
+    /// <summary>A line between what was gathered and what comes next — one, however many things begin there.</summary>
+    private static void Lined(StringBuilder text, List<SourcePlace> from)
+    {
+        if (text.Length == 0 || text[^1] == '\n') return;
+
+        text.Append('\n');
+        from.Add(Between);
+    }
 
     /// <summary>
     /// Everywhere <paramref name="occurrences"/> finds something in what is drawn, as the stretch of source it was drawn

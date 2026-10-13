@@ -125,7 +125,8 @@ public sealed partial class ContentEngine
             if (!Next(window, style, room, readOnly, state.Raw) || spent.Elapsed > Spent) break;
         }
 
-        if (window.LaidTo > needed) _reveal = null;
+        // Laid as far as what the reader moved to: it is brought onto the page once this is shown.
+        if (_reveal is { } target && window.LaidTo > target) (_revealed, _reveal) = (target, null);
         if (Short(window, reach, needed)) Grow();
         if (window.Reading is null && (!window.Chunks.Done || window.Chunks.Unsettled().Any())) Background(window);
 
@@ -148,7 +149,9 @@ public sealed partial class ContentEngine
         // What the background had read of the document as it was is the document still, after the change.
         Received(window);
 
-        var (chunks, kept) = window.Chunks.Edited(source, window.Parse, StretchLength);
+        // Read again as far as what is laid, and a stretch past it, at most: the rest is the background's to read.
+        var (chunks, kept) = window.Chunks.Edited(source, window.Parse, StretchLength,
+                                                  window.LaidTo + (source.Length - window.Source.Length) + StretchLength);
         var rewritten = new ContentWindow(window.Language, source, chunks, window.Parse) { LaidAs = window.LaidAs, Raw = window.Raw };
         rewritten.Laid.AddRange(window.Laid.Take(Math.Min(kept, window.Laid.Count)));
 
@@ -169,6 +172,49 @@ public sealed partial class ContentEngine
     /// the end, nothing is laid to it.
     /// </summary>
     private int? _reveal;
+
+    /// <summary>Where, once laid, what the reader moved to stands — brought onto the page as soon as it is shown (<see cref="Relay"/>).</summary>
+    private int? _revealed;
+
+    /// <summary>Lays a long document as far as <paramref name="offset"/>, and brings what stands there onto the page once it is.</summary>
+    private void Uncovering(int offset)
+    {
+        _reveal = offset;
+        Relay();
+    }
+
+    /// <summary>
+    /// What the content reads as where that is what it draws (<see cref="ReadsAsDrawn"/>): what is laid, gathered from the page
+    /// — or, for a long document shown a stretch at a time, most of which is not laid, what all of it read to, read to its end
+    /// first, so a search or a copy reaches every word of it rather than what the reader has scrolled past.
+    /// </summary>
+    internal DrawnText DrawnWords => _window is { } window ? window.Words ??= DrawnText.Of(Everything(window)) : DrawnText.Of(_laid);
+
+    /// <summary>Every block of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
+    private IEnumerable<ContentNode> Everything(ContentWindow window)
+    {
+        if (!window.Chunks.Done)
+        {
+            window.Read?.Wait();
+            Received(window);
+
+            while (window.Chunks.Next(StretchLength) is { } next)
+                window.Chunks.Add(ContentChunk.Read(window.Parse, window.Source, next.From, next.SoftMaxLength, next.Resume, null));
+
+            window.Altered();
+        }
+
+        return window.Chunks.Chunks.SelectMany(chunk => chunk.Placed.Children.Where(part => !part.IsDerived));
+    }
+
+    /// <summary>
+    /// Where on the page what stands at <paramref name="offset"/> would come, going by what is laid — for what a long document
+    /// has not laid yet; null where it is laid, or the content is laid whole.
+    /// </summary>
+    internal double? UnlaidTop(int offset) =>
+        _window is { LaidTo: > 0 } window && offset >= window.LaidTo
+            ? window.Bottom + ((offset - window.LaidTo) * (window.Bottom / window.LaidTo))
+            : null;
 
     /// <summary>
     /// Whether <paramref name="state"/>'s caret, or what it picks out, reaches past what the window has laid — remembering how
@@ -221,7 +267,7 @@ public sealed partial class ContentEngine
                 if (chunk.From == chunks.Reached && !chunks.Done)
                 {
                     chunks.Add(chunk);
-                    window.Document = null;
+                    window.Altered();
                 }
 
                 continue;
@@ -234,7 +280,7 @@ public sealed partial class ContentEngine
             if (at < 0 || chunks.Chunks[at].From != chunk.From) continue;
 
             chunks.Settle(at, chunk);
-            window.Document = null;
+            window.Altered();
 
             if (at < window.Laid.Count) window.Laid.RemoveRange(at, window.Laid.Count - at);
         }
@@ -257,7 +303,7 @@ public sealed partial class ContentEngine
             if (chunks.Next(StretchLength) is not { } next) return false;
 
             chunks.Add(ContentChunk.Read(window.Parse, chunks.Source, next.From, next.SoftMaxLength, next.Resume, null));
-            window.Document = null;
+            window.Altered();
         }
 
         Viewed(chunks.Chunks[index]);
@@ -459,6 +505,12 @@ internal sealed class ContentWindow(ContentLanguage language, string source, Con
 
     /// <summary>Every chunk read so far as one reading, made when something asks for it and let go when another is read.</summary>
     public ContentReading? Document { get; set; }
+
+    /// <summary>What all of it reads as, made when something asks for it and let go when another chunk is read.</summary>
+    public DrawnText? Words { get; set; }
+
+    /// <summary>Lets go of everything made of what was read, because more has been read, or read again.</summary>
+    public void Altered() => (Document, Words) = (null, null);
 
     /// <summary>Where what is laid ends in the source.</summary>
     public int LaidTo => Laid.Count == 0 ? 0 : Laid[^1].To;

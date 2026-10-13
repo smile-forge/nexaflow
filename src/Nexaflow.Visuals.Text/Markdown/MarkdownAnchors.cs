@@ -39,6 +39,19 @@ public static class MarkdownAnchors
         return default;
     }
 
+    /// <summary>
+    /// The heading that answers to <paramref name="anchor"/> in what content read to — for one not laid out yet, which only a
+    /// reading has — or null where none does.
+    /// </summary>
+    public static ContentPart? Heading(ContentPart root, string anchor)
+    {
+        foreach (var part in root.SelfAndDescendants())
+            if (part.Kind == MarkdownKinds.Heading && Named(part) is { } id && string.Equals(id, anchor, StringComparison.OrdinalIgnoreCase))
+                return part;
+
+        return null;
+    }
+
     /// <summary>The name a heading answers to, where the reader worked one out for it.</summary>
     private static string? Named(ContentPart part)
     {
