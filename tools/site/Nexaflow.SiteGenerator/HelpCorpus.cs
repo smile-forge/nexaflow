@@ -64,6 +64,7 @@ internal sealed class HelpCorpus
         ["Notebook"] = new("Open anything", "notebook"),
         ["Html"] = new("Open anything", "web-viewer"),
         ["Pdf"] = new("Open anything", "pdf"),
+        ["Rtf"] = new("Open anything", "rtf"),
         ["Images"] = new("Open anything", "images"),
         ["Svg"] = new("Open anything", "svg"),
         ["Font"] = new("Open anything", "font"),

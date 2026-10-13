@@ -25,6 +25,7 @@ public static class ViewerMap
         ("video",    "VideoView"),
         ("font",     "FontView"),
         ("svg",      "SvgView"),
+        ("rtf",      "RtfView"),
         ("email",    "EmailView"),
         ("dicom",    "DicomView"),
         ("hdf5",     "Hdf5View"),

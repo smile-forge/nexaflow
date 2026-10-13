@@ -28,21 +28,26 @@ namespace Nexaflow.Markdown.Prose;
 /// </summary>
 internal sealed class MarkdownBlocks
 {
-    /// <summary>What each block of the last reading came to, by the characters its body was written as.</summary>
-    private Dictionary<string, List<(ContentNode Written, ContentNode Read)>> _before = [];
+    /// <summary>
+    /// What each block of the last reading came to, by the characters its body was written as and what stood in front of it on
+    /// its first line — the same characters read differently at a different depth.
+    /// </summary>
+    private Dictionary<(string Lead, string Written), List<(ContentNode Written, ContentNode Read)>> _before = [];
 
     /// <summary>What the definitions of the document said the last time, which every block's words were read beside.</summary>
     private string? _besides;
 
     /// <summary>The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.</summary>
-    public ContentNode Read(ContentNode document)
+    /// <param name="document">The document as the split hands it over: every block named, every body still its own source.</param>
+    /// <param name="source">What the document was read from, which says what stands in front of each block on its line.</param>
+    public ContentNode Read(ContentNode document, string source)
     {
         var besides = MarkdownDefinitions.Of(document)?.Text;
 
         if (besides != _besides) _before = [];
         _besides = besides;
 
-        var now = new Dictionary<string, List<(ContentNode Written, ContentNode Read)>>(_before.Count);
+        var now = new Dictionary<(string Lead, string Written), List<(ContentNode Written, ContentNode Read)>>(_before.Count);
         var seen = new ContentNode[document.Children.Count];
         var moved = false;
 
@@ -52,13 +57,14 @@ internal sealed class MarkdownBlocks
 
             if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim or Kinds.Nested } body)
             {
-                seen[at] = Read(block, besides);
+                seen[at] = Read(block, besides, source);
             }
             else
             {
-                seen[at] = Remembered(body.Text, block) ?? Read(block, besides);
+                var written = (Lead(source, body.Offset), body.Text);
+                seen[at] = Remembered(written, block) ?? Read(block, besides, source);
 
-                if (!now.TryGetValue(body.Text, out var alike)) now[body.Text] = alike = [];
+                if (!now.TryGetValue(written, out var alike)) now[written] = alike = [];
                 alike.Add((block, seen[at]));
             }
 
@@ -78,7 +84,7 @@ internal sealed class MarkdownBlocks
     /// each say where they were read from, and the piece at the top of one need not say anything at all.
     /// </para>
     /// </summary>
-    private ContentNode? Remembered(string written, ContentNode block)
+    private ContentNode? Remembered((string Lead, string Written) written, ContentNode block)
     {
         if (!_before.TryGetValue(written, out var alike)) return null;
 
@@ -133,24 +139,37 @@ internal sealed class MarkdownBlocks
     /// table holds a run of words and a cell of a grid table can hold a whole document, and which it is was
     /// settled by the reader that took the table in.
     /// </para>
+    /// <para>
+    /// The readers of blocks that hold blocks are told what stands in front of the block on its first line too, because
+    /// they read lines, and a block's later lines carry its containers' marks where its first does not. A grid table's cell
+    /// is not one stretch of lines in the document, so it reads without.
+    /// </para>
     /// </summary>
     /// <param name="besides">What the document defines, which the words of a block are read beside.</param>
-    private static Func<string, int, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
+    private static Func<string, int, string, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
     {
-        MarkdownKinds.Cell when Holds(node) => static (source, at) => MarkdownParser.Inside(source, at: at),
+        MarkdownKinds.Cell when Holds(node) => static (source, at, _) => MarkdownParser.Inside(source, at: at),
 
         MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
             or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            (source, at) => MarkdownInline.Read(source, besides: besides, at: at).As(Roles.Body),
+            (source, at, _) => MarkdownInline.Read(source, besides: besides, at: at).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
-            or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at) => MarkdownParser.Inside(source, at: at),
+            or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at, lead) => MarkdownParser.Inside(source, at: at, lead: lead),
 
-        MarkdownKinds.List => static (source, at) => MarkdownList.Read(source, at: at),
-        MarkdownKinds.Table => static (source, at) => MarkdownTable.Read(source, at: at),
+        MarkdownKinds.List => static (source, at, lead) => MarkdownList.Read(source, at: at, lead: lead),
+        MarkdownKinds.Table => static (source, at, _) => MarkdownTable.Read(source, at: at),
 
         _ => null,
     };
+
+    /// <summary>What stands in front of a block's first character on the line it starts on — nothing for one that starts its line.</summary>
+    private static string Lead(string document, int? at)
+    {
+        if (at is not { } stands || stands <= 0 || stands > document.Length) return string.Empty;
+
+        return document[(document.LastIndexOf('\n', stands - 1) + 1)..stands];
+    }
 
     /// <summary>Whether the reader that took this piece in said it holds blocks rather than words.</summary>
     private static bool Holds(ContentNode node)
@@ -163,7 +182,7 @@ internal sealed class MarkdownBlocks
     }
 
     /// <summary>This piece with its body read, everything under it the same, and then finished.</summary>
-    private static ContentNode Read(ContentNode node, string? besides)
+    private static ContentNode Read(ContentNode node, string? besides, string source)
     {
         if (node.IsLeaf) return node;
 
@@ -171,7 +190,7 @@ internal sealed class MarkdownBlocks
         // named this block cut them out of the document and said so. A body that says nothing is read from nought,
         // which is the only answer left and the one the oracle over every corpus is there to catch.
         if (Reader(node, besides) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
-            && reader(body.Text, body.Offset ?? 0) is { } read && !Circles(node, body, read))
+            && reader(body.Text, body.Offset ?? 0, Lead(source, body.Offset)) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
         ContentNode[]? seen = null;
@@ -179,7 +198,7 @@ internal sealed class MarkdownBlocks
         for (var at = 0; at < node.Children.Count; at++)
         {
             var child = node.Children[at];
-            var now = Read(child, besides);
+            var now = Read(child, besides, source);
 
             if (seen is null && !ReferenceEquals(now, child))
             {

@@ -89,7 +89,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Blocks(LayoutBuilder into, ContentPart holder, double x, double room)
     {
-        var first = true;
+        ContentPart? above = null;
 
         // The document's own blocks are each a piece of their own; a block inside another is part of that one's.
         var whole = holder.Parent is null;
@@ -105,12 +105,24 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             // somebody puts the caret in it, when it is the characters they are editing.
             if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference) continue;
 
-            if (!first) _y += Gap;
-            first = false;
+            if (above is not null) _y += Between(above, part);
+            above = part;
 
             if (whole) Whole(into, part, x, room, laid?.For(at));
             else Block(into, part, x, room);
         }
+    }
+
+    /// <summary>
+    /// The room between two blocks: what their source asked for below the one and above the other, where it said — RTF's
+    /// space after and before a paragraph, which add — and the document's own gap where neither did.
+    /// </summary>
+    private double Between(ContentPart above, ContentPart below)
+    {
+        var after = (above.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.After;
+        var before = (below.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.Before;
+
+        return after is null && before is null ? Gap : ((after ?? 0) + (before ?? 0)) * Style.TextSize;
     }
 
     /// <summary>
@@ -175,6 +187,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Written: Sourced(into, part, x, room); return;
             case MarkdownKinds.Heading: Heading(into, part, x, room); return;
             case MarkdownKinds.Rule: Rule(into, part, x, room); return;
+            case MarkdownKinds.Page: Paged(into, part, x, room); return;
             case MarkdownKinds.Quote:
             case MarkdownKinds.Alert: Quoted(into, part, x, room); return;
             case MarkdownKinds.List: Listed(into, part, x, room); return;
@@ -196,8 +209,25 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Code:
             case MarkdownKinds.Reference: AsWritten(into, part, x, room); return;
 
-            default: Text(into, Body(part), x, room, Face.Plain); return;
+            default:
+                if (part.Node.HeldAs(MarkdownRoles.Typeset) is ParagraphLook look) Paragraph(into, part, x, room, look);
+                else Text(into, Body(part), x, room, Face.Plain);
+
+                return;
         }
+    }
+
+    /// <summary>
+    /// A paragraph whose source said how it is set: in from either side by its indents, its first line further in or hanging
+    /// out past the rest, its lines aligned and its tabs at its stops — every distance in the reader's text size.
+    /// </summary>
+    private void Paragraph(LayoutBuilder into, ContentPart part, double x, double room, ParagraphLook look)
+    {
+        var em = Style.TextSize;
+        var start = Math.Max(look.Indent * em, 0);
+        var width = room - start - Math.Max(look.EndIndent * em, 0);
+
+        Text(into, Body(part), x + start, Math.Max(width, em), Face.Plain, look);
     }
 
     /// <summary>
@@ -297,6 +327,25 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         into.Close();
 
         _y += thick + Gap;
+        Reached(x + room);
+    }
+
+    /// <summary>How many blank lines' room a page break takes.</summary>
+    private const int PageLines = 3;
+
+    /// <summary>
+    /// A page break, on a page that never breaks: the room <see cref="PageLines"/> blank lines take, which is what tells a
+    /// reader the writer's next page starts here. A piece of its own, so a press there still means the break.
+    /// </summary>
+    private void Paged(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var height = PageLines * Space.Height;
+
+        into.Open(MarkdownPieces.Page, part, new Point(x, _y), Stops.None);
+        into.Covers(new Rect(0, 0, Math.Max(room, 1), height));
+        into.Close();
+
+        _y += height;
         Reached(x + room);
     }
 

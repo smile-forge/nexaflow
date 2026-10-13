@@ -280,7 +280,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Search | `query`, `root` |
 | Markdown | `path` |
 | Code | `path`, `ast` (optional — member to jump to) |
-| Notebook / Model3D / Svg / Compressed | `path` |
+| Notebook / Model3D / Svg / Rtf / Compressed | `path` |
 | Email | `path` (a `.eml` or `.msg` file) |
 | Dicom | `path` (a `DICOMDIR`, a folder of instances, or one `.dcm`) or `paths` (pipe-separated selection) |
 | Hdf5 | `path` (an `.h5`, `.hdf5` or `.he5` file, on disk or inside an archive; a path continuing into the file also selects that object), `node` (optional — the object to select, e.g. `/group/dataset`; location, not identity: an open re-points the tab) |

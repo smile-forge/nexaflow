@@ -31,25 +31,20 @@ under the license noted below.
 | [lzo.net](https://github.com/zivillian/lzo.net) (via DiscUtils) | MIT |
 | [Markdig](https://github.com/xoofx/markdig) | BSD-2-Clause |
 | [Microsoft.CodeAnalysis.CSharp](https://github.com/dotnet/roslyn) (optional `nfi` command-line tool) | MIT |
-| [Microsoft.IO.RecyclableMemoryStream](https://github.com/microsoft/Microsoft.IO.RecyclableMemoryStream) (via MsgReader) | MIT |
-| [Microsoft.Maui.Graphics](https://github.com/dotnet/maui) (via MsgReader) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |
-| [MsgReader](https://github.com/Sicos1977/MSGReader) | MIT |
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
 | [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) (via Google APIs) | MIT |
 | [NVorbis](https://github.com/NVorbis/NVorbis) | MIT |
 | [Octokit](https://github.com/octokit/octokit.net) (via Updatum) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) (+ System.ClientModel) | MIT |
-| [OpenMcdf](https://github.com/ironfede/openmcdf) (via MsgReader) | MPL-2.0 |
 | [PdfPig](https://github.com/UglyToad/PdfPig) | Apache-2.0 |
 | [PdfPig.Filters.Dct.JpegLibrary](https://github.com/BobLd/UglyToad.PdfPig.Filters.Dct.JpegLibrary) | Apache-2.0 |
 | [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2) | Apache-2.0 |
 | [PdfPig.Filters.Jpx.OpenJpeg](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jpx.OpenJpeg) (bundled OpenJPEG) | BSD-2-Clause |
 | [PeterO.Numbers](https://github.com/peteroupc/Numbers) (via AngouriMath) | CC0-1.0 |
 | [PureHDF](https://github.com/Apollo3zehn/PureHDF) | MIT |
-| [RtfPipe](https://github.com/erdomke/RtfPipe) (via MsgReader) | MIT |
 | [SharpAssimp](https://github.com/JeremyAnsel/SharpAssimp) | MIT (bundled native Assimp: BSD-3-Clause) |
 | [SharpCompress](https://github.com/adamhathcock/sharpcompress) | MIT |
 | [SharpGLTF.Toolkit](https://github.com/vpenades/SharpGLTF) | MIT |
@@ -60,21 +55,16 @@ under the license noted below.
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
 | [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [Updatum](https://github.com/sn4k3/Updatum) | MIT |
-| [UTF-unknown](https://github.com/CharsetDetector/UTF-unknown) (via MsgReader) | MPL-1.1 |
 | [VideoLAN libVLC](https://www.videolan.org/vlc/libvlc.html) (native, via VideoLAN.LibVLC.Windows) | LGPL-2.1-or-later |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | MIT |
-| [Win2D](https://github.com/microsoft/Win2D) (via Microsoft.Maui.Graphics) | MIT |
-| [Windows App SDK](https://github.com/microsoft/WindowsAppSDK) (WinUI, Windows AI and Windows ML with its bundled ONNX Runtime — via Microsoft.Maui.Graphics) | Microsoft Software License |
 | [XAML-Math / WpfMath](https://github.com/ForNeVeR/xaml-math) (vendored — see below) | MIT |
 | [PDF417 Barcode Encoder](https://github.com/Uzi-Granot/PDF417BarcodeEncoder) (ingested — see below) | CPOL-1.02 |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
 
 Full license texts are available at each project's repository linked above. "via" names the library that
-brings a component in; it is shipped because that library needs it. OpenMcdf and UTF-unknown are used
-unmodified, and their source is available at the repositories linked above, as the Mozilla Public
-License requires. libgit2 is used unmodified as a dynamically linked library, which its linking
-exception permits.
+brings a component in; it is shipped because that library needs it. libgit2 is used unmodified as a
+dynamically linked library, which its linking exception permits.
 
 **XAML-Math is vendored, not referenced.** Its source — TeX's typesetting engine, the Computer Modern
 metrics, and the Computer Modern faces themselves — was copied into this repository and is built as part

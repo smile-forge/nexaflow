@@ -118,6 +118,19 @@ public static class MarkdownFind
                                       .OrderBy(place => place.Start)];
 
     /// <summary>
+    /// Everywhere a reader would say <paramref name="term"/> appears in a page whose source is formatting nobody reads
+    /// (<see cref="IContentLanguage.ReadsAsDrawn"/>): looked for in the words drawn, and given back as the source they were
+    /// drawn for.
+    /// </summary>
+    public static IReadOnlyList<(int Start, int Length)> Drawn(Editing.Laid? laid, string? term) =>
+        term is { Length: > 0 } looking ? Drawn(laid, Looking(looking)) : [];
+
+    /// <summary>The same, for a question more complicated than a word.</summary>
+    public static IReadOnlyList<(int Start, int Length)> Drawn(
+        Editing.Laid? laid, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
+        laid is null ? [] : DrawnText.Of(laid).Every(occurrences);
+
+    /// <summary>
     /// Where a line begins and how long it is, counting from one.
     ///
     /// <para>

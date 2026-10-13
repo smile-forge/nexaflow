@@ -32,6 +32,13 @@ public class MarkdownBlocksTests
         ("a numbered list", "1. one\n2. two\n"),
         ("a list numbered all ones", "1. one\n1. two\n"),
         ("a nested list", "- one\n  - under\n- two\n"),
+        ("items side by side under an item", "- one\n  - first\n  - second\n  - third\n- two\n"),
+        ("a list two levels down", "- a\n  - b\n    - c\n    - d\n  - e\n"),
+        ("a list indented from the margin", "  - a\n  - b\n"),
+        ("a list starting on its item's line", "- - a\n  - b\n"),
+        ("items indented with tabs", "- a\n\t- b\n\t- c\n"),
+        ("a list in a quote two levels down", "> - a\n>   - b\n>     - c\n>     - d\n"),
+        ("a quote inside a quote of two lines", "> > deep\n> > more\n"),
         ("a task list", "- [ ] to do\n- [x] done\n"),
         ("an item holding two paragraphs", "- one\n\n  and more\n"),
         ("a quote", "> quoted\n> more\n"),
@@ -256,6 +263,57 @@ public class MarkdownBlocksTests
         Assert.AreEqual(1, Every(items[0], MarkdownKinds.List).Count);
     }
 
+    /// <summary>
+    /// A list written inside an item starts part-way along its line, and the lines after carry the item's indentation. Read as
+    /// it stands, its second item would sit indented past its first and read as a list inside it, the third inside that.
+    /// </summary>
+    [TestMethod]
+    public void ItemsSideBySideUnderAnItemStaySideBySide()
+    {
+        CollectionAssert.AreEqual(new[] { 1, 2, 2, 2, 1, 2 },
+            Depths(Read("- Seed\n  - first\n  - second\n  - third\n- Series A\n  - only\n")));
+    }
+
+    [TestMethod]
+    public void TwoLevelsDownTheyStillDo_RatherThanTurningIntoCode()
+    {
+        // The list under b starts four columns in, which on its own is indented code.
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 3, 2 }, Depths(Read("- a\n  - b\n    - c\n    - d\n  - e\n")));
+    }
+
+    [TestMethod]
+    public void AListIndentedFromTheMarginIsOneList()
+    {
+        CollectionAssert.AreEqual(new[] { 1, 1 }, Depths(Read("  - a\n  - b\n")));
+    }
+
+    [TestMethod]
+    public void AListStartingOnItsItemsLineKeepsItsLaterItemsBesideIt()
+    {
+        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, Depths(Read("- - a\n  - b\n")));
+    }
+
+    [TestMethod]
+    public void ItemsIndentedWithATabAreMeasuredInColumns()
+    {
+        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, Depths(Read("- a\n\t- b\n\t- c\n")));
+    }
+
+    [TestMethod]
+    public void InsideAQuoteTheQuotesMarksAreTakenOffEveryLineToo()
+    {
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 3 }, Depths(Read("> - a\n>   - b\n>     - c\n>     - d\n")));
+    }
+
+    [TestMethod]
+    public void AQuoteInsideAQuoteHoldsItsLinesAsOneParagraph()
+    {
+        var outer = Blocks("> > deep\n> > more\n")[0];
+
+        Assert.AreEqual(2, Every(outer, MarkdownKinds.Quote).Count);
+        Assert.AreEqual(1, Every(outer, MarkdownKinds.Paragraph).Count, "both lines are the inner quote's one paragraph");
+    }
+
     [TestMethod]
     public void AnItemHoldingTwoParagraphsHoldsTwoBlocks()
     {
@@ -419,4 +477,19 @@ public class MarkdownBlocksTests
 
     private static IReadOnlyList<ContentNode> Every(ContentNode node, string kind) =>
         [.. node.SelfAndDescendants().Where(child => child.Kind == kind)];
+
+    /// <summary>How many lists each item stands in, in the order the items were written.</summary>
+    private static List<int> Depths(ContentNode node)
+    {
+        var depths = new List<int>();
+
+        void Walk(ContentNode at, int lists)
+        {
+            if (at.Kind == MarkdownKinds.Item) depths.Add(lists);
+            foreach (var child in at.Children) Walk(child, at.Kind == MarkdownKinds.List ? lists + 1 : lists);
+        }
+
+        Walk(node, 0);
+        return depths;
+    }
 }

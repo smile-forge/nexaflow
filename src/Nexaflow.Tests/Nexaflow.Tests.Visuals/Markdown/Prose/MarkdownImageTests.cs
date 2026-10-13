@@ -94,6 +94,36 @@ public class MarkdownImageTests
     });
 
     [TestMethod]
+    public void AWidthAfterABarIsTheWidthDrawn_KeepingThePicturesProportions() => UiThread.Run(() =>
+    {
+        var down = Box(Lay("![pic alt|300](pic.png)\n", _ => Blank(4000, 2000)));
+        Assert.AreEqual(300, down.Width, 0.5);
+        Assert.AreEqual(150, down.Height, 0.5);
+
+        var up = Box(Lay("![pic alt|48](pic.png)\n", _ => Blank(12, 8)));
+        Assert.AreEqual(48, up.Width, 0.5, "asked for, a small picture is drawn bigger");
+        Assert.AreEqual(32, up.Height, 0.5);
+    });
+
+    [TestMethod]
+    public void AWidthAndAHeightAreBothKept() => UiThread.Run(() =>
+    {
+        var box = Box(Lay("![pic alt|300x100](pic.png)\n", _ => Blank(4000, 2000)));
+
+        Assert.AreEqual(300, box.Width, 0.5);
+        Assert.AreEqual(100, box.Height, 0.5);
+    });
+
+    [TestMethod]
+    public void WhereNothingIsFound_TheSizeIsNoPartOfTheWordsDrawnInstead() => UiThread.Run(() =>
+    {
+        var drawn = Drawn(Lay("![pic alt|300](pic.png)\n", _ => (ImageSource?)null));
+
+        StringAssert.Contains(drawn, "pic alt");
+        Assert.IsFalse(drawn.Contains("300"), $"the size was drawn as words: '{drawn}'");
+    });
+
+    [TestMethod]
     public void APictureSitsInTheSentenceItWasWrittenIn() => UiThread.Run(() =>
     {
         var laid = Lay("Before ![pic alt](pic.png) after.\n", _ => Blank(20, 10));

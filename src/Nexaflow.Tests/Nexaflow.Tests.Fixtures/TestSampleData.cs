@@ -66,6 +66,7 @@ public static class TestSampleData
         new VideoSamples(),
         new FontSamples(),
         new SvgSamples(),
+        new RtfSamples(),
         new EmailSamples(),
         new DicomSamples(),
         new Hdf5Samples(),
@@ -174,6 +175,7 @@ public static class TestSampleData
         - `video/`    — a minimal MP4 container for the video viewer (routing/open smoke test).
         - `font/`     — a code-generated minimal TrueType font + its WOFF wrapping for the font viewer.
         - `svg/`      — a tiny hand-written SVG plus its gzipped `.svgz` for the vector viewer.
+        - `rtf/`      — hand-written rich-text documents for the RTF viewer: styled runs, an escaped accented letter, a table and a link; and a letter with a lasting indent, a Wingdings symbol field, a page break and an unmarked last line.
         - `pdf/`      — hand-encoded PDFs for search text extraction and image extraction: text-bearing
           (with title and form-field values absent from the body), image-only, one image reused across two
           pages, a `/DCTDecode` image, and a corrupt file. No viewer — PDFs are searched, not rendered.

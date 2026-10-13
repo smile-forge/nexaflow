@@ -32,11 +32,15 @@ public sealed partial class MarkdownSurface
     /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only
     /// drawn, which is what a reader means by what the page says.
     /// </summary>
-    public int Find(string? term) => Looked(MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
+    public int Find(string? term) => Looked(_engine.ReadsAsDrawn
+        ? MarkdownFind.Drawn(_shown.Laid, term)
+        : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
     /// <summary>The same, for a question more complicated than a word — what a search box worked out.</summary>
     public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
-        Looked(MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences));
+        Looked(_engine.ReadsAsDrawn
+            ? MarkdownFind.Drawn(_shown.Laid, occurrences)
+            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences));
 
     /// <summary>
     /// Shows every place <paramref name="matcher"/> finds and goes to the first, handing back what was found so the host
@@ -85,6 +89,9 @@ public sealed partial class MarkdownSurface
         if (at < 0 || at >= Found.Count) return string.Empty;
 
         var (start, _) = Found[at];
+
+        // A page read as what it draws is quoted as what it draws: its source is formatting nobody would recognise.
+        if (_engine.ReadsAsDrawn) return DrawnText.Of(_shown.Laid).LineAt(start);
         var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
 
         return _shown.Markdown.Substring(line.Start, line.Length).Trim();

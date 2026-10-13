@@ -25,12 +25,6 @@
           ContinueOnError="true" />
   </Target>
 
-  <!-- The Email feature's MsgReader → Microsoft.Maui.Graphics → Microsoft.WindowsAppSDK chain adds a second,
-       native_uap copy of Microsoft.Web.WebView2.Core.dll to windows-targeted projects. In any project that
-       also pulls the Web feature's WPF WebView2 (Core, the Features test project, the installer) the two
-       copies collide in the MRT/PRI payload and fail the build with APPX1101. Nexaflow is an unpackaged WPF
-       app that never uses the native_uap variant, so drop it from copy-local before the payload is
-       enumerated. The condition matches nothing in projects without the duplicate, so this is a no-op there. -->
   <!-- Nexaflow.Analyzers.Ui reads the views themselves (NXUI001: a button needs an AutomationId), and Roslyn
        never sees a .xaml file — so hand every hand-authored view to the compiler as an AdditionalFile. Wired
        here rather than in each of the forty-odd WPF projects because the rule is about the surface as a whole:
@@ -121,15 +115,6 @@
     </CreateItem>
   </Target>
 
-  <!-- The same MsgReader → WindowsAppSDK chain brings MRT Core's resource indexer, which builds a .pri for every
-       project it lands in. The app's Nexaflow.pri is the one place that index is meant to exist. A test exe never
-       loads one, and indexing its output only reads MSTest's localized messages (cs\, de\ … zh-Hant\, with no
-       neutral copy) as resources missing their default language: PRI257 and PRI263 on every suite that reaches
-       Email. So test projects build no index. -->
-  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
-  </PropertyGroup>
-
   <!-- Helper executables — the privilege bridge, the AI host — run beside the app in a subfolder of their own, which
        keeps their dependency closures (System.Management; ONNX Runtime's natives) apart from the app's DLLs. A project
        that ships or tests one references it for build ordering only and names the folder:
@@ -163,13 +148,6 @@
     <Copy SourceFiles="@(_HelperFile)"
           DestinationFiles="@(_HelperFile->'$(OutDir)%(HelperFolder)\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="DropDuplicateNativeWebView2" AfterTargets="ResolveAssemblyReferences">
-    <ItemGroup>
-      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
-        Condition="'%(FileName)%(Extension)' == 'Microsoft.Web.WebView2.Core.dll' and $([System.String]::new('%(FullPath)').Contains('native_uap'))" />
-    </ItemGroup>
   </Target>
 
 </Project>

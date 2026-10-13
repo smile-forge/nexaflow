@@ -19,10 +19,7 @@ internal sealed class MimeKitEmailReader : IEmailFormatReader
         foreach (var h in message.Headers)
             headers.Add(new EmailHeader(h.Field, h.Value));
 
-        var attachments = new List<EmailAttachment>();
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var index = 0;
-        Walk(message.Body, attachments, used, ref index);
+        var (text, html, attachments) = Contents(message.Body, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
         return new EmailDocument
         {
@@ -32,10 +29,26 @@ internal sealed class MimeKitEmailReader : IEmailFormatReader
             Cc       = NullIfEmpty(message.Cc.ToString()),
             Subject  = NullIfEmpty(message.Subject),
             Date     = message.Date == DateTimeOffset.MinValue ? null : message.Date,
-            TextBody = message.TextBody,
-            HtmlBody = message.HtmlBody,
+            TextBody = text,
+            HtmlBody = html,
             Attachments = attachments,
         };
+    }
+
+    /// <summary>
+    /// What a MIME body holds: its text and HTML bodies, and every part that is not one of them as an attachment, named so no
+    /// two of <paramref name="used"/> are alike. Shared with the <c>.msg</c> reader, whose signed messages hold a MIME body.
+    /// </summary>
+    internal static (string? Text, string? Html, List<EmailAttachment> Attachments) Contents(MimeEntity? body, ISet<string> used)
+    {
+        // The text and HTML bodies are found the way MimeKit finds a message's, so a message whose body this is is asked.
+        var holder = new MimeMessage { Body = body };
+
+        var attachments = new List<EmailAttachment>();
+        var index = 0;
+        Walk(body, attachments, used, ref index);
+
+        return (holder.TextBody, holder.HtmlBody, attachments);
     }
 
     /// <summary>Recurses the MIME tree, collecting non-body leaf parts. Deliberately does <b>not</b> descend
