@@ -30,8 +30,11 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     public CatalogModel CatalogOf(OwnedModel model) => model.CatalogFor(ExecutionProvider);
 
-    /// <summary>Its files for this machine are here and verified.</summary>
-    public bool IsHere(OwnedModel model) => CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
+    /// <summary>The owned models of <paramref name="kind"/> this machine can run — those with a build for its runtime.</summary>
+    public IEnumerable<OwnedModel> Runnable(ModelKind kind) => OwnedModels.OfKind(kind).Where(m => m.RunsOn(ExecutionProvider));
+
+    /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
+    public bool IsHere(OwnedModel model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
 
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
     public bool IsFileOf(OwnedModel model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
@@ -42,6 +45,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// </summary>
     public async Task<bool> FetchAsync(OwnedModel model, CancellationToken ct)
     {
+        if (!model.RunsOn(ExecutionProvider)) return false;   // nothing of it runs on this machine
         var files = CatalogOf(model).Files.ToList();
         if (CudaRuntimePack.Applies(hardware)) files.AddRange(CudaRuntimePack.Files);
         if (files.All(f => assets.Locate(f) is not null)) return true;

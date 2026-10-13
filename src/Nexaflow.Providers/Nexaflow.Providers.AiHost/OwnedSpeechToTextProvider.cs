@@ -28,7 +28,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     public ModelHarness Harness => ModelHarness.Owned;
     public DataResidency Residency => DataResidency.StaysOnMachine;
 
-    public IReadOnlyList<CatalogModel> Catalog => [.. OwnedModels.OfKind(ModelKind.SpeechToText).Select(_runtime.CatalogOf)];
+    public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.SpeechToText).Select(_runtime.CatalogOf)];
 
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
 
@@ -40,7 +40,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     }
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<string>>([.. OwnedModels.OfKind(ModelKind.SpeechToText).Select(m => m.Id)]);
+        => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.SpeechToText).Select(m => m.Id)]);
 
     public Task WarmupAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.WarmupAsync(_model, ct);
 

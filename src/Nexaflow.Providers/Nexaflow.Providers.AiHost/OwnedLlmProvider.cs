@@ -38,7 +38,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     public bool SupportsAudio  => _model?.Audio ?? false;
     public bool SupportsToolCalls => _model?.ToolCalls ?? false;
 
-    public IReadOnlyList<CatalogModel> Catalog => [.. OwnedModels.OfKind(ModelKind.Language).Select(_runtime.CatalogOf)];
+    public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.Language).Select(_runtime.CatalogOf)];
 
     /// <summary>Its files are here and verified.</summary>
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
@@ -51,7 +51,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     }
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<string>>([.. OwnedModels.OfKind(ModelKind.Language).Select(m => m.Id)]);
+        => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.Language).Select(m => m.Id)]);
 
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
         => Task.FromResult(_model is null ? null : new ModelInfo(_model.Part(OwnedRoles.Chat, _runtime.ExecutionProvider).ContextTokens, _model.Catalog.DisplayName));

@@ -423,7 +423,83 @@
           "path": "models/kokoro-82m-german/lexicons/de.tsv.gz",
           "url": "https://huggingface.co/smile-forge/kokoro-lexicons-fr-de/resolve/4ccf7fd4581d75f75ef188b821c5fb23dc1311b4/de.tsv.gz",
           "size": 3111574,
-          "sha256": "d0b319237c7d95d522966be6e571739e7a9c806ed49e74437c18ddd717727829"
+        "sha256": "d0b319237c7d95d522966be6e571739e7a9c806ed49e74437c18ddd717727829"
+      }
+    ]
+    },
+    {
+      "id": "z-image-turbo",
+      "displayName": "Z-Image Turbo",
+      "kind": "imageGeneration",
+      "sampler": { "steps": 9, "shift": 3.0 },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "z-image-prompt-encoder",
+          "folder": "models/z-image-turbo/encoder",
+          "file": "encoder.onnx",
+          "memoryBytes": 5637144576,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "z-image-denoiser",
+          "folder": "models/z-image-turbo/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 10468982784,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "z-image-decoder",
+          "folder": "models/z-image-turbo/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 5905580032,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/z-image-turbo/encoder/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/encoder.onnx",
+          "size": 5255694,
+          "sha256": "f1f490d8f4d537b5aa6e94d541245a6facaf73679fab538e9f7c3c3396b11e6a"
+        },
+        {
+          "path": "models/z-image-turbo/encoder/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/encoder.onnx.data",
+          "size": 4752568320,
+          "sha256": "2381ce8bcfedf6b4197e094bd3b51102839e61261dcadbbb44e100d3b075f38f"
+        },
+        {
+          "path": "models/z-image-turbo/encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/tokenizer.json",
+          "size": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        {
+          "path": "models/z-image-turbo/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/denoiser/denoiser.onnx",
+          "size": 5396208,
+          "sha256": "6a2a3ba50b6d4166f67ed79cf3b44d1aad9bc7d68a363347779ac5011eccf075"
+        },
+        {
+          "path": "models/z-image-turbo/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/denoiser/denoiser.onnx.data",
+          "size": 6670821888,
+          "sha256": "db0318246697925ba6545d907538564c16f4b22226ea00f293d85980fbdb4e76"
+        },
+        {
+          "path": "models/z-image-turbo/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/decoder/decoder.onnx",
+          "size": 716998,
+          "sha256": "57bd3eeae688f437177c751119c6f5e3bb2d711dad0f0b9b6e68538aa8e1e8dc"
+        },
+        {
+          "path": "models/z-image-turbo/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/decoder/decoder.onnx.data",
+          "size": 99090432,
+          "sha256": "fd3137e9b33ec6f639e4aee6dc25343dc355606bf1308e859181504e9abd67b7"
         }
       ]
     }
