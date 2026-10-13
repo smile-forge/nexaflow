@@ -1324,24 +1324,22 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (string.IsNullOrEmpty(CurrentPath))
             return "File browser — no location selected.";
 
-        // Use the tracked counts (kept current by the load pipeline) rather than enumerating the live
-        // Entries collection: the background loader adds to it on its own thread, so enumerating here
-        // races that writer (InvalidOperationException: Collection was modified). Int reads are atomic,
-        // and these already back the folder/file footer labels, so the numbers stay consistent with them.
-        var folders = _folderCount;
-        var files   = _fileCount;
-        var sb = new StringBuilder(
-            $"File browser at '{CurrentPath}' — {folders} folder{(folders == 1 ? "" : "s")}, " +
-            $"{files} file{(files == 1 ? "" : "s")}");
+        // The entries are named, not only counted: "delete the folder called old" is answered from what is listed.
+        // Read on the UI thread, where the loader changes them (IPageViewModel.GetContext).
+        var listed  = Entries.ToList();
+        var folders = listed.Where(e => e.IsDirectory).Select(e => e.Name).ToList();
+        var files   = listed.Where(e => !e.IsDirectory).Select(e => e.Name).ToList();
+        var sb = new StringBuilder($"File browser at '{CurrentPath}'");
+        if (IsLoadingEntries) sb.Append(" (still listing)");
+        sb.Append('\n').Append(Listed("Folders", folders)).Append('\n').Append(Listed("Files", files));
 
         var selection = CurrentSelection;
         if (selection.Count > 0)
         {
-            const int cap = 5;
-            sb.Append(". Selected: ").Append(string.Join(", ", selection.Take(cap).Select(e => e.Name)));
-            if (selection.Count > cap) sb.Append($" (+{selection.Count - cap} more)");
+            const int cap = 20;
+            sb.Append("\nSelected: ").Append(string.Join(", ", selection.Take(cap).Select(e => e.Name)));
+            if (selection.Count > cap) sb.Append($" and {selection.Count - cap} more");
         }
-        sb.Append('.');
 
         // Append each active viewlet's context line (a .NET solution's build state, a git repo's status…).
         foreach (var surface in _viewletSurfaces)
@@ -1352,6 +1350,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>How many entries of a kind are named before the rest are counted: enough for any folder a request names
+    /// things in, few enough that a huge one does not crowd out the request.</summary>
+    private const int ListedNames = 150;
+
+    private static string Listed(string kind, IReadOnlyList<string> names)
+    {
+        if (names.Count == 0) return $"{kind}: none";
+        var text = $"{kind} ({names.Count}): " + string.Join(", ", names.Take(ListedNames));
+        return names.Count > ListedNames ? text + $" and {names.Count - ListedNames} more — find_files_by_name finds any of them" : text;
     }
 
     public IReadOnlyList<IClientTool> GetClientTools()

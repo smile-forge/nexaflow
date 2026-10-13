@@ -129,6 +129,23 @@ public class FileSystemViewModelTests
         StringAssert.Contains(vm.GetContext(), vm.CurrentPath);
     }
 
+    [TestMethod]
+    [CoversNode("win-file-system-ai-context")]
+    public async Task GetContext_NamesTheEntriesListed_AndWhatIsSelected()
+    {
+        Directory.CreateDirectory(Path.Combine(_scratch, "old"));
+        File.WriteAllText(Path.Combine(_scratch, "test.zip"), "x");
+
+        var vm = AtPath(_scratch);
+        await WaitForLoadAsync(vm);
+        vm.OnSelectionChanged([vm.Entries.Single(e => e.Name == "test.zip")]);
+
+        var context = vm.GetContext();
+        StringAssert.Contains(context, "Folders (1): old");
+        StringAssert.Contains(context, "Files (1): test.zip");
+        StringAssert.Contains(context, "Selected: test.zip");
+    }
+
     // ── IPageViewModel – GetClientTools ───────────────────────────────────────
 
     [TestMethod]
