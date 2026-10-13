@@ -56,18 +56,18 @@ public interface ILlmProvider : IAiProvider
         CancellationToken         ct = default)
             => StreamAsync(messages, ct);
 
-        /// <summary>
-        /// The same, offering the model <paramref name="tools"/> to call in its own protocol. A call comes back as an
-        /// <see cref="LlmToolCallRequested"/>; what came of it goes back as an <see cref="LlmRole.Tool"/> message that
-        /// <see cref="LlmMessage.Answers"/> it, after the <see cref="LlmRole.Assistant"/> message carrying the calls. Only for
-        /// a provider that <see cref="SupportsToolCalls"/>; the default offers none.
-        /// </summary>
-        IAsyncEnumerable<LlmStreamEvent> StreamAsync(
-            IReadOnlyList<LlmMessage> messages,
-            IReadOnlyList<LlmTool>    tools,
-            LlmUrgency                urgency,
-            CancellationToken         ct = default)
-            => StreamAsync(messages, urgency, ct);
+    /// <summary>
+    /// The same, offering the model <paramref name="tools"/> to call in its own protocol. A call comes back as an
+    /// <see cref="LlmToolCallRequested"/>; what came of it goes back as an <see cref="LlmRole.Tool"/> message that
+    /// <see cref="LlmMessage.Answers"/> it, after the <see cref="LlmRole.Assistant"/> message carrying the calls. Only for
+    /// a provider that <see cref="SupportsToolCalls"/>; the default offers none.
+    /// </summary>
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => StreamAsync(messages, urgency, ct);
 
     /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't

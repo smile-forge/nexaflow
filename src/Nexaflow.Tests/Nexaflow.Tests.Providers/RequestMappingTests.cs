@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Anthropic.Models.Messages;
 using Nexaflow.Providers.Claude;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Gemini;
@@ -55,6 +58,81 @@ public class RequestMappingTests
         Assert.AreEqual(8192,  ClaudeLlmProvider.DefaultMaxOutputTokens("claude-3-5-sonnet-20241022"));
         Assert.AreEqual(32_000, ClaudeLlmProvider.DefaultMaxOutputTokens("claude-opus-4-8"));
         Assert.AreEqual(32_000, ClaudeLlmProvider.DefaultMaxOutputTokens("claude-fable-5"));
+    }
+
+    /// <summary>A step that called a tool, what came of it, and something the user said meanwhile.</summary>
+    private static List<LlmMessage> ToolStep() =>
+    [
+        new(LlmRole.System, "be helpful"),
+        new(LlmRole.User, "delete old"),
+        new(LlmRole.Assistant, "") { ToolCalls = [new LlmToolCall("c1", "delete_file", new JsonObject { ["name"] = "old" })] },
+        new(LlmRole.Tool, "deleted") { Answers = new LlmToolCall("c1", "delete_file", []) },
+        new(LlmRole.User, "and the zip too"),
+    ];
+
+    private static readonly LlmTool DeleteFile = new("delete_file", "Delete a file.", new JsonObject
+    {
+        ["type"]       = "object",
+        ["properties"] = new JsonObject { ["name"] = new JsonObject { ["type"] = "string", ["description"] = "The file." } },
+        ["required"]   = new JsonArray("name"),
+    });
+
+    [TestMethod]
+    public void Claude_ACallIsAToolUseBlock_AndWhatCameOfIt_OpensTheNextUserTurn_WithWhatTheUserSaidBesides()
+    {
+        var (_, messages) = ClaudeLlmProvider.BuildRequest(ToolStep());
+
+        Assert.AreEqual(3, messages.Count, "the results and the user's words are one user turn");
+        var called   = JsonSerializer.Serialize(messages[1]);
+        var answered = JsonSerializer.Serialize(messages[2]);
+        StringAssert.Contains(called, "\"type\":\"tool_use\"");
+        StringAssert.Contains(called, "\"id\":\"c1\"");
+        StringAssert.Contains(called, "\"input\":{\"name\":\"old\"}");
+        StringAssert.Contains(answered, "\"type\":\"tool_result\"");
+        StringAssert.Contains(answered, "\"tool_use_id\":\"c1\"");
+        Assert.IsTrue(answered.IndexOf("deleted", StringComparison.Ordinal) < answered.IndexOf("and the zip too", StringComparison.Ordinal),
+                      "the result comes first, then what the user said");
+    }
+
+    [TestMethod]
+    public void Claude_ATool_IsDeclaredWithItsSchema()
+    {
+        var declared = JsonSerializer.Serialize(ClaudeLlmProvider.Declare(DeleteFile));
+
+        StringAssert.Contains(declared, "\"name\":\"delete_file\"");
+        StringAssert.Contains(declared, "\"input_schema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"");
+    }
+
+    [TestMethod]
+    public async Task Claude_ACallIsRead_OnceItsBlockCloses_FromThePiecesOfItsArguments()
+    {
+        string[] wire =
+        [
+            """{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}""",
+            """{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"On it."}}""",
+            """{"type":"content_block_stop","index":0}""",
+            """{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"delete_file","input":{}}}""",
+            """{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"name\": "}}""",
+            """{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"old\"}"}}""",
+            """{"type":"content_block_stop","index":1}""",
+        ];
+
+        var read = new List<LlmStreamEvent>();
+        await foreach (var e in ClaudeLlmProvider.Events(Streamed(wire.Select(w => JsonSerializer.Deserialize<RawMessageStreamEvent>(w)!))))
+            read.Add(e);
+
+        Assert.AreEqual("On it.", ((LlmTextDelta)read[0]).Text);
+        var call = ((LlmToolCallRequested)read[1]).Call;
+        Assert.AreEqual(("toolu_1", "delete_file", "old"), (call.Id, call.Name, (string?)call.Arguments["name"]));
+    }
+
+    private static async IAsyncEnumerable<T> Streamed<T>(IEnumerable<T> items)
+    {
+        foreach (var item in items)
+        {
+            await Task.Yield();
+            yield return item;
+        }
     }
 
     // ── OpenAI ────────────────────────────────────────────────────────────

@@ -115,7 +115,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
                 else if (replies.Current is ToolCallMade made)
                 {
                     written = true;
-                    yield return new LlmToolCallRequested(new LlmToolCall(made.Call.Id, made.Call.Name, JsonNode.Parse(made.Call.Arguments) as JsonObject ?? []));
+                    yield return new LlmToolCallRequested(LlmToolCall.Read(made.Call.Id, made.Call.Name, made.Call.Arguments));
                 }
             }
         }

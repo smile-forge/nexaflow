@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.Json;
 
 namespace Nexaflow.Providers.Common;
 
@@ -10,4 +11,14 @@ namespace Nexaflow.Providers.Common;
 public sealed record LlmTool(string Name, string Description, JsonObject Parameters);
 
 /// <summary>A call the model made: the id its result answers to, the tool it called, and the arguments it gave.</summary>
-public sealed record LlmToolCall(string Id, string Name, JsonObject Arguments);
+public sealed record LlmToolCall(string Id, string Name, JsonObject Arguments)
+{
+    /// <summary>A call whose arguments came as JSON text — a provider's wire shape, or pieces streamed and joined.
+    /// Arguments that are none, or do not read as an object, are none, so the tool says what it is missing.</summary>
+    public static LlmToolCall Read(string id, string name, string? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(arguments)) return new(id, name, []);
+        try { return new(id, name, JsonNode.Parse(arguments) as JsonObject ?? []); }
+        catch (JsonException) { return new(id, name, []); }
+    }
+}
