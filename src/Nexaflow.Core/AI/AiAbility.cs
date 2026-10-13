@@ -15,6 +15,7 @@ public enum AiAbility
     SpeechIn,
     SpeechOut,
     ImageGeneration,
+    HighQualityImageGeneration,
     VideoGeneration,
 }
 
@@ -29,9 +30,10 @@ internal static class AiAbilityNames
         AiAbility.Analysis         => "Analysis",
         AiAbility.SpeechIn         => "Speech In",
         AiAbility.SpeechOut        => "Speech Out",
-        AiAbility.ImageGeneration  => "Image Generation",
-        AiAbility.VideoGeneration  => "Video Generation",
-        _                          => a.ToString()
+        AiAbility.ImageGeneration            => "Image Generation",
+        AiAbility.HighQualityImageGeneration => "Image Generation (HQ)",
+        AiAbility.VideoGeneration            => "Video Generation",
+        _                                    => a.ToString()
     };
 
     /// <summary>The kind of model an ability takes — the grid offers it only columns of that kind.</summary>
@@ -39,7 +41,7 @@ internal static class AiAbilityNames
     {
         AiAbility.SpeechIn        => ModelKind.SpeechToText,
         AiAbility.SpeechOut       => ModelKind.TextToSpeech,
-        AiAbility.ImageGeneration => ModelKind.ImageGeneration,
+        AiAbility.ImageGeneration or AiAbility.HighQualityImageGeneration => ModelKind.ImageGeneration,
         AiAbility.VideoGeneration => ModelKind.VideoGeneration,
         _                         => ModelKind.Language,
     };

@@ -149,6 +149,40 @@ public class NativeToolLoopTests
         StringAssert.StartsWith(answer.Text, "Not run:");
     }
 
+    /// <summary>A tool whose calls need approval only when they ask to be drawn well.</summary>
+    private sealed class Drawing(List<JsonObject> calls) : IClientTool
+    {
+        public string Name => "draw";
+        public string Description => "Draw.";
+        public IReadOnlyList<ClientToolParameter> Parameters => [new("quality", "How well.", Required: false, Choices: ["standard", "high"])];
+        public ToolSafety Safety => ToolSafety.SafeOperation;
+        public ToolSafety SafetyOf(JsonObject arguments) =>
+            (string?)arguments["quality"] == "high" ? ToolSafety.RequiresApproval : ToolSafety.SafeOperation;
+        public bool Parallelizable => false;
+
+        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        {
+            calls.Add(arguments);
+            return Task.FromResult(ToolResult.Ok("drawn", "Drawn."));
+        }
+    }
+
+    [TestMethod]
+    public async Task ACallIsPutToTheUser_WhenWhatItAsksFor_NeedsApproval()
+    {
+        var calls = new List<JsonObject>();
+        var model = new NativeModel(("", [Call("c1", "draw", new JsonObject { ["quality"] = "standard" })]),
+                                    ("", [Call("c2", "draw", new JsonObject { ["quality"] = "high" })]),
+                                    ("Both drawn.", []));
+        var user  = new User();
+
+        await Service(model).RunAgentAsync(new Page(new Drawing(calls)), "Draw twice.", true, user);
+
+        Assert.AreEqual(2, calls.Count);
+        Assert.AreEqual(1, user.Batches.Count, "only the high-quality call was asked about");
+        CollectionAssert.AreEqual(new[] { "draw" }, user.Batches[0].ToArray());
+    }
+
     [TestMethod]
     public async Task APlan_IsProposedByCallingForIt_PutToTheUser_AndTheAnswerGoesBackToTheCall()
     {

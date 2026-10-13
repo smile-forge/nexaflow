@@ -37,7 +37,7 @@ public class GenerationToolsTests
     public void EachTool_IsOfferedOnlyWhereTheWorkspaceHasAModelForIt()
     {
         string[] Offered(IImageGenerationProvider? images, ITextToSpeechProvider? voice, IVideoGenerationProvider? videos)
-            => [.. new GenerationTools(images, voice, videos, Files).Tools.Select(t => t.Name)];
+            => [.. new GenerationTools(images, null, voice, videos, Files).Tools.Select(t => t.Name)];
 
         CollectionAssert.AreEqual(Array.Empty<string>(), Offered(null, null, null));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter(), null, null));
@@ -49,7 +49,7 @@ public class GenerationToolsTests
     {
         var painter = new Painter();
 
-        var result = await new GenerateImageTool(painter, Files).InvokeAsync(new JsonObject { ["prompt"] = "A red fox, asleep in the snow at dusk", ["shape"] = "landscape" }, default);
+        var result = await new GenerateImageTool(painter, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "A red fox, asleep in the snow at dusk", ["shape"] = "landscape" }, default);
 
         var saved = Path.Combine(_home, "Picture", "A red fox asleep in the.png");
         Assert.IsTrue(result.Success, result.ModelText);
@@ -65,13 +65,57 @@ public class GenerationToolsTests
     [TestMethod]
     public async Task APicture_NeverReplacesOneAlreadyThere()
     {
-        var tool = new GenerateImageTool(new Painter(), Files);
+        var tool = new GenerateImageTool(new Painter(), null, Files);
 
         await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox" }, default);
         var second = await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox" }, default);
 
         Assert.AreEqual(Path.Combine(_home, "Picture", "fox (2).png"), second.Attachments!.Single());
         Assert.AreEqual(2, Directory.GetFiles(Path.Combine(_home, "Picture")).Length);
+    }
+
+    [TestMethod]
+    public async Task WithBothQualities_StandardDraws_UnlessHighIsAskedFor_WhichIsApprovedAndAnnouncedFirst()
+    {
+        var standard = new Painter();
+        var high     = new Painter();
+        var tool     = new GenerateImageTool(standard, high, Files);
+        var asked    = new JsonObject { ["prompt"] = "a fox", ["quality"] = "high" };
+
+        CollectionAssert.AreEqual(new[] { "standard", "high" }, tool.Parameters.Single(p => p.Name == "quality").Choices!.ToArray());
+        Assert.AreEqual(ToolSafety.SafeOperation, tool.SafetyOf(new JsonObject { ["prompt"] = "a fox" }));
+        Assert.IsNull(tool.Announce(new JsonObject { ["prompt"] = "a fox" }), "a standard picture is just drawn");
+        Assert.AreEqual(ToolSafety.RequiresApproval, tool.SafetyOf(asked), "a high-quality picture is slow and dearer");
+        Assert.AreEqual(Str.Get("Shell.Generate.Announce.HighQualityPicture"), tool.Announce(asked)!.Target);
+
+        await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox" }, default);
+        await tool.InvokeAsync(asked, default);
+
+        Assert.AreEqual(1, standard.Asked.Count);
+        Assert.AreEqual(1, high.Asked.Count);
+    }
+
+    [TestMethod]
+    public void WithOneQuality_ThereIsNothingToChoose()
+    {
+        Assert.IsFalse(new GenerateImageTool(new Painter(), null, Files).Parameters.Any(p => p.Name == "quality"));
+        var onlyHigh = new GenerateImageTool(null, new Painter(), Files);
+        Assert.IsFalse(onlyHigh.Parameters.Any(p => p.Name == "quality"));
+        Assert.AreEqual(ToolSafety.RequiresApproval, onlyHigh.SafetyOf(new JsonObject { ["prompt"] = "a fox" }),
+                        "the high-quality model is approved first even when it is the only one");
+    }
+
+    [TestMethod]
+    public async Task AQualityThatTakesNoSources_IsToldSo_WhenTheOtherDoes()
+    {
+        var source = Path.Combine(_home, "fox.png");
+        File.WriteAllBytes(source, Drawn);
+        var tool = new GenerateImageTool(new Painter { Sources = 3 }, new Painter { Sources = 0 }, Files);
+
+        StringAssert.Contains(tool.Parameters.Single(p => p.Name == "sources").Description, "Standard takes 3, high 0");
+        var result = await tool.InvokeAsync(new JsonObject { ["prompt"] = "night", ["quality"] = "high", ["sources"] = new JsonArray(source) }, default);
+
+        Assert.IsTrue(result.IsError);
     }
 
     [TestMethod]
@@ -100,10 +144,10 @@ public class GenerationToolsTests
         var drawsOnly = new Painter { Sources = 0 };
         var editor    = new Painter { Sources = 2, Masking = true };
 
-        Assert.IsFalse(new GenerateImageTool(drawsOnly, Files).Parameters.Any(p => p.Name is "sources" or "mask"));
-        CollectionAssert.IsSubsetOf(new[] { "sources", "mask" }, new GenerateImageTool(editor, Files).Parameters.Select(p => p.Name).ToArray());
+        Assert.IsFalse(new GenerateImageTool(drawsOnly, null, Files).Parameters.Any(p => p.Name is "sources" or "mask"));
+        CollectionAssert.IsSubsetOf(new[] { "sources", "mask" }, new GenerateImageTool(editor, null, Files).Parameters.Select(p => p.Name).ToArray());
 
-        var result = await new GenerateImageTool(editor, Files).InvokeAsync(
+        var result = await new GenerateImageTool(editor, null, Files).InvokeAsync(
             new JsonObject { ["prompt"] = "make it night", ["sources"] = new JsonArray(source), ["mask"] = source }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
@@ -117,9 +161,9 @@ public class GenerationToolsTests
     public async Task APictureThatCannotBeRead_OrAFailedDrawing_IsToldToTheModel_AndNothingIsSaved()
     {
         var editor = new Painter { Sources = 1 };
-        var missing = await new GenerateImageTool(editor, Files).InvokeAsync(
+        var missing = await new GenerateImageTool(editor, null, Files).InvokeAsync(
             new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(Path.Combine(_home, "nope.png")) }, default);
-        var refused = await new GenerateImageTool(new Painter { Refusal = "the picture was withheld: people" }, Files).InvokeAsync(
+        var refused = await new GenerateImageTool(new Painter { Refusal = "the picture was withheld: people" }, null, Files).InvokeAsync(
             new JsonObject { ["prompt"] = "a crowd" }, default);
 
         Assert.IsTrue(missing.IsError);

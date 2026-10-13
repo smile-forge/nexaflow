@@ -46,6 +46,12 @@ public interface IClientTool
     ToolCallAnnouncement? Announce(JsonObject arguments) => null;
 
     /// <summary>
+    /// The safety of one call, where it depends on what the call asks for — a picture drawn at high quality is slow
+    /// and dearer, so it is approved where a standard one is not. Default: <see cref="Safety"/>.
+    /// </summary>
+    ToolSafety SafetyOf(JsonObject arguments) => Safety;
+
+    /// <summary>
     /// Executes the tool. The harness keeps the UI synchronization context, so implementations may
     /// read and mutate ViewModel state directly and should offload blocking work with
     /// <c>await … Async</c> / <c>Task.Run</c>. Do not throw for an expected failure — return a
