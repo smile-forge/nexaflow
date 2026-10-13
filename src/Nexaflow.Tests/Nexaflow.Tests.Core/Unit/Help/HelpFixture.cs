@@ -19,7 +19,9 @@ internal sealed class HelpFixture : IDisposable
         "## Searching\n\nType in the search box to find text in the pane.\n";
 
     public const string MarkdownPage =
-        "# Markdown\n\nTables, diagrams and callouts render in the pane.\n\n```mermaid\ngraph TD; paneNode\n```\n";
+        "# Markdown\n\nTables, diagrams and callouts render in the pane.\n\n```mermaid\ngraph TD; paneNode\n```\n\n" +
+        "## Pie chart\n\nShares of a whole:\n\n```mermaid\npie\n  \"Apples\" : 3\n## not a heading, inside the fence\n```\n\n" +
+        "## Math\n\nInline $x^2$ or a block $$\\int f$$.\n";
 
     private readonly string _dir;
 

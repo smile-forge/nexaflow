@@ -98,8 +98,8 @@ public sealed class AIService : IAIService
         if (page is ISearchable searchable)
             tools.AddRange(new SearchClientTools(searchable).Tools);
 
-        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
-        // openable pages, and the shell tools) alongside the active page's.
+        // Fold in shell-level context + tools (local time, workspace, open windows/tabs, and the shell tools)
+        // alongside the active page's.
         var shellCtx = new ShellAi.ShellAiContext(_workspace);
         tools.AddRange(shellCtx.BuildTools());
 
@@ -108,9 +108,13 @@ public sealed class AIService : IAIService
         // No language pack means no help to offer — which is the case in a unit test of this loop, and the
         // same way BuildTools above yields nothing without a shell.
         if (LanguageManager.TryInstance is not null)
+        {
             tools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
+            tools.AddRange(new Help.MarkdownSyntaxTools(Help.HelpLibrary.Shared).Tools);
+        }
 
-        return (shellCtx.BuildContext() + "\n---\n" + pageContext, tools);
+        // The page first — it is what the request is about — then where it sits.
+        return (pageContext + "\n\n" + shellCtx.BuildContext(), tools);
     }
 
     /// <summary>
@@ -422,8 +426,7 @@ public sealed class AIService : IAIService
         catch (OperationCanceledException) { return null; }
         exposed = [.. exposed.Except(options.Tools), .. options.Tools];   // the caller's own are never ranked away
 
-        string system = BuildSystemPrompt(page, context, exposed);
-        if (options.ReplyStyle is { Length: > 0 } style) system += "\n\n" + style;
+        string system = BuildSystemPrompt(page, context, exposed, options.ReplyStyle);
         var messages = new List<LlmMessage> { new(LlmRole.System, system) };
         messages.AddRange(options.History);
         messages.Add(new(LlmRole.User, input));
@@ -875,7 +878,12 @@ public sealed class AIService : IAIService
                 $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
             parallelizable: true);
 
-    private string BuildSystemPrompt(IPageViewModel? page, string context, IReadOnlyList<IClientTool> tools)
+    /// <summary>
+    /// What the model is told, in the order it matters: who it is and what its replies can draw; how to reply in this
+    /// mode; what the user is looking at; and how to act. Nothing it cannot use — approval is the app's business, not the
+    /// model's, and what it does is shown from the calls themselves, so it is never asked to explain before acting.
+    /// </summary>
+    private string BuildSystemPrompt(IPageViewModel? page, string context, IReadOnlyList<IClientTool> tools, string? replyStyle)
     {
         var persona = _workspace.Workspace.Persona;
         var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
@@ -884,47 +892,40 @@ public sealed class AIService : IAIService
         if (!string.IsNullOrWhiteSpace(persona?.SystemPrompt))
             sb.Append(persona!.SystemPrompt!.Trim()).Append("\n\n");
 
-        sb.Append($"You are {aiName}, an AI assistant embedded in Nexaflow, a desktop application. ")
-          .Append("You are talking to the user through an advanced client that natively renders Markdown — ")
-          .Append("including GitHub-flavored tables, LaTeX math (inline $…$ and block $$…$$), and Mermaid and ")
-          .Append("Nomnoml diagrams in fenced code blocks. Use them freely to make answers clear.\n\n")
-          .Append($"The user is currently looking at: {context}.\n\n");
+        sb.Append($"You are {aiName}, the assistant built into Nexaflow, a desktop application for working with the files, ")
+          .Append("documents and programs on the user's machine. Your replies are shown as Markdown, which here draws far ")
+          .Append("more than text — tables, maths, diagrams, charts, codes and music among it: get_markdown_syntaxes lists ")
+          .Append("what it can draw, and get_markdown_syntax shows how to write one.\n\n");
 
-        // Page-specific guidance (what the model can usefully do on this page), injected up front.
+        // How to reply here — spoken, or written in a small panel — comes straight after who it is.
+        if (replyStyle is { Length: > 0 }) sb.Append(replyStyle.Trim()).Append("\n\n");
+        if (page is IChatEngagement eng)
+            sb.Append("Your reply is shown in a compact panel beneath this page, about ").Append(eng.MaxResponseRows ?? 8)
+              .Append(" lines tall: keep it short and to the point. Anything longer opens in a larger overlay, and anything ")
+              .Append("involved can be carried on as a full conversation.\n\n");
+
+        sb.Append("# What the user is looking at\n").Append(context.Trim()).Append("\n\n");
+
+        // Page-specific guidance (what the model can usefully do on this page).
         var guidance = page?.GetAiSystemPromptGuidance();
         if (!string.IsNullOrWhiteSpace(guidance))
             sb.Append(guidance!.Trim()).Append("\n\n");
 
-        // Pages that host AI responses inline ask for short answers; longer ones escalate to the overlay.
-        if (page is IChatEngagement eng)
-            sb.Append($"Your reply is shown in a compact inline panel beneath this page, about ")
-              .Append(eng.MaxResponseRows ?? 8).Append(" lines tall. Keep answers short and action-oriented ")
-              .Append("so they fit; if you must say more it opens in a larger overlay automatically, and you ")
-              .Append("can offer to continue as a full conversation for anything involved.\n\n");
-
-        sb.Append("# Client-side tools\n")
-          .Append("You can act inside the application by calling CLIENT-SIDE tools. These run locally in the app ")
-          .Append("on the user's machine — they are NOT server-side or MCP tools. Invoke one by emitting a fenced ")
-          .Append("code block tagged `client_tool` whose body is a single JSON object:\n\n")
+        sb.Append("# Acting\n")
+          .Append("You act in the app by calling its tools. To call one, write a fenced block tagged `client_tool` holding ")
+          .Append("one JSON object, and stop — the results come back in a message beginning \"TOOL RESULTS\":\n\n")
           .Append("```client_tool\n{\"tool\": \"tool_name\", \"arguments\": {\"key\": \"value\"}}\n```\n\n")
-          .Append("How the loop works:\n")
-          .Append("- Briefly explain what you're about to do (one or two sentences), then emit the block(s), then STOP. Write nothing after the block.\n")
-          .Append("- The harness runs the tools and replies with a message beginning \"TOOL RESULTS\" containing each tool's output. Continue from there.\n")
-          .Append("- Text you write OUTSIDE fenced blocks is shown to the user as your message.\n")
-          .Append("- To run several INDEPENDENT tools at once, emit multiple `client_tool` blocks in the same reply — the harness runs them together as one batch without asking you in between. Only batch tools that don't depend on each other.\n")
-          .Append("- When you have everything you need, reply normally with no tool block — that is your final answer.\n")
-          .Append("- Read-only tools run immediately. Tools marked [needs approval] are put to the user by the app when you call them, so call them directly — never ask the user for permission or confirmation yourself.\n")
-          .Append("- If you're unsure what you can do here, call `get_client_commands` for the full list.\n\n")
-          .Append("To pre-fill the user's input box instead of acting (e.g. to suggest a command for them to run), emit:\n\n")
-          .Append("```client_prefill\n{\"text\": \"suggested input\"}\n```\n\n");
-
-        sb.Append("# Plans (optional)\n")
-          .Append("For multi-step work you MAY first propose a plan the user approves once, instead of asking per step. Emit one:\n\n")
+          .Append("- Tools that do not depend on each other can be called together: one block each, in the same reply.\n")
+          .Append("- Text outside a block is your message to the user; a reply with no block is your final answer.\n")
+          .Append("- get_client_commands lists every tool this page has, if the one you need is not below.\n")
+          .Append("- To suggest something for the user to run instead of doing it, fill in their input box with:\n\n")
+          .Append("```client_prefill\n{\"text\": \"suggested input\"}\n```\n\n")
+          .Append("For work of several steps you may lay out a plan first, then carry it out:\n\n")
           .Append("```client_plan\n{\"title\": \"…\", \"mermaid\": \"flowchart TD; A[…]-->B[…]\", ")
           .Append("\"steps\": [{\"title\":\"…\",\"tool\":\"tool_name\"},{\"title\":\"Decide …\",\"decision\":true}]}\n```\n\n")
-          .Append("After approval, run the plan's tool steps without asking again until a step marked \"decision\": true (reassess there) or the work is done.\n\n");
+          .Append("Then carry out its tool steps in order, stopping to reassess at a step marked \"decision\": true.\n\n");
 
-        sb.Append("# Available tools\n").Append(DescribeCatalog(tools));
+        sb.Append("# Tools\n").Append(DescribeCatalog(tools));
         return sb.ToString();
     }
 
@@ -940,9 +941,7 @@ public sealed class AIService : IAIService
     private static string DescribeTool(IClientTool t)
     {
         var sb = new StringBuilder();
-        sb.Append("- ").Append(t.Name);
-        if (t.Safety == ToolSafety.RequiresApproval) sb.Append("  [needs approval]");
-        sb.Append(": ").Append(t.Description);
+        sb.Append("- ").Append(t.Name).Append(": ").Append(t.Description);
         foreach (var p in t.Parameters)
         {
             sb.Append("\n    • ").Append(p.Name).Append(" (").Append(p.Type);

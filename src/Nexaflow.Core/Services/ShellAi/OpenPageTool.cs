@@ -4,11 +4,11 @@ using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Core.Services.ShellAi;
 
-/// <summary>Opens a page/tab in the shell. Valid kinds + params come from the shell context catalogue.</summary>
+/// <summary>Opens a page/tab in the shell. Valid kinds + params come from <see cref="GetOpenablePagesTool"/>.</summary>
 public sealed class OpenPageTool(IShellServices shell) : IClientTool
 {
     public string Name => "open_page";
-    public string Description => "Open a page/tab in the app. Use the 'Openable pages' list from context for valid kinds and their params.";
+    public string Description => "Open a page/tab in the app. get_openable_pages lists the kinds of page and the parameters each takes.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
         new("page_kind", "The page kind to open, e.g. \"Projects\" or \"FileSystem\"."),

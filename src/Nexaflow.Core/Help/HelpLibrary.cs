@@ -82,6 +82,9 @@ internal sealed partial class HelpLibrary
                                 HelpContents.AddTopics(BuildIndex(intro, missing)), missing);
     }
 
+    /// <summary>A page as written — without the Topics menu the pane shows it with.</summary>
+    public string? Source(HelpTopic topic) => Read(topic.LogicalName);
+
     /// <summary>The heading a help link points at — <c>searching</c> in <c>help:Help#searching</c> — or null.</summary>
     public static string? AnchorFromLink(string? url)
     {

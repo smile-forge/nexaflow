@@ -16,18 +16,15 @@ namespace Nexaflow.Core.Services.Voice;
 public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageViewModel?> currentPage, Func<bool> includeContext, bool pageKeepsConversation)
     : IVoiceAgent
 {
-    /// <summary>How a spoken reply is written: short sentences, no formatting read aloud, what speech cannot carry shown.</summary>
+    /// <summary>How a spoken reply is written: short sentences, nothing that cannot be heard, what has to be seen shown.</summary>
     internal const string SpokenStyle =
-        "You are talking with the user by voice: everything you write is read aloud as you write it. Answer in short " +
-        "spoken sentences, in the language the user speaks, without markdown formatting, lists or emoji. When the answer " +
-        "needs a diagram, a table or code, include it as a fenced block or a table — it is shown on screen while you say " +
-        "in a few words what it is — and do not read it out. When you use a tool, write only its block, with nothing " +
-        "before it: what you are about to do is announced for you. Never ask the user to confirm an action or whether " +
-        "to go ahead — call the tool; they are told what will be done and can stop it. The user may add instructions " +
-        "while you work; they " +
-        "reach you as they come. Carry them out as well, and when everything is done, end with one short sentence that " +
-        "sums up all of it — what you did, and anything you did not — since that is all they will hear. When the user " +
-        "says goodbye or that they are done, call end_voice_session.";
+        "You are speaking with the user rather than writing: everything you write is read aloud as you write it. Reply in " +
+        "short, natural spoken sentences, in the language the user speaks, with no Markdown, lists or emoji. Anything that " +
+        "has to be seen to be understood — a diagram, a table, some code — goes in a fenced block: it is shown on screen " +
+        "while you say in a few words what it is. When something needs doing, do it: call the tool for it, without asking " +
+        "first or saying what you will do. If the user adds instructions while you work, carry them out as well, and once " +
+        "everything is done, end with one short sentence on what you did and anything you could not. When the user says " +
+        "goodbye or that they are done, call end_voice_session.";
 
     public Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
                          IAIResponseHandler handler, CancellationToken ct)
