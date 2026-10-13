@@ -124,6 +124,30 @@ public class AiAbilityGridViewModelTests
     }
 
     [TestMethod]
+    public void TheGenerationRows_TakeOnlyModelsThatMakeTheirKindOfThing()
+    {
+        var config = new AiConfig
+        {
+            Columns =
+            [
+                Column("llm"),
+                new ProviderModelPair { Id = "draw", ProviderName = "Prov", Model = "i", Kind = ModelKind.ImageGeneration },
+                new ProviderModelPair { Id = "film", ProviderName = "Prov", Model = "v", Kind = ModelKind.VideoGeneration },
+            ],
+            Assignments =
+            {
+                ["ImageGeneration"] = AbilityChain.Of("llm", "draw", "film"),
+                ["VideoGeneration"] = AbilityChain.Of("draw", "film"),
+            },
+        };
+        var grid = new AiAbilityGridViewModel(config);
+
+        CollectionAssert.AreEqual(new[] { "draw" }, grid.Rows.Single(r => r.Ability == AiAbility.ImageGeneration).Chain.ToArray());
+        CollectionAssert.AreEqual(new[] { "film" }, grid.Rows.Single(r => r.Ability == AiAbility.VideoGeneration).Chain.ToArray());
+        Assert.IsFalse(Cell(Conversation(grid), "draw").IsUsable, "a model that draws does not converse");
+    }
+
+    [TestMethod]
     public void UsingAnotherModel_ChangesTheColumnInPlace_KeepingItsPlaceInTheChain()
     {
         var config = new AiConfig

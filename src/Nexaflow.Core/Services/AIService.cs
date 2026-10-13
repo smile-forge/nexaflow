@@ -46,6 +46,12 @@ public sealed class AIService : IAIService
     /// <summary>The Speech Out chain's first model that can speak now, or null.</summary>
     public ITextToSpeechProvider? TextToSpeech => Candidates<ITextToSpeechProvider>(AiAbility.SpeechOut).FirstOrDefault();
 
+    /// <summary>The Image Generation chain's first model that can draw now, or null.</summary>
+    public IImageGenerationProvider? ImageGenerator => Candidates<IImageGenerationProvider>(AiAbility.ImageGeneration).FirstOrDefault();
+
+    /// <summary>The Video Generation chain's first model that can make a clip now, or null.</summary>
+    public IVideoGenerationProvider? VideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.VideoGeneration).FirstOrDefault();
+
     /// <summary>
     /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens, a voice speaks the
     /// language, and a model answers. Where it cannot, the mic dictates instead.
@@ -102,6 +108,10 @@ public sealed class AIService : IAIService
         // alongside the active page's.
         var shellCtx = new ShellAi.ShellAiContext(_workspace);
         tools.AddRange(shellCtx.BuildTools());
+
+        // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
+        if (_workspace.ShellServices is { } shell)
+            tools.AddRange(new Generation.GenerationTools(ImageGenerator, TextToSpeech, VideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.

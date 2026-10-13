@@ -1,0 +1,106 @@
+{
+  "branch": "claude/local-ai-phase4-generation",
+  "nodes": {
+    "providers-image-generation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/IImageGenerationProvider.cs",
+          "class": "IImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAIImageGenerationProvider.cs",
+          "class": "OpenAIImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/GeminiImageGenerationProvider.cs",
+          "class": "GeminiImageGenerationProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/GenerationProviderTests.cs",
+            "class": "GenerationProviderTests"
+          }
+        ]
+      }
+    },
+    "providers-video-generation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/IVideoGenerationProvider.cs",
+          "class": "IVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAIVideoGenerationProvider.cs",
+          "class": "OpenAIVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/GeminiVideoGenerationProvider.cs",
+          "class": "GeminiVideoGenerationProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/GenerationProviderTests.cs",
+            "class": "GenerationProviderTests"
+          }
+        ]
+      }
+    },
+    "agent-generation-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerationTools.cs",
+          "class": "GenerationTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateSpeechTool.cs",
+          "class": "GenerateSpeechTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateVideoTool.cs",
+          "class": "GenerateVideoTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GeneratedFiles.cs",
+          "class": "GeneratedFiles"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "agent-generation-tools",
+    "providers-image-generation",
+    "providers-video-generation"
+  ]
+}

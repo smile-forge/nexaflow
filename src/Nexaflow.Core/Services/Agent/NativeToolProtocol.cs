@@ -114,15 +114,16 @@ internal sealed class NativeToolProtocol : ToolProtocol
     internal static LlmTool Declare(IClientTool tool)
         => new(tool.Name, tool.Description,
                Schema([.. tool.Parameters.Select(p => (p.Name,
-                                                       Property(p.Type, p.Description, p.ItemType is { } item ? new JsonObject { ["type"] = item } : null),
+                                                       Property(p.Type, p.Description, p.ItemType is { } item ? new JsonObject { ["type"] = item } : null, p.Choices),
                                                        p.Required))]));
 
     /// <summary>One parameter's schema. An array always says what it holds — some providers refuse one that does not —
     /// and holds anything when <paramref name="items"/> is not given.</summary>
-    private static JsonObject Property(string type, string description, JsonObject? items = null)
+    private static JsonObject Property(string type, string description, JsonObject? items = null, IReadOnlyList<string>? choices = null)
     {
         var property = new JsonObject { ["type"] = type, ["description"] = description };
         if (type == "array") property["items"] = items ?? new JsonObject();
+        if (choices is { Count: > 0 }) property["enum"] = new JsonArray([.. choices.Select(c => JsonValue.Create(c))]);
         return property;
     }
 

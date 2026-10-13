@@ -192,6 +192,20 @@ public class NativeToolLoopTests
     }
 
     [TestMethod]
+    public void AParameterOfAFewValues_NamesThem_NativelyAsAnEnum_AndInTextAsChoices()
+    {
+        var tool = new DelegateClientTool("draw", "Draw.",
+            [new("shape", "Its shape.", Required: false, Choices: ["square", "landscape"])],
+            ToolSafety.SafeOperation, (_, _) => Task.FromResult(ToolResult.Ok("", "")));
+
+        var shape = NativeToolProtocol.Declare(tool).Parameters["properties"]!["shape"]!;
+
+        CollectionAssert.AreEqual(new[] { "square", "landscape" }, shape["enum"]!.AsArray().Select(c => (string?)c).ToArray());
+        StringAssert.Contains(ToolCatalog.Describe([tool]), "one of square | landscape");
+        Assert.AreEqual("square", (string?)ToolCatalog.Example(tool)["shape"], "the example uses a value it takes");
+    }
+
+    [TestMethod]
     public async Task ARun_ReportsWhatItAddedToTheConversation_TheCallsAndWhatCameOfThem()
     {
         var model = new NativeModel(("", [Call("c1", "add_note", new JsonObject { ["text"] = "buy milk" })]), ("Added.", []));
