@@ -27,9 +27,15 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
         "goodbye or that they are done, call end_voice_session.";
 
     public Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                         IAIResponseHandler handler, CancellationToken ct)
+                         IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct)
     {
-        var options = new AgentRunOptions { History = pageKeepsConversation ? [] : history, ReplyStyle = SpokenStyle, Tools = sessionTools };
+        var options = new AgentRunOptions
+        {
+            History    = pageKeepsConversation ? [] : history,
+            ReplyStyle = SpokenStyle,
+            Tools      = sessionTools,
+            Ran        = ran,
+        };
         return ui.InvokeAsync(() => service.RunAgentAsync(currentPage(), userText, includeContext(), handler, options, ct),
                               DispatcherPriority.Normal, ct).Task.Unwrap();
     }

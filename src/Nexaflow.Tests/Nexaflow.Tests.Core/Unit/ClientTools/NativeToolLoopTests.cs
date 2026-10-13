@@ -190,4 +190,36 @@ public class NativeToolLoopTests
         Assert.AreEqual("object", (string?)properties["edits"]!["items"]!["type"]);
         Assert.AreEqual(0, properties["tags"]!["items"]!.AsObject().Count, "items of any kind");
     }
+
+    [TestMethod]
+    public async Task ARun_ReportsWhatItAddedToTheConversation_TheCallsAndWhatCameOfThem()
+    {
+        var model = new NativeModel(("", [Call("c1", "add_note", new JsonObject { ["text"] = "buy milk" })]), ("Added.", []));
+        IReadOnlyList<LlmMessage> ran = [];
+
+        await Service(model).RunAgentAsync(new Page(AddNote([])), "Note: buy milk.", true, new User(), new AgentRunOptions { Ran = r => ran = r });
+
+        CollectionAssert.AreEqual(new[] { LlmRole.User, LlmRole.Assistant, LlmRole.Tool, LlmRole.Assistant }, ran.Select(m => m.Role).ToArray());
+        Assert.AreEqual("c1", ran[1].ToolCalls!.Single().Id);
+        Assert.AreEqual("Added.", ran[^1].Text);
+    }
+
+    [TestMethod]
+    public async Task ARunStoppedWhileACallRuns_ReportsTheCallAsInterrupted_NotUnanswered()
+    {
+        using var stop = new CancellationTokenSource();
+        var stopping = new DelegateClientTool("add_note", "Add a note.", [new("text", "The note.")], ToolSafety.SafeOperation, (_, _) =>
+        {
+            stop.Cancel();
+            throw new OperationCanceledException(stop.Token);
+        });
+        var model = new NativeModel(("", [Call("c1", "add_note", new JsonObject { ["text"] = "x" })]));
+        IReadOnlyList<LlmMessage> ran = [];
+
+        var response = await Service(model).RunAgentAsync(new Page(stopping), "Note x.", true, new User(), new AgentRunOptions { Ran = r => ran = r }, stop.Token);
+
+        Assert.IsNull(response);
+        Assert.AreEqual(("c1", LlmRole.Tool), (ran[^1].Answers?.Id, ran[^1].Role));
+        StringAssert.StartsWith(ran[^1].Text, "Interrupted");
+    }
 }

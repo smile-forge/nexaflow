@@ -70,6 +70,12 @@ internal sealed class VoiceReply : IAIResponseHandler
     /// <summary>The reply as written — what the conversation remembers when all of it was heard.</summary>
     public string Written { get; private set; } = "";
 
+    private IReadOnlyList<LlmMessage>? _ran;
+
+    /// <summary>The run as it happened — the request, each call and what came of it, the reply — once it has ended; null
+    /// before then, or for a run that kept nothing.</summary>
+    public IReadOnlyList<LlmMessage>? Ran => Volatile.Read(ref _ran);
+
     /// <summary>Written, and every word of it synthesised and queued.</summary>
     public bool Complete => _written && _synthesised;
 
@@ -84,7 +90,7 @@ internal sealed class VoiceReply : IAIResponseHandler
         var history = _session.History.ToList();
         _writing  = Task.Run(async () =>
         {
-            try { await _session.Parts.Agent.RunAsync(UserText, history, _session.SessionTools, this, _writingStop.Token); }
+            try { await _session.Parts.Agent.RunAsync(UserText, history, _session.SessionTools, this, ran => Volatile.Write(ref _ran, ran), _writingStop.Token); }
             catch (OperationCanceledException) when (_writingStop.IsCancellationRequested) { }
             finally { _session.PostFromReply(OnWrittenAsync); }
         });

@@ -418,6 +418,7 @@ public sealed class AIService : IAIService
         var artifacts = new List<string>();   // files the tools read/created, for conversation context
         var transcript = RunTranscript.Begin(input);   // off unless NEXAFLOW_AI_TRANSCRIPTS names a folder
         var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)
+        AgentStep? awaiting = null;   // a step said whose calls are not yet answered
 
         try
         {
@@ -488,12 +489,14 @@ public sealed class AIService : IAIService
                     }
 
                     var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : taken.Written;
+                    messages.Add(new(LlmRole.Assistant, final));
                     approval.ShowFinal(final);
                     return AiResponse.AsMessage(final, artifacts);
                 }
 
                 // 4. A batch of tool calls.
                 messages.Add(protocol.Said(taken));
+                awaiting = taken;
 
                 var calls = turn.ToolCalls
                     .Select(c => (Call: c, Tool: FindTool(chooser.All, c.Tool)))
@@ -513,6 +516,9 @@ public sealed class AIService : IAIService
                         const string looped = "I've stopped because I kept repeating the same action without making " +
                                               "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
                         KeepNarration(approval, turn);
+                        messages.AddRange(protocol.Answer(taken, [.. taken.Calls.Select(_ => NotRun("it repeats a call already made"))], null, null));
+                        messages.Add(new(LlmRole.Assistant, looped));
+                        awaiting = null;
                         approval.ShowFinal(looped);
                         return AiResponse.AsMessage(looped, artifacts);
                     }
@@ -536,6 +542,7 @@ public sealed class AIService : IAIService
                     var stopped   = NotRun("the user chose not to. Do not try it again — ask what they would prefer, or finish");
                     messages.AddRange(protocol.Answer(taken, [.. taken.Calls.Select(_ => stopped)],
                                                       meanwhile.Count > 0 ? FormatInterjections(meanwhile) : null, null));
+                    awaiting = null;
                     continue;
                 }
 
@@ -546,6 +553,8 @@ public sealed class AIService : IAIService
                 // watcher): feed the model nothing and show no final answer — just dismiss the UI.
                 if (results.Any(x => x.Result.EndsRun))
                 {
+                    messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))], null, null));
+                    awaiting = null;
                     approval.Abort();
                     return null;
                 }
@@ -592,16 +601,26 @@ public sealed class AIService : IAIService
                 chooser.Asked(interjections);
                 if (interjections.Count > 0) besides.Add(FormatInterjections(interjections));
 
-                messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))],
-                                                  besides.Count > 0 ? string.Join("\n\n", besides) : null, toolAttachments));
+                var outcomes = results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError)).ToList();
+                messages.AddRange(protocol.Answer(taken, outcomes, besides.Count > 0 ? string.Join("\n\n", besides) : null, toolAttachments));
+                awaiting = null;
             }
+
+            const string capped = "I've reached the maximum number of automated steps, so I've stopped here. " +
+                                  "_(stopped: max steps reached)_";
+            messages.Add(new(LlmRole.Assistant, capped));
+            approval.ShowFinal(capped);
+            return AiResponse.AsMessage(capped, artifacts);
         }
         catch (OperationCanceledException) { return null; }
-
-        const string capped = "I've reached the maximum number of automated steps, so I've stopped here. " +
-                              "_(stopped: max steps reached)_";
-        approval.ShowFinal(capped);
-        return AiResponse.AsMessage(capped, artifacts);
+        finally
+        {
+            // A step stopped while its calls ran: what came of them is not known, and the conversation says so rather
+            // than leaving them unanswered.
+            if (awaiting is { } cut)
+                messages.AddRange(protocol.Answer(cut, [.. cut.Calls.Select(_ => new ToolOutcome("Interrupted: the run was stopped before what came of it was known."))], null, null));
+            options.Ran?.Invoke([.. messages.Skip(1 + options.History.Count)]);
+        }
 
         static ToolOutcome NotRun(string why) => new($"Not run: {why}.");
     }

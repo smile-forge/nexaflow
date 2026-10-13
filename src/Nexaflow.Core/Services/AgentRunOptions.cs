@@ -20,4 +20,9 @@ public sealed record AgentRunOptions
 
     /// <summary>Tools the caller offers beside the page's.</summary>
     public IReadOnlyList<IClientTool> Tools { get; init; } = [];
+
+    /// <summary>Told, once the run ends however it ends, every message it added to the conversation: the request, each
+    /// step as said and what came of its calls, and the final reply. A caller that keeps the conversation keeps the run as
+    /// it happened — what was called and what came of it, not only what was said.</summary>
+    public Action<IReadOnlyList<LlmMessage>>? Ran { get; init; }
 }

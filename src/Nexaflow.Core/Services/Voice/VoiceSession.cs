@@ -41,8 +41,10 @@ public enum AnswerIntent
 /// the reply is written to.</summary>
 public interface IVoiceAgent
 {
+    /// <summary>Runs one turn. <paramref name="ran"/> is told, once the run ends however it ends, the messages it added
+    /// to the conversation — what the conversation remembers of the turn.</summary>
     Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                  IAIResponseHandler handler, CancellationToken ct);
+                  IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct);
 
     /// <summary>What words said over an announced action mean for it, when they are not a plain yes or no.</summary>
     Task<AnswerIntent> JudgeAnswerAsync(string announcement, string said, CancellationToken ct);
@@ -377,7 +379,7 @@ public sealed class VoiceSession : IAsyncDisposable
         await reply.StopAsync();
         PendingAnswer?.TrySetCanceled();
         PendingAnswer = null;
-        if (reply.HeardText(heard) is { Length: > 0 } said) Remember(reply.UserTurn, said + " —");
+        if (reply.HeardText(heard) is { Length: > 0 } said) Remember(reply, said);
         else _held = (reply.UserTurn + " " + _held).Trim();   // nothing of the reply was heard: the user is still mid-turn
         SetState(VoiceState.Listening);
     }
@@ -390,7 +392,7 @@ public sealed class VoiceSession : IAsyncDisposable
         await UpdateVoicedAsync();   // all of it has been heard
         FollowVoice(null);
         _reply = null;
-        Remember(reply.UserTurn, reply.Written);
+        Remember(reply);
         await reply.StopAsync();
         if (_endRequested) await EndCoreAsync(reason: null);
         else if (reply.TakeLeftover() is { Count: > 0 } leftover)
@@ -409,10 +411,28 @@ public sealed class VoiceSession : IAsyncDisposable
         return _parts.Playback.PlayedSamples >= _parts.Playback.QueuedSamples ? OnDrainedAsync() : Task.CompletedTask;
     }
 
-    private void Remember(string user, string assistant)
+    /// <summary>
+    /// What the conversation keeps of a turn: the run as it happened — the request, the calls made and what came of each,
+    /// the reply — so a later turn knows what was done, not only what was said. A reply the user cut into is kept as far
+    /// as it was heard (<paramref name="heard"/>). A run that kept nothing is kept as what was asked and said.
+    /// </summary>
+    private void Remember(VoiceReply reply, string? heard = null)
     {
-        _history.Add(new LlmMessage(LlmRole.User, user));
-        if (assistant.Length > 0) _history.Add(new LlmMessage(LlmRole.Assistant, assistant));
+        var said = heard is null ? reply.Written : heard + " —";
+        if (reply.Ran is not { Count: > 0 } ran)
+        {
+            _history.Add(new LlmMessage(LlmRole.User, reply.UserTurn));
+            if (said.Length > 0) _history.Add(new LlmMessage(LlmRole.Assistant, said));
+            return;
+        }
+
+        var kept = ran.ToList();
+        if (heard is not null)
+        {
+            if (kept[^1] is { Role: LlmRole.Assistant, ToolCalls: null or { Count: 0 } } final) kept[^1] = final with { Text = said };
+            else if (kept[^1].Role == LlmRole.User) kept.Add(new LlmMessage(LlmRole.Assistant, said));
+        }
+        _history.AddRange(kept);
     }
 
     internal void SetStateFromReply(VoiceReply reply, VoiceState state)

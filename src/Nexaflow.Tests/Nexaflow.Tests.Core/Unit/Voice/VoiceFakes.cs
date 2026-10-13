@@ -200,12 +200,16 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
 {
     public readonly List<(string Text, IReadOnlyList<LlmMessage> History)> Turns = [];
 
-    public Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                         IAIResponseHandler handler, CancellationToken ct)
+    public async Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
+                               IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct)
     {
         lock (Turns) Turns.Add((userText, history));
-        return script(userText, sessionTools, handler, ct);
+        try { await script(userText, sessionTools, handler, ct); }
+        finally { if (Runs?.Invoke(userText) is { } run) ran(run); }
     }
+
+    /// <summary>The messages a turn's run adds to the conversation, as the agent loop reports them; none when unset.</summary>
+    public Func<string, IReadOnlyList<LlmMessage>>? Runs { get; set; }
 
     public int Count { get { lock (Turns) return Turns.Count; } }
 

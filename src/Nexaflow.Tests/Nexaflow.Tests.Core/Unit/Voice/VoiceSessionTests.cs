@@ -182,6 +182,7 @@ public class VoiceSessionTests
         await Until(() => rig.Speaker.IsPaused, "the reply to pause");
         rig.Ears.Hear(new TranscriptPartial("wait stop"));
         await Until(() => rig.Speaker.Stops == 1, "the reply to stop");
+        await Until(() => rig.Session.History.Count == 2, "the turn to be remembered");
 
         Assert.AreEqual("First comes this sentence. —", rig.Session.History[^1].Text, "what was heard, not what was written");
 
@@ -194,6 +195,53 @@ public class VoiceSessionTests
 
         Assert.AreEqual("Wait, stop, just give me one.", rig.Agent.Turns[1].Text);
         CollectionAssert.AreEqual(new[] { "Tell me three things.", "First comes this sentence. —" }, rig.Agent.Turns[1].History.Select(m => m.Text).ToArray());
+    }
+
+    private static readonly LlmToolCall DeleteOld = new("c1", "delete_file", new JsonObject { ["name"] = "old" });
+
+    private static IReadOnlyList<LlmMessage> RanADeletion(string asked, string reply) =>
+    [
+        new(LlmRole.User, asked),
+        new(LlmRole.Assistant, "") { ToolCalls = [DeleteOld] },
+        new(LlmRole.Tool, "Sent 'old' to the Recycle Bin.") { Answers = DeleteOld },
+        new(LlmRole.Assistant, reply),
+    ];
+
+    [TestMethod]
+    public async Task ATurnThatActed_IsRememberedAsItRan_WhatWasCalledAndWhatCameOfIt()
+    {
+        await using var rig = await new Rig(Answer("I deleted old.")).StartAsync();
+        rig.Agent.Runs = asked => RanADeletion(asked, "I deleted old.");
+
+        rig.Ears.Hear(new TranscriptFinal("Delete old."));
+        await Until(() => rig.Session.State == VoiceState.Speaking, "speech");
+        rig.Speaker.Play();
+        await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
+
+        CollectionAssert.AreEqual(new[] { LlmRole.User, LlmRole.Assistant, LlmRole.Tool, LlmRole.Assistant }, rig.Session.History.Select(m => m.Role).ToArray());
+        Assert.AreEqual("c1", rig.Session.History[1].ToolCalls!.Single().Id);
+        Assert.AreEqual(("c1", "Sent 'old' to the Recycle Bin."), (rig.Session.History[2].Answers?.Id, rig.Session.History[2].Text));
+        Assert.AreEqual("I deleted old.", rig.Session.History[3].Text);
+    }
+
+    [TestMethod]
+    public async Task ATurnThatActed_AndWasCutInto_KeepsWhatItDid_AndItsReplyAsFarAsItWasHeard()
+    {
+        await using var rig = await new Rig(Answer("I deleted old. It is in the Recycle Bin.")).StartAsync();
+        rig.Agent.Runs = asked => RanADeletion(asked, "I deleted old. It is in the Recycle Bin.");
+        rig.Ears.Hear(new TranscriptFinal("Delete old."));
+        await Until(() => rig.Voice.Texts.Length == 2, "the reply to be synthesised");
+
+        rig.Speaker.Play("I deleted old.".Length * FakeSpeaker.SamplesPerChar + 1);
+        rig.Ears.Hear(new SpeechActivity(true));
+        await Until(() => rig.Speaker.IsPaused, "the reply to pause");
+        rig.Ears.Hear(new TranscriptPartial("thanks that's all"));
+        await Until(() => rig.Speaker.Stops == 1, "the reply to stop");
+        for (int i = 0; i < 500 && rig.Session.History.Count < 4; i++) await Task.Delay(10);
+        Assert.AreEqual(4, rig.Session.History.Count, string.Join(" | ", rig.Session.History.Select(m => $"{m.Role}:{m.Text}")));
+
+        Assert.AreEqual(LlmRole.Tool, rig.Session.History[2].Role, "what it did is kept");
+        Assert.AreEqual("I deleted old. —", rig.Session.History[^1].Text, "and what of the reply was heard");
     }
 
     [TestMethod]
@@ -446,7 +494,8 @@ public class VoiceSessionTests
         await Until(() => rig.Agent.Count == 2 || rig.Session.IsHoldingTurn, "the next turn");
 
         Assert.AreEqual(Announcement + " —", rig.Session.History[^1].Text,
-                        "the announcement was cut, not unheard: what followed it lines up after the part let go of");
+                        "the announcement was cut, not unheard: what followed it lines up after the part let go of — "
+                        + string.Join(" | ", rig.Session.History.Select(m => $"{m.Role}:{m.Text}")) + $" played {rig.Speaker.PlayedSamples} of {rig.Speaker.QueuedSamples}");
     }
 
     [TestMethod]
