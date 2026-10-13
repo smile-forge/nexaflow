@@ -165,6 +165,50 @@ public class RequestMappingTests
         Assert.IsFalse(OpenAILlmProvider.ModelSupportsVision(""));
     }
 
+    [TestMethod]
+    public void OpenAI_ACallRidesOnTheReply_AndWhatCameOfIt_IsAToolMessageAnsweringIt()
+    {
+        var messages = OpenAILlmProvider.BuildChatMessages(ToolStep());
+
+        Assert.AreEqual(5, messages.Count);
+        var called = (global::OpenAI.Chat.AssistantChatMessage)messages[2];
+        var call   = called.ToolCalls.Single();
+        Assert.AreEqual(("c1", "delete_file", "{\"name\":\"old\"}"), (call.Id, call.FunctionName, call.FunctionArguments.ToString()));
+        var answered = (global::OpenAI.Chat.ToolChatMessage)messages[3];
+        Assert.AreEqual(("c1", "deleted"), (answered.ToolCallId, answered.Content.Single().Text));
+        Assert.IsInstanceOfType<global::OpenAI.Chat.UserChatMessage>(messages[4], "what the user said besides follows the results");
+    }
+
+    [TestMethod]
+    public void OpenAI_ATool_IsAFunctionWithItsSchema()
+    {
+        var declared = OpenAILlmProvider.Declare(DeleteFile);
+
+        Assert.AreEqual("delete_file", declared.FunctionName);
+        StringAssert.Contains(declared.FunctionParameters.ToString(), "\"required\":[\"name\"]");
+    }
+
+    [TestMethod]
+    public async Task OpenAI_ACallIsRead_FromItsPieces_TheFirstNamingIt()
+    {
+        string[] wire =
+        [
+            """{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"On it."}}]}""",
+            """{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"delete_file","arguments":"{\"name\""}}]}}]}""",
+            """{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":": \"old\"}"}}]}}]}""",
+            """{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}""",
+        ];
+
+        var read = new List<LlmStreamEvent>();
+        await foreach (var e in OpenAILlmProvider.Events(Streamed(wire.Select(w =>
+                           System.ClientModel.Primitives.ModelReaderWriter.Read<global::OpenAI.Chat.StreamingChatCompletionUpdate>(BinaryData.FromString(w))!))))
+            read.Add(e);
+
+        Assert.AreEqual("On it.", ((LlmTextDelta)read[0]).Text);
+        var call = ((LlmToolCallRequested)read[1]).Call;
+        Assert.AreEqual(("call_1", "delete_file", "old"), (call.Id, call.Name, (string?)call.Arguments["name"]));
+    }
+
     // ── Gemini ────────────────────────────────────────────────────────────
 
     [TestMethod]

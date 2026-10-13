@@ -2,6 +2,7 @@ using Nexaflow.Providers.Common;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
+using System.Text;
 
 #pragma warning disable OPENAI001 // chat audio input is marked for evaluation in the SDK, as the realtime API is
 
@@ -58,24 +59,63 @@ public sealed class OpenAILlmProvider : ILlmProvider
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+        => Stream(messages, [], ct);
+
+    /// <summary>OpenAI's chat models call the tools they are offered as function calls, streamed in pieces.</summary>
+    public bool SupportsToolCalls => true;
+
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        CancellationToken         ct = default)
+        => Stream(messages, tools, ct);
+
+    private IAsyncEnumerable<LlmStreamEvent> Stream(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, CancellationToken ct)
     {
         var chatMessages = BuildChatMessages(messages, SupportsAudio);
         return LlmStreamRunner.RunAsync(_activityManager, $"OpenAI ({_model})…", ProviderName,
-            ct => Events(chatMessages, ct), ct);
+            ct => Events(ChatClient.CompleteChatStreamingAsync(chatMessages, Options(tools), ct)), ct);
     }
 
-    private async IAsyncEnumerable<LlmStreamEvent> Events(
-        List<ChatMessage> messages,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    /// <summary>A fresh request's options — the SDK's options are not reused across calls.</summary>
+    private static ChatCompletionOptions Options(IReadOnlyList<LlmTool> tools)
     {
-        await foreach (var update in ChatClient.CompleteChatStreamingAsync(messages, cancellationToken: ct))
+        var options = new ChatCompletionOptions();
+        foreach (var tool in tools) options.Tools.Add(Declare(tool));
+        return options;
+    }
+
+    /// <summary>A tool as OpenAI declares it: a function, its parameters' JSON Schema as given.</summary>
+    internal static ChatTool Declare(LlmTool tool)
+        => ChatTool.CreateFunctionTool(tool.Name, tool.Description, BinaryData.FromString(tool.Parameters.ToJsonString()));
+
+    /// <summary>The reply as it streams: its text, then each call — a call comes in pieces keyed by its index, the first
+    /// naming it, so the calls are read once the stream ends.</summary>
+    internal static async IAsyncEnumerable<LlmStreamEvent> Events(IAsyncEnumerable<StreamingChatCompletionUpdate> updates)
+    {
+        var calls = new SortedDictionary<int, (string? Id, string? Name, StringBuilder Arguments)>();
+        await foreach (var update in updates)
+        {
             foreach (var part in update.ContentUpdate)
                 if (!string.IsNullOrEmpty(part.Text))
                     yield return new LlmTextDelta(part.Text);
+
+            foreach (var piece in update.ToolCallUpdates)
+            {
+                var (id, name, arguments) = calls.TryGetValue(piece.Index, out var call) ? call : (null, null, new StringBuilder());
+                if (piece.FunctionArgumentsUpdate is { } written) arguments.Append(written.ToString());
+                calls[piece.Index] = (id ?? piece.ToolCallId, name ?? piece.FunctionName, arguments);
+            }
+        }
+
+        foreach (var (index, (id, name, arguments)) in calls)
+            yield return new LlmToolCallRequested(LlmToolCall.Read(id ?? $"call_{index}", name ?? "", arguments.ToString()));
     }
 
     /// <summary>Maps the neutral message list to OpenAI chat messages (system/assistant/user roles;
-    /// image attachments as vision parts). Internal + static so the mapping is unit-testable.</summary>
+    /// image attachments as vision parts; a reply's tool calls on its assistant message, and what came of each as a tool
+    /// message answering it). Internal + static so the mapping is unit-testable.</summary>
     /// <param name="hearsAudio">The model takes audio input: recordings go as audio rather than as named files.</param>
     internal static List<ChatMessage> BuildChatMessages(IReadOnlyList<LlmMessage> messages, bool hearsAudio = false)
     {
@@ -85,11 +125,23 @@ public sealed class OpenAILlmProvider : ILlmProvider
             chatMessages.Add(msg.Role switch
             {
                 LlmRole.System    => new SystemChatMessage(msg.Text),
-                LlmRole.Assistant => new AssistantChatMessage(msg.Text),
+                LlmRole.Assistant => BuildAssistantMessage(msg),
+                LlmRole.Tool      => new ToolChatMessage(msg.Answers?.Id ?? "", msg.Text),
                 _                 => BuildUserMessage(msg.Text, msg.Attachments, hearsAudio)
             });
         }
         return chatMessages;
+    }
+
+    /// <summary>A reply: its text, and the tools it called.</summary>
+    private static AssistantChatMessage BuildAssistantMessage(LlmMessage msg)
+    {
+        if (msg.ToolCalls is not { Count: > 0 } calls) return new AssistantChatMessage(msg.Text);
+
+        var message = new AssistantChatMessage(calls.Select(c =>
+            ChatToolCall.CreateFunctionToolCall(c.Id, c.Name, BinaryData.FromString(c.Arguments.ToJsonString()))));
+        if (!string.IsNullOrWhiteSpace(msg.Text)) message.Content.Add(ChatMessageContentPart.CreateTextPart(msg.Text));
+        return message;
     }
 
     /// <summary>Name-based vision heuristic — specialised/legacy families are text-only, current

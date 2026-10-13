@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
@@ -175,5 +176,18 @@ public class NativeToolLoopTests
         var response = await Service(model).RunAgentAsync(new Page(), "What should I run?", true, new User());
 
         Assert.AreEqual((AiResponseKind.Prefill, "git status"), (response?.Kind, response?.Text));
+    }
+
+    [TestMethod]
+    public void AnArrayParameter_SaysWhatItHolds_AsSomeProvidersRequire()
+    {
+        var tool = new DelegateClientTool("edit", "Edit.",
+            [new("edits", "The edits.", Type: "array", ItemType: "object"), new("tags", "Any tags.", Required: false, Type: "array")],
+            ToolSafety.RequiresApproval, (_, _) => Task.FromResult(ToolResult.Ok("", "")));
+
+        var properties = NativeToolProtocol.Declare(tool).Parameters["properties"]!;
+
+        Assert.AreEqual("object", (string?)properties["edits"]!["items"]!["type"]);
+        Assert.AreEqual(0, properties["tags"]!["items"]!.AsObject().Count, "items of any kind");
     }
 }

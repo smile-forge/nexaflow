@@ -20,13 +20,23 @@ internal sealed class NativeToolProtocol : ToolProtocol
     private static readonly LlmTool Plan = new(PlanTool,
         "For work of several steps: lay out a plan before carrying it out. Then carry out its tool steps in order, " +
         "stopping to reassess at a step marked decision.",
-        Schema(("title", "string", "What the plan achieves.", true),
-               ("mermaid", "string", "The plan as a Mermaid flowchart, e.g. flowchart TD; A[…]-->B[…].", false),
-               ("steps", "array", "The steps: each {\"title\": …, \"tool\": the tool it calls} or {\"title\": …, \"decision\": true}.", true)));
+        Schema(("title", Property("string", "What the plan achieves."), true),
+               ("mermaid", Property("string", "The plan as a Mermaid flowchart, e.g. flowchart TD; A[…]-->B[…]."), false),
+               ("steps", Property("array", "The steps, in order.", new JsonObject
+               {
+                   ["type"]       = "object",
+                   ["properties"] = new JsonObject
+                   {
+                       ["title"]    = Property("string", "What the step does."),
+                       ["tool"]     = Property("string", "The tool it calls."),
+                       ["decision"] = Property("boolean", "A point to stop and reassess, in place of a tool."),
+                   },
+                   ["required"]   = new JsonArray("title"),
+               }), true)));
 
     private static readonly LlmTool Suggest = new(SuggestTool,
         "Fill in the user's input box with something for them to run, instead of doing it.",
-        Schema(("text", "string", "What to put in the box.", true)));
+        Schema(("text", Property("string", "What to put in the box."), true)));
 
     public override string? Instructions(IReadOnlyList<IClientTool> tools) => null;
 
@@ -68,13 +78,24 @@ internal sealed class NativeToolProtocol : ToolProtocol
     /// <summary>A tool as the model's protocol declares it: its parameters as a JSON Schema object.</summary>
     internal static LlmTool Declare(IClientTool tool)
         => new(tool.Name, tool.Description,
-               Schema([.. tool.Parameters.Select(p => (p.Name, p.Type, p.Description, p.Required))]));
+               Schema([.. tool.Parameters.Select(p => (p.Name,
+                                                       Property(p.Type, p.Description, p.ItemType is { } item ? new JsonObject { ["type"] = item } : null),
+                                                       p.Required))]));
 
-    private static JsonObject Schema(params (string Name, string Type, string Description, bool Required)[] parameters)
+    /// <summary>One parameter's schema. An array always says what it holds — some providers refuse one that does not —
+    /// and holds anything when <paramref name="items"/> is not given.</summary>
+    private static JsonObject Property(string type, string description, JsonObject? items = null)
+    {
+        var property = new JsonObject { ["type"] = type, ["description"] = description };
+        if (type == "array") property["items"] = items ?? new JsonObject();
+        return property;
+    }
+
+    private static JsonObject Schema(params (string Name, JsonObject Property, bool Required)[] parameters)
     {
         var properties = new JsonObject();
-        foreach (var (name, type, description, _) in parameters)
-            properties[name] = new JsonObject { ["type"] = type, ["description"] = description };
+        foreach (var (name, property, _) in parameters)
+            properties[name] = property;
         return new JsonObject
         {
             ["type"]       = "object",
