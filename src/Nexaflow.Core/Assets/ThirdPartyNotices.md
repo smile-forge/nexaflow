@@ -29,7 +29,6 @@ under the license noted below.
 | [LTRData.Extensions](https://github.com/LTRData/Library) (via DiscUtils) | MIT |
 | [LzfseSharp](https://github.com/Erik-White/LzfseSharp) (via DiscUtils) | BSD-3-Clause |
 | [lzo.net](https://github.com/zivillian/lzo.net) (via DiscUtils) | MIT |
-| [Markdig](https://github.com/xoofx/markdig) | BSD-2-Clause |
 | [Microsoft.CodeAnalysis.CSharp](https://github.com/dotnet/roslyn) (optional `nfi` command-line tool) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |

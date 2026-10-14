@@ -39,25 +39,40 @@ internal static class MarkdownClosingLines
         return cut is null ? node : node.With(cut);
     }
 
-    /// <summary>A body held as one run of characters, with the line break closing it made a piece of its own.</summary>
+    /// <summary>
+    /// A body with the line break closing what it holds made a piece of its own: the body's, where it is one run of characters, and
+    /// its last line's, where it is held line by line with a container's marks between them.
+    /// </summary>
     private static ContentNode Cut(ContentNode body)
     {
-        if (body.Role != Roles.Body || !body.IsLeaf) return body;
+        if (body.Role != Roles.Body) return body;
+        if (body.IsLeaf) return Ending(body, Roles.Body) is { } whole ? ContentNode.Branch(body.Kind, whole, Roles.Body, body.Offset) : body;
 
-        var text = body.Text;
+        var last = -1;
+        for (var at = 0; at < body.Children.Count; at++)
+            if (body.Children[at].Role != Roles.Trivia) last = at;
+
+        if (last < 0 || !body.Children[last].IsLeaf || Ending(body.Children[last], body.Children[last].Role) is not { } cut) return body;
+
+        return body.With([.. body.Children.Take(last), .. cut, .. body.Children.Skip(last + 1)]);
+    }
+
+    /// <summary>
+    /// A run of characters as what comes before the line break closing it and the line break, each a piece — or null where it ends
+    /// with none. Both halves were read from where the run was read from, so each says so, and neither says anything where the run
+    /// said nothing.
+    /// </summary>
+    private static ContentNode[]? Ending(ContentNode run, string role)
+    {
+        var text = run.Text;
         var ending = text.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : text.EndsWith('\n') ? 1 : 0;
-        if (ending == 0) return body;
+        if (ending == 0) return null;
 
-        // Both halves were read from where the body was read from, so each says so — and neither says anything
-        // where the body said nothing.
-        var at = body.Offset;
+        var at = run.Offset;
         var closing = ContentNode.Leaf(Kinds.Space, text[^ending..], Roles.Trivia, offset: at + (text.Length - ending));
 
-        return ContentNode.Branch(body.Kind,
-                                  text.Length > ending
-                                      ? [ContentNode.Leaf(body.Kind, text[..^ending], offset: at), closing]
-                                      : [closing],
-                                  Roles.Body,
-                                  at);
+        return text.Length > ending
+            ? [ContentNode.Leaf(run.Kind, text[..^ending], role == Roles.Body ? Roles.Element : role, offset: at), closing]
+            : [closing];
     }
 }

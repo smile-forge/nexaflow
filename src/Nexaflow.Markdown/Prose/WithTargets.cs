@@ -216,7 +216,7 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
                                          Roles.Trivia, stands + start)
                                  .Holding(definition.Kind, definition.Role, definition.Meaning));
 
-            found.Add(new LinkTarget(definition.Kind, definition.Name, definition.Meaning, stands + start));
+            found.Add(new LinkTarget(definition.Kind, definition.Name, definition.Meaning, stands + start, definition.Title));
 
             line = taken = definition.End;
         }
@@ -232,7 +232,7 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
     /// <param name="Kind">A link's definition, or an abbreviation's.</param>
     /// <param name="Role">What its meaning is hung on it as.</param>
     /// <param name="End">Where it ends: past the line it ends on.</param>
-    private readonly record struct Said(string Kind, string Role, string Name, string Meaning, int End);
+    private readonly record struct Said(string Kind, string Role, string Name, string Meaning, int End, string? Title = null);
 
     /// <summary>The definition written from <paramref name="at"/> on, or null where none is.</summary>
     private static Said? Definition(string text, int at)
@@ -262,7 +262,10 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
         var label = Label(MarkdownLinkSyntax.Between(text, lines, link.Label.From, link.Label.To));
         var meaning = MarkdownLinkSyntax.Unescaped(text[link.Destination.From..link.Destination.To]);
 
-        return new Said(MarkdownKinds.Reference, Roles.Destination, label, meaning, Ended(text, lines[link.Last].To));
+        // Its title is over the lines it is written on too, and means what it says with its escapes and entities read.
+        var title = link.Title is { } titled ? MarkdownLinkSyntax.Unescaped(MarkdownLinkSyntax.Between(text, lines, titled.From, titled.To)) : null;
+
+        return new Said(MarkdownKinds.Reference, Roles.Destination, label, meaning, Ended(text, lines[link.Last].To), title);
     }
 
     /// <summary>

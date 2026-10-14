@@ -235,6 +235,7 @@ internal sealed class MarkdownScanner
 
         this.Tip.Add(block);
         block.LastLine = this.LineIndex;
+        block.LastWritten = this.LineIndex;
         this.Tip = block;
 
         return block;
@@ -314,6 +315,7 @@ internal sealed class MarkdownScanner
         var parent = was.Parent!;
         parent.Put(parent.IndexOf(was), now);
         now.LastLine = was.LastLine;
+        now.LastWritten = was.LastWritten;
         now.Reach(was.End);
 
         if (this.Tip == was) this.Tip = now;
@@ -335,7 +337,11 @@ internal sealed class MarkdownScanner
         if (leaf.Rule.KeepsLines) leaf.Lines.Add((from, this.Line.End));
 
         var end = this.Trimmed(from);
-        if (end > from) leaf.Reach(end);
+        if (end > from)
+        {
+            leaf.Reach(end);
+            leaf.LastWritten = this.LineIndex;
+        }
 
         // Only once the line is the block's can its rule say the line closed it.
         leaf.Rule.Added(this, leaf);
@@ -372,6 +378,7 @@ internal sealed class MarkdownScanner
             }
 
             last.LastLine = index;
+            if (!this.Blank && last.Rule.Marks) last.LastWritten = index;
         }
 
         _allClosed = container == _oldTip;
@@ -486,6 +493,12 @@ internal abstract class MarkdownBlockRule
     /// and definitions. Most need only how far they reach, and keep nothing.
     /// </summary>
     public virtual bool KeepsLines => false;
+
+    /// <summary>
+    /// Whether a line going on into it is written in it. Not for a list, which has no marks of its own and goes on into every
+    /// line: what is written in it is its items'.
+    /// </summary>
+    public virtual bool Marks => true;
 
     /// <summary>Whether it can hold a block of <paramref name="kind"/>.</summary>
     public virtual bool Holds(ScannedKind kind) => false;

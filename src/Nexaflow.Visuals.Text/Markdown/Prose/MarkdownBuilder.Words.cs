@@ -202,7 +202,7 @@ public sealed partial class MarkdownBuilder
             // The line ending that closes the last line has no line after it to reflow into, so it is not drawn — and so
             // is not a place past the end of the words for the caret to stand.
             case MarkdownKinds.Break:
-                if (Closing(part)) return;
+                if (MarkdownLineEnds.Closes(part)) return;
                 runs.Add(new Run(part.Role == MarkdownRoles.Hard ? string.Empty : " ", part, face, Maps: false));
                 return;
 
@@ -230,33 +230,19 @@ public sealed partial class MarkdownBuilder
         {
             // Machinery is not drawn. Where it ran over a line ending, though, it stood between two words, and two
             // words with nothing between them are one word — unless it closes them, and there is no word after it.
-            if (part.Text.Contains('\n') && !Closing(part)) runs.Add(new Run(" ", part, face, Maps: false));
+            if (part.Text.Contains('\n') && !MarkdownLineEnds.Closes(part)) runs.Add(new Run(" ", part, face, Maps: false));
 
             return;
         }
 
         // A line ending that closes the words is not reflowed into a space either: nothing follows it.
-        if (part.Kind == Kinds.Space && part.Text.Contains('\n') && Closing(part)) return;
+        if (part.Kind == Kinds.Space && part.Text.Contains('\n') && MarkdownLineEnds.Closes(part)) return;
 
         if (part.Text.Length == 0) return;
 
         runs.Add(face.Capitals
             ? new Run(Capitalised(Flowed(part.Text)), part, face, Maps: false)
             : new Run(Flowed(part.Text), part, face, Maps: true));
-    }
-
-    /// <summary>Whether a line ending is the last thing its words hold, closing them rather than breaking them.</summary>
-    private static bool Closing(ContentPart part)
-    {
-        for (var at = part; at.Parent is { } holder; at = holder)
-        {
-            if (holder.Children.LastOrDefault(child => !child.Derived && child.Length > 0) != at) return false;
-            if (holder.Kind is not (Kinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
-                                    or MarkdownKinds.Mark or MarkdownKinds.Insert or Kinds.Link))
-                return true;
-        }
-
-        return true;
     }
 
     private void Inside(ContentPart part, Face face, List<Run> runs)

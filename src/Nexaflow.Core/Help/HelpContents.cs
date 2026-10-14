@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
-using Markdig.Syntax;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
@@ -43,13 +44,20 @@ internal static partial class HelpContents
         return text.Replace(ListSlot, string.Join('\n', list)).Replace(BackSlot, back);
     }
 
-    // The page's top-level "##" headings — not one quoted, listed or fenced — with the ids the pipeline gives them.
+    // The page's top-level "##" headings — not one quoted, listed or fenced — with the ids the page's reading gives them.
     private static List<(int Line, string Id)> Sections(string markdown)
-        => Markdig.Markdown.Parse(markdown, MarkdigReading.Pipeline)
-            .OfType<HeadingBlock>()
-            .Where(h => h.Level == 2)
-            .Select(h => (h.Line, MarkdownAnchors.IdOf(h) ?? ""))
-            .ToList();
+    {
+        var sections = new List<(int Line, string Id)>();
+
+        foreach (var block in ContentPart.Of(MarkdownParser.Worked(markdown)).Children)
+        {
+            if (block.Kind != MarkdownKinds.Heading || block.Node.Said(MarkdownRoles.Rank) != "2") continue;
+
+            sections.Add((markdown.AsSpan(0, block.Start).Count('\n'), MarkdownAnchors.IdOf(block.Node) ?? ""));
+        }
+
+        return sections;
+    }
 
     // Where the section that ends before line `next` really ends: back past the blank lines and any rule leading in.
     private static int EndBefore(List<string> lines, int next)

@@ -181,6 +181,13 @@ public static class MarkdownKinds
     /// <summary>How many columns or rows a cell was written to cover.</summary>
     public const string Spans = "spans";
 
+    /// <summary>
+    /// A list whose items are set apart by blank lines, or one of which holds two blocks a blank line apart — loose, in
+    /// CommonMark's word, so each item's paragraphs are paragraphs rather than run into the item. Derived, because it is said
+    /// by the lines between the items rather than by any of them, and hung on a list only where it is so.
+    /// </summary>
+    public const string Loose = "loose";
+
 
     /// <summary>
     /// The name a heading answers to when a link points at it. Derived: nobody writes it, the reader works

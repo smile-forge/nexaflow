@@ -1,8 +1,8 @@
 # Markdown Support
 
-What the Nexaflow markdown renderer (`Nexaflow.Visuals.Text`) currently supports,
-checked against the Markdig [CommonMark](https://xoofx.github.io/markdig/docs/commonmark/)
-and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
+What the Nexaflow markdown renderer (`Nexaflow.Visuals.Text`) currently supports, checked against
+[CommonMark's specification](https://spec.commonmark.org/0.31.2/) and the specifications of the extensions it reads —
+copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's as Markdig defines it.
 
 ## How it's wired
 
@@ -12,17 +12,19 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   ([`MarkdownTokenizer`](../src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs),
   [`MarkdownDelimiters`](../src/Nexaflow.Markdown/Prose/MarkdownDelimiters.cs)) — CommonMark's inline algorithm, with the
   extensions below. Every piece of the tree is cut from the source, so a document always prints back as exactly what was
-  written ([markdown-ast.md](markdown-ast.md)). Both are held to Markdig **1.3.2** over the specifications, the samples and
-  these pages by the differential harness in `Tests.Markdown`.
-- **Writing out:** copying as HTML and plain text, and the help's contents and search text, go through Markdig's renderers
-  with [`MarkdigReading.Pipeline`](../src/Nexaflow.Visuals.Text/Markdown/MarkdigReading.cs), which enables the same
-  extensions.
+  written ([markdown-ast.md](markdown-ast.md)). Both are held to the specifications through the HTML a document is
+  written out as (`MarkdownHtmlSpecTests`), and over the specifications' examples, the samples and these pages — whole,
+  and every block stopped part-way — by `MarkdownCorpusTests`.
+- **Writing out:** copying as HTML and plain text writes the document as it is shown: laid out, walked into a
+  format-neutral document by [`LayoutExport`](../src/Nexaflow.Visuals.Text/Markdown/Export/LayoutExport.cs), and spelled by
+  the writers in `Nexaflow.IO.Documents` — the HTML one held to the HTML every example of the specifications gives
+  (`MarkdownHtmlSpecTests`). The help's search text and its list of sections read the reading's words and the names its
+  headings answer to.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
   abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
   is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
-  language's parser read each one, then runs the stages (`WithImages`, `WithLinks`). Markdig's own HTML renderer is
-  **not** used.
+  language's parser read each one, then runs the stages (`WithImages`, `WithLinks`).
 - **Drawing:** one builder, [`MarkdownBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs), turns
   the tree into the shared layout tree; another language's content is laid by that language's builder when the
   markdown builder asks for it, and grafted in where its fence was, so its pieces are selectable in the document that
@@ -30,8 +32,8 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 - **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
   markdown host uses — read-only or written in, a whole document or content in one language (`WrittenIn`). It
   draws the whole document on one element; there is no text box underneath.
-- **Consequence:** a feature can be *parsed* by an enabled extension yet not *drawn* if the builder has no case for
-  it. The tables below track **drawn** support, which is what actually matters.
+- **Consequence:** a feature can be *read* by a rule yet not *drawn* if the builder has no case for it. The tables below
+  track **drawn** support, which is what actually matters.
 
 ### Legend
 
@@ -78,32 +80,32 @@ stands for — in `MarkdownBuilderTests` and `MarkdownParityTests`.
 
 ---
 
-## Markdig extensions — enabled
+## Extensions — read
 
-These are turned on in the pipeline **and** drawn by the builder. Every row is asserted in `MarkdownBuilderTests` or
-`MarkdownParityTests` unless noted otherwise.
+Each is a rule of the reading — a block rule in `MarkdownBlockRules`, or what the words' reading makes of a run of
+characters (`MarkdownTokenizer`, `MarkdownDelimiters`) — **and** drawn by the builder. Every row is asserted in
+`MarkdownBuilderTests` or `MarkdownParityTests` unless noted otherwise.
 
-| Extension | Pipeline call | Status | Tests | Notes |
+| Extension | Read by | Status | Tests | Notes |
 |---|---|---|---|---|
-| Pipe tables | `UsePipeTables()` | ✅ | ✅ | A piece per cell (minimal, no outer pipes, alignment, words set in cells, CRLF, empty and escaped cells, ragged rows, inside a quote, straight under a line of words). |
-| Grid tables | `UseGridTables()` | ✅ | ✅ | Columns, cells spanning columns, cells written over several lines, cells written down through the rule under them to cover the next row too, and cells holding blocks — a list in a cell is drawn as one. Each cell is read as its own slice of every line it covers; a grid whose cells do not add up is the paragraph its lines are. |
-| Task lists | `UseTaskLists()` | ✅ | ✅ | A tick that says what pressing it means. A press writes the mark between the brackets as an edit like any other — through the document's edit handling, onto the undo history. |
-| Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `~~strike~~`, `~sub~` and `^super^` (set smaller), `==mark==` (a wash behind, `Marked` token), `++ins++` (underlined) — each its own piece, the marks not drawn. |
-| Auto links | `UseAutoLinks()` | ✅ | ✅ | A bare `https://…` address is a link to itself. |
-| Definition lists | `UseDefinitionLists()` | ✅ | ✅ | The term set apart from what it means. |
-| List extras | `UseListExtras()` | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
-| Abbreviations | `UseAbbreviations()` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — hung on the tree as a tip (`Roles.Tip`) and looked up only when the pointer arrives. The definition line is not drawn. |
-| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
-| YAML front matter | `UseYamlFrontMatter()` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
-| Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
-| Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`, ruled off from the document above. |
-| Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
-| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A formula keeps its typesetting while it is being written, whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; only being read, or with nothing it could set, it is shown as written, delimiters and all, with what is wrong marked and why beneath. **Inline and display are the same**; a sentence reads on round an inline formula shown as written. |
-| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
+| Pipe tables | `PipeSeparatorRule`, `PipeTables` | ✅ | ✅ | A piece per cell (minimal, no outer pipes, alignment, words set in cells, CRLF, empty and escaped cells, ragged rows, inside a quote, straight under a line of words). |
+| Grid tables | `GridTableRule` | ✅ | ✅ | Columns, cells spanning columns, cells written over several lines, cells written down through the rule under them to cover the next row too, and cells holding blocks — a list in a cell is drawn as one. Each cell is read as its own slice of every line it covers; a grid whose cells do not add up is the paragraph its lines are. |
+| Task lists | `ItemRule` (the box) | ✅ | ✅ | A tick that says what pressing it means. A press writes the mark between the brackets as an edit like any other — through the document's edit handling, onto the undo history. |
+| Emphasis extras | `MarkdownTokenizer` (runs of `~` `^` `=` `+`) | ✅ | ✅ | `~~strike~~`, `~sub~` and `^super^` (set smaller), `==mark==` (a wash behind, `Marked` token), `++ins++` (underlined) — each its own piece, the marks not drawn. |
+| Auto links | `MarkdownTokenizer` (bare addresses) | ✅ | ✅ | A bare `https://…` address is a link to itself. |
+| Definition lists | `DefinitionRule` | ✅ | ✅ | The term set apart from what it means. |
+| List extras | `ItemRule` (lettered) | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
+| Abbreviations | `AbbreviationRule`, `WithReferences` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — hung on the tree as a tip (`Roles.Tip`) and looked up only when the pointer arrives. The definition line is not drawn. |
+| Alert blocks | `AlertRule` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
+| YAML front matter | `FrontMatterRule` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
+| Figures | `FigureRule` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
+| Footers | `QuoteRule` (`^^`) | ✅ | ✅ | `^^ footer`, ruled off from the document above. |
+| Citations | `MarkdownTokenizer` (runs of `"`) | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
+| Mathematics | `FenceRule` (`$$`), `MarkdownTokenizer` (`$…$`) | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A formula keeps its typesetting while it is being written, whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; only being read, or with nothing it could set, it is shown as written, delimiters and all, with what is wrong marked and why beneath. **Inline and display are the same**; a sentence reads on round an inline formula shown as written. |
+| Diagrams | — (a fenced language) | ✅ (custom) | ✅ | `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
 | Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music, filling a share of the page and centred in it (see below). |
 
-> **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
-> citation delimiter is a doubled double-quote (`""…""`), not `^^`.
+> **Citation delimiter.** A citation is written between doubled double-quotes (`""…""`), not `^^`.
 
 > **Everything is one page.** Every block — prose, tables, formulas, diagrams, scores — is pieces of the one laid tree,
 > so a drag runs from a heading through a diagram's labels to a note of a score, and each piece still stands for the
@@ -1920,26 +1922,20 @@ single staff, dynamics and MIDI playback remain on the roadmap (tracked as `shou
 
 ---
 
-## Markdig extensions — NOT enabled
+## Extensions — not read
 
-Available in Markdig but not in the pipeline. None are supported, so none are tested.
+Extensions other markdown readers offer that this one has no rule for. None are supported, so none are tested. Heading
+anchors are not among them: every heading is named GitHub's way as the document is worked over (`WithTargets`).
 
-| Extension | Pipeline call | What you lose |
-|---|---|---|
-| Generic attributes | `UseGenericAttributes()` | `{#id .class key=val}` on headings/blocks/inlines. |
-| Auto identifiers | `UseAutoIdentifiers()` | Auto heading anchors / `#slug` links. |
-| Emoji & smiley | `UseEmojiAndSmiley()` | `:smile:` / `:)` → emoji. |
-| SmartyPants | `UseSmartyPants()` | Smart quotes, en/em dashes, ellipsis. |
-| Custom containers | `UseCustomContainers()` | `::: warning … :::` fenced/inline containers. |
-| Media links | `UseMediaLinks()` | YouTube/Vimeo/audio/video embeds. |
-| Bootstrap | `UseBootstrap()` | Bootstrap CSS classes on output (HTML-only; N/A for WPF). |
-| JIRA links | `UseJiraLinks()` | `ABC-123` → issue links. |
-| Globalization | `UseGlobalization()` | RTL / bidi handling. |
-| Soft-as-hard breaks | `UseSoftlineBreakAsHardlineBreak()` | Treat every newline as `<br>`. |
-| Non-ASCII no-escape | `UseNonAsciiNoEscape()` | (HTML-output concern; N/A for WPF.) |
-| Pragma lines | `UsePragmaLines()` | Source-line tracking spans (HTML-output concern). |
-| Self-pipeline | `UseSelfPipeline()` | In-document pipeline directives. |
-| `UseAdvancedExtensions()` | — | The bundle of most of the above; deliberately **not** called. |
+| Extension | What you lose |
+|---|---|
+| Generic attributes | `{#id .class key=val}` on headings/blocks/inlines. |
+| Emoji & smiley | `:smile:` / `:)` → emoji. |
+| SmartyPants | Smart quotes, en/em dashes, ellipsis. |
+| Custom containers | `::: warning … :::` fenced/inline containers. |
+| Media links | YouTube/Vimeo/audio/video embeds. |
+| JIRA links | `ABC-123` → issue links. |
+| Soft-as-hard breaks | Treat every newline as a break. |
 
 ---
 
@@ -2057,7 +2053,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 
 | File | Covers |
 |---|---|
-| [`Visuals/Markdown/MarkdownPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownPipelineTests.cs) | Pipeline parses pipe tables, math blocks, diagram and music fences; heading ids; singleton reuse. |
+| [`Markdown/Export/MarkdownHtmlSpecTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Export/MarkdownHtmlSpecTests.cs) | Every example of CommonMark's specification laid out, walked and written as HTML, compared with the HTML the specification gives; what differs is in a ledger beside it, each under why. (UI category.) |
 | [`Markdown/Prose/MarkdownBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs) | A document on the layout tree: every document draws and keeps drawing while typed, everything drawn stands for characters that are there, headings, lists, ticks, tables, fences, formulas (display and inline, readable or not), alerts, definition lists, figures, footers, front matter, raw HTML, escapes, citations. (UI category.) |
 | [`Markdown/Prose/MarkdownParityTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownParityTests.cs) | The corners of CommonMark and its extensions: setext headings, rules, quotes, loose lists, indented code, code spans, reference links wherever their definition is, autolinks bare and bracketed, remote pictures never fetched, emphasis extras, abbreviations, the Important alert, and every pipe- and grid-table edge case. (UI category.) |
 | [`Markdown/Prose/MarkdownLinkTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs) · [`MarkdownAnchorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownAnchorTests.cs) | Where a link goes, in-page anchors resolved by the document and never the host, relative links inert, and the host's say in how a link looks. (UI category.) |
@@ -2117,14 +2113,15 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 | **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature. Both surfaces ask one chain (`MarkdownPictures.Found`), so it is one place to change |
 | **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF page should honour is the real question |
 
-| **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
+| **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | No rule reads them yet; see the extensions not read |
 
 
 - **Every Mermaid family now renders** — nothing falls back to raw source.
 - **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the
   reading never blocks a lay. **A task box is a real box**: clicking it rewrites `[ ]` / `[x]` in the source.
 
-If any of the disabled extensions are wanted, the change is a rule in the reading — a block rule in
+If any of the extensions not read are wanted, the change is a rule in the reading — a block rule in
 `MarkdownBlockRules`, or a token in `MarkdownTokenizer` matched in `MarkdownDelimiters` — with the extension's
-specification among the harness's and its `.UseX()` in the harness's oracle and in `MarkdigReading`, **plus** a case in
-`MarkdownBuilder` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).
+specification among `MarkdownSpecs`, so the corpus reads its examples and the HTML writer is held to their HTML, **plus**
+a case in `MarkdownBuilder`, in `LayoutExport` and in the writers (and, ideally, a sample + test in
+`MarkdownSampleRenderTests`).

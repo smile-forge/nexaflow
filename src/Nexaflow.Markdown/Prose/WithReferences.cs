@@ -103,8 +103,8 @@ public sealed class WithReferences(LinkTargets targets) : IAstStage
         return words.With(parts);
     }
 
-    /// <summary>Where a link by <paramref name="name"/> — folded as labels are compared — goes, or null where nothing defines it.</summary>
-    private string? Defined(string name) => targets.Named(MarkdownKinds.Reference, name)?.Meaning;
+    /// <summary>The definition a link by <paramref name="name"/> — folded as labels are compared — goes where it says, or null where nothing defines it.</summary>
+    private LinkTarget? Defined(string name) => targets.Named(MarkdownKinds.Reference, name);
 
     // ── Abbreviations ────────────────────────────────────────────────────────
 

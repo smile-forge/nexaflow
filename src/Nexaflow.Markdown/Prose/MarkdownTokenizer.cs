@@ -230,15 +230,28 @@ internal sealed class MarkdownTokenizer
         return new MarkdownToken(MarkdownTokenKind.Text, at, next, Plain: plain);
     }
 
-    /// <summary>Which characters can start something other than words.</summary>
-    private static readonly bool[] Stops = Stopping("\\`&<[]!$*_~^+=\"");
+    /// <summary>Which characters can start something other than words (<see cref="Starts"/>).</summary>
+    private static readonly bool[] Stops = Stopping();
 
-    private static bool[] Stopping(string characters)
+    private static bool[] Stopping()
     {
         var stops = new bool[128];
-        foreach (var character in characters) stops[character] = true;
+        for (var character = '\0'; character < 128; character++) stops[character] = Starts(character) != MarkdownStarts.Nothing;
         return stops;
     }
+
+    /// <summary>
+    /// What a character can start in a run of words — the one table the words are read by and a change written into them is
+    /// spelled by (<see cref="MarkdownParser.Rewrite"/>), so what is escaped is what would be read as markup.
+    /// </summary>
+    public static MarkdownStarts Starts(char character) => character switch
+    {
+        '\\' or '`' or '&' or '<' or '[' or ']' => MarkdownStarts.Alone,
+        '!' => MarkdownStarts.Bracketed,
+        '$' => MarkdownStarts.Paired,
+        '*' or '_' or '~' or '^' or '+' or '=' or '"' => Emphasised(character).Least == 1 ? MarkdownStarts.Alone : MarkdownStarts.Doubled,
+        _ => MarkdownStarts.Nothing,
+    };
 
     /// <summary>Whether space from <paramref name="at"/> runs on to the end of its line.</summary>
     private bool Trailing(int at, int to)

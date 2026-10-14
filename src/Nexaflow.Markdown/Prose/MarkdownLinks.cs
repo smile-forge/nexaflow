@@ -36,4 +36,21 @@ public static class MarkdownLinks
 
         return written;
     }
+
+    /// <summary>
+    /// Where <paramref name="link"/> goes, said as a browser is told it, or null where it says nowhere: what <see cref="Goes"/>
+    /// says — and of an address written as a link to itself, in angle brackets or bare, what kind of address it is. An e-mail
+    /// address is one to write to, and one written bare from <c>www.</c> is fetched over HTTP.
+    /// </summary>
+    public static string? Address(ContentNode link)
+    {
+        if (Goes(link) is not { } goes) return null;
+
+        // Only an address written as a link to itself: anything with words of its own says where it goes in full.
+        if (link.Part(Roles.Body) is not null || goes.Contains(':', StringComparison.Ordinal)) return goes;
+
+        if (goes.Contains('@', StringComparison.Ordinal)) return "mailto:" + goes;
+
+        return link.Part(Roles.Open) is null && goes.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "http://" + goes : goes;
+    }
 }

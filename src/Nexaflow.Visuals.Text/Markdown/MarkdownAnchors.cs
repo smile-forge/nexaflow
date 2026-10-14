@@ -1,4 +1,4 @@
-using Markdig.Renderers.Html;
+
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
@@ -24,8 +24,16 @@ public static class MarkdownAnchors
         return true;
     }
 
-    /// <summary>The id the pipeline gave <paramref name="heading"/>, or null — for what reads a page's headings before it is shown.</summary>
-    public static string? IdOf(Markdig.Syntax.HeadingBlock heading) => heading.TryGetAttributes()?.Id;
+    /// <summary>The name a heading answers to, where the document's working over gave it one (<see cref="WithTargets"/>) — for what reads a page's headings before it is shown.</summary>
+    public static string? IdOf(ContentNode heading)
+    {
+        foreach (var child in heading.Children)
+            foreach (var held in child.Children)
+                if (held.Kind == MarkdownKinds.Anchor && held.Held is string id)
+                    return id;
+
+        return null;
+    }
 
     /// <summary>
     /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,
@@ -52,16 +60,7 @@ public static class MarkdownAnchors
     private static string? Named(ContentPart part)
     {
         for (var at = part; at is not null; at = at.Parent)
-        {
-            if (at.Kind != MarkdownKinds.Heading) continue;
-
-            foreach (var child in at.Children)
-                foreach (var held in child.Children)
-                    if (held.Node.Kind == MarkdownKinds.Anchor && held.Node.Held is string id)
-                        return id;
-
-            return null;
-        }
+            if (at.Kind == MarkdownKinds.Heading) return IdOf(at.Node);
 
         return null;
     }

@@ -8,7 +8,8 @@ namespace Nexaflow.Markdown.Pipeline;
 /// <param name="Name">What a link names it by, written as the stage that found it compares names.</param>
 /// <param name="Meaning">What it says: where a link goes, what an abbreviation stands for — for a heading, its name again.</param>
 /// <param name="At">Where it is written in the document.</param>
-public sealed record LinkTarget(string Kind, string Name, string Meaning, int At);
+/// <param name="Title">What a link it defines says about itself when rested on, where its definition gives it a title.</param>
+public sealed record LinkTarget(string Kind, string Name, string Meaning, int At, string? Title = null);
 
 /// <summary>
 /// The places a document's links can name, as far as it has been read: one list for one document, kept by whatever shows it
@@ -103,8 +104,8 @@ public sealed class LinkTargets
     }
 
     /// <summary>What <paramref name="known"/> says past what the stages last reached — where it stands left out, since that only moves.</summary>
-    private IEnumerable<(string Kind, string Name, string Meaning)> Beyond(Known known) =>
-        known.Targets.Where(target => target.At >= _reported.Reach).Select(target => (target.Kind, target.Name, target.Meaning));
+    private IEnumerable<(string Kind, string Name, string Meaning, string? Title)> Beyond(Known known) =>
+        known.Targets.Where(target => target.At >= _reported.Reach).Select(target => (target.Kind, target.Name, target.Meaning, target.Title));
 
     /// <summary>What was found as far as <paramref name="Reach"/>, and each by what it is called, in the order written.</summary>
     private sealed class Known(int reach, IReadOnlyList<LinkTarget> targets)

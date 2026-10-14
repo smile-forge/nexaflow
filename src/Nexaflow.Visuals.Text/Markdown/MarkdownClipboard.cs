@@ -4,8 +4,10 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using Markdig.Syntax;
+
+using Nexaflow.IO.Documents;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Markdown.Export;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -14,14 +16,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// Places an AI-response selection on the clipboard in three formats so the
 /// destination can pick whichever it understands:
 /// <list type="bullet">
-///   <item>plain text (CF_UNICODETEXT/CF_TEXT) — stripped, for plain destinations;</item>
-///   <item>HTML (CF_HTML) — rendered, for rich destinations (Word, Outlook, mail);</item>
+///   <item>plain text (CF_UNICODETEXT/CF_TEXT) — the words as they are shown, for plain destinations;</item>
+///   <item>HTML (CF_HTML) — the stretch as it is shown, for rich destinations (Word, Outlook, mail);</item>
 ///   <item><c>Markdown</c> (custom) — markdown source, for markdown-aware tools.</item>
 /// </list>
-/// When the selection is empty or spans the whole document the full source is
-/// used; otherwise the markdown is sliced from the source using the
-/// <see cref="SourceSpan"/> tags that <see cref="MarkdownFlowDocument"/> attaches
-/// to leaf runs.
+/// Where nothing is chosen the whole document is copied; otherwise the characters chosen.
 /// </summary>
 public static class MarkdownClipboard
 {
@@ -47,6 +46,12 @@ public static class MarkdownClipboard
     /// <summary>
     /// What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard —
     /// the whole document where nothing is chosen.
+    ///
+    /// <para>
+    /// The words and the marked-up text are the stretch as it is shown (<see cref="LayoutExport"/>), laid out on a white page and
+    /// written by the text and HTML writers. A clipboard takes no pictures: what another language drew goes as the code it is
+    /// written in, which is what pasting it anywhere that cannot draw the language can use.
+    /// </para>
     /// </summary>
     public static ContentCopy Copied(string source, (int Start, int Length)? chosen)
     {
@@ -54,14 +59,19 @@ public static class MarkdownClipboard
             ? source.Substring(picked.Start, picked.Length)
             : source;
 
-        var plain = ToPlainText(markdown);
-        string html;
+        var shown = LayoutExport.Exported(markdown, Occasion);
 
-        try { html = WrapCfHtml(Markdig.Markdown.ToHtml(markdown, MarkdigReading.Pipeline)); }
-        catch { html = string.Empty; }
-
-        return new ContentCopy(markdown, plain, html);
+        return new ContentCopy(markdown, Text.Written(shown), WrapCfHtml(Html.Written(shown)));
     }
+
+    /// <summary>What a copy is laid out for: a white page, and no pictures.</summary>
+    private static readonly ExportOccasion Occasion = new();
+
+    /// <summary>The words of a copy: what a reader sees, a blank line between blocks.</summary>
+    private static readonly TextDocumentWriter Text = new();
+
+    /// <summary>The marked-up text of a copy, each heading with the name a link reaches it by.</summary>
+    private static readonly HtmlDocumentWriter Html = new(new HtmlWriting { Anchors = true });
 
     /// <summary>
     /// Extracts the best markdown representation from a clipboard / drag payload:
@@ -112,12 +122,6 @@ public static class MarkdownClipboard
         if (data.GetDataPresent(DataFormats.Text))
             return data.GetData(DataFormats.Text) as string;
         return null;
-    }
-
-    private static string ToPlainText(string source)
-    {
-        try   { return Markdig.Markdown.ToPlainText(source, MarkdigReading.Pipeline); }
-        catch { return source; }
     }
 
     // ── Selection → source range ────────────────────────────────────────────

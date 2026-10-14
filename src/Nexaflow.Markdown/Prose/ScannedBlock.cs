@@ -81,6 +81,15 @@ internal class ScannedBlock(MarkdownBlockRule rule, ScannedKind kind, int start)
     /// <summary>The line it last took one from — so whoever comes after it knows how far behind it is.</summary>
     public int LastLine { get; set; }
 
+    /// <summary>The last line it took that was not blank to it — a quote's <c>&gt;</c> alone is written; an item's empty line is not.</summary>
+    public int LastWritten { get; set; }
+
+    /// <summary>
+    /// The last line anything was written on in it, its own marks or what it holds — so a line between it and what follows it,
+    /// which nothing holds, is a blank one.
+    /// </summary>
+    public int WrittenThrough => Math.Max(this.LastWritten, this.LastChild?.WrittenThrough ?? this.LastWritten);
+
     public ScannedBlock? LastChild => _children is { Count: > 0 } held ? held[^1] : null;
 
     /// <summary>Whether it is a definition — read for what it defines, and held as the trivia between blocks.</summary>
@@ -147,14 +156,23 @@ internal sealed class ScannedFence(MarkdownBlockRule rule, ScannedKind kind, int
     /// <summary>The language the word after the fence names, as it means rather than as it was spelled — or nothing.</summary>
     public string Language { get; set; } = string.Empty;
 
-    /// <summary>Where the line closing it starts, where one did.</summary>
+    /// <summary>Where the marks closing it start, where a line closed it.</summary>
     public int? Closed { get; set; }
+
+    /// <summary>
+    /// Where the line closing it starts past what its containers put in front of it — a quote's <c>&gt;</c>, an item's
+    /// indentation — which are theirs, where the fence's own indentation in front of its marks is the fence's.
+    /// </summary>
+    public int? Shut { get; set; }
 }
 
 /// <summary>A list: how its items are marked, and the number the first stands for.</summary>
 internal sealed class ScannedList(MarkdownBlockRule rule, int start, ScannedMarker marker) : ScannedBlock(rule, ScannedKind.List, start)
 {
     public ScannedMarker Marker { get; } = marker;
+
+    /// <summary>Whether its items are set apart by blank lines, or one of them holds two blocks a blank line apart — loose, as CommonMark says.</summary>
+    public bool Loose { get; set; }
 }
 
 /// <summary>

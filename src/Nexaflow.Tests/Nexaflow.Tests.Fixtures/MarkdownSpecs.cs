@@ -1,20 +1,18 @@
 using System.Text;
 
-using Nexaflow.Tests.Fixtures;
-
-namespace Nexaflow.Tests.Markdown.Prose.Differential;
+namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// The examples of the specifications Markdig is tested against — CommonMark's, and one for each extension the reading
-/// enables — each as the markdown it was written as and the HTML the specification says it renders to.
+/// enables — each as the markdown it was written as and the HTML the specification says it renders to. Shared, because the reading is held to their markdown and the HTML writer to their HTML.
 ///
 /// <para>
 /// Copied from Markdig's repository at the tag the package was built from (<c>Specs/LICENSE.md</c>), and read in the
 /// format they are written in: an example is a fence of thirty-two backticks named <c>example</c> holding the markdown, a
-/// line that is only a full stop, and the HTML. A tab is written as <c>→</c> so it can be seen, and is put back here.
+/// line that is only a full stop, and the HTML. A tab is written as <c>→</c> so it can be seen, and is put back here, in both.
 /// </para>
 /// </summary>
-internal static class MarkdownSpecs
+public static class MarkdownSpecs
 {
     /// <summary>The specification of the core syntax; every other file is an extension's.</summary>
     public const string Core = "CommonMark";
@@ -42,7 +40,7 @@ internal static class MarkdownSpecs
 
     /// <summary>Where the specifications are, in the tree.</summary>
     public static string Folder => Path.Combine(
-        TestSampleData.RepoRoot, "src", "Nexaflow.Tests", "Nexaflow.Tests.Markdown", "Prose", "Differential", "Specs");
+        TestSampleData.RepoRoot, "src", "Nexaflow.Tests", "Nexaflow.Tests.Markdown", "Prose", "Corpus", "Specs");
 
     /// <summary>Every example one specification gives, in the order it gives them.</summary>
     public static IReadOnlyList<SpecExample> Examples(string name)
@@ -67,7 +65,7 @@ internal static class MarkdownSpecs
             var html = new StringBuilder();
             for (at++; at < lines.Length && lines[at] != Fence; at++) html.Append(lines[at]).Append('\n');
 
-            examples.Add(new SpecExample(name, examples.Count + 1, section, markdown.ToString().Replace('→', '\t'), html.ToString()));
+            examples.Add(new SpecExample(name, examples.Count + 1, section, markdown.ToString().Replace('→', '\t'), html.ToString().Replace('→', '\t')));
         }
 
         return examples;
@@ -78,7 +76,7 @@ internal static class MarkdownSpecs
 /// <param name="Spec">The specification it is from, by its file's name.</param>
 /// <param name="Number">Its place among that specification's examples, counting from one — the number the specification's own tests use.</param>
 /// <param name="Section">The heading it stands under.</param>
-internal sealed record SpecExample(string Spec, int Number, string Section, string Markdown, string Html)
+public sealed record SpecExample(string Spec, int Number, string Section, string Markdown, string Html)
 {
     /// <summary>What the example is called wherever it is named: <c>CommonMark#312</c>.</summary>
     public string Id => $"{this.Spec}#{this.Number}";

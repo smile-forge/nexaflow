@@ -192,7 +192,7 @@ public sealed class MarkdownElement : LinkedElement
 
             var body = at.Part(Roles.Body)!;
 
-            return language.Editing.Offers(new ContentAsk(ContentNested.Language(at)!, body.Text)
+            return language.Editing.Offers(new ContentAsk(ContentNested.Language(at)!, ContentNested.Own(body.Node))
             {
                 Part = part,
                 Chosen = Chosen(body),

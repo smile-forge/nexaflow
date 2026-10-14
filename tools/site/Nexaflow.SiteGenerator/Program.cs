@@ -1,5 +1,10 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Nexaflow.SiteGenerator;
+
+// The site reads the same wherever it is built. Not invariant globalization, which WPF's text cannot be laid out without.
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var repo = RepoRoot();
 var output = Path.GetFullPath(Named("--output") ?? Path.Combine(repo, "site"));
@@ -14,7 +19,11 @@ var aheadOf = Named("--ahead-of");
 var corpus = HelpCorpus.Read(repo);
 var tree = ProductTree.Read(repo);
 
-Site.Write(corpus, tree, repo, output, version, aheadOf);
+// A page is laid out as the app lays it, which is WPF's to do, and WPF lays out on a thread of its own kind.
+var writing = new Thread(() => Site.Write(corpus, tree, repo, output, version, aheadOf));
+writing.SetApartmentState(ApartmentState.STA);
+writing.Start();
+writing.Join();
 Site.CopyImages(repo, output);
 
 Console.WriteLine($"Nexaflow {version} ({tree.Version} product tree): {corpus.Pages.Count} help pages written to {output}");

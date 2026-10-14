@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Builds the Visuals test suite, runs MarkdownLayoutBench, and prints the JSON file the run wrote: per document what
-  opening it and typing one character into it cost, and each step on its own - Markdig, every stage the document is
+  opening it and typing one character into it cost, and each step on its own - reading it, every stage the document is
   read by, the builder (nested languages and markdown's own), and painting - with corpus totals for every nested
   language, every stage of each language's pipeline, and every kind of block.
 

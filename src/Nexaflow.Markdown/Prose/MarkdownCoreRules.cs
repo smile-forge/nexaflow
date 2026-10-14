@@ -243,6 +243,9 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
 
     public override bool TakesLines => true;
 
+    /// <summary>Where each line written inside starts past its containers' marks and the fence's own indentation — what the body is.</summary>
+    public override bool KeepsLines => true;
+
     public override bool MayStart(char first) => marks.Contains(first);
 
     public override Started TryStart(MarkdownScanner scan, ScannedBlock container)
@@ -273,6 +276,7 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
     public override Continued Continues(MarkdownScanner scan, ScannedBlock block)
     {
         var fence = (ScannedFence)block;
+        var line = scan.Offset;
         var at = scan.NextNonspace;
 
         if (!scan.Indented && scan.Peek(at) == fence.Mark)
@@ -283,8 +287,10 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
             if (run - at >= fence.Length && scan.Trimmed(run) == run)
             {
                 fence.Closed = at;
+                fence.Shut = line;
                 fence.Reach(run);
                 fence.LastLine = scan.LineIndex;
+                fence.LastWritten = scan.LineIndex;
                 scan.Close(fence);
                 return Continued.Consumed;
             }
@@ -323,6 +329,9 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
 internal sealed class IndentedCodeRule : MarkdownBlockRule
 {
     public override bool TakesLines => true;
+
+    /// <summary>Where each line's code starts, past its containers' marks and the four columns that made it code.</summary>
+    public override bool KeepsLines => true;
 
     public override Started TryStart(MarkdownScanner scan, ScannedBlock container)
     {
@@ -514,6 +523,24 @@ internal sealed class ItemRule(bool lettered) : MarkdownBlockRule
 
     private static bool IsRoman(char character) => character is 'i' or 'v' or 'x' or 'I' or 'V' or 'X';
 
+    /// <summary>
+    /// Whether <paramref name="written"/> is what an item's marker counts by in front of its <c>.</c> or <c>)</c>: up to nine
+    /// digits, one letter, or roman numerals all of one case — as <see cref="Marked"/> reads a marker.
+    /// </summary>
+    public static bool Counts(ReadOnlySpan<char> written)
+    {
+        if (written.IsEmpty) return false;
+        if (char.IsAsciiDigit(written[0])) return written.Length <= 9 && !written.ContainsAnyExcept("0123456789");
+        if (written.Length == 1) return char.IsAsciiLetter(written[0]);
+
+        var lower = char.IsAsciiLetterLower(written[0]);
+
+        foreach (var character in written)
+            if (!IsRoman(character) || char.IsAsciiLetterLower(character) != lower) return false;
+
+        return true;
+    }
+
     /// <summary>Whether an ordered marker numbers the first item of its list: one, or the first letter or numeral.</summary>
     private static bool First(ScannedMarker marker) =>
         marker.Bullet == '1' ? int.TryParse(marker.Number, out var number) && number == 1 : marker.Number == marker.Bullet.ToString();
@@ -523,6 +550,28 @@ internal sealed class ItemRule(bool lettered) : MarkdownBlockRule
     {
         public override Continued Continues(MarkdownScanner scan, ScannedBlock block) => Continued.Matched;
 
-        public override bool Holds(ScannedKind kind) => kind == ScannedKind.Item;
+    public override bool Holds(ScannedKind kind) => kind == ScannedKind.Item;
+
+        public override bool Marks => false;
+
+        /// <summary>
+        /// Whether the list is loose: two of its items with a blank line between them, or an item holding two blocks with one
+        /// between them. A line between two blocks that neither of them was written on is a blank one.
+        /// </summary>
+        public override void Close(MarkdownScanner scan, ScannedBlock block)
+        {
+            var list = (ScannedList)block;
+
+            list.Loose = Apart(list.Children) || list.Children.Any(item => Apart(item.Children));
+        }
+
+        /// <summary>Whether a blank line stands between any two of <paramref name="blocks"/>, one after another.</summary>
+        private static bool Apart(IReadOnlyList<ScannedBlock> blocks)
+        {
+            for (var at = 0; at + 1 < blocks.Count; at++)
+                if (blocks[at + 1].Line > blocks[at].WrittenThrough + 1) return true;
+
+            return false;
+        }
     }
 }

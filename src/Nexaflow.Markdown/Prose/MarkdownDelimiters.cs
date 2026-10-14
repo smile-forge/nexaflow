@@ -93,7 +93,7 @@ internal sealed class MarkdownDelimiters
     }
 
     /// <summary>Whether a name a bracket here waits on is one <paramref name="defined"/> says where it goes.</summary>
-    public bool Answered(Func<string, string?> defined)
+    public bool Answered(Func<string, LinkTarget?> defined)
     {
         foreach (var name in _named)
             if (defined(name) is not null) return true;
@@ -103,7 +103,7 @@ internal sealed class MarkdownDelimiters
 
     /// <summary>The same words matched again, every link by a name <paramref name="defined"/> knows made one.</summary>
     /// <param name="at">Where the text the words were read from now stands in the document.</param>
-    public ContentNode[] Again(int at, Func<string, string?> defined)
+    public ContentNode[] Again(int at, Func<string, LinkTarget?> defined)
     {
         var matching = Matching.Taken();
 
@@ -196,7 +196,7 @@ internal sealed class MarkdownDelimiters
 
         private MarkdownTokenizer _tokens = null!;
         private int _at;
-        private Func<string, string?>? _defined;
+        private Func<string, LinkTarget?>? _defined;
 
         /// <summary>The tokens a matching before this one read, where this one matches the same words again.</summary>
         private MarkdownToken[]? _replay;
@@ -257,7 +257,7 @@ internal sealed class MarkdownDelimiters
         /// The words <paramref name="tokens"/> reads, matched — links by name made where <paramref name="defined"/> knows the name,
         /// over the tokens <paramref name="replay"/> holds where it holds any.
         /// </summary>
-        public ContentNode[] Matched(MarkdownTokenizer tokens, int at, Func<string, string?>? defined, MarkdownToken[]? replay)
+        public ContentNode[] Matched(MarkdownTokenizer tokens, int at, Func<string, LinkTarget?>? defined, MarkdownToken[]? replay)
         {
             _tokens = tokens;
             _at = at;
@@ -589,7 +589,7 @@ internal sealed class MarkdownDelimiters
             }
 
             var tail = _tokens.Inline(after);
-            string? meaning = null;
+            LinkTarget? meaning = null;
             var end = after;
 
             if (tail is { } inline)
@@ -628,7 +628,7 @@ internal sealed class MarkdownDelimiters
         }
 
         /// <summary>The link a bracket opened and <paramref name="close"/> closed, made of everything between and what follows it.</summary>
-        private void Linked(int opener, MarkdownToken close, MarkdownTail? tail, string? meaning, int end)
+        private void Linked(int opener, MarkdownToken close, MarkdownTail? tail, LinkTarget? meaning, int end)
         {
             var open = _pieces[opener].Token;
             var picture = open.Kind == MarkdownTokenKind.Picture;
@@ -653,7 +653,7 @@ internal sealed class MarkdownDelimiters
 
             parts.Add(this.Leaf(Kinds.Token, close.Start, close.End, Roles.Close));
 
-            var goes = meaning;
+            var goes = meaning?.Meaning;
 
             if (tail is { } inline)
             {
@@ -687,6 +687,9 @@ internal sealed class MarkdownDelimiters
             var link = ContentNode.Branch(kind, parts);
             if (sized is { } asked) link = link.Holding(MarkdownKinds.Size, MarkdownRoles.Size, asked.Size);
             if (goes is not null) link = link.Holding(kind, Roles.Destination, goes);
+
+            // A link by name says about itself what its definition's title does.
+            if (meaning?.Title is { } titled) link = link.Holding(kind, MarkdownRoles.Title, titled);
 
             // Everything from the bracket on is the link's now, so the link is what stands there instead.
             this.Replaced(_pieces[opener].Previous, -1, link, open.Start, end);

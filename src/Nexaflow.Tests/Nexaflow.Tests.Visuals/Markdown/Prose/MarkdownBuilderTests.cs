@@ -306,6 +306,32 @@ public class MarkdownBuilderTests
         Assert.IsTrue(shown[0].Words!.Maps, "it is the source, so the caret goes straight into it");
     }
 
+    [TestMethod]
+    public void ADiagramWrittenInAQuoteIsDrawnByItsLanguage_EveryPieceOfItStandingWhereItWasWritten()
+    {
+        const string source = "> ```mermaid\n> pie\n>   \"a\" : 1\n>   \"b\" : 2\n> ```\n";
+        var drawn = Lay(source);
+        var written = drawn.Root.SelfAndDescendants()
+            .Select(piece => piece.Part)
+            .OfType<ContentPart>()
+            .Where(part => part.Children.Count == 0 && !part.Derived && part.Length > 0)
+            .ToList();
+
+        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count, "it was laid, not shown as characters");
+        Assert.IsTrue(written.Any(part => part.Start > source.IndexOf("\"b\"", StringComparison.Ordinal) - 1), "a piece of its last line was drawn");
+
+        foreach (var part in written)
+            Assert.AreEqual(part.Text, source.Substring(part.Start, part.Length), $"'{part.Text}' names the characters it was written as");
+    }
+
+    [TestMethod]
+    public void CodeWrittenInAQuoteIsShownWithoutTheQuotesMarks()
+    {
+        var shown = Pieces(Lay(">     code1\n>       code2\n"), MarkdownPieces.Verbatim);
+
+        CollectionAssert.AreEqual(new[] { "code1", "  code2" }, shown.Select(piece => piece.Words!.Glyphs.Text).ToArray());
+    }
+
     // ── Maths ───────────────────────────────────────────────────────────────
 
     [TestMethod]

@@ -306,7 +306,7 @@ public sealed partial class ContentEngine
         {
             if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var ask = new ContentAsk(ContentNested.Language(at)!, at.Part(Roles.Body)!.Text) { Part = block, IsReadOnly = _readOnly };
+            var ask = new ContentAsk(ContentNested.Language(at)!, ContentNested.Own(at.Part(Roles.Body)!.Node)) { Part = block, IsReadOnly = _readOnly };
             return language.Editing.Corner(ask);
         }
 
