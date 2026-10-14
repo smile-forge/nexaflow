@@ -10,15 +10,15 @@ namespace Nexaflow.Providers.AiHost;
 /// Text to speech Nexaflow runs itself, in its AI host: Kokoro, with a voice for each language the model's catalog
 /// entry names. Nothing leaves this machine.
 /// </summary>
-public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalModelCatalog, IAsyncDisposable
+public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
-    public OwnedTextToSpeechProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host,
+    public OwnedTextToSpeechProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                                      ComputeHardwareReport hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.TextToSpeech).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -28,6 +28,11 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     public DataResidency Residency => DataResidency.StaysOnMachine;
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.TextToSpeech).Select(_runtime.CatalogOf)];
+
+    public bool LoadsOnDemand => false;
+
+    public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
+        => OwnedModels.OfKind(ModelKind.TextToSpeech).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
 
@@ -52,11 +57,13 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     public async Task<ITextToSpeechSession> StartSessionAsync(TextToSpeechOptions options, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no voice model of that name.");
-        var voices = _model.Voices.Select(v =>
+        var voices = new List<VoiceSpec>();
+        foreach (var v in _model.Voices)
         {
             var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
-            return new VoiceSpec(v.Language, _runtime.Spec(_model, part), v.File, v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null);
-        }).ToList();
+            voices.Add(new VoiceSpec(v.Language, await _runtime.PlacedAsync(_model, part.Name, ct), v.File,
+                                     v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null));
+        }
 
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;

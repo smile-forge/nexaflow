@@ -14,8 +14,9 @@
               "folder": "models/gemma-4-e4b-it-qat",
               "file": "gemma-4-E4B_q4_0-it.gguf",
               "projector": "gemma-4-E4B-it-mmproj.gguf",
-              "memoryBytes": 7516192768,
-              "contextTokens": 16384
+              "memoryBytes": 5905580032,
+              "bytesPerToken": 17920,
+              "contextTokens": 32768
             }
           ],
           "files": [
@@ -33,6 +34,237 @@
             }
           ]
         },
+    {
+      "id": "qwen-3.5-9b",
+      "displayName": "Qwen 3.5 9B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/qwen-3.5-9b",
+          "file": "Qwen3.5-9B-Q4_K_M.gguf",
+          "projector": "mmproj-F16.gguf",
+          "memoryBytes": 8321499136,
+          "bytesPerToken": 30720,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-3.5-9b/Qwen3.5-9B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf",
+          "size": 5680522464,
+          "sha256": "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8"
+        },
+        {
+          "path": "models/qwen-3.5-9b/mmproj-F16.gguf",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/mmproj-F16.gguf",
+          "size": 918166080,
+          "sha256": "f70dc3509053962b0d0d3ee8a7eacebf5d60aa560cad78254ae8698516ae029f"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2.6-9b",
+      "displayName": "MiMo V2.6 9B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/mimo-v2.6-9b",
+          "file": "MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf",
+          "projector": "mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
+          "memoryBytes": 8589934592,
+          "bytesPerToken": 34816,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/mimo-v2.6-9b/MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF/resolve/4371da10c84fb26da3592d4cf312d24aa82b7b65/MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf",
+          "size": 5841049120,
+          "sha256": "4bca6f18c73f72270c7a20c2ea2bea581de8246e318714277120369d34048c81"
+        },
+        {
+          "path": "models/mimo-v2.6-9b/mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
+          "url": "https://huggingface.co/bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF/resolve/4371da10c84fb26da3592d4cf312d24aa82b7b65/mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
+          "size": 918166048,
+          "sha256": "ff348f3180a63188aa7285db85f550fe38acb61dd013c599eb8bad08d2cc2576"
+        }
+      ]
+    },
+    {
+      "id": "phi-4",
+      "displayName": "Phi-4 14B",
+      "kind": "language",
+      "images": false,
+      "audio": false,
+      "toolCalls": false,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/phi-4",
+          "file": "phi-4-Q4_K.gguf",
+          "memoryBytes": 9663676416,
+          "bytesPerToken": 207872,
+          "contextTokens": 16384
+        }
+      ],
+      "files": [
+        {
+          "path": "models/phi-4/phi-4-Q4_K.gguf",
+          "url": "https://huggingface.co/microsoft/phi-4-gguf/resolve/6edc2ef6664b739a8e11e62f2672ff6afe0c15ac/phi-4-Q4_K.gguf",
+          "size": 9053114560,
+          "sha256": "5652b9be0ea4ae2842130d04fe31bc869fcb99a2b7106c53b4e754a343fd688f"
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-26b-a4b-it",
+      "displayName": "Gemma 4 26B A4B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/gemma-4-26b-a4b-it-qat",
+          "file": "gemma-4-26B_q4_0-it.gguf",
+          "projector": "gemma-4-26B-it-mmproj.gguf",
+          "memoryBytes": 18790481920,
+          "bytesPerToken": 25600,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/gemma-4-26b-a4b-it-qat/gemma-4-26B_q4_0-it.gguf",
+          "url": "https://huggingface.co/google/gemma-4-26B-A4B-it-qat-q4_0-gguf/resolve/d1c082be9cf3c8a514acf63b8761f4b41935842e/gemma-4-26B_q4_0-it.gguf",
+          "size": 14439363584,
+          "sha256": "3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d"
+        },
+        {
+          "path": "models/gemma-4-26b-a4b-it-qat/gemma-4-26B-it-mmproj.gguf",
+          "url": "https://huggingface.co/google/gemma-4-26B-A4B-it-qat-q4_0-gguf/resolve/d1c082be9cf3c8a514acf63b8761f4b41935842e/gemma-4-26B-it-mmproj.gguf",
+          "size": 1194828160,
+          "sha256": "a359953a076b877db30c31dbbb4c6d93b4a6e017ee5db5784247e4d4c0dd4f3b"
+        }
+      ]
+    },
+    {
+      "id": "qwen-3.6-35b-a3b",
+      "displayName": "Qwen 3.6 35B A3B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/qwen-3.6-35b-a3b",
+          "file": "Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "projector": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
+          "memoryBytes": 23085449216,
+          "bytesPerToken": 22528,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-3.6-35b-a3b/Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/ggml-org/Qwen3.6-35B-A3B-GGUF/resolve/baec3ebee244827cda0f4557eafa8b28f7545fa6/Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "size": 20419565568,
+          "sha256": "671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7"
+        },
+        {
+          "path": "models/qwen-3.6-35b-a3b/mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
+          "url": "https://huggingface.co/ggml-org/Qwen3.6-35B-A3B-GGUF/resolve/baec3ebee244827cda0f4557eafa8b28f7545fa6/mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
+          "size": 614194304,
+          "sha256": "904cbf8c8e876220066ab3bf676c7efa40f3da372276fdaf8b01d2fb2a37a51d"
+        }
+      ]
+    },
+    {
+      "id": "qwen-3.8-27b",
+      "displayName": "Qwen 3.8 27B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/qwen-3.8-27b",
+          "file": "Qwen3.8-27B-Q4_K_M.gguf",
+          "projector": "mmproj-Qwen3.8-27B-Q8_0.gguf",
+          "memoryBytes": 22011707392,
+          "bytesPerToken": 63488,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-3.8-27b/Qwen3.8-27B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/71bc7b627595dc8a91039addd9c791ae548d6747/Qwen3.8-27B-Q4_K_M.gguf",
+          "size": 18973870528,
+          "sha256": "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747"
+        },
+        {
+          "path": "models/qwen-3.8-27b/mmproj-Qwen3.8-27B-Q8_0.gguf",
+          "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/71bc7b627595dc8a91039addd9c791ae548d6747/mmproj-Qwen3.8-27B-Q8_0.gguf",
+          "size": 629247008,
+          "sha256": "2e968a6af97ce35d8971890b257b9b7edabf20ad91450501fa53162a19ee33eb"
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-31b-it",
+      "displayName": "Gemma 4 31B",
+      "kind": "language",
+      "images": true,
+      "audio": false,
+      "toolCalls": true,
+      "parts": [
+        {
+          "role": "chat",
+          "runner": "llama-chat",
+          "folder": "models/gemma-4-31b-it-qat",
+          "file": "gemma-4-31B_q4_0-it.gguf",
+          "projector": "gemma-4-31B-it-mmproj.gguf",
+          "memoryBytes": 27111981056,
+          "bytesPerToken": 96768,
+          "contextTokens": 32768
+        }
+      ],
+      "files": [
+        {
+          "path": "models/gemma-4-31b-it-qat/gemma-4-31B_q4_0-it.gguf",
+          "url": "https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-gguf/resolve/59dde24573e7e61570dba08b18a2e1fe246955ed/gemma-4-31B_q4_0-it.gguf",
+          "size": 17651001568,
+          "sha256": "179cfb99212709597eae5929112cfca677e1bbf566178b479ae1da0c4772874b"
+        },
+        {
+          "path": "models/gemma-4-31b-it-qat/gemma-4-31B-it-mmproj.gguf",
+          "url": "https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-gguf/resolve/59dde24573e7e61570dba08b18a2e1fe246955ed/gemma-4-31B-it-mmproj.gguf",
+          "size": 1200726368,
+          "sha256": "6bd60bdb958548b4093196d38744b0f2290c12503a3fddd7486bffa9c5eb07a4"
+        }
+      ]
+    },
     {
       "id": "nemotron-whisper-turbo",
       "displayName": "Nemotron 3.5 + Whisper large-v3-turbo",

@@ -18,7 +18,10 @@ public class OwnedImageGenerationProviderTests
     private static ComputeHardwareReport Amd() => new([new ComputeAdapter("gpu", ComputeVendor.Amd, 32L << 30, IsIntegrated: false, IsNpu: false)], null);
 
     private static OwnedImageGenerationProvider Provider(FakeModelStore store, FakeAiHost host, FakeActivityManager? activities = null)
-        => new(activities ?? new FakeActivityManager(), store, host, Nvidia(), new ProviderModel(ModelId));
+        => new(activities ?? new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel(ModelId));
+
+    /// <summary>The model's files and the CUDA pack it runs from.</summary>
+    private static FakeModelStore Here() => new([.. Files, .. CudaRuntimePack.Files]);
 
     private static IReadOnlyList<ModelAsset> Files => Provider(new FakeModelStore(), new FakeAiHost()).Catalog.Single(m => m.Id == ModelId).Files;
 
@@ -42,7 +45,8 @@ public class OwnedImageGenerationProviderTests
     [TestMethod]
     public void OnAMachineWithoutCuda_ThereIsNoModelToDraw()
     {
-        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(Files), new FakeAiHost(), Amd(), new ProviderModel(ModelId));
+        var host = new FakeAiHost();
+        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(Files), host, new HostModelSetup(host), Amd(), new ProviderModel(ModelId));
 
         Assert.AreEqual(0, provider.Catalog.Count, "the model is built for CUDA alone");
         Assert.IsFalse(provider.IsAvailable, "even with its files here, nothing of it runs on this machine");
@@ -53,7 +57,7 @@ public class OwnedImageGenerationProviderTests
     {
         var host = Drawing(new Drawn(0, [0x89, 0x50]));
 
-        var made = await Provider(new FakeModelStore(Files), host).GenerateImageAsync(new ImageGenerationRequest("a fox", MediaShape.Landscape));
+        var made = await Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", MediaShape.Landscape));
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((RequestPriority.Job, "a fox", 1344, 768), (draw.Priority, draw.Prompt, draw.Width, draw.Height));
@@ -61,6 +65,7 @@ public class OwnedImageGenerationProviderTests
                         (draw.Model.PromptEncoder.Runner, draw.Model.Denoiser.Runner, draw.Model.Decoder.Runner));
         Assert.AreEqual((9, 3f), (draw.Model.Steps, draw.Model.Shift));
         StringAssert.StartsWith(draw.Model.Denoiser.Folder, @"C:\ai\models\z-image-turbo", "the folder is where the store keeps its files");
+        Assert.AreEqual(0, draw.Model.Denoiser.Device, "on the GPU the host found");
         CollectionAssert.AreEqual(new byte[] { 0x89, 0x50 }, made.Media.Bytes);
         Assert.AreEqual("image/png", made.Media.MimeType);
     }
@@ -72,7 +77,7 @@ public class OwnedImageGenerationProviderTests
     {
         var host = Drawing(new Drawn(0, [1]));
 
-        await Provider(new FakeModelStore(Files), host).GenerateImageAsync(new ImageGenerationRequest("a fox", shape));
+        await Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", shape));
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((width, height), (draw.Width, draw.Height));
@@ -84,7 +89,7 @@ public class OwnedImageGenerationProviderTests
         var activities = new FakeActivityManager();
         var host = Drawing(new Progress(0, "drawing", 1, 9), new Progress(0, "drawing", 2, 9), new Drawn(0, [1]));
 
-        await Provider(new FakeModelStore(Files), host, activities).GenerateImageAsync(new ImageGenerationRequest("a fox"));
+        await Provider(Here(), host, activities).GenerateImageAsync(new ImageGenerationRequest("a fox"));
 
         Assert.AreEqual(1, activities.StartedCount);
         CollectionAssert.AreEqual(new[] { "step 1 of 9", "step 2 of 9" }, activities.Updates.Select(u => u[(u.LastIndexOf('—') + 2)..]).ToArray());
@@ -96,9 +101,21 @@ public class OwnedImageGenerationProviderTests
         var host = new FakeAiHost { Reply = (r, _) => [new Failed(r.RequestId, HostErrorKind.Refused, "not enough room on the GPU")] };
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
-            Provider(new FakeModelStore(Files), host).GenerateImageAsync(new ImageGenerationRequest("a fox")));
+            Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox")));
 
         StringAssert.Contains(ex.Message, "not enough room on the GPU");
+    }
+
+    [TestMethod]
+    public async Task OnAGpuTooSmallForItsLargestPart_NoPictureIsDrawn()
+    {
+        var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce GTX 1080", null, 8L << 30, 6L << 30, 7L << 30)] };
+
+        var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
+            Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox")));
+
+        StringAssert.Contains(ex.Message, "needs a GPU with");
+        Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
     }
 
     [TestMethod]
@@ -106,7 +123,7 @@ public class OwnedImageGenerationProviderTests
     {
         var request = new ImageGenerationRequest("night") { Sources = [new MediaBytes([1], "image/png")] };
 
-        await Assert.ThrowsExactlyAsync<ArgumentException>(() => Provider(new FakeModelStore(Files), new FakeAiHost()).GenerateImageAsync(request));
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => Provider(Here(), new FakeAiHost()).GenerateImageAsync(request));
     }
 
     [TestMethod]
@@ -114,7 +131,7 @@ public class OwnedImageGenerationProviderTests
     {
         var host = new FakeAiHost();
 
-        await Provider(new FakeModelStore(Files), host).WarmupAsync();
+        await Provider(Here(), host).WarmupAsync();
 
         Assert.AreEqual(0, host.Requests.Count, "an image model loads with its first picture, not beside the resident models");
     }

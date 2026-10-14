@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
@@ -16,7 +17,7 @@ public class OwnedTextToSpeechProviderTests
     private static ComputeHardwareReport Amd() => new([new ComputeAdapter("gpu", ComputeVendor.Amd, 24L << 30, IsIntegrated: false, IsNpu: false)], null);
 
     private static OwnedTextToSpeechProvider Provider(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, Amd(), new ProviderModel(ModelId));
+        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Amd(), new ProviderModel(ModelId));
 
     private static IReadOnlyList<ModelAsset> Files => Provider(new FakeModelStore(), new FakeAiHost()).Catalog.Single(m => m.Id == ModelId).Files;
 
@@ -39,7 +40,7 @@ public class OwnedTextToSpeechProviderTests
 
         await using var session = await provider.StartSessionAsync(new TextToSpeechOptions(Speed: 1.1f));
 
-        var speak = (Speak)host.Requests.Single();
+        var speak = host.Requests.OfType<Speak>().Single();
         Assert.AreEqual((RequestPriority.Voice, 1.1f), (speak.Priority, speak.Speed));
         var voice = speak.Voices.Single(v => v.Language == "en");
         Assert.AreEqual(("kokoro", "onnx/model.onnx", "voices/af_heart.bin"), (voice.Model.Runner, voice.Model.File, voice.VoiceFile));

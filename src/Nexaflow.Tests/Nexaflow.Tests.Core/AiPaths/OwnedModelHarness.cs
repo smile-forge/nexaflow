@@ -24,6 +24,9 @@ internal static class OwnedModelHarness
     private static AiHostClient? _host;
     private static ILlmProvider? _model;
 
+    /// <summary>The machine's setup the model is held through, once it is loaded.</summary>
+    public static HostModelSetup? Setup { get; private set; }
+
     /// <summary>The loaded model, or an inconclusive test on a machine without it.</summary>
     public static async Task<ILlmProvider> ModelAsync()
     {
@@ -41,7 +44,8 @@ internal static class OwnedModelHarness
             var aiDir = Directory.CreateTempSubdirectory("nexaflow-aipaths-").FullName;
             _host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
             var store = new FolderStore(folder, Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK"));
-            var provider = new OwnedLlmProvider(new Activities(), store, _host, ComputeHardware.Probe(), new ProviderModel("gemma-4-e4b-it"));
+            Setup = new HostModelSetup(_host);
+            var provider = new OwnedLlmProvider(new Activities(), store, _host, Setup, ComputeHardware.Probe(), new ProviderModel("gemma-4-e4b-it"));
             if (!provider.IsAvailable) Assert.Inconclusive($"{folder} does not hold Gemma 4 E4B's files.");
             await provider.WarmupAsync();
             return _model = provider;
@@ -54,6 +58,7 @@ internal static class OwnedModelHarness
         if (_host is not null) await _host.DisposeAsync();
         _host = null;
         _model = null;
+        Setup = null;
     }
 
     /// <summary>An AIService whose every language role is <paramref name="model"/>.</summary>

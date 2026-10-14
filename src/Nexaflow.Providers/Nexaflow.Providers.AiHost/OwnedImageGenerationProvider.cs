@@ -23,10 +23,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
-    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host,
+    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                                         ComputeHardwareReport hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -37,6 +37,11 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
 
     /// <summary>The image models this machine can run: they are built for CUDA only.</summary>
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.ImageGeneration).Select(_runtime.CatalogOf)];
+
+    public bool LoadsOnDemand => true;
+
+    public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
+        => OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
 
@@ -67,8 +72,9 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         if (_model.Sampler is not { } sampler) throw new LlmProviderException($"{_model.Id} does not say how it samples.");
 
         var (width, height) = Size(request.Shape);
-        var drawing = new DrawingModel(_runtime.Spec(_model, OwnedRoles.PromptEncoder), _runtime.Spec(_model, OwnedRoles.Denoiser),
-                                       _runtime.Spec(_model, OwnedRoles.Decoder), sampler.Steps, sampler.Shift);
+        var drawing = new DrawingModel(await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.PromptEncoder, ct),
+                                       await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.Denoiser, ct),
+                                       await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.Decoder, ct), sampler.Steps, sampler.Shift);
         long seed = Random.Shared.NextInt64();
 
         var label    = $"Drawing with {_model.Catalog.DisplayName}";

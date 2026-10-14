@@ -13,7 +13,7 @@ namespace Nexaflow.Providers.AiHost;
 /// on a machine the CUDA pack suits, the pack with them; the model is available once its files are here, and is held
 /// loaded while an ability uses it.
 /// </summary>
-public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncDisposable
+public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
 {
     public const string ProviderName = "Nexaflow";
 
@@ -23,10 +23,10 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
-    public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host,
+    public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                             ComputeHardwareReport hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -39,6 +39,11 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     public bool SupportsToolCalls => _model?.ToolCalls ?? false;
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.Language).Select(_runtime.CatalogOf)];
+
+    public bool LoadsOnDemand => false;
+
+    public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
+        => OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     /// <summary>Its files are here and verified.</summary>
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
@@ -53,8 +58,9 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.Language).Select(m => m.Id)]);
 
+    /// <summary>The model, with the context its GPU gives it once it is placed.</summary>
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
-        => Task.FromResult(_model is null ? null : new ModelInfo(_model.Part(OwnedRoles.Chat, _runtime.ExecutionProvider).ContextTokens, _model.Catalog.DisplayName));
+        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, OwnedRoles.Chat), _model.Catalog.DisplayName));
 
     /// <summary>Fetches what is missing, then has the host load the model and keep it. Never throws: a model that will
     /// not come is unavailable, and its chain moves on.</summary>
@@ -91,7 +97,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IAsyncD
     {
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var spec = _runtime.Spec(model, OwnedRoles.Chat);
+        var spec = await _runtime.PlacedAsync(model, OwnedRoles.Chat, ct);
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
