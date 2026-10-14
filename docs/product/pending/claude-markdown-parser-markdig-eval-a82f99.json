@@ -1,0 +1,38 @@
+{
+  "branch": "claude/markdown-parser-markdig-eval-a82f99",
+  "nodes": {
+    "markdown-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Rewrite"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/markdown-reader-plan.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownTranspileTests.cs",
+            "class": "MarkdownTranspileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/Differential/MarkdownDifferentialTests.cs",
+            "class": "MarkdownDifferentialTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "markdown-text"
+  ]
+}
