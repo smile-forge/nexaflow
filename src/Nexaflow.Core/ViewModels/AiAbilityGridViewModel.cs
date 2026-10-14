@@ -181,6 +181,9 @@ public partial class AiAbilityGridViewModel : ObservableObject
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
     private readonly HashSet<LocalDownload> _following = [];
 
+    /// <summary>1 while a refresh of the notice waits on the UI thread.</summary>
+    private int _noticeQueued;
+
     /// <summary>The model chosen for each job of the Local column, as the grid holds it.</summary>
     private readonly Dictionary<LocalSlot, ProviderModelPair> _local = [];
 
@@ -365,7 +368,18 @@ public partial class AiAbilityGridViewModel : ObservableObject
     /// <summary>Says again what the Local column needs as a download moves on.</summary>
     private void Follow(LocalDownload download)
     {
-        if (_following.Add(download)) download.PropertyChanged += (_, _) => _ui.InvokeAsync(RefreshNotice);
+        if (_following.Add(download)) download.PropertyChanged += (_, _) => QueueNotice();
+    }
+
+    /// <summary>Refreshes the notice on the UI thread once for however many changes arrive before it gets there.</summary>
+    private void QueueNotice()
+    {
+        if (Interlocked.Exchange(ref _noticeQueued, 1) == 1) return;
+        _ui.InvokeAsync(() =>
+        {
+            Volatile.Write(ref _noticeQueued, 0);
+            RefreshNotice();
+        });
     }
 
     // ── Offer changed — reload model suggestions ──────────────────────────

@@ -93,10 +93,13 @@ public sealed class LocalModelDownloads
         var activity = _activities?.StartActivity(Str.Format("Shell.Config.Local.DownloadingFormat", name, 0));
         try
         {
+            var told = 0;
             await _store.EnsureAllAsync([.. download.Option.Needs], new Inline(p =>
             {
                 download.Report(p);
-                activity?.Update(Str.Format("Shell.Config.Local.DownloadingFormat", name, download.Percent));
+                if (download.Percent == told) return;   // the activity line says a percentage: told again only when it moves
+                told = download.Percent;
+                activity?.Update(Str.Format("Shell.Config.Local.DownloadingFormat", name, told));
             }));
             activity?.Complete();
             download.Finish(null);
@@ -131,6 +134,16 @@ public sealed partial class LocalDownload : ObservableObject
 {
     /// <summary>How far back the speed is read: long enough to even out a burst, short enough to follow a change.</summary>
     private static readonly TimeSpan Window = TimeSpan.FromSeconds(15);
+
+    /// <summary>How often its figures change for whoever shows them: often enough to look live, seldom enough that a
+    /// download read in small pieces — hundreds a second — does not flood the UI thread with refreshes.</summary>
+    internal static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>How long it must have come before its speed says how long is left: a model's first files are small, each
+    /// costing a request, and their first second reads as days.</summary>
+    internal static readonly TimeSpan Settled = TimeSpan.FromSeconds(5);
+
+    private DateTime _shown = DateTime.MinValue;
 
     private readonly Queue<(DateTime At, long Received)> _samples = new();
     private readonly TimeProvider _clock;
@@ -167,18 +180,24 @@ public sealed partial class LocalDownload : ObservableObject
 
     internal void Run(Task<bool> running) => _done = running;
 
-    /// <summary>Takes a report of how far it has got, and reads the speed over the last few seconds from it.</summary>
+    /// <summary>
+    /// Takes a report of how far it has got. Its figures change at most every <see cref="Interval"/>, and when it is all
+    /// here; how long is left is read from the speed over the last few seconds, once it has come for <see cref="Settled"/>.
+    /// </summary>
     public void Report(AssetProgress progress)
     {
         if (progress.Total > 0) Total = progress.Total;
         var now = _clock.GetUtcNow().UtcDateTime;
+        if (now - _shown < Interval && progress.Received < Total) return;
+        _shown = now;
+
         _samples.Enqueue((now, progress.Received));
         while (_samples.Count > 2 && now - _samples.Peek().At > Window) _samples.Dequeue();
         Received = progress.Received;
 
         var (since, from) = _samples.Peek();
         var seconds = (now - since).TotalSeconds;
-        Left = seconds >= 1 && progress.Received > from
+        Left = seconds >= Settled.TotalSeconds && progress.Received > from
             ? TimeSpan.FromSeconds((Total - progress.Received) / ((progress.Received - from) / seconds))
             : null;
     }

@@ -419,7 +419,7 @@ public class LocalModelsTests
     }
 
     [TestMethod]
-    public void HowLongIsLeft_IsReadFromHowFastItHasCome()
+    public void HowLongIsLeft_IsReadFromHowFastItHasCome_OnceItHasComeForAFewSeconds()
     {
         var clock    = new Clock();
         var download = new LocalDownload(new LocalModelOption("Nexaflow", "", ModelKind.Language, E4b, null, null), 100_000_000, clock);
@@ -427,11 +427,53 @@ public class LocalModelsTests
         download.Report(new AssetProgress(0, 100_000_000));
         Assert.IsNull(download.Left, "not till it has come for a moment");
 
-        clock.Now += TimeSpan.FromSeconds(10);
+        clock.Now += TimeSpan.FromSeconds(2);
+        download.Report(new AssetProgress(10_000, 100_000_000));
+        Assert.IsNull(download.Left, "a model's first files are small, each a request: their speed would read as days");
+
+        clock.Now += TimeSpan.FromSeconds(8);
         download.Report(new AssetProgress(20_000_000, 100_000_000));   // two megabytes a second
 
         Assert.AreEqual(TimeSpan.FromSeconds(40), download.Left);
         Assert.AreEqual(20, download.Percent);
+    }
+
+    [TestMethod]
+    public void ADownloadsFigures_ChangeAFewTimesASecond_HoweverOftenItReports_AndWhenItIsAllHere()
+    {
+        var clock    = new Clock();
+        var download = new LocalDownload(new LocalModelOption("Nexaflow", "", ModelKind.Language, E4b, null, null), 1_000_000, clock);
+        var changes  = 0;
+        download.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LocalDownload.Received)) changes++; };
+
+        for (int piece = 1; piece < 100; piece++)
+        {
+            clock.Now += TimeSpan.FromMilliseconds(10);   // a piece every 10 ms: a second of pieces
+            download.Report(new AssetProgress(piece * 10_000, 1_000_000));
+        }
+        Assert.AreEqual(4, changes, "every quarter of a second, not every piece");
+
+        download.Report(new AssetProgress(1_000_000, 1_000_000));
+        Assert.AreEqual(1_000_000, download.Received, "the last piece is always told");
+    }
+
+    [TestMethod]
+    public void ADownloadAskedFromTheUiThread_DoesNoneOfItsWorkThere() => OnUi(async () =>
+    {
+        var ui      = Environment.CurrentManagedThreadId;
+        var threads = new HashSet<int>();
+
+        await _store.EnsureAllAsync([Large.Files[0]], new Told(_ => { lock (threads) threads.Add(Environment.CurrentManagedThreadId); }));
+
+        Assert.IsTrue(threads.Count > 0);
+        Assert.IsFalse(threads.Contains(ui), "reading, writing and hashing each piece on the UI thread froze the app");
+        Assert.AreEqual(ui, Environment.CurrentManagedThreadId, "the caller carries on where it asked");
+    });
+
+    /// <summary>Progress told inline, on whichever thread the work is on.</summary>
+    private sealed class Told(Action<AssetProgress> report) : IProgress<AssetProgress>
+    {
+        public void Report(AssetProgress value) => report(value);
     }
 
     // ── Downloaded models ─────────────────────────────────────────────────

@@ -60,6 +60,9 @@ public sealed partial class LocalJobViewModel : ObservableObject
     private LocalDownload?                  _waiting;
     private bool                            _showing;
 
+    /// <summary>1 while telling the download's progress waits on the UI thread.</summary>
+    private int _tellQueued;
+
     public LocalJobViewModel(LocalSlot slot, LocalModelShelf shelf, AiAbilityGridViewModel grid, Workspace workspace,
                              LocalModelDownloads downloads, Action committed)
     {
@@ -159,7 +162,16 @@ public sealed partial class LocalJobViewModel : ObservableObject
         Status = null;
     }
 
-    private void OnDownloadChanged(object? sender, PropertyChangedEventArgs e) => _ui.InvokeAsync(Tell);
+    /// <summary>Tells the download's progress on the UI thread once for however many changes arrive before it gets there.</summary>
+    private void OnDownloadChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (Interlocked.Exchange(ref _tellQueued, 1) == 1) return;
+        _ui.InvokeAsync(() =>
+        {
+            Volatile.Write(ref _tellQueued, 0);
+            Tell();
+        });
+    }
 
     private void Tell()
     {
