@@ -143,8 +143,20 @@ public class ToolCallSyntaxTests
     [TestMethod]
     public void ReasoningSpans_AreTheOnesTheVocabularyHolds()
     {
-        Assert.AreEqual(new ThinkingSyntax(21, 22), ThinkingSyntax.Of(Special(new() { ["<think>"] = 21, ["</think>"] = 22 })));
-        Assert.AreEqual(new ThinkingSyntax(31, 32), ThinkingSyntax.Of(Special(new() { ["<|channel>"] = 31, ["<channel|>"] = 32 })));
+        Assert.AreEqual(new ThinkingSyntax(21, 22, "<think>", "</think>"), ThinkingSyntax.Of(Special(new() { ["<think>"] = 21, ["</think>"] = 22 })));
+        Assert.AreEqual(new ThinkingSyntax(31, 32, "<|channel>", "<channel|>"), ThinkingSyntax.Of(Special(new() { ["<|channel>"] = 31, ["<channel|>"] = 32 })));
         Assert.IsNull(ThinkingSyntax.Of(Special([])));
+    }
+
+    [TestMethod]
+    public void APromptThatEndsInsideAReasoningSpan_LeavesTheModelReasoning()
+    {
+        var qwen = new ThinkingSyntax(21, 22, "<think>", "</think>");
+        var gemma = new ThinkingSyntax(31, 32, "<|channel>", "<channel|>");
+
+        Assert.IsTrue(qwen.Opens("<|im_start|>assistant\n<think>\n"));
+        Assert.IsFalse(qwen.Opens("<|im_start|>assistant\n<think>\n\n</think>\n\n"), "a closed span is reasoning done");
+        Assert.IsTrue(gemma.Opens("<tool_response|><|channel>thought\n"));
+        Assert.IsFalse(gemma.Opens("<|turn>model\n"), "the model opens it itself");
     }
 }

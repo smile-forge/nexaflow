@@ -39,7 +39,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             }
             conversation.Prompted(prompt);
 
-            var outcome = await GenerateAsync(model, conversation, request, reply, ct);
+            var outcome = await GenerateAsync(model, conversation, request, model.Thinking?.Opens(prompt) == true, reply, ct);
             if (outcome.Continuable)
             {
                 conversation.Answered(request.Turns, outcome.Text, outcome.Calls, outcome.StoppedAt);
@@ -108,27 +108,28 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <param name="Continuable">Whether the conversation can be kept for the next request: its reply ended where the
-    /// model ends turns, and wrote no reasoning the template would not show it again.</param>
+    /// model ends turns, not cut short by a limit.</param>
     /// <param name="StoppedAt">The text of the token the reply stopped on.</param>
     private sealed record Outcome(StopReason Reason, string Text, List<ChatToolCall> Calls, int Generated, int PromptTokens, bool Continuable,
                                   string StoppedAt);
 
     /// <summary>Generates until the model ends its turn, waits on the tools it called, or a limit is reached. Each
     /// token is chosen from the logits of the read before it and read in the step after it is sent — all but the one
-    /// a reply stops on, which the next request's read begins with. Offered tools, a model that calls them in its own
-    /// syntax has its calls read from its tokens and sent as they are made; they are never text.</summary>
-    private async Task<Outcome> GenerateAsync(ChatModel model, LiveConversation conversation, Generate request, Func<HostReply, Task> reply,
-                                              CancellationToken ct)
+    /// a reply stops on, which the next request's read begins with. The model's reasoning is read and kept in its context,
+    /// never sent; <paramref name="reasoning"/> says the prompt began it. The reply's text starts at its first word.
+    /// Offered tools, a model that calls them in its own syntax has its calls read from its tokens and sent as they are
+    /// made; they are never text.</summary>
+    private async Task<Outcome> GenerateAsync(ChatModel model, LiveConversation conversation, Generate request, bool reasoning,
+                                              Func<HostReply, Task> reply, CancellationToken ct)
     {
         var text = new ReplyText(model.Model);
         var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
         var calls = new List<ChatToolCall>();
         var written = new StringBuilder();
         int prompt = conversation.Tokens, generated = 0;
-        bool thinking = false, thought = false;
 
         Outcome Stop(StopReason reason, bool continuable, int token)
-            => new(reason, written.ToString(), calls, generated, prompt, continuable && !thought, model.Model.TokenText(token));
+            => new(reason, written.ToString(), calls, generated, prompt, continuable, model.Model.TokenText(token));
 
         while (true)
         {
@@ -137,10 +138,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             if (model.Model.EndsTurn(token))
                 return Stop(calls.Count > 0 ? StopReason.ToolCalls : StopReason.EndOfTurn, continuable: true, token);
 
-            if (model.Thinking is { } span && (thinking || token == span.Open))
+            if (model.Thinking is { } span && (reasoning || token == span.Open))
             {
-                thinking = token != span.Close;
-                thought = true;
+                reasoning = token != span.Close;
             }
             else
             {
@@ -154,6 +154,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                         return Stop(StopReason.ToolCalls, continuable: true, token);
                     case ToolCallToken.Text:
                         string piece = text.Decode(token);
+                        if (written.Length == 0) piece = piece.TrimStart();
                         if (piece.Length == 0) break;
                         written.Append(piece);
                         await reply(new TextDelta(request.RequestId, piece));

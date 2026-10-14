@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
 
-/// <summary>What a chat template is given — the conversation as OpenAI-style messages, the tools, reasoning off — and
+/// <summary>What a chat template is given — the conversation as OpenAI-style messages, the tools, reasoning on — and
 /// what Gemma 4's and Qwen's own templates make of it.</summary>
 [TestClass]
 [CoversNode("ai-host")]
@@ -54,7 +54,7 @@ public class ChatPromptTests
     }
 
     [TestMethod]
-    public void TheToolsAreGivenAsFunctions_WithTheirSchemas_ReasoningOff_AndTheModelsOwnTokens()
+    public void TheToolsAreGivenAsFunctions_WithTheirSchemas_ReasoningOn_AndTheModelsOwnTokens()
     {
         var variables = Variables(WithACall, [DeleteFile]);
 
@@ -62,7 +62,7 @@ public class ChatPromptTests
         var function = Mapping(tool["function"]);
         Assert.AreEqual(("function", "delete_file", "Delete a file."), ((string)tool["type"]!, (string)function["name"]!, (string)function["description"]!));
         Assert.AreEqual("object", (string)Mapping(function["parameters"])["type"]!);
-        Assert.AreEqual((false, true, "<bos>", "<eos>"),
+        Assert.AreEqual((true, true, "<bos>", "<eos>"),
                         ((bool)variables["enable_thinking"]!, (bool)variables["add_generation_prompt"]!, (string)variables["bos_token"]!, (string)variables["eos_token"]!));
         Assert.IsFalse(Variables([new(TurnRole.User, "Hi")]).ContainsKey("tools"), "no tools offered, none given");
     }
@@ -82,11 +82,20 @@ public class ChatPromptTests
     }
 
     [TestMethod]
+    public void GemmasOwnTemplate_AsksForReasoning_AndOpensItAfterWhatACallCameTo()
+    {
+        string prompt = JinjaTemplate.Parse(ChatTemplateReferences.Template("gemma-4")).Render(Variables(WithACall, [DeleteFile]));
+
+        StringAssert.StartsWith(prompt, "<bos><|turn>system\n<|think|>\n", "reasoning is asked for first in the system turn");
+        Assert.IsTrue(prompt.EndsWith("<tool_response|><|channel>thought\n", StringComparison.Ordinal), "after a tool's result the template opens it");
+    }
+
+    [TestMethod]
     public void GemmasOwnTemplate_DeclaresTheTools_AndWritesTheCallAndWhatCameOfIt()
     {
         string prompt = JinjaTemplate.Parse(ChatTemplateReferences.Template("gemma-4")).Render(Variables(WithACall, [DeleteFile]));
 
-        StringAssert.Contains(prompt, "<|turn>system\nBe brief.<|tool>declaration:delete_file{description:<|\"|>Delete a file.<|\"|>");
+        StringAssert.Contains(prompt, "Be brief.<|tool>declaration:delete_file{description:<|\"|>Delete a file.<|\"|>");
         StringAssert.Contains(prompt, "<|tool_call>call:delete_file{name:<|\"|>test.zip<|\"|>,to_bin:true}<tool_call|>"
                                     + "<|tool_response>response:delete_file{value:<|\"|>Deleted 'test.zip'.<|\"|>}<tool_response|>");
     }
@@ -95,7 +104,7 @@ public class ChatPromptTests
     [DataRow("qwen-3.5")]
     [DataRow("qwen-3.6")]
     [DataRow("qwen-3.8")]
-    public void QwensOwnTemplate_WritesTheCallAsItsTags_AndAsksForNoReasoning(string family)
+    public void QwensOwnTemplate_WritesTheCallAsItsTags_AndLeavesTheModelReasoning(string family)
     {
         string prompt = JinjaTemplate.Parse(ChatTemplateReferences.Template(family)).Render(Variables(WithACall, [DeleteFile]));
 
@@ -104,6 +113,6 @@ public class ChatPromptTests
         StringAssert.Contains(prompt, "<tool_call>\n<function=delete_file>\n<parameter=name>\ntest.zip\n</parameter>\n"
                                     + $"<parameter=to_bin>\n{toBin}\n</parameter>\n</function>\n</tool_call>");
         StringAssert.Contains(prompt, "<tool_response>\nDeleted 'test.zip'.\n</tool_response>");
-        Assert.IsTrue(prompt.EndsWith("<|im_start|>assistant\n<think>\n\n</think>\n\n", StringComparison.Ordinal), "reasoning is off");
+        Assert.IsTrue(prompt.EndsWith("<|im_start|>assistant\n<think>\n", StringComparison.Ordinal), "the template opens the reply's reasoning");
     }
 }

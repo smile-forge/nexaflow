@@ -51,7 +51,8 @@ public class OwnedModelTests
 
     private sealed record Answer(string Text, GenerationEnded Ended, IReadOnlyList<ChatToolCall> Calls);
 
-    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 200, IReadOnlyList<ChatTool>? tools = null, CancellationToken ct = default)
+    /// <summary>Asks the model; <paramref name="maxNew"/> counts its reasoning too, so it is the app's own budget.</summary>
+    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 4096, IReadOnlyList<ChatTool>? tools = null, CancellationToken ct = default)
     {
         var (client, model) = Model();
         var text = new StringBuilder();
@@ -148,6 +149,18 @@ public class OwnedModelTests
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(answer.Text));
         Assert.IsTrue(answer.Ended.PromptTokens > 40, "the recording's tokens are in the prompt");
+    }
+
+    [TestMethod]
+    public async Task TheModelReasons_ButOnlyItsAnswerIsSent()
+    {
+        var answer = await AskAsync(Conversation("A train leaves at 14:10 and arrives at 16:45. How long is the journey?"));
+
+        Assert.AreEqual(StopReason.EndOfTurn, answer.Ended.Reason);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(answer.Text));
+        Assert.IsFalse(answer.Text.StartsWith("thought", StringComparison.OrdinalIgnoreCase) || answer.Text.Contains("<|channel>"),
+                       $"the reasoning stays with the model: {answer.Text}");
+        Assert.AreEqual(answer.Text.TrimStart(), answer.Text, "the answer starts at its first word");
     }
 
     [TestMethod]

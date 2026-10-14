@@ -9,7 +9,8 @@ namespace Nexaflow.AiHost.Generation;
 /// <summary>
 /// A conversation as the model reads it: rendered by the model's own chat template, so a new model needs no harness
 /// of its own. The template is given what transformers would give it — OpenAI-style messages, the tools, the
-/// generation prompt, the model's start and end tokens — with reasoning off. Where a turn carries a picture or a
+/// generation prompt, the model's start and end tokens — with reasoning on: a model says what its actions came to only
+/// when it has thought about them. Where a turn carries a picture or a
 /// recording the model can take in, its content holds the projector's marker, which the medium is read in place of;
 /// any other is noted in words.
 /// </summary>
@@ -41,7 +42,7 @@ internal static class ChatPrompt
             ["add_generation_prompt"] = generationPrompt,
             ["bos_token"]             = bos,
             ["eos_token"]             = eos,
-            ["enable_thinking"]       = false,
+            ["enable_thinking"]       = true,
         };
         if (tools is { Count: > 0 })
             variables["tools"] = tools.Select(t => (object?)JinjaValues.Mapping(
