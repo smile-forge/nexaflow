@@ -194,6 +194,12 @@ public static class MarkdownKinds
     public const string Rank = "rank";
 
     /// <summary>
+    /// The list a run of words was matched from, kept where a link in it waits on a name the document may define — so the run
+    /// can be matched again, from the same list, once the names are known (<see cref="MarkdownDelimiters"/>).
+    /// </summary>
+    public const string Delimiters = "delimiters";
+
+    /// <summary>
     /// A block somebody is changing the markup of, as the characters it is written with — its body — and the line break closing
     /// them (<c>ShowBlocksAsWritten</c>).
     /// </summary>

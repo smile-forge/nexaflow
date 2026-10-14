@@ -30,7 +30,7 @@ public class MarkdownSampleRenderTests
                      .Where(p => Path.GetFileName(p).StartsWith("mermaid-", StringComparison.Ordinal)))
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
             var fences = doc.OfType<FencedCodeBlock>()
                             .Where(f => ContentLanguages.Reads(f.Info))
@@ -48,7 +48,7 @@ public class MarkdownSampleRenderTests
     public void ExtensionsSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "extensions.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         Lays(md, [], "the whole document");
 
@@ -75,7 +75,7 @@ public class MarkdownSampleRenderTests
         foreach (var path in files)
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
             Lays(md, [], Path.GetFileName(path));
         }
     });
@@ -110,7 +110,7 @@ public class MarkdownSampleRenderTests
         int typeset = 0, fellBack = 0;
         foreach (var path in files)
         {
-            var    doc  = MdMarkdown.Parse(File.ReadAllText(path), MarkdownParser.Pipeline);
+            var    doc  = MdMarkdown.Parse(File.ReadAllText(path), MarkdigReading.Pipeline);
             string name = Path.GetFileName(path);
 
             foreach (var math in doc.Descendants().OfType<Markdig.Extensions.Mathematics.MathInline>())
@@ -152,7 +152,7 @@ public class MarkdownSampleRenderTests
         foreach (var path in files)
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
             Assert.IsTrue(doc.OfType<Markdig.Syntax.FencedCodeBlock>()
                              .Any(fence => fence.Info is "abc" or "lilypond"),
                 $"no music fence parsed in {Path.GetFileName(path)}");
@@ -170,7 +170,7 @@ public class MarkdownSampleRenderTests
     public void QrSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "qr-codes.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "qr".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -197,7 +197,7 @@ public class MarkdownSampleRenderTests
     public void BarcodeSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "barcodes.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "barcode".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -219,7 +219,7 @@ public class MarkdownSampleRenderTests
     public void DataMatrixSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "datamatrix.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "datamatrix".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -234,7 +234,7 @@ public class MarkdownSampleRenderTests
     public void Pdf417SampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "pdf417.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "pdf417".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -249,7 +249,7 @@ public class MarkdownSampleRenderTests
     public void AztecSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "aztec.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "aztec".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -264,7 +264,7 @@ public class MarkdownSampleRenderTests
     public void SmilesSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "smiles.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "smiles".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -284,7 +284,7 @@ public class MarkdownSampleRenderTests
     public void WordCloudSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "wordcloud.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         var fences = doc.OfType<FencedCodeBlock>()
                         .Where(f => "wordcloud".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
@@ -303,7 +303,7 @@ public class MarkdownSampleRenderTests
     public void PlotSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "plots.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
+        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
 
         string[] fences = ["scatter", "bubble", "heatmap", "density2d"];
 

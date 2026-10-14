@@ -2,122 +2,16 @@
 # not hold and on a line here that no longer diverges. One line per divergence, as the test writes it: the document, the
 # side that said it, and the construct by what it is and the characters it stands for. Each group under a line saying why.
 
-# A paragraph inside a quote, a list item, an alert or a figure is read without what holds it: the marks at the head of
-# its later lines are read as trivia between pieces, so its line breaks are lost, and a code span or a strong run across
-# them is misread. MarkdownInline reads a paragraph's words alone, without its lead.
-CommonMark#93	markdig-only	break[hard=no] "\n"
-CommonMark#93	markdig-only	break[hard=no] "\n"
-CommonMark#228	markdig-only	break[hard=no] "\n"
-CommonMark#229	markdig-only	break[hard=no] "\n"
-CommonMark#230	markdig-only	break[hard=no] "\n"
-CommonMark#233	markdig-only	break[hard=no] "\n"
-CommonMark#243	markdig-only	break[hard=no] "\n"
-CommonMark#251	markdig-only	break[hard=no] "\n"
-CommonMark#251	markdig-only	break[hard=no] "\n"
-CommonMark#293	markdig-only	break[hard=no] "\n"
-AlertBlockSpecs#2	markdig-only	break[hard=no] "\n"
-AlertBlockSpecs#4	markdig-only	break[hard=no] "\n"
-AlertBlockSpecs#5	markdig-only	break[hard=no] "\n"
-FigureFooterAndCiteSpecs#2	markdig-only	break[hard=no] "\n"
-pages/docs/Architecture.md	markdig-only	break[hard=no] "\n"
-pages/docs/Architecture.md	markdig-only	break[hard=no] "\n"
-pages/docs/MarkdownSupport.md	markdig-only	break[hard=no] "\n"
-pages/docs/MarkdownSupport.md	markdig-only	break[hard=no] "\n"
-pages/docs/MarkdownSupport.md	markdig-only	break[hard=no] "\n"
-pages/docs/MarkdownSupport.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`await ConfirmAsync(…,\n>    "Delete", "C…"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`ConfirmationDialog`"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`OverlayCoordinator`"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`ConfirmationRequest`"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`PromptRequest`"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`Chrome_ConfirmOk`"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	code-span "`Chrome_ConfirmCancel`"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	strong "**Re-counted 2026-09-05, and this findin…"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	markdig-only	break[hard=no] "\n"
-pages/docs/arch_review_2026-07.md	today-only	code-span "`; `"
-pages/docs/arch_review_2026-07.md	today-only	code-span "` goes; `"
-pages/docs/arch_review_2026-07.md	today-only	code-span "` holds a `"
-pages/docs/arch_review_2026-07.md	today-only	code-span "` /\n>    `"
-pages/docs/arch_review_2026-07.md	today-only	code-span "` instead of its own field bags. The Pro…"
-pages/docs/arch_review_2026-07.md	today-only	code-span "` /\n>    `"
-pages/docs/dynamic-protocol.md	markdig-only	break[hard=no] "\n"
-pages/docs/dynamic-protocol.md	markdig-only	break[hard=no] "\n"
-pages/docs/externals.md	markdig-only	break[hard=no] "\n"
-pages/docs/features.md	markdig-only	break[hard=no] "\n"
-pages/docs/product-graph.md	markdig-only	strong "**only through the `nfi`\n> CLI**"
-pages/docs/product-graph.md	markdig-only	break[hard=no] "\n"
-pages/docs/product-graph.md	markdig-only	break[hard=no] "\n"
-pages/docs/product-graph.md	markdig-only	break[hard=no] "\n"
-pages/docs/product-graph.md	markdig-only	break[hard=no] "\n"
-pages/docs/product-graph.md	markdig-only	break[hard=no] "\n"
-pages/docs/syntax-highlighting.md	markdig-only	break[hard=no] "\n"
-pages/docs/testing.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
-pages/docs/theming.md	markdig-only	break[hard=no] "\n"
+# Markdig reads a heading underlined over several lines as one run of text, the line ending a character of it; the
+# reading holds the soft break CommonMark says it is. The specification's HTML is the same either way.
+CommonMark#81	today-only	break[hard=no] "\n"
+CommonMark#82	today-only	break[hard=no] "\n"
+CommonMark#95	today-only	break[hard=no] "\n"
 
-# Brackets round a link by name are matched apart from CommonMark: WithReferences matches them itself, after the
-# emphasis round them was read without them. The plan's shared list replaces this.
-CommonMark#529	markdig-only	link[to=/uri] "[link \\[bar][ref]"
-CommonMark#529	today-only	link[to=/uri] "[ref]"
-CommonMark#532	markdig-only	link[to=/uri] "[ref]"
-CommonMark#532	today-only	link[to=/uri] "[foo [bar](/uri)][ref]"
-CommonMark#533	markdig-only	link[to=/uri] "[ref]"
-CommonMark#533	today-only	link[to=/uri] "[foo *bar [baz][ref]*][ref]"
-CommonMark#534	markdig-only	link[to=/uri] "[foo*][ref]"
-CommonMark#534	today-only	emphasis "*[foo*"
-CommonMark#534	today-only	link[to=/uri] "[ref]"
-CommonMark#535	markdig-only	link[to=/uri] "[foo *bar][ref]"
-CommonMark#535	today-only	emphasis "*bar][ref]*"
-CommonMark#535	today-only	link[to=/uri] "[ref]"
-CommonMark#564	markdig-only	link[to=/url] "[foo*]"
-CommonMark#564	today-only	emphasis "*[foo*"
-
-# A label written with an escape in it, or that folds to other letters (ẞ to SS), names no definition: WithTargets.Label
-# neither takes escapes off nor case-folds as CommonMark does.
-CommonMark#194	markdig-only	link[to=my_(url)] "[Foo*bar\\]]"
-CommonMark#540	markdig-only	link[to=/url] "[ẞ]"
-CommonMark#549	markdig-only	link[to=/uri] "[foo][ref\\[]"
-CommonMark#550	markdig-only	link[to=/uri] "[bar\\\\]"
-
-# A destination is kept as written, entities and all, and what it is followed to is not decoded.
-CommonMark#33	markdig-only	link[to=/föö] "[foo]"
-CommonMark#33	today-only	link[to=/f&ouml;&ouml;] "[foo]"
-
-# An autolink whose address ends in a bracket loses it: MarkdownInline.Wrapped takes every bracket at either end for a mark.
-CommonMark#538	markdig-only	link[to=https://example.com/?search=][ref]] "<https://example.com/?search=][ref]>"
-CommonMark#538	today-only	link[to=https://example.com/?search=][ref] "<https://example.com/?search=][ref]>"
-
-# An abbreviation inside emphasis is not found (WithReferences.Abbreviated).
-AbbreviationSpecs#13	markdig-only	abbreviation[means=HyperText Markup Language] "HTML"
-AbbreviationSpecs#14	markdig-only	abbreviation[means=HyperText Markup Language] "HTML"
-
-# A definition with no term of its own — a second ":" under the first — read alone is a paragraph: MarkdownBlocks reads
-# each definition from its own characters, which say nothing of the list they are in.
-DefinitionListSpecs#1	markdig-only	paragraph "This ia another definition item"
-DefinitionListSpecs#1	today-only	paragraph ":   This ia another definition item"
+# Markdig keeps a definition's address as written, entities and all, and reads them only where a link takes it up; the
+# reading says where the definition goes. The links themselves agree.
+CommonMark#33	markdig-only	reference[to=/f&ouml;&ouml;] "[foo]: /f&ouml;&ouml; "f&ouml;&ouml;""
+CommonMark#33	today-only	reference[to=/föö] "[foo]: /f&ouml;&ouml; "f&ouml;&ouml;""
 
 # Markdig's span for a definition takes in a title on the next line that it then refused, and starts the paragraph
 # after it. The specification's HTML agrees with the reading: Markdig is the one wrong here.
@@ -125,6 +19,11 @@ CommonMark#210	markdig-only	reference[to=/url] "[foo]: /url\n"title""
 CommonMark#210	markdig-only	paragraph "ok"
 CommonMark#210	today-only	reference[to=/url] "[foo]: /url"
 CommonMark#210	today-only	paragraph ""title" ok"
+
+# A definition with no term of its own — a second ":" under the first — read alone is a paragraph: MarkdownBlocks reads
+# each definition from its own characters, which say nothing of the list they are in.
+DefinitionListSpecs#1	markdig-only	paragraph "This ia another definition item"
+DefinitionListSpecs#1	today-only	paragraph ":   This ia another definition item"
 
 # Markdig fills a short row out to the widest with cells nobody wrote. They stand for no characters, so the reading has none.
 PipeTableSpecs#7	markdig-only	cell ""

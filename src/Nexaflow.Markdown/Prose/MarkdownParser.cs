@@ -3,8 +3,6 @@ using System.Collections.Generic;
 
 using System.Linq;
 using System.Text;
-using Markdig;
-using Markdig.Extensions.AutoIdentifiers;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -36,18 +34,6 @@ public sealed class MarkdownParser : ITranspile
     private MarkdownParser()
     {
     }
-    /// <summary>
-    /// The pipeline the words inside a block are read with (<see cref="MarkdownInline"/>), and that a host reading markdown
-    /// with Markdig itself reads with: everything a document can hold.
-    ///
-    /// <para>
-    /// Deliberately without Markdig's own trivia tracking, which turns a pipe table back into the paragraph it
-    /// was read from. Nothing here needs it: only the spans are taken and every character is cut from the
-    /// source, so what falls between two pieces is found by looking rather than by being told.
-    /// </para>
-    /// </summary>
-    public static MarkdownPipeline Pipeline { get; } = Reading(new MarkdownPipelineBuilder()).Build();
-
     /// <summary>
     /// A parse for one document, read again and again as it is written: what it read of a block last time is what it hands back
     /// for the same block this time, so a keystroke reads the block it was typed in rather than every block there is. One per
@@ -101,29 +87,6 @@ public sealed class MarkdownParser : ITranspile
 
     /// <summary>What a formula is written in — which nobody writes after <c>$$</c>, because the <c>$$</c> says it.</summary>
     internal const string Maths = "latex";
-
-    /// <summary>
-    /// The same options, so a host adding an extension of its own starts from what is already read. Every
-    /// heading is given a GitHub-style id on the way, for a host that reads a page's headings with Markdig itself.
-    /// </summary>
-    public static MarkdownPipelineBuilder Reading(MarkdownPipelineBuilder builder) =>
-        builder
-            .UseYamlFrontMatter()
-            .UsePipeTables()
-            .UseGridTables()
-            .UseTaskLists()
-            .UseEmphasisExtras()
-            .UseAutoLinks()
-            .UseDefinitionLists()
-            .UseListExtras()
-            .UseAbbreviations()
-            .UseAlertBlocks()
-            .UseFigures()
-            .UseFooters()
-            .UseCitations()
-            .UseMathematics()
-            .UseDiagrams()
-            .UseAutoIdentifiers(AutoIdentifierOptions.GitHub);
 
     /// <summary><paramref name="source"/> as the blocks it is written in.</summary>
     public static ContentNode Read(string? source)

@@ -1,310 +1,89 @@
-using System;
-using System.Collections.Generic;
-
-using Markdig;
-using Markdig.Extensions.TaskLists;
-using Markdig.Syntax;
-using Markdig.Syntax.Inlines;
-
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// The text of a block, read into the constructs a writer spelled with punctuation — emphasis, code spans,
-/// links, the marks that tick an item off.
+/// The text of a block, read into the constructs a writer spelled with punctuation — emphasis, code spans, links.
 ///
 /// <para>
-/// The parser a paragraph and a heading are read by, and the one a table's cell and a list item's words are
-/// read by too: what is in them is the same language, whatever holds it. What makes a block that block — a
-/// heading's hashes, an item's bullet, a cell's pipes — is simply the source that falls before the first thing
-/// read, kept where it was written.
+/// The parser a paragraph and a heading are read by, a definition's term, a figure's caption and a table's cell: what is in
+/// them is the same language, whatever holds it. The words are read over the lines they are written on, each from past
+/// what its containers put at its head — a quote's <c>&gt;</c>, an item's indentation (<see cref="MarkdownLines"/>) — so
+/// those marks are trivia between the words and never words. What makes a block that block — a heading's hashes, the line
+/// under it — is the source that falls before or after the words, kept where it was written.
 /// </para>
 /// <para>
-/// <strong>Every character comes from the source.</strong> Markdig's tree holds text it has already read, an
-/// entity decoded and an escape taken off, so nothing in it is copied across: only the spans are, and the
-/// characters are cut out at them. A stretch that does not print back as what it was cut from is shown as it
-/// was typed rather than repaired into something nobody wrote.
+/// <strong>Every character comes from the source.</strong> The words are matched as CommonMark matches them
+/// (<see cref="MarkdownDelimiters"/>), and every piece is cut out of the source where it stands. A stretch that does not
+/// print back as what it was cut from is shown as it was typed rather than repaired into something nobody wrote.
 /// </para>
 /// </summary>
 public static class MarkdownInline
 {
-    /// <summary><paramref name="source"/> as the words and marks it is made of.</summary>
+    /// <summary>
+    /// <paramref name="source"/> as the words and marks it is made of: a paragraph's, every line of it words — or anything
+    /// else that is nothing but words, a term, a caption, a cell.
+    /// </summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
+    /// <param name="lead">
+    /// What stands in front of <paramref name="source"/> on the line it starts on: a paragraph in a quote carries the quote's
+    /// <c>&gt;</c> on every line after its first, and is read as it reads there — see <see cref="MarkdownLines"/>.
+    /// </param>
+    public static ContentNode Read(string? source, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Words, [], offset: at);
 
+        var lines = new List<(int From, int To)>();
+        var written = MarkdownLines.Of(text, lead);
+
+        for (var index = 0; written.TryLine(index, out var line); index++) lines.Add((line.Content, line.End));
+
+        // The line ending closing the block, and any blank line after it, are no line of its words.
+        while (lines.Count > 0 && text.AsSpan(lines[^1].From, lines[^1].To - lines[^1].From).IsWhiteSpace()) lines.RemoveAt(lines.Count - 1);
+
+        return Words(text, lines, at);
+    }
+
+    /// <summary>
+    /// A heading's source as the words and marks it is made of: its words, between the hashes opening it and any closing it —
+    /// or above the line underlining it — which the scan finds as it would where the heading stands.
+    /// </summary>
+    /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    /// <param name="lead">What stands in front of <paramref name="source"/> on the line it starts on — see <see cref="MarkdownLines"/>.</param>
+    public static ContentNode Heading(string? source, int at = 0, string? lead = null)
+    {
+        var text = source ?? string.Empty;
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Words, [], offset: at);
+
+        var scanned = MarkdownScanner.Scan(MarkdownLines.Of(text, lead), document: false);
+        var heading = scanned.Children.FirstOrDefault(block => block.Kind == ScannedKind.Heading);
+
+        return Words(text, heading?.Lines ?? [], at);
+    }
+
+    /// <summary>
+    /// The words written on <paramref name="lines"/>, whatever stands round them kept where it was written, checked to print
+    /// as what they were read from — and, where a link in them waits on a name the document may define, the list they were
+    /// matched from, for whoever knows the names to match again (<see cref="WithReferences"/>).
+    /// </summary>
+    private static ContentNode Words(string text, IReadOnlyList<(int From, int To)> lines, int at)
+    {
         var read = new Cut(text, at);
         var parts = new List<ContentNode>();
+        MarkdownDelimiters? waiting = null;
 
-        try
+        if (lines.Count > 0)
         {
-            Words(Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline), parts, read);
-        }
-        catch
-        {
-            parts.Add(read.Unaccounted());
+            read.Gap(parts, lines[0].From);
+            parts.AddRange(MarkdownDelimiters.Read(text, lines, at, parts.Count, out waiting));
+            read.Accounted(lines[^1].To);
         }
 
         read.Gap(parts, read.Length);
 
+        if (waiting is not null) parts.Add(ContentNode.Holding(MarkdownKinds.Delimiters, Roles.Derived, waiting));
+
         return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element, at);
     }
-
-    /// <summary>
-    /// The text of every block under this one, in the order it was written. A block holding blocks is walked
-    /// into rather than skipped, because the words of a list item are inside the item, inside the list.
-    /// </summary>
-    private static void Words(ContainerBlock blocks, List<ContentNode> parts, Cut read)
-    {
-        foreach (var block in blocks)
-            switch (block)
-            {
-                case LeafBlock { Inline: not null } leaf: Inside(leaf.Inline, parts, read); break;
-                case ContainerBlock inner: Words(inner, parts, read); break;
-            }
-    }
-
-    private static void Inside(ContainerInline container, List<ContentNode> parts, Cut read)
-    {
-        foreach (var child in container)
-        {
-            read.Gap(parts, read.Starts(child));
-            parts.Add(One(child, read));
-        }
-    }
-
-    private static ContentNode One(Inline inline, Cut read)
-    {
-        var end = read.Ends(inline);
-
-        switch (inline)
-        {
-            // Nothing inside a code span is read: an asterisk in there is an asterisk.
-            case CodeInline:
-                return Wrapped(read, end, MarkdownKinds.Code, Kinds.Verbatim, Roles.Body);
-
-            // An address written bare is a link to itself just as one in angle brackets is.
-            case AutolinkInline:
-            case LinkInline { IsAutoLink: true }:
-                return Wrapped(read, end, Kinds.Link, MarkdownKinds.Word, Roles.Destination);
-
-            case TaskList task:
-                return Task(read, end, task.Checked);
-
-            // What the abbreviation stands for is written on a line of its own somewhere else, so it is not in
-            // these characters and cannot be cut from them — it is hung on instead.
-            // The word is a part of its own under the abbreviation, because what is hung on a piece is hung beside
-            // what it holds: a word hung with its meaning would be a piece holding nothing but the meaning.
-            case Markdig.Extensions.Abbreviations.AbbreviationInline abbreviation:
-                return ContentNode.Branch(MarkdownKinds.Abbreviation, [read.Take(end, Roles.Body, MarkdownKinds.Word)])
-                    .Holding(MarkdownKinds.Abbreviation, Roles.Tip, abbreviation.Abbreviation.Text.ToString().Trim());
-
-            case LiteralInline:
-                return Escaped(read, end);
-
-            case HtmlEntityInline:
-                return read.Take(end, Roles.Element, MarkdownKinds.Entity);
-
-            case HtmlInline:
-                return read.Take(end, Roles.Element, MarkdownKinds.Html);
-
-            // Whether the writer asked for the line to break is settled by what stands before the ending, which the reader
-            // has already looked at; it is said here so nothing after has to look again.
-            case LineBreakInline ending:
-                return read.Take(end, ending.IsHard ? MarkdownRoles.Hard : Roles.Separator, MarkdownKinds.Break);
-
-            case Markdig.Extensions.Mathematics.MathInline maths:
-                return Formula(maths, read, end);
-        }
-
-        var parts = new List<ContentNode>();
-        (ContentNode Written, MarkdownPictureSize Size)? asked = null;
-
-        if (inline is ContainerInline container)
-        {
-            var body = new List<ContentNode>();
-            Inside(container, body, read);
-
-            // What stands before the first thing inside is what opened the construct.
-            if (body.Count > 0 && body[0].Role == Roles.Trivia && body[0].IsLeaf)
-            {
-                parts.Add(body[0].As(Roles.Open));
-                body.RemoveAt(0);
-            }
-
-            // A picture's words can end in the size it asks to be drawn at, which is no part of what they say.
-            if (inline is LinkInline { IsImage: true }) asked = MarkdownPictureSize.Taken(body);
-
-            if (body.Count > 0) parts.Add(ContentNode.Branch(Kinds.Words, body, Roles.Body));
-            if (asked is { } sized) parts.Add(sized.Written);
-        }
-
-        if (end > read.At) parts.AddRange(Tail(inline, read, end));
-
-        var node = parts.Count == 0
-            ? read.Take(end, Roles.Element, Kind(inline))
-            : ContentNode.Branch(Kind(inline), parts);
-
-        if (asked is { } said) node = node.Holding(MarkdownKinds.Size, MarkdownRoles.Size, said.Size);
-
-        // A link naming a definition written elsewhere has no address in its own characters; the definition's is hung on it.
-        return inline is LinkInline { Url.Length: > 0 } link && MarkdownLinks.Goes(node) is null
-            ? node.Holding(Kind(inline), Roles.Destination, link.Url)
-            : node;
-    }
-
-    /// <summary>
-    /// A run of ordinary text, with any backslash escape in it taken as the piece it is.
-    ///
-    /// <para>
-    /// <c>\*</c> is two characters that mean one, which is exactly what an entity is — so it is read as its
-    /// own piece, and drawn as the character it stands for while still being the two that were typed. Split
-    /// here rather than left to a builder, because it is how the text is written, and saying that is the
-    /// parser's: a builder only draws what it is handed.
-    /// </para>
-    /// </summary>
-    private static ContentNode Escaped(Cut read, int end)
-    {
-        var from = read.At;
-        var text = read.Between(from, end);
-
-        if (!text.Contains('\\')) return read.Take(end, Roles.Element, MarkdownKinds.Word);
-
-        var parts = new List<ContentNode>();
-        var taken = 0;
-
-        for (var at = 0; at + 1 < text.Length; at++)
-        {
-            if (text[at] != '\\' || !Escapes(text[at + 1])) continue;
-
-            if (at > taken) parts.Add(read.Take(from + at, Roles.Element, MarkdownKinds.Word));
-
-            parts.Add(read.Take(from + at + 2, Roles.Element, MarkdownKinds.Escape));
-
-            taken = at + 2;
-            at++;
-        }
-
-        if (parts.Count == 0) return read.Take(end, Roles.Element, MarkdownKinds.Word);
-
-        if (end > read.At) parts.Add(read.Take(end, Roles.Element, MarkdownKinds.Word));
-
-        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Element);
-    }
-
-    /// <summary>Which characters a backslash can take the meaning off — CommonMark's ASCII punctuation, and no others.</summary>
-    private static bool Escapes(char what) =>
-        what is (>= '!' and <= '/') or (>= ':' and <= '@') or (>= '[' and <= '`') or (>= '{' and <= '~');
-
-    /// <summary>
-    /// A task's box, <c>[x]</c>: its brackets, and between them the mark saying whether it is done — the one character a
-    /// press on the box rewrites, so what a press means is settled here rather than by anything reading the brackets again.
-    /// </summary>
-    internal static ContentNode Task(Cut read, int end, bool done)
-    {
-        var mark = done ? MarkdownRoles.Done : MarkdownRoles.Todo;
-        var at = read.At;
-
-        if (end - at != 3) return ContentNode.Branch(MarkdownKinds.Task, [read.Take(end, mark, Kinds.Token)]);
-
-        return ContentNode.Branch(MarkdownKinds.Task,
-            [read.Take(at + 1, Roles.Open, Kinds.Token), read.Take(at + 2, mark, Kinds.Token), read.Take(end, Roles.Close, Kinds.Token)]);
-    }
-
-    /// <summary>A formula in a sentence: a block in LaTeX holding its opening dollars, the formula as written (unread), and the closing ones.</summary>
-    private static ContentNode Formula(Markdig.Extensions.Mathematics.MathInline maths, Cut read, int end)
-    {
-        var from = read.At;
-        var stands = read.Here;
-        var opens = Math.Clamp(maths.Content.Start, from, end);
-        var shuts = Math.Clamp(maths.Content.End + 1, opens, end);
-
-        if (shuts <= opens) return read.Take(end, Roles.Element, MarkdownKinds.Formula);
-
-        List<ContentNode> parts = [];
-
-        if (opens > from) parts.Add(read.Take(opens, Roles.Open, Kinds.Token));
-        parts.Add(read.Take(shuts, Roles.Body, Kinds.Nested));
-        if (end > shuts) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
-
-        return new BlockNode(MarkdownParser.Maths, parts, offset: stands);
-    }
-
-    /// <summary>
-    /// What closes a construct, and whatever it says about itself after that: the marks, and — for a link —
-    /// where it points and what it calls itself, each found in the source rather than taken from the reading.
-    /// </summary>
-    private static IEnumerable<ContentNode> Tail(Inline inline, Cut read, int end)
-    {
-        if (inline is LinkInline link)
-        {
-            if (read.Upto(']', end) is { } shut) yield return shut;
-
-            if (link.Url is { Length: > 0 } url && read.Finds(url, end) is { } where)
-            {
-                if (where.Before is { } gap) yield return gap;
-                yield return where.Found.As(Roles.Destination);
-            }
-
-            if (link.Title is { Length: > 0 } title && read.Finds(title, end) is { } says)
-            {
-                if (says.Before is { } gap) yield return gap;
-                yield return says.Found.As(MarkdownRoles.Title);
-            }
-        }
-
-        if (end > read.At) yield return read.Take(end, Roles.Close, Kinds.Token);
-    }
-
-    /// <summary>A construct that is one stretch between two marks — a code span, a bracketed link.</summary>
-    private static ContentNode Wrapped(Cut read, int end, string kind, string inner, string role)
-    {
-        var text = read.Between(read.At, end);
-
-        var opens = 0;
-        while (opens < text.Length && Marks(text[opens])) opens++;
-
-        var shuts = text.Length;
-        while (shuts > opens && Marks(text[shuts - 1])) shuts--;
-
-        List<ContentNode> parts = [];
-        if (opens > 0) parts.Add(read.Take(read.At + opens, Roles.Open, Kinds.Token));
-        if (shuts > opens) parts.Add(read.Take(read.At + (shuts - opens), role, inner));
-        if (end > read.At) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
-
-        return ContentNode.Branch(kind, parts);
-    }
-
-    private static bool Marks(char c) => c is '`' or '<' or '>' or '[' or ']';
-
-    private static string Kind(Inline inline) => inline switch
-    {
-        EmphasisInline emphasis => Emphasised(emphasis),
-        CodeInline => MarkdownKinds.Code,
-        LinkInline { IsImage: true } => MarkdownKinds.Image,
-        LinkInline or AutolinkInline => Kinds.Link,
-        LineBreakInline => MarkdownKinds.Break,
-        HtmlEntityInline => MarkdownKinds.Entity,
-        HtmlInline => MarkdownKinds.Html,
-        TaskList => MarkdownKinds.Task,
-        Markdig.Extensions.Abbreviations.AbbreviationInline => MarkdownKinds.Abbreviation,
-        Markdig.Extensions.Mathematics.MathInline => MarkdownKinds.Formula,
-        _ => MarkdownKinds.Word,
-    };
-
-    private static string Emphasised(EmphasisInline emphasis) => (emphasis.DelimiterChar, emphasis.DelimiterCount) switch
-    {
-        ('"', _) => MarkdownKinds.Citation,
-        ('~', 2) => MarkdownKinds.Strike,
-        ('~', _) => MarkdownKinds.Sub,
-        ('^', _) => MarkdownKinds.Sup,
-        ('=', _) => MarkdownKinds.Mark,
-        ('+', _) => MarkdownKinds.Insert,
-        (_, 2) => MarkdownKinds.Strong,
-        _ => MarkdownKinds.Emphasis,
-    };
 }

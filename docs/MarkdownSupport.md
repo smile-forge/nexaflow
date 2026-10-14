@@ -6,15 +6,17 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 ## How it's wired
 
-- **Parser:** blocks are found by the reading's own scan
+- **Parser:** the reading's own. Blocks are found by its scan
   ([`MarkdownScanner`](../src/Nexaflow.Markdown/Prose/MarkdownScanner.cs)) — CommonMark's block algorithm, with each
-  extension below a rule of its own. The words inside a block are read with Markdig **1.3.2** (`Markdig` package), for
-  its spans only. Either way every piece of the tree is cut from the source, so a document always prints back as exactly
-  what was written ([markdown-ast.md](markdown-ast.md)); [markdown-reader-plan.md](markdown-reader-plan.md) takes Markdig
-  out of the words too.
-- **Pipeline:** one extension list — [`MarkdownParser.Reading`](../src/Nexaflow.Markdown/Prose/MarkdownParser.cs),
-  built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
-  starts from `Reading(new())` rather than writing the list again.
+  extension below a rule of its own — and the words inside a block by its tokens and matching
+  ([`MarkdownTokenizer`](../src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs),
+  [`MarkdownDelimiters`](../src/Nexaflow.Markdown/Prose/MarkdownDelimiters.cs)) — CommonMark's inline algorithm, with the
+  extensions below. Every piece of the tree is cut from the source, so a document always prints back as exactly what was
+  written ([markdown-ast.md](markdown-ast.md)). Both are held to Markdig **1.3.2** over the specifications, the samples and
+  these pages by the differential harness in `Tests.Markdown`.
+- **Writing out:** copying as HTML and plain text, and the help's contents and search text, go through Markdig's renderers
+  with [`MarkdigReading.Pipeline`](../src/Nexaflow.Visuals.Text/Markdown/MarkdigReading.cs), which enables the same
+  extensions.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
   abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
@@ -2122,6 +2124,7 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 - **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the
   reading never blocks a lay. **A task box is a real box**: clicking it rewrites `[ ]` / `[x]` in the source.
 
-If any of the disabled extensions are wanted, the change is usually a one-line
-`.UseX()` in `MarkdownParser.Reading` **plus** a reading of what it makes (`MarkdownInline` or a stage) and a case in
+If any of the disabled extensions are wanted, the change is a rule in the reading — a block rule in
+`MarkdownBlockRules`, or a token in `MarkdownTokenizer` matched in `MarkdownDelimiters` — with the extension's
+specification among the harness's and its `.UseX()` in the harness's oracle and in `MarkdigReading`, **plus** a case in
 `MarkdownBuilder` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).

@@ -90,22 +90,26 @@ internal sealed class MarkdownLines
     /// <c>&gt;</c> where one stands, which every line the quote holds carries again, and the width of everything else —
     /// indentation, and a list item's marker, which its later lines carry as that many columns of space.
     /// </summary>
-    /// <returns>A quote's marker as -1; anything else as how many columns of space stand for it.</returns>
+    /// <returns>A quote's marker as <see cref="Quoted"/>, a footer's as <see cref="Footed"/>; anything else as how many columns of space stand for it.</returns>
     private static List<int> Marks(string lead, out int width)
     {
         var marks = new List<int>();
         var column = 0;
         var run = 0;
 
-        foreach (var character in lead)
+        for (var at = 0; at < lead.Length; at++)
         {
-            if (character == '>')
+            var character = lead[at];
+
+            // A quote's marker, or a footer's.
+            if (character == '>' || (character == '^' && at + 1 < lead.Length && lead[at + 1] == '^'))
             {
                 if (run > 0) marks.Add(run);
-                marks.Add(-1);
+                marks.Add(character == '>' ? Quoted : Footed);
 
                 run = 0;
-                column++;
+                column += character == '>' ? 1 : 2;
+                at += character == '>' ? 0 : 1;
                 continue;
             }
 
@@ -119,6 +123,12 @@ internal sealed class MarkdownLines
         width = column;
         return marks;
     }
+
+    /// <summary>A quote's <c>&gt;</c>, among a line's marks.</summary>
+    private const int Quoted = -1;
+
+    /// <summary>A footer's <c>^^</c>, which every line of the footer carries as a quote's line carries its <c>&gt;</c>.</summary>
+    private const int Footed = -2;
 
     /// <summary>
     /// The line from <paramref name="at"/>, its content starting past each quote marker it carries and as much of each run
@@ -138,7 +148,7 @@ internal sealed class MarkdownLines
 
             if (mark < 0)
             {
-                // Up to three spaces may stand in front of a quote's marker.
+                // Up to three spaces may stand in front of a quote's marker, or a footer's.
                 var probe = at;
                 var spaces = 0;
 
@@ -148,15 +158,21 @@ internal sealed class MarkdownLines
                     spaces++;
                 }
 
-                if (probe >= end || text[probe] != '>') break;
+                var width = mark == Quoted ? 1 : 2;
+                var carried = mark == Quoted
+                    ? probe < end && text[probe] == '>'
+                    : probe + 1 < end && text[probe] == '^' && text[probe + 1] == '^' && (probe + 2 >= end || text[probe + 2] != '^');
 
-                column += spaces + 1;
-                at = probe + 1;
+                if (!carried) break;
+
+                column += spaces + width;
+                at = probe + width;
                 continue;
             }
 
             var goal = column + mark;
             var stopped = false;
+            var (before, stood) = (at, column);
 
             while (at < end && column < goal)
             {
@@ -180,7 +196,13 @@ internal sealed class MarkdownLines
 
             // Indentation in front of a quote's marker need not all be there: the marker stands up to three spaces in
             // from wherever the line goes on, and a line that carries less still carries the quote.
-            if ((stopped || column < goal) && !(index + 1 < marks.Count && marks[index + 1] < 0)) break;
+            if ((stopped || column < goal) && !(index + 1 < marks.Count && marks[index + 1] < 0))
+            {
+                // Anywhere else, a line carrying less stops carrying the containers there, and the space it does have is its
+                // own — a lazy line's indentation, which says what the line can start.
+                (at, column) = (before, stood);
+                break;
+            }
         }
 
         return new MarkdownLine(start, at, column, end, next);

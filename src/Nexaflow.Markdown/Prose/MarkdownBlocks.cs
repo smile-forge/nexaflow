@@ -132,18 +132,21 @@ internal sealed class MarkdownBlocks
     /// settled by the reader that took the table in.
     /// </para>
     /// <para>
-    /// The readers of blocks that hold blocks are told what stands in front of the block on its first line too, because
-    /// they read lines, and a block's later lines carry its containers' marks where its first does not. A grid table's cell
-    /// is not one stretch of lines in the document, so it reads without.
+    /// Every reader but a cell's is told what stands in front of the block on its first line too, because it reads lines, and
+    /// a block's later lines carry its containers' marks where its first does not. A cell is one line of a table, and a grid
+    /// table's cell is not one stretch of lines in the document, so each reads without.
     /// </para>
     /// </summary>
     private static Func<string, int, string, ContentNode>? Reader(ContentNode node) => node.Kind switch
     {
         MarkdownKinds.Cell when Holds(node) => static (source, at, _) => MarkdownParser.Inside(source, at: at),
 
-        MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
-            or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            static (source, at, _) => MarkdownInline.Read(source, at: at).As(Roles.Body),
+        MarkdownKinds.Cell => static (source, at, _) => MarkdownInline.Read(source, at: at).As(Roles.Body),
+
+        MarkdownKinds.Paragraph or MarkdownKinds.Term or MarkdownKinds.Caption =>
+            static (source, at, lead) => MarkdownInline.Read(source, at: at, lead: lead).As(Roles.Body),
+
+        MarkdownKinds.Heading => static (source, at, lead) => MarkdownInline.Heading(source, at: at, lead: lead).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
             or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at, lead) => MarkdownParser.Inside(source, at: at, lead: lead),

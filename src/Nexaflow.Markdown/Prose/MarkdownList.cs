@@ -128,7 +128,7 @@ public static class MarkdownList
         if (item.Box is { } box && box >= read.At && box + 3 <= to)
         {
             read.Gap(inside, box);
-            inside.Add(MarkdownInline.Task(read, box + 3, item.Done));
+            inside.Add(Task(read, box + 3, item.Done));
         }
 
         // The marker falls in front of whatever comes first inside the item, so it arrives as the trivia it is.
@@ -136,6 +136,21 @@ public static class MarkdownList
         read.Gap(inside, to);
 
         parts.Add(ContentNode.Branch(MarkdownKinds.Item, inside));
+    }
+
+    /// <summary>
+    /// A task's box, <c>[x]</c>: its brackets, and between them the mark saying whether it is done — the one character a
+    /// press on the box rewrites, so what a press means is settled here rather than by anything reading the brackets again.
+    /// </summary>
+    private static ContentNode Task(Cut read, int end, bool done)
+    {
+        var mark = done ? MarkdownRoles.Done : MarkdownRoles.Todo;
+        var at = read.At;
+
+        if (end - at != 3) return ContentNode.Branch(MarkdownKinds.Task, [read.Take(end, mark, Kinds.Token)]);
+
+        return ContentNode.Branch(MarkdownKinds.Task,
+            [read.Take(at + 1, Roles.Open, Kinds.Token), read.Take(at + 2, mark, Kinds.Token), read.Take(end, Roles.Close, Kinds.Token)]);
     }
 }
 

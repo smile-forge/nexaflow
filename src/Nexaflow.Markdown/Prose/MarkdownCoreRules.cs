@@ -1,6 +1,3 @@
-using System.Net;
-using System.Text;
-
 namespace Nexaflow.Markdown.Prose;
 
 /// <summary>What everything is written in: it goes on into every line, and holds whatever can stand among blocks.</summary>
@@ -122,9 +119,38 @@ internal sealed class HeadingRule : MarkdownBlockRule
         scan.AdvanceNextNonspace();
         var heading = scan.Open(new ScannedHeading(this, at, hashes) { Line = scan.LineIndex });
         heading.Reach(scan.Trimmed(at));
+
+        if (Worded(scan, at + hashes) is { } words) heading.Lines.Add(words);
+
         scan.AdvanceToEnd();
 
         return Started.Leaf;
+    }
+
+    /// <summary>
+    /// Where a heading's words stand on its line: past the hashes and the space after them, and short of a closing run of
+    /// hashes with space in front of it and the space round that — or null where it says nothing at all.
+    /// </summary>
+    private static (int From, int To)? Worded(MarkdownScanner scan, int after)
+    {
+        var from = after;
+        while (from < scan.Line.End && scan.Text[from] is ' ' or '\t') from++;
+
+        var to = scan.Trimmed(from);
+        var closing = to;
+        while (closing > from && scan.Text[closing - 1] == '#') closing--;
+
+        if (closing == from)
+        {
+            to = from;
+        }
+        else if (closing < to && scan.Text[closing - 1] is ' ' or '\t')
+        {
+            to = closing;
+            while (to > from && scan.Text[to - 1] is ' ' or '\t') to--;
+        }
+
+        return to > from ? (from, to) : null;
     }
 
     public override Continued Continues(MarkdownScanner scan, ScannedBlock block) => Continued.Unmatched;
@@ -157,6 +183,9 @@ internal sealed class UnderlineRule(IParagraphReading definitions) : MarkdownBlo
         var heading = new ScannedHeading(this, container.Start, mark == '=' ? 1 : 2) { Line = container.Line };
         scan.Replace(container, heading);
         heading.Reach(run);
+
+        // Its words are the paragraph's, on the lines the paragraph was written on.
+        heading.Lines.AddRange(container.Lines);
         scan.AdvanceToEnd();
 
         return Started.Leaf;
@@ -286,20 +315,7 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
 
         if (end == from) return string.Empty;
 
-        var word = text[from..end];
-        if (!word.Contains('\\') && !word.Contains('&')) return word;
-
-        var said = new StringBuilder(word.Length);
-
-        for (var at = 0; at < word.Length; at++)
-        {
-            if (word[at] == '\\' && at + 1 < word.Length && char.IsAsciiLetterOrDigit(word[at + 1]) is false && word[at + 1] <= '~' && word[at + 1] > ' ')
-                at++;
-
-            said.Append(word[at]);
-        }
-
-        return WebUtility.HtmlDecode(said.ToString());
+        return MarkdownLinkSyntax.Unescaped(text[from..end]);
     }
 }
 

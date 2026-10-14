@@ -159,6 +159,7 @@ internal sealed class FigureRule : MarkdownBlockRule
         var caption = new ScannedBlock(_caption, ScannedKind.Caption, from) { Line = scan.LineIndex, IsOpen = false };
 
         caption.Reach(to);
+        caption.Lines.Add((from, to));
         figure.Add(caption);
         figure.Reach(to);
     }
@@ -238,6 +239,7 @@ internal sealed class DefinitionRule : MarkdownBlockRule
                 var term = new ScannedBlock(_term, ScannedKind.Term, start) { Line = paragraph.Line, IsOpen = false };
 
                 term.Reach(scan.Text.AsSpan(start, to - start).TrimEnd().Length + start);
+                term.Lines.Add((start, term.End));
                 item.Add(term);
                 item.Reach(term.End);
             }

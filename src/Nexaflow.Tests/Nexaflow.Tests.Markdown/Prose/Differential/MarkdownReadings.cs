@@ -1,4 +1,5 @@
 using Markdig;
+using Markdig.Extensions.AutoIdentifiers;
 using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
@@ -20,10 +21,29 @@ namespace Nexaflow.Tests.Markdown.Prose.Differential;
 internal static class MarkdownReadings
 {
     /// <summary>
-    /// The reading's options, with every inline's place counted exactly: without it Markdig measures a word on a
+    /// Markdig with every extension the reading reads — each answering to its own specification, among the specs — and every
+    /// heading named GitHub's way, with every inline's place counted exactly: without that Markdig measures a word on a
     /// paragraph's later lines from where it thinks the line starts, which is not always where it does.
     /// </summary>
-    public static readonly MarkdownPipeline Oracle = MarkdownParser.Reading(new MarkdownPipelineBuilder()).UsePreciseSourceLocation().Build();
+    public static readonly MarkdownPipeline Oracle = new MarkdownPipelineBuilder()
+        .UseYamlFrontMatter()
+        .UsePipeTables()
+        .UseGridTables()
+        .UseTaskLists()
+        .UseEmphasisExtras()
+        .UseAutoLinks()
+        .UseDefinitionLists()
+        .UseListExtras()
+        .UseAbbreviations()
+        .UseAlertBlocks()
+        .UseFigures()
+        .UseFooters()
+        .UseCitations()
+        .UseMathematics()
+        .UseDiagrams()
+        .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
+        .UsePreciseSourceLocation()
+        .Build();
 
     public const string MarkdigOnly = "markdig-only";
     public const string TodayOnly = "today-only";

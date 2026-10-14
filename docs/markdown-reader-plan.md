@@ -109,22 +109,30 @@ rule, so `FrontMatterEnd` goes.
 
 ### The inline reader — words
 
-CommonMark's inline algorithm, one pass left to right over a leaf's `MarkdownLines`: code spans by backtick run,
-autolinks, bare addresses (Markdig's autolink extension), raw HTML, entities, escapes, breaks; delimiter runs onto a
-delimiter stack (`*` `_`, and the extras `~` `^` `=` `+` and the citation's `""`); brackets onto a bracket stack, closed
-by an inline destination or a reference label;
-`$…$` by Markdig's maths rules. Escapes come out as their own pieces as they are read, so `Escaped`'s second pass goes.
-`MarkdownInline` keeps its name and its contract; the scan behind it is ours.
+CommonMark's inline algorithm, one pass left to right over a leaf's lines — a paragraph's every line, a heading's words
+between its marks (which the scan finds), a cell's one line — each from past what its containers put at its head
+(`MarkdownLines`), so the marks between two lines are trivia and the words read as they would standing alone.
+
+The tokens (`MarkdownTokenizer`) are what the characters at one place say, whichever way the matching goes: code spans by
+backtick run, autolinks, bare addresses (Markdig's autolink extension), raw HTML, entities (HTML's named references,
+`MarkdownEntities`), escapes, breaks; runs of `*` `_`, the extras `~` `^` `=` `+` and the citation's `""`, each with what
+it can open and close; brackets; `$…$` by Markdig's maths rules. The matching (`MarkdownDelimiters`) is CommonMark's — a
+stack of runs and one of brackets, a `]` closed by an inline destination or a reference label, emphasis matched inside a
+link as it is made and over the whole run at its end — with Markdig's counts for the extras. A label's name, destination
+and title are spelled as a definition spells them (`MarkdownLinkSyntax`, which `LinkDefinitions` reads with too), and a
+label is compared case-folded as Unicode folds it (`MarkdownLabels`). Escapes come out as their own pieces as they are
+read. `MarkdownInline` keeps its name and its contract; the reading behind it is ours.
 
 **Links are made in two places, from one list.** Some brackets are settled by what follows them: `[words](where)` is a
 link whatever the document defines, and so is an address in angle brackets or written bare — the reader makes those as
 it reads. Others wait on a definition that can be written anywhere in the document — `[words][name]`, `[name][]`,
 `[name]` — and a block is read from its own characters alone, so the reader cannot settle them. It neither guesses nor
-drops them. A run holding such a bracket keeps the list the reader resolved it from — its text, its delimiter runs with
-what they can open and close, its brackets — as a derived part, and is read as CommonMark reads it where nothing is
-defined. `WithReferences` takes that same list and runs the resolving half of the algorithm over it again with the
-document's labels known: a bracket whose label is defined makes its link, the brackets before it can no longer open one,
-and the delimiters are matched again round the links made. One implementation of the list and its resolution
+drops them. A run holding such a bracket keeps the list the reader resolved it from — its tokens, its runs with what they
+can open and close, its brackets, and the names they wait on — as a derived part (`MarkdownKinds.Delimiters`), and is read
+as CommonMark reads it where nothing is defined. `WithReferences` takes that same list and matches it again with the
+document's labels known, over the tokens the first matching read — reading one afresh only where the second goes another
+way, past a link the first did not make: a bracket whose label is defined makes its link, the brackets before it can no
+longer open one, and the delimiters are matched again round the links made. One implementation of the list and its resolution
 (`MarkdownDelimiters`) is what the reader and the stage both run, so a link by name is read exactly as CommonMark reads
 it — `*[a*][ref]` included — and never by a second bracket matcher written beside the first.
 
@@ -173,6 +181,8 @@ that does not go through Markdig at all.
 | `tools/site` — Markdig's HTML renderer | its page shell, its `help:` and `locate:` links and its figures stay; the body is the HTML writer's, so the site renders what the app renders |
 | `Features.Markdown` — a reference nothing uses | removed |
 
+Until then they read through `MarkdigReading` in `Visuals.Text`, which enables what the reading reads.
+
 ## Phase 0 — what has no effect
 
 Independent, and small enough to ride with phase 1: drop `Features.Markdown`'s package reference; drop the
@@ -192,7 +202,9 @@ copied into `Nexaflow.Tests.Markdown/Prose/Differential/Specs/`, with a `LICENSE
 tag and the licences — CommonMark's specification is CC BY-SA 4.0, Markdig's own are BSD-2-Clause. They are test data:
 nothing ships them, so they are not in the product's third-party notices. Only those for what is enabled: `CommonMark`, `AbbreviationSpecs`, `AlertBlockSpecs`, `AutoLinks`, `DefinitionListSpecs`,
 `EmphasisExtraSpecs`, `FigureFooterAndCiteSpecs`, `GridTableSpecs`, `ListExtraSpecs`, `MathSpecs`, `PipeTableSpecs`,
-`PipeTableGfmSpecs`, `TaskListSpecs` and `YamlSpecs`. A change that moves the package moves the specifications with it.### The corpus
+`PipeTableGfmSpecs`, `TaskListSpecs` and `YamlSpecs`. A change that moves the package moves the specifications with it.
+
+### The corpus
 
 | Set | Where | What it speaks for |
 |---|---|---|
@@ -209,7 +221,7 @@ document is read with `\n` line endings, so an id and what it names are the same
 
 ### The subjects
 
-- **Markdig** — the whole document parsed once with `MarkdownParser.Pipeline`. The reference.
+- **Markdig** — the whole document parsed once, with every extension the reading enables (`MarkdownReadings.Oracle`). The reference.
 - **Today** — `MarkdownParser.Parsing()` then `WithTargets` and `WithReferences`: the reading as the app has it once
   what the document defines is known.
 - **Scanner** — from phase 2, the new reader through the same stages.
@@ -279,7 +291,9 @@ every suite that reads markdown passes; a whole reading, and a keystroke's, is n
 Today's, best of many runs. The tree is compared with Today's only to account for every way it differs: where Markdig's
 spans were arbitrary the scan's are the characters' own — a cell is its words without the space round them, a row is its
 whole line, a blank line after a list stands between the list and what follows — and those differences are the point
-rather than a regression.## Phase 3 — words
+rather than a regression.
+
+## Phase 3 — words
 
 The inline reader and `MarkdownDelimiters` behind `MarkdownInline`, and `WithReferences` resolving from the list the
 reader keeps. Markdig leaves `Nexaflow.Markdown`.

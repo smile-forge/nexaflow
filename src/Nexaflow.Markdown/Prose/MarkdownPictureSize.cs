@@ -59,22 +59,7 @@ public sealed partial record MarkdownPictureSize(double Width, double? Height)
 
         while (first > 0 && words[first - 1] is { IsLeaf: true } leaf && Plain(leaf)) first--;
 
-        if (first == words.Count)
-        {
-            // Words ending in an escape (a\_b|300) are a run of pieces of their own; the size is at the end of that run.
-            if (words.Count > 0 && words[^1] is { IsLeaf: false, Kind: Kinds.Sequence } run)
-            {
-                var inner = run.Children.ToList();
-                if (Taken(inner) is not { } within) return null;
-
-                words[^1] = run.With(inner);
-                if (inner.Count == 0) words.RemoveAt(words.Count - 1);
-
-                return within;
-            }
-
-            return null;
-        }
+        if (first == words.Count) return null;
 
         for (var at = first; at < words.Count; at++) tail.Append(words[at].Text);
 

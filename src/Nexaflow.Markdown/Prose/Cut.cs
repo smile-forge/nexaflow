@@ -1,5 +1,3 @@
-using Markdig.Syntax;
-
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Prose;
@@ -9,8 +7,8 @@ namespace Nexaflow.Markdown.Prose;
 ///
 /// <para>
 /// Every piece of every markdown tree comes through here, so one place can answer the question the whole
-/// design rests on: was this character copied, or made up? Every reader hands over places — the scan's blocks, Markdig's
-/// spans for the words — and the characters are cut out of the source at them, never taken from the reading.
+/// design rests on: was this character copied, or made up? Every reader hands over places — the scan's blocks, the
+/// matching's words — and the characters are cut out of the source at them, never taken from the reading.
 /// </para>
 /// <para>
 /// What falls between two places is not lost either. A bullet, a quote's <c>&gt;</c>, the pipes round a cell:
@@ -64,12 +62,6 @@ internal sealed class Cut
     /// <summary>Where the next character to be accounted for stands in that document.</summary>
     public int Here => _stands + this.At;
 
-    /// <summary>Where something Markdig read starts, never behind what has already been taken.</summary>
-    public int Starts(MarkdownObject what) => Math.Clamp(what.Span.Start, this.At, _to);
-
-    /// <summary>One past the last character something Markdig read stands for.</summary>
-    public int Ends(MarkdownObject what) => Math.Clamp(what.Span.End + 1, this.At, _to);
-
     /// <summary>
     /// Where a block reaching to <paramref name="end"/> closes: past the end of the line it stopped on — which is also what
     /// puts every block on a line of its own, as it was written.
@@ -85,37 +77,16 @@ internal sealed class Cut
 
     public string Between(int from, int to) => _source[from..Math.Clamp(to, from, _to)];
 
-    /// <summary>Everything not yet accounted for, shown as the characters it was written with.</summary>
-    public ContentNode Unaccounted()
-    {
-        var at = this.Here;
-
-        return ContentNode.Shown(this.Text(this.Length), offset: at);
-    }
-
     /// <summary>Whatever has been passed over since the last piece, kept where it was written.</summary>
     public void Gap(List<ContentNode> parts, int stop)
     {
         if (stop > this.At) parts.Add(this.Take(stop, Roles.Trivia));
     }
 
-    /// <summary>The source up to the next <paramref name="mark"/>, where one stands before the end.</summary>
-    public ContentNode? Upto(char mark, int end)
+    /// <summary>Everything up to <paramref name="stop"/> accounted for by pieces cut out somewhere else — the words of a block, read over its lines.</summary>
+    public void Accounted(int stop)
     {
-        var found = _source.IndexOf(mark, this.At);
-
-        return found >= this.At && found < end ? this.Take(found + 1, Roles.Close, Kinds.Token) : null;
-    }
-
-    /// <summary>Where a stretch stands in the source, with whatever the writer left in front of it.</summary>
-    public (ContentNode? Before, ContentNode Found)? Finds(string what, int end)
-    {
-        var at = _source.IndexOf(what, this.At, StringComparison.Ordinal);
-        if (at < this.At || at + what.Length > end) return null;
-
-        var before = at > this.At ? this.Take(at, Roles.Trivia, Kinds.Token) : null;
-
-        return (before, this.Take(at + what.Length, Roles.Element, MarkdownKinds.Word));
+        if (stop > this.At) this.At = Math.Min(stop, _to);
     }
 
     /// <summary>
