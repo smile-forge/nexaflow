@@ -154,15 +154,46 @@
           "method": "WriteOver"
         }
       ]
+    },
+    "vtext-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "How it\u0027s wired"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlockRules.cs",
+          "class": "MarkdownBlockRules"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs",
+          "class": "MarkdownTokenizer",
+          "method": "Starts"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 7,
   "touched_nodes": [
     "abbreviations",
     "markdown-export",
     "markdown-maths",
     "markdown-styling",
-    "md-task-toggle"
+    "md-task-toggle",
+    "vtext-pipeline"
   ]
 }
