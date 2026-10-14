@@ -457,13 +457,53 @@
           "doc": "tools/ai-models/whisper-onnx-genai/README.md"
         }
       ]
+    },
+    "voice-session": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Voice/VoiceSessionTests.cs",
+            "class": "VoiceSessionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/VoiceConversationJourneyTests.cs",
+            "class": "VoiceConversationJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Voice/VoiceSessionTests.cs",
+            "class": "VoiceSessionTests",
+            "method": "WhileTheModelThatAnswersMakesWayForAPicture_ListeningIsPaused_AndTakenUpAgainWhenItIsBack"
+          }
+        ]
+      }
+    },
+    "ai-host": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ModelRegistryTests.cs",
+            "class": "ModelRegistryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/GpuSchedulerTests.cs",
+            "class": "GpuSchedulerTests",
+            "method": "AJobPastItsFirstMoments_RunsAlongside_TakingNoTurn"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 21,
+  "changed_sets": 23,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
+    "ai-host",
     "ai-local-models",
     "aibar-background-tasks",
     "aibar-bar-reply",
@@ -474,6 +514,7 @@
     "aibar-voice-config",
     "owned-images",
     "owned-speech",
-    "voice-input"
+    "voice-input",
+    "voice-session"
   ]
 }

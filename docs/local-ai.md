@@ -296,7 +296,10 @@ The host owns:
   drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
   reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
   is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
-  done.
+  done. The picture's request says which residents made way for it (`MadeWay`, protocol 8); the app holds them as away
+  until the picture is done (`HostModelSetup.MakingWay`), and a provider whose model is away says so
+  (`IAiProvider.IsMakingWay`). A voice conversation whose answering model is away pauses: it passes nothing the
+  microphone hears to the listener, and the AI bar says "Working…" until the model is back.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
   generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
   slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to

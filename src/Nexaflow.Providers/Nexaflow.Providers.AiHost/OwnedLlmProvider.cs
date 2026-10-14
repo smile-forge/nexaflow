@@ -29,6 +29,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
+        _runtime.MadeWayChanged += OnMadeWayChanged;
     }
 
     public string Name => ProviderName;
@@ -51,6 +52,10 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>Its files are here and verified.</summary>
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+
+    public bool IsMakingWay => _model is not null && _runtime.IsMakingWay(_model);
+
+    private void OnMadeWayChanged(object? sender, EventArgs e) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
 
     public event EventHandler? AvailabilityChanged;
 
@@ -160,6 +165,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     public ValueTask DisposeAsync()
     {
         _runtime.Assets.Changed -= OnAssetChanged;
+        _runtime.MadeWayChanged -= OnMadeWayChanged;
         return ValueTask.CompletedTask;
     }
 }

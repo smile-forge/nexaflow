@@ -85,6 +85,19 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
     public bool IsReady(OwnedModel model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.Locate(assets) is not null);
 
+    /// <summary>Whether any part of <paramref name="model"/> has made way on its GPU for a picture being drawn.</summary>
+    public bool IsMakingWay(OwnedModel model) => model.PartsFor(ExecutionProvider).Any(part => setup.HasMadeWay(PartId(model, part)));
+
+    /// <summary>The host's models <paramref name="ids"/> made way for a picture, until the returned value is disposed.</summary>
+    public IDisposable MakingWay(IReadOnlyList<string> ids) => setup.MakingWay(ids);
+
+    /// <summary>Raised when models make way for a picture or are back after it.</summary>
+    public event EventHandler? MadeWayChanged
+    {
+        add => setup.MadeWayChanged += value;
+        remove => setup.MadeWayChanged -= value;
+    }
+
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
     public bool IsFileOf(OwnedModel model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
 

@@ -61,4 +61,12 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
             _ => AnswerIntent.Unclear,
         };
     }
+
+    public bool IsAway => service.ConversationMakingWay;
+
+    public event EventHandler? AwayChanged
+    {
+        add => service.ProvidersChanged += value;
+        remove => service.ProvidersChanged -= value;
+    }
 }

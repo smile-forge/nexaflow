@@ -79,17 +79,27 @@ internal sealed class FakeListener : ISpeechToTextProvider
 
     public void Hear(SpeechToTextEvent e) => _heard.Writer.TryWrite(e);
 
+    private int _appended;
+
+    /// <summary>How many pieces of audio it has been given to listen to.</summary>
+    public int Appended => Volatile.Read(ref _appended);
+
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
 
     public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default)
     {
         Options = options;
-        return Task.FromResult<ISpeechToTextSession>(new Session(_heard.Reader));
+        return Task.FromResult<ISpeechToTextSession>(new Session(this, _heard.Reader));
     }
 
-    private sealed class Session(ChannelReader<SpeechToTextEvent> heard) : ISpeechToTextSession
+    private sealed class Session(FakeListener listener, ChannelReader<SpeechToTextEvent> heard) : ISpeechToTextSession
     {
-        public ValueTask AppendAudioAsync(ReadOnlyMemory<byte> pcm, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask AppendAudioAsync(ReadOnlyMemory<byte> pcm, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref listener._appended);
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask CompleteAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public IAsyncEnumerable<SpeechToTextEvent> ReadEventsAsync(CancellationToken ct = default) => heard.ReadAllAsync(ct);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -152,6 +162,9 @@ internal sealed class FakeCapture : ISpeechCapture
     public ChannelReader<byte[]> Audio => _audio.Reader;
     public bool CancelsEcho => true;
     public Task StartAsync() => Task.CompletedTask;
+
+    /// <summary>The microphone hears something.</summary>
+    public void Hears(byte[] pcm) => _audio.Writer.TryWrite(pcm);
 
     public void Dispose()
     {
@@ -221,6 +234,17 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
     {
         lock (Judged) Judged.Add(said);
         return Task.FromResult(Judge(said));
+    }
+
+    public bool IsAway { get; private set; }
+
+    public event EventHandler? AwayChanged;
+
+    /// <summary>The model goes, making way for a picture, or comes back.</summary>
+    public void Away(bool away)
+    {
+        IsAway = away;
+        AwayChanged?.Invoke(this, EventArgs.Empty);
     }
 }
 

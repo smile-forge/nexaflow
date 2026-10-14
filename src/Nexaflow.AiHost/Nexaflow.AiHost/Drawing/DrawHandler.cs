@@ -25,7 +25,7 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new HostRequestException(HostErrorKind.Invalid, "Drawing needs a prompt.");
 
-        using var room = models.BorrowRoom();
+        using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
         var rgb = await method.DrawAsync(request, stage => reply(new Progress(request.RequestId, stage, 0, 0)),
                                          (done, total) => reply(new Progress(request.RequestId, Drawing, done, total)), room, ct);
         await reply(new Drawn(request.RequestId, PngEncoder.EncodeRgb(rgb, request.Width, request.Height)));

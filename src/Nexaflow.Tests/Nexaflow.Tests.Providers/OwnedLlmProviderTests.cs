@@ -216,4 +216,26 @@ public class OwnedLlmProviderTests
         CollectionAssert.AreEqual(new byte[] { 1, 2 }, media.Bytes);
         Assert.IsTrue(provider.SupportsAudio);
     }
+
+    [TestMethod]
+    public void WhileItsModelMakesWayForAPicture_ItSaysSo_AndAgainWhenItIsBack()
+    {
+        var host     = new FakeAiHost();
+        var setup    = new HostModelSetup(host);
+        var provider = new OwnedLlmProvider(new FakeActivityManager(), new FakeModelStore(), host, setup, Hardware(), new ProviderModel("gemma-4-e4b-it"));
+        int changes  = 0;
+        provider.AvailabilityChanged += (_, _) => changes++;
+        var gemma = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == "gemma-4-e4b-it");
+        string[] parts = [.. new[] { OwnedModels.Cuda, OwnedModels.Cpu }.SelectMany(gemma.PartsFor).Select(p => $"{gemma.Id}/{p.Name}").Distinct()];
+
+        using (setup.MakingWay(["z-image-turbo/decoder"]))
+            Assert.IsFalse(provider.IsMakingWay, "another model made way");
+
+        var back = setup.MakingWay(parts);
+        Assert.IsTrue(provider.IsMakingWay);
+    
+        back.Dispose();
+        Assert.IsFalse(provider.IsMakingWay);
+        Assert.AreEqual(4, changes, "each change is told, so the conversation can pause and take up listening again");
+    }
 }

@@ -64,6 +64,8 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     public string Line => State switch
     {
         VoiceState.Working                          => $"{Str.Get("Shell.AiBar.Voice.Working")} {Progress}".TrimEnd(),
+        // The model that answers made way for a picture: nothing said now could be answered till it is back.
+        VoiceState.Paused                           => Str.Get("Shell.AiBar.Voice.Working"),
         // Speaking, but not a word heard yet: the voice is still on its way.
         VoiceState.Thinking or VoiceState.Speaking when Saying.Length == 0 => Str.Get("Shell.AiBar.Voice.Thinking"),
         _ when Saying.Length > 0                    => Saying,

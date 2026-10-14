@@ -76,6 +76,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;
+        var madeWay  = new List<IDisposable>();   // the models that make way for this picture, back once it is done
         try
         {
             byte[]? png = null;
@@ -89,6 +90,9 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
                         break;
                     case Drawn drawn:
                         png = drawn.Png;
+                        break;
+                    case MadeWay made:
+                        madeWay.Add(_runtime.MakingWay(made.Models));
                         break;
                 }
             }
@@ -110,6 +114,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         {
             activity.Fail(ex.Message);
             throw;
+        }
+        finally
+        {
+            foreach (var back in madeWay) back.Dispose();
         }
     }
 

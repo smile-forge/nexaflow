@@ -67,6 +67,18 @@ public sealed class AIService : IAIService
         => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
            && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
 
+    /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply
+    /// waits for it until the picture is done.</summary>
+    public bool ConversationMakingWay => GetProvider(AiAbility.Conversation) is { IsMakingWay: true };
+
+    /// <summary>Raised, on whichever thread it happened, when the workspace's models change, or one becomes available,
+    /// stops being, or makes way for a picture.</summary>
+    public event EventHandler? ProvidersChanged
+    {
+        add => _workspace.ProvidersChanged += value;
+        remove => _workspace.ProvidersChanged -= value;
+    }
+
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 

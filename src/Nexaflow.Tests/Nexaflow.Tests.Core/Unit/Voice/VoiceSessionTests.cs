@@ -613,4 +613,42 @@ public class VoiceSessionTests
         Assert.AreEqual(Str.Get("Shell.Voice.CarriesOn"), unannounced.After([new ToolRunResult("make_video", started)]),
                         "a call with no words of its own for it is still not said to be done");
     }
+
+    [TestMethod]
+    public async Task WhileTheModelThatAnswersMakesWayForAPicture_ListeningIsPaused_AndTakenUpAgainWhenItIsBack()
+    {
+        await using var rig = await new Rig(Answer("Hello.")).StartAsync();
+        byte[] pcm = new byte[320];
+
+        rig.Microphone.Hears(pcm);
+        await Until(() => rig.Ears.Appended == 1, "the microphone to be listened to");
+
+        rig.Agent.Away(true);
+        await Until(() => rig.Session.State == VoiceState.Paused, "listening to pause");
+        rig.Microphone.Hears(pcm);
+        await Task.Delay(100);
+        Assert.AreEqual(1, rig.Ears.Appended, "nothing said now could be answered, so nothing is listened to");
+
+        rig.Agent.Away(false);
+        await Until(() => rig.Session.State == VoiceState.Listening, "listening to be taken up again");
+        rig.Microphone.Hears(pcm);
+        await Until(() => rig.Ears.Appended == 2, "the microphone to be listened to again");
+    }
+
+    [TestMethod]
+    public async Task AReplyThatEndsWhileTheModelIsAway_LeavesTheConversationPaused()
+    {
+        await using var rig = await new Rig(Answer("Drawing it now.")).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Draw me a fox."));
+        await Until(() => rig.Session.State is VoiceState.Thinking or VoiceState.Speaking, "the reply");
+        rig.Agent.Away(true);
+        Assert.AreNotEqual(VoiceState.Paused, rig.Session.State, "a reply under way carries on");
+
+        await Until(() =>
+        {
+            rig.Speaker.Play();
+            return rig.Session.State == VoiceState.Paused;
+        }, "the conversation to pause once the reply is heard");
+    }
 }

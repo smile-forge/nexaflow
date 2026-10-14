@@ -20,6 +20,9 @@ public enum VoiceState
     Working,
     /// <summary>The assistant is talking.</summary>
     Speaking,
+    /// <summary>The model that answers has made way for a picture being drawn: listening is paused until it is back, as a
+    /// turn would only wait for it.</summary>
+    Paused,
     /// <summary>Over: stopped by the user, by the assistant, or by a failure.</summary>
     Ended,
 }
@@ -48,6 +51,13 @@ public interface IVoiceAgent
 
     /// <summary>What words said over an announced action mean for it, when they are not a plain yes or no.</summary>
     Task<AnswerIntent> JudgeAnswerAsync(string announcement, string said, CancellationToken ct);
+
+    /// <summary>Whether the model that answers is away: it has made way on its GPU for a picture being drawn, and a turn
+    /// would wait for it until the picture is done.</summary>
+    bool IsAway { get; }
+
+    /// <summary>Raised, on any thread, when <see cref="IsAway"/> may have changed.</summary>
+    event EventHandler? AwayChanged;
 }
 
 /// <summary>What a voice session is made of: the models it listens and speaks with, the microphone and speaker, the
@@ -103,6 +113,9 @@ public sealed class VoiceSession : IAsyncDisposable
     private bool _userSpeaking;
     private TaskCompletionSource _speechTurned = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    /// <summary>Paused: what the microphone hears is not passed on. Read on the pump's thread.</summary>
+    private volatile bool _paused;
+
     public VoiceSession(VoiceSessionParts parts, string? language)
     {
         _parts    = parts;
@@ -115,6 +128,7 @@ public sealed class VoiceSession : IAsyncDisposable
                 return Task.FromResult(ToolResult.Ok("The conversation ends once your reply has been spoken."));
             });
         _parts.Playback.Drained += (_, _) => Post(OnDrainedAsync);
+        _parts.Agent.AwayChanged += OnAwayChanged;
     }
 
     public VoiceState State { get; private set; } = VoiceState.Starting;
@@ -153,11 +167,22 @@ public sealed class VoiceSession : IAsyncDisposable
         await _parts.Capture.StartAsync();
         _listening = await _parts.Listener.StartSessionAsync(new SpeechToTextOptions(_language, SpeechSegmentation.Turns), ct);
         _running = Task.WhenAll(Task.Run(LoopAsync), Task.Run(PumpAsync), Task.Run(ListenAsync));
-        Post(() => { SetState(VoiceState.Listening); return Task.CompletedTask; });
+        Post(() => { Await(); return Task.CompletedTask; });
     }
 
     /// <summary>Ends the conversation: whatever is being said stops, and the microphone closes.</summary>
     public Task StopAsync() => EndAsync(reason: null);
+
+    /// <summary>The model that answers went or came back: waiting for the user, the session pauses its listening or takes
+    /// it up again; mid-turn, it carries on and looks again once the turn is over.</summary>
+    private void OnAwayChanged(object? sender, EventArgs e) => Post(() =>
+    {
+        if (State is VoiceState.Listening or VoiceState.Paused) Await();
+        return Task.CompletedTask;
+    });
+
+    /// <summary>Waits for the user: listening, or paused while the model that answers is away.</summary>
+    private void Await() => SetState(_parts.Agent.IsAway ? VoiceState.Paused : VoiceState.Listening);
 
     private void Post(Func<Task> action) => _loop.Writer.TryWrite(action);
 
@@ -173,13 +198,14 @@ public sealed class VoiceSession : IAsyncDisposable
         }
     }
 
-    /// <summary>The microphone into the listening model, as it is captured.</summary>
+    /// <summary>The microphone into the listening model, as it is captured — none of it while paused, when nothing heard
+    /// could be answered.</summary>
     private async Task PumpAsync()
     {
         try
         {
             await foreach (var pcm in _parts.Capture.Audio.ReadAllAsync(_life.Token))
-                await _listening!.AppendAudioAsync(pcm, _life.Token);
+                if (!_paused) await _listening!.AppendAudioAsync(pcm, _life.Token);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Post(() => EndCoreAsync(ex.Message)); }
@@ -381,7 +407,7 @@ public sealed class VoiceSession : IAsyncDisposable
         PendingAnswer = null;
         if (reply.HeardText(heard) is { Length: > 0 } said) Remember(reply, said);
         else _held = (reply.UserTurn + " " + _held).Trim();   // nothing of the reply was heard: the user is still mid-turn
-        SetState(VoiceState.Listening);
+        Await();
     }
 
     /// <summary>Raised by the playback thread when everything queued has been heard.</summary>
@@ -401,7 +427,7 @@ public sealed class VoiceSession : IAsyncDisposable
             _held = string.Join(' ', leftover);
             await TakeTurnAsync();
         }
-        else SetState(VoiceState.Listening);
+        else Await();
     }
 
     /// <summary>Called on the loop when a reply has finished writing and synthesising: if nothing is left to hear, it is over.</summary>
@@ -443,7 +469,8 @@ public sealed class VoiceSession : IAsyncDisposable
     private void SetState(VoiceState state)
     {
         if (State == state || State == VoiceState.Ended) return;
-        State = state;
+        State   = state;
+        _paused = state == VoiceState.Paused;
         StateChanged?.Invoke(this, state);
     }
 
@@ -517,6 +544,7 @@ public sealed class VoiceSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _parts.Agent.AwayChanged -= OnAwayChanged;
         await EndAsync(reason: null);
         _life.Dispose();
     }

@@ -55,7 +55,11 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
             {
                 if (TryLease(spec, ref resident) is { } loaded) return loaded;
                 lock (_gate) idle = _idle.Task;
-                if (MakeRoomFor(spec, room)) return await LoadAsync(spec, resident, stage, ct);
+                if (MakeRoomFor(spec, room, out var madeWay))
+                {
+                    if (madeWay.Count > 0) await room!.MadeWayAsync(madeWay);
+                    return await LoadAsync(spec, resident, stage, ct);
+                }
             }
             finally { _loading.Release(); }
 
@@ -122,11 +126,14 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     }
 
     /// <summary>Unloads what must go for <paramref name="spec"/> to fit on its GPU.</summary>
+    /// <param name="madeWay">The residents that made way for the picture <paramref name="room"/> is borrowed for — they load
+    /// again once it is done.</param>
     /// <returns>False when only models in use stand in the way and it may wait for them: a picture's part, or a
     /// resident that made way for one.</returns>
     /// <exception cref="HostRequestException">It cannot fit beside what must stay.</exception>
-    private bool MakeRoomFor(ModelSpec spec, Room? room)
+    private bool MakeRoomFor(ModelSpec spec, Room? room, out IReadOnlyList<string> madeWay)
     {
+        madeWay = [];
         if (spec.Device is not { } device) return true;
         var gpu = gpus.Gpu(device);
 
@@ -142,21 +149,28 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                     + string.Join(", ", held.Select(m => m.Id)) + ".");
             if (admission.Waits) return false;
 
+            var residents = new List<string>();
             foreach (var id in admission.Unload)
             {
                 var entry = _loaded[id];
-                if (entry.Resident) _displaced[id] = entry.Model.Spec;
+                if (entry.Resident)
+                {
+                    _displaced[id] = entry.Model.Spec;
+                    residents.Add(id);
+                }
                 Unload(entry);
             }
+            madeWay = residents;
             return true;
         }
     }
 
     /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
-    public Room BorrowRoom()
+    /// <param name="madeWay">Told the residents that make way for this picture, as they do.</param>
+    public Room BorrowRoom(Func<IReadOnlyList<string>, Task>? madeWay = null)
     {
         lock (_gate) _rooms++;
-        return new Room(this);
+        return new Room(this, madeWay);
     }
 
     /// <summary>Once the last picture is done, loads the residents that made way for pictures — those no request has
@@ -272,9 +286,17 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     public sealed class Room : IDisposable
     {
         private readonly ModelRegistry _registry;
+        private readonly Func<IReadOnlyList<string>, Task>? _madeWay;
         private int _returned;
 
-        internal Room(ModelRegistry registry) => _registry = registry;
+        internal Room(ModelRegistry registry, Func<IReadOnlyList<string>, Task>? madeWay)
+        {
+            _registry = registry;
+            _madeWay  = madeWay;
+        }
+
+        /// <summary>Residents have made way for this picture.</summary>
+        internal Task MadeWayAsync(IReadOnlyList<string> ids) => _madeWay?.Invoke(ids) ?? Task.CompletedTask;
 
         public void Dispose()
         {
