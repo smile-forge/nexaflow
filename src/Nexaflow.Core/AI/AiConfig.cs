@@ -36,27 +36,25 @@ public sealed class AiConfig : IProviderConfig
 
     /// <summary>
     /// Gives Speech In its starting chain when this grid has never had that row — a grid saved before abilities of other
-    /// kinds existed, or a new workspace: Whisper, on this machine, so dictation works without a key or a subscription.
-    /// A chain the user has emptied is a chain, and is left alone. Returns whether anything was added.
+    /// kinds existed, or a new workspace: Whisper, on this machine, as the Local column's speech-to-text model, so dictation
+    /// works without a key or a subscription. A chain the user has emptied is a chain, and is left alone. Returns whether
+    /// anything was added.
     /// </summary>
     public bool AddDefaultSpeechIn(string whisperModel)
     {
         var key = nameof(AiAbility.SpeechIn);
         if (Assignments.ContainsKey(key)) return false;
 
-        var column = Columns.FirstOrDefault(c => c.Kind == ModelKind.SpeechToText && c.ProviderName == "Whisper" && c.Model == whisperModel);
-        if (column is null)
-        {
-            column = new ProviderModelPair
+        var id = LocalColumns.IdOf(LocalSlot.SpeechToText);
+        if (Columns.All(c => c.Id != id))
+            LocalColumns.Choose(this, LocalSlot.SpeechToText, new ProviderModelPair
             {
                 ProviderName     = "Whisper",
                 Model            = whisperModel,
                 Kind             = ModelKind.SpeechToText,
                 AssemblyFileName = "Nexaflow.Providers.Whisper.dll",
-            };
-            Columns.Add(column);
-        }
-        Assignments[key] = AbilityChain.Of(column.Id);
+            });
+        Assignments[key] = AbilityChain.Of(id);
         return true;
     }
 }

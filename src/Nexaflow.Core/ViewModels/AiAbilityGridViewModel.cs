@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -25,7 +26,13 @@ public sealed class AiColumnViewModel
     /// <summary>The kind, named under the model when it is not a language model ("speech to text").</summary>
     public string KindLabel { get; }
 
-    public AiColumnViewModel(string id, string providerName, string model, ModelKind kind, string assemblyFileName, bool staysOnMachine)
+    /// <summary>The Local column: the models on this machine, one for each job, chosen on the Local page. It is always there.</summary>
+    public bool IsLocal { get; }
+
+    public bool CanRemove => !IsLocal;
+
+    public AiColumnViewModel(string id, string providerName, string model, ModelKind kind, string assemblyFileName, bool staysOnMachine,
+                             bool isLocal = false)
     {
         Id               = id;
         ProviderName     = providerName;
@@ -33,8 +40,14 @@ public sealed class AiColumnViewModel
         Kind             = kind;
         AssemblyFileName = assemblyFileName;
         StaysOnMachine   = staysOnMachine;
-        KindLabel        = ProviderOffer.KindLabel(kind);
+        IsLocal          = isLocal;
+        KindLabel        = isLocal ? string.Empty : ProviderOffer.KindLabel(kind);
     }
+
+    /// <summary>The Local column's header.</summary>
+    public static AiColumnViewModel Local() =>
+        new("local", Str.Get("Shell.Config.AiGrid.Local"), Str.Get("Shell.Config.AiGrid.LocalModels"), ModelKind.Language, string.Empty,
+            staysOnMachine: true, isLocal: true);
 }
 
 /// <summary>A provider's models of one kind, as the add-column picker lists them.</summary>
@@ -57,32 +70,56 @@ public sealed record ProviderOffer(string ProviderName, ModelKind Kind)
 public partial class AiAbilityCellViewModel : ObservableObject
 {
     private readonly AiAbilityRowViewModel _row;
+    private readonly Func<AiAbility, (bool Usable, string? Note)>? _local;
 
     public AiColumnViewModel Column { get; }
 
-    /// <summary>The column holds the kind of model the row's ability takes; other cells are blank.</summary>
-    public bool IsUsable { get; }
+    /// <summary>The id the row's chain names this cell by: the column's, or in the Local column, the row's job's model's.</summary>
+    public string ChainId { get; }
+
+    /// <summary>The column holds the kind of model the row's ability takes — in the Local column, this machine runs a model
+    /// for the row's job and one is chosen; other cells are blank.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleCommand))]
+    private bool _isUsable;
+
+    /// <summary>Why a Local cell cannot be used, or what it holds; null elsewhere.</summary>
+    [ObservableProperty] private string? _note;
 
     /// <summary>Where this column stands in the row's chain, from 1; 0 when the row does not use it.</summary>
-    public int Position => _row.Chain.IndexOf(Column.Id) + 1;
+    public int Position => _row.Chain.IndexOf(ChainId) + 1;
 
     public bool IsInChain => Position > 0;
 
+    /// <summary>Whether the cell is shown greyed: a Local cell this machine cannot use.</summary>
+    public bool IsGreyed => Column.IsLocal && !IsUsable;
+
     public IRelayCommand ToggleCommand { get; }
 
-    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column)
+    /// <param name="local">For the Local column: whether a row's job can use it, and the note to show.</param>
+    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column, Func<AiAbility, (bool Usable, string? Note)>? local = null)
     {
-        _row     = row;
-        Column   = column;
-        IsUsable = column.Kind == row.Kind;
+        _row    = row;
+        _local  = local;
+        Column  = column;
+        ChainId = column.IsLocal ? LocalColumns.IdOf(LocalColumns.SlotOf(row.Ability)) : column.Id;
 
-        ToggleCommand = new RelayCommand(() => _row.Toggle(Column.Id), () => IsUsable);
+        ToggleCommand = new RelayCommand(() => _row.Toggle(ChainId), () => IsUsable);
+        Refresh();
 
         _row.Chain.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(Position));
             OnPropertyChanged(nameof(IsInChain));
         };
+    }
+
+    /// <summary>Takes again whether the cell can be used — a Local model chosen or fetched since.</summary>
+    public void Refresh()
+    {
+        if (_local is null) { IsUsable = Column.Kind == _row.Kind; return; }
+        (IsUsable, Note) = _local(_row.Ability);
+        OnPropertyChanged(nameof(IsGreyed));
     }
 }
 
@@ -118,9 +155,19 @@ public partial class AiAbilityRowViewModel : ObservableObject
 
 // ── Root grid view model ──────────────────────────────────────────────────────
 
+/// <summary>
+/// The ability grid: a row per ability, a column per model, and in each row the chain of columns that serve it. The Local
+/// column comes first and is always there: the models on this machine, one chosen for each job on the Local page and saved
+/// as a column of its own (<see cref="LocalColumns"/>); its cell in a row is the row's job's model, greyed where this machine
+/// runs none or none is chosen. The other columns are the providers' models the user adds.
+/// </summary>
 public partial class AiAbilityGridViewModel : ObservableObject
 {
     private readonly AiConfig _config;
+    private readonly LocalModelShelf? _shelf;
+
+    /// <summary>The model chosen for each job of the Local column, as the grid holds it.</summary>
+    private readonly Dictionary<LocalSlot, ProviderModelPair> _local = [];
 
     public ObservableCollection<AiAbilityRowViewModel> Rows    { get; } = [];
     public ObservableCollection<AiColumnViewModel>     Columns { get; } = [];
@@ -148,30 +195,38 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    public AiAbilityGridViewModel(AiConfig config)
+    /// <param name="shelf">The models on this machine; without it, the Local column has nothing to use.</param>
+    public AiAbilityGridViewModel(AiConfig config, LocalModelShelf? shelf = null)
     {
         _config = config;
+        _shelf  = shelf;
 
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
         // Provider plugins are loaded and this context's provider set is (re)built by
         // WorkspaceConfigViewModel before the grid is shown; we read it via _config.Providers.
+        if (config.Providers is { } set) LocalColumns.Gather(config, set.IsLocal);
         RebuildAvailableOffers();
 
-        foreach (var pair in config.Columns)
+        foreach (var slot in Enum.GetValues<LocalSlot>())
+            if (config.Columns.FirstOrDefault(c => c.Id == LocalColumns.IdOf(slot)) is { } chosen) _local[slot] = Copy(chosen);
+
+        Columns.Add(AiColumnViewModel.Local());
+        foreach (var pair in config.Columns.Where(c => !LocalColumns.IsLocal(c.Id)))
             Columns.Add(NewColumn(pair.Id, pair.ProviderName, pair.Model, pair.Kind, pair.AssemblyFileName));
 
-        // Build rows for every defined ability, keeping only the saved chain's columns that still exist and
-        // hold the ability's kind of model.
+        // Build rows for every defined ability, keeping only the saved chain's columns that still exist and hold the
+        // ability's kind of model, and its job's Local model where one is chosen.
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
         {
             var kind   = AiAbilityNames.Kind(ability);
-            var usable = Columns.Where(c => c.Kind == kind).Select(c => c.Id).ToHashSet();
+            var usable = Columns.Where(c => !c.IsLocal && c.Kind == kind).Select(c => c.Id).ToHashSet();
+            if (_local.ContainsKey(LocalColumns.SlotOf(ability))) usable.Add(LocalColumns.IdOf(LocalColumns.SlotOf(ability)));
             var saved  = config.Assignments.GetValueOrDefault(ability.ToString()) ?? AbilityChain.Empty;
             var row    = new AiAbilityRowViewModel(ability, new AbilityChain(saved.ColumnIds.Where(usable.Contains)));
 
             foreach (var col in Columns)
-                row.Cells.Add(new AiAbilityCellViewModel(row, col));
+                row.Cells.Add(Cell(row, col));
 
             Rows.Add(row);
         }
@@ -196,7 +251,29 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         RemoveColumnCommand = new RelayCommand<object>(
             obj => RemoveColumn(obj as AiColumnViewModel),
-            obj => obj is AiColumnViewModel);
+            obj => obj is AiColumnViewModel { CanRemove: true });
+    }
+
+    private AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, AiColumnViewModel column)
+        => new(row, column, column.IsLocal ? LocalCell : null);
+
+    /// <summary>Whether a row's Local cell can be used, and what its note says: the job's model, or why there is none.</summary>
+    private (bool Usable, string? Note) LocalCell(AiAbility ability)
+    {
+        var slot = LocalColumns.SlotOf(ability);
+        if (_shelf is null || !_shelf.Runs(slot))
+            return (false, Str.Get(_shelf?.OptionsFor(slot).Count > 0 ? "Shell.Config.AiGrid.Local.TooLarge" : "Shell.Config.AiGrid.Local.None"));
+        if (!_local.TryGetValue(slot, out var chosen)) return (false, Str.Get("Shell.Config.AiGrid.Local.Choose"));
+
+        var option = _shelf.OptionsFor(slot).FirstOrDefault(o => o.IsIn(chosen));
+        var name   = option?.Model.DisplayName ?? chosen.Model;
+        return (true, option is not null && !_shelf.IsReady(option) ? Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", name) : name);
+    }
+
+    /// <summary>Takes the Local cells again — a model fetched or removed since.</summary>
+    public void RefreshLocal()
+    {
+        foreach (var cell in Rows.SelectMany(r => r.Cells).Where(c => c.Column.IsLocal)) cell.Refresh();
     }
 
     // ── Offer changed — reload model suggestions ──────────────────────────
@@ -236,8 +313,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     // ── Provider list ─────────────────────────────────────────────────────
 
-    /// <summary>Every (provider, kind) the workspace can add a column for — a provider whose required config
-    /// (an API key) is missing offers nothing yet.</summary>
+    /// <summary>Every (provider, kind) the workspace can add a column for — a provider whose required config (an API key) is
+    /// missing offers nothing yet, and the models on this machine are the Local column's, never a column of their own.</summary>
     private void RebuildAvailableOffers()
     {
         AvailableOffers.Clear();
@@ -246,6 +323,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         var providerConfigs = set.Configs.ToDictionary(c => c.FriendlyName);
         foreach (var provider in set.Providers)
         {
+            if (provider.Harness == ModelHarness.Owned) continue;
             if (providerConfigs.TryGetValue(provider.Name, out var cfg)
                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
                 continue;
@@ -287,77 +365,14 @@ public partial class AiAbilityGridViewModel : ObservableObject
         Columns.Add(colVm);
 
         foreach (var row in Rows)
-            row.Cells.Add(new AiAbilityCellViewModel(row, colVm));
+            row.Cells.Add(Cell(row, colVm));
 
         ResetAddPanel();
     }
 
-    /// <summary>The model the first <paramref name="providerName"/> column in <paramref name="ability"/>'s chain holds,
-    /// or null when the chain has none of that provider's.</summary>
-    public string? ModelFor(AiAbility ability, string providerName) => ColumnFor(ability, providerName)?.Model;
-
-    /// <summary>
-    /// Makes <paramref name="ability"/> use <paramref name="model"/> of <paramref name="providerName"/>: the first column of
-    /// that provider in its chain becomes one holding the model, keeping its place in every chain; with none, a column is
-    /// added and joins the end of the chain.
-    /// </summary>
-    public void UseModel(AiAbility ability, string providerName, string model)
-    {
-        var row = Rows.Single(r => r.Ability == ability);
-
-        if (ColumnFor(ability, providerName) is { } current)
-        {
-            if (current.Model == model) return;
-            var replacement = NewColumn(current.Id, current.ProviderName, model, current.Kind, current.AssemblyFileName);
-            Columns[Columns.IndexOf(current)] = replacement;
-            foreach (var r in Rows)
-            {
-                var cell = r.Cells.First(c => c.Column.Id == current.Id);
-                r.Cells[r.Cells.IndexOf(cell)] = new AiAbilityCellViewModel(r, replacement);
-            }
-            return;
-        }
-
-        var column = NewColumn(Guid.NewGuid().ToString("N"), providerName, model, row.Kind,
-            _config.Providers?.GetAssemblyFileName(providerName) ?? string.Empty);
-        Columns.Add(column);
-        foreach (var r in Rows) r.Cells.Add(new AiAbilityCellViewModel(r, column));
-        row.Toggle(column.Id);
-    }
-
-    /// <summary>
-    /// Writes just <paramref name="ability"/>'s chain, and the <paramref name="providerName"/> column in it, into the
-    /// config — a choice made to take effect at once, while every other edit on the grid waits for Apply.
-    /// </summary>
-    public void CommitModel(AiAbility ability, string providerName)
-    {
-        if (ColumnFor(ability, providerName) is not { } column) return;
-
-        var saved = new ProviderModelPair
-        {
-            Id = column.Id, ProviderName = column.ProviderName, Model = column.Model, Kind = column.Kind,
-            AssemblyFileName = column.AssemblyFileName,
-        };
-        var index = _config.Columns.FindIndex(c => c.Id == column.Id);
-        if (index >= 0) _config.Columns[index] = saved;
-        else            _config.Columns.Add(saved);
-
-        _config.Assignments[ability.ToString()] = Rows.Single(r => r.Ability == ability).ToChain();
-        RecheckChanges();
-    }
-
-    private AiColumnViewModel? ColumnFor(AiAbility ability, string providerName)
-    {
-        var row = Rows.Single(r => r.Ability == ability);
-        return row.Chain
-            .Select(id => Columns.FirstOrDefault(c => c.Id == id))
-            .FirstOrDefault(c => c is not null && c.Kind == row.Kind
-                                 && string.Equals(c.ProviderName, providerName, StringComparison.OrdinalIgnoreCase));
-    }
-
     private void RemoveColumn(AiColumnViewModel? col)
     {
-        if (col is null) return;
+        if (col is null || col.IsLocal) return;
 
         Columns.Remove(col);
 
@@ -369,11 +384,56 @@ public partial class AiAbilityGridViewModel : ObservableObject
         }
     }
 
+    // ── The Local column's models ─────────────────────────────────────────
+
+    /// <summary>The model chosen for <paramref name="slot"/>, or null when none is.</summary>
+    public ProviderModelPair? LocalModelFor(LocalSlot slot) => _local.GetValueOrDefault(slot);
+
+    /// <summary>
+    /// Makes <paramref name="model"/> <paramref name="slot"/>'s model and writes that into the config at once — a choice that
+    /// takes effect straight away, while every other edit on the grid waits for Apply. A job none of whose rows uses the Local
+    /// column yet starts using it in every one, at the end of its chain: the Local column is on wherever it can be.
+    /// </summary>
+    public void ChooseLocal(LocalSlot slot, ProviderModelPair model)
+    {
+        var id = LocalColumns.IdOf(slot);
+        _local[slot] = Copy(model, id);
+        LocalColumns.Choose(_config, slot, model);
+
+        var rows = Rows.Where(r => LocalColumns.SlotOf(r.Ability) == slot).ToList();
+        var used = rows.Any(r => r.Chain.Contains(id))
+                   || rows.Any(r => _config.Assignments.GetValueOrDefault(r.Ability.ToString())?.ColumnIds.Contains(id) == true);
+        if (!used)
+            foreach (var row in rows)
+            {
+                row.Chain.Add(id);
+                var saved = _config.Assignments.GetValueOrDefault(row.Ability.ToString()) ?? AbilityChain.Empty;
+                _config.Assignments[row.Ability.ToString()] = new AbilityChain([.. saved.ColumnIds, id]);
+            }
+
+        RefreshLocal();
+        RecheckChanges();
+    }
+
+    private static ProviderModelPair Copy(ProviderModelPair column, string? id = null) => new()
+    {
+        Id = id ?? column.Id, ProviderName = column.ProviderName, Model = column.Model, Kind = column.Kind,
+        AssemblyFileName = column.AssemblyFileName,
+    };
+
     // ── Change tracking ───────────────────────────────────────────────────
+
+    /// <summary>Every column the grid holds, as the config saves them: the Local column's models, then the providers'.</summary>
+    private IEnumerable<ProviderModelPair> AllColumns()
+        => _local.Values.Select(c => Copy(c)).Concat(Columns.Where(c => !c.IsLocal).Select(c => new ProviderModelPair
+        {
+            Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, Kind = c.Kind, AssemblyFileName = c.AssemblyFileName,
+        }));
 
     private void RecheckChanges()
     {
-        HasChanges = !Columns.Select(c => (c.Id, c.Model)).SequenceEqual(_config.Columns.Select(c => (c.Id, c.Model)))
+        HasChanges = !AllColumns().Select(c => (c.Id, c.Model)).OrderBy(c => c.Id)
+                         .SequenceEqual(_config.Columns.Select(c => (c.Id, c.Model)).OrderBy(c => c.Id))
                      || Rows.Any(row => !row.ToChain().SameAs(
                             _config.Assignments.GetValueOrDefault(row.Ability.ToString()) ?? AbilityChain.Empty));
     }
@@ -382,12 +442,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     public void Apply()
     {
-        _config.Columns = Columns
-            .Select(c => new ProviderModelPair
-            {
-                Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, Kind = c.Kind, AssemblyFileName = c.AssemblyFileName,
-            })
-            .ToList();
+        _config.Columns = [.. AllColumns()];
 
         _config.Assignments.Clear();
         foreach (var row in Rows)

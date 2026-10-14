@@ -380,8 +380,17 @@ maps roles to models:
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
   **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
   its kind; an Audio Generation row arrives with its contract.
+- **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own and
+  Whisper, one chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
+  high-quality pictures, video — on the workspace's Local page (`LocalColumns`, `LocalModelShelf`). Each job's model is
+  saved as a column under a reserved id, so a chain names it like any other. Its cell in a row is the job's model, greyed
+  with the reason where the machine runs none or none is chosen. The Local page lists every model for a job — downloaded,
+  the download it would take, or why this machine cannot run it; choosing one that is not here downloads it with its
+  runtime first, the job keeping its model meanwhile, and a job no row used starts on it in every row. The Downloaded
+  models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are never a
+  provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
-  the machine's GPUs is not offered.
+  the machine's GPUs is listed greyed, never chosen.
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
 to the owned model, which is where API cost actually goes.

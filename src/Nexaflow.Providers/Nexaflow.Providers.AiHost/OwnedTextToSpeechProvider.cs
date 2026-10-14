@@ -29,6 +29,10 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.TextToSpeech).Select(_runtime.CatalogOf)];
 
+    public IReadOnlyList<UnrunnableModel> Unrunnable => [.. _runtime.Unrunnable(ModelKind.TextToSpeech)];
+
+    public LocalRuntime? RuntimeOf(string modelId) => _runtime.Runtime;
+
     public bool LoadsOnDemand => false;
 
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)

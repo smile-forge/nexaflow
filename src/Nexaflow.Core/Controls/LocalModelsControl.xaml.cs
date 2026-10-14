@@ -5,8 +5,8 @@ using Nexaflow.Features.Common;
 namespace Nexaflow.Core.Controls;
 
 /// <summary>
-/// The page for a provider's local model files. Fetching and removing act at once; choosing a model edits the ability
-/// grid this page shares with the AI page, so applying either page applies both.
+/// The Local page: a model chosen for each job the models on this machine do. A choice takes effect at once, written into the
+/// ability grid this page shares with the AI page, whose other edits apply with either page.
 /// </summary>
 public partial class LocalModelsControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {

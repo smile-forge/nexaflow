@@ -37,15 +37,16 @@ public class SpeechInTests
     }
 
     [TestMethod]
-    public void AWhisperColumnAlreadyThere_IsUsedRatherThanAddedAgain()
+    public void TheLocalColumnsSpeechModel_IsUsedRatherThanAnotherAdded()
     {
-        var existing = new ProviderModelPair { ProviderName = "Whisper", Model = "base.en", Kind = ModelKind.SpeechToText };
+        var id       = LocalColumns.IdOf(LocalSlot.SpeechToText);
+        var existing = new ProviderModelPair { Id = id, ProviderName = "Nexaflow", Model = "nemotron-whisper-turbo", Kind = ModelKind.SpeechToText };
         var config   = new AiConfig { Columns = [existing] };
 
         config.AddDefaultSpeechIn("base.en");
 
-        Assert.AreEqual(1, config.Columns.Count);
-        CollectionAssert.AreEqual(new[] { existing.Id }, config.Assignments["SpeechIn"].ColumnIds.ToArray());
+        Assert.AreEqual("nemotron-whisper-turbo", config.Columns.Single().Model);
+        CollectionAssert.AreEqual(new[] { id }, config.Assignments["SpeechIn"].ColumnIds.ToArray());
     }
 
     [TestMethod]

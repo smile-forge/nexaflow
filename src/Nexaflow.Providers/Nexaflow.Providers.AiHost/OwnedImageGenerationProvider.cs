@@ -38,6 +38,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     /// <summary>The image models this machine can run: they are built for CUDA only.</summary>
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.ImageGeneration).Select(_runtime.CatalogOf)];
 
+    public IReadOnlyList<UnrunnableModel> Unrunnable => [.. _runtime.Unrunnable(ModelKind.ImageGeneration)];
+
+    public LocalRuntime? RuntimeOf(string modelId) => _runtime.Runtime;
+
     public bool LoadsOnDemand => true;
 
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)

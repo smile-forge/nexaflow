@@ -64,20 +64,26 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         // ── AI: the ability grid ──────────────────────────────────────────────────────
         SelectSection(sections!, "AI", "AiGrid_Cell");
         Check("The ability grid has cells", () => WaitForFs(() => CountOf("AiGrid_Cell") > 0, 3));
-        Check("A cell selects", () => PressNth("AiGrid_Cell", 0));
+        // The Local column comes first; a cell of it with nothing to use is greyed, and says why.
+        var cells = MainWindow.FindAllDescendants(cf => cf.ByAutomationId("AiGrid_Cell"));
+        Check("A greyed cell says why it cannot be used", () => cells.Where(c => !c.IsEnabled).All(c => c.HelpText is { Length: > 0 }));
+        Check("A cell selects", () => PressNth("AiGrid_Cell", Array.FindIndex(cells, c => c.IsEnabled)));
         Check("+ opens the add-column panel", () =>
             PressNth("AiGrid_AddColumn", 0) && WaitForFs(() => Exists("AiGrid_CancelAdd"), 3));
         CheckExists("Add column", "AiGrid_ConfirmAdd");
         Check("Cancel closes the add-column panel", () =>
             PressNth("AiGrid_CancelAdd", 0) && WaitForFs(() => Exists("AiGrid_AddColumn"), 3));
 
-        // ── Whisper: the speech models on this machine ────────────────────────────────
-        // A journey downloads nothing, so Use only chooses; the panel closes without applying it.
-        SelectSection(sections!, "Whisper", "LocalModels_Use");
-        Check("Every Whisper model is listed", () => WaitForFs(() => CountOf("LocalModels_Use") >= 8, 3));
-        Check("Use chooses a model for Speech In", () => PressNth("LocalModels_Use", -1));
-        CheckExists("Download a model", "LocalModels_Download");
-        CheckExists("Remove a model", "LocalModels_Remove");
+        // ── Local: a model for each job on this machine, and what is on its disk ──────
+        // A journey downloads nothing and deletes nothing — the models are this machine's — so neither list is acted on.
+        SelectSection(sections!, "Local", "LocalModels_Choice");
+        Check("Each job this machine runs a model for has its list — speech to text at least, on Whisper",
+              () => WaitForFs(() => CountOf("LocalModels_Choice") >= 2, 3));
+
+        SelectSection(sections!, "Downloaded models", "DownloadedModels_List");
+        Check("What is on disk is listed", () => Exists("DownloadedModels_List"));
+        Check("Each listed model's Delete says what it does, or who still uses it",
+              () => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("DownloadedModels_Delete")).All(b => b.HelpText is { Length: > 0 }));
 
         // ── Console: environments ─────────────────────────────────────────────────────
         SelectSection(sections!, "Console", "ConsoleEnv_Add");
@@ -127,9 +133,9 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         // The pass leaves edits unapplied (a swatch, a grid cell), so closing asks about them first.
         Check("✕ asks about the unapplied edits", () =>
             PressNth("WorkspacePanel_CloseX", 0) && WaitFor(() => FindInAppWindows("Chrome_ConfirmAlternate"), 5) is not null);
+        Check("It offers to apply them and close", () => FindInAppWindows("Chrome_ConfirmOk") is not null);
         Check("Keep editing leaves the panel open", () =>
             PressInDialog("Chrome_ConfirmCancel") && WaitForId("WorkspacePanel_Close", 3) is not null);
-        CheckExists("Apply them and close", "Chrome_ConfirmOk");
         Check("Discard closes the panel without them", () =>
             PressNth("WorkspacePanel_CloseX", 0)
             && WaitFor(() => FindInAppWindows("Chrome_ConfirmAlternate"), 5) is not null

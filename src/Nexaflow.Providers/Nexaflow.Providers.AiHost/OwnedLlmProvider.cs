@@ -40,6 +40,10 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.Language).Select(_runtime.CatalogOf)];
 
+    public IReadOnlyList<UnrunnableModel> Unrunnable => [.. _runtime.Unrunnable(ModelKind.Language)];
+
+    public LocalRuntime? RuntimeOf(string modelId) => _runtime.Runtime;
+
     public bool LoadsOnDemand => false;
 
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)

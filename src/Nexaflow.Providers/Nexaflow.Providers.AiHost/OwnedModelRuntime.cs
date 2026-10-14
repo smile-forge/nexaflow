@@ -44,6 +44,18 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// that fit it.</summary>
     public IEnumerable<OwnedModel> Runnable(ModelKind kind) => OwnedModels.OfKind(kind).Where(m => m.RunsOn(ExecutionProvider) && Fits(m));
 
+    /// <summary>The owned models of <paramref name="kind"/> this machine cannot run: with no build for its runtime, or too large
+    /// for its GPUs.</summary>
+    public IEnumerable<UnrunnableModel> Unrunnable(ModelKind kind)
+        => OwnedModels.OfKind(kind)
+            .Where(m => !m.RunsOn(ExecutionProvider) || !Fits(m))
+            .Select(m => m.RunsOn(ExecutionProvider)
+                ? new UnrunnableModel(CatalogOf(m), UnrunnableReason.TooLargeForThisMachine)
+                : new UnrunnableModel(m.Catalog, UnrunnableReason.NoBuildForThisMachine));
+
+    /// <summary>The CUDA pack every owned model is fetched with where it suits this machine; null where they run on its CPU.</summary>
+    public LocalRuntime? Runtime => CudaRuntimePack.Applies(hardware) ? new LocalRuntime(CudaRuntimePack.Id, "CUDA runtime", CudaRuntimePack.Files) : null;
+
     /// <summary>
     /// Whether <paramref name="model"/> fits this machine, as its GPUs are expected before the host has run: every part
     /// placed — a picture's parts each on a GPU in turn — and a language model on a GPU, but for the catalog's first,

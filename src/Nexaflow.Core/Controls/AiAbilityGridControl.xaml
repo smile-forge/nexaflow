@@ -67,22 +67,37 @@
             </Setter>
         </Style>
 
-        <!-- Cell DataTemplate: an empty ring, or the column's place in the row's chain -->
+        <!-- Cell DataTemplate: an empty ring, or the column's place in the row's chain. A Local cell says what it holds, or why it
+             cannot be used — greyed, its tip shown all the same. -->
         <DataTemplate x:Key="CellTemplate" DataType="{x:Type vm:AiAbilityCellViewModel}">
-            <Button Style="{StaticResource CellButton}"
-                    Command="{Binding ToggleCommand}"
-                    ToolTip="{loc:Str Shell.Config.AiGrid.CellTip}"
+            <Button Command="{Binding ToggleCommand}"
+                    ToolTipService.ShowOnDisabled="True"
                     AutomationProperties.AutomationId="AiGrid_Cell">
-                <Grid Width="20" Height="20"
-                      Visibility="{Binding IsUsable, Converter={StaticResource BoolVis}}">
-                    <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
-                             Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
-                    <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
-                        <Ellipse Fill="{StaticResource AccentBrush}"/>
-                        <TextBlock Text="{Binding Position}"
-                                   FontSize="11" FontWeight="SemiBold"
-                                   Foreground="{StaticResource OnAccentBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource CellButton}">
+                        <Setter Property="ToolTip" Value="{loc:Str Shell.Config.AiGrid.CellTip}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Column.IsLocal}" Value="True">
+                                <Setter Property="ToolTip" Value="{Binding Note}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid>
+                    <TextBlock Text="–" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding IsGreyed, Converter={StaticResource BoolVis}}"/>
+                    <Grid Width="20" Height="20"
+                          Visibility="{Binding IsUsable, Converter={StaticResource BoolVis}}">
+                        <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
+                                 Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
+                        <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
+                            <Ellipse Fill="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="{Binding Position}"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource OnAccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
                     </Grid>
                 </Grid>
             </Button>
@@ -297,6 +312,7 @@
                                                 Command="{Binding DataContext.RemoveColumnCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
+                                                Visibility="{Binding CanRemove, Converter={StaticResource BoolVis}}"
                                                 ToolTip="Remove this column"
                                                 AutomationProperties.AutomationId="AiGrid_RemoveColumn">
                                             <TextBlock Text="×" FontSize="10"

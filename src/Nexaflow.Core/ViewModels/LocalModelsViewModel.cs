@@ -1,9 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
-using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -11,179 +10,173 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// A workspace page for a provider whose models are files on this machine (<see cref="ILocalModelCatalog"/>): every
-/// model it offers, its size, whether it is here, and the means to fetch or remove it. When the provider's kind of
-/// model serves exactly one ability — Whisper and Speech In — each model can be chosen for it here. Everything on the
-/// page acts at once: the choice is made on the ability grid it shares with the AI page, and saved straight away.
+/// The workspace's Local page: for each job the models on this machine do — conversation and reasoning, speech to text, text
+/// to speech, pictures, high-quality pictures, video — the model chosen for it, from a list that shows which are here, which
+/// would be downloaded and how much, and which this machine cannot run. Choosing a model that is here takes effect at once;
+/// one that is not is downloaded first, the job keeping the model it has until the new one is here.
 /// </summary>
-public sealed partial class LocalModelsViewModel : ObservableObject
+public sealed class LocalModelsViewModel
 {
-    private readonly AiAbilityGridViewModel _grid;
-    private readonly Action                 _saveGrid;
-    private readonly Dispatcher             _ui = Dispatcher.CurrentDispatcher;
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    public string ProviderName { get; }
-
-    /// <summary>The ability this provider's models serve, when there is exactly one; null otherwise.</summary>
-    public AiAbility? Ability { get; }
-
-    public bool CanChoose => Ability is not null;
-
-    public string Heading { get; }
-    public string Intro   { get; }
-
-    public ObservableCollection<LocalModelRowViewModel> Models { get; } = [];
-
-    /// <param name="saveGrid">Saves the grid's config — called once a choice has been written into it.</param>
-    public LocalModelsViewModel(IAiProvider provider, ILocalModelCatalog catalog, AiAbilityGridViewModel grid,
-                                ModelAssetStore store, IBackgroundActivityManager? activities, Action saveGrid)
+    /// <param name="committed">Saves the grid's config once a choice has been written into it.</param>
+    public LocalModelsViewModel(LocalModelShelf shelf, AiAbilityGridViewModel grid, Action committed, IBackgroundActivityManager? activities)
     {
-        _grid        = grid;
-        _saveGrid    = saveGrid;
-        ProviderName = provider.Name;
+        foreach (var slot in Enum.GetValues<LocalSlot>())
+            Jobs.Add(new LocalJobViewModel(slot, shelf, grid, committed, activities));
 
-        var abilities = Enum.GetValues<AiAbility>()
-            .Where(a => Enum.GetValues<ModelKind>().Any(k => provider.Serves(k) && AiAbilityNames.Kind(a) == k))
-            .ToList();
-        Ability = abilities.Count == 1 ? abilities[0] : null;
-
-        Heading = Str.Format("Shell.Config.LocalModels.Heading", ProviderName);
-        Intro   = Ability is { } ability
-            ? Str.Format("Shell.Config.LocalModels.IntroChoose", ProviderName, AiAbilityNames.Friendly(ability))
-            : Str.Format("Shell.Config.LocalModels.Intro", ProviderName);
-
-        foreach (var model in catalog.Catalog)
-            Models.Add(new LocalModelRowViewModel(this, model, store, activities));
-
-        store.Changed += (_, asset) => _ui.InvokeAsync(() =>
+        shelf.Store.Changed += (_, _) => _ui.InvokeAsync(() =>
         {
-            foreach (var row in Models.Where(r => r.Holds(asset))) row.Refresh();
+            foreach (var job in Jobs) job.Refresh();
+            grid.RefreshLocal();
         });
-        if (Ability is { } chosen) _grid.Rows.Single(r => r.Ability == chosen).Chain.CollectionChanged += (_, _) => RefreshInUse();
-        _grid.Columns.CollectionChanged += (_, _) => RefreshInUse();
-        RefreshInUse();
     }
 
-    /// <summary>The model the grid has the ability use — the first of this provider's columns in its chain.</summary>
-    public string? InUse => Ability is { } ability ? _grid.ModelFor(ability, ProviderName) : null;
-
-    /// <summary>Chooses the row's model for the ability and saves that choice at once, like fetching and removing on the
-    /// same page — a choice left waiting for Apply was lost on Close.</summary>
-    internal void Use(LocalModelRowViewModel row)
-    {
-        if (Ability is not { } ability) return;
-        _grid.UseModel(ability, ProviderName, row.Id);
-        _grid.CommitModel(ability, ProviderName);
-        _saveGrid();
-    }
-
-    private void RefreshInUse()
-    {
-        var inUse = InUse;
-        foreach (var row in Models) row.IsInUse = row.Id == inUse;
-    }
+    public ObservableCollection<LocalJobViewModel> Jobs { get; } = [];
 }
 
-/// <summary>One model on a <see cref="LocalModelsViewModel"/> page.</summary>
-public sealed partial class LocalModelRowViewModel : ObservableObject
+/// <summary>One job on the Local page: its model, the models it could have, and a download under way.</summary>
+public sealed partial class LocalJobViewModel : ObservableObject
 {
-    private readonly LocalModelsViewModel        _page;
-    private readonly CatalogModel                _model;
-    private readonly ModelAssetStore             _store;
+    private readonly LocalModelShelf             _shelf;
+    private readonly AiAbilityGridViewModel      _grid;
+    private readonly Action                      _committed;
     private readonly IBackgroundActivityManager? _activities;
+    private CancellationTokenSource?             _fetching;
+    private bool                                 _showing;
 
-    public string Id          => _model.Id;
-    public string DisplayName => _model.DisplayName;
-    public string Size        => SizeFormatter.FormatBytes(_model.Files.Sum(f => f.Size));
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Status))]
-    [NotifyCanExecuteChangedFor(nameof(DownloadCommand), nameof(RemoveCommand))]
-    private bool _isOnDisk;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Status))]
-    [NotifyCanExecuteChangedFor(nameof(DownloadCommand), nameof(RemoveCommand))]
-    private bool _isDownloading;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Status))]
-    private int _percent;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Status))]
-    private string? _failure;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UseCommand), nameof(RemoveCommand))]
-    private bool _isInUse;
-
-    public LocalModelRowViewModel(LocalModelsViewModel page, CatalogModel model, ModelAssetStore store, IBackgroundActivityManager? activities)
+    public LocalJobViewModel(LocalSlot slot, LocalModelShelf shelf, AiAbilityGridViewModel grid, Action committed, IBackgroundActivityManager? activities)
     {
-        _page       = page;
-        _model      = model;
-        _store      = store;
+        Slot        = slot;
+        _shelf      = shelf;
+        _grid       = grid;
+        _committed  = committed;
         _activities = activities;
+        Label       = Str.Get($"Shell.Config.Local.Job.{slot}");
+
+        foreach (var option in shelf.OptionsFor(slot)) Choices.Add(new LocalChoiceViewModel(option, shelf));
         Refresh();
     }
 
-    public string Status =>
-          IsDownloading    ? Str.Format("Shell.Config.LocalModels.Downloading", Percent)
-        : Failure is { } f ? f
-        : IsOnDisk         ? Str.Get("Shell.Config.LocalModels.OnDisk")
-        :                    Str.Get("Shell.Config.LocalModels.NotDownloaded");
+    public LocalSlot Slot { get; }
 
-    internal bool Holds(ModelAsset asset) => _model.Files.Contains(asset);
+    public string Label { get; }
 
-    internal void Refresh() => IsOnDisk = _model.Files.All(f => _store.Locate(f) is not null);
+    public ObservableCollection<LocalChoiceViewModel> Choices { get; } = [];
 
-    private bool CanDownload => !IsOnDisk && !IsDownloading;
+    /// <summary>Whether this machine runs any model for the job.</summary>
+    public bool CanChoose => Choices.Any(c => c.Runs);
 
-    [RelayCommand(CanExecute = nameof(CanDownload))]
-    private async Task Download()
+    /// <summary>Why the job has nothing to choose from; null when it has.</summary>
+    public string? Note => CanChoose ? null
+        : Str.Get(Choices.Count == 0 ? "Shell.Config.AiGrid.Local.None" : "Shell.Config.AiGrid.Local.TooLarge");
+
+    /// <summary>The model chosen — or being fetched to be chosen.</summary>
+    [ObservableProperty] private LocalChoiceViewModel? _selected;
+
+    /// <summary>A download under way, or what stopped one; null otherwise.</summary>
+    [ObservableProperty] private string? _status;
+
+    [ObservableProperty] private bool _isDownloading;
+
+    /// <summary>The model the job uses now.</summary>
+    private LocalChoiceViewModel? Current => Choices.FirstOrDefault(c => c.Option.IsIn(_grid.LocalModelFor(Slot)));
+
+    /// <summary>Takes again what is here, and shows the model in use unless another is being fetched.</summary>
+    public void Refresh()
     {
+        foreach (var choice in Choices) choice.Refresh();
+        if (!IsDownloading) Show(Current);
+    }
+
+    partial void OnSelectedChanged(LocalChoiceViewModel? value)
+    {
+        if (_showing || value is null) return;
+        _ = ChooseAsync(value);
+    }
+
+    private async Task ChooseAsync(LocalChoiceViewModel choice)
+    {
+        _fetching?.Cancel();
+        if (!choice.Runs || choice == Current) { Show(IsDownloading ? Selected : Current); return; }
+        if (_shelf.IsReady(choice.Option)) { Commit(choice); return; }
+
+        var fetching = _fetching = new CancellationTokenSource();
+        var keeping  = Current?.DisplayName;
         IsDownloading = true;
-        Failure       = null;
-        var activity  = _activities?.StartActivity($"Downloading {DisplayName}…");
+        Report(choice, 0, keeping);
+        var activity = _activities?.StartActivity(Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, 0));
         try
         {
-            foreach (var file in _model.Files)
-                await _store.EnsureAsync(file, new Progress<AssetProgress>(p =>
-                {
-                    Percent = (int)(p.Fraction * 100);
-                    activity?.Update($"Downloading {DisplayName}… {Percent}%");
-                }));
+            await _shelf.FetchAsync(choice.Option, new Progress<AssetProgress>(p =>
+            {
+                var percent = (int)(p.Fraction * 100);
+                Report(choice, percent, keeping);
+                activity?.Update(Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, percent));
+            }), fetching.Token);
             activity?.Complete();
+            IsDownloading = false;
+            Status = null;
+            Commit(choice);
+        }
+        catch (OperationCanceledException)
+        {
+            activity?.Complete();
+            if (_fetching == fetching) { IsDownloading = false; Status = null; Show(Current); }
         }
         catch (Exception ex)
         {
-            Failure = ex.Message;
             activity?.Fail(ex.Message);
-        }
-        finally
-        {
             IsDownloading = false;
-            Refresh();
+            Status = Str.Format("Shell.Config.Local.FailedFormat", choice.DisplayName, ex.Message);
+            Show(Current);
         }
     }
 
-    /// <summary>A model in use stays: removing it would leave its ability with nothing to run.</summary>
-    private bool CanRemove => IsOnDisk && !IsDownloading && !IsInUse;
+    private void Report(LocalChoiceViewModel choice, int percent, string? keeping)
+        => Status = keeping is null
+            ? Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, percent)
+            : Str.Format("Shell.Config.Local.DownloadingKeepingFormat", choice.DisplayName, percent, keeping);
 
-    [RelayCommand(CanExecute = nameof(CanRemove))]
-    private async Task Remove()
+    private void Commit(LocalChoiceViewModel choice)
     {
-        foreach (var file in _model.Files) await _store.RemoveAsync(file);
+        _grid.ChooseLocal(Slot, choice.Option.Column());
+        _committed();
         Refresh();
     }
 
-    private bool CanUse => _page.CanChoose && !IsInUse;
-
-    /// <summary>Chooses this model for the page's ability, and fetches it when it is not here yet.</summary>
-    [RelayCommand(CanExecute = nameof(CanUse))]
-    private async Task Use()
+    /// <summary>Shows <paramref name="choice"/> as selected without choosing it.</summary>
+    private void Show(LocalChoiceViewModel? choice)
     {
-        _page.Use(this);
-        if (CanDownload) await Download();
+        _showing = true;
+        try { Selected = choice; }
+        finally { _showing = false; }
+    }
+}
+
+/// <summary>A model a job's list offers: its name, and whether it is here, how much it would download, or why it cannot run.</summary>
+public sealed partial class LocalChoiceViewModel(LocalModelOption option, LocalModelShelf shelf) : ObservableObject
+{
+    public LocalModelOption Option => option;
+
+    public string DisplayName => option.Model.DisplayName;
+
+    public bool Runs => option.Runs;
+
+    [ObservableProperty] private bool _isHere;
+
+    /// <summary>What the list says beside it: here, the download it would take, or why this machine cannot run it.</summary>
+    [ObservableProperty] private string _detail = string.Empty;
+
+    public void Refresh()
+    {
+        IsHere = Runs && shelf.IsReady(option);
+        Detail = option.Unrunnable switch
+        {
+            UnrunnableReason.TooLargeForThisMachine => Str.Get("Shell.Config.Local.TooLarge"),
+            UnrunnableReason.NoBuildForThisMachine  => Str.Get("Shell.Config.Local.NoBuild"),
+            _ when IsHere                           => Str.Get("Shell.Config.Local.Here"),
+            _                                       => Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(shelf.MissingBytes(option))),
+        };
     }
 }

@@ -188,18 +188,86 @@
           }
         ]
       }
+    },
+    "ai-local-models": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/LocalColumns.cs",
+          "class": "LocalColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalModelShelf.cs",
+          "class": "LocalModelShelf"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalModelsViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/DownloadedModelsViewModel.cs",
+          "class": "DownloadedModelsViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/LocalModelsControl.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/DownloadedModelsControl.xaml"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalModelsTests.cs",
+            "class": "LocalModelsTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalColumnsTests.cs",
+            "class": "LocalColumnsTests"
+          }
+        ]
+      }
+    },
+    "aibar-voice-config": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
+            "class": "SpeechInTests",
+            "method": "AGridThatHasNeverHadSpeechIn_StartsOnWhisper"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalModelsTests.cs",
+            "class": "LocalModelsTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 13,
+  "changed_sets": 16,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
+    "ai-local-models",
     "aibar-background-tasks",
     "aibar-bar-reply",
     "aibar-final-answer",
     "aibar-progress-line",
     "aibar-response-overlay",
-    "aibar-tool-approval"
+    "aibar-tool-approval",
+    "aibar-voice-config"
   ]
 }

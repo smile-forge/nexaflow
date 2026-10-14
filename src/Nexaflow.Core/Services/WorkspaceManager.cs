@@ -469,6 +469,15 @@ public sealed class WorkspaceManager
 
         var fresh = ProviderManager.Instance.AcquireProviderSet(
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
+
+        // A grid saved before the Local column has its models on this machine folded into it, once, and is saved so.
+        if (LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal))
+        {
+            ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+            var folded = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
+            ProviderManager.Instance.ReleaseProviderSet(fresh);
+            fresh = folded;
+        }
         var old   = ws.Providers;
         ws.Providers               = fresh;
         workspace.AiConfig.Providers = fresh;

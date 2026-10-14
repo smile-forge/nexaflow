@@ -56,10 +56,33 @@ public interface IModelAssetStore
 public interface ILocalModelCatalog
 {
     IReadOnlyList<CatalogModel> Catalog { get; }
+
+    /// <summary>The catalog's models this machine cannot run, each with why — shown so the user sees what there is, never
+    /// chosen. Default: none.</summary>
+    IReadOnlyList<UnrunnableModel> Unrunnable => [];
+
+    /// <summary>What <paramref name="modelId"/> needs besides its own files that other models share — a GPU runtime — fetched
+    /// with it, and kept while any model that needs it is; null when it needs nothing more. Default: null.</summary>
+    LocalRuntime? RuntimeOf(string modelId) => null;
 }
 
 /// <summary>One model a provider offers, and the files it needs.</summary>
 public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files);
+
+/// <summary>Why this machine cannot run a model.</summary>
+public enum UnrunnableReason
+{
+    /// <summary>The model has no build for this machine's hardware.</summary>
+    NoBuildForThisMachine,
+    /// <summary>The model needs more GPU memory than this machine has.</summary>
+    TooLargeForThisMachine,
+}
+
+/// <summary>A model of a catalog this machine cannot run, and why.</summary>
+public sealed record UnrunnableModel(CatalogModel Model, UnrunnableReason Why);
+
+/// <summary>Files several local models need besides their own — a GPU runtime — under the name it is shown by.</summary>
+public sealed record LocalRuntime(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files);
 
 /// <summary>
 /// The manifest a provider ships of the models it can fetch: for each, an id (what an ability-grid column names),

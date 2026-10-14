@@ -1,4 +1,5 @@
 using Nexaflow.Providers.Common;
+using Nexaflow.Core.AI;
 
 namespace Nexaflow.Core;
 
@@ -46,6 +47,10 @@ public sealed class ProviderSet
     public IAiProvider? Find(string providerName, ModelKind kind)
         => Providers.FirstOrDefault(p => string.Equals(p.Name, providerName, StringComparison.OrdinalIgnoreCase)
                                          && p.Serves(kind));
+
+    /// <summary>Whether <paramref name="column"/>'s model runs on this machine under Nexaflow's own harness — a model of the
+    /// grid's Local column.</summary>
+    public bool IsLocal(ProviderModelPair column) => Find(column.ProviderName, column.Kind)?.Harness == ModelHarness.Owned;
 
     /// <summary>Plugin DLL file name for a provider name, or empty string if unknown.</summary>
     public string GetAssemblyFileName(string providerName)
