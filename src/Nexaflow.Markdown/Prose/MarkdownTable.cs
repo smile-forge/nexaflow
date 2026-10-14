@@ -1,8 +1,3 @@
-using System.Text.RegularExpressions;
-using Markdig;
-using Markdig.Extensions.Tables;
-using Markdig.Syntax;
-
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Prose;
@@ -13,8 +8,10 @@ namespace Nexaflow.Markdown.Prose;
 /// <para>
 /// A row is a row and a cell is a cell, named with the roles every language that has a grid already uses —
 /// which is what lets a table be laid on the same tree a matrix is laid on, and selected down a column the
-/// same way. The pipes and the rule under the head are not part of any cell: they fall between the spans and
-/// are kept as trivia, so the table prints back as the characters somebody lined up by hand.
+/// same way. The pipes and the rule under the head are not part of any cell: they fall between the cells and
+/// are kept as trivia, so the table prints back as the characters somebody lined up by hand. A cell is what
+/// stands between two pipes, with the space at either end of it left among the trivia — and an empty cell is
+/// still a cell, holding nothing where it stands.
 /// </para>
 /// <para>
 /// Which way a column is set is the one thing here that nobody wrote on the cell — the colons that say it
@@ -26,7 +23,8 @@ public static class MarkdownTable
 {
     /// <summary><paramref name="source"/> as the rows and cells written in it.</summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0)
+    /// <param name="lead">What stands in front of <paramref name="source"/> on the line it starts on — see <see cref="MarkdownLines"/>.</param>
+    public static ContentNode Read(string? source, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
@@ -34,49 +32,28 @@ public static class MarkdownTable
         var read = new Cut(text, at);
         var parts = new List<ContentNode>();
 
-        try
-        {
-            Tables(Markdig.Markdown.Parse(Unquoted(text), pipeline ?? MarkdownParser.Pipeline), parts, read);
-        }
-        catch
-        {
-            parts.Add(read.Unaccounted());
-        }
-
+        Tables(MarkdownScanner.Scan(MarkdownLines.Of(text, lead), document: false), parts, read);
         read.Gap(parts, read.Length);
 
         return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
-    /// <summary>
-    /// A table written inside a quote carries the quote's marks at the head of every line after its first — the quote's,
-    /// not the table's. They are read as the spaces they stand in for, a character for a character, so every cell is still
-    /// found where it was written and the marks stay in the source as the trivia they are.
-    /// </summary>
-    private static string Unquoted(string text) =>
-        QuoteMarks.Replace(text, marks => marks.Value.Replace('>', ' '));
-
-    private static readonly Regex QuoteMarks = new(@"^(?:[ \t]*>)+", RegexOptions.Multiline | RegexOptions.Compiled);
-
-    /// <summary>
-    /// Every table in the reading, for the same reason a list's items are gathered wherever they are found: a
-    /// table written inside something else does not always read back as a table on its own.
-    /// </summary>
-    private static void Tables(ContainerBlock blocks, List<ContentNode> parts, Cut read)
+    /// <summary>Every table in the reading, wherever it turns up.</summary>
+    private static void Tables(ScannedBlock blocks, List<ContentNode> parts, Cut read)
     {
-        foreach (var block in blocks)
-            if (block is Table table) Rows(table, parts, read);
-            else if (block is ContainerBlock inner) Tables(inner, parts, read);
+        foreach (var block in blocks.Children)
+            if (block is ScannedTable table) Rows(table, parts, read);
+            else if (block.Children.Count > 0) Tables(block, parts, read);
     }
 
-    private static void Rows(Table table, List<ContentNode> parts, Cut read)
+    private static void Rows(ScannedTable table, List<ContentNode> parts, Cut read)
     {
-        foreach (var block in table)
+        foreach (var block in table.Children)
         {
-            if (block is not TableRow row) continue;
+            if (block is not ScannedRow row) continue;
 
-            var from = read.Starts(row);
-            var to = read.Closes(row, from);
+            var from = Math.Clamp(row.Start, read.At, read.Length);
+            var to = read.Closing(row.End, from);
             if (to == from) continue;
 
             read.Gap(parts, from);
@@ -87,22 +64,20 @@ public static class MarkdownTable
             // The last pipe, and the line ending after it.
             read.Gap(inside, to);
 
-            parts.Add(ContentNode.Branch(MarkdownKinds.Row, inside, row.IsHeader ? MarkdownRoles.Head : Roles.Row));
+            parts.Add(ContentNode.Branch(MarkdownKinds.Row, inside, row.Head ? MarkdownRoles.Head : Roles.Row));
         }
     }
 
-    private static void Cells(Table table, TableRow row, List<ContentNode> parts, Cut read, int end)
+    private static void Cells(ScannedTable table, ScannedRow row, List<ContentNode> parts, Cut read, int end)
     {
-        var column = 0;
-
-        foreach (var block in row)
+        foreach (var block in row.Children)
         {
-            if (block is not TableCell cell) continue;
+            if (block is not ScannedCell cell) continue;
 
-            var at = column++;
-            if (Where(cell, read, end) is not { } span) continue;
+            var from = Math.Clamp(cell.Start, read.At, end);
+            var to = Math.Clamp(cell.End, from, end);
 
-            read.Gap(parts, span.From);
+            read.Gap(parts, from);
 
             var stands = read.Here;
 
@@ -110,86 +85,35 @@ public static class MarkdownTable
             {
                 // Held as written: what is in a cell is the same language a paragraph is written in, and
                 // reading it is that reader's business.
-                ContentNode.Leaf(Kinds.Verbatim, read.Text(span.To), Roles.Body, offset: stands),
+                ContentNode.Leaf(Kinds.Verbatim, read.Text(to), Roles.Body, offset: stands),
             };
 
-            if (Aligned(table, at) is { } how) inside.Add(how);
+            if (Aligned(table, cell.Column) is { } how) inside.Add(how);
             if (Covers(cell) is { } spans) inside.Add(spans);
-            if (Blocked(cell)) inside.Add(ContentNode.Holding(MarkdownKinds.Blocks, Roles.Derived, true));
+            if (cell.Blocks) inside.Add(ContentNode.Holding(MarkdownKinds.Blocks, Roles.Derived, true));
 
             parts.Add(ContentNode.Branch(MarkdownKinds.Cell, inside, Roles.Cell, stands));
-
-            column += Math.Max(cell.ColumnSpan, 1) - 1;
         }
-    }
-
-    /// <summary>
-    /// Where a cell's own characters are. A cell is a container, and a container that was handed one
-    /// paragraph does not always carry a span of its own — so where it has none, the paragraph inside it
-    /// says where the cell is.
-    /// </summary>
-    private static (int From, int To)? Where(TableCell cell, Cut read, int end)
-    {
-        var from = read.Starts(cell);
-        var to = read.Ends(cell);
-
-        if (to <= from && cell.Count > 0 && cell[0] is { } only)
-        {
-            from = read.Starts(only);
-            to = read.Ends(only);
-        }
-
-        to = Math.Min(to, end);
-
-        return to > from ? (from, to) : null;
     }
 
     /// <summary>Which way this cell's column is set, where the rule under the head says anything about it.</summary>
-    private static ContentNode? Aligned(Table table, int column)
-    {
-        if (column < 0 || column >= table.ColumnDefinitions.Count) return null;
-
-        var how = table.ColumnDefinitions[column].Alignment switch
-        {
-            TableColumnAlign.Left => MarkdownAligns.Left,
-            TableColumnAlign.Center => MarkdownAligns.Center,
-            TableColumnAlign.Right => MarkdownAligns.Right,
-            _ => null,
-        };
-
-        return how is null ? null : ContentNode.Holding(MarkdownKinds.Aligned, Roles.Derived, how);
-    }
+    private static ContentNode? Aligned(ScannedTable table, int column) =>
+        column >= 0 && column < table.Aligns.Count && table.Aligns[column] is { } how
+            ? ContentNode.Holding(MarkdownKinds.Aligned, Roles.Derived, how)
+            : null;
 
     /// <summary>
     /// How many columns and rows a cell was written to cover, where it covers more than one.
     ///
     /// <para>
     /// Derived, like the alignment and for the same reason: the characters of a cell say nothing about it.
-    /// What says it is the shape of the grid drawn round it, three lines up and two lines down, which only
-    /// the reader that took the whole table in has seen.
+    /// What says it is the shape of the grid drawn round it, which only the scan that took the whole table in has seen.
     /// </para>
     /// </summary>
-    private static ContentNode? Covers(TableCell cell)
-    {
-        var across = Math.Max(cell.ColumnSpan, 1);
-        var down = Math.Max(cell.RowSpan, 1);
-
-        return across == 1 && down == 1
+    private static ContentNode? Covers(ScannedCell cell) =>
+        cell.Across <= 1 && cell.Down <= 1
             ? null
-            : ContentNode.Holding(MarkdownKinds.Spans, Roles.Derived, new MarkdownSpans(across, down));
-    }
-
-    /// <summary>
-    /// Whether what is written in a cell is blocks rather than a run of words — a list, a quotation, two
-    /// paragraphs. A pipe table's cell is always one line of prose; a grid table's can hold a document.
-    ///
-    /// <para>
-    /// Settled here because only the reader that took the table in can tell: the characters of a cell look
-    /// the same either way, and which they are depends on the shape of the grid drawn round them.
-    /// </para>
-    /// </summary>
-    private static bool Blocked(TableCell cell) =>
-        cell.Count > 1 || (cell.Count == 1 && cell[0] is not ParagraphBlock);
+            : ContentNode.Holding(MarkdownKinds.Spans, Roles.Derived, new MarkdownSpans(Math.Max(cell.Across, 1), Math.Max(cell.Down, 1)));
 }
 
 /// <summary>How much of a grid one cell was written to cover.</summary>

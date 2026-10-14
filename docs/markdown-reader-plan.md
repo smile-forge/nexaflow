@@ -47,8 +47,9 @@ provided it is held to those examples from its first commit. That is phase 1.
 The reader replaces how blocks and words are recognised. The tree it hands back is the tree handed back now, which is
 what lets each phase be proved by comparing trees rather than by reviewing behaviour.
 
-- **The same tree.** The same `MarkdownKinds`, roles and derived parts, the same pieces at the same offsets. Builders,
-  stages and the editing handlers are untouched.
+- **The same tree.** The same `MarkdownKinds`, roles and derived parts. Builders, stages and the editing handlers are
+  untouched. Where a piece starts and ends follows the characters rather than Markdig's spans, which differ only where
+  those spans were arbitrary.
 - **The same two passes.** The split names each block and leaves its body verbatim; `MarkdownBlocks` reads each body
   with the reader for its kind and keeps it by `(lead, written)`. A block's reading is a function of its characters and
   what stands in front of its first line, and nothing else (`RereadingTests`). Nothing document-wide is resolved by the
@@ -266,17 +267,19 @@ once phase 3 lands is fixed then.
 
 ## Phase 2 — blocks
 
-`MarkdownLines` and `MarkdownScanner` behind `MarkdownParser.Read`, `Stretch`, `Inside`, `MarkdownList` and
-`MarkdownTable`, in this order: CommonMark's core rules, then tables, then the rest of the table above. Words are still
-read by Markdig through `MarkdownInline` — each reader stands alone, which is what lets the two halves move separately.
-`Windowed` stops exactly. `Cut`'s mapping goes, with `Closes`, `One`'s ceiling, `Called`, `Circles`, `Unquoted` and
-`FrontMatterEnd`.
+`MarkdownLines` and `MarkdownScanner` behind `MarkdownParser.Read`, `Inside`, `MarkdownList`, `MarkdownTable` and
+`Windowed`, in this order: CommonMark's core rules, then tables, then the rest of the table above. Words are still read by
+Markdig through `MarkdownInline` — each reader stands alone, which is what lets the two halves move separately. A stretch
+stops at the first block written past its length with nothing else open — never at a definition, nor at a paragraph
+opening with a bracket, which is not known to be a block rather than a definition until it closes. `Cut` maps nothing,
+and `Closes`, `Unquoted` and `FrontMatterEnd` go; `One`'s ceiling and `Circles` stay, as guards.
 
-**Gate.** Scanner's block constructs agree wherever Today's did, and the ledger only shrinks; Scanner's tree equals
-Today's on Samples and Pages except where a ledger entry is fixed; the fallback count is nought; every suite that reads
-markdown passes; a whole reading is no slower and allocates no more than Today's on any document.
-
-## Phase 3 — words
+**Gate.** Scanner's constructs agree wherever Today's did, and the ledger only shrinks; the fallback count is nought;
+every suite that reads markdown passes; a whole reading, and a keystroke's, is no slower and allocates no more than
+Today's, best of many runs. The tree is compared with Today's only to account for every way it differs: where Markdig's
+spans were arbitrary the scan's are the characters' own — a cell is its words without the space round them, a row is its
+whole line, a blank line after a list stands between the list and what follows — and those differences are the point
+rather than a regression.## Phase 3 — words
 
 The inline reader and `MarkdownDelimiters` behind `MarkdownInline`, and `WithReferences` resolving from the list the
 reader keeps. Markdig leaves `Nexaflow.Markdown`.

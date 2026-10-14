@@ -6,9 +6,12 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 ## How it's wired
 
-- **Parser:** Markdig **1.3.2** (`Markdig` package), used for its spans only: every piece of the tree is cut from the
-  source at them, so a document always prints back as exactly what was written
-  ([markdown-ast.md](markdown-ast.md)).
+- **Parser:** blocks are found by the reading's own scan
+  ([`MarkdownScanner`](../src/Nexaflow.Markdown/Prose/MarkdownScanner.cs)) — CommonMark's block algorithm, with each
+  extension below a rule of its own. The words inside a block are read with Markdig **1.3.2** (`Markdig` package), for
+  its spans only. Either way every piece of the tree is cut from the source, so a document always prints back as exactly
+  what was written ([markdown-ast.md](markdown-ast.md)); [markdown-reader-plan.md](markdown-reader-plan.md) takes Markdig
+  out of the words too.
 - **Pipeline:** one extension list — [`MarkdownParser.Reading`](../src/Nexaflow.Markdown/Prose/MarkdownParser.cs),
   built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
   starts from `Reading(new())` rather than writing the list again.

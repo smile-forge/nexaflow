@@ -5,9 +5,6 @@ using System.Linq;
 using System.Text;
 using Markdig;
 using Markdig.Extensions.AutoIdentifiers;
-using Markdig.Extensions.Tables;
-
-using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -26,15 +23,12 @@ namespace Nexaflow.Markdown.Prose;
 /// rather than a thousand-line file, and what lets a kind nothing can read yet be shown exactly as it was typed.
 /// </para>
 /// <para>
-/// Markdig decides where the boundaries are and nothing else. Where one block stops and the next begins is a
-/// question with a standard answer and a decade of corner cases behind it, and there is no version of that worth
-/// writing twice.
+/// Where one block stops and the next begins is CommonMark's to say, with every extension the reading enables, and the
+/// scan says it (<see cref="MarkdownScanner"/>): one pass over the lines, in the order CommonMark reads them.
 /// </para>
 /// <para>
-/// <strong>Every character comes from the source, not from Markdig.</strong> Its tree holds text it has already
-/// read — an entity decoded, an escape taken off, a line's indentation dropped — so nothing in it is copied
-/// across. Only the <em>spans</em> are, and the characters are cut out of the source at them, with whatever
-/// falls between two blocks kept as the trivia it is.
+/// <strong>Every character comes from the source.</strong> The scan holds places, not characters: the characters are
+/// cut out of the source at them, with whatever falls between two blocks kept as the trivia it is.
 /// </para>
 /// </summary>
 public sealed class MarkdownParser : ITranspile
@@ -43,12 +37,13 @@ public sealed class MarkdownParser : ITranspile
     {
     }
     /// <summary>
-    /// The pipeline used where a caller names none: everything a document can hold.
+    /// The pipeline the words inside a block are read with (<see cref="MarkdownInline"/>), and that a host reading markdown
+    /// with Markdig itself reads with: everything a document can hold.
     ///
     /// <para>
     /// Deliberately without Markdig's own trivia tracking, which turns a pipe table back into the paragraph it
     /// was read from. Nothing here needs it: only the spans are taken and every character is cut from the
-    /// source, so what falls between two blocks is found by looking rather than by being told.
+    /// source, so what falls between two pieces is found by looking rather than by being told.
     /// </para>
     /// </summary>
     public static MarkdownPipeline Pipeline { get; } = Reading(new MarkdownPipelineBuilder()).Build();
@@ -70,11 +65,10 @@ public sealed class MarkdownParser : ITranspile
     /// document would read it.
     ///
     /// <para>
-    /// A block is only known to be finished once the next one has started — a paragraph followed by <c>===</c> is a heading, a
-    /// list goes on past a blank line — so a stretch is read on to the end of a line past its length and stops where the last
-    /// block in it starts: every block before that one is whole, and that one is the next stretch's first. A stretch holding
-    /// only one block is read further, until it holds two or reaches the end — which is reading a container whole, however long.
-    /// A stretch stops between two blocks, where nothing is open, so it carries nothing to the next (<see cref="ContentParse.Resume"/>).
+    /// A stretch is read on past its length to the first line a block starts on with nothing but the document open, and stops
+    /// there: every block before it is whole, because a block the scan has closed stays closed (<see cref="MarkdownScanner"/>).
+    /// A stretch holding a single block, however long, is that block whole. A stretch stops between two blocks, where nothing is
+    /// open, so it carries nothing to the next (<see cref="ContentParse.Resume"/>).
     /// </para>
     /// </summary>
     public static Func<ContentStretch, ContentParse> Windowed()
@@ -86,106 +80,20 @@ public sealed class MarkdownParser : ITranspile
     private static ContentParse Stretched(ContentStretch stretch, MarkdownBlocks blocks)
     {
         var source = stretch.Source;
-        var rest = source.Length - stretch.From;
-        var least = stretch.From == 0 ? FrontMatterEnd(source) : 0;
+        var from = stretch.From;
+        var lines = MarkdownLines.Of(source, from: from);
+        var scanned = MarkdownScanner.Scan(lines, document: from == 0, from + Math.Max(stretch.SoftMaxLength, 1), out var stopped);
 
-        for (var length = Math.Clamp(stretch.SoftMaxLength, 1, Math.Max(rest, 1)); ; length = (int)Math.Min(length * 2L, rest))
-        {
-            var end = LineEnd(source, Math.Max(stretch.From + length, least));
-
-            if (Stretch(source, stretch.From, end, stopping: end < source.Length) is not { } read) continue;
-
-            return new ContentParse(blocks.Read(read.Tree, source)) { Stopped = read.Stopped };
-        }
-    }
-
-    /// <summary>Where the line <paramref name="at"/> stands on ends, past its line break — or the end of <paramref name="source"/>.</summary>
-    private static int LineEnd(string source, int at)
-    {
-        if (at >= source.Length) return source.Length;
-
-        var end = source.IndexOf('\n', at);
-        return end < 0 ? source.Length : end + 1;
-    }
-
-    /// <summary>
-    /// Where the front matter a document opens with ends — past the line closing it — or nought where it opens with none.
-    ///
-    /// <para>
-    /// The one block whose reading the lines after it change all the way back: an opening <c>---</c> is only front matter once
-    /// a <c>---</c> or <c>...</c> closes it, and until then it reads as a rule with paragraphs under it. So the first stretch of a
-    /// document is read at least this far, and front matter is never split.
-    /// </para>
-    /// </summary>
-    private static int FrontMatterEnd(string source)
-    {
-        var first = LineEnd(source, 0);
-        if (source[..first].TrimEnd('\r', '\n').TrimEnd() != "---") return 0;
-
-        for (var at = first; at < source.Length;)
-        {
-            var next = LineEnd(source, at);
-            var line = source[at..next].TrimEnd('\r', '\n').TrimEnd();
-
-            if (line is "---" or "...") return next;
-            at = next;
-        }
-
-        return 0;
-    }
-
-    /// <summary>What one stretch of a document read to, and where it stopped.</summary>
-    private sealed record Stretching(ContentNode Tree, int? Stopped);
-
-    /// <summary>
-    /// The blocks of <paramref name="source"/> from <paramref name="from"/> to <paramref name="end"/>, read as <see cref="Read"/>
-    /// reads a document — and, where <paramref name="stopping"/>, all but the last of them, stopping where it starts; null where
-    /// there are not two blocks to stop between.
-    ///
-    /// <para>
-    /// The last block written, not the last Markdig holds: Markdig gathers every link definition it took out of the text into one
-    /// group after the rest, which was written nowhere.
-    /// </para>
-    /// </summary>
-    private static Stretching? Stretch(string source, int from, int end, bool stopping)
-    {
-        var text = source[from..end];
-        var read = new Cut(text, from);
+        var end = stopped ?? source.Length;
+        var read = new Cut(source, from, end);
         var parts = new List<ContentNode>();
-        int? stop = null;
 
-        try
-        {
-            var document = Markdig.Markdown.Parse(text, Pipeline);
+        Split(scanned.Children, parts, read);
+        read.Gap(parts, end);
 
-            if (stopping)
-            {
-                var written = document.Where(block => block is not LinkReferenceDefinitionGroup).ToList();
-                if (written.Count < 2) return null;
+        var tree = new BlockNode(Language, Checked(Kinds.Block, parts, source[from..end], Roles.Element, from).Children, offset: from);
 
-                var last = read.Original(written[^1].Span.Start);
-                if (last <= 0) return null;
-
-                stop = last;
-            }
-
-            Split(document, parts, read, until: stop);
-        }
-        catch
-        {
-            // A reader that threw on a stretch may read the longer one; at the end there is nothing longer, and what is left is
-            // shown as it was typed, as the whole document's reading shows it.
-            if (stopping) return null;
-
-            parts.Add(read.Unaccounted());
-        }
-
-        var length = stop ?? read.Length;
-        read.Gap(parts, length);
-
-        var tree = new BlockNode(Language, Checked(Kinds.Block, parts, text[..length], Roles.Element, from).Children, offset: from);
-
-        return new Stretching(tree, stop is { } stopped ? from + stopped : null);
+        return new ContentParse(blocks.Read(tree, source)) { Stopped = stopped };
     }
 
     /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>
@@ -218,7 +126,7 @@ public sealed class MarkdownParser : ITranspile
             .UseAutoIdentifiers(AutoIdentifierOptions.GitHub);
 
     /// <summary><paramref name="source"/> as the blocks it is written in.</summary>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)
+    public static ContentNode Read(string? source)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return new BlockNode(Language, []);
@@ -226,17 +134,7 @@ public sealed class MarkdownParser : ITranspile
         var read = new Cut(text);
         var parts = new List<ContentNode>();
 
-        try
-        {
-            Split(Markdig.Markdown.Parse(text, pipeline ?? Pipeline), parts, read);
-        }
-        catch
-        {
-            // A reader that threw has said nothing about the text, which is not the same as the text being
-            // wrong. What is left of it is shown as it was typed.
-            parts.Add(read.Unaccounted());
-        }
-
+        Split(MarkdownScanner.Scan(MarkdownLines.Of(text), document: true).Children, parts, read);
         read.Gap(parts, read.Length);
 
         return new BlockNode(Language, Checked(Kinds.Block, parts, text, Roles.Element, read.From).Children, offset: read.From);
@@ -253,107 +151,77 @@ public sealed class MarkdownParser : ITranspile
     /// <para>
     /// A block covering the whole of what was handed over is the block being read rather than something inside
     /// it, so the walk goes through it — twice over where it has to, because a definition list is one item and
-    /// the item is the term and what it means. Stopping at the first would hand back the same stretch of source
+    /// the item is the terms and what they mean. Stopping at the first would hand back the same stretch of source
     /// under a new name, which is a reading that learned nothing.
     /// </para>
     /// </summary>
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
-    /// <param name="lead">What stands in front of <paramref name="source"/> on the line it starts on — see <see cref="Cut"/>.</param>
-    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null, int at = 0, string? lead = null)
+    /// <param name="lead">What stands in front of <paramref name="source"/> on the line it starts on — see <see cref="MarkdownLines"/>.</param>
+    public static ContentNode Inside(string? source, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text, at, lead);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
+        var holder = MarkdownScanner.Scan(MarkdownLines.Of(text, lead), document: false);
 
-        try
-        {
-            ContainerBlock blocks = Markdig.Markdown.Parse(read.Contained, pipeline ?? Pipeline);
+        while (holder.Children is [var only] && Holds(only) && Whole(only, text)) holder = only;
 
-            while (blocks.Count == 1 && blocks[0] is ContainerBlock only && Whole(only, read.Contained)) blocks = only;
+        // An alert says what it is with the first characters of its first line, which are its own and no paragraph's.
+        if (holder is ScannedQuote { Named: { } named }) Called(named, parts, read);
 
-            // An alert says what it is with the first characters of its first line. Markdig reads them and keeps them out of
-            // the words, but not out of the paragraph's span — so they are cut here, before the paragraph is.
-            var first = blocks is Markdig.Extensions.Alerts.AlertBlock alert ? Called(alert, parts, read) : 0;
-
-            Split(blocks, parts, read, first);
-        }
-        catch
-        {
-            parts.Add(read.Unaccounted());
-        }
-
+        Split(holder.Children, parts, read);
         read.Gap(parts, read.Length);
 
         return Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
+    /// <summary>Whether a block holds blocks, and so can be the whole of what was handed over without being what is read.</summary>
+    private static bool Holds(ScannedBlock block) => block.Kind is ScannedKind.Quote or ScannedKind.Alert or ScannedKind.Footer
+        or ScannedKind.Figure or ScannedKind.DefinitionList or ScannedKind.DefinitionItem or ScannedKind.List or ScannedKind.Item;
+
     /// <summary>Whether a block is the whole of what was handed over rather than a part of it.</summary>
-    private static bool Whole(Block block, string text) =>
-        block.Span.Start <= 0 && block.Span.End >= text.TrimEnd('\n', '\r', ' ', '\t').Length - 1;
+    private static bool Whole(ScannedBlock block, string text) =>
+        block.Start <= 0 && block.End >= text.TrimEnd('\n', '\r', ' ', '\t').Length;
 
     /// <summary>
     /// The <c>[!NOTE]</c> an alert opens with, cut into its marks and the name between them — which are one marker is the
-    /// parse's to say (<see cref="MarkdownGroups"/>) — and what follows it up to where the words under it start.
-    /// Where it is all its paragraph held, the line it stands on is all of it.
+    /// parse's to say (<see cref="MarkdownGroups"/>).
     /// </summary>
-    /// <returns>Which of the alert's blocks is the first still to be read.</returns>
-    private static int Called(Markdig.Extensions.Alerts.AlertBlock alert, List<ContentNode> parts, Cut read)
+    private static void Called((int At, int Length) named, List<ContentNode> parts, Cut read)
     {
-        if (alert.Count == 0 || alert[0] is not ParagraphBlock first) return 0;
-
-        var from = read.Starts(first);
-        var name = alert.Kind.ToString();
-
-        if (name.Length == 0 || read.Between(from, from + name.Length + 3) != $"[!{name}]") return 0;
+        var from = named.At - 2;
+        if (from < read.At) return;
 
         read.Gap(parts, from);
         parts.Add(read.Take(from + 2, Roles.Open, Kinds.Token));
-        parts.Add(read.Take(from + 2 + name.Length, Roles.Name, Kinds.Token));
-        parts.Add(read.Take(from + 3 + name.Length, Roles.Close, Kinds.Token));
-
-        if (first.Inline?.FirstChild is { } words)
-        {
-            read.Gap(parts, read.Starts(words));
-            return 0;
-        }
-
-        read.Gap(parts, read.Closes(first, read.At));
-        return 1;
+        parts.Add(read.Take(from + 2 + named.Length, Roles.Name, Kinds.Token));
+        parts.Add(read.Take(from + 3 + named.Length, Roles.Close, Kinds.Token));
     }
 
     /// <summary>
-    /// The blocks a container holds, each as its own piece — from the <paramref name="first"/> of them, and up to where the one
-    /// starting at <paramref name="until"/> does, where that is given.
+    /// The blocks a container holds, each as its own piece.
     ///
     /// <para>
-    /// Only the blocks written there. Markdig takes every link definition out of where it was written and gathers them into a
-    /// group of its own, which was written nowhere — so what a definition was written as falls between the blocks around it, and
-    /// is kept as it was typed, as anything between two blocks is.
+    /// Only the blocks: a link's or an abbreviation's definition is read for what it defines by the stages, not drawn, so
+    /// what it was written as falls between the blocks around it and is kept as it was typed, as anything between two
+    /// blocks is.
     /// </para>
     /// </summary>
-    internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read, int first = 0, int? until = null)
+    internal static void Split(IReadOnlyList<ScannedBlock> blocks, List<ContentNode> parts, Cut read)
     {
-        var written = blocks.Skip(first).Where(block => block is not LinkReferenceDefinitionGroup).ToList();
+        var written = blocks.Where(block => !block.Defines).ToList();
 
         for (var at = 0; at < written.Count; at++)
-        {
-            if (until is { } stop && read.Original(written[at].Span.Start) >= stop) break;
-
-            One(written[at], parts, read, at + 1 < written.Count ? read.Original(written[at + 1].Span.Start) : until);
-        }
+            One(written[at], parts, read, at + 1 < written.Count ? written[at + 1].Start : null);
     }
 
-    /// <summary>
-    /// One block, with whatever was written in front of it — ending where the next begins, whatever its span says. A pipe
-    /// table written straight under a line of words is cut out of the paragraph it interrupted, and the paragraph's span is
-    /// left reaching over the table.
-    /// </summary>
-    private static void One(Block block, List<ContentNode> parts, Cut read, int? next)
+    /// <summary>One block, with whatever was written in front of it — to the end of the line it stops on, and no further than the next begins.</summary>
+    private static void One(ScannedBlock block, List<ContentNode> parts, Cut read, int? next)
     {
-        var from = read.Starts(block);
-        var to = read.Closes(block, from);
+        var from = Math.Clamp(block.Start, read.At, read.Length);
+        var to = read.Closing(block.End, from);
         if (next is { } ceiling && ceiling > from && ceiling < to) to = ceiling;
         if (to == from) return;
 
@@ -386,20 +254,17 @@ public sealed class MarkdownParser : ITranspile
     /// out of the body here, because what is inside is a different language with a different grammar, and
     /// reading it is its own parser's business — which happens a pass later, in <see cref="MarkdownBlocks"/>.
     /// </summary>
-    private static ContentNode Block(Block block, int at, string source)
+    private static ContentNode Block(ScannedBlock block, int at, string source)
     {
-        // A maths block IS a fenced block — Markdig derives one from the other — and it reads the same way: a
-        // delimiter, a body in another language, a delimiter. What differs is only that nobody writes the
-        // language after the fence, because the $$ is what says it.
-        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, at, source, isMaths: true);
-
-        if (block is FencedCodeBlock fence) return Fenced(fence, at, source, isMaths: false);
+        // A maths block is a fence, and reads the same way: a delimiter, a body in another language, a delimiter. What
+        // differs is only that nobody writes the language after the fence, because the $$ is what says it.
+        if (block is ScannedFence { Kind: ScannedKind.Fence or ScannedKind.Maths } fence) return Fenced(fence, at, source);
 
         var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
 
-        // How deep a heading is, which the reader counted as it read the hashes or saw which character underlined it.
-        if (block is HeadingBlock ranked)
-            read = read.Saying(MarkdownKinds.Rank, MarkdownRoles.Rank, ranked.Level.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // How deep a heading is, which the scan counted as it read the hashes or saw which character underlined it.
+        if (block is ScannedHeading ranked)
+            read = read.Saying(MarkdownKinds.Rank, MarkdownRoles.Rank, ranked.Rank.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         return read;
     }
@@ -408,32 +273,20 @@ public sealed class MarkdownParser : ITranspile
     /// A fence: a block in the language the word after it names — or maths, which a <c>$$</c> says by being one — holding the
     /// fence line, the characters written in that language (<see cref="Kinds.Nested"/>, unread), and the closing fence.
     /// </summary>
-    private static ContentNode Fenced(FencedCodeBlock fence, int at, string source, bool isMaths)
+    private static ContentNode Fenced(ScannedFence fence, int at, string source)
     {
-        var opens = 0;
-        while (opens < source.Length && source[opens] == fence.FencedChar) opens++;
-
-        if (opens == 0)
+        if (source.Length == 0 || source[0] != fence.Mark)
             return ContentNode.Branch(MarkdownKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
 
-        var named = opens;
-        while (named < source.Length && !char.IsWhiteSpace(source[named])) named++;
-
-        var line = source.IndexOf('\n', named);
+        var line = source.IndexOf('\n');
         var body = line < 0 ? source.Length : line + 1;
 
-        // The closing fence is whatever run of fence characters ends the block, with the line it stands on. The
-        // line ending before it belongs to the body: it ends the last line somebody wrote in there.
-        var shut = source.Length;
-        while (shut > body && char.IsWhiteSpace(source[shut - 1])) shut--;
+        // The closing fence is the line the scan closed it on, from the space in front of its marks. The line ending before
+        // it belongs to the body: it ends the last line somebody wrote in there.
+        var shut = fence.Closed is { } closed ? Math.Clamp(closed - fence.Start, body, source.Length) : source.Length;
+        while (shut > body && source[shut - 1] is ' ' or '\t') shut--;
 
-        var closes = shut;
-        while (shut > body && source[shut - 1] == fence.FencedChar) shut--;
-
-        if (shut == closes) shut = source.Length;
-        else while (shut > body && (source[shut - 1] == ' ' || source[shut - 1] == '\t')) shut--;
-
-        var language = isMaths ? Maths : source[opens..named].Trim();
+        var language = fence.Kind == ScannedKind.Maths ? Maths : fence.Language;
 
         List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, source[..body], Roles.Open, offset: at)];
 
@@ -442,31 +295,30 @@ public sealed class MarkdownParser : ITranspile
         if (shut > body) parts.Add(ContentNode.Leaf(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source[body..shut], Roles.Body, offset: at + body));
         if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close, offset: at + shut));
 
-    return language.Length > 0
+        return language.Length > 0
             ? new BlockNode(language, parts, offset: at)
             : ContentNode.Branch(MarkdownKinds.Code, parts, offset: at);
     }
 
     /// <summary>Which language reads a block's body.</summary>
-    private static string Kind(Block block) => block switch
+    private static string Kind(ScannedBlock block) => block.Kind switch
     {
-        HeadingBlock => MarkdownKinds.Heading,
-        ThematicBreakBlock => MarkdownKinds.Rule,
-        Markdig.Extensions.Alerts.AlertBlock => MarkdownKinds.Alert,
-        QuoteBlock => MarkdownKinds.Quote,
-        ListBlock => MarkdownKinds.List,
-        Table => MarkdownKinds.Table,
-        Markdig.Extensions.Yaml.YamlFrontMatterBlock => MarkdownKinds.FrontMatter,
-        Markdig.Extensions.DefinitionLists.DefinitionList => MarkdownKinds.Definition,
-        Markdig.Extensions.DefinitionLists.DefinitionTerm => MarkdownKinds.Term,
-        Markdig.Extensions.DefinitionLists.DefinitionItem => MarkdownKinds.Described,
-        Markdig.Extensions.Figures.FigureCaption => MarkdownKinds.Caption,
-        Markdig.Extensions.Figures.Figure => MarkdownKinds.Figure,
-        Markdig.Extensions.Footers.FooterBlock => MarkdownKinds.Footer,
-        HtmlBlock => MarkdownKinds.Html,
-
-        CodeBlock => MarkdownKinds.Code,
-        ParagraphBlock => MarkdownKinds.Paragraph,
+        ScannedKind.Paragraph => MarkdownKinds.Paragraph,
+        ScannedKind.Heading => MarkdownKinds.Heading,
+        ScannedKind.Rule => MarkdownKinds.Rule,
+        ScannedKind.Alert => MarkdownKinds.Alert,
+        ScannedKind.Quote => MarkdownKinds.Quote,
+        ScannedKind.List => MarkdownKinds.List,
+        ScannedKind.Table => MarkdownKinds.Table,
+        ScannedKind.FrontMatter => MarkdownKinds.FrontMatter,
+        ScannedKind.DefinitionList => MarkdownKinds.Definition,
+        ScannedKind.Term => MarkdownKinds.Term,
+        ScannedKind.DefinitionItem => MarkdownKinds.Described,
+        ScannedKind.Caption => MarkdownKinds.Caption,
+        ScannedKind.Figure => MarkdownKinds.Figure,
+        ScannedKind.Footer => MarkdownKinds.Footer,
+        ScannedKind.Html => MarkdownKinds.Html,
+        ScannedKind.IndentedCode => MarkdownKinds.Code,
         _ => Kinds.Verbatim,
     };
 

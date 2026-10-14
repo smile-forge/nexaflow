@@ -168,16 +168,35 @@ public class MarkdownDifferentialTests
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "markdown-reading-costs.tsv"), report.ToString());
     }
 
+    /// <summary>
+    /// What one reading costs: the fastest of many — a time is noise, a best time is the work — and what each allocates, which
+    /// is the same every time.
+    /// </summary>
     private static (double Milliseconds, double Bytes) Measured(Action read)
     {
-        const int Rounds = 5;
+        const int Least = 7;
+        const double Enough = 60;
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        var clock = Stopwatch.StartNew();
+        var fastest = double.MaxValue;
+        var bytes = 0L;
+        var spent = 0.0;
 
-        for (var round = 0; round < Rounds; round++) read();
+        for (var round = 0; round < Least || spent < Enough; round++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var clock = Stopwatch.StartNew();
 
-        return (clock.Elapsed.TotalMilliseconds / Rounds, (GC.GetAllocatedBytesForCurrentThread() - before) / (double)Rounds);
+            read();
+
+            var took = clock.Elapsed.TotalMilliseconds;
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            fastest = Math.Min(fastest, took);
+            spent += took;
+
+            if (round > 1000) break;
+        }
+
+        return (fastest, bytes);
     }
 
     // ── Gathering ───────────────────────────────────────────────────────────

@@ -12,6 +12,16 @@
         {
           "type": "markdown",
           "doc": "docs/markdown-reader-plan.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownScanner.cs",
+          "class": "MarkdownScanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlockRules.cs",
+          "class": "MarkdownBlockRules"
         }
       ],
       "concerns": {

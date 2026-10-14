@@ -149,7 +149,7 @@ internal sealed class MarkdownBlocks
             or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at, lead) => MarkdownParser.Inside(source, at: at, lead: lead),
 
         MarkdownKinds.List => static (source, at, lead) => MarkdownList.Read(source, at: at, lead: lead),
-        MarkdownKinds.Table => static (source, at, _) => MarkdownTable.Read(source, at: at),
+        MarkdownKinds.Table => static (source, at, lead) => MarkdownTable.Read(source, at: at, lead: lead),
 
         _ => null,
     };

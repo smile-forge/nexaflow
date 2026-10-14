@@ -229,8 +229,8 @@ public class MarkdownBlocksTests
     {
         var table = Blocks("| a | b |\n|---|---|\n| 1 | 2 |\n")[0];
 
-        // A cell is what stands between two pipes, spaces and all: they are inside it, not between the cells.
-        Assert.AreEqual(" a ", Body(Every(table, MarkdownKinds.Cell)[0]).Print());
+        // A cell is what stands between two pipes, without the space at either end: that is between the cells, with the pipes.
+        Assert.AreEqual("a", Body(Every(table, MarkdownKinds.Cell)[0]).Print());
         Assert.AreEqual("| a | b |\n|---|---|\n| 1 | 2 |\n", table.Print());
     }
 

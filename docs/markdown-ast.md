@@ -492,8 +492,8 @@ is written in where nothing names a language.
 ### Markdown
 
 **A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in two passes: where each
-block starts and which it is, and which language every fence and formula is written in (Markdig decides the boundaries
-and nothing else — [markdown-reader-plan.md](markdown-reader-plan.md) replaces it with a reader of our own); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
+block starts and which it is, and which language every fence and formula is written in — CommonMark's block algorithm
+with every extension the reading enables (`MarkdownScanner`); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
 (`MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body), with every piece
 finished as it is read: what pieces side by side make together (`MarkdownGroups` — a definition list's pairs, an
 alert's marker, the display formula a paragraph of nothing but `$$ … $$` is) and the line ending closing a block's last

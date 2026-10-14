@@ -162,6 +162,7 @@ internal static class MarkdownShape
     public static List<MarkdownConstruct> Of(MarkdownDocument document, string source)
     {
         var shape = new List<MarkdownConstruct>();
+        var defined = document.Descendants<LinkReferenceDefinition>().Select(definition => definition.Span).ToList();
 
         foreach (var block in document) Block(block);
 
@@ -174,7 +175,7 @@ internal static class MarkdownShape
 
         void Block(Block block)
         {
-            if (Theirs(block) is { } kind && Span(block, source) is { } span)
+            if (Theirs(block) is { } kind && Span(block, source, defined) is { } span)
             {
                 shape.Add(Construct(kind, span.Start, span.End, TheirFacts(block, kind), source));
                 if (Closed.Contains(kind)) return;
@@ -185,7 +186,7 @@ internal static class MarkdownShape
             else if (block is LeafBlock { Inline: { } words })
             {
                 // The line ending a block's last line ends the block, and is no break inside it.
-                var last = Span(block, source) is { } whole ? whole.End : block.Span.End + 1;
+                var last = Span(block, source, defined) is { } whole ? whole.End : block.Span.End + 1;
                 while (last > 0 && char.IsWhiteSpace(source[Math.Min(last, source.Length) - 1])) last--;
 
                 foreach (var piece in words) Inline(piece, last);
@@ -295,11 +296,17 @@ internal static class MarkdownShape
     /// has none.</item>
     /// <item><b>A block ends where the next one begins.</b> A pipe table written straight under a line of words is cut out
     /// of the paragraph it interrupted, and the paragraph's span is left reaching over the table.</item>
+    /// <item><b>A definition's term is its own line</b>, not the paragraph Markdig read every term out of.</item>
+    /// <item><b>A paragraph starts after the link definitions at its head.</b> Markdig takes them out of its words but not
+    /// out of its span — nor out of a heading's, where an underline made the paragraph one.</item>
     /// </list>
     /// </summary>
-    private static (int Start, int End)? Span(Block block, string source)
-    {
-    if (block is TableCell { Span.Length: <= 0, Count: > 0 } cell) return Span(cell[0], source);
+private static (int Start, int End)? Span(Block block, string source, IReadOnlyList<SourceSpan> defined)
+{
+    if (block is TableCell { Span.Length: <= 0, Count: > 0 } cell) return Span(cell[0], source, defined);
+
+    // Every term of a definition is given the span of the whole paragraph its lines were; its own line says where it is.
+    if (block is DefinitionTerm { Inline: { FirstChild: { } first, LastChild: { } last } }) return (first.Span.Start, last.Span.End + 1);
 
         // A row or a cell with nothing in it is given no span at all, and an empty head row not even a line: where it is, is
         // the line it was read from, or else the line the first thing holding it with a span starts on — a table's head row
@@ -327,6 +334,10 @@ internal static class MarkdownShape
             if (box.NextSibling is null) return null;
             start = box.Span.End + 1;
         }
+
+        if (block is ParagraphBlock or HeadingBlock)
+            foreach (var definition in defined)
+                if (definition.Start >= start && definition.End <= block.Span.End) start = Math.Max(start, definition.End + 1);
 
         var end = block.Span.End + 1;
 
@@ -492,6 +503,16 @@ internal static class MarkdownShape
 
         while (start < end && (char.IsWhiteSpace(source[start]) || (edged && source[start] == '|'))) start++;
         while (end > start && (char.IsWhiteSpace(source[end - 1]) || (edged && source[end - 1] == '|'))) end--;
+
+        // A blank line inside a quote is the quote's marks and nothing else; at the end of a range it is no part of what
+        // it follows, though Markdig counts it in where a list item goes on over it.
+        for (var feed = source.LastIndexOf('\n', Math.Max(end - 1, 0)); feed >= start && end > start; feed = source.LastIndexOf('\n', Math.Max(end - 1, 0)))
+        {
+            if (!source.AsSpan(feed + 1, end - feed - 1).ContainsAnyExcept("> \t")) end = feed;
+            else break;
+
+            while (end > start && char.IsWhiteSpace(source[end - 1])) end--;
+        }
 
         // Something with nothing in it stands at the start of its line: where along the line each reading puts an empty
         // cell's nothing is no fact about it.
