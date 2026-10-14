@@ -43,4 +43,9 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- What transformers' Jinja rendered, for the host's own engine to match (tools/ai-models/chat-templates). -->
+    <EmbeddedResource Include="Jinja\*.json" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
