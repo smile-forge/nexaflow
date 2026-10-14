@@ -297,8 +297,6 @@ Projects_Detail_RemoveCriterion
 AiOverlay_Close
 AiOverlay_ContinueAsConversation
 AiOverlay_Deny
-AiOverlay_Accept
 AiBanner_Close
 AiBanner_OpenInConversation
 AiBanner_Deny
-AiBanner_Accept

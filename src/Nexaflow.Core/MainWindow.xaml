@@ -510,11 +510,12 @@
                 BorderThickness="0,1,0,0">
             <Grid x:Name="AiBarGrid" Margin="12,5,12,5">
                 <!-- Two lines: the AI's above — its status dot and one line of what it is saying or doing — and the user's below,
-                     taller — the mic, the box, and Send. The right column stacks the page-context toggle (Queue while a run is in
-                     flight) over Send. -->
+                     taller — the mic, the box, and Send. Beside the box, the workspace's background tasks while it has any. The right
+                     column stacks the page-context toggle (Queue while a run is in flight) over Send. -->
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="30"/>     <!-- status dot / mic                -->
                     <ColumnDefinition Width="*"/>      <!-- the AI's line / the user's box  -->
+                    <ColumnDefinition Width="Auto"/>   <!-- background tasks                -->
                     <ColumnDefinition Width="56"/>     <!-- context or queue / send         -->
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
@@ -610,7 +611,7 @@
                 </Border>
 
                 <!-- Top right: the page-context toggle — Queue in its place while a run is in flight (the toggle is locked then). -->
-                <Grid Grid.Row="0" Grid.Column="2" Margin="8,0,0,4">
+                <Grid Grid.Row="0" Grid.Column="3" Margin="8,0,0,4">
                     <ToggleButton AutomationProperties.AutomationId="AiBar_ContextToggle" ToolTip="{loc:Str Shell.AiBar.IncludeContext}"
                                   IsChecked="{Binding IncludeContext}" Width="Auto" HorizontalAlignment="Stretch"
                                   Visibility="{Binding AiIsBusy, Converter={StaticResource InvBoolVis}}"
@@ -768,8 +769,31 @@
                     </Grid>
                 </Border>
 
+                <!-- The workspace's background tasks — work its assistant left running after replying — while it has any; it opens their list. -->
+                <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" AutomationProperties.AutomationId="AiBar_BackgroundTasks"
+                        Command="{Binding WorkspaceTasks.ToggleCommand}" ToolTip="{loc:Str Shell.BackgroundTasks.Header}"
+                        Visibility="{Binding WorkspaceTasks.Any, Converter={StaticResource BoolVis}}"
+                        VerticalAlignment="Center" Margin="8,0,0,0" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="pill" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource AccentBrush}"
+                                    BorderThickness="1" CornerRadius="12" Padding="10,3">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⟳" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+                                    <TextBlock Text="{Binding WorkspaceTasks.Label}" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="pill" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
                 <!-- Send / Cancel (swaps on AiIsBusy); Queue sits above it while busy. -->
-                <Button Grid.Row="1" Grid.Column="2" AutomationProperties.AutomationId="AiBar_Send" Margin="8,0,0,0" MinWidth="48"
+                <Button Grid.Row="1" Grid.Column="3" AutomationProperties.AutomationId="AiBar_Send" Margin="8,0,0,0" MinWidth="48"
                         VerticalAlignment="Stretch" Cursor="Hand" FontSize="16" Foreground="White">
                     <Button.Style>
                         <Style TargetType="Button">
@@ -817,6 +841,53 @@
             </Grid>
         </Border>
         </vcc:ThemedRegion>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — BACKGROUND TASKS (the AI bar's pill opens it)
+             ═══════════════════════════════════════════════════════════ -->
+        <!-- Each job the workspace's assistant left running: what it is doing, for how long, and Stop. Clicking off closes it. -->
+        <Border Grid.Row="0" Grid.RowSpan="5"
+                Visibility="{Binding WorkspaceTasks.IsOpen, Converter={StaticResource BoolVis}}"
+                Background="Transparent" Panel.ZIndex="49"
+                MouseDown="BackgroundTasksScrim_MouseDown"/>
+        <Border Grid.Row="0" Grid.RowSpan="4"
+                Visibility="{Binding WorkspaceTasks.IsOpen, Converter={StaticResource BoolVis}}"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,12,6" Width="460"
+                Style="{StaticResource PopupBorder}"
+                Padding="12" Panel.ZIndex="50">
+            <StackPanel>
+                <TextBlock Text="{loc:Str Shell.BackgroundTasks.Header}" Foreground="{StaticResource TextBrush}"
+                           FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <ItemsControl ItemsSource="{Binding WorkspaceTasks.Running}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type m:BackgroundTask}">
+                            <Border Padding="8" CornerRadius="6" Margin="0,2" Background="{StaticResource Surface2Brush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextBrush}"
+                                                   FontSize="12" FontWeight="Medium" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElapsedText}" Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2" AutomationProperties.AutomationId="AiBar_BackgroundTaskStop"
+                                            Content="{loc:Str Shell.BackgroundTasks.Stop}" Command="{Binding StopCommand}"
+                                            Style="{StaticResource TopBarAction}" Padding="10,4" VerticalAlignment="Center"
+                                            Foreground="{StaticResource DangerBrush}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — NOTIFICATIONS PANEL

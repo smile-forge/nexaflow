@@ -215,6 +215,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     public ObservableCollection<BackgroundTask> BackgroundTasks => _activityManager.Tasks;
 
+    /// <summary>The jobs this window's workspace has running in the background: the AI bar's pill and its list.</summary>
+    public WorkspaceBackgroundTasks WorkspaceTasks { get; }
+
+    partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
+
     /// <summary>Page-registered controls shown just left of the activity ticker (per-workspace, shared across
     /// this workspace's windows). See <see cref="ShellServices.MediatedTasks"/> / <c>RegisterMediatedTask</c>.</summary>
     public ObservableCollection<MediatedTaskRegistration> MediatedTasks => _shellServices.MediatedTasks;
@@ -592,7 +597,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True when any window-modal overlay currently covers the page content area.</summary>
     private bool AnyOverlayCoversPage =>
         OptionsOpen || WorkspaceConfigOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
-        || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true;
+        || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true || WorkspaceTasks.IsOpen;
 
     private void OnShellPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
     {
@@ -631,6 +636,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // conversation analysis) report through the activity ticker without blocking AI input.
         _currentRuntime = workspace;
         _shellServices = workspace.ShellServices!;
+        WorkspaceTasks = new WorkspaceBackgroundTasks(activityManager, () => CurrentRuntime);
+        WorkspaceTasks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(WorkspaceBackgroundTasks.IsOpen)) RefreshOverlayCoverage();
+        };
         Ai = new ShellAIResponseHandler(this);
         Voice = new VoiceConversationViewModel(_ui);
 

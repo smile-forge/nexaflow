@@ -131,4 +131,7 @@ internal sealed class GenerateImageTool : IClientTool
     /// <summary>The shape a model asked for, or <paramref name="fallback"/> where it named none it has.</summary>
     internal static MediaShape Shape(string? asked, MediaShape fallback) =>
         Enum.TryParse<MediaShape>(asked, ignoreCase: true, out var shape) && Enum.IsDefined(shape) ? shape : fallback;
+
+    /// <summary>A picture at high quality takes minutes: it is drawn in the background.</summary>
+    public bool RunsInBackground(JsonObject arguments) => ReferenceEquals(Model(arguments), _highQuality);
 }

@@ -68,6 +68,13 @@ public interface IAIResponseHandler
     void Abort();
 
     /// <summary>
+    /// A call a run of this handler set going in the background has ended, after the run itself: <paramref name="outcome"/> says
+    /// what came of it, as the model would read it. A conversation keeps it, so what follows can build on it. Default: no-op —
+    /// the user is told by the app either way.
+    /// </summary>
+    void BackgroundJobEnded(string outcome) { }
+
+    /// <summary>
     /// Queues a message the user submitted WHILE this response was being generated. The agent loop
     /// delivers it at the next turn boundary (see <see cref="TakeInterjections"/>) so the model can
     /// steer mid-task. Default: no-op (handlers that don't support queuing).

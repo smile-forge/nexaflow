@@ -296,6 +296,7 @@ public partial class App : Application
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
+        WorkspaceManager.Instance.BackgroundTasks   = activityManager;
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. File map + external apps ──────────────────────────────────────

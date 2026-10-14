@@ -1,0 +1,98 @@
+{
+  "branch": "claude/local-ai-delegation",
+  "nodes": {
+    "agent-routing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/RequestTriage.cs",
+          "class": "RequestTriage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "RouteAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "RunAgentAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/RequestRoutingTests.cs",
+            "class": "RequestRoutingTests"
+          }
+        ]
+      }
+    },
+    "agent-reading-delegate": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/ReadingTool.cs",
+          "class": "ReadingTool"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/ReadingToolTests.cs",
+            "class": "ReadingToolTests"
+          }
+        ]
+      }
+    },
+    "aibar-background-tasks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/BackgroundJobs.cs",
+          "class": "BackgroundJobs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WorkspaceBackgroundTasks.cs",
+          "class": "WorkspaceBackgroundTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BackgroundActivityManager.cs",
+          "class": "BackgroundActivityManager",
+          "method": "StartJob"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BackgroundJobsTests.cs",
+            "class": "BackgroundJobsTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationBackgroundJobTests.cs",
+            "class": "ConversationBackgroundJobTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "agent-reading-delegate",
+    "agent-routing",
+    "aibar-background-tasks"
+  ]
+}

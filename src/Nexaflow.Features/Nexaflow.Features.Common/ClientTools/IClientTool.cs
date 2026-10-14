@@ -58,4 +58,11 @@ public interface IClientTool
     /// <see cref="ToolResult"/> with <see cref="ToolResult.IsError"/> set so the model can recover.
     /// </summary>
     Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct);
+
+    /// <summary>
+    /// Whether a call runs on in the background after the request that made it moves on — slow work the user need not wait
+    /// for, such as a picture drawn at high quality. The model is told it has started; the user sees it among the background
+    /// tasks, can stop it, and is told when it ends. Default: false — the request waits for it.
+    /// </summary>
+    bool RunsInBackground(JsonObject arguments) => false;
 }

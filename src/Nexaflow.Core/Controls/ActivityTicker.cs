@@ -104,6 +104,7 @@ public class ActivityTicker : ContentControl
             TaskStatus.Running   => "⟳ ",
             TaskStatus.Completed => "✓ ",
             TaskStatus.Failed    => "✕ ",
+            TaskStatus.Stopped   => "◼ ",
             _                    => ""
         };
 

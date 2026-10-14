@@ -485,10 +485,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _pendingUserMessages.Clear();
         _currentToolBatch = null;
         if (users.Count > 0) await PersistExchangeAsync(users, assistant);
+        await KeepEndedMeanwhileAsync();
     });
 
     /// <summary>Cancel / error / prefill: drop the unfinished turn's items (it isn't persisted).</summary>
-    public void Abort() => OnUi(() =>
+    public void Abort() => OnUi(async () =>
     {
         RemoveActivity();
         foreach (var item in _turnItems) Timeline.Remove(item);
@@ -500,7 +501,44 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _draft            = null;
         IsAgentRunning = false;
         MarkLastUserMessage();
+        await KeepEndedMeanwhileAsync();
     });
+
+    /// <summary>What background work set going here came to while a turn was in progress, kept for when it ends.</summary>
+    private readonly List<string> _endedMeanwhile = [];
+
+    /// <summary>
+    /// Work a run here set going in the background has ended: what came of it joins the conversation as the assistant's word,
+    /// kept like any other, so what follows can build on it — after the turn in progress, when one is.
+    /// </summary>
+    public void BackgroundJobEnded(string outcome) => OnUi(async () =>
+    {
+        if (IsAgentRunning) { _endedMeanwhile.Add(outcome); return; }
+        await KeepEndedAsync([outcome]);
+    });
+
+    private async Task KeepEndedAsync(IReadOnlyList<string> outcomes)
+    {
+        foreach (var outcome in outcomes)
+        {
+            var said = new ConversationMessage { Text = outcome, IsUser = false, Timestamp = DateTime.Now };
+            Timeline.Add(new TimelineAssistantMessage(outcome));
+            Messages.Add(said);
+            Conversation?.Messages.Add(said);
+        }
+        if (Conversation is null) return;
+        try { await _aiService.SaveConversationAsync(Conversation); }
+        catch { /* persistence failures shouldn't kill the UI */ }
+    }
+
+    /// <summary>Keeps what background work came to while the turn that has just ended was in progress.</summary>
+    private async Task KeepEndedMeanwhileAsync()
+    {
+        if (_endedMeanwhile.Count == 0) return;
+        var outcomes = _endedMeanwhile.ToList();
+        _endedMeanwhile.Clear();
+        await KeepEndedAsync(outcomes);
+    }
 
     /// <param name="assistant">Null when the model said nothing — the user's message is still kept, because
     /// it happened; inventing an assistant message to pair with it would not be true.</param>

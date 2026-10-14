@@ -83,4 +83,7 @@ internal sealed class GenerateVideoTool(IVideoGenerationProvider model, Generate
 
     internal static int Nearest(IReadOnlyList<int> lengths, int seconds) =>
         lengths.OrderBy(l => Math.Abs(l - seconds)).ThenByDescending(l => l).First();
+
+    /// <summary>A clip takes minutes: it is made in the background.</summary>
+    public bool RunsInBackground(JsonObject arguments) => true;
 }

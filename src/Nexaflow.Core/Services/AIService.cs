@@ -95,6 +95,25 @@ public sealed class AIService : IAIService
         => GetProvider(AiAbility.ImageRecognition) is { } image && !ReferenceEquals(image, conversation) ? image : null;
 
     /// <summary>
+    /// Where a request to <paramref name="ability"/> goes, or null when no model serves it now. A row of models of one kind —
+    /// all on this machine, or all elsewhere — gives it to the first available. A row holding both has it judged
+    /// (<see cref="RequestTriage"/>): light work goes to the machine's model, with the larger one to hand it over to should it get
+    /// stuck; the rest goes to the larger model, which may hand reading to the machine's.
+    /// </summary>
+    private async Task<ModelRoute?> RouteAsync(AiAbility ability, string request, IReadOnlyList<LlmMessage> history, CancellationToken ct)
+    {
+        var models = Candidates<ILlmProvider>(ability).ToList();
+        if (models.Count == 0) return null;
+
+        var local  = models.FirstOrDefault(m => m.Residency == DataResidency.StaysOnMachine);
+        var larger = models.FirstOrDefault(m => m.Residency == DataResidency.LeavesMachine);
+        if (local is null || larger is null) return new(models[0]);
+
+        var suits = await RequestTriage.SuitsAsync(GetProvider(AiAbility.Disambiguation), local, request, history, ct);
+        return (suits ?? ReferenceEquals(models[0], local)) ? new(local, HandOverTo: larger) : new(larger, Reader: local);
+    }
+
+    /// <summary>
     /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
     /// app ships) and the page's own, when <paramref name="includeContext"/>; nothing when not.
     /// </summary>
@@ -184,16 +203,21 @@ public sealed class AIService : IAIService
     private readonly WorkspaceRuntime _workspace;
     private readonly string _baseDir;
 
+    /// <summary>Where calls that run on in the background are set going; null where there is no list of them to show.</summary>
+    private readonly BackgroundJobs? _jobs;
+
     private List<ConversationRecord> _conversations = [];
 
     public ConversationRecord? ActiveConversation { get; }
 
     /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
-    public AIService(WorkspaceRuntime workspace, string conversationsDir)
+    /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
+    public AIService(WorkspaceRuntime workspace, string conversationsDir, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
         _baseDir   = conversationsDir;
+        _jobs      = jobs;
     }
 
     public IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation)
@@ -385,8 +409,7 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        var provider = GetProvider(AiAbility.Analysis);
-        if (provider is null) return null;
+        if (await RouteAsync(AiAbility.Analysis, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider }) return null;
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
@@ -399,8 +422,9 @@ public sealed class AIService : IAIService
         // Falling back to Analysis rather than returning null keeps the Solver working out of the
         // box: Problem Solving is a new column in the ability grid, so on an existing workspace it
         // is unassigned until someone chooses to point it somewhere better.
-        var provider = GetProvider(AiAbility.ProblemSolving) ?? GetProvider(AiAbility.Analysis);
-        if (provider is null) return null;
+        var request = systemPrompt + "\n\n" + userPrompt;
+        if ((await RouteAsync(AiAbility.ProblemSolving, request, [], ct) ?? await RouteAsync(AiAbility.Analysis, request, [], ct)) is not { Model: var provider })
+            return null;
 
         var response = await provider.CompleteAsync(
             [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
@@ -420,15 +444,77 @@ public sealed class AIService : IAIService
                                           CancellationToken ct = default)
         => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed, ct);
 
+    /// <summary>
+    /// Runs a request through the agent loop on the model its row routes it to (<see cref="RouteAsync"/>). The machine's model,
+    /// stuck on a request — repeating itself, or out of steps — hands it over to the larger model, which carries it on from where
+    /// it stands with what was done before it; the larger model may hand reading to the machine's (<see cref="ReadingTool"/>).
+    /// </summary>
     public async Task<AiResponse?> RunAgentAsync(
         IPageViewModel? page, string input, bool includeContext,
         IAIResponseHandler approval, AgentRunOptions options, CancellationToken ct = default)
     {
-        var provider = GetProvider(AiAbility.Conversation);
-        if (provider is null) return null;
-
+        // What the user is looking at as they asked, read on the caller's thread before anything is awaited.
         var (context, pageTools) = GatherContext(page, includeContext);
+
+        ModelRoute? route;
+        try { route = await RouteAsync(AiAbility.Conversation, input, options.History, ct); }
+        catch (OperationCanceledException) { return null; }
+        if (route is null) return null;
+        var ran = new List<LlmMessage>();
+        try
+        {
+            var run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
+                                          Delegates(route.Reader, approval), ran, ct);
+
+            if (run.Stuck is { } stuck && route.HandOverTo is { } larger)
+            {
+                approval.ReportProgress($"Handing over to {larger.Name}…");
+                var taken = new List<LlmMessage>();
+                run = await RunStepsAsync(larger, page, context, includeContext, pageTools, input, HandOver(stuck.Why), approval,
+                                          options with { History = [.. options.History, .. ran] }, Delegates(route.Model, approval), taken, ct);
+                ran.AddRange(taken.Skip(1));   // the first is the hand-over, said to the model and not by the user
+            }
+
+            if (run.Stuck is { } unfinished)
+            {
+                ran.Add(new(LlmRole.Assistant, unfinished.Message));
+                approval.ShowFinal(unfinished.Message);
+                return AiResponse.AsMessage(unfinished.Message, run.Artifacts);
+            }
+            return run.Response;
+        }
+        finally { options.Ran?.Invoke(ran); }
+
+        static string HandOver(string why) =>
+            $"A smaller model began the request above, and what it did and what came of it are above too. It stopped because {why}. " +
+            "Take the request over from where it stands: what it did has been done.";
+    }
+
+    /// <summary>The models a run on a larger model may hand work to: the machine's own, to read for it.</summary>
+    private IReadOnlyList<IClientTool> Delegates(ILlmProvider? reader, IAIResponseHandler approval)
+        => reader is null ? []
+         : [new ReadingTool(reader, path => _workspace.ShellServices?.GetFileTextExtractor(path), approval.ReportProgress)];
+
+    /// <summary>How a run of the loop on one model ended: its response, or nothing when it was stopped or refused; the files
+    /// its tools touched; and, when it got stuck, what to tell the user and why, for a model to take it over.</summary>
+    private sealed record StepsEnded(AiResponse? Response, IReadOnlyList<string> Artifacts, StepsStuck? Stuck = null);
+
+    /// <summary>A run that stopped short of an answer: <paramref name="Message"/> for the user, <paramref name="Why"/> for a model
+    /// that takes it over.</summary>
+    private sealed record StepsStuck(string Message, string Why);
+
+    /// <summary>
+    /// The loop on one model: its steps until it answers, is stopped, or gets stuck. <paramref name="handOver"/> is what the
+    /// model is told in place of <paramref name="input"/> when it takes a request over, the request itself being in the history.
+    /// Every message the run adds to the conversation goes to <paramref name="added"/>, however it ends.
+    /// </summary>
+    private async Task<StepsEnded> RunStepsAsync(
+        ILlmProvider provider, IPageViewModel? page, string context, bool includeContext, List<IClientTool> pageTools,
+        string input, string? handOver, IAIResponseHandler approval, AgentRunOptions options, IReadOnlyList<IClientTool> delegates,
+        List<LlmMessage> added, CancellationToken ct)
+    {
         var ranker = ToolChooser.Picks(pageTools.Count) ? GetProvider(AiAbility.Disambiguation) : null;
+        var artifacts = new List<string>();   // files the tools read/created, for conversation context
 
         // A page whose contents are high-risk sends them off this machine only when the user agrees: every model
         // that would read them and sends what it reads elsewhere is named, and a refusal cancels the request.
@@ -444,14 +530,14 @@ public sealed class AIService : IAIService
             try
             {
                 if (leaving.Count > 0 && !await approval.RequestContextReleaseAsync(leaving, ct))
-                    return null;
+                    return new(null, artifacts);
             }
-            catch (OperationCanceledException) { return null; }
+            catch (OperationCanceledException) { return new(null, artifacts); }
         }
 
         // The tools offered are chosen again as the work moves on; any of them, offered or not, is run when called.
         var getCommands = BuildGetClientCommandsTool(pageTools);
-        var chooser     = new ToolChooser(pageTools, getCommands, options.Tools, ranker, context, input);
+        var chooser     = new ToolChooser(pageTools, getCommands, [.. options.Tools, .. delegates], ranker, context, input);
         var toolNames   = chooser.All.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // The model is offered its tools in its own protocol where it has one; otherwise its instructions describe them, so
@@ -459,9 +545,8 @@ public sealed class AIService : IAIService
         var protocol = ToolProtocol.For(provider);
         var messages = new List<LlmMessage> { new(LlmRole.System, "") };
         messages.AddRange(options.History);
-        messages.Add(new(LlmRole.User, input));
+        messages.Add(new(LlmRole.User, handOver ?? input));
 
-        var artifacts = new List<string>();   // files the tools read/created, for conversation context
         var transcript = RunTranscript.Begin(input);   // off unless NEXAFLOW_AI_TRANSCRIPTS names a folder
         var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)
         AgentStep? awaiting = null;   // a step said whose calls are not yet answered
@@ -506,7 +591,7 @@ public sealed class AIService : IAIService
                 if (turn.Prefill is not null && turn.ToolCalls.Count == 0)
                 {
                     approval.EndReplyDraft(keep: false);
-                    return AiResponse.AsPrefill(turn.Prefill);
+                    return new(AiResponse.AsPrefill(turn.Prefill), artifacts);
                 }
 
                 // 3. No tool calls.
@@ -537,7 +622,7 @@ public sealed class AIService : IAIService
                     var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : taken.Written;
                     messages.Add(new(LlmRole.Assistant, final));
                     approval.ShowFinal(final);
-                    return AiResponse.AsMessage(final, artifacts);
+                    return new(AiResponse.AsMessage(final, artifacts), artifacts);
                 }
 
                 // 4. A batch of tool calls.
@@ -559,14 +644,13 @@ public sealed class AIService : IAIService
                     batchCounts[signature] = seen + 1;
                     if (seen + 1 >= MaxIdenticalBatches)
                     {
-                        const string looped = "I've stopped because I kept repeating the same action without making " +
-                                              "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
                         KeepNarration(approval, turn);
                         messages.AddRange(protocol.Answer(taken, [.. taken.Calls.Select(_ => NotRun("it repeats a call already made"))], null, null));
-                        messages.Add(new(LlmRole.Assistant, looped));
                         awaiting = null;
-                        approval.ShowFinal(looped);
-                        return AiResponse.AsMessage(looped, artifacts);
+                        return new(null, artifacts, new(
+                            "I've stopped because I kept repeating the same action without making progress. Let me know how you'd " +
+                            "like to proceed. _(stopped: repeated tool call)_",
+                            "it kept making the same call without getting anywhere"));
                     }
                 }
 
@@ -602,7 +686,7 @@ public sealed class AIService : IAIService
                     messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))], null, null));
                     awaiting = null;
                     approval.Abort();
-                    return null;
+                    return new(null, artifacts);
                 }
 
                 approval.OnToolBatchFinished([.. results.Select(r => new ToolRunResult(r.Tool, r.Result))]);
@@ -652,20 +736,18 @@ public sealed class AIService : IAIService
                 awaiting = null;
             }
 
-            const string capped = "I've reached the maximum number of automated steps, so I've stopped here. " +
-                                  "_(stopped: max steps reached)_";
-            messages.Add(new(LlmRole.Assistant, capped));
-            approval.ShowFinal(capped);
-            return AiResponse.AsMessage(capped, artifacts);
+            return new(null, artifacts, new(
+                "I've reached the maximum number of automated steps, so I've stopped here. _(stopped: max steps reached)_",
+                "it took as many steps as a request is given without finishing"));
         }
-        catch (OperationCanceledException) { return null; }
+        catch (OperationCanceledException) { return new(null, artifacts); }
         finally
         {
             // A step stopped while its calls ran: what came of them is not known, and the conversation says so rather
             // than leaving them unanswered.
             if (awaiting is { } cut)
                 messages.AddRange(protocol.Answer(cut, [.. cut.Calls.Select(_ => new ToolOutcome("Interrupted: the run was stopped before what came of it was known."))], null, null));
-            options.Ran?.Invoke([.. messages.Skip(1 + options.History.Count)]);
+            added.AddRange(messages.Skip(1 + options.History.Count));
         }
 
         static ToolOutcome NotRun(string why) => new($"Not run: {why}.");
@@ -683,7 +765,7 @@ public sealed class AIService : IAIService
     private static IClientTool? FindTool(IReadOnlyList<IClientTool> catalog, string name)
         => catalog.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    private static async Task<IReadOnlyList<(string Tool, ToolResult Result)>> ExecuteBatchAsync(
+    private async Task<IReadOnlyList<(string Tool, ToolResult Result)>> ExecuteBatchAsync(
         IReadOnlyList<(ToolCall Call, IClientTool? Tool)> calls,
         IAIResponseHandler approval, CancellationToken ct)
     {
@@ -698,6 +780,13 @@ public sealed class AIService : IAIService
                 results[i] = (call.Tool, ToolResult.Error(
                     $"Unknown tool '{call.Tool}'",
                     $"There is no client tool named '{call.Tool}'. Call get_client_commands to see what's available."));
+                continue;
+            }
+
+            // Slow work runs on in the background, where it is listed for the user; the model hears that it has started.
+            if (_jobs is { } jobs && tool.RunsInBackground(call.Arguments))
+            {
+                results[i] = (call.Tool, jobs.Start(tool, call.Arguments, approval).Result);
                 continue;
             }
             if (tool.Parallelizable) { parallelIdx.Add(i); continue; }

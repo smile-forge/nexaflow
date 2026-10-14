@@ -1,5 +1,6 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -46,6 +47,15 @@ public sealed class WorkspaceManager
     /// referencing <c>MainWindow</c>.
     /// </summary>
     internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
+
+    /// <summary>The app's background tasks: each workspace's assistant runs its slow work there, and a workspace's jobs stop when
+    /// its models go.</summary>
+    internal BackgroundActivityManager? BackgroundTasks { get; set; }
+
+    /// <summary>Where <paramref name="ws"/>'s assistant runs its slow work, telling the user through the app's notifications when
+    /// each piece ends; null before the app has its background tasks.</summary>
+    private BackgroundJobs? JobsOf(WorkspaceRuntime ws)
+        => BackgroundTasks is { } tasks ? new(tasks, ws, MessageCenter.Instance.Post) : null;
 
     private WorkspaceManager() { }
 
@@ -215,8 +225,9 @@ public sealed class WorkspaceManager
         // 2. Drop cached feature/handler instances that captured the old AIService/IShellServices.
         FeatureManager.Instance.EvictWorkspace(ws);
 
-        // 3. Rebuild the AIService for the (possibly new) workspace.
-        var service = new AIService(ws, workspace.ConversationsDir);
+        // 3. Rebuild the AIService for the (possibly new) workspace. The old one's jobs stop: the models they run on are going.
+        BackgroundTasks?.StopJobsOf(ws);
+        var service = new AIService(ws, workspace.ConversationsDir, JobsOf(ws));
         service.LoadAbilityConfig(workspace.AiConfig);
         ws.AiService = service;
 
@@ -237,6 +248,7 @@ public sealed class WorkspaceManager
     {
         if (ws.ShellServices is { HasWindows: true }) return;
 
+        BackgroundTasks?.StopJobsOf(ws);
         FeatureManager.Instance.EvictWorkspace(ws);
         ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
         ws.Providers = null;
@@ -482,7 +494,7 @@ public sealed class WorkspaceManager
     {
         var workspace = ws.Workspace;
 
-        var service = new AIService(ws, workspace.ConversationsDir);
+        var service = new AIService(ws, workspace.ConversationsDir, Instance.JobsOf(ws));
         service.LoadAbilityConfig(workspace.AiConfig);
         ws.AiService = service;
 

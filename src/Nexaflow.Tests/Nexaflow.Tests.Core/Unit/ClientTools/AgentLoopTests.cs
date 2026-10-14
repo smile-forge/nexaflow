@@ -38,6 +38,9 @@ public class AgentLoopTests
         public DataResidency Residency    { get; init; } = DataResidency.LeavesMachine;
         public bool          IsAvailable  { get; init; } = true;
 
+        /// <summary>Which model this one, judging, sends a request to.</summary>
+        public string Judgement { get; init; } = "large";
+
         public string Name => ProviderName;
 
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
@@ -48,6 +51,8 @@ public class AgentLoopTests
             var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User)?.Text ?? string.Empty;
             if (lastUser.Contains("Most relevant tool numbers"))
                 return Streamed(rankReply, ct);
+            if (lastUser.Contains("Which assistant should take it?"))
+                return Streamed(Judgement, ct);
 
             SystemPrompts.Add(messages.FirstOrDefault(m => m.Role == LlmRole.System)?.Text ?? string.Empty);
             Conversations.Add([.. messages]);

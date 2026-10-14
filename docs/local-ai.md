@@ -372,7 +372,7 @@ maps roles to models:
 - **Each cell is an ordered chain** of models, set by clicking cells in the order they should be tried: owned Gemma,
   then Claude. A chain advances on unavailability — a provider not available (no API key; for the host, model not
   downloaded, host down, budget refused) — not on "try one, retry the next" for every request: a failed attempt has
-  cost its whole latency already.
+  cost its whole latency already. A reasoning row holding models of both kinds routes by weight instead (below).
 - **High-risk context leaves only with consent.** A request whose context reports a high `GetContextSecurityRisk`
   goes to the chain's model like any other; when that model sends data off this machine, the user is asked first,
   and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
@@ -385,6 +385,28 @@ maps roles to models:
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
 to the owned model, which is where API cost actually goes.
+
+### Light work here, heavy work elsewhere
+
+A Conversation, Problem Solving or Analysis row holding both a model on this machine and one elsewhere is not a fallback
+chain: each request goes to the model that suits it (`RequestTriage`). A row of one kind — only models here, or only
+models elsewhere — always uses its first available model.
+
+- **The Disambiguation model judges**, in one word, from the request and the reply it follows — never the page's
+  contents. Everyday work (a short answer; a few steps with files, folders, pages and apps; short writing; summarising
+  or translating something short) goes to the machine's model, which costs nothing. Reasoning over several steps,
+  code, long or careful writing, long or technical material, maths, and anything costly to get wrong go to the larger
+  one. Gemma 4 E4B judges in about 35 ms. A request whose conversation is too long for the machine's model to read goes
+  to the larger one unjudged; with no Disambiguation model, the row's order stands.
+- **Stuck, the machine's model hands over.** A run that repeats the same call or runs out of steps goes to the larger
+  model with the request and every step taken and what came of it, and the larger model carries it on. The conversation
+  keeps what both did.
+- **The larger model can hand reading back.** Running in such a row, it is offered `ask_local_model`, a sub-agent on
+  the machine's model (`ReadingTool`). It reads the files it is given — text, and PDF, Office and RTF through the
+  shell's text extractors — in parts of 60% of its context, notes what the task needs from each, merges the notes while
+  they outgrow the context, and does the task from them. It is given no tools, so it reads and nothing else; a long
+  document costs the larger model the answer rather than the document. Gemma 4 E4B finds a fact placed 45% of the way
+  into a document three times its context in 19 s.
 
 ### What the model is handed
 
@@ -553,12 +575,19 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 ## Generation tools
 
 Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
-and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on Video Generation. It runs its capability as a job whose
-progress shows on the activity ticker, saves the result where the model asked — else under Pictures, Music or Videos,
-in a `Nexaflow` folder — never over a file already there, and opens it as a double-click would, in Nexaflow's own
-image, audio or video viewer. The model is told where it went, the conversation carries the file, and a picture goes
-back as a `ContextImage`, so the model sees what it drew; the existing loop, approvals and context handling apply
-unchanged.
+and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on Video Generation. It saves the
+result where the model asked — else under Pictures, Music or Videos, in a `Nexaflow` folder — never over a file already
+there, and opens it as a double-click would, in Nexaflow's own image, audio or video viewer. The model is told where it
+went, the conversation carries the file, and a picture made while the model waits goes back as a `ContextImage`, so the
+model sees what it drew; the existing loop, approvals and context handling apply unchanged.
+
+- **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
+  (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is
+  told at once that it has started. The AI bar's pill counts the workspace's running jobs and opens their list: what
+  each is doing (the provider's own progress, a picture's step), for how long, and Stop. When a job ends the user is
+  notified, and a conversation keeps what came of it, after the turn in progress. A workspace's jobs stop when its
+  models go: a switch, a change of providers, its last window closing. Faster calls show their progress on the
+  activity ticker.
 
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
@@ -684,6 +713,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and a high-quality image row. To come: HiDream-O1 as the high-quality model on this machine, then the audio generation contract with music (ACE-Step) | medium per tool |
+| 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill. To come: OCR, then a web agent on Fara 1.5, each a sub-agent with what it may touch set by what it does | medium |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 

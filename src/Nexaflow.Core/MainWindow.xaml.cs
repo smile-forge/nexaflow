@@ -222,6 +222,9 @@ public partial class MainWindow : Window
     private void NotificationScrim_MouseDown(object sender, MouseButtonEventArgs e)
         => _vm.NotificationsOpen = false;
 
+    private void BackgroundTasksScrim_MouseDown(object sender, MouseButtonEventArgs e)
+        => _vm.WorkspaceTasks.IsOpen = false;
+
     private void CapAiRowHeight()
     {
         double maxAi = (ActualHeight - 91) * 0.5;
