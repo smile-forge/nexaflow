@@ -1,0 +1,30 @@
+{
+  "branch": "claude/file-system-scroll-gaps-18b63c",
+  "nodes": {
+    "winfs-reload-in-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "RefreshEntriesAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileListReloadTests.cs",
+            "class": "FileListReloadTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "winfs-reload-in-place"
+  ]
+}
