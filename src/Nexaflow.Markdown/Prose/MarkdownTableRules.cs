@@ -331,7 +331,8 @@ internal sealed class PipeSeparatorRule : MarkdownBlockRule
 /// <summary>
 /// A grid table: a row separator — <c>+</c>, then for each column dashes between optional colons and a <c>+</c> — then rows
 /// whose <c>|</c> stand where the separator's <c>+</c> do, separated by more separators; <c>=</c> in place of the dashes
-/// under the head. A <c>|</c> missing where a column ends makes the cell cover the next column too.
+/// under the head. A <c>|</c> missing where a column ends makes the cell cover the next column too, a cell can be written
+/// over several lines, and one written into the separator under it covers the next row too (<see cref="Grid"/>).
 /// </summary>
 internal sealed partial class GridTableRule : MarkdownBlockRule
 {
@@ -373,71 +374,43 @@ internal sealed partial class GridTableRule : MarkdownBlockRule
         var lines = table.Lines;
         var (from, to) = lines[0];
 
-        // Where the first separator's '+' stand is where every column ends, counted from the line's own start.
-        var bounds = new List<int>();
-        for (var at = from; at < to; at++)
-            if (text[at] == '+') bounds.Add(at - from);
-
-        for (var column = 0; column + 1 < bounds.Count; column++)
-        {
-            var spec = text.AsSpan(from + bounds[column] + 1, bounds[column + 1] - bounds[column] - 1).Trim(" \t");
-            var left = spec.StartsWith(":");
-            var right = spec.EndsWith(":") && spec.Length > 1;
-            table.Aligns.Add(left && right ? MarkdownAligns.Center : right ? MarkdownAligns.Right : left ? MarkdownAligns.Left : null);
-        }
-
-        var group = new List<(int From, int To)>();
-        var rows = new List<(List<(int From, int To)> Lines, bool Head)>();
+        var grid = new Grid(text, from, to);
 
         for (var line = 1; line < lines.Count; line++)
         {
             var (start, end) = lines[line];
 
-            if (text[start] == '+')
-            {
-                if (group.Count > 0) rows.Add((group, false));
-                group = [];
-
-                if (text.AsSpan(start, end - start).Contains('=')) rows = [.. rows.Select(row => (row.Lines, true))];
-                continue;
-            }
-
-            group.Add((start, end));
+            if (text[start] == '+') grid.Ruled(start, end);
+            else grid.Written(start, end, ruled: false);
         }
 
-        if (group.Count > 0) rows.Add((group, false));
+        grid.Ended();
 
-        foreach (var (rowLines, head) in rows)
+        // A grid whose cells do not add up to its columns is no table: it is the paragraph its lines are, as Markdig reads it.
+        if (!grid.Holds())
         {
-            var (rowFrom, _) = rowLines[0];
-            var (_, rowTo) = rowLines[^1];
+            table.Kind = ScannedKind.Paragraph;
+            return;
+        }
 
-            var row = new ScannedRow(_written, rowFrom, head) { IsOpen = false };
-            row.Reach(Trimmed(text, rowTo, rowFrom));
+        table.Aligns.AddRange(grid.Aligns);
 
-            // The first of the row's lines says where its cells end: at each bound it has a '|' on.
-            var (lineFrom, lineTo) = rowLines[0];
-            var ends = bounds.Skip(1).Where(bound => lineFrom + bound < lineTo && text[lineFrom + bound] == '|').ToList();
-            if (ends.Count == 0 || ends[^1] != bounds[^1]) ends.Add(bounds[^1]);
+        foreach (var (cells, head) in grid.Rows)
+        {
+            var row = new ScannedRow(_written, cells[0].Slices[0].From, head) { IsOpen = false };
 
-            var begins = 0;
-
-            foreach (var ending in ends)
+            foreach (var written in cells)
             {
-                var columns = bounds.Count(bound => bound > begins && bound <= ending);
-                var cell = new ScannedCell(_written, 0, bounds.IndexOf(begins)) { IsOpen = false, Across = Math.Max(columns, 1) };
+                var cell = new ScannedCell(_written, written.Slices[0].From, written.Column)
+                {
+                    IsOpen = false, Across = written.Across, Down = written.Down,
+                };
 
-                var segments = rowLines
-                    .Select(segment => (From: Math.Min(segment.From + begins + 1, segment.To), To: Math.Min(segment.From + ending, segment.To)))
-                    .ToList();
+                foreach (var slice in written.Slices) cell.Lines.Add(slice);
 
-                cell.Start = FirstWritten(text, segments[0]);
-                cell.Reach(Trimmed(text, segments[^1].To, segments[^1].From));
-
-
-                cell.Blocks = HoldsBlocks(text, segments);
+                cell.Reach(written.Slices[^1].To);
                 row.Add(cell);
-                begins = ending;
+                row.Reach(cell.End);
             }
 
             table.Add(row);
@@ -446,31 +419,259 @@ internal sealed partial class GridTableRule : MarkdownBlockRule
         table.Lines.Clear();
     }
 
-    /// <summary>Whether what is written in a cell's segments is blocks rather than one paragraph.</summary>
-    private static bool HoldsBlocks(string text, List<(int From, int To)> segments)
-    {
-        var written = string.Join('\n', segments.Select(segment => text[segment.From..segment.To].TrimEnd()));
-        var read = MarkdownScanner.Scan(MarkdownLines.Of(written), document: false);
-
-        return read.Children.Count > 1 || (read.Children.Count == 1 && read.Children[0].Kind != ScannedKind.Paragraph);
-    }
-
-    /// <summary>Where the first character in a segment that is not space stands — or its end, where there is none.</summary>
-    private static int FirstWritten(string text, (int From, int To) segment)
-    {
-        var at = segment.From;
-        while (at < segment.To && text[at] is ' ' or '\t') at++;
-        return at;
-    }
-
-    private static int Trimmed(string text, int to, int from)
-    {
-        while (to > from && text[to - 1] is ' ' or '\t' or '|') to--;
-        return to;
-    }
-
     [GeneratedRegex(@"^\+(?:[ \t]*:?[ \t]*-+[ \t]*:?[ \t]*\+)+[ \t]*$")]
     private static partial Regex RowSeparator();
+
+    /// <summary>
+    /// A grid read the way Markdig reads one, line by line. Its columns are where the first rule's <c>+</c> stand. A line of
+    /// <c>|</c> writes into the cells it divides — one covering as many columns as no <c>|</c> stands between — and goes on the
+    /// row above it while it divides them the same way; a line dividing them otherwise starts a row. A rule ends the row, but
+    /// where something other than the rule's dashes is written in a column, the cell above goes on down through it into the next
+    /// row, and what is written there is the cell's. A rule of <c>=</c> makes every row above it the head.
+    ///
+    /// <para>
+    /// A cell is the slice of each line it covers, from past the bar opening it to the bar closing it, the space at its end left
+    /// out — its own small document, written over those slices. The last cell of a line written without its closing bar takes
+    /// the rest of the line.
+    /// </para>
+    /// </summary>
+    private sealed class Grid
+    {
+        private readonly string _text;
+        private readonly List<Column> _columns = [];
+
+        public Grid(string text, int from, int to)
+        {
+            _text = text;
+
+            var bounds = new List<int>();
+            for (var at = from; at < to; at++)
+                if (text[at] == '+') bounds.Add(at - from);
+
+            for (var column = 0; column + 1 < bounds.Count; column++)
+            {
+                var spec = text.AsSpan(from + bounds[column] + 1, bounds[column + 1] - bounds[column] - 1).Trim(" \t");
+                var left = spec.StartsWith(":");
+                var right = spec.EndsWith(":") && spec.Length > 1;
+
+                _columns.Add(new Column(bounds[column], bounds[column + 1]));
+                this.Aligns.Add(left && right ? MarkdownAligns.Center : right ? MarkdownAligns.Right : left ? MarkdownAligns.Left : null);
+            }
+        }
+
+        /// <summary>How each column is set, where the first rule says.</summary>
+        public List<string?> Aligns { get; } = [];
+
+        /// <summary>The rows, in order, each with the cells starting in it and whether it is the head.</summary>
+        public List<(List<Cell> Cells, bool Head)> Rows { get; } = [];
+
+        /// <summary>A rule from <paramref name="from"/> to <paramref name="to"/>: the row above ends, but for any cell going on down through it.</summary>
+        public void Ruled(int from, int to)
+        {
+            var head = this.At(from, to, 1) == '=' || this.At(from, to, 2) == '=';
+            var spanning = false;
+
+            foreach (var column in _columns)
+            {
+                if (column.Cell is not { } cell) continue;
+
+                var start = Math.Min(from + column.Start + 1, to);
+                var said = _text.AsSpan(start, Math.Max(Math.Min(from + column.End, to) - start, 0)).Trim(" \t");
+
+                if (said.IsEmpty || !Rule(said))
+                {
+                    spanning = true;
+                    cell.Down++;
+                    cell.Closes = false;
+                }
+                else
+                {
+                    cell.Closes = true;
+                }
+            }
+
+            this.Divided(from, to);
+            this.Ended(last: false);
+
+            if (head)
+                for (var row = 0; row < this.Rows.Count; row++) this.Rows[row] = (this.Rows[row].Cells, true);
+
+            if (spanning) this.Written(from, to, ruled: true);
+        }
+
+        /// <summary>
+        /// A line from <paramref name="from"/> to <paramref name="to"/> writing into the cells it divides — a rule, where a cell goes on
+        /// down through it.
+        /// </summary>
+        public void Written(int from, int to, bool ruled)
+        {
+            this.Divided(from, to);
+
+            if (!ruled && !this.Continues()) this.Ended(last: false);
+
+            for (var index = 0; index < _columns.Count;)
+            {
+                var column = _columns[index];
+                var next = index + column.Span;
+                if (next == index) break;
+
+                var start = Math.Min(from + column.Start + 1, to);
+                int end;
+
+                if (next < _columns.Count)
+                {
+                    end = from + _columns[next].Start;
+                }
+                else
+                {
+                    var closing = _columns[^1].End;
+                    var mark = this.At(from, to, closing);
+
+                    end = mark == '|' || (ruled && mark == '+') ? from + closing
+                        : to > from && _text[to - 1] == '|' ? to - 1
+                        : to;
+                }
+
+                end = Math.Clamp(end, start, to);
+                while (end > start && _text[end - 1] is ' ' or '\t') end--;
+
+                if (!ruled || !Rule(_text.AsSpan(start, end - start)))
+                {
+                    column.Cell ??= new Cell(index, column.Span);
+                    column.Cell.Slices.Add((start, end));
+                }
+
+                index = next;
+            }
+        }
+
+        /// <summary>The grid is done: whatever rows are open end.</summary>
+        public void Ended() => this.Ended(last: true);
+
+        /// <summary>
+        /// Whether the cells add up: the grid has a row, no row holds more columns than the grid has — counting the cells coming
+        /// down into it from the rows above — and no cell goes down past the last row.
+        /// </summary>
+        public bool Holds()
+        {
+            if (this.Rows.Count == 0) return false;
+
+            var widths = new int[this.Rows.Count];
+
+            for (var row = 0; row < this.Rows.Count; row++)
+            {
+                foreach (var cell in this.Rows[row].Cells)
+                {
+                    widths[row] += cell.Across;
+
+                    for (var down = 1; down < cell.Down; down++)
+                    {
+                        if (row + down >= this.Rows.Count) return false;
+                        widths[row + down] += cell.Across;
+                    }
+                }
+
+                if (widths[row] > _columns.Count) return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>How many columns the cell starting at each column covers on this line: up to the next <c>|</c> or <c>+</c> standing where a column does.</summary>
+        private void Divided(int from, int to)
+        {
+            foreach (var column in _columns)
+            {
+                column.Before = column.Span;
+                column.Span = 0;
+            }
+
+            var opening = -1;
+
+            for (var index = 0; index < _columns.Count; index++)
+            {
+                if (this.At(from, to, _columns[index].Start) is '|' or '+') opening = index;
+                if (opening >= 0) _columns[opening].Span++;
+            }
+        }
+
+        /// <summary>Whether this line divides the columns as the line above it did, and so goes on its row.</summary>
+        private bool Continues()
+        {
+            foreach (var column in _columns)
+                if (column.Before != column.Span) return false;
+
+            return true;
+        }
+
+        /// <summary>The row being written ends: its cells are gathered, and each that does not go on down is done with.</summary>
+        private void Ended(bool last)
+        {
+            List<Cell>? row = null;
+
+            foreach (var column in _columns)
+            {
+                if (column.Cell is { } cell)
+                {
+                    if (!cell.Placed)
+                    {
+                        (row ??= []).Add(cell);
+                        cell.Placed = true;
+                    }
+                }
+
+                if (last || column.Span == 0 || column.Cell is { Closes: true }) column.Cell = null;
+            }
+
+            if (row is { Count: > 0 }) this.Rows.Add((row, false));
+        }
+
+        /// <summary>The character <paramref name="offset"/> along the line from <paramref name="from"/>, or nothing past its end.</summary>
+        private char At(int from, int to, int offset) => from + offset < to ? _text[from + offset] : '\0';
+
+        /// <summary>Whether a column's stretch of a rule is nothing but the rule: dashes, equals signs and colons.</summary>
+        private static bool Rule(ReadOnlySpan<char> said)
+        {
+            foreach (var character in said)
+                if (character is not ('-' or '=' or ':')) return false;
+
+            return true;
+        }
+
+        /// <summary>A column: where the <c>+</c> before and after it stand along the line, and the cell being written in it.</summary>
+        private sealed class Column(int start, int end)
+        {
+            public int Start { get; } = start;
+
+            public int End { get; } = end;
+
+            /// <summary>How many columns the cell starting here covers on this line — nought where none starts here.</summary>
+            public int Span { get; set; } = -1;
+
+            /// <summary>The same, on the line before.</summary>
+            public int Before { get; set; }
+
+            public Cell? Cell { get; set; }
+        }
+    }
+
+    /// <summary>A cell of a grid: the column it starts in, how many columns and rows it covers, and its slice of each line it covers.</summary>
+    private sealed class Cell(int column, int across)
+    {
+        public int Column { get; } = column;
+
+        public int Across { get; } = across;
+
+        public int Down { get; set; } = 1;
+
+        /// <summary>Whether it ends with the row — false while something is written in it on the rule under it.</summary>
+        public bool Closes { get; set; } = true;
+
+        /// <summary>Whether it is in a row already: a cell going on down belongs to the row it started in.</summary>
+        public bool Placed { get; set; }
+
+        public List<(int From, int To)> Slices { get; } = [];
+    }
 
     private sealed class WrittenRule : MarkdownBlockRule
     {

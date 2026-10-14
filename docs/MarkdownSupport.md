@@ -86,7 +86,7 @@ These are turned on in the pipeline **and** drawn by the builder. Every row is a
 | Extension | Pipeline call | Status | Tests | Notes |
 |---|---|---|---|---|
 | Pipe tables | `UsePipeTables()` | ✅ | ✅ | A piece per cell (minimal, no outer pipes, alignment, words set in cells, CRLF, empty and escaped cells, ragged rows, inside a quote, straight under a line of words). |
-| Grid tables | `UseGridTables()` | ✅ | ✅ | Columns, cells spanning columns, and cells holding blocks — a list in a cell is drawn as one. |
+| Grid tables | `UseGridTables()` | ✅ | ✅ | Columns, cells spanning columns, cells written over several lines, cells written down through the rule under them to cover the next row too, and cells holding blocks — a list in a cell is drawn as one. Each cell is read as its own slice of every line it covers; a grid whose cells do not add up is the paragraph its lines are. |
 | Task lists | `UseTaskLists()` | ✅ | ✅ | A tick that says what pressing it means. A press writes the mark between the brackets as an edit like any other — through the document's edit handling, onto the undo history. |
 | Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `~~strike~~`, `~sub~` and `^super^` (set smaller), `==mark==` (a wash behind, `Marked` token), `++ins++` (underlined) — each its own piece, the marks not drawn. |
 | Auto links | `UseAutoLinks()` | ✅ | ✅ | A bare `https://…` address is a link to itself. |

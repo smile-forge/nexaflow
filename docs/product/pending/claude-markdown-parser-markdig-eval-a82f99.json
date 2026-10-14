@@ -188,12 +188,36 @@
           "method": "WriteOver"
         }
       ]
+    },
+    "grid-tables": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTableRules.cs",
+          "class": "GridTableRule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTable.cs",
+          "class": "MarkdownTable"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownGridTableTests.cs",
+            "class": "MarkdownGridTableTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 9,
   "touched_nodes": [
     "abbreviations",
+    "grid-tables",
     "markdown-maths",
     "markdown-styling",
     "markdown-text",

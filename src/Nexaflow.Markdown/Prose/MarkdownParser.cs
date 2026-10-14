@@ -190,8 +190,81 @@ public sealed class MarkdownParser : ITranspile
 
         read.Gap(parts, from);
 
+        // A block of a reading that owns only slices of its lines — what a grid table's cell holds — is read where it stands:
+        // its characters are slices too, which a body held as one stretch of source for its reader later cannot be. And so is
+        // a definition: under the definition before it, a ':' line with no term of its own is one, which on its own it is not.
+        if (read.Sliced || block.Kind == ScannedKind.DefinitionItem)
+        {
+            parts.Add(Built(block, read, to));
+            return;
+        }
+
         // Where it stands is asked for before the characters are taken, which is what moves the cut along.
         parts.Add(Block(block, read.Here, read.Text(to)));
+    }
+
+    /// <summary>
+    /// One block read where it stands, up to <paramref name="to"/>: each kind read by the reader that reads its body, from what the
+    /// scan found of it — so it comes out the shape that reader gives it held and read later.
+    /// </summary>
+    private static ContentNode Built(ScannedBlock block, Cut read, int to)
+    {
+        var stands = read.Here;
+        int? at = read.Stretches(read.At, to).Skip(1).Any() ? null : stands;
+
+        if (block is ScannedFence { Kind: ScannedKind.Fence or ScannedKind.Maths } fence) return Fenced(fence, read, to, at);
+
+        var body = block.Kind switch
+        {
+            ScannedKind.Paragraph or ScannedKind.Heading or ScannedKind.Term or ScannedKind.Caption => MarkdownInline.Words(read, block.Lines, to),
+            ScannedKind.List => MarkdownList.Read(block, read, to),
+            ScannedKind.Table => MarkdownTable.Read((ScannedTable)block, read, to),
+            ScannedKind.Quote or ScannedKind.Alert or ScannedKind.Footer or ScannedKind.Figure or ScannedKind.DefinitionList
+                or ScannedKind.DefinitionItem => Contents(block, read, to),
+            _ => read.Held(to, Kinds.Verbatim, Roles.Body),
+        };
+
+        var built = ContentNode.Branch(Kind(block), [body], offset: at);
+
+        return block is ScannedHeading ranked
+            ? built.Saying(MarkdownKinds.Rank, MarkdownRoles.Rank, ranked.Rank.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : built;
+    }
+
+    /// <summary>
+    /// What a block holding blocks holds, read where it stands up to <paramref name="to"/>: an alert's name, the blocks inside, and
+    /// the marks between them as trivia — as <see cref="Inside"/> reads the block's own source. A definition list of one
+    /// definition is that definition's terms and what they mean, as it is there.
+    /// </summary>
+    internal static ContentNode Contents(ScannedBlock holder, Cut read, int to)
+    {
+        var stands = read.Here;
+        int? at = read.Stretches(read.At, to).Skip(1).Any() ? null : stands;
+        var parts = new List<ContentNode>();
+
+        if (holder is { Kind: ScannedKind.DefinitionList, Children: [ScannedDefinition only] } && only.Start <= holder.Start && only.End >= holder.End) holder = only;
+
+        if (holder is ScannedQuote { Named: { } named }) Called(named, parts, read);
+
+        Split(holder.Children, parts, read);
+        read.Gap(parts, to);
+
+        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body, at);
+    }
+
+    /// <summary>A fence read where it stands: the fence line, what is written in its language, and the closing fence.</summary>
+    private static ContentNode Fenced(ScannedFence fence, Cut read, int to, int? at)
+    {
+        var language = fence.Kind == ScannedKind.Maths ? Maths : fence.Language;
+        var opened = read.Closing(read.At, read.At);
+        var shut = fence.Closed is { } closed ? Math.Clamp(closed, opened, to) : to;
+
+        List<ContentNode> parts = [read.Take(opened, Roles.Open, Kinds.Token)];
+
+        if (shut > read.At) parts.Add(read.Held(shut, language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, Roles.Body));
+        if (to > read.At) parts.Add(read.Held(to, Kinds.Token, Roles.Close));
+
+        return language.Length > 0 ? new BlockNode(language, parts, offset: at) : ContentNode.Branch(MarkdownKinds.Code, parts, offset: at);
     }
 
     /// <summary>

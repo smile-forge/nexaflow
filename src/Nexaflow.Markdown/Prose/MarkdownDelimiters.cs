@@ -41,10 +41,15 @@ internal sealed class MarkdownDelimiters
     /// <summary>Every name a bracket here waits on, folded as labels are compared.</summary>
     private readonly string[] _named;
 
-    private MarkdownDelimiters(string text, IReadOnlyList<(int From, int To)> lines, MarkdownToken[] read, string[] named)
+    /// <summary>The stretches the words own, where their lines are slices of lines holding other things too.</summary>
+    private readonly IReadOnlyList<(int From, int To)>? _owned;
+
+    private MarkdownDelimiters(string text, IReadOnlyList<(int From, int To)> lines, IReadOnlyList<(int From, int To)>? owned,
+                               MarkdownToken[] read, string[] named)
     {
         _text = text;
         _lines = lines;
+        _owned = owned;
         _read = read;
         _named = named;
     }
@@ -62,16 +67,21 @@ internal sealed class MarkdownDelimiters
     /// </summary>
     /// <param name="at">Where <paramref name="text"/>'s first character stands in the document holding it.</param>
     /// <param name="first">Where the pieces will stand among the parts of the words holding them.</param>
-    public static ContentNode[] Read(string text, IReadOnlyList<(int From, int To)> lines, int at, int first, out MarkdownDelimiters? waiting)
+    /// <param name="owned">
+    /// The stretches of <paramref name="text"/> the words own, where that is not everything from their first line to their last:
+    /// what stands between two of them is no trivia of theirs (<see cref="MarkdownTokenizer.Owned"/>).
+    /// </param>
+    public static ContentNode[] Read(string text, IReadOnlyList<(int From, int To)> lines, int at, int first, out MarkdownDelimiters? waiting,
+                                     IReadOnlyList<(int From, int To)>? owned = null)
     {
         var matching = Matching.Taken();
 
         try
         {
-            var pieces = matching.Matched(new MarkdownTokenizer(text, lines), at, null, null);
+            var pieces = matching.Matched(new MarkdownTokenizer(text, lines, owned), at, null, null);
 
             waiting = matching.Named.Count > 0
-                ? new MarkdownDelimiters(text, lines, [.. matching.Recorded], [.. matching.Named]) { First = first, Count = pieces.Length }
+                ? new MarkdownDelimiters(text, lines, owned, [.. matching.Recorded], [.. matching.Named]) { First = first, Count = pieces.Length }
                 : null;
 
             return pieces;
@@ -99,7 +109,7 @@ internal sealed class MarkdownDelimiters
 
         try
         {
-            return matching.Matched(new MarkdownTokenizer(_text, _lines), at, defined, _read);
+            return matching.Matched(new MarkdownTokenizer(_text, _lines, _owned), at, defined, _read);
         }
         finally
         {
@@ -302,6 +312,12 @@ internal sealed class MarkdownDelimiters
                         this.Added(Shape.Token, token);
                         this.Anchors(token);
                         break;
+
+                    // The next line's words start where its own characters do, past whatever its containers put in front of them.
+                    case MarkdownTokenKind.Break or MarkdownTokenKind.HardBreak:
+                        this.Added(Shape.Token, token);
+                        place = _tokens.Following(token.Start);
+                        continue;
 
                     default:
                         this.Added(Shape.Token, token);
@@ -734,7 +750,10 @@ internal sealed class MarkdownDelimiters
             for (var index = first; index >= 0 && index != stop; index = _pieces[index].Next)
             {
                 ref var piece = ref _pieces[index];
-                if (piece.End <= piece.Start && piece.Shape != Shape.Made) continue;
+                // A run used up is nothing. A break between two slices of a cell's lines is a break all the same, though its
+                // line ending is somebody else's.
+                if (piece.End <= piece.Start && piece.Shape != Shape.Made && piece.Token.Kind is not (MarkdownTokenKind.Break or MarkdownTokenKind.HardBreak))
+                    continue;
 
                 if (piece.Start > accounted)
                 {
@@ -864,6 +883,14 @@ internal sealed class MarkdownDelimiters
         /// <summary>Whether the marks of a container stand anywhere between <paramref name="from"/> and <paramref name="to"/>.</summary>
         private bool Gapped(int from, int to)
         {
+            if (_tokens.Owned is { } owned)
+            {
+                foreach (var (start, end) in owned)
+                    if (start <= from && to <= end) return false;
+
+                return true;
+            }
+
             for (var line = _tokens.LineOf(from); line + 1 < _tokens.Lines.Count && _tokens.Ending(line) < to; line++)
                 if (_tokens.Lines[line + 1].From > _tokens.Ending(line)) return true;
 
@@ -876,6 +903,18 @@ internal sealed class MarkdownDelimiters
         /// </summary>
         private void Marks(List<ContentNode> parts, int from, int to, string role, string kind = Kinds.Token)
         {
+            // Slices of lines holding other things too: only what the words own is theirs.
+            if (_tokens.Owned is { } owned)
+            {
+                foreach (var (start, end) in owned)
+                {
+                    var (cut, stop) = (Math.Max(start, from), Math.Min(end, to));
+                    if (stop > cut) parts.Add(role == Roles.Trivia ? this.Gap(cut, stop) : this.Leaf(kind, cut, stop, role));
+                }
+
+                return;
+            }
+
             var next = from;
             var line = _tokens.LineOf(from);
 

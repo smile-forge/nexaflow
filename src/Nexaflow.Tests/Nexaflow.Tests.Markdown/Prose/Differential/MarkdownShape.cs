@@ -94,7 +94,8 @@ internal static class MarkdownShape
 
             if (!ReferenceEquals(node, reading) && Ours(node, words) is { } kind)
             {
-                shape.Add(Construct(kind, stands, stands + node.Width, OurFacts(node, kind), source));
+                var (start, end) = Extent(node, stands, source, firstLine: kind is MarkdownKinds.Row or MarkdownKinds.Cell);
+                shape.Add(Construct(kind, start, end, OurFacts(node, kind), source));
                 if (Closed.Contains(kind)) return;
             }
 
@@ -107,6 +108,44 @@ internal static class MarkdownShape
                 Walk(child, begins, inside);
                 at = begins + child.Width;
             }
+        }
+    }
+
+    /// <summary>
+    /// Where a piece's characters start and end: from its first to its last — or, for a row or a cell, to its last on the line it
+    /// starts on (<see cref="Construct(string, int, int, string, string)"/>). Not its own offset and width: a grid table's cell is
+    /// its slices of lines that hold other cells too, so it is no one stretch.
+    /// </summary>
+    private static (int Start, int End) Extent(ContentNode node, int stands, string source, bool firstLine)
+    {
+        var pieces = new List<(int Start, int End)>();
+        var at = stands;
+
+        Reach(node);
+
+        // Nothing in it takes up any characters — a break between two slices of a cell's lines: it stands where it says.
+        var stood = node.Offset ?? stands;
+        if (pieces.Count == 0) return (stood, stood + node.Width);
+
+        var start = pieces.Min(piece => piece.Start);
+        var ending = firstLine && source.IndexOf('\n', start) is var feed and >= 0 ? feed : int.MaxValue;
+
+        return (start, pieces.Where(piece => piece.Start <= ending).Max(piece => piece.End));
+
+        void Reach(ContentNode piece)
+        {
+            if (piece.IsDerived) return;
+            if (piece.Offset is { } offset) at = offset;
+
+            if (piece.IsLeaf)
+            {
+                if (piece.Width > 0) pieces.Add((at, at + piece.Width));
+
+                at += piece.Width;
+                return;
+            }
+
+            foreach (var child in piece.Children) Reach(child);
         }
     }
 
@@ -305,6 +344,18 @@ private static (int Start, int End)? Span(Block block, string source, IReadOnlyL
 {
     if (block is TableCell { Span.Length: <= 0, Count: > 0 } cell) return Span(cell[0], source, defined);
 
+    // A grid table's cell is measured by its first line, and Markdig's span for one grows over every line it reads into it —
+    // past the cells beside it on the line it starts on — so its first line is the first line of what it holds. A row is its own
+    // cells, measured so: Markdig's span for it reaches back to the first cell coming down into it from the row above, which
+    // is that row's.
+    if (block is TableCell { Parent.Parent: Table { Parser: GridTableParser } } gridded) return FirstLine(gridded);
+
+    if (block is TableRow { Count: > 0, Parent: Table { Parser: GridTableParser } } row)
+    {
+        var cells = row.OfType<TableCell>().Select(FirstLine).Where(cell => cell.End > cell.Start).ToList();
+        if (cells.Count > 0) return (cells.Min(cell => cell.Start), cells.Max(cell => cell.End));
+    }
+
     // Every term of a definition is given the span of the whole paragraph its lines were; its own line says where it is.
     if (block is DefinitionTerm { Inline: { FirstChild: { } first, LastChild: { } last } }) return (first.Span.Start, last.Span.End + 1);
 
@@ -358,6 +409,22 @@ private static (int Start, int End)? Span(Block block, string source, IReadOnlyL
 
         return (start, end);
     }
+
+/// <summary>
+/// Where the first line of what a grid table's cell holds stands: from its first word to the last before the cell's first
+/// line break — its whole span, where it holds no words of its own.
+/// </summary>
+private static (int Start, int End) FirstLine(TableCell cell)
+{
+    if (cell is not { Count: > 0 } || cell[0] is not LeafBlock { Inline.FirstChild: { } first }) return (cell.Span.Start, cell.Span.End + 1);
+
+    var end = first.Span.End + 1;
+
+    for (var inline = first; inline is not null and not LineBreakInline; inline = inline.NextSibling)
+        if (inline.Span.Length > 0) end = Math.Max(end, inline.Span.End + 1);
+
+    return (first.Span.Start, end);
+}
 
     /// <summary>Where the line counted from nought as <paramref name="line"/> starts.</summary>
     private static int LineStart(string source, int line)
@@ -500,6 +567,11 @@ private static (int Start, int End)? Span(Block block, string source, IReadOnlyL
         // A row and a cell are measured inside the pipes at their edges, which Markdig counts in some places and not in others.
         var edged = kind is MarkdownKinds.Row or MarkdownKinds.Cell;
         var stood = start;
+
+        // And on the line they start on. Markdig measures a grid table's cell written over several lines by its first — but for
+        // the last of a row, which it carries on to wherever the row ended — and a row by its cells as they stood when the row
+        // was made, part-way down a cell going on into the next. What the cell holds on its later lines is compared all the same.
+        if (edged && source.IndexOf('\n', start, end - start) is var first and >= 0) end = first;
 
         while (start < end && (char.IsWhiteSpace(source[start]) || (edged && source[start] == '|'))) start++;
         while (end > start && (char.IsWhiteSpace(source[end - 1]) || (edged && source[end - 1] == '|'))) end--;

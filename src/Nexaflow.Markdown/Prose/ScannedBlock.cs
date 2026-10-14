@@ -213,7 +213,10 @@ internal sealed class ScannedRow(MarkdownBlockRule rule, int start, bool head) :
     public bool Head { get; } = head;
 }
 
-/// <summary>A cell: which column it stands in, and how many columns and rows it covers.</summary>
+/// <summary>
+/// A cell: which column it stands in, and how many columns and rows it covers. A grid table's cell holds its slice of each line
+/// it covers as its <see cref="ScannedBlock.Lines"/>, what it says written over them.
+/// </summary>
 internal sealed class ScannedCell(MarkdownBlockRule rule, int start, int column) : ScannedBlock(rule, ScannedKind.Cell, start)
 {
     public int Column { get; } = column;
@@ -221,9 +224,6 @@ internal sealed class ScannedCell(MarkdownBlockRule rule, int start, int column)
     public int Across { get; set; } = 1;
 
     public int Down { get; set; } = 1;
-
-    /// <summary>Whether what it holds is blocks rather than a run of words — which only a grid table's cell can be.</summary>
-    public bool Blocks { get; set; }
 }
 
 /// <summary>A definition: the column its content starts at.</summary>

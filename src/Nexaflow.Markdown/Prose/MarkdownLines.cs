@@ -63,6 +63,24 @@ internal sealed class MarkdownLines
         return new MarkdownLines(text, from, marks, width);
     }
 
+    /// <summary>
+    /// The lines of what is written in stretches of <paramref name="text"/>, one to a line — a grid table's cell, which is its slice
+    /// of every line the cell covers. Each line is its stretch, from where it starts to where it ends, and what stands between two
+    /// stretches is somebody else's, so nothing in front of a stretch is passed over: there is nothing of its own there.
+    /// </summary>
+    public static MarkdownLines Over(string text, IReadOnlyList<(int From, int To)> stretches)
+    {
+        var lines = new MarkdownLines(text, 0, null, 0) { _read = true };
+
+        for (var at = 0; at < stretches.Count; at++)
+        {
+            var (from, to) = stretches[at];
+            lines._lines.Add(new MarkdownLine(from, from, 0, to, at + 1 < stretches.Count ? stretches[at + 1].From : to));
+        }
+
+        return lines;
+    }
+
     /// <summary>The line counted from nought as <paramref name="index"/>, where there is one — the last is there even where nothing ends it.</summary>
     public bool TryLine(int index, out MarkdownLine line)
     {

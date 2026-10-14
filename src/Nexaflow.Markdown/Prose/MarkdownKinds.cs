@@ -181,8 +181,6 @@ public static class MarkdownKinds
     /// <summary>How many columns or rows a cell was written to cover.</summary>
     public const string Spans = "spans";
 
-    /// <summary>That what is written in a cell is blocks rather than a run of words.</summary>
-    public const string Blocks = "blocks";
 
     /// <summary>
     /// The name a heading answers to when a link points at it. Derived: nobody writes it, the reader works

@@ -29,11 +29,22 @@ internal sealed class MarkdownTokenizer
     /// <summary>For each length of a run of backticks, the place from which no run as long stands to close it.</summary>
     private Dictionary<int, int>? _unclosed;
 
-    public MarkdownTokenizer(string text, IReadOnlyList<(int From, int To)> lines)
+    /// <summary>The stretches the words own, where their lines are slices of lines that hold other things too.</summary>
+    private readonly IReadOnlyList<(int From, int To)>? _owned;
+
+    /// <param name="owned">
+    /// The stretches of the text the words own, where that is not all of it from their first line to their last — a grid
+    /// table's cell, whose lines are its slices of the table's: what stands between two of them is somebody else's.
+    /// </param>
+    public MarkdownTokenizer(string text, IReadOnlyList<(int From, int To)> lines, IReadOnlyList<(int From, int To)>? owned = null)
     {
         _text = text;
         _lines = lines;
+        _owned = owned;
     }
+
+    /// <summary>The stretches the words own, or null where they own everything from their first line to their last.</summary>
+    public IReadOnlyList<(int From, int To)>? Owned => _owned;
 
     public string Text => _text;
 
@@ -93,10 +104,14 @@ internal sealed class MarkdownTokenizer
         return line + 1 < _lines.Count ? _lines[line + 1].From : at;
     }
 
-    /// <summary>Where the line ending closing line <paramref name="line"/> ends.</summary>
+    /// <summary>
+    /// Where the line ending closing line <paramref name="line"/> ends — where the line does, for a slice of a line whose ending
+    /// is somebody else's: a break between two of a cell's lines has no characters of its own.
+    /// </summary>
     public int Ending(int line)
     {
         var at = _lines[line].To;
+        if (_owned is not null) return at;
 
         if (at < _text.Length && _text[at] == '\r') at++;
         if (at < _text.Length && _text[at] == '\n') at++;
@@ -106,13 +121,23 @@ internal sealed class MarkdownTokenizer
 
     /// <summary>
     /// Where the words go on from <paramref name="at"/>: where it stands, or — past a line ending, among the marks a container puts
-    /// in front of the next line — where that line's own characters start.
+    /// in front of the next line — where that line's own characters start. A line of a cell ends where its slice does and its
+    /// ending is somebody else's, so the end of one is where its break is read, and the walk goes on past it from the break.
     /// </summary>
     public int Resumed(int at)
     {
         var line = this.LineOf(at);
+        var ending = this.Ending(line);
 
-        return line + 1 < _lines.Count && at >= _lines[line].To && at >= this.Ending(line) ? _lines[line + 1].From : at;
+        return line + 1 < _lines.Count && at >= ending && ending > _lines[line].To ? _lines[line + 1].From : at;
+    }
+
+    /// <summary>Where the line after the one <paramref name="at"/> stands on starts — or the end of the words, after the last.</summary>
+    public int Following(int at)
+    {
+        var line = this.LineOf(at);
+
+        return line + 1 < _lines.Count ? _lines[line + 1].From : this.End;
     }
 
     private Rune RuneBefore(int at)

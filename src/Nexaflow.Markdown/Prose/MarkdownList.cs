@@ -45,6 +45,26 @@ public static class MarkdownList
     }
 
     /// <summary>
+    /// A list the scan found, read where it stands up to <paramref name="to"/> — a list written in a grid table's cell, whose lines
+    /// are slices of the table's — as the items its own source is read into.
+    /// </summary>
+    internal static ContentNode Read(ScannedBlock list, Cut read, int to)
+    {
+        var stands = read.Here;
+        int? at = read.Stretches(read.At, to).Skip(1).Any() ? null : stands;
+        var parts = new List<ContentNode>();
+
+        var counting = Counting(list);
+        Items(list, parts, read);
+        read.Gap(parts, to);
+
+        if (counting is not null)
+            parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+
+        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body, at);
+    }
+
+    /// <summary>
     /// Every item, in the order they were written, wherever in the reading they turn up — and an item is never walked into,
     /// which is what keeps a list written inside an item inside that item.
     /// </summary>
@@ -67,6 +87,8 @@ public static class MarkdownList
     /// </summary>
     private static MarkdownNumbering? Counting(ScannedBlock blocks)
     {
+        if (blocks is ScannedList itself) return itself.Marker.Ordered ? new MarkdownNumbering(itself.Marker.Bullet, Started(itself.Marker)) : null;
+
         foreach (var block in blocks.Children)
         {
             if (block is ScannedList list)

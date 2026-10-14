@@ -62,28 +62,45 @@ public static class MarkdownInline
         return Words(text, heading?.Lines ?? [], at);
     }
 
-    /// <summary>
-    /// The words written on <paramref name="lines"/>, whatever stands round them kept where it was written, checked to print
-    /// as what they were read from — and, where a link in them waits on a name the document may define, the list they were
-    /// matched from, for whoever knows the names to match again (<see cref="WithReferences"/>).
-    /// </summary>
+    /// <summary>The words written on <paramref name="lines"/> of <paramref name="text"/>, checked to print as what they were read from.</summary>
     private static ContentNode Words(string text, IReadOnlyList<(int From, int To)> lines, int at)
     {
         var read = new Cut(text, at);
+
+        return MarkdownParser.Checked(Kinds.Words, Words(read, lines, read.Length).Children, text, Roles.Element, at);
+    }
+
+    /// <summary>
+    /// The words written on <paramref name="lines"/> of what <paramref name="read"/> reads, up to <paramref name="to"/>, whatever of
+    /// its own stands round them kept where it was written — and, where a link in them waits on a name the document may define,
+    /// the list they were matched from, for whoever knows the names to match again (<see cref="WithReferences"/>).
+    ///
+    /// <para>
+    /// Words written over slices of lines that hold other things too — a grid table's cell — are no one stretch of the source,
+    /// so the words say nothing of where they start: each of their pieces says where it does.
+    /// </para>
+    /// </summary>
+    internal static ContentNode Words(Cut read, IReadOnlyList<(int From, int To)> lines, int to)
+    {
+        var start = read.Here;
+        var from = read.At;
         var parts = new List<ContentNode>();
         MarkdownDelimiters? waiting = null;
 
         if (lines.Count > 0)
         {
+            // What is already taken — an item's box at the head of its first line — is no part of the words.
+            if (lines[0].From < read.At) lines = [(Math.Min(read.At, lines[0].To), lines[0].To), .. lines.Skip(1)];
+
             read.Gap(parts, lines[0].From);
-            parts.AddRange(MarkdownDelimiters.Read(text, lines, at, parts.Count, out waiting));
+            parts.AddRange(MarkdownDelimiters.Read(read.Source, lines, read.Stands, parts.Count, out waiting, read.Owned));
             read.Accounted(lines[^1].To);
         }
 
-        read.Gap(parts, read.Length);
+        read.Gap(parts, to);
 
         if (waiting is not null) parts.Add(ContentNode.Holding(MarkdownKinds.Delimiters, Roles.Derived, waiting));
 
-        return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element, at);
+        return ContentNode.Branch(Kinds.Words, parts, Roles.Body, read.Stretches(from, to).Skip(1).Any() ? null : start);
     }
 }
