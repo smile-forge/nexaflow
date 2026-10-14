@@ -38,5 +38,5 @@ Lists your saved conversations with the assistant, and starts new ones.
 ## Where conversations start
 
 - New conversation on this page.
-- *Continue as Conversation* on a reply, which saves that exchange, pins the page you asked from, and attaches any files the assistant touched.
+- *Continue as Conversation* on a reply in the AI bar, which saves the bar's conversation so far, pins the page you asked from, and attaches any files the assistant touched.
 - *Task to AI* and *Plan with AI* in Projects, which pin the project folder and send the task.

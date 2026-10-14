@@ -111,6 +111,9 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
 
         // At once, while it draws: a picture takes seconds here.
         Check("the pill counts the workspace's background tasks", () => WaitForId("AiBar_BackgroundTasks", 5)?.Name is { Length: > 0 });
+        Check("the pill sits in the AI's line, above the box rather than beside it", () =>
+            WaitForId("AiBar_BackgroundTasks", 5) is { } pill && WaitForId("AiInputBox", 5) is { } box
+            && pill.BoundingRectangle.Bottom <= box.BoundingRectangle.Top + 1);
         CheckDoes("the pill opens their list, each with Stop", "AiBar_BackgroundTasks", () => WaitForId("AiBar_BackgroundTaskStop", 10) is not null);
         CheckDoes("Stop ends the drawing, and the pill goes with it", "AiBar_BackgroundTaskStop",
                   () => WaitForGone("AiBar_BackgroundTaskStop", 20) && WaitForGone("AiBar_BackgroundTasks", 20));

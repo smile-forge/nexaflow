@@ -99,6 +99,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/ShellAIResponseHandler.cs",
           "class": "ShellAIResponseHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BarConversation.cs",
+          "class": "BarConversation"
         }
       ],
       "concerns": {
@@ -108,6 +113,11 @@
             "status": "done",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/BackgroundTasksJourneyTests.cs",
             "class": "BackgroundTasksJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BarConversationTests.cs",
+            "class": "BarConversationTests"
           }
         ]
       }

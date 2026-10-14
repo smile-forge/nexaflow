@@ -255,9 +255,19 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
     public VoiceConversationViewModel Voice { get; }
 
-    /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, and while a response is in
-    /// the bar rather than the overlay.</summary>
-    public bool ShowsAiLine => Voice.IsActive || Ai.InBar;
+    /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, while a response is in the bar,
+    /// and while the workspace has background tasks, whose pill sits at the line's end.</summary>
+    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any;
+
+    /// <summary>Whether the AI's line was shown when last told: its coming and going is animated, so it is told only when it changes.</summary>
+    private bool _aiLineShown;
+
+    private void RecheckAiLine()
+    {
+        if (ShowsAiLine == _aiLineShown) return;
+        _aiLineShown = ShowsAiLine;
+        OnPropertyChanged(nameof(ShowsAiLine));
+    }
 
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
@@ -644,6 +654,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         WorkspaceTasks.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(WorkspaceBackgroundTasks.IsOpen)) RefreshOverlayCoverage();
+            if (e.PropertyName == nameof(WorkspaceBackgroundTasks.Any))    RecheckAiLine();
         };
         Ai = new ShellAIResponseHandler(this);
         Voice = new VoiceConversationViewModel(_ui);
@@ -663,13 +674,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         PropertyChanged    += OnShellPropertyChangedForOverlay;
         Ai.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar))
-                OnPropertyChanged(nameof(ShowsAiLine));
+            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar)) RecheckAiLine();
         };
         Voice.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
-                OnPropertyChanged(nameof(ShowsAiLine));
+            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) RecheckAiLine();
         };
         Ai.Card.PropertyChanged += (_, e) =>
         {
@@ -1537,8 +1546,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             AiResponse? response;
             try
             {
-                // Answered in the bar, the reply is asked to lead with the answer, briefly.
-                var options = ReferenceEquals(handler, Ai) ? new AgentRunOptions { ReplyStyle = ShellAIResponseHandler.BarStyle } : AgentRunOptions.Typed;
+                // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
+                var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
                 response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, options, sendToken);
             }
             catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }

@@ -190,14 +190,21 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         tcs?.TrySetResult(false);
     }
 
+    /// <summary>The requests and replies a "Continue as Conversation" opens with, oldest first: by default the one shown.</summary>
+    protected virtual IReadOnlyList<(string Request, string Reply)> ExchangesToContinue()
+        => string.IsNullOrEmpty(AiResponsePrompt) ? [] : [(AiResponsePrompt, AiResponseText)];
+
+    /// <summary>The files a "Continue as Conversation" attaches: by default those the shown reply's run touched.</summary>
+    protected virtual IReadOnlyList<string> ContextPathsToContinue() => AgentContextPaths;
+
     [RelayCommand]
     private async Task ContinueAsConversation()
     {
-        var prompt   = AiResponsePrompt;
-        var response = AiResponseText;
+        var exchanges = ExchangesToContinue();
+        var paths     = ContextPathsToContinue();
         Close();
 
-        if (string.IsNullOrEmpty(prompt)) return;
+        if (exchanges.Count == 0) return;
 
         var record = new ConversationRecord
         {
@@ -205,10 +212,13 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
             StartedAt = DateTime.Now,
             Messages  =
             [
-                new ConversationMessage { Text = prompt,   IsUser = true,  Timestamp = DateTime.Now },
-                new ConversationMessage { Text = response, IsUser = false, Timestamp = DateTime.Now },
+                .. exchanges.SelectMany(e => new[]
+                {
+                    new ConversationMessage { Text = e.Request, IsUser = true,  Timestamp = DateTime.Now },
+                    new ConversationMessage { Text = e.Reply,   IsUser = false, Timestamp = DateTime.Now },
+                })
             ],
-            Attachments = [.. AgentContextPaths]
+            Attachments = [.. paths]
         };
         record.DeriveTitle();
 

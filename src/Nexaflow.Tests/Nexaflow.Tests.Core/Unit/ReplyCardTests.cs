@@ -65,6 +65,16 @@ public class ReplyCardTests
         Assert.IsTrue(card.IsOpen);
     }
 
+    [TestMethod]
+    public void APlanShownUnasked_IsPutAwayWhenClosed()
+    {
+        var card = new ReplyCard(Grace) { HasContent = true, IsRequired = true };
+
+        card.CloseCommand.Execute(null);
+
+        Assert.IsFalse(card.IsOpen);
+    }
+
     /// <summary>Runs <paramref name="body"/> on a thread with a dispatcher of its own, which the card's grace runs on.</summary>
     private static void OnUi(Func<Task> body)
     {

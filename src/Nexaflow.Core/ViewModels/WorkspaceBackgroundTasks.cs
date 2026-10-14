@@ -55,6 +55,7 @@ public sealed partial class WorkspaceBackgroundTasks : ObservableObject
     public void Refresh()
     {
         var workspace = _workspace();
+        var had       = Any;
         Running.Clear();
         if (workspace is not null)
             foreach (var task in _tasks.Tasks)
@@ -64,7 +65,7 @@ public sealed partial class WorkspaceBackgroundTasks : ObservableObject
         if (Running.Count == 0) IsOpen = false;
         Tick();
         _clock.IsEnabled = Running.Count > 0;
-        OnPropertyChanged(nameof(Any));
+        if (Any != had) OnPropertyChanged(nameof(Any));
         OnPropertyChanged(nameof(Label));
     }
 

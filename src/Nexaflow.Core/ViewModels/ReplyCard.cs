@@ -67,12 +67,14 @@ public sealed partial class ReplyCard : ObservableObject
     [RelayCommand]
     private void TogglePin() => IsPinned = !IsPinned;
 
-    /// <summary>Puts the card away: closed, Esc, a click elsewhere, or the reply gone.</summary>
+    /// <summary>Puts the card away: closed, Esc, a click elsewhere, or the reply gone — a plan shown unasked too, its Allow and
+    /// Deny staying in the bar's line.</summary>
     [RelayCommand]
     public void Close()
     {
         _leaving.Stop();
-        IsPinned  = false;
-        IsHovered = false;
+        IsPinned   = false;
+        IsHovered  = false;
+        IsRequired = false;
     }
 }

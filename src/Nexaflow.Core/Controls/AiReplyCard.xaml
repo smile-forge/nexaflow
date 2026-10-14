@@ -23,8 +23,7 @@
             <DockPanel Margin="14,8,8,0">
                 <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiCard_Close"
                         Style="{StaticResource TopBarAction}" Command="{Binding Card.CloseCommand}"
-                        ToolTip="{loc:Str Shell.AiResponse.Close}"
-                        Visibility="{Binding Card.IsPinned, Converter={StaticResource CardVis}}">
+                ToolTip="{loc:Str Shell.AiResponse.Close}">
                     <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                 </Button>
                 <TextBlock Text="{Binding AiResponseAiName}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
