@@ -33,11 +33,12 @@ public class ImageModelTests
         {
             Environment = new AiHostEnvironment(pack),
         };
-        _model = new DrawingModel(
-            new ModelSpec("z-image-turbo/promptEncoder", "z-image-prompt-encoder", Path.Combine(root, "encoder"), "encoder.onnx", null, 5L << 30, 0, Device: 0),
-            new ModelSpec("z-image-turbo/denoiser", "z-image-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 10L << 30, 0, Device: 0),
-            new ModelSpec("z-image-turbo/decoder", "z-image-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 6L << 30, 0, Device: 0),
-            Steps: 9, Shift: 3f);
+        _model = new DrawingModel(DrawingMethod.ZImage, new Dictionary<string, ModelSpec>
+        {
+            [DrawingParts.PromptEncoder] = new("z-image-turbo/promptEncoder", "z-image-prompt-encoder", Path.Combine(root, "encoder"), "encoder.onnx", null, 5L << 30, 0, Device: 0),
+            [DrawingParts.Denoiser]      = new("z-image-turbo/denoiser", "z-image-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 10L << 30, 0, Device: 0),
+            [DrawingParts.Decoder]       = new("z-image-turbo/decoder", "z-image-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 6L << 30, 0, Device: 0),
+        }, Steps: 9, Shift: 3f, Guidance: 0f);
     }
 
     [ClassCleanup]
@@ -127,7 +128,7 @@ public class ImageModelTests
     {
         string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_IMAGE") ?? "";
         if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_IMAGE is not set.");
-        var tokenizer = ZImagePromptEncoderRunner.Qwen3Tokenizer(File.ReadAllText(Path.Combine(root, "encoder", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "encoder", "tokenizer.json")));
         const string template = "<|im_start|>user\n{0}<|im_end|>\n<|im_start|>assistant\n";
 
         // Token ids from the Hugging Face tokenizer Z-Image's pipeline uses, chat template applied.

@@ -297,7 +297,13 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack — the model is built for the GPU only. They assert a drawing's shape: its
   steps, its size, a picture rather than a flat field, the same picture from the same seed, a stop between steps, and
   the prompt encoder's tokens against Hugging Face's; the fox one draws is attached to the run's results to look at.
-  Unset, each is **inconclusive**. How the build compares with PyTorch is `tools/ai-models/z-image-turbo/check_z_image.py`.
+    Unset, each is **inconclusive**. How the build compares with PyTorch is `tools/ai-models/z-image-turbo/check_z_image.py`.
+  - **`HiDreamModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for HiDream-O1's graph:
+    `NEXAFLOW_TEST_HIDREAM` names a folder holding the published build (`denoiser\`), with `NEXAFLOW_TEST_RUNTIME_PACK`.
+    They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
+    trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
+    results. Unset, each is **inconclusive**. How the build compares with PyTorch is
+    `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
 - **`OllamaToolCallTests`** *(`Tests.Providers`)* — native tool calling against the Ollama server on this machine:
   `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
   then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).

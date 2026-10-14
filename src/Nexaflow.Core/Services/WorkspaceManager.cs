@@ -490,7 +490,8 @@ public sealed class WorkspaceManager
         if (ProviderManager.Instance.Assets is { } assets)
         {
             var shelf = new LocalModelShelf(fresh, assets);
-            folded |= LocalColumns.Seed(workspace.AiConfig, slot => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o)))]);
+            folded |= LocalColumns.Seed(workspace.AiConfig, slot => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o),
+                                                                                                                o.Model.Tier == LocalColumns.TierOf(slot)))]);
         }
         if (folded)
         {

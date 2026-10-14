@@ -64,6 +64,10 @@ public static class LocalColumns
         _                                                                  => ModelKind.Language,
     };
 
+    /// <summary>Which models a job is made for: high-quality pictures want the models built for quality, every other job the
+    /// everyday ones.</summary>
+    public static ModelTier TierOf(LocalSlot slot) => slot == LocalSlot.HighQualityImageGeneration ? ModelTier.HighQuality : ModelTier.Standard;
+
     /// <summary>The abilities <paramref name="slot"/>'s model serves.</summary>
     public static IReadOnlyList<AiAbility> AbilitiesOf(LocalSlot slot) => [.. Enum.GetValues<AiAbility>().Where(a => SlotOf(a) == slot)];
 
@@ -124,11 +128,12 @@ public static class LocalColumns
 
     /// <summary>
     /// Turns the Local column on for a grid that has never had it: each job this machine runs a model for, and none is chosen
-    /// for, gets its first model — one already here before any other — and every row of the job uses it. Nothing is downloaded:
-    /// a model not here is the grid's to offer. Returns whether anything changed.
+    /// for, gets its first model — one made for the job before any other, and of those one already here — and every row of
+    /// the job uses it. Nothing is downloaded: a model not here is the grid's to offer. Returns whether anything changed.
     /// </summary>
-    /// <param name="options">The models each job can hold, those this machine runs first; and whether one is here.</param>
-    public static bool Seed(AiConfig config, Func<LocalSlot, IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here)>> options)
+    /// <param name="options">The models each job can hold; whether this machine runs each, whether it is here, and whether it
+    /// is made for the job (<see cref="TierOf"/>).</param>
+    public static bool Seed(AiConfig config, Func<LocalSlot, IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here, bool Suits)>> options)
     {
         if (config.LocalSeeded) return false;
         foreach (var slot in Enum.GetValues<LocalSlot>())
@@ -136,7 +141,7 @@ public static class LocalColumns
             if (config.Columns.Any(c => c.Id == IdOf(slot))) continue;
             var runs = options(slot).Where(o => o.Runs).ToList();
             if (runs.Count == 0) continue;
-            Use(config, slot, (runs.FirstOrDefault(o => o.Here).Model ?? runs[0].Model));
+            Use(config, slot, runs.OrderBy(o => o.Suits ? 0 : 1).ThenBy(o => o.Here ? 0 : 1).First().Model);
         }
         config.LocalSeeded = true;
         return true;

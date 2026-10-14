@@ -69,7 +69,7 @@ public class LocalColumnsTests
         var qwen   = Column("x", "Nexaflow", "qwen", ModelKind.Language);
         var config = new AiConfig { Columns = [Column("claude", "Claude", "sonnet", ModelKind.Language)], Assignments = { ["Conversation"] = AbilityChain.Of("claude") } };
 
-        var changed = LocalColumns.Seed(config, slot => slot == LocalSlot.Language ? [(gemma, true, false), (qwen, true, true)] : []);
+        var changed = LocalColumns.Seed(config, slot => slot == LocalSlot.Language ? [(gemma, true, false, true), (qwen, true, true, true)] : []);
 
         Assert.IsTrue(changed);
         Assert.IsTrue(config.LocalSeeded);
@@ -80,7 +80,27 @@ public class LocalColumnsTests
         Assert.IsFalse(config.Assignments.ContainsKey("SpeechIn"), "a job this machine runs nothing for is left alone");
 
         config.Assignments["Conversation"] = AbilityChain.Of("claude");   // the user takes it out of a row
-        Assert.IsFalse(LocalColumns.Seed(config, _ => [(gemma, true, true)]), "and it stays out");
+        Assert.IsFalse(LocalColumns.Seed(config, _ => [(gemma, true, true, true)]), "and it stays out");
+    }
+
+    [TestMethod]
+    public void HighQualityPictures_StartOnTheModelMadeForThem_EvenWhenOnlyTheEverydayOneIsHere()
+    {
+        var zImage  = Column("x", "Nexaflow", "z-image-turbo", ModelKind.ImageGeneration);
+        var hiDream = Column("x", "Nexaflow", "hidream-o1-image", ModelKind.ImageGeneration);
+        var config  = new AiConfig();
+
+        LocalColumns.Seed(config, slot => slot switch
+        {
+            LocalSlot.ImageGeneration            => [(zImage, true, true, true), (hiDream, true, false, false)],
+            LocalSlot.HighQualityImageGeneration => [(zImage, true, true, false), (hiDream, true, false, true)],
+            _                                    => [],
+        });
+
+        Assert.AreEqual("z-image-turbo", config.Columns.Single(c => c.Id == LocalColumns.IdOf(LocalSlot.ImageGeneration)).Model);
+        Assert.AreEqual("hidream-o1-image", config.Columns.Single(c => c.Id == LocalColumns.IdOf(LocalSlot.HighQualityImageGeneration)).Model,
+                        "made for the job before one already here");
+        Assert.AreEqual(ModelTier.HighQuality, LocalColumns.TierOf(LocalSlot.HighQualityImageGeneration));
     }
 
     [TestMethod]

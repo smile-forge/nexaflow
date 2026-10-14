@@ -11,7 +11,7 @@ agent loop on it. Every model calls tools in its own protocol, prompted by its o
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
 Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and pictures
-on this machine with Z-Image Turbo, at a standard and a high quality; music on this machine is still to come. This
+on this machine with Z-Image Turbo, and at high quality with HiDream-O1; music on this machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
@@ -44,7 +44,7 @@ and audio generators; our own catalog, downloads, runtime provisioning, chat tem
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
-| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** will be its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures, at 94 s. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
+| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
 | Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
 | Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
 | Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax and Qwen's `<function=…>` tags, read from their tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
@@ -624,7 +624,7 @@ model sees what it drew; the existing loop, approvals and context handling apply
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo, our ONNX build, sampled by the host; HiDream-O1 for high quality | built; HiDream-O1 next |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.1-1.3B only, minutes per clip | cloud built; cloud only |
@@ -661,6 +661,28 @@ comes — in 2.3 s, its tokenizer (Microsoft.ML.Tokenizers over Qwen3's `tokeniz
 Face's. Loaded part by part — encoder 5.1 GB, denoiser 9.4 GB, decoder 5.3 GB at their peaks — a picture needs room
 for the denoiser alone, and where the resident models leave less, they make way while it draws. It is built for CUDA
 only, and offered where a GPU's budget holds the denoiser.
+
+HiDream-O1 (the full model, MIT) is the high-quality one: one ONNX graph Nexaflow builds and publishes
+(`tools/ai-models/hidream-o1`, huggingface.co/smile-forge/hidream-o1-image-onnx), with no VAE — it draws in pixels, a
+whole Qwen3-VL language model reading the prompt, a timestep token and one token per 32×32 patch together.
+
+- **The prompt is read once.** The prompt's tokens attend only to the prompt before them, so their keys and values are
+  the same at every step; the denoiser takes them as a cache, and after its first call for a prompt reads only the
+  timestep and the picture. Against the original in fp32 the cached call gives its prediction to 2×10⁻⁷.
+- **An fp32 residual stream.** A few tokens' activations pass 10⁵ from layer 6 on and reach 2.8×10⁶ in the last layer;
+  the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
+  values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
+- **8-bit weights.** fp16 weights draw within 1 dB closer to HiDream's model in fp32, for 6 GB more; 8-bit fits a 16 GB
+  card.
+- **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
+  prompt and without and steering by 5, its noise levels shifted twice and shown to the model as whole timesteps, as
+  HiDream's scheduler does (`HiDreamUniPc`, held to HiDream's own by `HiDreamSamplerTests`).
+
+It draws only at the sizes it was trained on, all about 4–5 megapixels — 2048×2048, 2560×1440, 1440×2560 for the three
+shapes — in 36 s on an RTX PRO 6000 (PyTorch: 95 s), holding 13.2 GB at its peak; twelve prompts drawn with it and with
+HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
+entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
+with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.
 
 ## Models
 
@@ -731,7 +753,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
-| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and a high-quality image row. To come: HiDream-O1 as the high-quality model on this machine, then the audio generation contract with music (ACE-Step) | medium per tool |
+| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row. To come: the audio generation contract with music (ACE-Step) | medium per tool |
 | 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill. To come: OCR, then a web agent on Fara 1.5, each a sub-agent with what it may touch set by what it does | medium |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.

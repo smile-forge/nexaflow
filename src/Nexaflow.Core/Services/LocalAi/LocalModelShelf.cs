@@ -48,7 +48,8 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
             foreach (var model in catalog.Unrunnable)
                 options.Add(new(provider.Name, assembly, kind, model.Model, null, model.Why));
         }
-        return [.. options.OrderBy(o => o.Runs ? 0 : 1)];
+        var tier = LocalColumns.TierOf(slot);
+        return [.. options.OrderBy(o => o.Runs ? 0 : 1).ThenBy(o => o.Model.Tier == tier ? 0 : 1)];
     }
 
     /// <summary>Every model of every job, once each.</summary>

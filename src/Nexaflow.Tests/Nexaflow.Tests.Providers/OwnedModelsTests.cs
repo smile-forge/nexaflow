@@ -1,4 +1,5 @@
 using System.Text;
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 
@@ -58,10 +59,11 @@ public class OwnedModelsTests
     [TestMethod]
     public void TheShippedImageModel_IsZImageTurbo_BuiltForCuda_WithItsSamplerAndTokenizer()
     {
-        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single();
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "z-image-turbo");
 
-        Assert.AreEqual("z-image-turbo", image.Id);
-        Assert.AreEqual(new OwnedSampler(9, 3f), image.Sampler);
+        Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance));
+        Assert.AreEqual((1344, 768), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual(ModelTier.Standard, image.Catalog.Tier);
         Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its fp16 graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder" },
@@ -85,6 +87,8 @@ public class OwnedModelsTests
         { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1, "executionProvider": "cuda" }
         """;
 
+    private const string Sampler = """{ "method": "zImage", "steps": 9, "shift": 3, "guidance": 0, "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } }""";
+
     [TestMethod]
     [DataRow("""{ "id": "m", "parts": [CHAT], "files": [IN] }""", DisplayName = "no kind")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [], "files": [IN] }""", DisplayName = "no part")]
@@ -94,7 +98,10 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT, { "role": "chat", "runner": "llama-chat", "folder": "models/n", "memoryBytes": 1, "contextTokens": 1 }], "files": [IN] }""", DisplayName = "two of a part")]
     [DataRow("""{ "id": "m", "kind": "speechToText", "parts": [{ "role": "recognizer", "runner": "r", "folder": "models/m" }], "files": [IN] }""", DisplayName = "parts missing")]
     [DataRow("""{ "id": "m", "kind": "imageGeneration", "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model that does not say how it samples")]
-    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3 }, "parts": [{ "role": "promptEncoder", "runner": "e", "folder": "models/m" }, { "role": "denoiser", "runner": "d", "folder": "models/d", "memoryBytes": 1 }, { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1 }], "files": [IN, IN2, IN3] }""", DisplayName = "an image part without its memory")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": SAMPLER, "parts": [{ "role": "promptEncoder", "runner": "e", "folder": "models/m" }, { "role": "denoiser", "runner": "d", "folder": "models/d", "memoryBytes": 1 }, { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1 }], "files": [IN, IN2, IN3] }""", DisplayName = "an image part without its memory")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3, "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } }, "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model that does not say how it draws")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "method": "zImage", "steps": 9, "shift": 3, "sizes": { "square": [1024, 1024] } }, "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model with a shape it gives no size")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "method": "hiDream", "steps": 50, "shift": 3, "guidance": 5, "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } }, "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model with parts its method does not draw with")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "llama-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "files": [IN] }""", DisplayName = "a voice model with no voice")]
     [DataRow("""{ "id": "m", "kind": "language", "images": true, "parts": [CHAT], "files": [IN] }""", DisplayName = "a model that sees with no projector")]
@@ -103,7 +110,7 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }, { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "w.bin" }], "files": [IN] }""", DisplayName = "two synthesizers of one name")]
     public void AModelThatDoesNotSayWhatItIsOrHowItRuns_OrStraysFromItsFolders_IsRefused(string model)
     {
-        var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IMAGE", Image).Replace("IN2", File("models/d/w.bin")).Replace("IN3", File("models/v/w.bin"))
+        var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IMAGE", Image).Replace("SAMPLER", Sampler).Replace("IN2", File("models/d/w.bin")).Replace("IN3", File("models/v/w.bin"))
                                            .Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";
 
         Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
@@ -113,7 +120,7 @@ public class OwnedModelsTests
     public void AModel_MayBeBuiltForCudaAlone_AndThenDoesNotRunOnTheCpu()
     {
         var json = $$"""
-            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3 }, "parts": [ {{Image}} ],
+            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": {{Sampler}}, "parts": [ {{Image}} ],
                 "files": [ {{File("models/m/e.onnx")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ] } ] }
             """;
 
@@ -121,8 +128,28 @@ public class OwnedModelsTests
 
         Assert.IsTrue(model.RunsOn(OwnedModels.Cuda));
         Assert.IsFalse(model.RunsOn(OwnedModels.Cpu));
-        Assert.AreEqual(new OwnedSampler(9, 3f), model.Sampler);
+        Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (model.Sampler!.Method, model.Sampler.Steps, model.Sampler.Shift, model.Sampler.Guidance));
+        CollectionAssert.AreEquivalent(new[] { (1024, 1024), (1344, 768), (768, 1344) }, model.Sampler.Sizes.Values.ToArray());
         Assert.AreEqual(0, model.CatalogFor(OwnedModels.Cpu).Files.Count, "nothing is fetched for a runtime it has no build for");
+    }
+
+    [TestMethod]
+    public void AModelDrawnTheHiDreamWay_IsItsDenoiserAlone_WithItsGuidanceAndTier()
+    {
+        var json = $$"""
+            { "models": [ { "id": "h", "kind": "imageGeneration", "tier": "highQuality",
+                "sampler": { "method": "hiDream", "steps": 50, "shift": 3, "guidance": 5,
+                             "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+                "parts": [ { "role": "denoiser", "runner": "hidream-denoiser", "folder": "models/h", "memoryBytes": 1, "executionProvider": "cuda" } ],
+                "files": [ {{File("models/h/denoiser.onnx")}} ] } ] }
+            """;
+
+        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+
+        Assert.AreEqual(ModelTier.HighQuality, model.Catalog.Tier);
+        Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (model.Sampler!.Method, model.Sampler.Steps, model.Sampler.Shift, model.Sampler.Guidance));
+        Assert.AreEqual((2560, 1440), model.Sampler.Sizes[MediaShape.Landscape]);
+        CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
     }
 
     [TestMethod]

@@ -51,13 +51,14 @@ public class HostChannelTests
         await using var app  = new HostChannel(server);
         await using var host = new HostChannel(client);
 
-        var model = new DrawingModel(new ModelSpec("z/promptEncoder", "z-image-prompt-encoder", @"C:\ai\z\encoder", "encoder.onnx", null, 1, 0),
-                                     new ModelSpec("z/denoiser", "z-image-denoiser", @"C:\ai\z\denoiser", "denoiser.onnx", null, 2, 0),
-                                     new ModelSpec("z/decoder", "z-image-decoder", @"C:\ai\z\decoder", "decoder.onnx", null, 3, 0), 9, 3f);
+        var model = new DrawingModel(DrawingMethod.HiDream,
+                                     new Dictionary<string, ModelSpec> { [DrawingParts.Denoiser] = new("h/denoiser", "hidream-denoiser", @"C:\ai\h\denoiser", "denoiser.onnx", null, 2, 0) },
+                                     50, 3f, 5f);
         await app.SendAsync(new Draw(5, model, "a fox", 1344, 768, 42, RequestPriority.Job));
         var draw = (Draw)(await host.ReceiveAsync())!;
         Assert.AreEqual((5L, "a fox", 1344, 768, 42L, RequestPriority.Job), (draw.RequestId, draw.Prompt, draw.Width, draw.Height, draw.Seed, draw.Priority));
-        Assert.AreEqual((model.Steps, model.Shift, model.Denoiser.Id, model.Decoder.Folder), (draw.Model.Steps, draw.Model.Shift, draw.Model.Denoiser.Id, draw.Model.Decoder.Folder));
+        Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
+        Assert.AreEqual(@"C:\ai\h\denoiser", draw.Model.Parts[DrawingParts.Denoiser].Folder);
 
         byte[] png = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3];
         await host.SendAsync(new Drawn(5, png));

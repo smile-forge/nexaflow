@@ -586,7 +586,8 @@
       "id": "z-image-turbo",
       "displayName": "Z-Image Turbo",
       "kind": "imageGeneration",
-      "sampler": { "steps": 9, "shift": 3.0 },
+      "sampler": { "method": "zImage", "steps": 9, "shift": 3.0, "guidance": 0,
+                   "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } },
       "parts": [
         {
           "role": "promptEncoder",

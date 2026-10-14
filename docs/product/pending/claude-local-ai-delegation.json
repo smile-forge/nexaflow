@@ -275,10 +275,116 @@
           }
         ]
       }
+    },
+    "owned-images": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DrawHandler.cs",
+          "class": "DrawHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageSampler.cs",
+          "class": "ZImageSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImagePromptEncoder.cs",
+          "class": "ZImagePromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDenoiser.cs",
+          "class": "ZImageDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDecoder.cs",
+          "class": "ZImageDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PngEncoder.cs",
+          "class": "PngEncoder"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/z-image-turbo/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDrawing.cs",
+          "class": "HiDreamDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
+          "class": "HiDreamSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
+          "class": "HiDreamUniPc"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDenoiser.cs",
+          "class": "HiDreamDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDrawing.cs",
+          "class": "ZImageDrawing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/hidream-o1/README.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ImageModelTests.cs",
+            "class": "ImageModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ZImageSamplerTests.cs",
+            "class": "ZImageSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/PngEncoderTests.cs",
+            "class": "PngEncoderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamSamplerTests.cs",
+            "class": "HiDreamSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamModelTests.cs",
+            "class": "HiDreamModelTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 18,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
@@ -289,6 +395,7 @@
     "aibar-progress-line",
     "aibar-response-overlay",
     "aibar-tool-approval",
-    "aibar-voice-config"
+    "aibar-voice-config",
+    "owned-images"
   ]
 }

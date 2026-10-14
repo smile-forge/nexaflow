@@ -1,12 +1,36 @@
 namespace Nexaflow.AiHost.Contracts;
 
-/// <summary>
-/// An image model's three parts and how it samples: the prompt encoder (its tokenizer beside it), the denoiser the
-/// sampler steps through, and the decoder that turns the latents into pixels.
-/// </summary>
+/// <summary>How a model draws: its family, and so the parts it has and the sampler that drives them.</summary>
+public enum DrawingMethod
+{
+    /// <summary>Z-Image: a prompt encoder, a latent denoiser stepped by Euler, a VAE decoder.</summary>
+    ZImage,
+
+    /// <summary>HiDream-O1: one denoiser that draws in pixels, asked with the prompt and without at each UniPC step.</summary>
+    HiDream,
+}
+
+/// <summary>The parts an image model has, by role.</summary>
+public static class DrawingParts
+{
+    public const string PromptEncoder = "promptEncoder";
+    public const string Denoiser      = "denoiser";
+    public const string Decoder       = "decoder";
+
+    /// <summary>The parts a model <paramref name="method"/> draws with is made of.</summary>
+    public static IReadOnlyList<string> Of(DrawingMethod method) => method switch
+    {
+        DrawingMethod.ZImage  => [PromptEncoder, Denoiser, Decoder],
+        DrawingMethod.HiDream => [Denoiser],
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "no image model draws this way"),
+    };
+}
+
+/// <summary>An image model's parts by role (<see cref="DrawingParts"/>), the method that draws with them, and how it samples.</summary>
 /// <param name="Steps">How many denoising steps a picture takes.</param>
 /// <param name="Shift">The flow-matching shift applied to the noise levels the steps run through.</param>
-public sealed record DrawingModel(ModelSpec PromptEncoder, ModelSpec Denoiser, ModelSpec Decoder, int Steps, float Shift);
+/// <param name="Guidance">How far each step steers away from the empty prompt; 0 for a model that does not.</param>
+public sealed record DrawingModel(DrawingMethod Method, IReadOnlyDictionary<string, ModelSpec> Parts, int Steps, float Shift, float Guidance);
 
 /// <summary>
 /// Draws one picture from a prompt. Each step — reading the prompt, every denoising step, decoding — takes the GPU at
