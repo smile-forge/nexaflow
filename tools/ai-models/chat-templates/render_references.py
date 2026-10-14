@@ -13,17 +13,26 @@ import json
 import sys
 from pathlib import Path
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi, snapshot_download
 from transformers import AutoTokenizer
 from transformers.utils.chat_template_utils import _compile_jinja_template
 
-# Each family's template, pinned by revision — the template its GGUF carries.
+# Each family's template, pinned by revision — from the model's own repository, where it is the template its GGUF carries.
 FAMILIES = {
     "gemma-4":  ("google/gemma-4-E4B-it", "ee0ef6023621cff504d758262d4e04895a5af4a2", [{}, {"enable_thinking": True}]),
     "qwen-3.5": ("Qwen/Qwen3.5-9B", "c202236235762e1c871ad0ccb60c8ee5ba337b9a", [{"enable_thinking": False}, {}]),
     "qwen-3.6": ("Qwen/Qwen3.6-27B", "6a9e13bd6fc8f0983b9b99948120bc37f49c13e9", [{"enable_thinking": False}, {}]),
     "qwen-3.8": ("Qwen/Qwen3.8-27B", "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
                  [{"enable_thinking": False}, {}, {"enable_thinking": False, "preserve_thinking": False}]),
+}
+
+# Families whose GGUF carries a template of its own, read from the GGUF as the Hub reports it, pinned by the GGUF
+# repository's revision — with the conversations a model of text alone is never given.
+GGUF_FAMILIES = {
+    "gemma-4-large":    ("google/gemma-4-26B-A4B-it-qat-q4_0-gguf", "d1c082be9cf3c8a514acf63b8761f4b41935842e", [{}, {"enable_thinking": True}], set()),
+    "qwen-3.5-unsloth": ("unsloth/Qwen3.5-9B-GGUF", "3885219b6810b007914f3a7950a8d1b469d598a5", [{}, {"enable_thinking": True}], set()),
+    "mimo-2.6":         ("bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF", "4371da10c84fb26da3592d4cf312d24aa82b7b65", [{"enable_thinking": False}, {}], set()),
+    "phi-4":            ("microsoft/phi-4-gguf", "6edc2ef6664b739a8e11e62f2672ff6afe0c15ac", [{}], {"media"}),
 }
 
 TOOLS = [
@@ -154,6 +163,22 @@ def chat_templates():
                 })
         out[family] = {"repo": repo, "revision": revision, "template": Path(folder, "chat_template.jinja").read_text(encoding="utf-8"),
                        "renders": renders}
+    for family, (repo, revision, variables, unread) in GGUF_FAMILIES.items():
+        gguf = HfApi().model_info(repo, revision=revision, expand=["gguf"]).gguf
+        template = _compile_jinja_template(gguf["chat_template"])
+        bos, eos = gguf.get("bos_token"), gguf.get("eos_token")
+        renders = []
+        for name, conversation in CONVERSATIONS.items():
+            if name in unread: continue
+            generation_prompt = conversation.get("add_generation_prompt", True)
+            for extra in variables:
+                renders.append({
+                    "case": name, "variables": extra, "messages": conversation["messages"], "tools": conversation.get("tools"),
+                    "add_generation_prompt": generation_prompt, "bos_token": bos, "eos_token": eos,
+                    "rendered": template.render(messages=conversation["messages"], tools=conversation.get("tools"),
+                                                add_generation_prompt=generation_prompt, bos_token=bos, eos_token=eos, **extra),
+                })
+        out[family] = {"repo": repo, "revision": revision, "template": gguf["chat_template"], "renders": renders}
     return out
 
 
