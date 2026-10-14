@@ -127,11 +127,11 @@ public class OwnedImageGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task WarmingUp_FetchesTheFiles_ButLoadsNothing()
+    public async Task WarmingUp_LoadsNothing()
     {
         var host = new FakeAiHost();
 
-        await Provider(Here(), host).WarmupAsync();
+        await ((IAiProvider)Provider(Here(), host)).WarmupAsync();
 
         Assert.AreEqual(0, host.Requests.Count, "an image model loads with its first picture, not beside the resident models");
     }

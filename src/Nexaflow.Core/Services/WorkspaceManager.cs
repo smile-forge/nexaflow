@@ -1,6 +1,7 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Agent;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -274,6 +275,19 @@ public sealed class WorkspaceManager
     /// </summary>
     public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
 
+    /// <summary>
+    /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
+    /// has landed — saving it, and having every running window of the workspace take it up without closing its tabs.
+    /// </summary>
+    public void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
+    {
+        workspace.EnsureSharedServicesLoaded();
+        LocalColumns.Use(workspace.AiConfig, slot, model);
+        ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        foreach (var ws in _workspaces.Where(w => ReferenceEquals(w.Workspace, workspace)).ToList())
+            AcquireAndRegister(ws);
+    }
+
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
     public Workspace AddWorkspace(string name)
     {
@@ -470,13 +484,20 @@ public sealed class WorkspaceManager
         var fresh = ProviderManager.Instance.AcquireProviderSet(
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
 
-        // A grid saved before the Local column has its models on this machine folded into it, once, and is saved so.
-        if (LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal))
+        // A grid saved before the Local column has its models on this machine folded into it, once, and the Local column
+        // turned on where this machine runs a model; it is saved so.
+        var folded = LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal);
+        if (ProviderManager.Instance.Assets is { } assets)
+        {
+            var shelf = new LocalModelShelf(fresh, assets);
+            folded |= LocalColumns.Seed(workspace.AiConfig, slot => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o)))]);
+        }
+        if (folded)
         {
             ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
-            var folded = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
+            var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
             ProviderManager.Instance.ReleaseProviderSet(fresh);
-            fresh = folded;
+            fresh = again;
         }
         var old   = ws.Providers;
         ws.Providers               = fresh;

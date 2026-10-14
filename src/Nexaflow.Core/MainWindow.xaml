@@ -809,11 +809,12 @@
                     </Grid>
                 </Border>
 
-                <!-- The workspace's background tasks — work its assistant left running after replying — while it has any; it opens their list. -->
-                <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" AutomationProperties.AutomationId="AiBar_BackgroundTasks"
+                <!-- The workspace's background tasks — work its assistant left running after replying — while it has any, in the AI's
+                     line; it opens their list. -->
+                <Button Grid.Row="0" Grid.Column="2" AutomationProperties.AutomationId="AiBar_BackgroundTasks"
                         Command="{Binding WorkspaceTasks.ToggleCommand}" ToolTip="{loc:Str Shell.BackgroundTasks.Header}"
                         Visibility="{Binding WorkspaceTasks.Any, Converter={StaticResource BoolVis}}"
-                        VerticalAlignment="Center" Margin="8,0,0,0" Cursor="Hand" AutomationProperties.Name="{Binding WorkspaceTasks.Label}">
+                        VerticalAlignment="Center" Margin="8,0,0,4" Cursor="Hand" AutomationProperties.Name="{Binding WorkspaceTasks.Label}">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="pill" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource AccentBrush}"

@@ -5,8 +5,10 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -70,7 +72,7 @@ public sealed record ProviderOffer(string ProviderName, ModelKind Kind)
 public partial class AiAbilityCellViewModel : ObservableObject
 {
     private readonly AiAbilityRowViewModel _row;
-    private readonly Func<AiAbility, (bool Usable, string? Note)>? _local;
+    private readonly Func<AiAbility, LocalCellState>? _local;
 
     public AiColumnViewModel Column { get; }
 
@@ -86,6 +88,9 @@ public partial class AiAbilityCellViewModel : ObservableObject
     /// <summary>Why a Local cell cannot be used, or what it holds; null elsewhere.</summary>
     [ObservableProperty] private string? _note;
 
+    /// <summary>A Local cell whose model is chosen but not downloaded yet: it is marked so beside its place in the chain.</summary>
+    [ObservableProperty] private bool _needsDownload;
+
     /// <summary>Where this column stands in the row's chain, from 1; 0 when the row does not use it.</summary>
     public int Position => _row.Chain.IndexOf(ChainId) + 1;
 
@@ -97,7 +102,7 @@ public partial class AiAbilityCellViewModel : ObservableObject
     public IRelayCommand ToggleCommand { get; }
 
     /// <param name="local">For the Local column: whether a row's job can use it, and the note to show.</param>
-    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column, Func<AiAbility, (bool Usable, string? Note)>? local = null)
+    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column, Func<AiAbility, LocalCellState>? local = null)
     {
         _row    = row;
         _local  = local;
@@ -118,10 +123,17 @@ public partial class AiAbilityCellViewModel : ObservableObject
     public void Refresh()
     {
         if (_local is null) { IsUsable = Column.Kind == _row.Kind; return; }
-        (IsUsable, Note) = _local(_row.Ability);
+        var state = _local(_row.Ability);
+        IsUsable      = state.Usable;
+        Note          = state.Note;
+        NeedsDownload = state.NeedsDownload;
         OnPropertyChanged(nameof(IsGreyed));
     }
 }
+
+/// <summary>A Local cell as its row's job has it: whether it can be used, what its note says, and whether its model has yet to
+/// be downloaded.</summary>
+public readonly record struct LocalCellState(bool Usable, string? Note, bool NeedsDownload = false);
 
 // ── Row (one per ability) ────────────────────────────────────────────────────
 
@@ -165,6 +177,9 @@ public partial class AiAbilityGridViewModel : ObservableObject
 {
     private readonly AiConfig _config;
     private readonly LocalModelShelf? _shelf;
+    private readonly LocalModelDownloads? _downloads;
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    private readonly HashSet<LocalDownload> _following = [];
 
     /// <summary>The model chosen for each job of the Local column, as the grid holds it.</summary>
     private readonly Dictionary<LocalSlot, ProviderModelPair> _local = [];
@@ -186,6 +201,15 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     [ObservableProperty] private bool _hasChanges;
 
+    /// <summary>What the grid says of the Local column: its models not downloaded yet, their download under way, or that this
+    /// machine runs none; null when there is nothing to say.</summary>
+    [ObservableProperty] private string? _localNotice;
+
+    /// <summary>Whether the Local column's models that are not here can be downloaded from the grid now.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DownloadLocalCommand))]
+    private bool _canDownloadLocal;
+
     // ── Commands ──────────────────────────────────────────────────────────
 
     public IRelayCommand OpenAddPanelCommand  { get; }
@@ -196,10 +220,13 @@ public partial class AiAbilityGridViewModel : ObservableObject
     // ── Construction ──────────────────────────────────────────────────────
 
     /// <param name="shelf">The models on this machine; without it, the Local column has nothing to use.</param>
-    public AiAbilityGridViewModel(AiConfig config, LocalModelShelf? shelf = null)
+    /// <param name="downloads">The app's downloads of them; without it, the grid offers none.</param>
+    public AiAbilityGridViewModel(AiConfig config, LocalModelShelf? shelf = null, LocalModelDownloads? downloads = null)
     {
-        _config = config;
-        _shelf  = shelf;
+        _config    = config;
+        _shelf     = shelf;
+        _downloads = downloads;
+        if (shelf is not null) shelf.Store.Changed += (_, _) => _ui.InvokeAsync(RefreshLocal);
 
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
@@ -252,28 +279,93 @@ public partial class AiAbilityGridViewModel : ObservableObject
         RemoveColumnCommand = new RelayCommand<object>(
             obj => RemoveColumn(obj as AiColumnViewModel),
             obj => obj is AiColumnViewModel { CanRemove: true });
+
+        foreach (var row in Rows)
+            row.Chain.CollectionChanged += (_, _) => RefreshNotice();
+        RefreshNotice();
     }
 
     private AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, AiColumnViewModel column)
         => new(row, column, column.IsLocal ? LocalCell : null);
 
-    /// <summary>Whether a row's Local cell can be used, and what its note says: the job's model, or why there is none.</summary>
-    private (bool Usable, string? Note) LocalCell(AiAbility ability)
+    /// <summary>A row's Local cell: whether it can be used, its note — the job's model, or why there is none — and whether that
+    /// model has yet to be downloaded.</summary>
+    private LocalCellState LocalCell(AiAbility ability)
     {
         var slot = LocalColumns.SlotOf(ability);
         if (_shelf is null || !_shelf.Runs(slot))
-            return (false, Str.Get(_shelf?.OptionsFor(slot).Count > 0 ? "Shell.Config.AiGrid.Local.TooLarge" : "Shell.Config.AiGrid.Local.None"));
-        if (!_local.TryGetValue(slot, out var chosen)) return (false, Str.Get("Shell.Config.AiGrid.Local.Choose"));
+            return new(false, Str.Get(_shelf?.OptionsFor(slot).Count > 0 ? "Shell.Config.AiGrid.Local.TooLarge" : "Shell.Config.AiGrid.Local.None"));
+        if (!_local.TryGetValue(slot, out var chosen)) return new(false, Str.Get("Shell.Config.AiGrid.Local.Choose"));
 
         var option = _shelf.OptionsFor(slot).FirstOrDefault(o => o.IsIn(chosen));
         var name   = option?.Model.DisplayName ?? chosen.Model;
-        return (true, option is not null && !_shelf.IsReady(option) ? Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", name) : name);
+        var absent = option is not null && !_shelf.IsReady(option);
+        return new(true, absent ? Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", name) : name, absent);
     }
 
-    /// <summary>Takes the Local cells again — a model fetched or removed since.</summary>
+    /// <summary>Takes the Local cells again — a model fetched or removed since — and what the grid says of them.</summary>
     public void RefreshLocal()
     {
         foreach (var cell in Rows.SelectMany(r => r.Cells).Where(c => c.Column.IsLocal)) cell.Refresh();
+        RefreshNotice();
+    }
+
+    /// <summary>The models the Local column is used with that are not downloaded yet, each once.</summary>
+    private IReadOnlyList<LocalModelOption> MissingLocal()
+    {
+        if (_shelf is null) return [];
+        var missing = new List<LocalModelOption>();
+        foreach (var (slot, chosen) in _local)
+        {
+            var id = LocalColumns.IdOf(slot);
+            if (!Rows.Any(r => LocalColumns.SlotOf(r.Ability) == slot && r.Chain.Contains(id))) continue;
+            if (_shelf.OptionsFor(slot).FirstOrDefault(o => o.IsIn(chosen)) is { Runs: true } option && !_shelf.IsReady(option)
+                && !missing.Any(m => m.IsIn(option.Column())))
+                missing.Add(option);
+        }
+        return missing;
+    }
+
+    /// <summary>Says what the Local column needs: that this machine runs no model, that its models are downloading and how far
+    /// they have got, or that they are not here and can be downloaded at once.</summary>
+    private void RefreshNotice()
+    {
+        if (_shelf is null) { (LocalNotice, CanDownloadLocal) = (null, false); return; }
+        if (!Enum.GetValues<LocalSlot>().Any(_shelf.Runs)) { (LocalNotice, CanDownloadLocal) = (Str.Get("Shell.Config.AiGrid.Local.NoHardware"), false); return; }
+
+        var missing = MissingLocal();
+        if (missing.Count == 0) { (LocalNotice, CanDownloadLocal) = (null, false); return; }
+
+        var running = missing.Select(o => _downloads?.Of(o)).OfType<LocalDownload>().ToList();
+        if (running.Count > 0)
+        {
+            foreach (var download in running) Follow(download);
+            var total   = running.Sum(d => d.Total);
+            var percent = total > 0 ? (int)(running.Sum(d => d.Received) * 100 / total) : 0;
+            var left    = LocalDownload.Say(running.Any(d => d.Left is null) ? null : running.Max(d => d.Left));
+            LocalNotice      = Str.Format("Shell.Config.AiGrid.Local.DownloadingFormat", percent) + (left is null ? "" : " — " + left);
+            CanDownloadLocal = false;
+            return;
+        }
+
+        var bytes = missing.SelectMany(o => o.Needs).Where(f => _shelf.Store.Locate(f) is null).DistinctBy(f => f.RelativePath).Sum(f => f.Size);
+        LocalNotice      = Str.Format("Shell.Config.AiGrid.Local.MissingFormat", SizeFormatter.FormatBytes(bytes));
+        CanDownloadLocal = _downloads is not null;
+    }
+
+    /// <summary>Downloads every model the Local column is used with that is not here — each once, however many jobs use it.</summary>
+    [RelayCommand(CanExecute = nameof(CanDownloadLocal))]
+    private void DownloadLocal()
+    {
+        if (_downloads is null) return;
+        foreach (var option in MissingLocal()) Follow(_downloads.Fetch(option));
+        RefreshNotice();
+    }
+
+    /// <summary>Says again what the Local column needs as a download moves on.</summary>
+    private void Follow(LocalDownload download)
+    {
+        if (_following.Add(download)) download.PropertyChanged += (_, _) => _ui.InvokeAsync(RefreshNotice);
     }
 
     // ── Offer changed — reload model suggestions ──────────────────────────
@@ -396,20 +488,15 @@ public partial class AiAbilityGridViewModel : ObservableObject
     /// </summary>
     public void ChooseLocal(LocalSlot slot, ProviderModelPair model)
     {
-        var id = LocalColumns.IdOf(slot);
-        _local[slot] = Copy(model, id);
-        LocalColumns.Choose(_config, slot, model);
-
+        var id   = LocalColumns.IdOf(slot);
         var rows = Rows.Where(r => LocalColumns.SlotOf(r.Ability) == slot).ToList();
-        var used = rows.Any(r => r.Chain.Contains(id))
-                   || rows.Any(r => _config.Assignments.GetValueOrDefault(r.Ability.ToString())?.ColumnIds.Contains(id) == true);
+        var used = rows.Any(r => r.Chain.Contains(id));
+
+        _local[slot] = Copy(model, id);
+        LocalColumns.Use(_config, slot, model);
         if (!used)
             foreach (var row in rows)
-            {
                 row.Chain.Add(id);
-                var saved = _config.Assignments.GetValueOrDefault(row.Ability.ToString()) ?? AbilityChain.Empty;
-                _config.Assignments[row.Ability.ToString()] = new AbilityChain([.. saved.ColumnIds, id]);
-            }
 
         RefreshLocal();
         RecheckChanges();

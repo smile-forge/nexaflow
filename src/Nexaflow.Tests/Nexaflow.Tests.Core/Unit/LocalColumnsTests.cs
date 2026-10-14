@@ -63,6 +63,27 @@ public class LocalColumnsTests
     }
 
     [TestMethod]
+    public void TheLocalColumn_IsTurnedOnOnce_ForEveryJobThisMachineRunsAModelFor_PreferringOneThatIsHere()
+    {
+        var gemma  = Column("x", "Nexaflow", "gemma", ModelKind.Language);
+        var qwen   = Column("x", "Nexaflow", "qwen", ModelKind.Language);
+        var config = new AiConfig { Columns = [Column("claude", "Claude", "sonnet", ModelKind.Language)], Assignments = { ["Conversation"] = AbilityChain.Of("claude") } };
+
+        var changed = LocalColumns.Seed(config, slot => slot == LocalSlot.Language ? [(gemma, true, false), (qwen, true, true)] : []);
+
+        Assert.IsTrue(changed);
+        Assert.IsTrue(config.LocalSeeded);
+        var language = LocalColumns.IdOf(LocalSlot.Language);
+        Assert.AreEqual("qwen", config.Columns.Single(c => c.Id == language).Model, "one already here first");
+        CollectionAssert.AreEqual(new[] { "claude", language }, config.Assignments["Conversation"].ColumnIds.ToArray(), "ticked after what the row had");
+        CollectionAssert.AreEqual(new[] { language }, config.Assignments["Disambiguation"].ColumnIds.ToArray());
+        Assert.IsFalse(config.Assignments.ContainsKey("SpeechIn"), "a job this machine runs nothing for is left alone");
+
+        config.Assignments["Conversation"] = AbilityChain.Of("claude");   // the user takes it out of a row
+        Assert.IsFalse(LocalColumns.Seed(config, _ => [(gemma, true, true)]), "and it stays out");
+    }
+
+    [TestMethod]
     public void EveryAbility_HasAJob_WhoseKindOfModelItTakes()
     {
         foreach (var ability in Enum.GetValues<AiAbility>())

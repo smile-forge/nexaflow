@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Formatting;
@@ -13,48 +15,67 @@ namespace Nexaflow.Core.ViewModels;
 /// The workspace's Local page: for each job the models on this machine do — conversation and reasoning, speech to text, text
 /// to speech, pictures, high-quality pictures, video — the model chosen for it, from a list that shows which are here, which
 /// would be downloaded and how much, and which this machine cannot run. Choosing a model that is here takes effect at once;
-/// one that is not is downloaded first, the job keeping the model it has until the new one is here.
+/// one that is not is downloaded first by the app's downloads (<see cref="LocalModelDownloads"/>) — once, however many jobs
+/// chose it, and on after the page closes — the job keeping its model until the new one is here. Opened again, the page shows
+/// a download still under way.
 /// </summary>
 public sealed class LocalModelsViewModel
 {
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    /// <param name="committed">Saves the grid's config once a choice has been written into it.</param>
-    public LocalModelsViewModel(LocalModelShelf shelf, AiAbilityGridViewModel grid, Action committed, IBackgroundActivityManager? activities)
+    /// <param name="committed">Saves the grid's config once a choice of a model that is here has been written into it.</param>
+    public LocalModelsViewModel(LocalModelShelf shelf, AiAbilityGridViewModel grid, Workspace workspace, LocalModelDownloads downloads,
+                                Action committed)
     {
         foreach (var slot in Enum.GetValues<LocalSlot>())
-            Jobs.Add(new LocalJobViewModel(slot, shelf, grid, committed, activities));
+            Jobs.Add(new LocalJobViewModel(slot, shelf, grid, workspace, downloads, committed));
 
-        shelf.Store.Changed += (_, _) => _ui.InvokeAsync(() =>
+        shelf.Store.Changed += (_, _) => _ui.InvokeAsync(() => { foreach (var job in Jobs) job.Refresh(); });
+
+        // A choice that waited on a download is saved by the downloads; the grid this page shares is told of it too, so what
+        // it holds stays what is saved.
+        downloads.Chose += (chosenIn, slot, column) =>
         {
-            foreach (var job in Jobs) job.Refresh();
-            grid.RefreshLocal();
-        });
+            if (!ReferenceEquals(chosenIn, workspace)) return;
+            _ui.InvokeAsync(() =>
+            {
+                grid.ChooseLocal(slot, column);
+                foreach (var job in Jobs.Where(j => j.Slot == slot)) job.Refresh();
+            });
+        };
     }
 
     public ObservableCollection<LocalJobViewModel> Jobs { get; } = [];
 }
 
-/// <summary>One job on the Local page: its model, the models it could have, and a download under way.</summary>
+/// <summary>One job on the Local page: its model, the models it could have, and the download a choice is waiting on.</summary>
 public sealed partial class LocalJobViewModel : ObservableObject
 {
-    private readonly LocalModelShelf             _shelf;
-    private readonly AiAbilityGridViewModel      _grid;
-    private readonly Action                      _committed;
-    private readonly IBackgroundActivityManager? _activities;
-    private CancellationTokenSource?             _fetching;
-    private bool                                 _showing;
+    private readonly LocalModelShelf        _shelf;
+    private readonly AiAbilityGridViewModel _grid;
+    private readonly Workspace              _workspace;
+    private readonly LocalModelDownloads    _downloads;
+    private readonly Action                 _committed;
+    private readonly Dispatcher             _ui = Dispatcher.CurrentDispatcher;
+    private LocalDownload?                  _waiting;
+    private bool                            _showing;
 
-    public LocalJobViewModel(LocalSlot slot, LocalModelShelf shelf, AiAbilityGridViewModel grid, Action committed, IBackgroundActivityManager? activities)
+    public LocalJobViewModel(LocalSlot slot, LocalModelShelf shelf, AiAbilityGridViewModel grid, Workspace workspace,
+                             LocalModelDownloads downloads, Action committed)
     {
-        Slot        = slot;
-        _shelf      = shelf;
-        _grid       = grid;
-        _committed  = committed;
-        _activities = activities;
-        Label       = Str.Get($"Shell.Config.Local.Job.{slot}");
+        Slot       = slot;
+        _shelf     = shelf;
+        _grid      = grid;
+        _workspace = workspace;
+        _downloads = downloads;
+        _committed = committed;
+        Label      = Str.Get($"Shell.Config.Local.Job.{slot}");
 
         foreach (var option in shelf.OptionsFor(slot)) Choices.Add(new LocalChoiceViewModel(option, shelf));
+
+        // A choice made before the page was last closed may still be downloading.
+        if (downloads.WaitingFor(workspace, slot) is { } waiting && downloads.Of(waiting) is { } download)
+            Wait(download);
         Refresh();
     }
 
@@ -71,10 +92,11 @@ public sealed partial class LocalJobViewModel : ObservableObject
     public string? Note => CanChoose ? null
         : Str.Get(Choices.Count == 0 ? "Shell.Config.AiGrid.Local.None" : "Shell.Config.AiGrid.Local.TooLarge");
 
-    /// <summary>The model chosen — or being fetched to be chosen.</summary>
+    /// <summary>The model chosen — or being downloaded to be chosen.</summary>
     [ObservableProperty] private LocalChoiceViewModel? _selected;
 
-    /// <summary>A download under way, or what stopped one; null otherwise.</summary>
+    /// <summary>The download a choice waits on — how far it has got, about how long is left, the model in use meanwhile — or
+    /// what stopped one; null otherwise.</summary>
     [ObservableProperty] private string? _status;
 
     [ObservableProperty] private bool _isDownloading;
@@ -82,67 +104,81 @@ public sealed partial class LocalJobViewModel : ObservableObject
     /// <summary>The model the job uses now.</summary>
     private LocalChoiceViewModel? Current => Choices.FirstOrDefault(c => c.Option.IsIn(_grid.LocalModelFor(Slot)));
 
-    /// <summary>Takes again what is here, and shows the model in use unless another is being fetched.</summary>
+    /// <summary>Takes again what is here, and shows the model in use — or the one a download is fetching.</summary>
     public void Refresh()
     {
         foreach (var choice in Choices) choice.Refresh();
-        if (!IsDownloading) Show(Current);
+        if (_waiting is { IsRunning: true } waiting) Show(Choices.FirstOrDefault(c => c.Option.IsIn(waiting.Option.Column())));
+        else Show(Current);
     }
 
     partial void OnSelectedChanged(LocalChoiceViewModel? value)
     {
         if (_showing || value is null) return;
-        _ = ChooseAsync(value);
+        Choose(value);
     }
 
-    private async Task ChooseAsync(LocalChoiceViewModel choice)
+    private void Choose(LocalChoiceViewModel choice)
     {
-        _fetching?.Cancel();
-        if (!choice.Runs || choice == Current) { Show(IsDownloading ? Selected : Current); return; }
-        if (_shelf.IsReady(choice.Option)) { Commit(choice); return; }
-
-        var fetching = _fetching = new CancellationTokenSource();
-        var keeping  = Current?.DisplayName;
-        IsDownloading = true;
-        Report(choice, 0, keeping);
-        var activity = _activities?.StartActivity(Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, 0));
-        try
+        if (!choice.Runs) { Refresh(); return; }
+        if (choice == Current || _shelf.IsReady(choice.Option))
         {
-            await _shelf.FetchAsync(choice.Option, new Progress<AssetProgress>(p =>
+            _downloads.Forget(_workspace, Slot);
+            StopWaiting();
+            if (choice != Current)
             {
-                var percent = (int)(p.Fraction * 100);
-                Report(choice, percent, keeping);
-                activity?.Update(Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, percent));
-            }), fetching.Token);
-            activity?.Complete();
-            IsDownloading = false;
-            Status = null;
-            Commit(choice);
+                _grid.ChooseLocal(Slot, choice.Option.Column());
+                _committed();
+            }
+            Refresh();
+            return;
         }
-        catch (OperationCanceledException)
-        {
-            activity?.Complete();
-            if (_fetching == fetching) { IsDownloading = false; Status = null; Show(Current); }
-        }
-        catch (Exception ex)
-        {
-            activity?.Fail(ex.Message);
-            IsDownloading = false;
-            Status = Str.Format("Shell.Config.Local.FailedFormat", choice.DisplayName, ex.Message);
-            Show(Current);
-        }
+        Wait(_downloads.Choose(_workspace, Slot, choice.Option));
     }
 
-    private void Report(LocalChoiceViewModel choice, int percent, string? keeping)
-        => Status = keeping is null
-            ? Str.Format("Shell.Config.Local.DownloadingFormat", choice.DisplayName, percent)
-            : Str.Format("Shell.Config.Local.DownloadingKeepingFormat", choice.DisplayName, percent, keeping);
-
-    private void Commit(LocalChoiceViewModel choice)
+    /// <summary>Follows the download a choice waits on, saying how it goes.</summary>
+    private void Wait(LocalDownload download)
     {
-        _grid.ChooseLocal(Slot, choice.Option.Column());
-        _committed();
-        Refresh();
+        StopWaiting();
+        _waiting = download;
+        download.PropertyChanged += OnDownloadChanged;
+        IsDownloading = download.IsRunning;
+        Tell();
+    }
+
+    private void StopWaiting()
+    {
+        if (_waiting is not null) _waiting.PropertyChanged -= OnDownloadChanged;
+        _waiting = null;
+        IsDownloading = false;
+        Status = null;
+    }
+
+    private void OnDownloadChanged(object? sender, PropertyChangedEventArgs e) => _ui.InvokeAsync(Tell);
+
+    private void Tell()
+    {
+        if (_waiting is not { } download) return;
+        var name = download.Option.Model.DisplayName;
+        if (download.Failure is { } failure)
+        {
+            StopWaiting();
+            Status = Str.Format("Shell.Config.Local.FailedFormat", name, failure);
+            Refresh();
+            return;
+        }
+        if (!download.IsRunning)
+        {
+            StopWaiting();   // the downloads make the choice good, and the page hears of it
+            Refresh();
+            return;
+        }
+
+        IsDownloading = true;
+        var said = Str.Format("Shell.Config.Local.DownloadingFormat", name, download.Percent);
+        if (LocalDownload.Say(download.Left) is { } left) said += " — " + left;
+        if (Current is { } keeping && !keeping.Option.IsIn(download.Option.Column())) said += ". " + Str.Format("Shell.Config.Local.KeepingFormat", keeping.DisplayName);
+        Status = said;
     }
 
     /// <summary>Shows <paramref name="choice"/> as selected without choosing it.</summary>

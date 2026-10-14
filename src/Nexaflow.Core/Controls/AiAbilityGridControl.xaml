@@ -9,6 +9,7 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter       x:Key="BoolVis"/>
         <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+        <cv:NullToVisibilityConverter x:Key="NullToVis"/>
 
         <Style x:Key="AbilityNameText" TargetType="TextBlock">
             <Setter Property="Width"              Value="170"/>
@@ -99,6 +100,10 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
                     </Grid>
+                    <!-- A Local model chosen but not downloaded yet: marked beside its place in the chain. -->
+                    <TextBlock Text="⬇" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="34,0,0,0"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding NeedsDownload, Converter={StaticResource BoolVis}}"/>
                 </Grid>
             </Button>
         </DataTemplate>
@@ -166,6 +171,22 @@
                    FontSize="11" TextWrapping="Wrap"
                    Foreground="{StaticResource TextMutedBrush}"
                    Margin="0,0,0,10"/>
+
+        <!-- What the Local column needs: its models downloaded — at once, from here — or a cloud service where this machine
+             runs none. -->
+        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="5"
+                Background="{StaticResource Surface2Brush}" Padding="12,8" Margin="0,0,0,10"
+                Visibility="{Binding LocalNotice, Converter={StaticResource NullToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiGrid_DownloadLocal"
+                        Content="{loc:Str Shell.Config.AiGrid.Local.DownloadAll}" Command="{Binding DownloadLocalCommand}"
+                        Visibility="{Binding CanDownloadLocal, Converter={StaticResource BoolVis}}"
+                        Padding="12,4" FontSize="12" Margin="12,0,0,0" BorderThickness="0"
+                        Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"/>
+                <TextBlock Text="{Binding LocalNotice}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextBrush}"/>
+            </DockPanel>
+        </Border>
 
         <!-- ── Add-column inline panel ── -->
         <Border DockPanel.Dock="Top"

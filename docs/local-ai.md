@@ -383,12 +383,18 @@ maps roles to models:
 - **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own and
   Whisper, one chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
   high-quality pictures, video — on the workspace's Local page (`LocalColumns`, `LocalModelShelf`). Each job's model is
-  saved as a column under a reserved id, so a chain names it like any other. Its cell in a row is the job's model, greyed
-  with the reason where the machine runs none or none is chosen. The Local page lists every model for a job — downloaded,
-  the download it would take, or why this machine cannot run it; choosing one that is not here downloads it with its
-  runtime first, the job keeping its model meanwhile, and a job no row used starts on it in every row. The Downloaded
-  models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are never a
-  provider to add.
+  saved as a column under a reserved id, so a chain names it like any other. The column is on wherever the machine runs
+  a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
+  every row of the job uses it. Its cell in a row is the job's model — marked ⬇ while that is not downloaded — or greyed
+  with the reason where the machine runs none. Nothing downloads by itself: warming a model loads it only once it is
+  here. The grid offers to download every model it uses that is missing, or says to add a cloud service where the machine
+  runs none. The Local page lists every model for a job — downloaded, the download it would take, or why this machine
+  cannot run it; choosing one that is not here downloads it with its runtime first, the job keeping its model meanwhile,
+  and a job no row used starts on it in every row. Downloads are the app's (`LocalModelDownloads`): one for each model
+  however many jobs or workspaces chose it, going on after the page closes and shown again when it opens, with about how
+  long is left read from the last few seconds' speed. The setup wizard starts the downloads of what it chose. The
+  Downloaded models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are
+  never a provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
   the machine's GPUs is listed greyed, never chosen.
 

@@ -15,6 +15,10 @@ public static class LocalColumns
 {
     private const string Prefix = "local-";
 
+    /// <summary>The assemblies of the Local column's providers — Nexaflow's own models and Whisper — loaded for every workspace,
+    /// since every workspace has the column.</summary>
+    public static readonly IReadOnlyList<string> Assemblies = ["Nexaflow.Providers.AiHost.dll", "Nexaflow.Providers.Whisper.dll"];
+
     /// <summary>The reserved id of <paramref name="slot"/>'s column.</summary>
     public static string IdOf(LocalSlot slot) => Prefix + slot switch
     {
@@ -102,6 +106,40 @@ public static class LocalColumns
         var id = IdOf(slot);
         config.Columns.RemoveAll(c => c.Id == id);
         config.Columns.Add(Copy(model, id));
+    }
+
+    /// <summary>
+    /// Makes <paramref name="model"/> <paramref name="slot"/>'s model; a job none of whose rows uses the Local column yet starts
+    /// using it in every one, at the end of each chain — the Local column is on wherever it can be.
+    /// </summary>
+    public static void Use(AiConfig config, LocalSlot slot, ProviderModelPair model)
+    {
+        Choose(config, slot, model);
+        var id   = IdOf(slot);
+        var keys = AbilitiesOf(slot).Select(a => a.ToString()).ToList();
+        if (keys.Any(k => config.Assignments.GetValueOrDefault(k)?.ColumnIds.Contains(id) == true)) return;
+        foreach (var key in keys)
+            config.Assignments[key] = new AbilityChain([.. config.Assignments.GetValueOrDefault(key)?.ColumnIds ?? [], id]);
+    }
+
+    /// <summary>
+    /// Turns the Local column on for a grid that has never had it: each job this machine runs a model for, and none is chosen
+    /// for, gets its first model — one already here before any other — and every row of the job uses it. Nothing is downloaded:
+    /// a model not here is the grid's to offer. Returns whether anything changed.
+    /// </summary>
+    /// <param name="options">The models each job can hold, those this machine runs first; and whether one is here.</param>
+    public static bool Seed(AiConfig config, Func<LocalSlot, IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here)>> options)
+    {
+        if (config.LocalSeeded) return false;
+        foreach (var slot in Enum.GetValues<LocalSlot>())
+        {
+            if (config.Columns.Any(c => c.Id == IdOf(slot))) continue;
+            var runs = options(slot).Where(o => o.Runs).ToList();
+            if (runs.Count == 0) continue;
+            Use(config, slot, (runs.FirstOrDefault(o => o.Here).Model ?? runs[0].Model));
+        }
+        config.LocalSeeded = true;
+        return true;
     }
 
     private static ProviderModelPair Copy(ProviderModelPair column, string id) => new()

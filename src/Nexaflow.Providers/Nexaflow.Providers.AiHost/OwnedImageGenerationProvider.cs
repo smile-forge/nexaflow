@@ -63,9 +63,6 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.ImageGeneration).Select(m => m.Id)]);
 
-    /// <summary>Fetches the model's files; its parts load with the first picture, not before.</summary>
-    public Task WarmupAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.FetchAsync(_model, ct);
-
     public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
     /// <summary>Draws at the job priority: speech and replies take the GPU between its steps.</summary>

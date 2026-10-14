@@ -82,20 +82,11 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
     public bool IsHere(OwnedModel model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
 
+    /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
+    public bool IsReady(OwnedModel model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.Locate(assets) is not null);
+
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
     public bool IsFileOf(OwnedModel model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
-
-    /// <summary>
-    /// Fetches what is missing — the model's files for this machine, and the CUDA pack where it suits it — reporting how
-    /// far it has got. Returns whether everything is here; a failure is reported, never thrown.
-    /// </summary>
-    public async Task<bool> FetchAsync(OwnedModel model, CancellationToken ct)
-    {
-        if (!model.RunsOn(ExecutionProvider)) return false;   // nothing of it runs on this machine
-        var files = CatalogOf(model).Files.ToList();
-        if (CudaRuntimePack.Applies(hardware)) files.AddRange(CudaRuntimePack.Files);
-        return await FetchFilesAsync(model, files, ct);
-    }
 
     private async Task<bool> FetchFilesAsync(OwnedModel model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
@@ -124,11 +115,12 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         }
     }
 
-    /// <summary>Fetches the model and has the setup place its parts beside every other model held, the host holding
-    /// them where they are placed. Never throws: a model that will not load says why when a request asks for it.</summary>
+    /// <summary>Has the setup place the model's parts beside every other model held, the host holding them where they are
+    /// placed — once its files, and the CUDA pack where it suits the machine, are here: warming a model never downloads it, a
+    /// download being the user's to start. Never throws: a model that will not load says why when a request asks for it.</summary>
     public async Task WarmupAsync(OwnedModel model, CancellationToken ct)
     {
-        if (!await FetchAsync(model, ct)) return;
+        if (!IsReady(model)) return;
         try
         {
             await HoldAsync(model, ct);

@@ -1,21 +1,27 @@
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
+using System.Windows.Threading;
 using Nexaflow.Core;
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
+using Str = Nexaflow.Visuals.Common.Localization.Str;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
-/// The models on this machine in a workspace's setup: the grid's Local column, always first, its cells greyed where there is
-/// nothing to use; the Local page choosing a model for each job — at once when it is here, after downloading it when not,
-/// the job keeping its model meanwhile; and the downloaded-models page, which keeps what a workspace uses.
+/// The models on this machine in a workspace's setup: the grid's Local column, always first — ticked where a model is chosen,
+/// marked where it is not downloaded yet, with the grid offering to download them all, or saying the machine runs none; the
+/// Local page choosing a model for each job — at once when it is here, after downloading it when not, each model downloaded
+/// once however many jobs chose it, a download still under way when the page opens again, with how long is left; and the
+/// downloaded-models page, which keeps what a workspace uses.
 /// </summary>
 [TestClass]
 [CoversNode("ai-local-models")]
@@ -28,11 +34,12 @@ public class LocalModelsTests
 
     private static readonly Dictionary<string, byte[]> Served = new()
     {
-        ["whisper/small.bin"]  = Bytes(4_000, 1),
-        ["whisper/large.bin"]  = Bytes(9_000, 3),
-        ["models/e4b.gguf"]    = Bytes(6_000, 5),
-        ["models/big.gguf"]    = Bytes(7_000, 7),
-        ["runtime/cuda.dll"]   = Bytes(3_000, 11),
+        ["whisper/small.bin"] = Bytes(4_000, 1),
+        ["whisper/large.bin"] = Bytes(9_000, 3),
+        ["models/e4b.gguf"]   = Bytes(6_000, 5),
+        ["models/big.gguf"]   = Bytes(7_000, 7),
+        ["models/z.onnx"]     = Bytes(5_000, 9),
+        ["runtime/cuda.dll"]  = Bytes(3_000, 11),
     };
 
     private static CatalogModel Model(string id, string path) => new(id, id.ToUpperInvariant(), [Asset(path, Served[path])]);
@@ -41,26 +48,43 @@ public class LocalModelsTests
     private static readonly CatalogModel Large = Model("large", "whisper/large.bin");
     private static readonly CatalogModel E4b   = Model("e4b", "models/e4b.gguf");
     private static readonly CatalogModel Big   = Model("big", "models/big.gguf");
+    private static readonly CatalogModel Z     = Model("z", "models/z.onnx");
     private static readonly LocalRuntime Cuda  = new("cuda", "CUDA runtime", [Asset("runtime/cuda.dll", Served["runtime/cuda.dll"])]);
 
-    private sealed class Gemma : ILlmProvider, ILocalModelCatalog
+    private sealed class Gemma(bool runs = true) : ILlmProvider, ILocalModelCatalog
     {
         public string Name => "Nexaflow";
         public DataResidency Residency => DataResidency.StaysOnMachine;
         public ModelHarness Harness => ModelHarness.Owned;
-        public IReadOnlyList<CatalogModel> Catalog => [E4b];
-        public IReadOnlyList<UnrunnableModel> Unrunnable => [new(Big, UnrunnableReason.TooLargeForThisMachine)];
+        public IReadOnlyList<CatalogModel> Catalog => runs ? [E4b] : [];
+        public IReadOnlyList<UnrunnableModel> Unrunnable => runs ? [new(Big, UnrunnableReason.TooLargeForThisMachine)]
+            : [new(E4b, UnrunnableReason.TooLargeForThisMachine), new(Big, UnrunnableReason.TooLargeForThisMachine)];
         public LocalRuntime? RuntimeOf(string modelId) => Cuda;
         public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["e4b"]);
     }
 
-    private sealed class Whisper : ISpeechToTextProvider, ILocalModelCatalog
+    private sealed class Pictures(bool runs = true) : IImageGenerationProvider, ILocalModelCatalog
+    {
+        public string Name => "Nexaflow";
+        public DataResidency Residency => DataResidency.StaysOnMachine;
+        public ModelHarness Harness => ModelHarness.Owned;
+        public IReadOnlyList<CatalogModel> Catalog => runs ? [Z] : [];
+        public IReadOnlyList<UnrunnableModel> Unrunnable => runs ? [] : [new(Z, UnrunnableReason.TooLargeForThisMachine)];
+        public LocalRuntime? RuntimeOf(string modelId) => Cuda;
+        public int MaxSources => 0;
+        public bool Masks => false;
+        public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["z"]);
+    }
+
+    private sealed class Whisper(bool runs = true) : ISpeechToTextProvider, ILocalModelCatalog
     {
         public string Name => "Whisper";
         public DataResidency Residency => DataResidency.StaysOnMachine;
         public ModelHarness Harness => ModelHarness.Owned;
-        public IReadOnlyList<CatalogModel> Catalog => [Small, Large];
+        public IReadOnlyList<CatalogModel> Catalog => runs ? [Small, Large] : [];
+        public IReadOnlyList<UnrunnableModel> Unrunnable => runs ? [] : [new(Small, UnrunnableReason.NoBuildForThisMachine)];
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default) => throw new NotSupportedException();
     }
@@ -73,16 +97,23 @@ public class LocalModelsTests
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["sonnet"]);
     }
 
-    /// <summary>Serves each file's bytes — but for those named in <see cref="Broken"/>, which arrive as something else.</summary>
+    /// <summary>Serves each file's bytes — those named in <see cref="Broken"/> as something else — counting what it serves, and
+    /// holding every answer while <see cref="Held"/> is unset.</summary>
     private sealed class Server : HttpMessageHandler
     {
         public readonly HashSet<string> Broken = [];
+        public readonly List<string> Served = [];
+        public TaskCompletionSource Held = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        public Server() => Held.SetResult();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var path = request.RequestUri!.AbsolutePath.TrimStart('/');
-            var bytes = Broken.Contains(path) ? Bytes(Served[path].Length, 13) : Served[path];
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
+            lock (Served) Served.Add(path);
+            await Held.Task;
+            var bytes = Broken.Contains(path) ? Bytes(LocalModelsTests.Served[path].Length, 13) : LocalModelsTests.Served[path];
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
         }
     }
 
@@ -90,6 +121,7 @@ public class LocalModelsTests
     private Server _server = null!;
     private ModelAssetStore _store = null!;
     private int _saves;
+    private readonly List<(LocalSlot Slot, string Model)> _used = [];
 
     [TestInitialize]
     public void Init()
@@ -104,10 +136,12 @@ public class LocalModelsTests
     private static readonly string SpeechIn = LocalColumns.IdOf(LocalSlot.SpeechToText);
     private static readonly string Language = LocalColumns.IdOf(LocalSlot.Language);
 
+    private sealed record Setup(AiAbilityGridViewModel Grid, AiConfig Config, LocalModelShelf Shelf, LocalModelDownloads Downloads, Workspace Workspace);
+
     /// <summary>A workspace conversing on Claude and listening with Whisper's small model, on the Local column.</summary>
-    private (AiAbilityGridViewModel Grid, AiConfig Config, LocalModelShelf Shelf) Open()
+    private Setup Open(bool runs = true, LocalModelDownloads? downloads = null)
     {
-        var providers = new ProviderSet([new Gemma(), new Whisper(), new Claude()], new Dictionary<string, IAiProvider>(), [],
+        var providers = new ProviderSet([new Gemma(runs), new Whisper(runs), new Pictures(runs), new Claude()], new Dictionary<string, IAiProvider>(), [],
             new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll", ["Whisper"] = "Nexaflow.Providers.Whisper.dll", ["Claude"] = "Nexaflow.Providers.Claude.dll" }, []);
         var config = new AiConfig
         {
@@ -118,20 +152,26 @@ public class LocalModelsTests
                 new ProviderModelPair { Id = SpeechIn, ProviderName = "Whisper", Model = "small", Kind = ModelKind.SpeechToText },
             ],
             Assignments = { ["Conversation"] = AbilityChain.Of("c"), ["SpeechIn"] = AbilityChain.Of(SpeechIn) },
+            LocalSeeded = true,
         };
         var shelf = new LocalModelShelf(providers, _store);
-        return (new AiAbilityGridViewModel(config, shelf), config, shelf);
+        downloads ??= Downloads();
+        return new(new AiAbilityGridViewModel(config, shelf, downloads), config, shelf, downloads, new Workspace());
     }
+
+    private LocalModelDownloads Downloads() => new(_store, activities: null, (_, slot, column) => _used.Add((slot, column.Model)));
+
+    private LocalModelsViewModel Page(Setup setup) => new(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++);
 
     private static AiAbilityCellViewModel LocalCell(AiAbilityGridViewModel grid, AiAbility ability)
         => grid.Rows.Single(r => r.Ability == ability).Cells.Single(c => c.Column.IsLocal);
 
-    private LocalJobViewModel Job(LocalModelsViewModel page, LocalSlot slot) => page.Jobs.Single(j => j.Slot == slot);
+    private static LocalJobViewModel Job(LocalModelsViewModel page, LocalSlot slot) => page.Jobs.Single(j => j.Slot == slot);
 
-    private static async Task Settled(LocalJobViewModel job)
+    private static async Task Until(Func<bool> condition)
     {
-        for (var i = 0; i < 200 && job.IsDownloading; i++) await Task.Delay(25);
-        Assert.IsFalse(job.IsDownloading, "the download ended within five seconds");
+        for (var i = 0; i < 200 && !condition(); i++) await Task.Delay(25);
+        Assert.IsTrue(condition(), "it came about within five seconds");
     }
 
     // ── The grid's Local column ───────────────────────────────────────────
@@ -139,7 +179,7 @@ public class LocalModelsTests
     [TestMethod]
     public void TheLocalColumn_ComesFirst_AndCannotBeRemoved()
     {
-        var (grid, _, _) = Open();
+        var grid = Open().Grid;
 
         Assert.IsTrue(grid.Columns[0].IsLocal);
         Assert.IsFalse(grid.RemoveColumnCommand.CanExecute(grid.Columns[0]));
@@ -149,25 +189,50 @@ public class LocalModelsTests
     [TestMethod]
     public void ALocalCell_IsGreyed_WhereThereIsNothingToUse_AndSaysWhy()
     {
-        var (grid, _, _) = Open();
+        var grid = Open().Grid;
 
         var video = LocalCell(grid, AiAbility.VideoGeneration);
         Assert.IsTrue(video.IsGreyed, "no model for video runs here");
-        Assert.AreEqual(Nexaflow.Visuals.Common.Localization.Str.Get("Shell.Config.AiGrid.Local.None"), video.Note);
+        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.None"), video.Note);
 
         var conversation = LocalCell(grid, AiAbility.Conversation);
         Assert.IsTrue(conversation.IsGreyed, "a model runs here, but none is chosen");
-        Assert.AreEqual(Nexaflow.Visuals.Common.Localization.Str.Get("Shell.Config.AiGrid.Local.Choose"), conversation.Note);
+        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.Choose"), conversation.Note);
+    }
 
-        Assert.IsTrue(LocalCell(grid, AiAbility.SpeechIn).IsUsable);
+    [TestMethod]
+    public async Task ATickedLocalCell_WhoseModelIsNotHere_IsMarked_AndTheGridOffersToDownloadThem()
+    {
+        var setup = Open();
+        var cell  = LocalCell(setup.Grid, AiAbility.SpeechIn);
+
+        Assert.IsTrue(cell.IsInChain);
+        Assert.IsTrue(cell.NeedsDownload, "chosen, but not downloaded yet");
+        Assert.IsTrue(setup.Grid.CanDownloadLocal);
+        Assert.IsNotNull(setup.Grid.LocalNotice);
+
+        setup.Grid.DownloadLocalCommand.Execute(null);
+        await setup.Downloads.Of(setup.Shelf.OptionsFor(LocalSlot.SpeechToText).Single(o => o.Id == "small"))!.Done;
+        setup.Grid.RefreshLocal();
+
+        Assert.IsFalse(cell.NeedsDownload);
+        Assert.IsNull(setup.Grid.LocalNotice, "nothing left to download");
+    }
+
+    [TestMethod]
+    public void AMachineThatRunsNoLocalModel_IsToldToAddACloudService()
+    {
+        var grid = Open(runs: false).Grid;
+
+        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.NoHardware"), grid.LocalNotice);
+        Assert.IsFalse(grid.CanDownloadLocal);
     }
 
     [TestMethod]
     public void ALocalCell_PutsItsJobsModelInTheRow()
     {
-        var (grid, _, _) = Open();
+        var grid = Open().Grid;
         var cell = LocalCell(grid, AiAbility.SpeechIn);
-        Assert.IsTrue(cell.IsInChain);
 
         cell.ToggleCommand.Execute(null);
         Assert.IsFalse(grid.Rows.Single(r => r.Ability == AiAbility.SpeechIn).Chain.Contains(SpeechIn));
@@ -179,7 +244,7 @@ public class LocalModelsTests
     [TestMethod]
     public void ModelsOnThisMachine_AreTheLocalColumns_NeverAProviderToAdd()
     {
-        var (grid, _, _) = Open();
+        var grid = Open().Grid;
 
         grid.OpenAddPanelCommand.Execute(null);
 
@@ -189,11 +254,10 @@ public class LocalModelsTests
     // ── The Local page ────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task EachJob_ListsItsModels_HereToDownloadOrNotForThisMachine()
+    public void EachJob_ListsItsModels_HereToDownloadOrNotForThisMachine() => OnUi(async () =>
     {
         await _store.EnsureAsync(Small.Files[0]);
-        var (grid, _, shelf) = Open();
-        var page = new LocalModelsViewModel(shelf, grid, () => _saves++, activities: null);
+        var page = Page(Open());
 
         var language = Job(page, LocalSlot.Language);
         CollectionAssert.AreEqual(new[] { "E4B", "BIG" }, language.Choices.Select(c => c.DisplayName).ToArray(), "those that run come first");
@@ -207,58 +271,119 @@ public class LocalModelsTests
 
         Assert.IsFalse(Job(page, LocalSlot.VideoGeneration).CanChoose);
         Assert.IsNotNull(Job(page, LocalSlot.VideoGeneration).Note);
-    }
+    });
 
     [TestMethod]
-    public async Task AModelThatIsHere_TakesEffectAtOnce_AndIsSaved()
+    public void AModelThatIsHere_TakesEffectAtOnce_AndIsSaved() => OnUi(async () =>
     {
         await _store.EnsureAsync(Large.Files[0]);
-        var (grid, config, shelf) = Open();
-        var page = new LocalModelsViewModel(shelf, grid, () => _saves++, activities: null);
-        var speech = Job(page, LocalSlot.SpeechToText);
+        var setup  = Open();
+        var speech = Job(Page(setup), LocalSlot.SpeechToText);
 
         speech.Selected = speech.Choices.Single(c => c.Option.Id == "large");
 
-        Assert.AreEqual("large", grid.LocalModelFor(LocalSlot.SpeechToText)!.Model);
-        Assert.AreEqual("large", config.Columns.Single(c => c.Id == SpeechIn).Model, "written into the config, not left for Apply");
+        Assert.AreEqual("large", setup.Grid.LocalModelFor(LocalSlot.SpeechToText)!.Model);
+        Assert.AreEqual("large", setup.Config.Columns.Single(c => c.Id == SpeechIn).Model, "written into the config, not left for Apply");
         Assert.AreEqual(1, _saves);
-        Assert.IsFalse(grid.HasChanges);
-    }
+        Assert.IsFalse(setup.Grid.HasChanges);
+    });
 
     [TestMethod]
-    public async Task AModelThatIsNotHere_IsDownloadedFirst_WithWhatItShares_ThenItsJobsRowsUseIt()
+    public void AModelThatIsNotHere_IsDownloadedFirst_WithWhatItShares_ThenTheJobUsesIt() => OnUi(async () =>
     {
-        var (grid, config, shelf) = Open();
-        var page = new LocalModelsViewModel(shelf, grid, () => _saves++, activities: null);
-        var language = Job(page, LocalSlot.Language);
+        var setup    = Open();
+        var language = Job(Page(setup), LocalSlot.Language);
 
         language.Selected = language.Choices.Single(c => c.Option.Id == "e4b");
-        await Settled(language);
+        Assert.IsTrue(language.IsDownloading);
+        await Until(() => !language.IsDownloading);
 
         Assert.IsNotNull(_store.Locate(E4b.Files[0]));
         Assert.IsNotNull(_store.Locate(Cuda.Files[0]), "with the runtime it needs");
-        Assert.AreEqual("e4b", grid.LocalModelFor(LocalSlot.Language)!.Model);
-        CollectionAssert.AreEqual(new[] { "c", Language }, config.Assignments["Conversation"].ColumnIds.ToArray(),
+        CollectionAssert.Contains(_used, (LocalSlot.Language, "e4b"), "the downloads made the choice good");
+        await Until(() => setup.Grid.LocalModelFor(LocalSlot.Language)?.Model == "e4b");
+        CollectionAssert.AreEqual(new[] { "c", Language }, setup.Config.Assignments["Conversation"].ColumnIds.ToArray(),
             "a job no row used the Local column for starts using it, after what each row had");
-        Assert.IsTrue(LocalCell(grid, AiAbility.Analysis).IsInChain);
-        Assert.AreEqual(1, _saves);
+    });
+
+    [TestMethod]
+    public void AModelChosenForTwoJobs_IsDownloadedOnce() => OnUi(async () =>
+    {
+        _server.Held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page     = Page(Open());
+        var pictures = Job(page, LocalSlot.ImageGeneration);
+        var finest   = Job(page, LocalSlot.HighQualityImageGeneration);
+
+        pictures.Selected = pictures.Choices.Single(c => c.Option.Id == "z");
+        finest.Selected   = finest.Choices.Single(c => c.Option.Id == "z");
+        Assert.IsTrue(pictures.IsDownloading && finest.IsDownloading, "both wait on it");
+
+        _server.Held.SetResult();
+        await Until(() => !pictures.IsDownloading && !finest.IsDownloading);
+
+        Assert.AreEqual(1, _server.Served.Count(p => p == "models/z.onnx"), "fetched once for both");
+        CollectionAssert.IsSubsetOf(new[] { (LocalSlot.ImageGeneration, "z"), (LocalSlot.HighQualityImageGeneration, "z") }, _used);
+    });
+
+    [TestMethod]
+    public void ADownloadStillUnderWay_IsShownWhenThePageOpensAgain_AndTheJobKeepsItsModelTillItLands() => OnUi(async () =>
+    {
+        _server.Held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var setup  = Open();
+        var first  = Job(Page(setup), LocalSlot.SpeechToText);
+        first.Selected = first.Choices.Single(c => c.Option.Id == "large");
+
+        var again = Job(Page(setup), LocalSlot.SpeechToText);   // the page closed, and opened again
+
+        Assert.IsTrue(again.IsDownloading);
+        Assert.AreEqual("large", again.Selected!.Option.Id, "the model it is fetching");
+        Assert.IsNotNull(again.Status);
+        Assert.AreEqual("small", setup.Grid.LocalModelFor(LocalSlot.SpeechToText)!.Model, "the job keeps its model meanwhile");
+
+        _server.Held.SetResult();
+        await Until(() => !again.IsDownloading);
+        CollectionAssert.Contains(_used, (LocalSlot.SpeechToText, "large"));
+    });
+
+    [TestMethod]
+    public void ADownloadThatFails_LeavesTheJobsModel_AndSaysWhy() => OnUi(async () =>
+    {
+        _server.Broken.Add("whisper/large.bin");
+        var setup  = Open();
+        var speech = Job(Page(setup), LocalSlot.SpeechToText);
+
+        speech.Selected = speech.Choices.Single(c => c.Option.Id == "large");
+        await Until(() => !speech.IsDownloading);
+
+        Assert.AreEqual("small", setup.Grid.LocalModelFor(LocalSlot.SpeechToText)!.Model);
+        Assert.AreEqual("small", speech.Selected!.Option.Id);
+        Assert.IsNotNull(speech.Status);
+        Assert.AreEqual(0, _used.Count);
+    });
+
+    // ── How long a download has left ──────────────────────────────────────
+
+    /// <summary>A clock that moves when told.</summary>
+    private sealed class Clock : TimeProvider
+    {
+        public DateTimeOffset Now = new(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     [TestMethod]
-    public async Task ADownloadThatFails_LeavesTheJobsModel_AndSaysWhy()
+    public void HowLongIsLeft_IsReadFromHowFastItHasCome()
     {
-        _server.Broken.Add("whisper/large.bin");
-        var (grid, _, shelf) = Open();
-        var page = new LocalModelsViewModel(shelf, grid, () => _saves++, activities: null);
-        var speech = Job(page, LocalSlot.SpeechToText);
+        var clock    = new Clock();
+        var download = new LocalDownload(new LocalModelOption("Nexaflow", "", ModelKind.Language, E4b, null, null), 100_000_000, clock);
 
-        speech.Selected = speech.Choices.Single(c => c.Option.Id == "large");
-        await Settled(speech);
+        download.Report(new AssetProgress(0, 100_000_000));
+        Assert.IsNull(download.Left, "not till it has come for a moment");
 
-        Assert.AreEqual("small", grid.LocalModelFor(LocalSlot.SpeechToText)!.Model);
-        Assert.AreEqual("small", speech.Selected!.Option.Id);
-        Assert.IsNotNull(speech.Status);
-        Assert.AreEqual(0, _saves);
+        clock.Now += TimeSpan.FromSeconds(10);
+        download.Report(new AssetProgress(20_000_000, 100_000_000));   // two megabytes a second
+
+        Assert.AreEqual(TimeSpan.FromSeconds(40), download.Left);
+        Assert.AreEqual(20, download.Percent);
     }
 
     // ── Downloaded models ─────────────────────────────────────────────────
@@ -267,8 +392,8 @@ public class LocalModelsTests
     public async Task WhatIsOnDisk_IsListedWithWhoUsesIt_AndOnlyWhatNothingUsesCanGo()
     {
         await _store.EnsureAllAsync([Small.Files[0], E4b.Files[0], Cuda.Files[0]]);
-        var (_, config, shelf) = Open();
-        var page = new DownloadedModelsViewModel(shelf, () => [("Writing", config)]);
+        var setup = Open();
+        var page  = new DownloadedModelsViewModel(setup.Shelf, () => [("Writing", setup.Config)]);
 
         CollectionAssert.AreEquivalent(new[] { "SMALL", "E4B", "CUDA runtime" }, page.Models.Select(m => m.Name).ToArray());
         var small = page.Models.Single(m => m.Name == "SMALL");
@@ -281,5 +406,29 @@ public class LocalModelsTests
         Assert.IsNull(_store.Locate(E4b.Files[0]));
         CollectionAssert.AreEquivalent(new[] { "SMALL", "CUDA runtime" }, page.Models.Select(m => m.Name).ToArray());
         Assert.IsTrue(page.Models.Single(m => m.Name == "CUDA runtime").DeleteCommand.CanExecute(null), "no model in use needs it");
+    }
+
+    /// <summary>Runs <paramref name="body"/> on a thread with a dispatcher of its own, as the page runs on the UI thread.</summary>
+    private static void OnUi(Func<Task> body)
+    {
+        Exception? failed = null;
+        var thread = new Thread(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var frame = new DispatcherFrame();
+            dispatcher.InvokeAsync(async () =>
+            {
+                try { await body(); }
+                catch (Exception ex) { failed = ex; }
+                finally { frame.Continue = false; }
+            });
+            Dispatcher.PushFrame(frame);
+            dispatcher.InvokeShutdown();
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        if (!thread.Join(TimeSpan.FromSeconds(30))) Assert.Fail("It did not finish within thirty seconds.");
+        if (failed is not null) ExceptionDispatchInfo.Capture(failed).Throw();
     }
 }

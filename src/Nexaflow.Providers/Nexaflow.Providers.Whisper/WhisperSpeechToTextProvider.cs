@@ -61,46 +61,17 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalM
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. Models.Select(m => m.Id)]);
 
-    /// <summary>
-    /// Fetches the model when it is not on disk yet, reporting how far it has got, then loads it — the weights take a
-    /// second or more, which the first press of the mic should not wait for.
-    /// </summary>
+    /// <summary>Loads the model, once it is here: warming it never downloads it, a download being the user's to start.</summary>
     public async Task WarmupAsync(CancellationToken ct = default)
     {
-        if (_model is not { Files: [var file, ..] }) return;
-        if (ModelPath is null && !await DownloadAsync(_model, file, ct)) return;
-
+        if (ModelPath is not { } path) return;
         try
         {
-            if (ModelPath is { } path) await Task.Run(() => Factory(path), ct);
+            await Task.Run(() => Factory(path), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Warm-up must not throw; a model that will not load says why when a session asks for it.
-        }
-    }
-
-    private async Task<bool> DownloadAsync(CatalogModel model, ModelAsset file, CancellationToken ct)
-    {
-        var activity = _activityManager.StartActivity($"Downloading {model.DisplayName}…");
-        var lastPercent = -1;
-        var progress = new Progress<AssetProgress>(p =>
-        {
-            var percent = (int)(p.Fraction * 100);
-            if (percent == lastPercent) return;
-            lastPercent = percent;
-            activity.Update($"Downloading {model.DisplayName}… {percent}%");
-        });
-        try
-        {
-            await _assets.EnsureAsync(file, progress, ct);
-            activity.Complete();   // the store's Changed event says the model is here
-            return true;
-        }
-        catch (Exception ex)
-        {
-            activity.Fail(ex.Message);   // the model stays unavailable until a later warm-up fetches it
-            return false;
         }
     }
 

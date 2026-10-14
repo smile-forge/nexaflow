@@ -5,6 +5,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
@@ -100,6 +101,17 @@ internal sealed record OwnedModelOffer(string ProviderName, string ModelId, stri
                                        string? SpeechInModelId, string? SpeechOutModelId, Placement Placement, bool VoiceOnGpu,
                                        IReadOnlyList<string> Larger)
 {
+/// <summary>What choosing it downloads: its language model and voice, each with the runtime it needs. Warming a model never
+/// downloads it, so the wizard starts these itself once the choice is made.</summary>
+    public IReadOnlyList<LocalModelOption> Downloads { get; init; } = [];
+
+/// <summary>Starts downloading what it needs — the app's downloads take it on, each model once.</summary>
+    public void Fetch()
+    {
+        if (ProviderManager.Instance.Service<LocalModelDownloads>() is not { } downloads) return;
+        foreach (var option in Downloads) downloads.Fetch(option);
+    }
+
 /// <summary>The columns a workspace that uses Nexaflow's own models starts with.</summary>
     public OwnedColumns Columns() => new(
         Column(ModelId, ModelKind.Language),
@@ -114,7 +126,7 @@ internal sealed record OwnedModelOffer(string ProviderName, string ModelId, stri
 
 /// <summary>The owned language provider's first model, with its speech models, their files and — where the machine
 /// suits it — the CUDA pack to fetch, and where they would run here; null when no provider is Nexaflow's own harness.</summary>
-    public static OwnedModelOffer? Find(ProviderSet providers, ComputeHardwareReport hardware)
+    public static OwnedModelOffer? Find(ProviderSet providers, ComputeHardwareReport hardware, ModelAssetStore? assets = null)
     {
         var provider = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Serves(ModelKind.Language));
         if (provider is not ILocalModelCatalog { Catalog: [var model, ..] } catalog) return null;
@@ -132,10 +144,17 @@ internal sealed record OwnedModelOffer(string ProviderName, string ModelId, stri
         var voice = NeedsOf(Serving(ModelKind.SpeechToText), speechIn).Concat(NeedsOf(Serving(ModelKind.TextToSpeech), speechOut)).ToList();
         var placement = ModelPlacement.Plan(ModelPlacement.Expected(hardware), [.. NeedsOf(provider, model), .. voice]);
 
+        var shelf = assets is null ? null : new LocalModelShelf(providers, assets);
+        LocalModelOption? Option(LocalSlot slot, CatalogModel? of)
+            => of is null ? null : shelf?.OptionsFor(slot).FirstOrDefault(o => o.ProviderName == provider.Name && o.Id == of.Id);
         return new OwnedModelOffer(provider.Name, model.Id, model.DisplayName, providers.GetAssemblyFileName(provider.Name), bytes,
                                    speechIn?.Id, speechOut?.Id, placement,
                                    VoiceOnGpu: voice.All(n => n.CpuOnly || placement.Of(n.Id)?.Device is not null),
-                                   Larger: [.. catalog.Catalog.Skip(1).Select(m => m.DisplayName)]);
+                                   Larger: [.. catalog.Catalog.Skip(1).Select(m => m.DisplayName)])
+        {
+            Downloads = [.. new[] { Option(LocalSlot.Language, model), Option(LocalSlot.SpeechToText, speechIn), Option(LocalSlot.TextToSpeech, speechOut) }
+                            .OfType<LocalModelOption>()],
+        };
     }
 }
 
@@ -226,6 +245,7 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
                                    LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
+        _ctx.Owned.Fetch();
     }
 }
 
@@ -366,6 +386,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
+        if (_ctx.Harness == WorkspaceHarness.Mixed) _ctx.Owned?.Fetch();
     }
 }
 
@@ -584,7 +605,7 @@ public partial class SetupWizardViewModel : ObservableObject
         // just long enough to find it among the providers by its harness.
         var hardware = ProviderManager.Instance.Service<ComputeHardwareReport>() ?? ComputeHardware.Probe();
         var offers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, []);
-        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware); }
+        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, ProviderManager.Instance.Assets); }
         finally { ProviderManager.Instance.ReleaseProviderSet(offers); }
         steps.Add(new HarnessStep(ctx));
 

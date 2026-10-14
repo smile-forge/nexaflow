@@ -133,15 +133,15 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    public async Task WarmingUp_FetchesTheModelAndTheCudaPack_WhereThePackSuitsTheMachine_ThenLoadsItOnTheGpu()
+    public async Task WarmingUp_LoadsAModelThatIsHere_OnTheGpu_RunningFromThePack_AndDownloadsNothing()
     {
-        var store = new FakeModelStore();
+        var store = new FakeModelStore([.. Gemma.Files, .. CudaRuntimePack.Files]);
         var host = new FakeAiHost();
         var provider = Provider(store, host, Nvidia());
 
         await provider.WarmupAsync();
 
-        CollectionAssert.IsSubsetOf(CudaRuntimePack.Files.ToArray(), store.Fetched.Single().ToArray());
+        Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
         Assert.IsNotNull(host.Environment.RuntimePack, "the host runs from the pack");
         var load = (LoadModel)host.Requests.Single();
         Assert.AreEqual((0, 32768), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with the context the catalog gives it where there is room");
@@ -149,15 +149,26 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    public async Task OnAMachineThePackDoesNotSuit_OnlyTheModelIsFetched_AndItRunsOnTheCpu()
+    public async Task WarmingUp_AModelNotHere_DownloadsNothing_AndLoadsNothing()
     {
-        var store = new FakeModelStore();
+        var store = new FakeModelStore([.. Gemma.Files]);   // the pack it needs on this machine is not
+        var host = new FakeAiHost();
+
+        await Provider(store, host, Nvidia()).WarmupAsync();
+
+        Assert.AreEqual(0, store.Fetched.Count);
+        Assert.AreEqual(0, host.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task OnAMachineThePackDoesNotSuit_TheModelAloneIsAllItNeeds_AndItRunsOnTheCpu()
+    {
+        var store = new FakeModelStore([.. Gemma.Files]);
         var host = new FakeAiHost();
         var provider = Provider(store, host, Hardware(ComputeVendor.Amd));
 
         await provider.WarmupAsync();
 
-        CollectionAssert.AreEquivalent(Gemma.Files.ToArray(), store.Fetched.Single().ToArray());
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
         Assert.AreEqual((null, 0L), (((LoadModel)host.Requests.Single()).Model.Device, ((LoadModel)host.Requests.Single()).Model.MemoryBytes));
     }

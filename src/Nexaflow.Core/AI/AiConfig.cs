@@ -27,6 +27,10 @@ public sealed class AiConfig : IProviderConfig
     /// </summary>
     public Dictionary<string, AbilityChain> Assignments { get; set; } = [];
 
+    /// <summary>Whether the Local column has been turned on for this grid — once, the first time a workspace with it loads, so a
+    /// job the user later takes it out of stays out.</summary>
+    public bool LocalSeeded { get; set; }
+
     /// <summary>Every column some ability's chain names — the ones a workspace needs providers for.</summary>
     public IReadOnlySet<string> AssignedColumnIds()
         => Assignments.Values.SelectMany(c => c.ColumnIds).ToHashSet();

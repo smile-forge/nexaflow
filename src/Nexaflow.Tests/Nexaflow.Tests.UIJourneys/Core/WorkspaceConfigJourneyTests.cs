@@ -1,3 +1,4 @@
+using System.IO;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Fixtures;
@@ -25,6 +26,11 @@ namespace Nexaflow.Tests.Features.UI;
 [NoCoverage("workspace configure journey")]
 public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
 {
+    /// <summary>An AI folder of its own, empty and thrown away with the config dir: the Local column's models are never here, so
+    /// the grid offers them for download whatever this machine holds.</summary>
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
+        new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = Path.Combine(ConfigDir, "ai") };
+
     [TestMethod]
     public void WorkspaceConfig_SectionsAndEditors_RespondInOnePass()
     {
@@ -68,6 +74,9 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         var cells = MainWindow.FindAllDescendants(cf => cf.ByAutomationId("AiGrid_Cell"));
         Check("A greyed cell says why it cannot be used", () => cells.Where(c => !c.IsEnabled).All(c => c.HelpText is { Length: > 0 }));
         Check("A cell selects", () => PressNth("AiGrid_Cell", Array.FindIndex(cells, c => c.IsEnabled)));
+        // The Local column starts on wherever this machine runs a model; the journey's AI folder is empty, so the grid offers
+        // to download them all — never pressed, as that would fetch gigabytes.
+        CheckExists("The Local column's models are offered for download", "AiGrid_DownloadLocal");
         Check("+ opens the add-column panel", () =>
             PressNth("AiGrid_AddColumn", 0) && WaitForFs(() => Exists("AiGrid_CancelAdd"), 3));
         CheckExists("Add column", "AiGrid_ConfirmAdd");

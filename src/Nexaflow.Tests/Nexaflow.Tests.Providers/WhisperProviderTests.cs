@@ -5,7 +5,7 @@ using Nexaflow.Tests.Providers.Support;
 
 namespace Nexaflow.Tests.Providers;
 
-/// <summary>Whisper on this machine: the models it offers, and fetching one when it is first assigned.</summary>
+/// <summary>Whisper on this machine: the models it offers, and one becoming available once it is downloaded.</summary>
 [TestClass]
 public class WhisperProviderTests
 {
@@ -42,7 +42,7 @@ public class WhisperProviderTests
     }
 
     [TestMethod]
-    public async Task AModelFirstAssigned_IsFetched_ThenAvailable()
+    public async Task WarmingUp_DownloadsNothing_AndTheModelIsAvailableOnceItIsHere()
     {
         var store    = new Store();
         var provider = new WhisperSpeechToTextProvider(new FakeActivityManager(), store, new ProviderModel("base.en"));
@@ -51,8 +51,10 @@ public class WhisperProviderTests
         Assert.IsFalse(provider.IsAvailable, "nothing to listen with before the model is on disk");
 
         await provider.WarmupAsync();
+        Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
 
-        Assert.AreEqual("whisper/ggml-base.en.bin", store.Fetched.Single().RelativePath);
+        await store.EnsureAsync(WhisperSpeechToTextProvider.Models.Single(m => m.Id == "base.en").Files[0]);
+
         Assert.AreEqual(1, changed);
         Assert.AreEqual(Avx.IsSupported, provider.IsAvailable);
     }

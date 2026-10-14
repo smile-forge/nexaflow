@@ -57,8 +57,8 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <summary>The models on this machine, read from the editing provider set; null without an asset store.</summary>
     private readonly LocalModelShelf? _shelf;
 
-    /// <summary>Whether the panel has closed — a download that ends after it then has the running workspace take it up.</summary>
-    private bool _closed;
+    /// <summary>The app's downloads of models on this machine; null where the app has none.</summary>
+    private readonly LocalModelDownloads? _downloads;
 
     /// <summary>The pages whose apply writes the ability grid, saved as <see cref="_aiConfig"/>.</summary>
     private readonly List<ConfigEditViewModel> _gridSections = [];
@@ -95,7 +95,8 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
         _aiConfig.Providers  = _editingProviderSet;
         _shelf               = ProviderManager.Instance.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
-        _grid                = new AiAbilityGridViewModel(_aiConfig, _shelf);
+        _downloads           = ProviderManager.Instance.Service<LocalModelDownloads>();
+        _grid                = new AiAbilityGridViewModel(_aiConfig, _shelf, _downloads);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -126,9 +127,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         Sections.Add(GridSection(new AiAbilityGridControl { DataContext = _grid }, _aiConfig.ConfigName, _aiConfig.FriendlyName));
 
         // The models on this machine: a page choosing one for each job, and one of what is on disk.
-        if (_shelf is not null)
+        if (_shelf is not null && _downloads is not null)
         {
-            var local = new LocalModelsViewModel(_shelf, _grid, CommitLocalChoice, ProviderManager.Instance.ActivityManager);
+            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice);
             Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
             Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
@@ -148,18 +149,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         return section;
     }
 
-    /// <summary>
-    /// Saves a Local page choice, written into the grid's config at once; and, when the panel has closed by then — a download that
-    /// finished after — has the running workspace take it up, without closing its tabs.
-    /// </summary>
-    private void CommitLocalChoice()
-    {
-        if (!SaveGridConfig() || !_closed) return;
-        _dirty = false;
-        _workspace.ReloadSharedConfigs();
-        if (WorkspaceManager.Instance.FindLiveWorkspace(_workspace) is { } ws)
-            WorkspaceManager.Instance.SyncProviders(ws);
-    }
+    /// <summary>Saves a Local page choice of a model that is here, written into the grid's config at once. A choice that waits on
+    /// a download is saved by the app's downloads when it lands, whether or not this panel is still open.</summary>
+    private void CommitLocalChoice() => SaveGridConfig();
 
     /// <summary>Every workspace's grid as saved, by name — this one's as this panel holds it — for who uses which model.</summary>
     private IReadOnlyList<(string Workspace, AiConfig Config)> SavedGrids()
@@ -208,7 +200,6 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// </summary>
     public bool Close()
     {
-        _closed = true;
         if (_editingProviderSet is not null)
         {
             ProviderManager.Instance.ReleaseProviderSet(_editingProviderSet);

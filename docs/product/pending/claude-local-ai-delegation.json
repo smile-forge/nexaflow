@@ -218,6 +218,17 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Core/Controls/DownloadedModelsControl.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalModelDownloads.cs",
+          "class": "LocalModelDownloads"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceManager.cs",
+          "class": "WorkspaceManager",
+          "method": "UseLocalModel"
         }
       ],
       "concerns": {
