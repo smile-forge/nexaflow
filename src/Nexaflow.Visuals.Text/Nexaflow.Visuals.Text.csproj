@@ -37,6 +37,7 @@
          and the shared formatters. None of these reference Visuals.Text, so there is no cycle. -->
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+        <ProjectReference Include="..\Nexaflow.IO.Documents\Nexaflow.IO.Documents.csproj" />
     <!-- The formal syntax tree every rendered language is read into, and the pipeline of stages that
          re-read it without changing what it prints as. ISourcePart lives here too: the seam asks a part
          where it sits, and that question has nothing to do with WPF. See docs/markdown-ast.md. -->

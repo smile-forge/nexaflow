@@ -1,0 +1,15 @@
+# The examples of CommonMark's specification the HTML writer writes otherwise than the specification says, each under a
+# line saying why (MarkdownHtmlSpecTests). A ratchet: one that comes right fails until it is taken out.
+
+# A tab only partly taken by a list item or a quote: the reading keeps the tab as the code's own character, where CommonMark
+# writes the columns left of it as spaces.
+CommonMark#5
+CommonMark#6
+CommonMark#7
+
+# Front matter is read: a document opening with --- … --- is what it says about itself, never a rule, a heading and a rule.
+CommonMark#96
+
+# Markdig's autolink extension is read: an address written bare is a link to itself.
+CommonMark#608
+CommonMark#611

@@ -278,6 +278,11 @@
 
   <!-- WPF-free Portable Executable reader: headers, imports/exports, resources, entropy,
        Authenticode. Reaches the app transitively through Nexaflow.Features.Executable. -->
+  <!-- WPF-free document writers: the format-neutral document a laid page is walked into, spelled as text and HTML — and
+       later Word and ODF, whose packages are taken here. -->
+  <Project Path="src/Nexaflow.IO.Documents/Nexaflow.IO.Documents.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">
     <Platform Project="x64" />
   </Project>

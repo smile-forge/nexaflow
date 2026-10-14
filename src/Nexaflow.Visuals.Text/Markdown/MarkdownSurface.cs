@@ -472,33 +472,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// <summary>What a picture of <paramref name="box"/> of the page comes to, drawn at <paramref name="scale"/>.</summary>
     private System.Windows.Media.Imaging.BitmapSource? Pictured(Rect box, double scale, Brush? ground)
     {
-        if (box.IsEmpty || box.Width <= 0 || box.Height <= 0 || scale <= 0) return null;
-
-        var visual = new DrawingVisual();
-
-        using (var dc = visual.RenderOpen())
-        {
-            if (ground is not null) dc.DrawRectangle(ground, null, new Rect(0, 0, box.Width * scale, box.Height * scale));
-
-            dc.PushTransform(new ScaleTransform(scale, scale));
-            dc.PushTransform(new TranslateTransform(-box.X, -box.Y));
-            dc.PushClip(new RectangleGeometry(box));
-            LayoutPainter.Paint(dc, _shown.Laid.Root, (_drawnIn ?? Drawn).Text);
-            dc.Pop();
-            dc.Pop();
-            dc.Pop();
-        }
-
         var dpi = VisualTreeHelper.GetDpi(this);
-        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
-            Math.Max(1, (int)Math.Ceiling(box.Width * scale * dpi.DpiScaleX)),
-            Math.Max(1, (int)Math.Ceiling(box.Height * scale * dpi.DpiScaleY)),
-            dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
 
-        bitmap.Render(visual);
-        bitmap.Freeze();
-
-        return bitmap;
+        return LayoutPictures.Painted(_shown.Laid.Root, box, scale, (_drawnIn ?? Drawn).Text, ground, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
     }
     private Point Middle() =>
         new(_scroller.HorizontalOffset + (_scroller.ViewportWidth / 2),

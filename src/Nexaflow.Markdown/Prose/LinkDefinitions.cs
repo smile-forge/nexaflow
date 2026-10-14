@@ -70,10 +70,10 @@ internal sealed class LinkDefinitions : IParagraphReading
 
         var (afterLine, afterAt) = (walk.Line, walk.At);
 
-        if (walk.SkipWhitespace() && walk.Title(out _, out _))
+        if (walk.SkipWhitespace() && walk.Title(out var opens, out var closes))
         {
             walk.SkipSpaces();
-            if (walk.AtLineEnd) return new LinkDefinition(walk.Line, label, (from, to));
+            if (walk.AtLineEnd) return new LinkDefinition(walk.Line, label, (from, to), (opens, closes));
         }
 
         // No title, or one followed by more: the definition is the address's line, if nothing else stands on it.
@@ -90,8 +90,6 @@ internal sealed class LinkDefinitions : IParagraphReading
     }
 }
 
-/// <summary>Where a link's definition is written: the line it ends on, and where its name and its address stand.</summary>
-/// <param name="Last">The line it ends on, counted among the lines it was read from.</param>
-/// <param name="Label">Between its brackets.</param>
-/// <param name="Destination">The address, angle brackets left out.</param>
-internal readonly record struct LinkDefinition(int Last, (int From, int To) Label, (int From, int To) Destination);
+/// <summary>A link's definition as written: the line it ends on, and where its label, its address and its title stand.</summary>
+/// <param name="Title">Where what its title says stands, between the marks round it — where it has one.</param>
+internal readonly record struct LinkDefinition(int Last, (int From, int To) Label, (int From, int To) Destination, (int From, int To)? Title = null);
