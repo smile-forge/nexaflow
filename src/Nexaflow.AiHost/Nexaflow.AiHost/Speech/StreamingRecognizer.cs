@@ -96,7 +96,7 @@ internal sealed partial class StreamingRecognizer : IHostModel
         /// <summary>One chunk on the GPU, a step of its own.</summary>
         private async Task<string?> DecodeAsync(NamedTensors inputs, CancellationToken ct)
         {
-            using (await _gpu.NextAsync(_priority, ct))
+            using (await _gpu.NextAsync(_priority, _model.Spec.Device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 _generator.SetInputs(inputs);

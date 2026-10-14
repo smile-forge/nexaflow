@@ -10,4 +10,7 @@ namespace Nexaflow.Features.Common.ClientTools;
 /// <param name="Doing">What is under way while it runs, for the line that shows it: "Deleting file test.zip".</param>
 /// <param name="Done">The sentence said once it is done: "File deleted."</param>
 /// <param name="Unchanged">The sentence said when it is stopped: "The file is unchanged."</param>
-public sealed record ToolCallAnnouncement(string Action, string Target, string Doing, string Done, string Unchanged);
+/// <param name="CarriesOn">The sentence said when the call has set it going in the background rather than done it
+/// (<see cref="ToolResult.InBackground"/>): "Drawing it in the background. It opens when it is ready." Null for a call
+/// that never runs in the background, or to say so in general words.</param>
+public sealed record ToolCallAnnouncement(string Action, string Target, string Doing, string Done, string Unchanged, string? CarriesOn = null);

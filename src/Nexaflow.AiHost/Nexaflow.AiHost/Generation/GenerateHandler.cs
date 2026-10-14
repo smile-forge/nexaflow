@@ -19,6 +19,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         using var lease = await models.AcquireAsync(request.Model, resident: false,
             stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
         var model = lease.As<ChatModel>();
+        using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
         bool kept = false;
@@ -75,7 +76,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             bool lastPiece = p == pieces.Count - 1;
             if (!piece.IsText)
             {
-                using (await gpu.NextAsync(priority, ct))
+                using (await gpu.NextAsync(priority, model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     conversation.ReadMedium(prompt.Projector!, piece, sample: lastPiece);
@@ -86,7 +87,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             for (int at = 0; at < tokens.Length; at += LlamaContext.Batch)
             {
                 int count = Math.Min(LlamaContext.Batch, tokens.Length - at);
-                using (await gpu.NextAsync(priority, ct))
+                using (await gpu.NextAsync(priority, model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     conversation.ReadTokens(tokens.AsSpan(at, count), sample: lastPiece && at + count == tokens.Length);
@@ -164,7 +165,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
             if (generated >= request.MaxNewTokens) return Stop(StopReason.MaxTokens, continuable: false, token);
             if (conversation.Tokens + 1 >= model.Context.Tokens) return Stop(StopReason.ContextFull, continuable: false, token);
-            using (await gpu.NextAsync(request.Priority, ct))
+            using (await gpu.NextAsync(request.Priority, model.Spec.Device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 conversation.Advance(token);

@@ -593,4 +593,24 @@ public class VoiceSessionTests
         Assert.AreEqual("Find the report from last week.", rig.Agent.Turns[1].Text);
         Assert.AreEqual(0, rig.Agent.Turns[1].History.Count, "nothing of the first attempt was heard");
     }
+
+    [TestMethod]
+    public void AnAnnouncedCallThatGoesOnInTheBackground_IsSaidToHaveStarted_NeverToBeDone()
+    {
+        var picture = new ToolCallAnnouncement("draw", "a high-quality picture", "Drawing a high-quality picture", "Picture made.",
+                                               "No picture was made.", "Drawing it in the background.");
+        var delete  = new ToolCallAnnouncement("delete", "file a.txt", "Deleting file a.txt", "File deleted.", "The file is unchanged.");
+        var actions = AnnouncedActions.Of([new ToolCall("generate_image", [], Announcement: picture), new ToolCall("delete", [], Announcement: delete)]);
+
+        var started = ToolResult.Ok("started in the background") with { InBackground = true };
+        Assert.AreEqual("Drawing it in the background. File deleted.",
+                        actions.After([new ToolRunResult("generate_image", started), new ToolRunResult("delete", ToolResult.Ok("deleted"))]));
+        Assert.AreEqual("Picture made. File deleted.",
+                        actions.After([new ToolRunResult("generate_image", ToolResult.Ok("drawn")), new ToolRunResult("delete", ToolResult.Ok("deleted"))]),
+                        "the same call done there and then is done");
+
+        var unannounced = AnnouncedActions.Of([new ToolCall("make_video", [])]);
+        Assert.AreEqual(Str.Get("Shell.Voice.CarriesOn"), unannounced.After([new ToolRunResult("make_video", started)]),
+                        "a call with no words of its own for it is still not said to be done");
+    }
 }

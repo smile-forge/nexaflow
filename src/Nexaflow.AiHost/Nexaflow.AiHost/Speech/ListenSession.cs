@@ -54,7 +54,8 @@ internal sealed class ListenSession(
     IUtteranceTranscriber? transcriber,
     ITurnDetector? turnDetector,
     Func<HostReply, Task> reply,
-    CancellationToken ct = default) : IAsyncDisposable
+    CancellationToken ct = default,
+    Func<IDisposable>? engage = null) : IAsyncDisposable
 {
     public const int SampleRate   = 16_000;
     public const int FrameSamples = 512;
@@ -209,6 +210,8 @@ internal sealed class ListenSession(
 
     private IUtteranceTranscriber? Transcriber => transcriber;
     private CancellationToken Token => ct;
+
+    private IDisposable? Engaged() => engage?.Invoke();
     private Task SendPartialAsync(string text) => reply(new ListenPartial(requestId, text));
 
     /// <summary>One utterance: its audio, the recogniser fed from it on a pump of its own, and its transcript.</summary>
@@ -219,12 +222,16 @@ internal sealed class ListenSession(
         private readonly List<float> _audio = [];
         private readonly Channel<float[]> _frames = Channel.CreateUnbounded<float[]>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         private readonly Task _pump;
+        private readonly IDisposable? _engaged;
         private string _partial = "";
 
+        /// <summary>Someone is speaking: from the first word until the text that counts is out, the models hearing them are
+        /// attending to someone (<see cref="GpuScheduler.Engage"/>).</summary>
         public Utterance(IRecognizerStream recognizer, ListenSession session)
         {
             _recognizer = recognizer;
             _session    = session;
+            _engaged    = session.Engaged();
             _pump       = Task.Run(PumpAsync);
         }
 
@@ -301,6 +308,7 @@ internal sealed class ListenSession(
             _frames.Writer.TryComplete();
             try { await _pump; } catch (OperationCanceledException) { }
             _recognizer.Dispose();
+            _engaged?.Dispose();
         }
     }
 }

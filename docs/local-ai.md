@@ -298,11 +298,17 @@ The host owns:
   is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
   done.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
-  generation jobs. Concurrent models time-slice the GPU, so the GPU takes one step at a time — a token, a 512-token
-  slice of prompt — and gives the next to the highest-priority request waiting; a background analysis yields to a
-  reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
-
-The GPU steps of every request take turns across all of the host's GPUs, one step at a time.
+  generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
+  slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to
+  a reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
+- **Each card takes its own turns** (`GpuScheduler`): models on different GPUs never wait for each other, and the CPU
+  takes turns of its own.
+- **A generation job gives way to people, then runs alongside them.** A job's step is not token-sized — a HiDream
+  denoiser pass holds the GPU about 350 ms — and a reply asks for its next token just after the GPU has been handed on,
+  so taking turns would give the reply one token a pass. For its first 45 s, when whoever asked for it is most likely to
+  change their mind or add to it, a job takes no step on a card where someone is being attended to: a reply being
+  written, an utterance being heard and transcribed, speech being made. After that it stops taking turns and runs
+  alongside, the card time-slicing the two: a reply at about half speed instead of a token a pass.
 
 ### The machine's setup
 
@@ -606,7 +612,8 @@ model sees what it drew; the existing loop, approvals and context handling apply
 
 - **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
   (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is
-    told at once that it has started, and under which id. The AI bar's pill counts the workspace's running jobs and opens
+  told at once that it has started, and under which id. A voice conversation that announced the call says it has
+    started in the background — never that it is done (`ToolResult.InBackground`). The AI bar's pill counts the workspace's running jobs and opens
     their list: what each is doing (the provider's own progress, a picture's step), for how long, and Stop. When a job
     ends the user is notified, and a conversation keeps what came of it, after the turn in progress. A workspace's jobs
     stop when its models go: a switch, a change of providers, its last window closing. Faster calls show their progress

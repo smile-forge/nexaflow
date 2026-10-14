@@ -67,14 +67,16 @@ internal sealed record AnnouncedActions(string Announcement, string Action, stri
     /// test.zip" for one announced before they began, "Next action - …" for one that came of them.</summary>
     public string Held(bool first) => Str.Format(first ? "Shell.Voice.HeldFirstFormat" : "Shell.Voice.HeldNextFormat", Doing);
 
-    /// <summary>What is said once it has run: the done sentence, or what failed and why.</summary>
+    /// <summary>What is said once it has run: what failed and why; otherwise, call by call, the done sentence — or, for a
+    /// call that set its work going in the background, that it carries on there, since it is not done.</summary>
     public string After(IReadOnlyList<ToolRunResult> results)
     {
         // The batch's results come back in the order its calls were made.
-        var failed = results.Select((r, i) => (Result: r, Call: i < Calls.Count ? Calls[i] : Unannounced(new ToolCall(r.Tool, []))))
-                            .Where(x => x.Result.Result.IsError || !x.Result.Result.Success)
-                            .ToList();
-        if (failed.Count == 0) return Done;
-        return string.Join(" ", failed.Select(f => Str.Format("Shell.Voice.FailedFormat", f.Call.Action, f.Call.Target, f.Result.Result.Summary)));
+        var outcomes = results.Select((r, i) => (r.Result, Call: i < Calls.Count ? Calls[i] : Unannounced(new ToolCall(r.Tool, [])))).ToList();
+        var failed   = outcomes.Where(o => o.Result.IsError || !o.Result.Success).ToList();
+        if (failed.Count > 0)
+            return string.Join(" ", failed.Select(f => Str.Format("Shell.Voice.FailedFormat", f.Call.Action, f.Call.Target, f.Result.Summary)));
+        return string.Join(" ", outcomes.Select(o => o.Result.InBackground ? o.Call.CarriesOn ?? Str.Get("Shell.Voice.CarriesOn") : o.Call.Done)
+                                        .Distinct());
     }
 }

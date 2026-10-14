@@ -94,8 +94,8 @@ internal sealed partial class WhisperTranscriber : IHostModel
         }
     }
 
-    private static async ValueTask<IDisposable?> Step(GpuScheduler? gpu, RequestPriority priority, CancellationToken ct)
-        => gpu is null ? null : await gpu.NextAsync(priority, ct);
+    private async ValueTask<IDisposable?> Step(GpuScheduler? gpu, RequestPriority priority, CancellationToken ct)
+        => gpu is null ? null : await gpu.NextAsync(priority, Spec.Device, ct);
 
     /// <summary>Where a long utterance is cut: pieces of at most 28 s, each ending at the quietest 100 ms of its last 8 s.</summary>
     internal static IEnumerable<(int Start, int Length)> Pieces(float[] audio)

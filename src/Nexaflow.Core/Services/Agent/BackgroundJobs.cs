@@ -61,7 +61,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
             job = new Job(++_lastId, tasks.StartJob(told?.Doing ?? tool.Name, workspace, new CancellationTokenSource()));
             _jobs.Insert(0, job);
         }
-        return (ToolResult.Ok("started in the background", Started(job.Id)), RunAsync(job, tool, arguments, told, origin));
+        return (ToolResult.Ok("started in the background", Started(job.Id)) with { InBackground = true }, RunAsync(job, tool, arguments, told, origin));
     }
 
     /// <summary>What the model is told of a call that runs on in the background.</summary>

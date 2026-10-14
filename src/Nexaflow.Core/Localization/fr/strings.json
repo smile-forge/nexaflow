@@ -48,6 +48,7 @@
   "Shell.Voice.Carry": "réaliser",
   "Shell.Voice.Done": "C'est fait.",
   "Shell.Voice.NothingChanged": "Rien n'a été modifié.",
+  "Shell.Voice.CarriesOn": "C'est lancé. Ça continue en arrière-plan.",
   "Shell.Voice.AbortStoppedFormat": "J'annule : {0}. {1}",
   "Shell.Voice.AbortUnclearFormat": "J'annule : {0}. Désolé, je n'ai pas bien compris.",
   "Shell.Voice.Abort": "Abandonner",
@@ -75,6 +76,8 @@
   "Shell.Generate.Announce.MakingVideoFormat": "Création d'une vidéo de {0} secondes",
   "Shell.Generate.Announce.VideoMade": "Vidéo créée.",
   "Shell.Generate.Announce.NoVideo": "Aucune vidéo n'a été créée.",
+  "Shell.Generate.Announce.DrawingInBackground": "Je la dessine en arrière-plan. Elle s'ouvrira quand elle sera prête.",
+  "Shell.Generate.Announce.MakingInBackground": "Je la crée en arrière-plan. Elle s'ouvrira quand elle sera prête.",
   "Shell.Voice.ContextReleaseFormat": "Cette page contient des informations sensibles. Je l'envoie à {0} ?",
 
   "Shell.AiBar.Voice.Listening": "À l'écoute…",

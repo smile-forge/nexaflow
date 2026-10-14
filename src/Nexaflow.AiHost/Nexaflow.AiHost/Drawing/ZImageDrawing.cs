@@ -18,6 +18,7 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
         var model = request.Model;
+        var lane  = gpu.Open(request.Priority);
         int h = request.Height / ZImageSampler.PixelsPerLatent, w = request.Width / ZImageSampler.PixelsPerLatent;
 
         (float[] Caption, int Rows, int Width) caption;
@@ -25,7 +26,7 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
         {
             var encoder = lease.As<ZImagePromptEncoder>();
             await stepped(0, model.Steps);
-            using (await gpu.NextAsync(request.Priority, ct))
+            using (await lane.NextAsync(model.Parts[DrawingParts.PromptEncoder].Device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 caption = encoder.Encode(encoder.Tokenize(request.Prompt));
@@ -42,7 +43,7 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
             for (int step = 0; step < model.Steps; step++)
             {
                 float[] velocity;
-                using (await gpu.NextAsync(request.Priority, ct))
+                using (await lane.NextAsync(model.Parts[DrawingParts.Denoiser].Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     velocity = denoiser.Velocity(ZImageSampler.Patchify(latents, h, w), positions, rows, padding, rowPositions,
@@ -55,7 +56,7 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
         float[] pixels;
         using (var lease = await models.AcquireAsync(model.Parts[DrawingParts.Decoder], resident: false, stage, ct, room))
-        using (await gpu.NextAsync(request.Priority, ct))
+        using (await lane.NextAsync(model.Parts[DrawingParts.Decoder].Device, ct))
         {
             ct.ThrowIfCancellationRequested();
             pixels = lease.As<ZImageDecoder>().Decode(latents, h, w);

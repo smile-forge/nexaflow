@@ -19,6 +19,8 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
         var model = request.Model;
+        var lane  = gpu.Open(request.Priority);
+        int? device = model.Parts[DrawingParts.Denoiser].Device;
         int rows = request.Height / HiDreamSampler.Patch, cols = request.Width / HiDreamSampler.Patch;
         var positions = HiDreamSampler.ImagePositions(rows, cols);
         var sampler   = new HiDreamUniPc(model.Steps, model.Shift);
@@ -35,12 +37,12 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
             float input  = HiDreamSampler.TimestepInput(timestep);
             bool last    = step == model.Steps - 1;
             float[] withPrompt, withoutPrompt;
-            using (await gpu.NextAsync(request.Priority, ct))
+            using (await lane.NextAsync(device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 withPrompt = denoiser.Predict(prompt, sample, positions, input, lastStep: false);
             }
-            using (await gpu.NextAsync(request.Priority, ct))
+            using (await lane.NextAsync(device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 withoutPrompt = denoiser.Predict(empty, sample, positions, input, lastStep: last);

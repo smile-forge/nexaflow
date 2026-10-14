@@ -50,4 +50,10 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     /// </summary>
     public static ToolResult EndSilently(string summary) =>
         new(true, summary, summary) { EndsRun = true };
+
+    /// <summary>
+    /// The call set work going that carries on in the background (<see cref="IClientTool.RunsInBackground"/>): it has
+    /// started, not finished, and is never told as done.
+    /// </summary>
+    public bool InBackground { get; init; }
 }

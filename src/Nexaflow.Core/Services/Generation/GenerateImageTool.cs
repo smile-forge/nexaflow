@@ -79,7 +79,8 @@ internal sealed class GenerateImageTool : IClientTool
         ReferenceEquals(Model(arguments), _highQuality)
             ? new(Str.Get("Shell.Generate.Announce.Draw"), Str.Get("Shell.Generate.Announce.HighQualityPicture"),
                   Str.Get("Shell.Generate.Announce.DrawingHighQualityPicture"),
-                  Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"))
+                  Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"),
+                  Str.Get("Shell.Generate.Announce.DrawingInBackground"))
             : null;
 
     /// <summary>The model a call draws with: the high-quality one when asked for, or when it is the only one.</summary>
