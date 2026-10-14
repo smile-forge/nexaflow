@@ -79,9 +79,9 @@ public static class UiTakeoverPrompt
         ui.SetApartmentState(ApartmentState.STA);
         ui.Start();
 
-        // Never hang a run on an absent human: an unanswered prompt after two minutes means nobody is
-        // there to be disturbed, so proceed rather than stall the suite forever.
-        if (!ui.Join(TimeSpan.FromMinutes(2)))
+        // Never hang a run on an absent human: someone at the machine answers within seconds, so an
+        // unanswered prompt after thirty means nobody is there to be disturbed — proceed.
+        if (!ui.Join(TimeSpan.FromSeconds(30)))
         {
             // Nobody answered, so nobody is there to disturb. Don't record it: an absent human is a fact
             // about this moment, not a decision the rest of the run should inherit.

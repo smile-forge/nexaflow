@@ -341,7 +341,7 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   > It is asked once per process at the first launch — not at assembly load — so a headless run never
   > sees it, and it is suppressed entirely on CI (`CI`, `TF_BUILD`, `GITHUB_ACTIONS`, `JENKINS_URL`,
   > `TEAMCITY_VERSION`) or with **`NEXAFLOW_UITESTS_NOPROMPT=1`** for a deliberately unattended local
-  > run. An unanswered prompt proceeds after two minutes, so nothing can stall on an absent human.
+  > run. An unanswered prompt proceeds after thirty seconds, so nothing can stall on an absent human.
 - **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
   of an external API is actually correct. Read-only and safe to run on any developer machine, but the
   results depend on that machine's state, so CI never runs them (the workflow filters out both this
