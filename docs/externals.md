@@ -5,8 +5,10 @@ work with Nexaflow's third-party source forks correctly — both **building Nexa
 **posting clean atomic PRs upstream** — without asking for a more detailed prompt. Read the whole file
 before touching anything under `external/`.
 
-Nexaflow consumes four third-party dependencies **from source**, each via a fork the `smile-forge` org
-controls. Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the odd one out
+A third-party dependency is a NuGet package wherever the published package will do. The ones here are the
+exceptions — each had to be built from source because its package was stale, broken or short of what Nexaflow needs —
+and Nexaflow consumes them via a fork the `smile-forge` org controls.
+Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the odd one out
 (**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
 `.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
 below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
