@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Visuals.Common.Formatting;
@@ -16,13 +17,14 @@ namespace Nexaflow.Features.SystemInfo.Services;
 /// </summary>
 public sealed class SystemInfoCollector
 {
-    public SystemInfoSnapshot Collect()
+    /// <param name="localAi">Where the workspace's models of Nexaflow's own run, for the Local AI card; null when it uses none.</param>
+    public SystemInfoSnapshot Collect(LocalAiSetup? localAi = null)
     {
         var snapshot = new SystemInfoSnapshot();
         snapshot.Sections.Add(CollectOperatingSystem());
         snapshot.Sections.Add(CollectHardware());
         snapshot.Sections.Add(CollectDisplay());
-        snapshot.Sections.Add(CollectLocalAi(ComputeHardware.Probe()));
+        snapshot.Sections.Add(snapshot.LocalAi = CollectLocalAi(ComputeHardware.Probe(), localAi));
         snapshot.Sections.Add(CollectStorage());
         snapshot.Sections.Add(CollectSecurity());
         return snapshot;
@@ -280,24 +282,36 @@ public sealed class SystemInfoCollector
         return s;
     }
 
-    // ── Local AI ──────────────────────────────────────────────────────────────
-    /// <summary>What the machine has for running models itself: each GPU and NPU with its own memory, the CUDA
-    /// driver, and which of the local models that is enough for.</summary>
-    internal static SystemInfoSection CollectLocalAi(ComputeHardwareReport report)
+    /// <summary>
+    /// The Local AI card: where each of the workspace's models of Nexaflow's own runs — its GPU and what it holds there, a
+    /// language model's context, whether the models kept loaded make way for a picture's part — and the other language
+    /// models this machine fits; then the GPUs the AI host runs them on, each with its budget, or before it has, the
+    /// machine's adapters; its NPUs, and the CUDA driver.
+    /// </summary>
+    internal static SystemInfoSection CollectLocalAi(ComputeHardwareReport report, LocalAiSetup? setup)
     {
         var s = new SystemInfoSection(Str.Get("SystemInfo.LocalAi.Title"), "🧠");
 
-        s.Add(Str.Get("SystemInfo.LocalAi.Fit"), report.Fit switch
+        if (setup is null)
+            s.Add(Str.Get("SystemInfo.LocalAi.OwnModels"), Str.Get("SystemInfo.LocalAi.NotUsed"));
+        else
         {
-            LocalAiFit.LargerModels => Str.Get("SystemInfo.LocalAi.Fit.LargerModels"),
-            LocalAiFit.DefaultModel => Str.Get("SystemInfo.LocalAi.Fit.DefaultModel"),
-            _                       => Str.Format("SystemInfo.LocalAi.Fit.Insufficient",
-                                           SizeFormatter.FormatBytes(ComputeHardwareReport.DefaultModelBytes)),
-        }, report.Fit == LocalAiFit.Insufficient ? SystemInfoStatus.Warning : SystemInfoStatus.Good);
+            foreach (var model in setup.Models)
+                s.Add(model.Name, Placement(model), !model.Fits ? SystemInfoStatus.Bad
+                                                  : model.Device is not null ? SystemInfoStatus.Good
+                                                  : setup.Gpus.Count > 0 ? SystemInfoStatus.Warning
+                                                  : SystemInfoStatus.Neutral);
+            if (setup.Fitting.Count > 0) s.Add(Str.Get("SystemInfo.LocalAi.AlsoFits"), string.Join(", ", setup.Fitting));
+        }
 
-        foreach (var adapter in report.Adapters.Where(a => !a.IsNpu))
-            s.Add(adapter.Name, Str.Format(adapter.IsIntegrated ? "SystemInfo.LocalAi.IntegratedGpu" : "SystemInfo.LocalAi.Gpu",
-                VendorName(adapter.Vendor), SizeFormatter.FormatBytes(adapter.DedicatedMemoryBytes)));
+        if (setup is { Gpus.Count: > 0 })
+            foreach (var gpu in setup.Gpus)
+                s.Add(Str.Format("SystemInfo.LocalAi.GpuNumber", gpu.Device), Str.Format("SystemInfo.LocalAi.Budget", gpu.Name,
+                    SizeFormatter.FormatBytes(gpu.TotalBytes), SizeFormatter.FormatBytes(gpu.BudgetBytes)));
+        else
+            foreach (var adapter in report.Adapters.Where(a => !a.IsNpu))
+                s.Add(adapter.Name, Str.Format(adapter.IsIntegrated ? "SystemInfo.LocalAi.IntegratedGpu" : "SystemInfo.LocalAi.Gpu",
+                    VendorName(adapter.Vendor), SizeFormatter.FormatBytes(adapter.DedicatedMemoryBytes)));
 
         var npus = report.Npus.Select(n => n.Name).ToList();
         s.Add(Str.Get("SystemInfo.LocalAi.Npu"), npus.Count > 0 ? string.Join(", ", npus) : Str.Get("SystemInfo.LocalAi.None"));
@@ -305,6 +319,17 @@ public sealed class SystemInfoCollector
         s.Add(Str.Get("SystemInfo.LocalAi.Cuda"),
             report.CudaDriver is { } cuda ? cuda.ToString(2) : Str.Get("SystemInfo.LocalAi.None"));
         return s;
+    }
+
+    /// <summary>Where one model runs, as a person reads it.</summary>
+    private static string Placement(LocalAiModel model)
+    {
+        if (!model.Fits) return Str.Get("SystemInfo.LocalAi.Runs.Nowhere");
+        if (model.Device is not { } device) return Str.Get("SystemInfo.LocalAi.Runs.Cpu");
+        string where = Str.Format("SystemInfo.LocalAi.Runs.Gpu", device, SizeFormatter.FormatBytes(model.Bytes));
+        if (model.ContextTokens > 0)
+            where = Str.Format("SystemInfo.LocalAi.Runs.Context", where, model.ContextTokens.ToString("N0", System.Globalization.CultureInfo.CurrentCulture));
+        return model.Displaces ? Str.Format("SystemInfo.LocalAi.Runs.MakesWay", where) : where;
     }
 
     private static string VendorName(ComputeVendor vendor) => vendor switch

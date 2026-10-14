@@ -258,10 +258,12 @@ public partial class App : Application
         // Model files live outside the roaming profile; the folder voice models were once kept in is adopted from.
         // A UI journey fetches nothing: a download is minutes of network the run cannot wait on or count on.
         // The AI host — the process models Nexaflow runs itself are loaded in — starts on the first request for one.
+        // Where the host's models run is planned once for the machine, across every workspace's models.
+        var aiHost = StartAiHost();
         ProviderManager.Instance.Initialize(activityManager,
             new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
                                 downloadsAllowed: !UiTest),
-            StartAiHost(), ComputeHardware.Probe());
+            aiHost, new HostModelSetup(aiHost), ComputeHardware.Probe());
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a

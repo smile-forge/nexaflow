@@ -40,7 +40,7 @@ internal static class HostProgram
 
             log.Write($"connected (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
             NativeRuntime.Load(Argument(args, AiHostProtocol.RuntimePackArgument));
-            using var runtime = new ExecutionRuntime(log, ComputeHardware.Probe());
+            using var runtime = new ExecutionRuntime(log);
             using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log);
             var scheduler = new GpuScheduler();
             var server = new HostServer(channel, log,

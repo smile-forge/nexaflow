@@ -4,9 +4,10 @@
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
 models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
 transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
-machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on CUDA from a pack fetched from where NVIDIA and
-Microsoft publish it, or on the CPU — as the provider "Nexaflow", chosen when a workspace is set up; tools can hand a
-model recordings to hear; and an AI-path suite runs the agent loop on it. Every model calls tools in its own protocol.
+machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
+CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
+"Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
+agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
 Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and pictures
@@ -26,10 +27,10 @@ The test beds behind every number here live outside the repository, in `D:\coded
    than nothing.
 3. **Generation as agent tools**: images, speech, sounds and music; video if it ever becomes practical.
 
-All three are built on **ONNX Runtime as the one engine, and Nexaflow owns everything around it**: onnxruntime-genai
-for language, multimodal and speech-recognition models, plain ONNX Runtime sessions for TTS, voice activity
-detection, diffusion and audio generators; our own catalog, downloads, execution-provider provisioning, memory
-policy and scheduling.
+All three run on engines in Nexaflow's own process, and **Nexaflow owns everything around them**: **llama.cpp** for
+language models — Gemma 4 and Qwen 3.5 to 3.8, with the pictures and recordings they take in — and **ONNX Runtime**
+for the rest: onnxruntime-genai for speech recognition, plain sessions for TTS, voice activity detection, diffusion
+and audio generators; our own catalog, downloads, runtime provisioning, chat templates, memory policy and scheduling.
 
 ## Decisions
 
@@ -41,10 +42,12 @@ policy and scheduling.
 | Activation | **Press to start listening**; it stays live until stopped. The assistant gets a tool to end the session itself ("that's all, thanks"). |
 | TTS voice | **Kokoro** — clearly better than Pocket TTS and ZipVoice in listening. |
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
-| GPU minimum | **24 GB** for the default resident model (Gemma 4 E4B) with voice; **32 GB** for the larger models (Qwen 3.8 27B, Gemma 4 26B-A4B) with voice. Bringing the larger models to 24 GB is the longer-term goal: their own exports, and a context that never re-reads what it has already read (below). |
+| GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
 | Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** will be its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures, at 94 s. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
-| Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax, read from its tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
+| Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
+| Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
+| Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax and Qwen's `<function=…>` tags, read from their tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
 
 ## What was measured
 
@@ -53,23 +56,23 @@ sherpa-onnx 1.13.8, Foundry Local 2.1.0.
 
 ### The model
 
-**Gemma 4 E4B** (text, image and audio in; text out) runs from C# through `Model` + `MultiModalProcessor` +
-`Generator`. The [onnx-community export](https://huggingface.co/onnx-community/gemma-4-E4B-it-ONNX) needs a
-header-only graph adapter (an image/audio feature merge in the embedding graph, flattened per-layer inputs);
-its q4f16 build was the best configuration found.
+**Gemma 4 E4B** (text, image and audio in; text out) runs on llama.cpp b11606 from Google's
+[QAT Q4_0 GGUF](https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf) and its multimodal projector, through the
+host's own decode loop over llama.cpp's C API and its multimodal library.
 
 | | Measured |
 |---|---|
-| Gemma 4 E4B q4f16, CUDA | 4.9 GB download, 6.6 GB VRAM loaded, ~70 tok/s, 0.1–0.3 s to first token with an image or 20 s of audio |
-| Same, CPU only | ~13 tok/s, 2.7 GB RAM, 2.5–3 s to first token with an image or audio |
+| Gemma 4 E4B QAT Q4_0, CUDA | 6.1 GB download with its projector; 4.1 GB loaded, 6.3 GB with the projector and a 16k cache for eight conversations; 155–220 tok/s; 16k tokens read in 1.1 s |
+| Same, by conversation length | 3.7 GB at 1k tokens, 3.9 GB at 16k, 4.7 GB at 64k (without the projector) |
+| An image, 20 s of audio | read in 0.21 s and 0.45 s; the projector holds about 1.4 GB |
+| The same model on onnxruntime-genai | the onnx-community q4f16 export: 6.4 GB loaded, 9.0 GB at 4k, 14.0 GB at 16k, ~54 tok/s — the working memory of each step grows with the conversation; a 4-bit build of our own (mobius-onnx) was no better, 13–15 GB at 16k |
+| The other language models on llama.cpp | in the catalog's table (Models, below) |
 | Transcription by Gemma | verbatim on clean speech; **30 s audio window, silently truncated beyond it** |
-| Two LLMs resident in one process | both work; generating together they **time-slice** the GPU (30 + 30 tok/s against 60 alone) |
-| Two requests on one model | 46 + 33 tok/s — batching on one model gains, separate models do not |
-| Unload / reload a model (warm disk) | 0.15 s / 4.3 s |
-| Cancel generation mid-answer | stops 3–13 ms after the request |
-| Prefill a 3,800-token conversation | 150–330 ms |
-| VRAM transient on long prompts | 33–37 GB peak — logits are allocated for every prompt position (262k vocabulary). **`chunk_size` 512 brings it to 16 GB** |
+| ONNX Runtime and llama.cpp in one process | both on CUDA, sharing one cuBLAS 13 |
 | VRAM after disposing every model | ~1.8 GB stays with the process until it exits |
+
+llama.cpp's arithmetic depends on how a prompt was split into reads, so a context appended in pieces and the same
+context read whole agree in what they say next, not always in its wording.
 
 onnxruntime-genai defects hit along the way, each a reason to keep native inference out of the WPF process: an
 access violation when the embedding model runs on CPU and the decoder on CUDA; DirectML failing on quantized
@@ -169,8 +172,8 @@ flowchart LR
     end
     subgraph host [AI host process]
         sched[Scheduler + VRAM budget + watchdog]
-        llm[onnxruntime-genai<br/>LLMs, streaming ASR]
-        ort[ONNX Runtime sessions<br/>VAD, Kokoro, diffusion]
+        llm[llama.cpp<br/>language models, their media]
+        ort[ONNX Runtime + onnxruntime-genai<br/>ASR, VAD, Kokoro, diffusion]
         eps[Execution providers<br/>our CUDA pack, Windows ML]
     end
     catalog[Our catalog + asset manager]
@@ -206,10 +209,12 @@ the app. Every reason is something the test beds hit:
 - **A watchdog.** Neither onnxruntime-genai nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
 
-Inside the host there is **one ONNX Runtime and one CUDA stack**, and two surfaces over it:
+Inside the host there is **one CUDA stack** — NVIDIA's runtime, cuBLAS and cuDNN, loaded once — and three surfaces
+over it:
 
-- **onnxruntime-genai** — `Generator` for the LLMs with `chunk_size`, `max_length`, `RewindTo` and token-boundary
-  cancellation; `MultiModalProcessor` for images and audio; `StreamingProcessor` for streaming ASR.
+- **llama.cpp** — the language models: one KV cache per model, a sequence in it per conversation, read and sampled by
+  the host's own loop a GPU step at a time; its multimodal library reads pictures and recordings into a sequence.
+- **onnxruntime-genai** — streaming ASR (`StreamingProcessor`) and Whisper.
 - **plain ONNX Runtime sessions** — Silero VAD, Kokoro (KokoroSharp takes the session options) and diffusion
   pipelines, on the same execution providers.
 
@@ -217,7 +222,8 @@ Execution providers come from two places, into **one host build for every machin
 which carries the CUDA provider:
 
 - **The CUDA pack** on NVIDIA (`CudaRuntimePack`): ONNX Runtime and onnxruntime-genai built with their CUDA layers,
-  and NVIDIA's cuBLAS and cuDNN. ONNX Runtime loads its CUDA provider from the folder `onnxruntime.dll` came from, so
+  llama.cpp's CUDA backend from the release the install's llama.cpp comes from (which a test holds them to), and
+  NVIDIA's CUDA runtime, cuBLAS and cuDNN. ONNX Runtime loads its CUDA provider from the folder `onnxruntime.dll` came from, so
   the pack carries the runtime itself — the same build as the install's, which a test holds them to — and a host
   started on it binds both managed wrappers to the pack's copies and puts the folder first on its `PATH` before
   anything loads. Nothing else NVIDIA is needed, toolkit or not. Without the pack the host runs on the install's CPU
@@ -242,10 +248,10 @@ however busy its requests are; a stall limit per request, so a request that stop
 a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
 starts another, and a host that keeps crashing is not restarted until it has stayed down a while.
 
-A downloaded model is prepared once in its folder by the adapter its catalog names — Gemma 4 E4B's rewrites the
-onnx-community export's graph headers with OnnxSharp, as the testbed's Python adapter did — into a provider-neutral
-`genai_config.base.json`; the host writes `genai_config.json` for the runtime it is on before loading, since
-onnxruntime-genai's API can set only the decoder's providers.
+A speech model onnxruntime-genai runs is prepared once in its folder by the adapter its catalog names — its export's
+own config made provider-neutral, `genai_config.base.json`; the host writes `genai_config.json` for the runtime it is
+on before loading, since onnxruntime-genai's API can set only the decoder's providers. A language model needs no
+preparing: llama.cpp loads its GGUF and projector as published.
 
 ### Capabilities instead of one text contract
 
@@ -270,26 +276,59 @@ bridged workspace gets voice and generation without a GPU, and an owned one gets
 declares what it offers: input and output kinds, streaming, tools, context window, **whose harness and where its
 data goes**, and a cost class.
 
-### Scheduling and the VRAM budget
+### Scheduling and the GPUs
 
 The host owns:
 
-- **A resident set** — the model an owned workspace uses plus the speech models, loaded at warm-up and kept (4–6 s
-  to reload is too slow between turns).
+- **The GPUs it runs models on**, numbered as CUDA counts them — the order llama.cpp and ONNX Runtime both use — each
+  with a budget of its own: what was free on it when the host started, less 1.5 GB the runtime keeps for itself
+  (cuBLAS workspaces, ONNX Runtime's arenas, transients past each model's estimate). Every model runs on the one GPU
+  its spec names, or on the CPU; a description of the host reports each GPU, its budget, and what is free on it now.
+- **A resident set** — the models an owned workspace uses, loaded at warm-up where the machine's setup places them,
+  and kept (4–6 s to reload is too slow between turns). A model asked for in another place or at another size is
+  loaded again there, the old one going once nothing uses it.
 - **Models loaded on demand** — image, music or a second LLM a request names: kept loaded after the request, and the
   first to go, least recently used, when another needs the room.
-- **Admission against a budget**: the NVIDIA GPU's memory less 3 GB kept back; each model sized from its manifest;
-  unload what may go, or refuse rather than over-commit — and when even that would not make room, nothing is
-  unloaded. Generators always run with `chunk_size` set, an explicit `max_length`, and `arena_extend_strategy` = 1
-  (grow only by what is requested).
+- **Admission per GPU**: each model sized from its spec against its own GPU's budget; unload what may go, or refuse
+  rather than over-commit — and when even that would not make room, nothing is unloaded. Generators always run with
+  `chunk_size` set, an explicit `max_length`, and `arena_extend_strategy` = 1 (grow only by what is requested).
+- **Room for a picture.** A picture's parts load one at a time, so it needs room for the largest. While a picture is
+  drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
+  reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
+  is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
+  done.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
   generation jobs. Concurrent models time-slice the GPU, so the GPU takes one step at a time — a token, a 512-token
   slice of prompt — and gives the next to the highest-priority request waiting; a background analysis yields to a
   reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
 
-**Cancellation is per step.** A decode step is one token (~14 ms at 70 tok/s); the long steps are an image or audio
-encode (~100 ms) and a prefill chunk (bounded by `chunk_size`). Barge-in does not wait on any of them: playback stops
-at once, and cancellation only frees the GPU.
+The GPU steps of every request take turns across all of the host's GPUs, one step at a time.
+
+### The machine's setup
+
+The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
+reports. Language models are placed first, then the rest from the largest down, each on the GPU it fills most nearly —
+so a GPU stays as whole as it can for a picture. A language model gets its catalog's context (32k for most) where there
+is room and a shorter one where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
+holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
+its CPU build, and one with no CPU build is left out. When a workspace takes models on, the plan is redone and each
+model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
+time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
+
+Before the host has run — in the setup wizard, and for which models a machine is offered — the GPUs are those the
+adapters report, each less 1 GB for the desktop and the runtime's share. A language model is offered where it would
+run on a GPU; the default, Gemma 4 E4B, on any machine. The wizard says where the default and its voice models would
+run, and names the larger models the machine fits.
+
+**System Info's Local AI card** shows where each of the workspace's own models runs — its GPU and what it holds, a
+language model's context, whether residents make way for a picture's part — and the other language models that fit.
+*Check this machine* loads each where the card says, has each do its work once (a reply, a sentence spoken and heard
+back, a picture), reads what the host holds on each GPU throughout, and writes one Markdown report beside the host's
+logs, with the picture.
+
+**Cancellation is per step.** A decode step is one token (~5 ms at 190 tok/s); the long steps are an image or audio
+read (0.2–0.5 s) and a prompt read 512 tokens at a time. Barge-in does not wait on any of them: playback stops at once,
+and cancellation only frees the GPU.
 
 ### The context as an append-only log
 
@@ -297,48 +336,33 @@ A model keeps what it has read as a KV cache, and each token's entry depends on 
 prefix can be reused, but changing anything invalidates everything after it. Re-reading the whole conversation each
 turn is what makes a large local model slow to answer: Qwen 3.8 27B takes 1.3–1.9 s to read a 4k-token prompt.
 
-So each conversation keeps one live `Generator`, and its context only ever grows. Measured over a ten-turn
-conversation on a ~3k-token page context, appended against re-read every turn:
-
-| | Appended, per turn | Re-read, per turn | Rewind |
-|---|---|---|---|
-| Gemma 4 E4B (our adapted export, 6.6 GB) | 24–71 ms; replies identical to the re-read | 225–272 ms | crashes |
-| Gemma 4 E4B (native GenAI export, 13.7 GB) | 29–80 ms; identical on all ten turns | 242–495 ms | works |
-| Qwen 3.8 27B | ~110 ms; a 1,400-token page change 411 ms | 1.1–1.6 s | **wrong**: the DeltaNet layers' state is not rolled back |
-| Gemma 4 26B-A4B | 140–215 ms | 210–370 ms | works |
-
-Appending is exact: the next-token scores after a prompt read in pieces match a single read to rounding (cosine
-≥ 0.99997) on every model; where live replies drift from a re-read, it is greedy decoding branching on that rounding.
+So each conversation keeps one sequence of its model's KV cache, and its context only ever grows: a follow-up reads
+only its own turn (the AI host's model tests hold it to under half of the prompt), where re-reading a 16k-token
+conversation costs E4B 1.1 s. Appending gives the next token's scores of a single read to rounding; where a reply
+drifts from a re-read, it is greedy decoding branching on that rounding.
 
 - **Ordered from most to least stable**: system prompt and tool definitions, then the page context the conversation
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
   tool results and audio are appended like any other turn.
-- **Appending is the one mechanism.** `RewindTo` cannot be relied on — it is wrong on hybrid recurrent models and
-  crashes on exports whose cache grows by concatenation — so a barge-in cancels generation and appends what the user
-  actually heard as a note. Where an export rewinds correctly it may rewind instead, and always appends before
-  generating again: a bare rewind skips the next token.
-- **New turns are rendered as deltas against the cache.** Templates re-render history differently from what the
-  model read (Gemma 4 26B-A4B's adds an empty thought block to the generation prompt and strips it from history), so
-  a turn appends the template's whole closing for the last reply — onnxruntime-genai does not keep the end token a
-  reply stops on, so the model has not read it — then the new turn and generation prompt. What was read stays as it
-  was read.
+- **Appending is the one mechanism.** A barge-in cancels generation and appends what the user actually heard as a
+  note; a conversation cut short is dropped, and the next request reads it afresh.
+- **New turns are rendered as deltas against the cache.** The cache holds the prompt the conversation was last given,
+  then its reply as generated, up to the token the reply stopped on — which it has not read. The template's rendering
+  of the history must begin with that prompt; the delta is the history from that token on, then the new turns and the
+  generation prompt. The reply stays as the model wrote it however the template now writes it (Gemma's orders a
+  call's arguments, Qwen's trims), and the rule holds for any template: Gemma's turn closer, Gemma waiting on a tool's
+  result, Qwen's end of turn.
 - **Requests stay stateless.** `ILlmProvider` sends whole conversations; the host matches each to the conversation it
   continues — the turns that conversation has read, its last reply included, begin the request's, and the rest is
   text — and keeps a few, least recently used dropped first. Nothing in the app knows the cache exists.
-- **An image rebuilds the context.** onnxruntime-genai 0.17.1 does not take media on a continuing generator: the
-  native E4B export silently ignored the image ("I cannot see any failure stages in the screenshot") and the adapted
-  one crashed. An image turn re-reads the conversation — E4B in ~0.25–0.5 s, Qwen in ~1–1.6 s.
-- **First-use costs are warmed at load.** Each new append length cost Qwen ~750 ms once, gone with the CUDA option
-  `sdpa_kernel=1` (as for Whisper); Gemma 4 26B-A4B's MoE kernels cost 1–3.4 s the first time a token count is seen.
+- **Media joins the conversation where it comes.** The projector reads a picture or a recording into the sequence like
+  any other turn, with no re-read of what came before.
 - **The window ends in a summary**: when the log reaches the model's budget, older turns are summarised and the
   cache is rebuilt once from the summary.
 
-This saves time, not memory — the cache grows with the context either way (Qwen 3.8 27B: ~0.5 GB at 8k tokens;
-Gemma 4 26B-A4B: ~1.8 GB), and with a shared buffer it is allocated for the whole window up front. What it buys
-toward 24 GB is a short window: a log that summarises can run at 8k instead of 32k. The weights are the rest of the
-way. The default E4B stays on the adapted export: appending works there, and the native export that can rewind costs
-twice the VRAM.
+The cache is allocated once per model, as long as its context, and its conversations share it — eight sequences in
+one cache, the oldest kept conversation dropped when a new read needs its room. For E4B a 16k cache is under a gigabyte.
 
 ## Routing
 
@@ -356,8 +380,8 @@ maps roles to models:
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
   **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
   its kind; an Audio Generation row arrives with its contract.
-- **Resources become visible**: the resident set and its VRAM shown; assignments that cannot coexist on the card are
-  refused at configuration time.
+- **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
+  the machine's GPUs is not offered.
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
 to the owned model, which is where API cost actually goes.
@@ -587,52 +611,45 @@ Every one miscounted the fruit. Z-Image Turbo runs as three ONNX graphs Nexaflow
 Against PyTorch bf16 from the same noise, the build draws at a median of 29 dB PSNR — as close as PyTorch's own fp16
 comes — in 2.3 s, its tokenizer (Microsoft.ML.Tokenizers over Qwen3's `tokenizer.json`) giving the same ids as Hugging
 Face's. Loaded part by part — encoder 5.1 GB, denoiser 9.4 GB, decoder 5.3 GB at their peaks — a picture needs room
-for the denoiser alone; beside Gemma and speech that means a 32 GB card, and a 16 GB card draws when no owned language
-model is resident. It is built for CUDA only.
+for the denoiser alone, and where the resident models leave less, they make way while it draws. It is built for CUDA
+only, and offered where a GPU's budget holds the denoiser.
 
 ## Models
 
-**No conversion on the user's machine.** onnxruntime-genai's builder cannot read quantized GGUF files (it needs the
-original fp16 weights), and every converter — the builder, Olive, mobius — needs an embedded Python with torch
-(1–2 GB) and tens of GB of RAM for an 8B model. New architectures reach the builder six to eight weeks after release.
+**No conversion on the user's machine.** Language models come as the GGUF builds their makers or llama.cpp's own
+publishers put out, and the rest as ONNX exports — published, or converted by us and hosted on Hugging Face. Every
+converter needs an embedded Python with torch (1–2 GB) and tens of GB of RAM for an 8B model.
 
-**Our catalog** is a manifest of packages, each naming its source (Hugging Face — `onnxruntime/`, `microsoft/`,
-`amd/`, `onnx-community/` with an adapter — or built in CI with the model builder), a variant per execution provider,
-size, VRAM footprint, hash, and any adapter to apply after download. A user can also point at a folder holding a
-`genai_config.json`. Because we pin onnxruntime-genai ourselves, the catalog can carry a new architecture as soon as
-the release that supports it ships.
+**Our catalog** is a manifest of models, each naming its parts and their files — each file pinned to a revision of its
+Hugging Face repository and checked by SHA-256 — the runtime each part is built for, and any adapter to apply after
+download. A language model's part says what it holds on a GPU with no context, its projector at work included, what
+each token of context adds, and the context it is given where there is room.
 
-Candidates for a 24 GB card:
+**The language models**, as the host runs them — llama.cpp b11606, eight conversations in one cache, the projector
+loaded, sliding-window layers holding their window alone (RTX PRO 6000):
 
-| Role | Model | VRAM | Notes |
-|---|---|---|---|
-| resident, default | Gemma 4 E4B q4f16 | ~7–11 GB with KV and transients | verified; sees and hears |
-| resident, user's pick | Qwen 3.8 27B, Gemma 4 26B-A4B | 19–21 GB loaded, 21–23 GB with a 4k prompt | verified (below); neither fits beside the voice stack on 24 GB as published |
-| resident, user's pick | gpt-oss-20b, Qwen 3.5 9B | ~10–20 GB | not measured here |
+| Model | Build | Download | Holds at 8k / 32k | Writes | Sees | Tool calls | Offered from |
+|---|---|---|---|---|---|---|---|
+| **Gemma 4 E4B** (default; also hears) | Google's QAT Q4_0 | 6.1 GB | 4.9 / 5.3 GB | ~190 tok/s | yes | yes | any machine |
+| Qwen 3.5 9B | unsloth Q4_K_M | 6.6 GB | 7.3 / 8.0 GB | ~170 tok/s | yes | yes | 11 GB |
+| MiMo V2.6 9B (distilled from Qwen 3.5) | bartowski Q4_K_M | 6.8 GB | 7.5 / 8.2 GB | ~180 tok/s | yes | yes | 11 GB |
+| Phi-4 14B | Microsoft's Q4_K | 9.1 GB | 10.5 / 12.1 GB (16k, its longest) | ~110–130 tok/s | no | not in its template | 16 GB |
+| Gemma 4 26B-A4B | Google's QAT Q4_0 | 15.6 GB | 17.3 / 17.9 GB | ~165–195 tok/s | yes | yes | 24 GB |
+| Qwen 3.8 27B | ggml-org Q4_K_M | 19.6 GB | 20.4 / 21.8 GB | ~60 tok/s | yes | yes | 24 GB |
+| Qwen 3.6 35B-A3B | ggml-org Q4_K_M | 21.0 GB | 21.0 / 21.5 GB | ~210–225 tok/s | yes | yes | 32 GB |
+| Gemma 4 31B | Google's QAT Q4_0 | 18.9 GB | 25.5 / 27.7 GB | ~50–60 tok/s | yes | yes | 32 GB |
 
-**The larger models, measured** (RTX PRO 6000, onnxruntime-genai 0.17.1 CUDA, uncontended):
+- Reading a large photo adds 0.3–0.6 GB while it is read; the catalog's figures include it.
+- Every one is prompted by the chat template its own GGUF carries, rendered by the host's Jinja engine and held to
+  transformers' renders of that template. Qwen 3.6 and 3.8 carry Qwen's own; unsloth's Qwen 3.5 build changes its
+  template, to reason only when asked — which the host always does.
+- Phi-4's template has no tool calls, so it is given tools as a model without a protocol of its own is.
+- Qwen 3.8 reasons at its highest effort unless asked otherwise.
 
-| | Qwen 3.8 27B | Gemma 4 26B-A4B |
-|---|---|---|
-| Source | AMD's int4 export, unchanged but for the provider | the kibitz-coach text decoder with its MoE experts re-packed, AMD's embedding and vision |
-| Download / loaded / with a 4k prompt | 16.9 GB / 19.3 GB / 21.3 GB | 19.2 GB / 21.3 GB / 23.3 GB |
-| Decode / prefill 4k | 46 tok/s / 1.3–1.9 s | 80–100 tok/s / 0.29 s |
-| Tool calls (7 requests, English, French, German) | 7 of 7 | 7 of 7 |
-| Thinking | `enable_thinking=false` stops it (prefixed as a template variable; `/no_think` is ignored) | off by default; on, it fixed a task it otherwise got wrong |
-| French and German | fluent | fluent |
-| Images | read a table and caught its wrong total | none in this form — the text decoder attends causally inside an image |
-
-- **Qwen 3.8 27B is the strongest** and runs from a published export; it is the only Qwen 3.8 size under 360 GB.
-- **Gemma 4 26B-A4B is twice as fast**, but every published export is wrong on CUDA until its experts are re-packed
-  (ORT's CUDA `QMoE` reads unpacked weights as packed), AMD's export degrades the model (router softmaxed twice, SiLU
-  for GELU, int4 router) and its KV cache grows without bound, and the working assembly has no vision. It needs an
-  export of our own: a vision-aware decoder, unquantized router, prepacked experts, sliding-window KV.
-- **On 24 GB, the voice stack and either model do not fit together** (a ~20 GB budget for the model). The reductions
-  that would get there — a quantized embedding table (Qwen's is 2.5 GB at fp16), a text-only build, sliding-window KV
-  for Gemma — are untested. Until they are, this tier asks for 32 GB with voice.
-- GenAI 0.17.1's Minja chat-template engine needed Gemma's template patched for tools (`['function']` and `upper`);
-  the catalog's adapter step covers that.
-| speech | Nemotron streaming + Whisper large-v3-turbo + Kokoro + Silero + Smart Turn | ~6–7 GB (the two recognisers 5.4 GB together); Silero and Smart Turn on CPU | verified |
+The voice models — Nemotron streaming, Whisper large-v3-turbo and Kokoro — hold about 8 GB on a GPU together (the
+recogniser 2.25 GB, the transcriber 3.75 GB, each Kokoro 1 GB); Silero and Smart Turn run on the CPU. Where a GPU has
+no room for one beside the language model, it runs on the CPU: the transcriber on its own CPU build, the others as
+they are.
 
 ## Delivery
 
@@ -662,9 +679,9 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 
 | Phase | Delivers | Size |
 |---|---|---|
-| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns. Open: a 24 GB build of the larger models | small, each |
+| 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns; the language models on llama.cpp, against onnxruntime-genai | small, each |
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
-| 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B prepared from the onnx-community export, with the append-only context; the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. Open: Windows ML's providers, with a model built for one | large |
+| 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and a high-quality image row. To come: HiDream-O1 as the high-quality model on this machine, then the audio generation contract with music (ACE-Step) | medium per tool |
 

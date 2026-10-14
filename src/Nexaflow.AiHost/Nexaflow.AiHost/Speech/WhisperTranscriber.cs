@@ -127,9 +127,9 @@ internal sealed class WhisperTranscriberRunner : IModelRunner
 
     /// <summary>Loads it and transcribes a second of silence once: the encoder's first run costs most of a second,
     /// which belongs at load, not on somebody's first turn.</summary>
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    public IHostModel Load(ModelSpec spec)
     {
-        var (config, model) = GenAiConfigFile.Open(spec, executionProvider);
+        var (config, model) = GenAiConfigFile.Open(spec);
         var whisper = new WhisperTranscriber(spec, config, model);
         try
         {

@@ -1,15 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The AI host: the process every model Nexaflow runs itself is loaded in — onnxruntime-genai and ONNX Runtime, one
-    CUDA stack, one owner for the GPU. Started on demand by the app's AiHostClient, bound to its kill-on-close job,
+    The AI host: the process every model Nexaflow runs itself is loaded in — llama.cpp for language models,
+    onnxruntime-genai and ONNX Runtime for the rest, one CUDA stack, one owner for the GPU. Started on demand by the app's AiHostClient, bound to its kill-on-close job,
     and spoken to over a private pipe (Nexaflow.AiHost.Contracts). A native crash or a hang here costs a restart, not
     the app; see docs/local-ai.md.
 
     Ships in the base install without the CUDA pack: on machines that can use CUDA, the pack — ONNX Runtime and
-    onnxruntime-genai with their CUDA layers, and NVIDIA's cuBLAS and cuDNN — is downloaded into the AI folder and the
-    host loads its runtime from there (NativeRuntime). The install's own runtime is the CPU one, so the CUDA layers are
-    left out of this output (ExcludeCudaPack).
+    onnxruntime-genai with their CUDA layers, llama.cpp's CUDA backend, and NVIDIA's runtime, cuBLAS and cuDNN — is
+    downloaded into the AI folder and the host loads its runtime from there (NativeRuntime). The install's own runtime
+    is the CPU one, so the CUDA layers are left out of this output (ExcludeCudaPack), and llama.cpp's CPU build is
+    unpacked into it (IncludeLlamaCpp).
   -->
   <PropertyGroup>
     <!-- WinExe: no console is allocated, so starting the host never flashes a window. -->
@@ -21,14 +22,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>false</UseWPF>
     <AssemblyName>Nexaflow.AiHost</AssemblyName>
+    <!-- llama.cpp's C API is called through pointers (Llama\). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.17.1" />
-    <!-- ONNX's protobuf schema (MIT), for the adapters that rewrite a downloaded model's graph headers. -->
-    <PackageReference Include="OnnxSharp" Version="0.3.2" />
+
     <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
     <PackageReference Include="MisakiSharp" Version="2.1.1" />
     <!-- Qwen3's byte-level BPE, for the prompts the image model reads (MIT). -->
@@ -61,6 +63,40 @@
   <Target Name="ExcludeCudaPackCopies" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <None Remove="@(None)" Condition="'%(Extension)' == '.dll' and $(_CudaPackFiles.Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+  <!-- llama.cpp (MIT), which runs the language models: its CPU build as upstream releases it, pinned by build and
+       SHA-256, fetched once into obj\ and unpacked beside the host — the libraries the host calls, its CPU backends
+       (the best for the processor is chosen at run time) and the OpenMP runtime they use. Its CUDA backend comes
+       from the same release in the CUDA pack (cuda-pack.json), so the two must move together. llama-cpp.build
+       names the build, for the host's log and the test that holds the pack to it. -->
+  <PropertyGroup>
+    <LlamaCppBuild>b11606</LlamaCppBuild>
+    <LlamaCppArchive>llama-$(LlamaCppBuild)-bin-win-cpu-x64.zip</LlamaCppArchive>
+    <LlamaCppSha256>8C0F4F2A1B808EEBE00E738EDF027CCEEA1AA9E6C883618BD37151666093F1B4</LlamaCppSha256>
+    <LlamaCppFolder>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)llama.cpp\$(LlamaCppBuild)\</LlamaCppFolder>
+  </PropertyGroup>
+
+  <Target Name="FetchLlamaCpp" Condition="!Exists('$(LlamaCppFolder)llama.dll')">
+    <DownloadFile SourceUrl="https://github.com/ggml-org/llama.cpp/releases/download/$(LlamaCppBuild)/$(LlamaCppArchive)"
+                  DestinationFolder="$(LlamaCppFolder)" Retries="3" />
+    <GetFileHash Files="$(LlamaCppFolder)$(LlamaCppArchive)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_LlamaCppHash" />
+    </GetFileHash>
+    <Delete Files="$(LlamaCppFolder)$(LlamaCppArchive)" Condition="'$(_LlamaCppHash)' != '$(LlamaCppSha256)'" />
+    <Error Condition="'$(_LlamaCppHash)' != '$(LlamaCppSha256)'"
+           Text="$(LlamaCppArchive) has SHA-256 $(_LlamaCppHash), not the pinned $(LlamaCppSha256)." />
+    <Unzip SourceFiles="$(LlamaCppFolder)$(LlamaCppArchive)" DestinationFolder="$(LlamaCppFolder)"
+           Include="llama.dll;mtmd.dll;ggml.dll;ggml-base.dll;ggml-cpu-*.dll;libomp.dll;LICENSE-LLVM-OpenMP" />
+    <WriteLinesToFile File="$(LlamaCppFolder)llama-cpp.build" Lines="$(LlamaCppBuild)" Overwrite="true" />
+    <Delete Files="$(LlamaCppFolder)$(LlamaCppArchive)" />
+  </Target>
+
+  <Target Name="IncludeLlamaCpp" DependsOnTargets="FetchLlamaCpp" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_LlamaCppFiles Include="$(LlamaCppFolder)*.dll;$(LlamaCppFolder)LICENSE-LLVM-OpenMP;$(LlamaCppFolder)llama-cpp.build" />
+      <None Include="@(_LlamaCppFiles)" Link="%(_LlamaCppFiles.Filename)%(_LlamaCppFiles.Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
 

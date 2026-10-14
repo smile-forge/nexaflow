@@ -13,13 +13,17 @@ namespace Nexaflow.Providers.AiHost;
 /// <param name="Folder">Where its files are, relative to the asset store.</param>
 /// <param name="File">The file it is, for a model that is a single graph.</param>
 /// <param name="Adapter">What prepares its files for the runner, if they need it.</param>
-/// <param name="MemoryBytes">GPU memory it holds loaded; 0 for a part that runs on the CPU.</param>
-/// <param name="ContextTokens">The longest conversation, for a language model.</param>
+/// <param name="MemoryBytes">GPU memory it holds loaded — a language model's with no context, its projector at work
+/// included; 0 for a part that runs on the CPU.</param>
+/// <param name="ContextTokens">The conversation a language model is given where its GPU has the room.</param>
+/// <param name="BytesPerToken">What each token of a language model's context holds on the GPU.</param>
 /// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
 /// <param name="ExecutionProvider">The one runtime it is built for (<c>cuda</c> or <c>cpu</c>), or null for either.</param>
 /// <param name="Name">What it is called in its model: its role, unless the model has several parts in that role.</param>
+/// <param name="Projector">A language model's multimodal projector, in its folder: what it sees and hears through.</param>
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                                 IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name);
+                                 IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
+                                                                  long BytesPerToken = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -96,6 +100,9 @@ internal static class OwnedModels
     public const string Cuda = "cuda";
     public const string Cpu  = "cpu";
 
+    /// <summary>The shortest context a language model is given: room for the page it works on, its tools and a reply.</summary>
+    public const int ShortestContext = 8192;
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -107,7 +114,7 @@ internal static class OwnedModels
     private sealed record Sampler(int Steps, float Shift);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                               Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name);
+                               Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read();
 
@@ -139,6 +146,8 @@ internal static class OwnedModels
             if (kind == ModelKind.TextToSpeech && voices.Count == 0) throw new InvalidDataException($"Owned model '{e.Id}' speaks with no voice.");
             if (kind == ModelKind.ImageGeneration && e.Sampler is not { Steps: > 0, Shift: > 0 })
                 throw new InvalidDataException($"Owned model '{e.Id}' draws without saying how it samples.");
+            if (kind == ModelKind.Language && (e.Images || e.Audio) && parts.Any(p => p.Projector is null))
+                throw new InvalidDataException($"Owned model '{e.Id}' sees or hears with no projector to do it through.");
             var sampler = e.Sampler is { } s ? new OwnedSampler(s.Steps, s.Shift) : null;
             var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler);
             if (!owned.RunsOn(Cuda) && !owned.RunsOn(Cpu)) throw new InvalidDataException($"Owned model '{e.Id}' runs on no runtime.");
@@ -169,12 +178,13 @@ internal static class OwnedModels
             throw new InvalidDataException($"A part of owned model '{modelId}' does not say what it is, what runs it or where it is.");
         if (p.ExecutionProvider is not (null or Cuda or Cpu))
             throw new InvalidDataException($"Owned model '{modelId}' has a part for '{p.ExecutionProvider}', a runtime the host does not have.");
-        if (kind == ModelKind.Language && (p.MemoryBytes <= 0 || p.ContextTokens <= 0))
-            throw new InvalidDataException($"Owned model '{modelId}' does not say how much it holds or how long a conversation may grow.");
+        if (kind == ModelKind.Language && (p.MemoryBytes <= 0 || p.BytesPerToken <= 0 || p.ContextTokens < ShortestContext))
+            throw new InvalidDataException($"Owned model '{modelId}' does not say how much it and each token of its context hold, or how long a conversation it is given.");
         // A picture's parts load on demand against the GPU budget, so what each holds at its peak must be known.
         if (kind == ModelKind.ImageGeneration && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
             throw new InvalidDataException($"Owned model '{modelId}' does not say how much its {p.Role} holds.");
-        return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider, p.Name ?? p.Role);
+        return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
+                             p.Name ?? p.Role, p.Projector, p.BytesPerToken);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

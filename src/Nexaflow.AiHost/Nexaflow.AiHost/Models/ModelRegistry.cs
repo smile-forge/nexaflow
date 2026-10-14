@@ -5,12 +5,17 @@ namespace Nexaflow.AiHost.Models;
 
 /// <summary>
 /// The models in memory. The resident set — what the app asked to keep loaded — stays; any other model a request
-/// names is loaded on demand into what the budget leaves, and is the first to go when another needs the room.
-/// Admission is against the runtime's VRAM budget, from each model's estimate: a model that would not fit is refused
-/// rather than over-committed, after unloading what may go.
+/// names is loaded on demand into what its GPU's budget leaves, and is the first to go when another needs the room.
+/// Admission is per GPU, against its budget, from each model's estimate: a model that would not fit is refused rather
+/// than over-committed, after unloading what may go. A picture borrows a <see cref="Room"/>: while one is out,
+/// residents nothing is using may make way for its parts — or the picture waits until they are idle — and they are
+/// loaded again once the last picture is done, or as soon as a request needs one.
 /// </summary>
-internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adapters, ModelRunners runners, HostLog log) : IDisposable
+internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log) : IDisposable
 {
+    /// <summary>How often a request waiting for room says so, so the app's watchdog keeps hearing from it.</summary>
+    private static readonly TimeSpan WaitingReport = TimeSpan.FromSeconds(20);
+
     internal sealed class Entry(IHostModel model)
     {
         public IHostModel Model { get; } = model;
@@ -22,56 +27,63 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
     }
 
     private readonly Dictionary<string, Entry> _loaded = new(StringComparer.Ordinal);
+    /// <summary>Models asked for in another place or at another size while a request still used them: they hold
+    /// their memory until it ends.</summary>
+    private readonly List<Entry> _replaced = [];
+    /// <summary>Residents unloaded to make way for a picture.</summary>
+    private readonly Dictionary<string, ModelSpec> _displaced = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _loading = new(1, 1);
     private readonly object _gate = new();
+    private TaskCompletionSource _idle = Signal();
+    private int _rooms;
 
-    public string ExecutionProvider => runtime.ExecutionProvider;
-
-    /// <summary>The model, loaded — and kept loaded while the lease is held.</summary>
+    /// <summary>The model, loaded where its spec places it — and kept loaded while the lease is held.</summary>
     /// <param name="resident">Keep it loaded after the lease, until it is unloaded.</param>
-    /// <exception cref="HostRequestException">It would not fit beside the models that must stay, or would not load.</exception>
-    public async Task<Lease> AcquireAsync(ModelSpec spec, bool resident, Func<string, Task> stage, CancellationToken ct)
+    /// <param name="room">The picture it is loaded for: residents nothing is using may make way for it.</param>
+    /// <exception cref="HostRequestException">It names a GPU this host does not have, would not fit beside the models
+    /// that must stay, or would not load.</exception>
+    public async Task<Lease> AcquireAsync(ModelSpec spec, bool resident, Func<string, Task> stage, CancellationToken ct, Room? room = null)
     {
-        if (TryLease(spec.Id, resident) is { } held) return held;
+        if (spec.Device is { } device) gpus.Gpu(device);
+        if (TryLease(spec, ref resident) is { } held) return held;
 
-        await _loading.WaitAsync(ct);
-        try
+        while (true)
         {
-            if (TryLease(spec.Id, resident) is { } loaded) return loaded;
-
-            MakeRoomFor(spec);
-            await stage("loading");
-            var started = Stopwatch.GetTimestamp();
-            IHostModel model;
+            Task idle;
+            await _loading.WaitAsync(ct);
             try
             {
-                model = await Task.Run(() =>
-                {
-                    if (spec.Adapter is { } adapter) adapters.EnsurePrepared(spec.Folder, adapter);
-                    return runners.Load(spec, runtime.ExecutionProvider);
-                }, ct);
+                if (TryLease(spec, ref resident) is { } loaded) return loaded;
+                lock (_gate) idle = _idle.Task;
+                if (MakeRoomFor(spec, room)) return await LoadAsync(spec, resident, stage, ct);
             }
-            catch (Exception ex) when (ex is not HostRequestException and not OperationCanceledException)
-            {
-                throw new HostRequestException(HostErrorKind.Runtime, $"{spec.Id} did not load: {ex.Message}");
-            }
-            log.Write($"loaded {spec.Id} on {runtime.ExecutionProvider} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
+            finally { _loading.Release(); }
 
-            lock (_gate)
+            // Only models in use stand in the way: wait until one is let go, then plan again.
+            while (!idle.IsCompleted)
             {
-                var entry = new Entry(model) { Resident = resident, Users = 1 };
-                _loaded[spec.Id] = entry;
-                return new Lease(this, entry);
+                await stage("waiting");
+                await Task.WhenAny(idle, Task.Delay(WaitingReport, ct));
+                ct.ThrowIfCancellationRequested();
             }
         }
-        finally { _loading.Release(); }
     }
 
-    private Lease? TryLease(string id, bool resident)
+    /// <summary>A lease on the model as loaded, when it is loaded as <paramref name="spec"/> places it. One loaded
+    /// elsewhere or at another size is let go — its residence passing to the one about to load.</summary>
+    private Lease? TryLease(ModelSpec spec, ref bool resident)
     {
         lock (_gate)
         {
-            if (!_loaded.TryGetValue(id, out var entry)) return null;
+            if (!_loaded.TryGetValue(spec.Id, out var entry)) return null;
+            if (!entry.Model.Spec.PlacedAs(spec))
+            {
+                resident |= entry.Resident;
+                _loaded.Remove(spec.Id);
+                if (entry.Users == 0) Free(entry);
+                else _replaced.Add(entry);
+                return null;
+            }
             entry.Resident |= resident;
             if (resident) entry.UnloadWhenIdle = false;
             entry.Users++;
@@ -80,20 +92,95 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
         }
     }
 
-    /// <summary>Unloads what the budget says must go for <paramref name="spec"/> to fit, or refuses it.</summary>
-    private void MakeRoomFor(ModelSpec spec)
+    private async Task<Lease> LoadAsync(ModelSpec spec, bool resident, Func<string, Task> stage, CancellationToken ct)
     {
-        if (runtime.BudgetBytes is not { } budget) return;
+        await stage("loading");
+        var started = Stopwatch.GetTimestamp();
+        IHostModel model;
+        try
+        {
+            model = await Task.Run(() =>
+            {
+                if (spec.Adapter is { } adapter) adapters.EnsurePrepared(spec.Folder, adapter);
+                return runners.Load(spec);
+            }, ct);
+        }
+        catch (Exception ex) when (ex is not HostRequestException and not OperationCanceledException)
+        {
+            throw new HostRequestException(HostErrorKind.Runtime, $"{spec.Id} did not load: {ex.Message}");
+        }
+        log.Write($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
 
         lock (_gate)
         {
-            var loaded = _loaded.Values.Select(e => new VramBudget.Loaded(e.Model.Spec.Id, e.Model.Spec.MemoryBytes, e.Resident, e.Users > 0, e.LastUsed)).ToList();
-            if (VramBudget.Plan(budget, loaded, spec.MemoryBytes) is not { } unload)
-                throw new HostRequestException(HostErrorKind.Refused,
-                    $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of VRAM, and this GPU's {budget >> 20} MiB budget cannot make that room beside "
-                    + string.Join(", ", _loaded.Keys) + ".");
+            // A resident that made way for a picture is resident again, whoever loads it.
+            bool displaced = _displaced.Remove(spec.Id);
+            var entry = new Entry(model) { Resident = resident || displaced, Users = 1 };
+            _loaded[spec.Id] = entry;
+            return new Lease(this, entry);
+        }
+    }
 
-            foreach (var id in unload) Unload(_loaded[id]);
+    /// <summary>Unloads what must go for <paramref name="spec"/> to fit on its GPU.</summary>
+    /// <returns>False when only models in use stand in the way and it may wait for them: a picture's part, or a
+    /// resident that made way for one.</returns>
+    /// <exception cref="HostRequestException">It cannot fit beside what must stay.</exception>
+    private bool MakeRoomFor(ModelSpec spec, Room? room)
+    {
+        if (spec.Device is not { } device) return true;
+        var gpu = gpus.Gpu(device);
+
+        lock (_gate)
+        {
+            var held = _loaded.Values.Concat(_replaced).Where(e => e.Model.Spec.Device == device)
+                              .Select(e => new VramBudget.Loaded(e.Model.Spec.Id, e.Model.Spec.MemoryBytes, e.Resident, e.Users > 0, e.LastUsed))
+                              .ToList();
+            var admission = VramBudget.Plan(gpu.BudgetBytes, held, spec.MemoryBytes, displaceResidents: room is not null);
+            if (admission is null || admission.Waits && room is null && !_displaced.ContainsKey(spec.Id))
+                throw new HostRequestException(HostErrorKind.Refused,
+                    $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of GPU {device}, and its {gpu.BudgetBytes >> 20} MiB budget cannot make that room beside "
+                    + string.Join(", ", held.Select(m => m.Id)) + ".");
+            if (admission.Waits) return false;
+
+            foreach (var id in admission.Unload)
+            {
+                var entry = _loaded[id];
+                if (entry.Resident) _displaced[id] = entry.Model.Spec;
+                Unload(entry);
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
+    public Room BorrowRoom()
+    {
+        lock (_gate) _rooms++;
+        return new Room(this);
+    }
+
+    /// <summary>Once the last picture is done, loads the residents that made way for pictures — those no request has
+    /// loaded since.</summary>
+    private void GiveBack()
+    {
+        List<ModelSpec> displaced;
+        lock (_gate)
+        {
+            if (--_rooms > 0) return;
+            displaced = [.. _displaced.Values];
+        }
+        foreach (var spec in displaced) _ = ReloadAsync(spec);
+    }
+
+    private async Task ReloadAsync(ModelSpec spec)
+    {
+        try
+        {
+            using var lease = await AcquireAsync(spec, resident: true, _ => Task.CompletedTask, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HostRequestException or ObjectDisposedException)
+        {
+            log.Write($"{spec.Id} was not loaded again after a picture: {ex.Message}");
         }
     }
 
@@ -103,6 +190,7 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
     {
         lock (_gate)
         {
+            _displaced.Remove(id);
             if (!_loaded.TryGetValue(id, out var entry)) return;
             entry.Resident = false;
             if (entry.Users == 0) Unload(entry);
@@ -116,21 +204,40 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
         {
             entry.Users--;
             entry.LastUsed = Stopwatch.GetTimestamp();
-            if (entry.Users == 0 && entry.UnloadWhenIdle) Unload(entry);
+            if (entry.Users > 0) return;
+            if (_replaced.Remove(entry)) Free(entry);
+            else if (entry.UnloadWhenIdle) Unload(entry);
+
+            var idle = _idle;
+            _idle = Signal();
+            idle.TrySetResult();
         }
     }
 
     private void Unload(Entry entry)
     {
         _loaded.Remove(entry.Model.Spec.Id);
-        entry.Model.Dispose();
-        log.Write($"unloaded {entry.Model.Spec.Id}");
+        Free(entry);
     }
+
+    private void Free(Entry entry)
+    {
+        entry.Model.Dispose();
+        log.Write($"unloaded {entry.Model.Spec.Id} from {Where(entry.Model.Spec)}");
+    }
+
+    private static string Where(ModelSpec spec) => spec.Device is { } device ? $"GPU {device}" : "the CPU";
+
+    private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public void Dispose()
     {
         lock (_gate)
+        {
             foreach (var entry in _loaded.Values.ToList()) Unload(entry);
+            foreach (var entry in _replaced) Free(entry);
+            _replaced.Clear();
+        }
         _loading.Dispose();
     }
 
@@ -158,6 +265,20 @@ internal sealed class ModelRegistry(ExecutionRuntime runtime, ModelAdapters adap
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _ended, 1) == 0) _registry.Ended(_entry);
+        }
+    }
+
+    /// <summary>Room borrowed for one picture; giving it back lets what made way for it load again.</summary>
+    public sealed class Room : IDisposable
+    {
+        private readonly ModelRegistry _registry;
+        private int _returned;
+
+        internal Room(ModelRegistry registry) => _registry = registry;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _returned, 1) == 0) _registry.GiveBack();
         }
     }
 }

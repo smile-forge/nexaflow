@@ -4,10 +4,11 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.AiHost.Client;
 
 /// <summary>
-/// What the host needs to run on an NVIDIA GPU, fetched from where NVIDIA and Microsoft publish it: ONNX Runtime and
-/// onnxruntime-genai built with their CUDA layers (nuget.org), and cuBLAS and cuDNN (NVIDIA's wheels on PyPI) — about
-/// 1.3 GB, under <c>runtime\</c> in the asset store. Pinned to the host's own runtime versions: the install's
-/// <c>onnxruntime.dll</c> and <c>onnxruntime-genai.dll</c> are the same files as the pack's.
+/// What the host needs to run on an NVIDIA GPU, fetched from where NVIDIA, Microsoft and llama.cpp publish it: ONNX
+/// Runtime and onnxruntime-genai built with their CUDA layers (nuget.org), llama.cpp's CUDA backend (its GitHub
+/// release), and the CUDA runtime, cuBLAS and cuDNN (NVIDIA's wheels on PyPI) — about 1.4 GB, under <c>runtime\</c> in
+/// the asset store. Pinned to the host's own runtime versions: the install's <c>onnxruntime.dll</c> and
+/// <c>onnxruntime-genai.dll</c> are the same files as the pack's, and its llama.cpp is the build the backend is from.
 /// </summary>
 public static class CudaRuntimePack
 {

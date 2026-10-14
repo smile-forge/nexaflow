@@ -18,7 +18,7 @@ public class OwnedSpeechToTextProviderTests
     private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 24L << 30, IsIntegrated: false, IsNpu: false)], new Version(13, 0));
 
     private static OwnedSpeechToTextProvider Provider(FakeModelStore store, FakeAiHost host, ComputeHardwareReport? hardware = null)
-        => new(new FakeActivityManager(), store, host, hardware ?? Amd(), new ProviderModel(ModelId));
+        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Amd(), new ProviderModel(ModelId));
 
     private static IReadOnlyList<ModelAsset> FilesOn(ComputeHardwareReport hardware)
         => Provider(new FakeModelStore(), new FakeAiHost(), hardware).Catalog.Single(m => m.Id == ModelId).Files;
@@ -49,16 +49,17 @@ public class OwnedSpeechToTextProviderTests
     public async Task ListeningForTurns_OpensAListenInTheHost_AtTheVoicePriority_WithEveryPart()
     {
         var host = new FakeAiHost();
-        var provider = Provider(new FakeModelStore(FilesOn(Nvidia())), host, Nvidia());
+        var provider = Provider(new FakeModelStore([.. FilesOn(Nvidia()), .. CudaRuntimePack.Files]), host, Nvidia());
 
         await using var session = await provider.StartSessionAsync(new SpeechToTextOptions("de", SpeechSegmentation.Turns));
 
-        var listen = (Listen)host.Requests.Single();
+        var listen = host.Requests.OfType<Listen>().Single();
         Assert.AreEqual(("de", UtteranceEnd.Turn, RequestPriority.Voice), (listen.Language, listen.End, listen.Priority));
         Assert.AreEqual(("silero-vad", "silero_vad.onnx"), (listen.Models.VoiceActivity.Runner, listen.Models.VoiceActivity.File));
         Assert.AreEqual(@"C:\ai\models\nemotron-3.5-asr-streaming", listen.Models.Recognizer.Folder, "the folder is where the store keeps its files");
         Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cuda", listen.Models.Transcriber!.Folder, "the CUDA build, on a machine the pack suits");
         Assert.AreEqual("1", listen.Models.Transcriber.CudaOptions!["sdpa_kernel"]);
+        Assert.AreEqual((0, (int?)null), (listen.Models.Transcriber.Device, listen.Models.VoiceActivity.Device), "on the GPU, but for the parts that always run on the CPU");
         Assert.AreEqual("smart-turn", listen.Models.TurnDetector!.Runner);
     }
 
@@ -70,7 +71,7 @@ public class OwnedSpeechToTextProviderTests
 
         await using var session = await provider.StartSessionAsync(new SpeechToTextOptions());
 
-        var listen = (Listen)host.Requests.Single();
+        var listen = host.Requests.OfType<Listen>().Single();
         Assert.AreEqual((null, UtteranceEnd.Pause, RequestPriority.Interactive), (listen.Language, listen.End, listen.Priority));
         Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cpu", listen.Models.Transcriber!.Folder);
     }

@@ -1,4 +1,5 @@
 using System.Linq;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Converters;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.Services;
@@ -47,12 +48,16 @@ public class SystemInfoDashboardTests
 
     [TestMethod]
     [CoversNode("sysinfo-local-ai")]
-    public void LocalAiCard_SaysWhatTheMachineCanRun()
-        => Assert.AreEqual("Local models", Card("Local AI").Items[0].Label);
+    public void LocalAiCard_SaysWhenTheWorkspaceRunsNoModelOfNexaflowsOwn()
+    {
+        var first = Card("Local AI").Items[0];
+
+        Assert.AreEqual(("Nexaflow's own models", "Not used in this workspace"), (first.Label, first.Value));
+    }
 
     [TestMethod]
     [CoversNode("sysinfo-local-ai")]
-    public void LocalAiCard_NamesEachGpuAndNpu_AndWhatTheBestGpuIsEnoughFor()
+    public void BeforeTheHostRuns_LocalAiCard_NamesEachAdapterAndNpu_AndTheCudaDriver()
     {
         var report = new ComputeHardwareReport(
         [
@@ -61,11 +66,8 @@ public class SystemInfoDashboardTests
             new ComputeAdapter("Intel AI Boost", ComputeVendor.Intel, 0, IsIntegrated: true, IsNpu: true),
         ], new Version(13, 0));
 
-        var card = SystemInfoCollector.CollectLocalAi(report);
-        var rows = card.Items.ToDictionary(i => i.Label, i => i);
+        var rows = SystemInfoCollector.CollectLocalAi(report, null).Items.ToDictionary(i => i.Label, i => i);
 
-        Assert.AreEqual("The larger models, with voice", rows["Local models"].Value);
-        Assert.AreEqual(SystemInfoStatus.Good, rows["Local models"].Status);
         StringAssert.StartsWith(rows["NVIDIA RTX PRO 6000"].Value, "NVIDIA GPU");
         StringAssert.StartsWith(rows["AMD Radeon(TM) Graphics"].Value, "AMD integrated GPU");
         Assert.AreEqual("Intel AI Boost", rows["NPU"].Value);
@@ -74,15 +76,26 @@ public class SystemInfoDashboardTests
 
     [TestMethod]
     [CoversNode("sysinfo-local-ai")]
-    public void LocalAiCard_WarnsWhenNoGpuIsEnough()
+    public void LocalAiCard_SaysWhereEachModelRuns_WhatElseFits_AndEachGpusBudget()
     {
-        var report = new ComputeHardwareReport(
-            [new ComputeAdapter("Intel UHD", ComputeVendor.Intel, 128L << 20, IsIntegrated: true, IsNpu: false)], CudaDriver: null);
+        var setup = new LocalAiSetup([new LocalAiGpu(0, "NVIDIA GeForce RTX 2080 Ti", 11L << 30, 9L << 30)],
+        [
+            new LocalAiModel("Gemma 4 E4B", 0, 6L << 30, 16384, OnDemand: false, Displaces: false, Fits: true),
+            new LocalAiModel("Whisper — transcriber", null, 0, 0, OnDemand: false, Displaces: false, Fits: true),
+            new LocalAiModel("Z-Image Turbo — denoiser", 0, 9L << 30, 0, OnDemand: true, Displaces: true, Fits: true),
+            new LocalAiModel("Gemma 4 31B", null, 0, 0, OnDemand: false, Displaces: false, Fits: false),
+        ], ["Qwen 3.5 9B"]);
+        var report = new ComputeHardwareReport([new ComputeAdapter("NVIDIA GeForce RTX 2080 Ti", ComputeVendor.Nvidia, 11L << 30, false, false)], new Version(13, 0));
 
-        var fit = SystemInfoCollector.CollectLocalAi(report).Items[0];
+        var rows = SystemInfoCollector.CollectLocalAi(report, setup).Items.ToDictionary(i => i.Label, i => i);
 
-        Assert.AreEqual(SystemInfoStatus.Warning, fit.Status);
-        StringAssert.Contains(fit.Value, "24");
+        Assert.AreEqual(("GPU 0 · 6.0 GB · a context of 16,384 tokens", SystemInfoStatus.Good), (rows["Gemma 4 E4B"].Value, rows["Gemma 4 E4B"].Status));
+        Assert.AreEqual(("The CPU", SystemInfoStatus.Warning), (rows["Whisper — transcriber"].Value, rows["Whisper — transcriber"].Status),
+                        "a GPU here, but no room on it: slower");
+        StringAssert.EndsWith(rows["Z-Image Turbo — denoiser"].Value, "make way while it works");
+        Assert.AreEqual(("Too large for this machine", SystemInfoStatus.Bad), (rows["Gemma 4 31B"].Value, rows["Gemma 4 31B"].Status));
+        Assert.AreEqual("Qwen 3.5 9B", rows["Also fits this machine"].Value);
+        StringAssert.EndsWith(rows["GPU 0"].Value, "9.0 GB for models", "the host's GPUs, each with its budget, in place of the adapters");
     }
 
     [TestMethod]

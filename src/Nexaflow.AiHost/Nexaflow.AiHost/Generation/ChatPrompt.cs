@@ -1,88 +1,102 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Jinja;
 using Nexaflow.AiHost.Models;
 
 namespace Nexaflow.AiHost.Generation;
 
 /// <summary>
 /// A conversation as the model reads it: rendered by the model's own chat template, so a new model needs no harness
-/// of its own.
+/// of its own. The template is given what transformers would give it — OpenAI-style messages, the tools, the
+/// generation prompt, the model's start and end tokens — with reasoning on: a model says what its actions came to only
+/// when it has thought about them. Where a turn carries a picture or a
+/// recording the model can take in, its content holds the projector's marker, which the medium is read in place of;
+/// any other is noted in words.
 /// </summary>
 internal static class ChatPrompt
 {
-    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, MediaPlan media,
-                                IReadOnlyList<ChatTool>? tools = null)
-        => model.Tokenizer.ApplyChatTemplate(template_str: model.Template, messages: Messages(turns, media, tools), tools: "",
-                                             add_generation_prompt: generationPrompt);
-
-    /// <summary>The template's input: the turns as chat messages, with placeholders for the media read and a note
-    /// in place of any other; a turn's tool calls, and what answers one, as chat templates take them. The tools offered,
-    /// and the arguments of calls already made, are written in the model's own syntax (<see cref="ToolCallSyntax"/>): the
-    /// declarations end the system turn, the arguments go as the template's written form.</summary>
-    internal static string Messages(IReadOnlyList<ChatTurn> turns, MediaPlan media, IReadOnlyList<ChatTool>? tools = null)
+    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, IReadOnlyList<ChatTool>? tools = null)
     {
-        var messages = new JsonArray();
-        for (int i = 0; i < turns.Count; i++)
+        try
         {
-            var turn = turns[i];
-            var content = Content(turn, media);
-            if (i == 0 && turn.Role == TurnRole.System && tools is { Count: > 0 })
-                content = content.GetValue<string>() + ToolCallSyntax.Declarations(tools);
-            var message = new JsonObject
-            {
-                ["role"]    = turn.Role switch { TurnRole.System => "system", TurnRole.Assistant => "assistant", TurnRole.Tool => "tool", _ => "user" },
-                ["content"] = content,
-            };
-            if (turn.ToolCalls is { Count: > 0 } calls)
-                message["tool_calls"] = new JsonArray([.. calls.Select(c => (JsonNode)new JsonObject
-                {
-                    ["id"]       = c.Id,
-                    ["type"]     = "function",
-                    ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = ToolCallSyntax.Arguments(c.Arguments) },
-                })]);
-            if (turn.Answers is { } answered)
-            {
-                message["tool_call_id"] = answered.Id;
-                message["name"]         = answered.Name;
-            }
-            messages.Add(message);
+            return model.Template.Render(Variables(turns, generationPrompt, tools, model.Model.BosText, model.Model.EosText, model.MarkerFor));
         }
-        return messages.ToJsonString();
+        catch (JinjaException ex)
+        {
+            throw new HostRequestException(HostErrorKind.Invalid, $"{model.Spec.Id}'s chat template refused the conversation: {ex.Message}");
+        }
     }
 
-    private static JsonNode Content(ChatTurn turn, MediaPlan media)
-    {
-        if (turn.Media is not { Count: > 0 } all) return turn.Text;
+    /// <summary>The media the rendered prompt reads, in the order their markers come.</summary>
+    public static IReadOnlyList<ChatMedia> Media(ChatModel model, IEnumerable<ChatTurn> turns)
+        => [.. turns.SelectMany(t => t.Media ?? []).Where(m => model.MarkerFor(m.Kind) is not null)];
 
-        var read  = all.Where(media.Reads).ToList();
-        var notes = all.Except(read).Select(m => m.Kind == MediaKind.Image ? "[image]" : "[recording]").ToList();
+    /// <param name="marker">What stands in a prompt for a medium of a kind the model reads; null for one it cannot.</param>
+    internal static Dictionary<string, object?> Variables(IReadOnlyList<ChatTurn> turns, bool generationPrompt, IReadOnlyList<ChatTool>? tools,
+                                                          string bos, string eos, Func<MediaKind, string?> marker)
+    {
+        var variables = new Dictionary<string, object?>
+        {
+            ["messages"]              = turns.Select(t => (object?)Message(t, marker)).ToList(),
+            ["add_generation_prompt"] = generationPrompt,
+            ["bos_token"]             = bos,
+            ["eos_token"]             = eos,
+            ["enable_thinking"]       = true,
+        };
+        if (tools is { Count: > 0 })
+            variables["tools"] = tools.Select(t => (object?)JinjaValues.Mapping(
+            [
+                ("type", "function"),
+                ("function", JinjaValues.Mapping([("name", t.Name), ("description", t.Description), ("parameters", Json(t.Parameters))])),
+            ])).ToList();
+        return variables;
+    }
+
+    private static OrderedDictionary<string, object?> Message(ChatTurn turn, Func<MediaKind, string?> marker)
+    {
+        var message = JinjaValues.Mapping(
+        [
+            ("role", turn.Role switch { TurnRole.System => "system", TurnRole.Assistant => "assistant", TurnRole.Tool => "tool", _ => "user" }),
+            ("content", Content(turn, marker)),
+        ]);
+        if (turn.ToolCalls is { Count: > 0 } calls)
+            message["tool_calls"] = calls.Select(c => (object?)JinjaValues.Mapping(
+            [
+                ("id", c.Id),
+                ("type", "function"),
+                ("function", JinjaValues.Mapping([("name", c.Name), ("arguments", Json(c.Arguments))])),
+            ])).ToList();
+        if (turn.Answers is { } answered)
+        {
+            message["tool_call_id"] = answered.Id;
+            message["name"]         = answered.Name;
+        }
+        return message;
+    }
+
+    /// <summary>A turn's content: its text alone, or — with media — a part for each medium, then the text.</summary>
+    private static object? Content(ChatTurn turn, Func<MediaKind, string?> marker)
+    {
+        if (turn.Media is not { Count: > 0 } media) return turn.Text;
+
+        var notes = media.Where(m => marker(m.Kind) is null).Select(m => m.Kind == MediaKind.Image ? "[image]" : "[recording]").ToList();
         string text = notes.Count == 0 ? turn.Text : string.Join(" ", notes) + "\n" + turn.Text;
+        var read = media.Select(m => marker(m.Kind)).OfType<string>().ToList();
         if (read.Count == 0) return text;
 
-        var content = new JsonArray();
-        foreach (var item in read)
-            content.Add(new JsonObject { ["type"] = item.Kind == MediaKind.Image ? "image" : "audio" });
-        content.Add(new JsonObject { ["type"] = "text", ["text"] = text });
-        return content;
+        var parts = read.Select(m => (object?)Part(m)).ToList();
+        parts.Add(Part(text));
+        return parts;
     }
-}
 
-/// <summary>
-/// The media a conversation read afresh takes in: its newest image and its newest recording, wherever they are.
-/// One of each is what onnxruntime-genai reads together (two images in one prompt fail); media anywhere else stays in
-/// the conversation as a note of what was there.
-/// </summary>
-internal sealed record MediaPlan(ChatMedia? Image, ChatMedia? Audio)
-{
-    public static MediaPlan None { get; } = new(null, null);
+    private static OrderedDictionary<string, object?> Part(string text) => JinjaValues.Mapping([("type", "text"), ("text", text)]);
 
-    public static MediaPlan Of(IReadOnlyList<ChatTurn> turns)
+    /// <summary>JSON from the app — a schema, a call's arguments — as the template's values; text that is not JSON
+    /// stays text, for the template to write or refuse.</summary>
+    private static object? Json(string json)
     {
-        var all = turns.SelectMany(t => t.Media ?? []).ToList();
-        return new MediaPlan(all.LastOrDefault(m => m.Kind == MediaKind.Image), all.LastOrDefault(m => m.Kind == MediaKind.Audio));
+        try { return JinjaValues.From(JsonNode.Parse(json)); }
+        catch (JsonException) { return json; }
     }
-
-    public bool IsEmpty => Image is null && Audio is null;
-
-    public bool Reads(ChatMedia media) => ReferenceEquals(media, Image) || ReferenceEquals(media, Audio);
 }

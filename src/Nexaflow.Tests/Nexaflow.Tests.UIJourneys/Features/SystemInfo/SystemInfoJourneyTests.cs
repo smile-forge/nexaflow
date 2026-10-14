@@ -33,6 +33,10 @@ public class SystemInfoJourneyTests : UiJourneyTestBase
         // Refresh is safe — it only re-queues the background system-info gather.
         CheckInvoke("Refresh", "SysInfo_Refresh");
 
+        // The Local AI card checks the machine only against models Nexaflow runs itself — gigabytes no journey
+        // fetches — so the journey's workspace, which runs none, is offered no check.
+        Check("No local AI check without models of Nexaflow's own", () => !Exists("SysInfo_SectionAction"));
+
         AssertJourney();
     }
 }

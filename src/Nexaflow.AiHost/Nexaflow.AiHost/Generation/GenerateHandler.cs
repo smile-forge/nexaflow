@@ -1,6 +1,6 @@
 using System.Text;
-using Microsoft.ML.OnnxRuntimeGenAI;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
 using Nexaflow.IO.Common.Audio;
 
@@ -8,8 +8,9 @@ namespace Nexaflow.AiHost.Generation;
 
 /// <summary>
 /// The model's next turn, streamed as it is generated. The conversation is continued where the model already holds
-/// it — its new turns appended as a delta against what was read — or read afresh; then tokens are generated one GPU
-/// step at a time until the model ends its turn, the request's limit, or the context's.
+/// it — what is new appended against what was read, media included — or read afresh; then tokens are generated one GPU
+/// step at a time until the model ends its turn, the request's limit, or the context's. Every read and every token is
+/// a step of its own, so speech gets in between.
 /// </summary>
 internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Generate>
 {
@@ -20,142 +21,154 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var model = lease.As<ChatModel>();
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
+        bool kept = false;
         try
         {
+            string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools);
             int read;
             if (conversation is not null && Delta(model, conversation, request.Turns, request.Tools) is { } delta)
             {
-                read = await AppendAsync(model, conversation, delta, request.Priority, ct);
+                read = await ReadAsync(model, conversation, delta, ChatPrompt.Media(model, request.Turns.Skip(conversation.Read.Count)),
+                                       request.Priority, ct);
             }
             else
             {
                 conversation?.Dispose();
                 conversation = model.Conversations.Start();
-                read = await ReadAfreshAsync(model, conversation, request.Turns, request.Tools, request.Priority, ct);
+                read = await ReadAsync(model, conversation, prompt, ChatPrompt.Media(model, request.Turns), request.Priority, ct);
             }
+            conversation.Prompted(prompt);
 
-            var (reason, text, calls, tokens, prompt) = await GenerateAsync(model, conversation, request, reply, ct);
-            conversation.Answered(request.Turns, text, calls);
-            model.Conversations.Keep(conversation);
-            conversation = null;
-
-            await reply(new GenerationEnded(request.RequestId, reason, prompt, read == 0 ? prompt : read, tokens.Count));
+            var outcome = await GenerateAsync(model, conversation, request, model.Thinking?.Opens(prompt) == true, reply, ct);
+            if (outcome.Continuable)
+            {
+                conversation.Answered(request.Turns, outcome.Text, outcome.Calls, outcome.StoppedAt);
+                model.Conversations.Keep(conversation);
+                kept = true;
+            }
+            await reply(new GenerationEnded(request.RequestId, outcome.Reason, outcome.PromptTokens, read, outcome.Generated));
         }
         finally
         {
-            conversation?.Dispose();   // failed or cancelled part-way: its context is not one anybody will continue
+            // Failed, cancelled or cut short part-way: its context is not one anybody will continue.
+            if (!kept) conversation?.Dispose();
         }
     }
 
     /// <summary>What extends the conversation's context to <paramref name="turns"/> — see <see cref="ConversationMatch.Delta"/>.</summary>
     private static string? Delta(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools)
-        => ConversationMatch.Delta(conversation.Read, turns,
-                                   (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, MediaPlan.None, tools));
+        => ConversationMatch.Delta(conversation.Read, conversation.Prompt, conversation.StoppedAt, turns,
+                                   (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, tools));
 
-    private async Task<int> AppendAsync(ChatModel model, LiveConversation conversation, string text, RequestPriority priority,
-                                        CancellationToken ct)
+    /// <summary>Reads <paramref name="text"/> into the conversation — its text in slices, each medium whole, a step
+    /// each — and chooses the first token of the reply with the last. Returns the tokens read.</summary>
+    private async Task<int> ReadAsync(ChatModel model, LiveConversation conversation, string text, IReadOnlyList<ChatMedia> media,
+                                      RequestPriority priority, CancellationToken ct)
     {
-        using var sequences = model.Tokenizer.Encode(text);
-        var tokens = sequences[0].ToArray();
-        EnsureRoom(model, conversation.Tokens + tokens.Length);
-        for (int at = 0; at < tokens.Length; at += LiveConversation.Chunk)
-            using (await gpu.NextAsync(priority, ct))
-            {
-                ct.ThrowIfCancellationRequested();
-                conversation.Generator.AppendTokens(tokens.AsSpan(at, Math.Min(LiveConversation.Chunk, tokens.Length - at)));
-            }
-        return tokens.Length;
-    }
+        using var prompt = model.Prepare(text, [.. media.Select(Bytes)]);
+        model.Conversations.MakeRoom(conversation, prompt.Tokens);
 
-    /// <summary>Reads the whole conversation into a new context — with its newest image and recording.
-    /// Returns the tokens read, or 0 when media is read and the count is known only once the first token is out.</summary>
-    private async Task<int> ReadAfreshAsync(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns,
-                                            IReadOnlyList<ChatTool>? tools, RequestPriority priority, CancellationToken ct)
-    {
-        var media = MediaPlan.Of(turns);
-        string prompt = ChatPrompt.Render(model, turns, generationPrompt: true, media, tools);
-        if (media.IsEmpty) return await AppendAsync(model, conversation, prompt, priority, ct);
-
-        using var images = media.Image is { } image ? Images.Load(Bytes(image)) : null;
-        using var audios = media.Audio is { } audio ? Audios.Load(SpeechWav(audio)) : null;
-        using var inputs = (images, audios) switch
+        var pieces = prompt.Pieces;
+        for (int p = 0; p < pieces.Count; p++)
         {
-            ({ } i, { } a) => model.Processor.ProcessImagesAndAudios(prompt, i, a),
-            ({ } i, null)  => model.Processor.ProcessImages(prompt, i),
-            _              => model.Processor.ProcessAudios(prompt, audios!),
-        };
-        using (await gpu.NextAsync(priority, ct))
-            conversation.Generator.SetInputs(inputs);
-        return 0;
+            var piece = pieces[p];
+            bool lastPiece = p == pieces.Count - 1;
+            if (!piece.IsText)
+            {
+                using (await gpu.NextAsync(priority, ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    conversation.ReadMedium(prompt.Projector!, piece, sample: lastPiece);
+                }
+                continue;
+            }
+            var tokens = piece.Tokens!;
+            for (int at = 0; at < tokens.Length; at += LlamaContext.Batch)
+            {
+                int count = Math.Min(LlamaContext.Batch, tokens.Length - at);
+                using (await gpu.NextAsync(priority, ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    conversation.ReadTokens(tokens.AsSpan(at, count), sample: lastPiece && at + count == tokens.Length);
+                }
+            }
+        }
+        return prompt.Tokens;
     }
 
+    /// <summary>A medium's bytes as the projector takes them: an image as its file, a recording as 16 kHz mono WAV.</summary>
     private static byte[] Bytes(ChatMedia media)
     {
-        if (media.Bytes is { Length: > 0 } bytes) return bytes;
-        if (media.Path is { } path && File.Exists(path)) return File.ReadAllBytes(path);
-        throw new HostRequestException(HostErrorKind.NotFound, $"The {media.Kind.ToString().ToLowerInvariant()} to read is not there: {media.Path}.");
-    }
-
-    /// <summary>A recording as the model's audio processor takes it — 16 kHz mono — which it cannot make of a lower rate.</summary>
-    private static byte[] SpeechWav(ChatMedia media)
-    {
-        try { return WavAudio.ToMono(Bytes(media)); }
+        byte[] bytes = media.Bytes is { Length: > 0 } inline ? inline
+                     : media.Path is { } path && File.Exists(path) ? File.ReadAllBytes(path)
+                     : throw new HostRequestException(HostErrorKind.NotFound, $"The {media.Kind.ToString().ToLowerInvariant()} to read is not there: {media.Path}.");
+        if (media.Kind != MediaKind.Audio) return bytes;
+        try { return WavAudio.ToMono(bytes); }
         catch (InvalidDataException ex) { throw new HostRequestException(HostErrorKind.Invalid, $"The recording cannot be read: {ex.Message}"); }
     }
 
-    /// <summary>Generates until the model ends its turn, waits on the tools it called, or a limit is reached. The prompt's
-    /// length is taken as the first token comes out — a turn read with media is counted only then — and the end token a
-    /// reply stops on is never kept, so the count after the reply would be one short. Offered tools, a model that calls
-    /// them in its own syntax has its calls read from its tokens and sent as they are made; they are never text.</summary>
-    private async Task<(StopReason Reason, string Text, List<ChatToolCall> Calls, List<int> Tokens, int PromptTokens)> GenerateAsync(
-        ChatModel model, LiveConversation conversation, Generate request, Func<HostReply, Task> reply, CancellationToken ct)
+    /// <param name="Continuable">Whether the conversation can be kept for the next request: its reply ended where the
+    /// model ends turns, not cut short by a limit.</param>
+    /// <param name="StoppedAt">The text of the token the reply stopped on.</param>
+    private sealed record Outcome(StopReason Reason, string Text, List<ChatToolCall> Calls, int Generated, int PromptTokens, bool Continuable,
+                                  string StoppedAt);
+
+    /// <summary>Generates until the model ends its turn, waits on the tools it called, or a limit is reached. Each
+    /// token is chosen from the logits of the read before it and read in the step after it is sent — all but the one
+    /// a reply stops on, which the next request's read begins with. The model's reasoning is read and kept in its context,
+    /// never sent; <paramref name="reasoning"/> says the prompt began it. The reply's text starts at its first word.
+    /// Offered tools, a model that calls them in its own syntax has its calls read from its tokens and sent as they are
+    /// made; they are never text.</summary>
+    private async Task<Outcome> GenerateAsync(ChatModel model, LiveConversation conversation, Generate request, bool reasoning,
+                                              Func<HostReply, Task> reply, CancellationToken ct)
     {
-        using var stream = model.Tokenizer.CreateStream();
-        var reader = request.Tools is { Count: > 0 } && model.ToolCalls is { } syntax ? syntax.Read(stream) : null;
-        var calls  = new List<ChatToolCall>();
-        var tokens = new List<int>();
-        var text = new StringBuilder();
-        int prompt = conversation.Tokens;
+        var text = new ReplyText(model.Model);
+        var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
+        var calls = new List<ChatToolCall>();
+        var written = new StringBuilder();
+        int prompt = conversation.Tokens, generated = 0;
+
+        Outcome Stop(StopReason reason, bool continuable, int token)
+            => new(reason, written.ToString(), calls, generated, prompt, continuable, model.Model.TokenText(token));
+
         while (true)
         {
-            if (tokens.Count >= request.MaxNewTokens) return (StopReason.MaxTokens, text.ToString(), calls, tokens, prompt);
-            if (conversation.Generator.IsDone()) return (StopReason.ContextFull, text.ToString(), calls, tokens, prompt);
+            int token = conversation.Next;
+            generated++;
+            if (model.Model.EndsTurn(token))
+                return Stop(calls.Count > 0 ? StopReason.ToolCalls : StopReason.EndOfTurn, continuable: true, token);
 
+            if (model.Thinking is { } span && (reasoning || token == span.Open))
+            {
+                reasoning = token != span.Close;
+            }
+            else
+            {
+                switch (reader?.Take(token) ?? ToolCallToken.Text)
+                {
+                    case ToolCallToken.Made:
+                        calls.Add(reader!.Made!);
+                        await reply(new ToolCallMade(request.RequestId, reader.Made!));
+                        break;
+                    case ToolCallToken.Waits:
+                        return Stop(StopReason.ToolCalls, continuable: true, token);
+                    case ToolCallToken.Text:
+                        string piece = text.Decode(token);
+                        if (written.Length == 0) piece = piece.TrimStart();
+                        if (piece.Length == 0) break;
+                        written.Append(piece);
+                        await reply(new TextDelta(request.RequestId, piece));
+                        break;
+                }
+            }
+
+            if (generated >= request.MaxNewTokens) return Stop(StopReason.MaxTokens, continuable: false, token);
+            if (conversation.Tokens + 1 >= model.Context.Tokens) return Stop(StopReason.ContextFull, continuable: false, token);
             using (await gpu.NextAsync(request.Priority, ct))
             {
                 ct.ThrowIfCancellationRequested();
-                conversation.Generator.GenerateNextToken();
+                conversation.Advance(token);
             }
-            if (tokens.Count == 0) prompt = conversation.Tokens - 1;
-
-            int token = conversation.Generator.GetNextTokens()[0];
-            tokens.Add(token);
-            if (model.EndTokens.Contains(token))
-                return (calls.Count > 0 ? StopReason.ToolCalls : StopReason.EndOfTurn, text.ToString(), calls, tokens, prompt);
-
-            switch (reader?.Take(token) ?? ToolCallToken.Text)
-            {
-                case ToolCallToken.Call:
-                    continue;
-                case ToolCallToken.Made:
-                    calls.Add(reader!.Made!);
-                    await reply(new ToolCallMade(request.RequestId, reader.Made!));
-                    continue;
-                case ToolCallToken.Waits:
-                    return (StopReason.ToolCalls, text.ToString(), calls, tokens, prompt);
-            }
-
-            string piece = stream.Decode(token);
-            if (piece.Length == 0) continue;
-            text.Append(piece);
-            await reply(new TextDelta(request.RequestId, piece));
         }
-    }
-
-    private static void EnsureRoom(ChatModel model, int tokens)
-    {
-        if (tokens >= model.Spec.ContextTokens)
-            throw new HostRequestException(HostErrorKind.Invalid,
-                $"The conversation is {tokens} tokens, longer than {model.Spec.Id}'s context of {model.Spec.ContextTokens}.");
     }
 }

@@ -2,7 +2,7 @@
   "models": [
     {
       "id": "cuda-ort1.30.0-genai0.17.1",
-      "displayName": "CUDA runtime (ONNX Runtime 1.30.0, onnxruntime-genai 0.17.1, cuBLAS 13.8, cuDNN 9.27)",
+      "displayName": "CUDA runtime (ONNX Runtime 1.30.0, onnxruntime-genai 0.17.1, llama.cpp b11606, cuBLAS 13.8, cuDNN 9.27)",
       "files": [
         {
           "path": "runtime/cuda-ort1.30.0-genai0.17.1/cublas64_13.dll",
@@ -189,6 +189,28 @@
             "entry": "runtimes/win-x64/native/onnxruntime-genai-cuda.dll",
             "size": 30864025,
             "sha256": "3fc2ab68579c2a59a92f499e127e1c2d5c9aea533f8f1843cd354c583f7cd0f1"
+          }
+        },
+        {
+          "path": "runtime/cuda-ort1.30.0-genai0.17.1/ggml-cuda.dll",
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11606/llama-b11606-bin-win-cuda-13.4-x64.zip",
+          "size": 148139008,
+          "sha256": "42b42d786aa3a583256a9602d45ae872607e59926933bc807bf4b61001150b84",
+          "archive": {
+            "entry": "ggml-cuda.dll",
+            "size": 153479124,
+            "sha256": "93ba7c16d1ad8343248d540bb4c06e7e18f7d0601e762d6952bad13628295be8"
+          }
+        },
+        {
+          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudart64_13.dll",
+          "url": "https://files.pythonhosted.org/packages/86/00/d5436004268f049214193659ebc36550b5ef3925c3d13b4cc980e13be6f5/nvidia_cuda_runtime-13.4.92-py3-none-win_amd64.whl",
+          "size": 551024,
+          "sha256": "d26fd1c2629594759af569a5252f94e4568d4ebeca67dc323834deb141aa278a",
+          "archive": {
+            "entry": "nvidia/cu13/bin/x86_64/cudart64_13.dll",
+            "size": 2778543,
+            "sha256": "08dca5e4aba480c2fd5b55075c0fa71b84ef9dcf0521f2d58baa14a803a7311c"
           }
         }
       ]

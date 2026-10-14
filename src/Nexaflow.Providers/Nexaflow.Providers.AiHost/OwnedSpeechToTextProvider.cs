@@ -11,15 +11,15 @@ namespace Nexaflow.Providers.AiHost;
 /// as they are spoken, a transcriber for the text that counts once an utterance ends, and a turn detector that tells a
 /// finished turn from a thinking pause. Nothing leaves this machine.
 /// </summary>
-public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IAsyncDisposable
+public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
-    public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host,
+    public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                                      ComputeHardwareReport hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -29,6 +29,11 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     public DataResidency Residency => DataResidency.StaysOnMachine;
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.SpeechToText).Select(_runtime.CatalogOf)];
+
+    public bool LoadsOnDemand => false;
+
+    public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
+        => OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
 
@@ -52,10 +57,10 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no speech model of that name.");
         var models = new ListenModels(
-            _runtime.Spec(_model, OwnedRoles.VoiceActivity),
-            _runtime.Spec(_model, OwnedRoles.Recognizer),
-            _runtime.Spec(_model, OwnedRoles.Transcriber),
-            _runtime.Spec(_model, OwnedRoles.TurnDetector));
+            await _runtime.PlacedAsync(_model, OwnedRoles.VoiceActivity, ct),
+            await _runtime.PlacedAsync(_model, OwnedRoles.Recognizer, ct),
+            await _runtime.PlacedAsync(_model, OwnedRoles.Transcriber, ct),
+            await _runtime.PlacedAsync(_model, OwnedRoles.TurnDetector, ct));
         var (end, priority) = options.Segmentation == SpeechSegmentation.Turns
             ? (UtteranceEnd.Turn, RequestPriority.Voice)
             : (UtteranceEnd.Pause, RequestPriority.Interactive);

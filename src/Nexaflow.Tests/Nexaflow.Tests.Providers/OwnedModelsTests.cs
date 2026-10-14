@@ -14,11 +14,11 @@ public class OwnedModelsTests
         var gemma = OwnedModels.All.Single(m => m.Id == "gemma-4-e4b-it");
         var chat  = gemma.Part(OwnedRoles.Chat, OwnedModels.Cuda);
 
-        Assert.AreEqual((ModelKind.Language, "models/gemma-4-e4b-it", "gemma4-onnx-community-q4f16"), (gemma.Kind, chat.Folder, chat.Adapter));
-        Assert.IsTrue(chat is { MemoryBytes: > 0, ContextTokens: > 0 } && gemma is { Images: true, Audio: true });
+        Assert.AreEqual((ModelKind.Language, "llama-chat", "models/gemma-4-e4b-it-qat"), (gemma.Kind, chat.Runner, chat.Folder));
+        Assert.IsTrue(chat is { MemoryBytes: > 0, ContextTokens: > 0, Adapter: null } && gemma is { Images: true, Audio: true, ToolCalls: true });
         Assert.AreEqual(chat, gemma.Part(OwnedRoles.Chat, OwnedModels.Cpu), "one build runs on both");
-        CollectionAssert.IsSubsetOf(new[] { "models/gemma-4-e4b-it/genai_config.native.json", "models/gemma-4-e4b-it/chat_template.jinja" },
-                                    gemma.Catalog.Files.Select(f => f.RelativePath).ToArray(), "what the adapter and the host read");
+        CollectionAssert.AreEquivalent(new[] { $"{chat.Folder}/{chat.File}", $"{chat.Folder}/{chat.Projector}" },
+                                       gemma.Catalog.Files.Select(f => f.RelativePath).ToArray(), "the GGUF and the projector it sees and hears through");
     }
 
     [TestMethod]
@@ -77,7 +77,7 @@ public class OwnedModelsTests
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";
 
-    private const string Chat = """{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1 }""";
+    private const string Chat = """{ "role": "chat", "runner": "llama-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1 }""";
 
     private const string Image = """
         { "role": "promptEncoder", "runner": "e", "folder": "models/m", "memoryBytes": 1, "executionProvider": "cuda" },
@@ -89,14 +89,15 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "parts": [CHAT], "files": [IN] }""", DisplayName = "no kind")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [], "files": [IN] }""", DisplayName = "no part")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1 }], "files": [IN] }""", DisplayName = "no runner")]
-    [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m" }], "files": [IN] }""", DisplayName = "no budget")]
+    [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "llama-chat", "folder": "models/m" }], "files": [IN] }""", DisplayName = "no budget")]
     [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT], "files": [IN, OUT] }""", DisplayName = "a file astray")]
-    [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT, { "role": "chat", "runner": "genai-chat", "folder": "models/n", "memoryBytes": 1, "contextTokens": 1 }], "files": [IN] }""", DisplayName = "two of a part")]
+    [DataRow("""{ "id": "m", "kind": "language", "parts": [CHAT, { "role": "chat", "runner": "llama-chat", "folder": "models/n", "memoryBytes": 1, "contextTokens": 1 }], "files": [IN] }""", DisplayName = "two of a part")]
     [DataRow("""{ "id": "m", "kind": "speechToText", "parts": [{ "role": "recognizer", "runner": "r", "folder": "models/m" }], "files": [IN] }""", DisplayName = "parts missing")]
     [DataRow("""{ "id": "m", "kind": "imageGeneration", "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "an image model that does not say how it samples")]
     [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": { "steps": 9, "shift": 3 }, "parts": [{ "role": "promptEncoder", "runner": "e", "folder": "models/m" }, { "role": "denoiser", "runner": "d", "folder": "models/d", "memoryBytes": 1 }, { "role": "decoder", "runner": "v", "folder": "models/v", "memoryBytes": 1 }], "files": [IN, IN2, IN3] }""", DisplayName = "an image part without its memory")]
-    [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "genai-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
+    [DataRow("""{ "id": "m", "kind": "language", "parts": [{ "role": "chat", "runner": "llama-chat", "folder": "models/m", "memoryBytes": 1, "contextTokens": 1, "executionProvider": "npu" }], "files": [IN] }""", DisplayName = "a runtime the host lacks")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "files": [IN] }""", DisplayName = "a voice model with no voice")]
+    [DataRow("""{ "id": "m", "kind": "language", "images": true, "parts": [CHAT], "files": [IN] }""", DisplayName = "a model that sees with no projector")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "voices/x.bin" }], "files": [IN] }""", DisplayName = "a voice not among its files")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "fr", "part": "synthesizer", "file": "w.bin", "lexicon": "fr.tsv.gz" }], "files": [IN] }""", DisplayName = "a lexicon not among its files")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }, { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "w.bin" }], "files": [IN] }""", DisplayName = "two synthesizers of one name")]

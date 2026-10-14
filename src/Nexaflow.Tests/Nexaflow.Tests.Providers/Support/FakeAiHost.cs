@@ -8,7 +8,8 @@ namespace Nexaflow.Tests.Providers.Support;
 /// <summary>
 /// The AI host as a provider sees it, in memory. Each request is recorded and answered by <see cref="Reply"/>; a
 /// stream then answers each input sent into it with <see cref="Answer"/>, and ends when the app sends
-/// <see cref="InputEnd"/>.
+/// <see cref="InputEnd"/>. Asked to describe itself, it names <see cref="Gpus"/> when it runs from a runtime pack and
+/// none otherwise, as the real host does; that is not recorded.
 /// </summary>
 internal sealed class FakeAiHost : IAiHost
 {
@@ -25,11 +26,20 @@ internal sealed class FakeAiHost : IAiHost
 
     public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
 
+    /// <summary>The GPUs it finds when started from a pack: one 24 GB card, unless a test gives others.</summary>
+    public IReadOnlyList<HostGpu> Gpus { get; set; } = [new HostGpu(0, "NVIDIA GeForce RTX 4090", "0000:01:00.0", 24L << 30, 22L << 30, 23L << 30)];
+
     /// <summary>Like the real client: a <see cref="Failed"/> reply arrives as an <see cref="AiHostException"/>, and
     /// <see cref="Completed"/> ends the replies.</summary>
     public async IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit,
                                                        [EnumeratorCancellation] CancellationToken ct = default)
     {
+        if (create(0) is DescribeHost)
+        {
+            await Task.Yield();
+            yield return new HostDescription(0, "1.30.0", ["CPUExecutionProvider"], Environment.RuntimePack, Environment.RuntimePack is null ? [] : Gpus);
+            yield break;
+        }
         var request = Record(create);
         foreach (var reply in Reply(request, Attempt(request)))
         {

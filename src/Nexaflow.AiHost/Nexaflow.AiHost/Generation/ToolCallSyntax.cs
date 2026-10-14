@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.ML.OnnxRuntimeGenAI;
+using System.Text.RegularExpressions;
 using Nexaflow.AiHost.Contracts;
 
 namespace Nexaflow.AiHost.Generation;
@@ -20,53 +20,60 @@ internal enum ToolCallToken
 }
 
 /// <summary>
-/// How a model writes its tool calls, read token by token — Gemma 4's own syntax: <c>&lt;|tool_call&gt;</c>, then
-/// <c>call:name{key:value,…}</c> with every string between <c>&lt;|"|&gt;</c> delimiters, then <c>&lt;tool_call|&gt;</c>;
-/// and after its calls it waits at <c>&lt;|tool_response&gt;</c>. Those are special tokens a tokenizer stream never
-/// decodes, so the call is read from the tokens themselves, the delimiters becoming JSON's quotes.
+/// How a model writes its tool calls in its reply — the syntax its own chat template teaches it, told apart by the
+/// special tokens its vocabulary holds. Read token by token: a call's tokens never reach the reply's text, and each
+/// call is sent as soon as its closing token is out.
 /// </summary>
-internal sealed class ToolCallSyntax
+internal abstract class ToolCallSyntax
 {
-    private readonly int _open, _close, _quote, _wait;
-
-    private ToolCallSyntax(int open, int close, int quote, int wait)
+    /// <summary>The syntax <paramref name="vocabulary"/>'s model writes, or null for one with no tool calling of its own.</summary>
+    /// <param name="special">The one special token a text is in the vocabulary, or null.</param>
+    /// <param name="template">The model's chat template, which tells syntaxes that share their tokens apart.</param>
+    public static ToolCallSyntax? Of(Func<string, int?> special, string template)
     {
-        _open  = open;
-        _close = close;
-        _quote = quote;
-        _wait  = wait;
+        if (special("<|tool_call>") is { } open && special("<tool_call|>") is { } close
+            && special("<|\"|>") is { } quote && special("<|tool_response>") is { } wait)
+            return new GemmaToolCalls(open, close, quote, wait);
+        if (special("<tool_call>") is { } xmlOpen && special("</tool_call>") is { } xmlClose && template.Contains("<function=", StringComparison.Ordinal))
+            return new QwenToolCalls(xmlOpen, xmlClose);
+        return null;
     }
 
-    /// <summary>The syntax the model's vocabulary holds, or null for a model with no tool calling of its own.</summary>
-    public static ToolCallSyntax? Of(Tokenizer tokenizer)
-        => Special(tokenizer, "<|tool_call>") is { } open && Special(tokenizer, "<tool_call|>") is { } close
-        && Special(tokenizer, "<|\"|>") is { } quote && Special(tokenizer, "<|tool_response>") is { } wait
-            ? new ToolCallSyntax(open, close, quote, wait)
-            : null;
+    /// <summary>A reader for one reply.</summary>
+    /// <param name="text">A token's text in the reply.</param>
+    /// <param name="tools">The tools offered, whose parameter types decide how an argument is read.</param>
+    public abstract ToolCallReader Read(Func<int, string> text, IReadOnlyList<ChatTool> tools);
+}
 
-    /// <summary>The one token <paramref name="text"/> is, past whatever the tokenizer puts before any text.</summary>
-    private static int? Special(Tokenizer tokenizer, string text)
-    {
-        using var lead = tokenizer.Encode("");
-        using var encoded = tokenizer.Encode(text);
-        var tokens = encoded[0].ToArray();
-        int skip = lead[0].Length;
-        return tokens.Length == skip + 1 ? tokens[skip] : null;
-    }
+/// <summary>Reads one reply's tokens: its calls, as they are made.</summary>
+internal abstract class ToolCallReader
+{
+    private int _made;
 
-    public Reader Read(TokenizerStream stream) => new(this, stream);
+    /// <summary>The call last made.</summary>
+    public ChatToolCall? Made { get; protected set; }
 
-    /// <summary>Reads one reply's tokens: its calls, as they are made.</summary>
-    internal sealed class Reader(ToolCallSyntax syntax, TokenizerStream stream)
+    public abstract ToolCallToken Take(int token);
+
+    protected string NextId() => $"call_{_made++}";
+}
+
+/// <summary>
+/// Gemma 4's syntax: <c>&lt;|tool_call&gt;</c>, then <c>call:name{key:value,…}</c> with every string between
+/// <c>&lt;|"|&gt;</c> delimiters, then <c>&lt;tool_call|&gt;</c>; after its calls it waits at
+/// <c>&lt;|tool_response&gt;</c>. The delimiters become JSON's quotes, and the bare keys are quoted.
+/// </summary>
+internal sealed class GemmaToolCalls(int open, int close, int quote, int wait) : ToolCallSyntax
+{
+    private readonly int _open = open, _close = close, _quote = quote, _wait = wait;
+    public override ToolCallReader Read(Func<int, string> text, IReadOnlyList<ChatTool> tools) => new Reader(this, text);
+
+    private sealed class Reader(GemmaToolCalls syntax, Func<int, string> text) : ToolCallReader
     {
         private StringBuilder? _call;
         private bool _inString;
-        private int _made;
 
-        /// <summary>The call last made.</summary>
-        public ChatToolCall? Made { get; private set; }
-
-        public ToolCallToken Take(int token)
+        public override ToolCallToken Take(int token)
         {
             if (_call is null)
             {
@@ -76,10 +83,9 @@ internal sealed class ToolCallSyntax
                 _inString = false;
                 return ToolCallToken.Call;
             }
-
             if (token == syntax._close)
             {
-                Made  = Parse(_call.ToString(), $"call_{_made++}");
+                Made  = Parse(_call.ToString(), NextId());
                 _call = null;
                 return ToolCallToken.Made;
             }
@@ -89,7 +95,7 @@ internal sealed class ToolCallSyntax
                 _inString = !_inString;
                 return ToolCallToken.Call;
             }
-            string piece = stream.Decode(token);
+            string piece = text(token);
             _call.Append(_inString ? JsonEncodedText.Encode(piece).Value : piece);
             return ToolCallToken.Call;
         }
@@ -142,82 +148,84 @@ internal sealed class ToolCallSyntax
         }
         return json.ToString();
     }
+}
 
-    /// <summary>
-    /// The tools as the model's chat template declares them — <c>&lt;|tool&gt;declaration:name{description:…,parameters:{…}}&lt;tool|&gt;</c>
-    /// each — written here because the template's own rendering of them needs a filter (<c>upper</c>) onnxruntime-genai's
-    /// template engine lacks. They end the system turn, where the template puts them.
-    /// </summary>
-    public static string Declarations(IReadOnlyList<ChatTool> tools)
+/// <summary>
+/// Qwen's syntax (3.5 and later): between <c>&lt;tool_call&gt;</c> and <c>&lt;/tool_call&gt;</c>,
+/// <c>&lt;function=name&gt;</c> holding one <c>&lt;parameter=key&gt;value&lt;/parameter&gt;</c> per argument — a
+/// string written as it is, anything else as JSON, as the template writes past calls. Which is which comes from the
+/// tool's parameter types; a parameter the tool does not declare is JSON where it reads as JSON.
+/// </summary>
+internal sealed partial class QwenToolCalls(int open, int close) : ToolCallSyntax
+{
+    private readonly int _open = open, _close = close;
+    [GeneratedRegex(@"<function=([^>\n]+)>", RegexOptions.CultureInvariant)]
+    private static partial Regex Function();
+
+    [GeneratedRegex(@"<parameter=([^>\n]+)>\n?(.*?)\n?</parameter>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex Parameter();
+
+    public override ToolCallReader Read(Func<int, string> text, IReadOnlyList<ChatTool> tools) => new Reader(this, text, tools);
+
+    private sealed class Reader(QwenToolCalls syntax, Func<int, string> text, IReadOnlyList<ChatTool> tools) : ToolCallReader
     {
-        var text = new StringBuilder();
-        foreach (var tool in tools)
+        private StringBuilder? _call;
+
+        public override ToolCallToken Take(int token)
         {
-            text.Append("<|tool>declaration:").Append(tool.Name).Append("{description:").Append(Quote(tool.Description));
-            if (JsonNode.Parse(tool.Parameters) is JsonObject parameters)
+            if (_call is null)
             {
-                text.Append(",parameters:{");
-                if (parameters["properties"] is JsonObject properties && properties.Count > 0)
-                    text.Append("properties:{").Append(Properties(properties)).Append("},");
-                if (parameters["required"] is JsonArray { Count: > 0 } required)
-                    text.Append("required:[").Append(string.Join(',', required.Select(r => Quote((string?)r ?? "")))).Append("],");
-                text.Append("type:").Append(Quote(Type(parameters))).Append('}');
+                if (token != syntax._open) return ToolCallToken.Text;
+                _call = new StringBuilder();
+                return ToolCallToken.Call;
             }
-            text.Append("}<tool|>");
+            if (token == syntax._close)
+            {
+                Made  = Parse(_call.ToString(), NextId(), tools);
+                _call = null;
+                return ToolCallToken.Made;
+            }
+            _call.Append(text(token));
+            return ToolCallToken.Call;
         }
-        return text.ToString();
     }
 
-    /// <summary>Each property in key order: <c>name:{description:…,type:…}</c>, and an object's own properties, an array's
-    /// items and a string's choices as the template writes them.</summary>
-    private static string Properties(JsonObject properties)
-        => string.Join(',', properties.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p =>
-        {
-            var value = p.Value as JsonObject ?? [];
-            var parts = new List<string>();
-            if ((string?)value["description"] is { } description) parts.Add("description:" + Quote(description));
-            string type = Type(value);
-            if (type == "STRING" && value["enum"] is JsonArray choices) parts.Add("enum:" + Argument(choices));
-            if (type == "ARRAY" && value["items"] is JsonObject items) parts.Add("items:{" + Items(items) + "}");
-            if (value["nullable"] is JsonValue nullable && nullable.TryGetValue<bool>(out var isNullable) && isNullable) parts.Add("nullable:true");
-            if (type == "OBJECT" && value["properties"] is JsonObject inner)
-            {
-                parts.Add("properties:{" + Properties(inner) + "}");
-                if (value["required"] is JsonArray { Count: > 0 } required)
-                    parts.Add("required:[" + string.Join(',', required.Select(r => Quote((string?)r ?? ""))) + "]");
-            }
-            parts.Add("type:" + Quote(type));
-            return p.Key + ":{" + string.Join(',', parts) + "}";
-        }));
-
-    private static string Items(JsonObject items)
-        => string.Join(',', items.OrderBy(i => i.Key, StringComparer.Ordinal).Where(i => i.Value is not null).Select(i => i.Key switch
-        {
-            "properties" => "properties:{" + (i.Value is JsonObject inner ? Properties(inner) : "") + "}",
-            "required"   => "required:[" + string.Join(',', (i.Value as JsonArray ?? []).Select(r => Quote((string?)r ?? ""))) + "]",
-            "type"       => "type:" + Quote(Type(items)),
-            _            => i.Key + ":" + Argument(i.Value),
-        }));
-
-    private static string Type(JsonObject schema) => ((string?)schema["type"] ?? "object").ToUpperInvariant();
-
-    /// <summary>A call's arguments as the model writes them — <c>key:value,…</c> in key order, its strings between the
-    /// model's delimiters — for a call the conversation remembers it made.</summary>
-    public static string Arguments(string json)
-        => JsonNode.Parse(json) is JsonObject arguments
-            ? string.Join(',', arguments.OrderBy(a => a.Key, StringComparer.Ordinal).Select(a => a.Key + ":" + Argument(a.Value)))
-            : "";
-
-    /// <summary>A value as the model writes it: a string between delimiters, a key bare.</summary>
-    private static string Argument(JsonNode? value) => value switch
+    /// <summary>A call's body as a tool and its arguments. A body with no function in it is passed on as written,
+    /// under no name, so the app can have the call written again.</summary>
+    internal static ChatToolCall Parse(string body, string id, IReadOnlyList<ChatTool> tools)
     {
-        JsonObject o => "{" + string.Join(',', o.OrderBy(a => a.Key, StringComparer.Ordinal).Select(a => a.Key + ":" + Argument(a.Value))) + "}",
-        JsonArray a  => "[" + string.Join(',', a.Select(Argument)) + "]",
-        JsonValue v when v.TryGetValue<string>(out var s) => Quote(s),
-        JsonValue v when v.TryGetValue<bool>(out var b)   => b ? "true" : "false",
-        null => "null",
-        _    => value.ToJsonString(),
-    };
+        if (Function().Match(body) is not { Success: true } function) return new ChatToolCall(id, "", body.Trim());
+        string name = function.Groups[1].Value.Trim();
+        var types = ParameterTypes(tools.FirstOrDefault(t => t.Name == name));
+        var arguments = new JsonObject();
+        foreach (Match parameter in Parameter().Matches(body, function.Index + function.Length))
+        {
+            string key = parameter.Groups[1].Value.Trim(), value = parameter.Groups[2].Value;
+            arguments[key] = Value(value, types.GetValueOrDefault(key));
+        }
+        return new ChatToolCall(id, name, arguments.ToJsonString());
+    }
 
-    private static string Quote(string text) => "<|\"|>" + text + "<|\"|>";
+    private static JsonNode? Value(string written, string? type)
+    {
+        if (type == "string") return JsonValue.Create(written);
+        // Qwen 3.5's template writes a past call's booleans as Python does.
+        if (type == "boolean" && written.Trim() is "True" or "False") return JsonValue.Create(written.Trim() == "True");
+        try { return JsonNode.Parse(written) ?? JsonValue.Create(written); }
+        catch (JsonException) { return JsonValue.Create(written); }
+    }
+
+    private static Dictionary<string, string> ParameterTypes(ChatTool? tool)
+    {
+        var types = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (tool is null) return types;
+        try
+        {
+            if (JsonNode.Parse(tool.Parameters)?["properties"] is JsonObject properties)
+                foreach (var (key, schema) in properties)
+                    if (schema?["type"] is JsonValue type && type.TryGetValue<string>(out var name)) types[key] = name;
+        }
+        catch (JsonException) { }
+        return types;
+    }
 }

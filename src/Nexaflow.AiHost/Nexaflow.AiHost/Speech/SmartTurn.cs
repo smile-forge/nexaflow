@@ -35,7 +35,7 @@ internal sealed class SmartTurnRunner : IModelRunner
 {
     public string Id => "smart-turn";
 
-    public IHostModel Load(ModelSpec spec, string executionProvider) => new SmartTurn(spec, CpuSessions.Open(spec, threads: 4));
+    public IHostModel Load(ModelSpec spec) => new SmartTurn(spec, CpuSessions.Open(spec, threads: 4));
 }
 
 /// <summary>

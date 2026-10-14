@@ -20,7 +20,7 @@ public class SystemInfoViewModelTests
                 Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>()))
              .Do(ci => captured = ci.Arg<Action<bool>>());
 
-        var vm = new SystemInfoViewModel(shell);
+        var vm = new SystemInfoViewModel(shell, Substitute.For<IAIService>());
         Assert.IsNotNull(captured, "Constructor should queue a background gather.");
         return (vm, captured!);
     }

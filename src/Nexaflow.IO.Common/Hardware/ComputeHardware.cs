@@ -10,42 +10,10 @@ public enum ComputeVendor { Nvidia, Amd, Intel, Qualcomm, Microsoft, Other }
 public sealed record ComputeAdapter(
     string Name, ComputeVendor Vendor, long DedicatedMemoryBytes, bool IsIntegrated, bool IsNpu);
 
-/// <summary>How much of the local-AI design a machine can run, from its best GPU's own memory.</summary>
-public enum LocalAiFit
-{
-    /// <summary>Less than <see cref="ComputeHardwareReport.DefaultModelBytes"/> — cloud models, or none.</summary>
-    Insufficient,
-    /// <summary>The default resident model (Gemma 4 E4B) with the voice stack.</summary>
-    DefaultModel,
-    /// <summary>The larger models (Qwen 3.8 27B, Gemma 4 26B-A4B) with the voice stack.</summary>
-    LargerModels,
-}
-
 /// <summary>What a machine has for local AI: its ML-capable adapters and, on NVIDIA, the CUDA driver.</summary>
 public sealed record ComputeHardwareReport(IReadOnlyList<ComputeAdapter> Adapters, Version? CudaDriver)
 {
-    /// <summary>GPU memory the default model with voice needs (docs/local-ai.md, "GPU minimum").</summary>
-    public const long DefaultModelBytes = 24L << 30;
-
-    /// <summary>GPU memory the larger models with voice need.</summary>
-    public const long LargerModelsBytes = 32L << 30;
-
-    /// <summary>The discrete GPU with the most memory of its own, or the best integrated one when there is none.</summary>
-    public ComputeAdapter? BestGpu => Adapters
-        .Where(a => !a.IsNpu)
-        .OrderBy(a => a.IsIntegrated)
-        .ThenByDescending(a => a.DedicatedMemoryBytes)
-        .FirstOrDefault();
-
     public IEnumerable<ComputeAdapter> Npus => Adapters.Where(a => a.IsNpu);
-
-    public LocalAiFit Fit => BestGpu is not { IsIntegrated: false } gpu ? LocalAiFit.Insufficient
-        : gpu.DedicatedMemoryBytes >= LargerModelsBytes - Slack ? LocalAiFit.LargerModels
-        : gpu.DedicatedMemoryBytes >= DefaultModelBytes - Slack ? LocalAiFit.DefaultModel
-        : LocalAiFit.Insufficient;
-
-    /// <summary>A card sold as 24 GB reports a little less of its own once the driver has taken its share.</summary>
-    private const long Slack = 512L << 20;
 }
 
 /// <summary>

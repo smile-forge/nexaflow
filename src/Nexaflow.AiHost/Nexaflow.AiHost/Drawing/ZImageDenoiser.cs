@@ -28,7 +28,7 @@ internal sealed class ZImageDenoiser(ModelSpec spec, InferenceSession session) :
         using var padding = OrtValue.CreateTensorValueFromMemory(promptPadding, [rows]);
         using var captionPositions = OrtValue.CreateTensorValueFromMemory(promptPositions, [rows, 3]);
         using var step = OrtValue.CreateTensorValueFromMemory(new[] { timestep }, [1]);
-        using var run = lastStep ? ImageSessions.Releasing() : new RunOptions();
+        using var run = lastStep ? ImageSessions.Releasing(Spec) : new RunOptions();
         using var outputs = session.Run(run, Inputs, [image, positions, captionValue, padding, captionPositions, step], session.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
@@ -40,9 +40,9 @@ internal sealed class ZImageDenoiserRunner : IModelRunner
 {
     public string Id => "z-image-denoiser";
 
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    public IHostModel Load(ModelSpec spec)
     {
-        var denoiser = new ZImageDenoiser(spec, ImageSessions.Open(spec, executionProvider));
+        var denoiser = new ZImageDenoiser(spec, ImageSessions.Open(spec));
         try
         {
             // One step at the common size, so CUDA tunes its kernels at load rather than on somebody's first picture.

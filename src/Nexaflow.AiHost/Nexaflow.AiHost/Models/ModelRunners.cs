@@ -17,9 +17,9 @@ internal interface IModelRunner
     /// <summary>What a <see cref="ModelSpec.Runner"/> names it.</summary>
     string Id { get; }
 
-    /// <summary>Loads the model on <paramref name="executionProvider"/>, where it runs on the GPU at all — a runner
-    /// for a model small enough for the CPU keeps it there.</summary>
-    IHostModel Load(ModelSpec spec, string executionProvider);
+    /// <summary>Loads the model where its spec places it: on <see cref="ModelSpec.Device"/>, or the CPU — a runner for a
+    /// model small enough for the CPU keeps it there.</summary>
+    IHostModel Load(ModelSpec spec);
 }
 
 /// <summary>The runners this host has.</summary>
@@ -41,10 +41,10 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
     ]);
 
     /// <exception cref="HostRequestException">This host has no runner of that name.</exception>
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    public IHostModel Load(ModelSpec spec)
     {
         if (!_runners.TryGetValue(spec.Runner, out var runner))
             throw new HostRequestException(HostErrorKind.Invalid, $"This host has no '{spec.Runner}' runner for {spec.Id}.");
-        return runner.Load(spec, executionProvider);
+        return runner.Load(spec);
     }
 }

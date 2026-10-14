@@ -2,27 +2,37 @@ namespace Nexaflow.AiHost.Contracts;
 
 /// <summary>
 /// A model the host can run: its files, prepared in <see cref="Folder"/> by the adapter its catalog names, the runner
-/// that loads them, and what it costs. Every request about a model carries it, so a host started fresh can load it
-/// without asking back.
+/// that loads them, where it runs and what it costs there. Every request about a model carries it, so a host started
+/// fresh can load it without asking back.
 /// </summary>
 /// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
-/// <param name="Runner">What loads and runs it — <c>genai-chat</c> for a language model; a family of speech models each has its own.</param>
+/// <param name="Runner">What loads and runs it — <c>llama-chat</c> for a language model; a family of speech models each has its own.</param>
 /// <param name="Folder">Where its files were downloaded.</param>
-/// <param name="File">The file it is, for a model that is a single graph; null for a folder onnxruntime-genai reads.</param>
+/// <param name="File">The file it is — a language model's GGUF, a single graph; null for a folder onnxruntime-genai reads.</param>
 /// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
-/// <param name="MemoryBytes">GPU memory it holds loaded, with a working context — what admission counts; 0 for a model
-/// that always runs on the CPU.</param>
+/// <param name="MemoryBytes">GPU memory it holds loaded on <see cref="Device"/>, with its context — what admission
+/// counts; 0 for a model on the CPU.</param>
 /// <param name="ContextTokens">The longest context a conversation may grow to, for a language model; 0 otherwise.</param>
 /// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
+/// <param name="Projector">A language model's multimodal projector, beside its GGUF in <see cref="Folder"/>: what it
+/// sees pictures and hears recordings through; null for a model of text alone.</param>
+/// <param name="Device">The GPU it runs on, numbered as <see cref="HostGpu.Device"/>; null runs it on the CPU.</param>
 public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                               IReadOnlyDictionary<string, string>? CudaOptions = null);
+                               IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null)
+{
+    /// <summary>Whether <paramref name="other"/> runs the same model in the same place at the same size — a model held
+    /// as one and asked for as the other is loaded again.</summary>
+    public bool PlacedAs(ModelSpec other)
+        => Device == other.Device && ContextTokens == other.ContextTokens && MemoryBytes == other.MemoryBytes
+           && File == other.File && Folder == other.Folder && Projector == other.Projector;
+}
 
 /// <summary>Loads a model and keeps it loaded — the resident set — until it is unloaded. Replies with
 /// <see cref="Progress"/> while it prepares and loads, then <see cref="ModelLoaded"/>.</summary>
 public sealed record LoadModel(long RequestId, ModelSpec Model) : HostRequest(RequestId);
 
-/// <param name="ExecutionProvider">What it runs on: <c>cuda</c> or <c>cpu</c>.</param>
-public sealed record ModelLoaded(long RequestId, string ExecutionProvider, double Seconds) : HostReply(RequestId);
+/// <param name="Device">The GPU it runs on, or null for the CPU.</param>
+public sealed record ModelLoaded(long RequestId, int? Device, double Seconds) : HostReply(RequestId);
 
 /// <summary>Lets a resident model go; it is unloaded once nothing is generating with it.</summary>
 public sealed record UnloadModel(long RequestId, string ModelId) : HostRequest(RequestId);
