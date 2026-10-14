@@ -9,7 +9,8 @@
     build_hidream_o1.py traces HiDream's PyTorch model into one graph, its denoiser with the prompt cached, and
     check_hidream_o1.py draws twelve prompts with it and with PyTorch, so a build is never published unchecked:
 
-      <Out>\denoiser   the denoiser, 8-bit weights, fp16 arithmetic on an fp32 residual stream, + tokenizer.json
+      <Out>\denoiser        the denoiser, 8-bit weights, fp16 arithmetic on an fp32 residual stream, + tokenizer.json
+      <Out>\denoiser-fp16   the same with fp16 weights, for a GPU with the room, + tokenizer.json
 
     and beside it the model card (README.md) and the recipe, so the published repository says how to rebuild itself.
     Upload with
@@ -81,10 +82,12 @@ if ($LASTEXITCODE) { throw 'The build failed.' }
 & $py -I -X utf8 (Join-Path $Here 'check_hidream_o1.py') $Checkpoint $code $build (Join-Path $Work 'check')
 if ($LASTEXITCODE) { throw 'The check failed.' }
 
-$target = Join-Path $Out 'denoiser'
-New-Item -ItemType Directory -Force $target | Out-Null
-foreach ($file in 'denoiser.onnx', 'denoiser.onnx.data', 'tokenizer.json', 'branch-scales.json') {
-    Copy-Item (Join-Path $build "denoiser\$file") $target -Force
+foreach ($folder in 'denoiser', 'denoiser-fp16') {
+    $target = Join-Path $Out $folder
+    New-Item -ItemType Directory -Force $target | Out-Null
+    foreach ($file in 'denoiser.onnx', 'denoiser.onnx.data', 'tokenizer.json', 'branch-scales.json') {
+        Copy-Item (Join-Path $build "$folder\$file") $target -Force
+    }
 }
 foreach ($file in 'README.md', 'build_hidream_o1.py', 'check_hidream_o1.py', 'Build-HiDreamO1.ps1') { Copy-Item (Join-Path $Here $file) (Join-Path $Out $file) -Force }
 

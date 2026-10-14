@@ -672,14 +672,15 @@ whole Qwen3-VL language model reading the prompt, a timestep token and one token
 - **An fp32 residual stream.** A few tokens' activations pass 10⁵ from layer 6 on and reach 2.8×10⁶ in the last layer;
   the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
   values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
-- **8-bit weights.** fp16 weights draw within 1 dB closer to HiDream's model in fp32, for 6 GB more; 8-bit fits a 16 GB
-  card.
+- **Two builds.** With 8-bit weights it fits a 16 GB card (13.2 GB at its peak); with fp16 weights it needs a 24 GB one
+  (19.1 GB) and draws 0.1–2.3 dB closer to HiDream's model in fp32 — a difference too small to measure as better, so
+  both are offered and the Local page lets the user choose, the 8-bit build first.
 - **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
   prompt and without and steering by 5, its noise levels shifted twice and shown to the model as whole timesteps, as
   HiDream's scheduler does (`HiDreamUniPc`, held to HiDream's own by `HiDreamSamplerTests`).
 
 It draws only at the sizes it was trained on, all about 4–5 megapixels — 2048×2048, 2560×1440, 1440×2560 for the three
-shapes — in 36 s on an RTX PRO 6000 (PyTorch: 95 s), holding 13.2 GB at its peak; twelve prompts drawn with it and with
+shapes — in 35 s on an RTX PRO 6000 (PyTorch: 95 s); twelve prompts drawn with either build and with
 HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
 entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
 with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.

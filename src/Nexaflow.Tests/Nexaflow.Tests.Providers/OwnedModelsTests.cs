@@ -89,8 +89,23 @@ public class OwnedModelsTests
         Assert.AreEqual("hidream-denoiser", image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).Runner);
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/hidream-o1-image/denoiser/tokenizer.json", "the host reads the prompt with it");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/164573a3")),
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0")),
                       "every file pinned to the published revision");
+    }
+
+    [TestMethod]
+    public void HiDreamO1_AlsoShipsWithFp16Weights_ForAGpuWithTheRoom_AfterThe8BitBuild()
+    {
+        var images = OwnedModels.OfKind(ModelKind.ImageGeneration).Select(m => m.Id).ToList();
+        var eight  = OwnedModels.All.Single(m => m.Id == "hidream-o1-image");
+        var full   = OwnedModels.All.Single(m => m.Id == "hidream-o1-image-fp16");
+
+        Assert.IsTrue(images.IndexOf("hidream-o1-image") < images.IndexOf("hidream-o1-image-fp16"), "the 8-bit build is offered first, the default");
+        Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
+        Assert.AreEqual((full.Sampler!.Method, full.Sampler.Steps, full.Sampler.Guidance), (eight.Sampler!.Method, eight.Sampler.Steps, eight.Sampler.Guidance));
+        Assert.IsTrue(full.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes > eight.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes,
+                      "it needs more room, so it is offered only where a GPU has it");
+        CollectionAssert.Contains(full.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/hidream-o1-image/denoiser-fp16/tokenizer.json");
     }
 
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";

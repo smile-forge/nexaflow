@@ -661,7 +661,7 @@
     },
     {
       "id": "hidream-o1-image",
-      "displayName": "HiDream-O1",
+      "displayName": "HiDream-O1 (8-bit)",
       "kind": "imageGeneration",
       "tier": "highQuality",
       "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
@@ -679,19 +679,57 @@
       "files": [
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/164573a36178ab673fbdd7b8910ddc9a6e0f05b1/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx",
           "size": 3112593,
           "sha256": "4c580594367c6ec334219ffc450224533814f1c713ea094ecff407d40ac8c9e5"
         },
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/164573a36178ab673fbdd7b8910ddc9a6e0f05b1/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx.data",
           "size": 8776790016,
           "sha256": "a4724f29fa18a4b963582cac17ad62ce3b5a76bd5c0f55b9a053c64479ede03c"
         },
         {
           "path": "models/hidream-o1-image/denoiser/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/164573a36178ab673fbdd7b8910ddc9a6e0f05b1/denoiser/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/tokenizer.json",
+          "size": 7033338,
+          "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
+        }
+      ]
+    },
+    {
+      "id": "hidream-o1-image-fp16",
+      "displayName": "HiDream-O1 (16-bit)",
+      "kind": "imageGeneration",
+      "tier": "highQuality",
+      "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
+                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+      "parts": [
+        {
+          "role": "denoiser",
+          "runner": "hidream-denoiser",
+          "folder": "models/hidream-o1-image/denoiser-fp16",
+          "file": "denoiser.onnx",
+          "memoryBytes": 20025704448,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx",
+          "size": 3323423,
+          "sha256": "a50f0f9d547c071f80f05e7a7d54adbbd13f43bac9e05745b85868a4594749ed"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx.data",
+          "size": 15288500224,
+          "sha256": "b923e69a5b7c84af1b264385d19cb37a1442c28921a67eb18216869c9071007b"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/tokenizer.json",
           "size": 7033338,
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
         }

@@ -12,24 +12,26 @@ tags:
 
 # HiDream-O1-Image for ONNX Runtime
 
-[HiDream-ai/HiDream-O1-Image](https://huggingface.co/HiDream-ai/HiDream-O1-Image) (revision `0b0901d9`) as one ONNX
-graph for ONNX Runtime on CUDA: its denoiser, for drawing from a prompt. Built for
+[HiDream-ai/HiDream-O1-Image](https://huggingface.co/HiDream-ai/HiDream-O1-Image) (revision `0b0901d9`) as an ONNX
+graph for ONNX Runtime on CUDA — its denoiser, for drawing from a prompt — in two builds: 8-bit weights for a 16 GB GPU,
+fp16 weights for a 24 GB one. Built for
 [Nexaflow](https://github.com/smile-forge/nexaflow), whose AI host draws with it from C#; usable by anything that runs
 ONNX Runtime 1.30 or later with its CUDA execution provider.
 
 | Folder | What | Weights | Arithmetic | Size |
 |---|---|---|---|---|
-| `denoiser/` | the denoiser — Qwen3-VL-8B's language model with HiDream's timestep and patch embedders and output projection — and its `tokenizer.json` | 8-bit (MatMulNBits) | fp16, on an fp32 residual stream | 8.2 GB |
+| `denoiser/` | the denoiser — Qwen3-VL-8B's language model with HiDream's timestep and patch embedders and output projection — and its `tokenizer.json` | 8-bit (MatMulNBits) | fp16, on an fp32 residual stream | 8.8 GB |
+| `denoiser-fp16/` | the same graph, and its `tokenizer.json` | fp16 | fp16, on an fp32 residual stream | 15.3 GB |
 
 HiDream-O1 draws in pixels: there is no VAE. The vision tower, which only reads reference pictures, is left out.
 
-Twelve prompts drawn from the same noise by this graph and by HiDream's PyTorch pipeline in bf16 came out at a median of
-18.6 dB PSNR apart (12.7 dB at worst): the same pictures, with the same text in them, things moved about. Fifty guided
-steps carry a small difference a long way — HiDream's own pipeline in bf16 and in fp32 draws pictures 15.8–39.6 dB
-apart, where unrelated pictures are 4–11.5 dB apart — and against HiDream's model drawn in fp32 this graph comes within
-about 3 dB of where its own bf16 pipeline does; with fp16 weights instead of 8-bit it comes within 1 dB more, for 6 GB
-more. On an RTX PRO 6000 a 2048×2048 picture takes 36 s, against 95 s for the PyTorch pipeline; in Nexaflow's host it
-holds 13.2 GB of GPU memory at its peak.
+Twelve prompts drawn from the same noise by each build and by HiDream's PyTorch pipeline in bf16 came out at a median of
+18.6 dB PSNR apart with 8-bit weights and 19.1 dB with fp16 (12.7 and 12.2 dB at worst): the same pictures, with the
+same text in them, things moved about. Fifty guided steps carry a small difference a long way — HiDream's own pipeline
+in bf16 and in fp32 draws pictures 15.8–39.6 dB apart, where unrelated pictures are 4–11.5 dB apart. Against HiDream's
+model drawn in fp32, the fp16 build comes 0.1–2.3 dB closer than the 8-bit one. On an RTX PRO 6000 a 2048×2048 picture
+takes 35 s with 8-bit weights and 34 s with fp16, against 95 s for the PyTorch pipeline; in Nexaflow's host it holds
+13.2 GB of GPU memory at its peak with 8-bit weights and 19.1 GB with fp16.
 
 ## How it was built
 
@@ -46,12 +48,14 @@ and each change keeps its arithmetic:
   leave fp16's range is scaled down by a power of two where its values are made — `up_proj` and `down_proj`, or
   `v_proj` — and scaled back up as it rejoins the stream (`denoiser/branch-scales.json`). Exact in floating point.
 - **Precision where it shows.** The timestep and patch embedders and the output projection are fp32.
+- **Two builds of one graph.** `denoiser-fp16/` is the export as it is; `denoiser/` quantises its layers' matrices to
+  8-bit MatMulNBits (blocks of 32, symmetric), leaving the fp32 projections and the embedding table as they are.
 - **Fused attention.** Attention is ONNX Runtime's `com.microsoft.MultiHeadAttention`, the prompt's causal mask an
   additive attention bias; it never holds every token-by-token score.
 
 ## Using it
 
-A prompt is read as HiDream writes it — `<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n<|boi_token|>` —
+Either build is used the same way. A prompt is read as HiDream writes it — `<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n<|boi_token|>` —
 and so is the empty prompt guidance steers from, `" "`. The denoiser takes one call for one prompt:
 
 | Input | Shape | Type | |

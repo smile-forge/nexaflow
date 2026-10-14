@@ -420,8 +420,12 @@ def main():
     fp32_heads(model)
     reference.check(denoiser, 3e-2)
 
+    # Two builds of one graph: fp16 weights, and the same quantised to 8 bits for a 16 GB card. Each folder is whole.
     export(denoiser, out / "denoiser-fp16" / "denoiser.onnx")
-    shutil.copyfile(checkpoint / "tokenizer.json", out / "denoiser" / "tokenizer.json")
+    for folder in ("denoiser", "denoiser-fp16"):
+        shutil.copyfile(checkpoint / "tokenizer.json", out / folder / "tokenizer.json")
+        if folder != "denoiser":
+            shutil.copyfile(out / "denoiser" / "branch-scales.json", out / folder / "branch-scales.json")
     del model, denoiser
     torch.cuda.empty_cache()
     quantize(out / "denoiser-fp16" / "denoiser.onnx", out / "denoiser" / "denoiser.onnx", args.block_size, args.bits)

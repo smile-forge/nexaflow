@@ -1,5 +1,5 @@
-"""Draw twelve prompts with the built HiDream-O1-Image graph and with HiDream's own PyTorch pipeline, from the same
-noise, and compare them — so a build is never published unchecked.
+"""Draw twelve prompts with each built HiDream-O1-Image graph — 8-bit weights and fp16 — and with HiDream's own PyTorch
+pipeline, from the same noise, and compare them — so a build is never published unchecked.
 
 The graph is driven as Nexaflow's AI host drives it: the prompt read on its first call and cached, the empty prompt
 guidance steers from likewise, both asked at every step, and HiDream's own sampler stepping between.
@@ -26,6 +26,9 @@ PROMPTS = CALIBRATION + [
 # dB. Fifty guided steps carry a small difference a long way, so the same picture drawn twice moves things about: HiDream's
 # own pipeline in bf16 and in fp32 drew four prompts 15.8-39.6 dB apart, and twelve unrelated pictures are 4-11.5 dB apart.
 WORST_PSNR, MEDIAN_PSNR = 12.0, 15.0
+
+# The builds checked, by folder: 8-bit weights, and fp16 weights for a GPU with the room.
+BUILDS = ("denoiser", "denoiser-fp16")
 
 
 def noise(seed):
@@ -91,7 +94,6 @@ def main():
     checkpoint, code, build, out = (Path(a) for a in sys.argv[1:5])
     from PIL import Image
     (out / "pytorch").mkdir(parents=True, exist_ok=True)
-    (out / "onnx").mkdir(parents=True, exist_ok=True)
 
     # PyTorch first, as HiDream publishes it: bf16, its own pipeline.
     model, processor, pipeline, _ = load_model(checkpoint, code, torch.bfloat16)
@@ -110,24 +112,30 @@ def main():
     del model
     torch.cuda.empty_cache()
 
-    graph = Graph(build / "denoiser" / "denoiser.onnx")
-    results, onnx_s = [], []
-    for i, prompt in enumerate(PROMPTS):
-        started = time.perf_counter()
-        ours = draw_with_graph(graph, processor, pipeline, prompt, noise(2000 + i))
-        onnx_s.append(time.perf_counter() - started)
-        Image.fromarray(ours).save(out / "onnx" / f"{i:02d}.png")
-        theirs = np.asarray(Image.open(out / "pytorch" / f"{i:02d}.png").convert("RGB"))
-        results.append({"prompt": prompt, "psnr": round(psnr(ours, theirs), 2), "seconds": round(onnx_s[-1], 1)})
-        print(f"onnx {i:02d} {onnx_s[-1]:.1f}s  {results[-1]['psnr']} dB", flush=True)
+    failed = []
+    for folder in BUILDS:
+        graph = Graph(build / folder / "denoiser.onnx")
+        (out / folder).mkdir(parents=True, exist_ok=True)
+        results, onnx_s = [], []
+        for i, prompt in enumerate(PROMPTS):
+            started = time.perf_counter()
+            ours = draw_with_graph(graph, processor, pipeline, prompt, noise(2000 + i))
+            onnx_s.append(time.perf_counter() - started)
+            Image.fromarray(ours).save(out / folder / f"{i:02d}.png")
+            theirs = np.asarray(Image.open(out / "pytorch" / f"{i:02d}.png").convert("RGB"))
+            results.append({"prompt": prompt, "psnr": round(psnr(ours, theirs), 2), "seconds": round(onnx_s[-1], 1)})
+            print(f"{folder} {i:02d} {onnx_s[-1]:.1f}s  {results[-1]['psnr']} dB", flush=True)
+        graph = None  # its session's GPU memory goes before the next build's loads
 
-    values = sorted(r["psnr"] for r in results)
-    summary = {"median_psnr": values[len(values) // 2], "worst_psnr": values[0],
-               "median_onnx_s": sorted(onnx_s)[len(onnx_s) // 2], "results": results}
-    (out / "check.json").write_text(json.dumps(summary, indent=1))
-    print(json.dumps({k: v for k, v in summary.items() if k != "results"}), flush=True)
-    if summary["worst_psnr"] < WORST_PSNR or summary["median_psnr"] < MEDIAN_PSNR:
-        raise SystemExit("the graph's pictures are not the PyTorch pipeline's")
+        values = sorted(r["psnr"] for r in results)
+        summary = {"build": folder, "median_psnr": values[len(values) // 2], "worst_psnr": values[0],
+                   "median_onnx_s": sorted(onnx_s)[len(onnx_s) // 2], "results": results}
+        (out / f"check-{folder}.json").write_text(json.dumps(summary, indent=1))
+        print(json.dumps({k: v for k, v in summary.items() if k != "results"}), flush=True)
+        if summary["worst_psnr"] < WORST_PSNR or summary["median_psnr"] < MEDIAN_PSNR:
+            failed.append(folder)
+    if failed:
+        raise SystemExit(f"the pictures of {', '.join(failed)} are not the PyTorch pipeline's")
 
 
 if __name__ == "__main__":
