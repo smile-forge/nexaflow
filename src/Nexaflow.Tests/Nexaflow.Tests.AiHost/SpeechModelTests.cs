@@ -34,17 +34,21 @@ public class SpeechModelTests
             Environment = new AiHostEnvironment(pack),
         };
 
+        // On the first GPU when the host runs from the pack; on the CPU without.
+        int? gpu = pack is null ? null : 0;
+        long Held(long bytes) => pack is null ? 0 : bytes;
         string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
         _models = new ListenModels(
             new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", 2L << 30, 0),
+            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", Held(2L << 30), 0, Device: gpu),
             pack is null
                 ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, "genai-native", 0, 0)
                 : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, "genai-native", 4L << 30, 0,
-                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }),
+                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
 
-        _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, 1L << 30, 0),
+        _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, Held(1L << 30), 0,
+                                                   Device: gpu),
                                "voices/af_heart.bin");
 
         foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector!, _voice.Model })
@@ -149,7 +153,7 @@ public class SpeechModelTests
     {
         if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
         string root = System.IO.Path.GetDirectoryName(_voice!.Model.Folder)!;
-        var voice = new VoiceSpec(language, new ModelSpec($"speech/kokoro-{language}", "kokoro", System.IO.Path.Combine(root, folder), "onnx/model.onnx", null, 1L << 30, 0),
+        var voice = new VoiceSpec(language, _voice.Model with { Id = $"speech/kokoro-{language}", Folder = System.IO.Path.Combine(root, folder) },
                                   voiceFile, System.IO.Path.Combine(root, folder, "lexicons", $"{language}.tsv.gz"));
 
         await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!, voice], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(3));

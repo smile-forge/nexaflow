@@ -128,11 +128,39 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Ggml, EntryPoint = "ggml_backend_dev_get")]
     public static partial IntPtr Device(nuint index);
 
-    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_description")]
-    public static partial IntPtr DeviceDescription(IntPtr device);
+    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_get_props")]
+    public static partial void DeviceProperties(IntPtr device, DeviceProps* properties);
 
-    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_type")]
-    public static partial int DeviceType(IntPtr device);
+    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_memory")]
+    public static partial void DeviceMemory(IntPtr device, nuint* free, nuint* total);
+
+    /// <summary><c>ggml_backend_dev_props</c>: what a device is, and its memory as it stands.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeviceProps
+    {
+        public IntPtr Name;
+        public IntPtr Description;
+        public nuint MemoryFree;
+        public nuint MemoryTotal;
+        public DeviceKind Kind;
+        /// <summary>The PCI bus id, lower case <c>domain:bus:device.function</c>; null when unknown.</summary>
+        public IntPtr BusId;
+        public byte Async;
+        public byte HostBuffer;
+        public byte BufferFromHostPointer;
+        public byte Events;
+        public byte MmapSupport;
+    }
+
+    /// <summary><c>ggml_backend_dev_type</c>.</summary>
+    public enum DeviceKind
+    {
+        Cpu = 0,
+        Gpu = 1,
+        IntegratedGpu = 2,
+        Accelerator = 3,
+        Meta = 4,
+    }
 
     [LibraryImport(Llama, EntryPoint = "llama_backend_init")]
     public static partial void BackendInit();

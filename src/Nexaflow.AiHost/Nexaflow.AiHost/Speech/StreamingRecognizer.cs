@@ -127,9 +127,9 @@ internal sealed class StreamingRecognizerRunner : IModelRunner
 {
     public string Id => "genai-streaming-asr";
 
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    public IHostModel Load(ModelSpec spec)
     {
-        var (config, model) = GenAiConfigFile.Open(spec, executionProvider);
+        var (config, model) = GenAiConfigFile.Open(spec);
         return new StreamingRecognizer(spec, config, model);
     }
 }

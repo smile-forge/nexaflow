@@ -56,7 +56,7 @@ internal sealed class SileroVoiceActivityRunner : IModelRunner
 {
     public string Id => "silero-vad";
 
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    public IHostModel Load(ModelSpec spec)
         => new SileroVoiceActivity(spec, CpuSessions.Open(spec, threads: 1));
 }
 

@@ -28,12 +28,15 @@ public class OwnedModelTests
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder) return;
 
         var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
         _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
         {
-            Environment = new AiHostEnvironment(Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack ? pack : null),
+            Environment = new AiHostEnvironment(pack),
         };
-        _model = new ModelSpec("gemma-4-e4b-it", "llama-chat", folder, "gemma-4-E4B_q4_0-it.gguf", null, 7L << 30, 16_384,
-                               Projector: "gemma-4-E4B-it-mmproj.gguf");
+        // On the first GPU when the host runs from the pack, as the catalog has it there; on the CPU without.
+        _model = new ModelSpec("gemma-4-e4b-it", "llama-chat", folder, "gemma-4-E4B_q4_0-it.gguf", null,
+                               pack is null ? 0 : 5905580032L + 17920L * 16_384, 16_384, Projector: "gemma-4-E4B-it-mmproj.gguf",
+                               Device: pack is null ? null : 0);
         await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
     }
 

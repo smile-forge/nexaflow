@@ -42,20 +42,22 @@ public class ModelPreparationTests
     }
 
     [TestMethod]
-    [DataRow(ExecutionRuntime.Cuda, 1)]
-    [DataRow(ExecutionRuntime.Cpu, 0)]
-    public void TheLiveConfig_GivesEverySubModelTheRuntimesProvider(string provider, int providers)
+    [DataRow(1, 1)]
+    [DataRow(null, 0)]
+    public void TheLiveConfig_PutsEverySubModelOnTheGpuItsSpecNames_OrTheCpu(int? device, int providers)
     {
         GenAiConfigFile.WriteBase(_folder, JsonNode.Parse(Native)!);
 
-        GenAiConfigFile.WriteFor(_folder, provider);
+        GenAiConfigFile.WriteFor(_folder, device);
 
         var model = JsonNode.Parse(File.ReadAllText(Path.Combine(_folder, "genai_config.json")))!["model"]!;
         foreach (var subModel in new[] { "encoder", "decoder" })
         {
             var options = model[subModel]!["session_options"]!["provider_options"]!.AsArray();
             Assert.AreEqual(providers, options.Count, subModel);
-            if (providers > 0) Assert.AreEqual("0", (string)options[0]!["cuda"]!["enable_cuda_graph"]!);
+            if (providers == 0) continue;
+            Assert.AreEqual("0", (string)options[0]!["cuda"]!["enable_cuda_graph"]!);
+            Assert.AreEqual("1", (string)options[0]!["cuda"]!["device_id"]!, "on the GPU the spec names");
         }
     }
 

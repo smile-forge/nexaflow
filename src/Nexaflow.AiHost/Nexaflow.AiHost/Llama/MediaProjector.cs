@@ -29,10 +29,11 @@ internal sealed unsafe class MediaProjector : IDisposable
     public bool HearsAudio { get; }
 
     /// <exception cref="HostRequestException">The projector would not load.</exception>
-    public static MediaProjector Load(string path, LlamaModel model, bool onGpu)
+    public static MediaProjector Load(string path, LlamaModel model, IntPtr? device)
     {
         var parameters = MtmdNative.ContextDefaults();
-        parameters.UseGpu = (byte)(onGpu ? 1 : 0);
+        parameters.UseGpu = (byte)(device is null ? 0 : 1);
+        parameters.Device = device ?? IntPtr.Zero;
         parameters.FlashAttention = LlamaNative.FlashAttention.Auto;
         IntPtr context = MtmdNative.Init(path, model.Handle, parameters);
         return context == IntPtr.Zero

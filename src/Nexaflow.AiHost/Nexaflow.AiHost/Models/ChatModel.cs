@@ -57,11 +57,11 @@ internal sealed class ChatModel : IHostModel
         => media.Count == 0 ? PreparedPrompt.Text(Model.Tokenize(text)) : Projector!.Prepare(text, media);
 
     /// <exception cref="HostRequestException">A file would not load, or the GGUF carries no chat template the host reads.</exception>
-    public static ChatModel Load(ModelSpec spec, string executionProvider)
+    public static ChatModel Load(ModelSpec spec)
     {
         if (spec.File is null) throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} names no GGUF to load.");
-        bool onGpu = executionProvider == ExecutionRuntime.Cuda && LlamaBackends.OnGpu;
-        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), onGpu);
+        IntPtr? device = spec.Device is { } number ? LlamaBackends.Gpus[number].Device : null;
+        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), device);
         MediaProjector? projector = null;
         try
         {
@@ -70,7 +70,7 @@ internal sealed class ChatModel : IHostModel
             JinjaTemplate template;
             try { template = JinjaTemplate.Parse(source); }
             catch (JinjaException ex) { throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id}'s chat template cannot be read: {ex.Message}"); }
-            if (spec.Projector is { } file) projector = MediaProjector.Load(Path.Combine(spec.Folder, file), model, onGpu);
+            if (spec.Projector is { } file) projector = MediaProjector.Load(Path.Combine(spec.Folder, file), model, device);
             return new ChatModel(spec, model, projector, template, source);
         }
         catch
@@ -95,5 +95,5 @@ internal sealed class ChatModelRunner : IModelRunner
 {
     public string Id => "llama-chat";
 
-    public IHostModel Load(ModelSpec spec, string executionProvider) => ChatModel.Load(spec, executionProvider);
+    public IHostModel Load(ModelSpec spec) => ChatModel.Load(spec);
 }

@@ -47,7 +47,7 @@ internal sealed class FakeHost : IAiHostLauncher
 
     public static async Task Describe(HostRequest request, HostChannel channel)
     {
-        await channel.SendAsync(new HostDescription(request.RequestId, "fake", ["CPUExecutionProvider"], RuntimePack: null));
+        await channel.SendAsync(new HostDescription(request.RequestId, "fake", ["CPUExecutionProvider"], RuntimePack: null, Gpus: []));
         await channel.SendAsync(new Completed(request.RequestId));
     }
 

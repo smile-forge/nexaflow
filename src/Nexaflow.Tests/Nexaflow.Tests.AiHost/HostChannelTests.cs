@@ -32,9 +32,11 @@ public class HostChannelTests
             Assert.AreEqual(message, await app.ReceiveAsync());
         }
 
-        await host.SendAsync(new HostDescription(4, "1.30.0", ["CUDAExecutionProvider", "CPUExecutionProvider"], @"C:\ai\runtime\cuda"));
+        await host.SendAsync(new HostDescription(4, "1.30.0", ["CUDAExecutionProvider", "CPUExecutionProvider"], @"C:\ai\runtime\cuda",
+                                                 [new HostGpu(0, "NVIDIA GeForce RTX 2080 Ti", "0000:01:00.0", 11L << 30, 9L << 30, 10L << 30)]));
         var description = (HostDescription)(await app.ReceiveAsync())!;
         Assert.AreEqual((4L, "1.30.0", @"C:\ai\runtime\cuda"), (description.RequestId, description.RuntimeVersion, description.RuntimePack));
+        Assert.AreEqual(new HostGpu(0, "NVIDIA GeForce RTX 2080 Ti", "0000:01:00.0", 11L << 30, 9L << 30, 10L << 30), description.Gpus.Single(), "its GPUs, each with its budget");
         CollectionAssert.AreEqual(new[] { "CUDAExecutionProvider", "CPUExecutionProvider" }, description.ExecutionProviders.ToArray());
     }
 

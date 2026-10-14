@@ -91,8 +91,8 @@ internal sealed class KokoroSynthesizerRunner : IModelRunner
 {
     public string Id => "kokoro";
 
-    /// <summary>Kokoro on the GPU where the host runs models there — it shares the CUDA stack — else on the CPU.</summary>
-    public IHostModel Load(ModelSpec spec, string executionProvider)
+    /// <summary>Kokoro on the GPU its spec places it on — it shares the CUDA stack — else on the CPU.</summary>
+    public IHostModel Load(ModelSpec spec)
     {
         string path = Path.Combine(spec.Folder, spec.File ?? throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} does not name its file."));
         string tokenizer = Path.Combine(spec.Folder, "tokenizer.json");
@@ -108,16 +108,8 @@ internal sealed class KokoroSynthesizerRunner : IModelRunner
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             LogSeverityLevel       = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
         };
-        if (executionProvider == ExecutionRuntime.Cuda)
-        {
-            using var cuda = new OrtCUDAProviderOptions();
-            cuda.UpdateOptions(new Dictionary<string, string> { ["device_id"] = "0", ["arena_extend_strategy"] = "kSameAsRequested" });
-            options.AppendExecutionProvider_CUDA(cuda);
-        }
-        else
-        {
-            options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2);
-        }
+        if (spec.Device is { } device) CudaSessions.Append(options, device);
+        else options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2);
 
         var synthesizer = new KokoroSynthesizer(spec, new InferenceSession(path, options), vocabulary);
         try

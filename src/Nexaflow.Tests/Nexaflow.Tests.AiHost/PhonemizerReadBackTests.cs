@@ -42,14 +42,16 @@ public class PhonemizerReadBackTests
         {
             Environment = new AiHostEnvironment(pack),
         };
+        // On the first GPU when the host runs from the pack; on the CPU without.
+        int? gpu = pack is null ? null : 0;
         string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
         _models = new ListenModels(
             new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", 2L << 30, 0),
+            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", pack is null ? 0 : 2L << 30, 0, Device: gpu),
             pack is null
                 ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, "genai-native", 0, 0)
                 : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, "genai-native", 4L << 30, 0,
-                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }),
+                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
         foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector! })
             await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
@@ -69,7 +71,7 @@ public class PhonemizerReadBackTests
     {
         if (_client is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH and NEXAFLOW_TEST_LEXICONS name no speech models and lexicons here.");
         using var kokoro = (KokoroSynthesizer)new KokoroSynthesizerRunner().Load(
-            new ModelSpec($"speech/kokoro-{language}", "kokoro", Path.Combine(_root, voiceFolder), "onnx/model.onnx", null, 1L << 30, 0), ExecutionRuntime.Cpu);
+            new ModelSpec($"speech/kokoro-{language}", "kokoro", Path.Combine(_root, voiceFolder), "onnx/model.onnx", null, 0, 0));
         var voice = kokoro.Voice(voiceFile);
 
         PhonemeLanguage rules = language == "fr" ? new FrenchLanguage() : new GermanLanguage();

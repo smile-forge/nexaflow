@@ -11,7 +11,7 @@ internal sealed class LoadModelHandler(ModelRegistry models) : HostRequestHandle
         var started = Stopwatch.GetTimestamp();
         using var lease = await models.AcquireAsync(request.Model, resident: true,
             stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
-        await reply(new ModelLoaded(request.RequestId, models.ExecutionProvider, Stopwatch.GetElapsedTime(started).TotalSeconds));
+        await reply(new ModelLoaded(request.RequestId, request.Model.Device, Stopwatch.GetElapsedTime(started).TotalSeconds));
     }
 }
 

@@ -7,7 +7,7 @@ public static class AiHostProtocol
 {
     /// <summary>Raised whenever a message changes shape; a host speaking another version is refused at
     /// <see cref="Hello"/>, which is what keeps an app and a host from different builds from misreading each other.</summary>
-    public const int Version = 5;
+    public const int Version = 6;
 
     /// <summary>How long a started host has to connect and say <see cref="Hello"/>; also how long it waits for the
     /// app's pipe before giving up.</summary>

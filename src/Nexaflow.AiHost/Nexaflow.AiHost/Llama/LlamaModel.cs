@@ -5,7 +5,7 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost.Llama;
 
 /// <summary>
-/// A GGUF model llama.cpp has loaded — on the GPU when its CUDA backend is loaded, every layer — and its vocabulary:
+/// A GGUF model llama.cpp has loaded — on one GPU, every layer, or on the CPU — and its vocabulary:
 /// text to tokens and back, which tokens end a turn, and the chat template the file carries.
 /// </summary>
 internal sealed unsafe class LlamaModel : IDisposable
@@ -37,12 +37,15 @@ internal sealed unsafe class LlamaModel : IDisposable
 
     public string EosText { get; }
 
+    /// <param name="device">The GPU it runs on, every layer, or null for the CPU.</param>
     /// <exception cref="HostRequestException">The file would not load.</exception>
-    public static LlamaModel Load(string path, bool onGpu)
+    public static LlamaModel Load(string path, IntPtr? device)
     {
         var parameters = LlamaNative.ModelDefaults();
-        parameters.GpuLayers = onGpu ? -1 : 0;
-        // One GPU, the one the VRAM budget is drawn from, as for every model the host runs.
+        // One GPU, the one whose budget it was admitted against, as for every model the host runs.
+        var devices = stackalloc IntPtr[] { device ?? IntPtr.Zero, IntPtr.Zero };
+        parameters.Devices = (IntPtr)devices;
+        parameters.GpuLayers = device is null ? 0 : -1;
         parameters.Split = LlamaNative.SplitMode.None;
         parameters.MainGpu = 0;
         IntPtr model = LlamaNative.ModelLoad(path, parameters);

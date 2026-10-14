@@ -9,7 +9,8 @@ namespace Nexaflow.AiHost.Drawing;
 /// Draws a picture with an image model's three parts: the prompt read once, then the sampler's steps through the
 /// denoiser, then the latents decoded and written as a PNG. Each of those takes the GPU as one step at the request's
 /// priority, so a reply or speech gets in between denoising steps; each denoising step is reported as it finishes. A
-/// part is held only while its stage runs, so the host needs room for the largest of them, not all three.
+/// part is held only while its stage runs, so the host needs room for the largest of them, not all three — and the
+/// picture borrows that room: residents nothing is using make way on its parts' GPUs, and load again after it.
 /// </summary>
 internal sealed class DrawHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Draw>
 {
@@ -24,12 +25,13 @@ internal sealed class DrawHandler(ModelRegistry models, GpuScheduler gpu) : Host
 
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         var model = request.Model;
+        using var room = models.BorrowRoom();
         int h = request.Height / ZImageSampler.PixelsPerLatent, w = request.Width / ZImageSampler.PixelsPerLatent;
 
         // Each part is held only for its own stage: once a stage is done its part is idle, and the registry may unload it
         // to make room for the next — so a picture needs room for its largest part, not all three at once.
         (float[] Caption, int Rows, int Width) caption;
-        using (var lease = await models.AcquireAsync(model.PromptEncoder, resident: false, Stage, ct))
+        using (var lease = await models.AcquireAsync(model.PromptEncoder, resident: false, Stage, ct, room))
         {
             var encoder = lease.As<ZImagePromptEncoder>();
             await reply(new Progress(request.RequestId, Drawing, 0, model.Steps));
@@ -44,7 +46,7 @@ internal sealed class DrawHandler(ModelRegistry models, GpuScheduler gpu) : Host
 
         var sigmas  = ZImageSampler.Sigmas(model.Steps, model.Shift);
         var latents = ZImageSampler.Noise(request.Seed, h, w);
-        using (var lease = await models.AcquireAsync(model.Denoiser, resident: false, Stage, ct))
+        using (var lease = await models.AcquireAsync(model.Denoiser, resident: false, Stage, ct, room))
         {
             var denoiser = lease.As<ZImageDenoiser>();
             for (int step = 0; step < model.Steps; step++)
@@ -62,7 +64,7 @@ internal sealed class DrawHandler(ModelRegistry models, GpuScheduler gpu) : Host
         }
 
         float[] pixels;
-        using (var lease = await models.AcquireAsync(model.Decoder, resident: false, Stage, ct))
+        using (var lease = await models.AcquireAsync(model.Decoder, resident: false, Stage, ct, room))
         using (await gpu.NextAsync(request.Priority, ct))
         {
             ct.ThrowIfCancellationRequested();

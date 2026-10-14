@@ -87,8 +87,27 @@ public sealed record Failed(long RequestId, HostErrorKind Kind, string Message) 
 public sealed record DescribeHost(long RequestId) : HostRequest(RequestId);
 
 /// <param name="RuntimePack">The pack the runtime was loaded from, or null for the install's CPU runtime.</param>
+/// <param name="Gpus">The GPUs models can run on — none without the pack.</param>
 public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders,
-                                     string? RuntimePack) : HostReply(RequestId);
+                                     string? RuntimePack, IReadOnlyList<HostGpu> Gpus) : HostReply(RequestId);
+
+/// <summary>A GPU the host runs models on.</summary>
+/// <param name="Device">Its number — CUDA's own order, which llama.cpp and ONNX Runtime both count in.</param>
+/// <param name="Name">What its driver calls it.</param>
+/// <param name="BusId">Its PCI address (<c>domain:bus:device.function</c>), or null when the driver does not say.</param>
+/// <param name="TotalBytes">Its memory.</param>
+/// <param name="BudgetBytes">What models may hold on it together: what was free when the host started, less what the
+/// runtime keeps for itself.</param>
+/// <param name="FreeBytes">What is free on it as it was described.</param>
+public sealed record HostGpu(int Device, string Name, string? BusId, long TotalBytes, long BudgetBytes, long FreeBytes)
+{
+    /// <summary>What the host keeps back on each GPU, beyond what other programs held when it started: the runtime's
+    /// own allocations (cuBLAS workspaces, ONNX Runtime's arenas) and transients beyond each model's estimate.</summary>
+    public const long ReservedBytes = 3L << 29;
+
+    /// <summary>What the host's own work holds on it now: what was free when it started, less what is free now.</summary>
+    public long HeldBytes => BudgetBytes + ReservedBytes - FreeBytes;
+}
 
 public enum HostErrorKind
 {

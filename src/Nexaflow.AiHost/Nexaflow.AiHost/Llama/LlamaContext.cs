@@ -28,6 +28,9 @@ internal sealed unsafe class LlamaContext : IDisposable
         parameters.MicroBatch = Batch;
         parameters.MaxSequences = (uint)sequences;
         parameters.KvUnified = 1;
+        // Sliding-window layers keep their window alone: a conversation is appended to or forgotten whole, never cut
+        // back, so nothing older than the window is read again — and a large Gemma 4 holds half the memory.
+        parameters.SwaFull = 0;
         parameters.FlashAttention = LlamaNative.FlashAttention.Auto;
         _context = LlamaNative.ContextInit(model.Handle, parameters);
         if (_context == IntPtr.Zero)
