@@ -75,6 +75,24 @@ public class OwnedModelsTests
                       "every file from the one published revision");
     }
 
+    [TestMethod]
+    public void TheShippedHighQualityImageModel_IsHiDreamO1_ItsDenoiserAlone_BuiltForCuda()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "hidream-o1-image");
+
+        Assert.AreEqual(ModelTier.HighQuality, image.Catalog.Tier);
+        Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance));
+        Assert.AreEqual((2048, 2048), image.Sampler.Sizes[MediaShape.Square]);
+        Assert.AreEqual((2560, 1440), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graph is built for the GPU");
+        Assert.AreEqual("hidream-denoiser", image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).Runner);
+        var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
+        CollectionAssert.Contains(files, "models/hidream-o1-image/denoiser/tokenizer.json", "the host reads the prompt with it");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/164573a3")),
+                      "every file pinned to the published revision");
+    }
+
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";
