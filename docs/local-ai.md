@@ -583,11 +583,15 @@ model sees what it drew; the existing loop, approvals and context handling apply
 
 - **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
   (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is
-  told at once that it has started. The AI bar's pill counts the workspace's running jobs and opens their list: what
-  each is doing (the provider's own progress, a picture's step), for how long, and Stop. When a job ends the user is
-  notified, and a conversation keeps what came of it, after the turn in progress. A workspace's jobs stop when its
-  models go: a switch, a change of providers, its last window closing. Faster calls show their progress on the
-  activity ticker.
+    told at once that it has started, and under which id. The AI bar's pill counts the workspace's running jobs and opens
+    their list: what each is doing (the provider's own progress, a picture's step), for how long, and Stop. When a job
+    ends the user is notified, and a conversation keeps what came of it, after the turn in progress. A workspace's jobs
+    stop when its models go: a switch, a change of providers, its last window closing. Faster calls show their progress
+    on the activity ticker.
+  - **The model can ask after them.** While its workspace has a job running or among the last ten ended, every run
+    offers `get_background_tasks` — each job's id, what it is, and either how long it has run and what it is doing now
+    (the only partial result a provider gives) or how it ended and what came of it, a finished picture shown to the model
+    once — and `stop_background_task`, for when the user no longer wants one.
 
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them

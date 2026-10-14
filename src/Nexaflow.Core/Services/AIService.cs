@@ -537,7 +537,7 @@ public sealed class AIService : IAIService
 
         // The tools offered are chosen again as the work moves on; any of them, offered or not, is run when called.
         var getCommands = BuildGetClientCommandsTool(pageTools);
-        var chooser     = new ToolChooser(pageTools, getCommands, [.. options.Tools, .. delegates], ranker, context, input);
+        var chooser     = new ToolChooser(pageTools, getCommands, [.. options.Tools, .. delegates, .. _jobs?.Tools ?? []], ranker, context, input);
         var toolNames   = chooser.All.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // The model is offered its tools in its own protocol where it has one; otherwise its instructions describe them, so

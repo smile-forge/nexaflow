@@ -44,7 +44,13 @@ public class BackgroundJobsTests
             Begun.SetResult();
             var made = await Finish.Task.WaitAsync(ct);
             activity.Complete();
-            return made ? ToolResult.Ok("made a.png", @"Saved to C:\Pictures\a.png and opened it.") : ToolResult.Error("could not draw it", "The model failed.");
+            return made
+                ? ToolResult.Ok("made a.png", @"Saved to C:\Pictures\a.png and opened it.") with
+                  {
+                      Attachments = [@"C:\Pictures\a.png"],
+                      Images      = [new ContextImage([0x89, 0x50, 0x4E, 0x47], "image/png", "a.png")],
+                  }
+                : ToolResult.Error("could not draw it", "The model failed.");
         }
     }
 
@@ -91,6 +97,12 @@ public class BackgroundJobsTests
 
     private const string DrawCall = "```client_tool\n{\"tool\":\"draw\",\"arguments\":{}}\n```";
 
+    private const string AskHowTheyStand = "```client_tool\n{\"tool\":\"get_background_tasks\",\"arguments\":{}}\n```";
+    private const string StopTheFirst = "```client_tool\n{\"tool\":\"stop_background_task\",\"arguments\":{\"id\":1}}\n```";
+
+    /// <summary>What the model was told last: the answer to its last call.</summary>
+    private static string Answered(Model model) => model.Asked.Last().Last().Text;
+
     /// <summary>One workspace's assistant, its jobs listed in <paramref name="tasks"/> and its notifications in <paramref name="told"/>.</summary>
     private static (AIService Service, WorkspaceRuntime Workspace) Assistant(BackgroundActivityManager tasks, List<NotificationItem> told, Model model)
     {
@@ -122,7 +134,7 @@ public class BackgroundJobsTests
         await drawing.Begun.Task;
 
         Assert.AreEqual("It is being drawn.", reply!.Text, "the run did not wait for the picture");
-        StringAssert.Contains(model.Asked.Last().Last().Text, BackgroundJobs.Started);
+        StringAssert.Contains(model.Asked.Last().Last().Text, BackgroundJobs.Started(1));
         var job = tasks.Tasks.Single(t => t.Workspace == ws);
         Assert.AreEqual("Drawing a picture", job.Description);
         Assert.AreEqual("Drawing with the model — step 3 of 8", job.Detail, "the provider's progress is the job's");
@@ -182,6 +194,51 @@ public class BackgroundJobsTests
         Assert.IsFalse(window.Any);
         Assert.AreEqual(TaskStatus.Running, tasks.Tasks.Single(t => t.Workspace == there).Status, "another workspace's job runs on");
         drawingThere.Finish.SetResult(true);
+    });
+
+    [TestMethod]
+    public void TheModel_AsksHowItsJobsStand_AndIsShownWhatAFinishedOneMade_Once() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var model   = new Model(DrawCall, "Drawing.", AskHowTheyStand, "At step 3.", AskHowTheyStand, "Done.", AskHowTheyStand, "Still done.");
+        var (svc, _) = Assistant(tasks, [], model);
+        var drawing = new Drawing(tasks);
+        var page    = new Page(drawing);
+        await svc.RunAgentAsync(page, "Draw a lighthouse.", true, new User());
+        await drawing.Begun.Task;
+
+        await svc.RunAgentAsync(page, "How is the picture going?", true, new User());
+        StringAssert.Contains(model.Asked.Last()[0].Text, "stop_background_task", "both tools are offered while a task runs");
+        StringAssert.Contains(Answered(model), "Task 1: Drawing a picture — running for");
+        StringAssert.Contains(Answered(model), "now: Drawing with the model — step 3 of 8");
+
+        drawing.Finish.SetResult(true);
+        await Until(() => tasks.Tasks.Single(t => t.Workspace is not null).Status == TaskStatus.Completed);
+        await svc.RunAgentAsync(page, "Is it done?", true, new User());
+        StringAssert.Contains(Answered(model), @"done after");
+        StringAssert.Contains(Answered(model), @"Saved to C:\Pictures\a.png");
+        StringAssert.Contains(Answered(model), "An image was captured", "what it made is shown to the model");
+
+        await svc.RunAgentAsync(page, "And now?", true, new User());
+        Assert.IsFalse(Answered(model).Contains("An image was captured"), "once is enough");
+    });
+
+    [TestMethod]
+    public void TheModel_StopsAJobTheUserNoLongerWants() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var model   = new Model(DrawCall, "Drawing.", StopTheFirst, "Stopped it.");
+        var (svc, _) = Assistant(tasks, [], model);
+        var drawing = new Drawing(tasks);
+        var user    = new User();
+        await svc.RunAgentAsync(new Page(drawing), "Draw a lighthouse.", true, user);
+        await drawing.Begun.Task;
+
+        await svc.RunAgentAsync(new Page(drawing), "Never mind the picture.", true, new User());
+
+        StringAssert.Contains(Answered(model), "Task 1 (Drawing a picture) is being stopped");
+        await Until(() => tasks.Tasks.Single(t => t.Workspace is not null).Status == TaskStatus.Stopped);
+        StringAssert.StartsWith(user.Ended.Single(), "No picture was made.", "the run that started it is told");
     });
 
     /// <summary>Runs <paramref name="body"/> on a thread with a dispatcher of its own, as the app's UI thread: the loop, the
