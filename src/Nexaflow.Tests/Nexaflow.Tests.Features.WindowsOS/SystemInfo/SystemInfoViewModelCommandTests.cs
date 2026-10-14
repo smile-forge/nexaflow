@@ -27,7 +27,7 @@ public class SystemInfoViewModelCommandTests
                 Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>()))
              .Do(ci => { count++; captured = ci.Arg<Action<bool>>(); });
 
-        var vm = new SystemInfoViewModel(shell);
+        var vm = new SystemInfoViewModel(shell, Substitute.For<IAIService>());
         return (vm, () => count, () => captured);
     }
 

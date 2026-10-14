@@ -5,7 +5,7 @@ using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
 
-public sealed class SystemInfoTabRegistration(IShellServices shellServices) : IPageRegistration
+public sealed class SystemInfoTabRegistration(IShellServices shellServices, IAIService ai) : IPageRegistration
 {
     public static string StaticPageKind => "SystemInfo";
     public string PageKind => StaticPageKind;
@@ -18,6 +18,6 @@ public sealed class SystemInfoTabRegistration(IShellServices shellServices) : IP
         Title       = Str.Get("SystemInfo.Page.Title"),
         Icon        = "🖥️",
         Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.Title") } },
-        ContentFactory = () => new SystemInfoView(new SystemInfoViewModel(shellServices))
+        ContentFactory = () => new SystemInfoView(new SystemInfoViewModel(shellServices, ai))
     };
 }

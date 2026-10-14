@@ -8,15 +8,22 @@ namespace Nexaflow.Features.SystemInfo.Services;
 /// Runs the (blocking) WMI/registry probing off the UI thread via the shell's background-activity
 /// queue. The built snapshot is read from <see cref="Result"/> in the completion callback.
 /// </summary>
-public sealed class LoadSystemInfoTask(SystemInfoCollector collector) : IBackgroundTask
+public sealed class LoadSystemInfoTask(SystemInfoCollector collector, IAIService ai) : IBackgroundTask
 {
     public string Description => Str.Get("SystemInfo.Task.GatheringSystem");
 
     public SystemInfoSnapshot? Result { get; private set; }
 
-    public Task RunAsync(CancellationToken ct) => Task.Run(() =>
+    /// <summary>Where the workspace's models of Nexaflow's own run; null when it uses none.</summary>
+    public LocalAiSetup? LocalAi { get; private set; }
+
+    public async Task RunAsync(CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
-        Result = collector.Collect();
-    }, ct);
+        LocalAi = await ai.DescribeLocalAiAsync(ct);
+        Result = await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return collector.Collect(LocalAi);
+        }, ct);
+    }
 }

@@ -52,6 +52,27 @@
                     </StackPanel>
                     <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,8"/>
                     <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource ItemTemplate}"/>
+
+                    <!-- What the card offers to do, where it offers anything: the Local AI card's check. -->
+                    <StackPanel Margin="0,10,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Action}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <Button Content="{Binding Action.Label}" Command="{Binding Action.Command}"
+                                AutomationProperties.AutomationId="SysInfo_SectionAction"
+                                HorizontalAlignment="Left"
+                                Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                Padding="12,5" Cursor="Hand"/>
+                        <TextBlock Text="{Binding Action.Outcome}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
+                                   Foreground="{Binding Action.OutcomeStatus, Converter={x:Static conv:StatusToBrushConverter.Instance}}"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </DataTemplate>

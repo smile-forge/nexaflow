@@ -51,7 +51,7 @@ public class SystemInfoSearchableTests : SearchableContentConformanceTests
     {
         // The substitute never runs the queued gather, so nothing from this machine reaches the page and
         // the cards below are the whole of what is on screen.
-        var vm = new SystemInfoViewModel(RunningShell(), new SystemInfoCollector());
+        var vm = new SystemInfoViewModel(RunningShell(), Substitute.For<IAIService>(), new SystemInfoCollector());
 
         vm.Sections.Add(new SystemInfoSection("Operating System", "🪟")
             .Add(HitByValue, "Windows alpha42 Edition")     // matches on the VALUE

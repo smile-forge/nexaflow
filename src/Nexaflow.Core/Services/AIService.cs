@@ -10,6 +10,9 @@ using System.IO;
 using System.Text;
 using Nexaflow.Core.Localization;
 using System.Diagnostics;
+using Nexaflow.AiHost.Client;
+using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.IO.Common.Hardware;
 
 namespace Nexaflow.Core.Services;
 
@@ -146,6 +149,35 @@ public sealed class AIService : IAIService
         }
         catch { return null; }
     }
+
+    // ── Nexaflow's own models ──────────────────────────────────────────────
+
+    /// <summary>The workspace's models of Nexaflow's own: each column whose provider runs its model in the AI host, once
+    /// per model.</summary>
+    private IReadOnlyList<OwnedModelInUse> OwnedModelsInUse()
+    {
+        if (_abilityConfig is null) return [];
+        var used = new List<OwnedModelInUse>();
+        foreach (var column in _abilityConfig.Columns)
+            if (_providers.TryGetValue(column.Id, out var provider) && provider.Harness == ModelHarness.Owned && provider is IHostModelCatalog catalog
+                && used.All(u => u.ModelId != column.Model))
+                used.Add(new OwnedModelInUse(column.Model, NameOf(provider, column.Model), column.Kind, provider, catalog));
+        return used;
+
+        static string NameOf(IAiProvider provider, string model)
+            => provider is ILocalModelCatalog local && local.Catalog.FirstOrDefault(m => m.Id == model) is { } entry ? entry.DisplayName : model;
+    }
+
+    public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
+        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
+    ? LocalAiSetupReader.DescribeAsync(setup, OwnedModelsInUse(),
+                                               ModelPlacement.Expected(ProviderManager.Instance.Service<ComputeHardwareReport>() ?? ComputeHardware.Probe()), ct)
+            : Task.FromResult<LocalAiSetup?>(null);
+
+    public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
+        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
+            ? new LocalAiChecker(setup, OwnedModelsInUse(), Path.Combine(ModelAssetStore.DefaultRoot(), "reports")).RunAsync(progress, ct)
+            : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
     // ── Persistence ───────────────────────────────────────────────────────
 

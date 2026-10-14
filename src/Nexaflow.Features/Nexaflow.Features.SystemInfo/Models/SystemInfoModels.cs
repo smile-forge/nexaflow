@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Nexaflow.Features.SystemInfo.Models;
 
@@ -41,6 +42,9 @@ public sealed class SystemInfoSection(string title, string icon, double width = 
 
     public List<SystemInfoItem> Items { get; } = [];
 
+    /// <summary>What the card offers to do, if anything.</summary>
+    public SystemInfoAction? Action { get; set; }
+
     public SystemInfoSection Add(string label, string? value, SystemInfoStatus status = SystemInfoStatus.Neutral)
     {
         Items.Add(new SystemInfoItem(label, string.IsNullOrWhiteSpace(value) ? "—" : value!, status));
@@ -48,10 +52,24 @@ public sealed class SystemInfoSection(string title, string icon, double width = 
     }
 }
 
+/// <summary>What a card offers to do: a button at its foot, its label saying what it is doing while it runs, and what
+/// its last run came to beneath it.</summary>
+public sealed partial class SystemInfoAction(string label, IAsyncRelayCommand command) : ObservableObject
+{
+    [ObservableProperty] private string _label = label;
+    [ObservableProperty] private string? _outcome;
+    [ObservableProperty] private SystemInfoStatus _outcomeStatus;
+
+    public IAsyncRelayCommand Command { get; } = command;
+}
+
 /// <summary>The full point-in-time device summary produced by <c>SystemInfoCollector</c>.</summary>
 public sealed class SystemInfoSnapshot
 {
     public List<SystemInfoSection> Sections { get; } = [];
+
+    /// <summary>The Local AI card among <see cref="Sections"/>.</summary>
+    public SystemInfoSection? LocalAi { get; set; }
 
     /// <summary>Flat plain-text rendering of every section — used for the LLM context and copy-to-clipboard.</summary>
     public string ToPlainText()

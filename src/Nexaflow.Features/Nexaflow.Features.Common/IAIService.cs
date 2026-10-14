@@ -81,6 +81,19 @@ namespace Nexaflow.Features.Common
         /// </summary>
         Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default);
 
+        /// <summary>Where the models Nexaflow runs itself run for this workspace; null when it uses none.</summary>
+        Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// Checks this machine against the workspace's models of Nexaflow's own: each loaded where the setup places it
+        /// and set its work once — a reply, a sentence spoken and heard back, a picture drawn — with each GPU's memory
+        /// and each model's speed measured, and one report written.
+        /// </summary>
+        /// <param name="progress">What it is doing, as it goes.</param>
+        /// <exception cref="InvalidOperationException">The workspace uses no model Nexaflow runs itself, or the AI host
+        /// could not be reached.</exception>
+        Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default);
+
         /// <summary>
         /// One-shot generic disambiguation: asks the Disambiguation-ability model to pick
         /// one of <paramref name="options"/> given <paramref name="contextDescription"/>
