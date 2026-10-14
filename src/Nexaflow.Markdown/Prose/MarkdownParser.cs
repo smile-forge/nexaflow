@@ -457,7 +457,6 @@ public sealed class MarkdownParser : ITranspile
         ListBlock => MarkdownKinds.List,
         Table => MarkdownKinds.Table,
         Markdig.Extensions.Yaml.YamlFrontMatterBlock => MarkdownKinds.FrontMatter,
-        Markdig.Extensions.Footnotes.FootnoteGroup => MarkdownKinds.Footnote,
         Markdig.Extensions.DefinitionLists.DefinitionList => MarkdownKinds.Definition,
         Markdig.Extensions.DefinitionLists.DefinitionTerm => MarkdownKinds.Term,
         Markdig.Extensions.DefinitionLists.DefinitionItem => MarkdownKinds.Described,

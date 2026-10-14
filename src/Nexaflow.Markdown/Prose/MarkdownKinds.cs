@@ -67,9 +67,6 @@ public static class MarkdownKinds
     /// <summary>What a term is explained by — the <c>:</c> line under it.</summary>
     public const string Described = "described";
 
-    /// <summary>A note written at the foot and pointed at from the text.</summary>
-    public const string Footnote = "footnote";
-
     /// <summary>The YAML between two fences at the top: what a document says about itself.</summary>
     public const string FrontMatter = "frontmatter";
 
