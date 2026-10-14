@@ -22,7 +22,7 @@ internal sealed class ModelAdapters(IEnumerable<IModelAdapter> adapters)
 
     private readonly Dictionary<string, IModelAdapter> _adapters = adapters.ToDictionary(a => a.Id, StringComparer.Ordinal);
 
-    public static ModelAdapters Default { get; } = new([new Gemma4OnnxCommunityAdapter(), new GenAiNativeAdapter()]);
+    public static ModelAdapters Default { get; } = new([new GenAiNativeAdapter()]);
 
     /// <summary>Prepares <paramref name="folder"/> with the named adapter, unless that version already has.</summary>
     /// <exception cref="HostRequestException">No such adapter, or a file it needs is missing.</exception>

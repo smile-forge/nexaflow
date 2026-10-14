@@ -26,6 +26,18 @@ public class CudaRuntimePackTests
             $"the host's {library} and the pack's are different builds — the pack must be re-pinned with the host's runtime");
     }
 
+    /// <summary>The pack's CUDA backend for llama.cpp is from the build the host carries: llama.cpp's backends and
+    /// the libraries that load them must be the same build.</summary>
+    [TestMethod]
+    public void ThePacksLlamaBackend_IsFromTheHostsOwnLlamaBuild()
+    {
+        string build = File.ReadAllText(Path.Combine(HostFolder, "llama-cpp.build")).Trim();
+        var backend = CudaRuntimePack.Files.Single(f => Path.GetFileName(f.RelativePath) == "ggml-cuda.dll");
+
+        StringAssert.Contains(backend.Source.ToString(), $"/releases/download/{build}/", "the pack's backend is from another llama.cpp build than the host's");
+        Assert.IsTrue(CudaRuntimePack.Files.Any(f => Path.GetFileName(f.RelativePath) == "cudart64_13.dll"), "the backend's CUDA runtime comes with it");
+    }
+
     [TestMethod]
     public void EveryFile_ComesFromAnArchiveWherePublished_IntoThePacksOwnFolder()
     {

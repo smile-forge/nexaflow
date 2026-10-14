@@ -1,5 +1,6 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntimeGenAI;
+using Nexaflow.AiHost.Llama;
 using Nexaflow.IO.Common.Hardware;
 
 namespace Nexaflow.AiHost;
@@ -29,6 +30,7 @@ internal sealed class ExecutionRuntime : IDisposable
         ExecutionProviders = env.GetAvailableProviders();
         ExecutionProvider  = NativeRuntime.Pack is null ? Cpu : Cuda;
         BudgetBytes        = ExecutionProvider == Cuda ? BudgetOf(hardware) : null;
+        LlamaBackends.Load(NativeRuntime.Pack, log);
         log.Write($"ONNX Runtime {Version} from {NativeRuntime.Pack ?? "the install"}; models run on {ExecutionProvider}"
                   + (BudgetBytes is { } budget ? $", within {budget >> 20} MiB of VRAM" : ""));
     }
@@ -50,5 +52,9 @@ internal sealed class ExecutionRuntime : IDisposable
                             .Select(a => (long?)Math.Max(0, a.DedicatedMemoryBytes - ReservedBytes))
                             .Max();
 
-    public void Dispose() => _genai.Dispose();
+    public void Dispose()
+    {
+        LlamaBackends.Free();
+        _genai.Dispose();
+    }
 }

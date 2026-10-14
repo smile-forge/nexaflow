@@ -6,16 +6,18 @@ namespace Nexaflow.AiHost.Contracts;
 /// without asking back.
 /// </summary>
 /// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
-/// <param name="Runner">What loads and runs it — <c>genai-chat</c> for a language model; a family of speech models each has its own.</param>
+/// <param name="Runner">What loads and runs it — <c>llama-chat</c> for a language model; a family of speech models each has its own.</param>
 /// <param name="Folder">Where its files were downloaded.</param>
-/// <param name="File">The file it is, for a model that is a single graph; null for a folder onnxruntime-genai reads.</param>
+/// <param name="File">The file it is — a language model's GGUF, a single graph; null for a folder onnxruntime-genai reads.</param>
 /// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
 /// <param name="MemoryBytes">GPU memory it holds loaded, with a working context — what admission counts; 0 for a model
 /// that always runs on the CPU.</param>
 /// <param name="ContextTokens">The longest context a conversation may grow to, for a language model; 0 otherwise.</param>
 /// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
+/// <param name="Projector">A language model's multimodal projector, beside its GGUF in <see cref="Folder"/>: what it
+/// sees pictures and hears recordings through; null for a model of text alone.</param>
 public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                               IReadOnlyDictionary<string, string>? CudaOptions = null);
+                               IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null);
 
 /// <summary>Loads a model and keeps it loaded — the resident set — until it is unloaded. Replies with
 /// <see cref="Progress"/> while it prepares and loads, then <see cref="ModelLoaded"/>.</summary>

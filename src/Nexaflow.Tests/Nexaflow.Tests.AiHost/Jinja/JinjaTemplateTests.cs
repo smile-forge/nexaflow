@@ -13,23 +13,13 @@ namespace Nexaflow.Tests.AiHost.Jinja;
 [CoversNode("ai-host")]
 public class JinjaTemplateTests
 {
-    private static JsonObject Resource(string name)
-    {
-        using var stream = typeof(JinjaTemplateTests).Assembly.GetManifestResourceStream(name)
-                           ?? throw new InvalidOperationException($"{name} is not embedded.");
-        return JsonNode.Parse(stream)!.AsObject();
-    }
-
-    private static readonly Lazy<JsonObject> Families = new(() => Resource("chat-templates.json"));
-    private static readonly Lazy<JsonObject> Snippets = new(() => Resource("jinja-snippets.json"));
-
-    public static IEnumerable<object[]> FamilyNames => Families.Value.Select(f => new object[] { f.Key });
+    public static IEnumerable<object[]> FamilyNames => ChatTemplateReferences.Families.Select(f => new object[] { f.Key });
 
     [TestMethod]
     [DynamicData(nameof(FamilyNames))]
     public void AFamilysOwnTemplate_RendersEveryConversation_AsTransformersDoes(string family)
     {
-        var data = Families.Value[family]!;
+        var data = ChatTemplateReferences.Families[family]!;
         var template = JinjaTemplate.Parse((string)data["template"]!);
         var mismatches = new List<string>();
         foreach (var render in data["renders"]!.AsArray())
@@ -53,9 +43,9 @@ public class JinjaTemplateTests
     [TestMethod]
     public void EverySnippet_RendersAsPythonsJinjaDoes()
     {
-        var data = Snippets.Value["data"]!.AsObject().ToDictionary(p => p.Key, p => (object?)p.Value?.DeepClone());
+        var data = ChatTemplateReferences.Snippets["data"]!.AsObject().ToDictionary(p => p.Key, p => (object?)p.Value?.DeepClone());
         var mismatches = new List<string>();
-        foreach (var snippet in Snippets.Value["snippets"]!.AsArray())
+        foreach (var snippet in ChatTemplateReferences.Snippets["snippets"]!.AsArray())
         {
             string source = (string)snippet!["source"]!, expected = (string)snippet["output"]!;
             try
@@ -74,8 +64,8 @@ public class JinjaTemplateTests
     [TestMethod]
     public void WhatPythonRefuses_IsRefused_AndWhatItAllows_Renders()
     {
-        var data = Snippets.Value["data"]!.AsObject().ToDictionary(p => p.Key, p => (object?)p.Value?.DeepClone());
-        foreach (var snippet in Snippets.Value["refused"]!.AsArray())
+        var data = ChatTemplateReferences.Snippets["data"]!.AsObject().ToDictionary(p => p.Key, p => (object?)p.Value?.DeepClone());
+        foreach (var snippet in ChatTemplateReferences.Snippets["refused"]!.AsArray())
         {
             string source = (string)snippet!["source"]!;
             bool raised;

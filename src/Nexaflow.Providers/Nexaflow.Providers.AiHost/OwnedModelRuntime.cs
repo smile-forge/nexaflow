@@ -109,7 +109,8 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         var path = assets.Locate(file) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
         var inside = file.RelativePath[(part.Folder.Length + 1)..].Replace('/', Path.DirectorySeparatorChar);
         var folder = path[..^inside.Length].TrimEnd(Path.DirectorySeparatorChar);
-        return new ModelSpec(PartId(model, part), part.Runner, folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions);
+        return new ModelSpec(PartId(model, part), part.Runner, folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
+                             part.Projector);
     }
 
     /// <summary>Where one of <paramref name="part"/>'s files is on this machine.</summary>

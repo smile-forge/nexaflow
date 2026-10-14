@@ -6,14 +6,73 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// A model's tool calls in its own syntax, read back into calls — Gemma 4's <c>call:name{key:value}</c>, its keys bare
-/// and its strings between delimiters the reader has already made quotes — and the conversation as its chat template
-/// takes the calls and what came of them.
+/// A model's tool calls in its own syntax, read back into calls as its tokens come: Gemma 4's
+/// <c>call:name{key:value}</c> between its own tokens, its strings between delimiter tokens; Qwen's
+/// <c>&lt;function=…&gt;</c> with a <c>&lt;parameter=…&gt;</c> per argument, typed by the tool's schema. Which a model
+/// writes is told by the special tokens in its vocabulary.
 /// </summary>
 [TestClass]
 [CoversNode("ai-host")]
 public class ToolCallSyntaxTests
 {
+    private const int GemmaOpen = 1, GemmaClose = 2, GemmaQuote = 3, GemmaWait = 4, QwenOpen = 11, QwenClose = 12;
+
+    private static readonly Dictionary<string, int> GemmaVocabulary = new()
+    {
+        ["<|tool_call>"] = GemmaOpen, ["<tool_call|>"] = GemmaClose, ["<|\"|>"] = GemmaQuote, ["<|tool_response>"] = GemmaWait,
+    };
+
+    private static readonly Dictionary<string, int> QwenVocabulary = new() { ["<tool_call>"] = QwenOpen, ["</tool_call>"] = QwenClose };
+
+    private const string QwenTemplate = "…<tool_call>\\n<function=example_function_name>…";
+
+    private static Func<string, int?> Special(Dictionary<string, int> vocabulary) => text => vocabulary.TryGetValue(text, out int id) ? id : null;
+
+    private static readonly ChatTool OpenFolder = new("open_folder", "Opens a folder.",
+        "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"tab\":{\"type\":\"integer\"},\"code\":{\"type\":\"string\"}}}");
+
+    [TestMethod]
+    public void TheSyntax_IsTheOneTheVocabularyHolds()
+    {
+        Assert.IsInstanceOfType<GemmaToolCalls>(ToolCallSyntax.Of(Special(GemmaVocabulary), ""));
+        Assert.IsInstanceOfType<QwenToolCalls>(ToolCallSyntax.Of(Special(QwenVocabulary), QwenTemplate));
+        Assert.IsNull(ToolCallSyntax.Of(Special(QwenVocabulary), "{{ tool_call | tojson }}"), "the same tokens with JSON calls in them are another syntax");
+        Assert.IsNull(ToolCallSyntax.Of(Special([]), QwenTemplate), "a model with no call tokens writes no calls");
+    }
+
+    /// <summary>Feeds a reply's tokens to a reader: a number is that token, a string a text token of that text.</summary>
+    private static (List<ToolCallToken> Seen, List<ChatToolCall> Made) Feed(ToolCallSyntax syntax, IReadOnlyList<ChatTool> tools, params object[] reply)
+    {
+        var texts = new Dictionary<int, string>();
+        int next = 100;
+        var tokens = reply.Select(r => r is int id ? id : Add((string)r)).ToList();
+        int Add(string text) { texts[next] = text; return next++; }
+
+        var reader = syntax.Read(token => texts.GetValueOrDefault(token, ""), tools);
+        var seen = new List<ToolCallToken>();
+        var made = new List<ChatToolCall>();
+        foreach (int token in tokens)
+        {
+            seen.Add(reader.Take(token));
+            if (seen[^1] == ToolCallToken.Made) made.Add(reader.Made!);
+        }
+        return (seen, made);
+    }
+
+    [TestMethod]
+    public void AGemmaCall_IsReadFromItsTokens_TheTextAroundItLeftAsText_AndItsWaitEndingTheTurn()
+    {
+        var syntax = ToolCallSyntax.Of(Special(GemmaVocabulary), "")!;
+
+        var (seen, made) = Feed(syntax, [OpenFolder], "Opening.", GemmaOpen, "call:open_folder{path:", GemmaQuote, "D:\\docs", GemmaQuote, ",tab:2}",
+                                GemmaClose, GemmaWait);
+
+        CollectionAssert.AreEqual(new[] { ToolCallToken.Text, ToolCallToken.Call, ToolCallToken.Call, ToolCallToken.Call, ToolCallToken.Call,
+                                          ToolCallToken.Call, ToolCallToken.Call, ToolCallToken.Made, ToolCallToken.Waits }, seen);
+        Assert.AreEqual(("call_0", "open_folder"), (made[0].Id, made[0].Name));
+        Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse("{\"path\":\"D:\\\\docs\",\"tab\":2}"), JsonNode.Parse(made[0].Arguments)), made[0].Arguments);
+    }
+
     [TestMethod]
     [DataRow("call:delete_file{name:\"test.zip\"}", "delete_file", "{\"name\":\"test.zip\"}")]
     [DataRow("call:send{to:\"ada@example.test\",count:2,urgent:true,tags:[\"a\",\"b\"]}", "send",
@@ -21,97 +80,71 @@ public class ToolCallSyntaxTests
     [DataRow("call:open{where:{kind:\"folder\",path:\"C:\\\\Temp\"}}", "open", "{\"where\":{\"kind\":\"folder\",\"path\":\"C:\\\\Temp\"}}")]
     [DataRow("call:set_mode{mode:fast}", "set_mode", "{\"mode\":\"fast\"}")]
     [DataRow("call:list_files{}", "list_files", "{}")]
-    public void ACallInTheModelsSyntax_IsReadAsTheToolAndItsArguments(string written, string tool, string arguments)
+    public void AGemmaCallAsWritten_IsReadAsTheToolAndItsArguments(string written, string tool, string arguments)
     {
-        var call = ToolCallSyntax.Parse(written, "call_0");
+        var call = GemmaToolCalls.Parse(written, "call_0");
 
         Assert.AreEqual(("call_0", tool), (call.Id, call.Name));
         Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse(arguments), JsonNode.Parse(call.Arguments)), call.Arguments);
     }
 
     [TestMethod]
-    public void ArgumentsThatWillNotRead_AreKeptAsWritten_ForTheAppToHaveWrittenAgain()
+    public void GemmaArgumentsThatWillNotRead_AreKeptAsWritten_ForTheAppToHaveWrittenAgain()
     {
-        var call = ToolCallSyntax.Parse("call:delete_file{name:\"test.zip\"", "call_1");
+        var call = GemmaToolCalls.Parse("call:delete_file{name:\"test.zip\"", "call_1");
 
         Assert.AreEqual(("delete_file", "{name:\"test.zip\""), (call.Name, call.Arguments));
     }
 
     [TestMethod]
-    public void TheTemplate_IsGivenTheCallsAndWhatAnswersThem_TheToolsDeclaredAsItWouldDeclareThem()
+    public void AQwenCall_IsReadFromBetweenItsTokens_EachMadeAsItCloses()
     {
-        var call = new ChatToolCall("call_0", "delete_file", "{\"name\":\"test.zip\",\"to_bin\":true}");
-        ChatTurn[] turns =
-        [
-            new(TurnRole.System, "Be brief."),
-            new(TurnRole.User, "Delete it."),
-            new(TurnRole.Assistant, "") { ToolCalls = [call] },
-            new(TurnRole.Tool, "Deleted 'test.zip'.") { Answers = call },
-        ];
+        var syntax = ToolCallSyntax.Of(Special(QwenVocabulary), QwenTemplate)!;
 
-        var messages = JsonNode.Parse(ChatPrompt.Messages(turns, MediaPlan.None, [DeleteFile]))!.AsArray();
+        var (seen, made) = Feed(syntax, [OpenFolder], "On it.", QwenOpen, "\n<function=open_folder>\n<parameter=path>\nD:\\docs\n</parameter>\n",
+                                "</function>\n", QwenClose, "\n", QwenOpen, "<function=open_folder>\n<parameter=tab>\n3\n</parameter>\n</function>", QwenClose);
 
-        Assert.AreEqual("Be brief." + Declared, (string?)messages[0]!["content"], "the declarations end the system turn");
-        var made = messages[2]!["tool_calls"]![0]!;
-        Assert.AreEqual(("call_0", "delete_file", "name:<|\"|>test.zip<|\"|>,to_bin:true"),
-                        ((string?)made["id"], (string?)made["function"]!["name"], (string?)made["function"]!["arguments"]),
-                        "a call made is remembered as the model writes it, keys in order");
-        Assert.AreEqual(("tool", "call_0", "delete_file"),
-                        ((string?)messages[3]!["role"], (string?)messages[3]!["tool_call_id"], (string?)messages[3]!["name"]));
-    }
-
-    private static readonly ChatTool DeleteFile = new("delete_file", "Delete a file.",
-        "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"The file.\"},"
-      + "\"to_bin\":{\"type\":\"boolean\",\"description\":\"To the Recycle Bin.\"}},\"required\":[\"name\"]}");
-
-    /// <summary>What Gemma 4's own template writes for <see cref="DeleteFile"/>.</summary>
-    private const string Declared =
-        "<|tool>declaration:delete_file{description:<|\"|>Delete a file.<|\"|>,parameters:{properties:{"
-      + "name:{description:<|\"|>The file.<|\"|>,type:<|\"|>STRING<|\"|>},"
-      + "to_bin:{description:<|\"|>To the Recycle Bin.<|\"|>,type:<|\"|>BOOLEAN<|\"|>}},"
-      + "required:[<|\"|>name<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|>";
-
-    [TestMethod]
-    [TestCategory("OwnedModel")]
-    public void GemmasOwnTemplate_RendersTheTools_ACall_AndWhatCameOfIt()
-    {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder)
-        {
-            Assert.Inconclusive("NEXAFLOW_TEST_GEMMA names no Gemma 4 E4B folder on this machine.");
-            return;
-        }
-        using var model = Nexaflow.AiHost.Models.ChatModel.Load(
-            new ModelSpec("gemma-4-e4b-it", "genai-chat", folder, null, "gemma4-onnx-community-q4f16", 8L << 30, 16_384), "cpu");
-        var call = new ChatToolCall("call_0", "delete_file", "{\"name\":\"test.zip\"}");
-        ChatTurn[] turns =
-        [
-            new(TurnRole.System, "Be brief."),
-            new(TurnRole.User, "Delete it."),
-            new(TurnRole.Assistant, "") { ToolCalls = [call] },
-            new(TurnRole.Tool, "Deleted.") { Answers = call },
-        ];
-
-        string prompt = ChatPrompt.Render(model, turns, generationPrompt: true, MediaPlan.None, [DeleteFile]);
-
-        Assert.IsNotNull(model.ToolCalls, "its vocabulary holds its call syntax");
-        StringAssert.Contains(prompt, "<|turn>system\nBe brief." + Declared + "<turn|>");
-        StringAssert.Contains(prompt, "<|tool_call>call:delete_file{name:<|\"|>test.zip<|\"|>}<tool_call|>"
-                                    + "<|tool_response>response:delete_file{value:<|\"|>Deleted.<|\"|>}<tool_response|>");
+        Assert.AreEqual(ToolCallToken.Text, seen[0]);
+        Assert.AreEqual(2, made.Count);
+        Assert.AreEqual(("call_0", "open_folder", "call_1"), (made[0].Id, made[0].Name, made[1].Id));
+        Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse("{\"path\":\"D:\\\\docs\"}"), JsonNode.Parse(made[0].Arguments)), made[0].Arguments);
+        Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse("{\"tab\":3}"), JsonNode.Parse(made[1].Arguments)), made[1].Arguments);
     }
 
     [TestMethod]
-    public void AReplyThatEndedInCalls_IsExtendedStraightOn_ByWhatCameOfThem()
+    public void QwenArguments_AreTypedByTheToolsSchema_AndUndeclaredOnesReadAsJsonWhereTheyAre()
     {
-        var call = new ChatToolCall("call_0", "delete_file", "{\"name\":\"test.zip\"}");
-        ChatTurn[] read = [new(TurnRole.User, "Delete it."), new(TurnRole.Assistant, "") { ToolCalls = [call] }];
-        ChatTurn[] turns = [.. read, new(TurnRole.Tool, "Deleted.") { Answers = call }];
+        var call = QwenToolCalls.Parse("<function=open_folder>\n<parameter=code>\n123\n</parameter>\n<parameter=tab>\n7\n</parameter>\n"
+                                     + "<parameter=extra>\n{\"a\": [1, true]}\n</parameter>\n<parameter=note>\nmulti\nline\n</parameter>\n</function>",
+                                       "call_0", [OpenFolder]);
 
-        // As Gemma's template renders them: the call, then the model waiting — a token it generated itself.
-        static string Render(IReadOnlyList<ChatTurn> t, bool prompt)
-            => "<|turn>user\nDelete it.<turn|>\n<|turn>model\n<|tool_call>call:delete_file{name:<|\"|>test.zip<|\"|>}<tool_call|><|tool_response>"
-             + (t.Count > 2 ? "response:delete_file{value:<|\"|>Deleted.<|\"|>}<tool_response|>" : "");
+        Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse("{\"code\":\"123\",\"tab\":7,\"extra\":{\"a\":[1,true]},\"note\":\"multi\\nline\"}"),
+                                          JsonNode.Parse(call.Arguments)), call.Arguments);
+    }
 
-        Assert.IsTrue(ConversationMatch.Continues(read, turns));
-        Assert.AreEqual("response:delete_file{value:<|\"|>Deleted.<|\"|>}<tool_response|>", ConversationMatch.Delta(read, turns, Render));
+    [TestMethod]
+    public void AQwenBooleanWrittenAsPythonPrintsIt_IsReadAsABoolean()
+    {
+        var tool = new ChatTool("delete_file", "Deletes.", "{\"type\":\"object\",\"properties\":{\"to_bin\":{\"type\":\"boolean\"}}}");
+
+        var call = QwenToolCalls.Parse("<function=delete_file>\n<parameter=to_bin>\nTrue\n</parameter>\n</function>", "call_0", [tool]);
+
+        Assert.AreEqual("{\"to_bin\":true}", call.Arguments);
+    }
+
+    [TestMethod]
+    public void AQwenCallWithNoFunction_IsPassedOnAsWritten_ForTheAppToHaveWrittenAgain()
+    {
+        var call = QwenToolCalls.Parse("\n{\"name\": \"open_folder\"}\n", "call_0", [OpenFolder]);
+
+        Assert.AreEqual(("", "{\"name\": \"open_folder\"}"), (call.Name, call.Arguments));
+    }
+
+    [TestMethod]
+    public void ReasoningSpans_AreTheOnesTheVocabularyHolds()
+    {
+        Assert.AreEqual(new ThinkingSyntax(21, 22), ThinkingSyntax.Of(Special(new() { ["<think>"] = 21, ["</think>"] = 22 })));
+        Assert.AreEqual(new ThinkingSyntax(31, 32), ThinkingSyntax.Of(Special(new() { ["<|channel>"] = 31, ["<channel|>"] = 32 })));
+        Assert.IsNull(ThinkingSyntax.Of(Special([])));
     }
 }

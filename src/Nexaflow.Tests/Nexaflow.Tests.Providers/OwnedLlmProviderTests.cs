@@ -73,7 +73,9 @@ public class OwnedLlmProviderTests
         Assert.AreEqual("Hello there.", reply);
         var generate = (Generate)host.Requests.Single();
         Assert.AreEqual(RequestPriority.Interactive, generate.Priority);
-        Assert.AreEqual(@"C:\ai\models\gemma-4-e4b-it", generate.Model.Folder, "the folder is where the store keeps its files");
+        Assert.AreEqual(@"C:\ai\models\gemma-4-e4b-it-qat", generate.Model.Folder, "the folder is where the store keeps its files");
+        Assert.AreEqual(("gemma-4-E4B_q4_0-it.gguf", "gemma-4-E4B-it-mmproj.gguf"), (generate.Model.File, generate.Model.Projector),
+                        "the GGUF, and the projector it sees and hears through");
         Assert.AreEqual(TurnRole.System, generate.Turns[0].Role);
         Assert.AreEqual(@"C:\shot.png", generate.Turns[1].Media!.Single().Path, "an image the model reads goes as an image");
         StringAssert.Contains(generate.Turns[1].Text, @"[attached: C:\notes.txt]", "anything else is named");

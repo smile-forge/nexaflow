@@ -8,9 +8,10 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The real model in the real host — where a machine has it. <c>NEXAFLOW_TEST_GEMMA</c> names a folder holding Gemma
-/// 4 E4B's files as the catalog lays them out; <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, when set, runs it on CUDA. What is
-/// checked is behaviour — the context appended rather than re-read, media read, cancellation honoured — never wording;
-/// the media is the sample dataset's, whose content is beside the point.
+/// 4 E4B's GGUF and projector as the catalog lays them out; <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, when set, runs it on
+/// CUDA. What is checked is behaviour — the context appended rather than re-read, media read where it comes, calls
+/// made and what came of them read on, cancellation honoured — never wording; the media is the sample dataset's, whose
+/// content is beside the point.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -31,7 +32,8 @@ public class OwnedModelTests
         {
             Environment = new AiHostEnvironment(Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack ? pack : null),
         };
-        _model = new ModelSpec("gemma-4-e4b-it", "genai-chat", folder, null, "gemma4-onnx-community-q4f16", 8L << 30, 16_384);
+        _model = new ModelSpec("gemma-4-e4b-it", "llama-chat", folder, "gemma-4-E4B_q4_0-it.gguf", null, 7L << 30, 16_384,
+                               Projector: "gemma-4-E4B-it-mmproj.gguf");
         await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
     }
 
@@ -47,20 +49,23 @@ public class OwnedModelTests
         return (_client!, _model!);
     }
 
-    private sealed record Answer(string Text, GenerationEnded Ended);
+    private sealed record Answer(string Text, GenerationEnded Ended, IReadOnlyList<ChatToolCall> Calls);
 
-    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 200, CancellationToken ct = default)
+    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 200, IReadOnlyList<ChatTool>? tools = null, CancellationToken ct = default)
     {
         var (client, model) = Model();
         var text = new StringBuilder();
+        var calls = new List<ChatToolCall>();
         GenerationEnded? ended = null;
-        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive), TimeSpan.FromMinutes(2), ct))
+        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools),
+                                                     TimeSpan.FromMinutes(2), ct))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
+            if (reply is ToolCallMade made) calls.Add(made.Call);
             if (reply is GenerationEnded end) ended = end;
         }
-        turns.Add(new ChatTurn(TurnRole.Assistant, text.ToString()));
-        return new Answer(text.ToString(), ended!);
+        turns.Add(new ChatTurn(TurnRole.Assistant, text.ToString()) { ToolCalls = calls.Count > 0 ? calls : null });
+        return new Answer(text.ToString(), ended!, calls);
     }
 
     private static List<ChatTurn> Conversation(string first)
@@ -92,7 +97,45 @@ public class OwnedModelTests
         var plain = await AskAsync(Conversation("Describe this image in a few words."));
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(withImage.Text));
-        Assert.IsTrue(withImage.Ended.PromptTokens > plain.Ended.PromptTokens + 100, "the image's tokens are in the prompt");
+        // Gemma 4 gives an image as many tokens as its size calls for, from about 70 for a small one.
+        Assert.IsTrue(withImage.Ended.PromptTokens > plain.Ended.PromptTokens + 50,
+            $"the image's tokens are in the prompt: {withImage.Ended.PromptTokens} with it, {plain.Ended.PromptTokens} without");
+    }
+
+    [TestMethod]
+    public async Task AnImage_JoinsTheConversationTheModelHolds_WithoutItBeingReadAgain()
+    {
+        var turns = Conversation("Name a primary colour.");
+        await AskAsync(turns);
+        turns.Add(new ChatTurn(TurnRole.User, "Now describe this image in a few words.",
+                               [new ChatMedia(MediaKind.Image, TestSampleData.Files("images").First(f => f.EndsWith(".png")), null)]));
+
+        var answer = await AskAsync(turns);
+
+        Assert.IsFalse(string.IsNullOrWhiteSpace(answer.Text));
+        Assert.IsTrue(answer.Ended.ReadTokens > 50, $"the image's tokens are read ({answer.Ended})");
+        Assert.IsTrue(answer.Ended.ReadTokens < answer.Ended.PromptTokens, $"what was read before is not read again ({answer.Ended})");
+    }
+
+    private static readonly ChatTool CurrentTime = new("get_current_time", "Gets the current local time.",
+        "{\"type\":\"object\",\"properties\":{\"zone\":{\"type\":\"string\",\"description\":\"An IANA time zone.\"}},\"required\":[\"zone\"]}");
+
+    [TestMethod]
+    public async Task AToolCall_IsMadeInTheModelsSyntax_AndWhatCameOfIt_IsReadOnto()
+    {
+        var turns = Conversation("What time is it in Paris? Use the tool.");
+
+        var asked = await AskAsync(turns, tools: [CurrentTime]);
+        Assert.AreEqual(StopReason.ToolCalls, asked.Ended.Reason, $"it calls the tool ({asked.Text})");
+        Assert.AreEqual("get_current_time", asked.Calls[0].Name);
+        turns.Add(new ChatTurn(TurnRole.Tool, "14:05") { Answers = asked.Calls[0] });
+
+        var answered = await AskAsync(turns, tools: [CurrentTime]);
+
+        Assert.AreEqual(StopReason.EndOfTurn, answered.Ended.Reason);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(answered.Text));
+        Assert.IsTrue(answered.Ended.ReadTokens < answered.Ended.PromptTokens / 2,
+            $"what came of the call is read onto the conversation ({answered.Ended})");
     }
 
     [TestMethod]
