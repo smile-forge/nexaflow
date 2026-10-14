@@ -1,8 +1,8 @@
-using Markdig.Syntax;
-
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Markdown.Prose.Differential;
+namespace Nexaflow.Tests.Markdown.Prose.Corpus;
 
 /// <summary>
 /// Every document the reading is held to, each with a name that survives the corpus growing.
@@ -32,28 +32,27 @@ internal static class MarkdownCorpus
     public static IReadOnlyList<MarkdownInput> Whole => WholeLazy.Value;
 
     /// <summary>
-    /// Each block of <paramref name="document"/> that spans more than one line, as a document of its own: a block
-    /// part-way written is the last one in what an editor holds, and every block before it is finished.
+    /// Each block of <paramref name="document"/> that spans more than one line, as a document of its own — from the start of the
+    /// line it starts on to the end of the line it ends on: a block part-way written is the last one in what an editor holds,
+    /// and every block before it is finished.
     /// </summary>
     public static IEnumerable<MarkdownInput> Blocks(MarkdownInput document)
     {
         var source = document.Source;
 
-        foreach (var block in MarkdownReadings.Markdig(source))
+        foreach (var block in ContentPart.Of(MarkdownParser.Read(source)).Children)
         {
-            if (block is LinkReferenceDefinitionGroup) continue;
+            if (block.Derived || block.Role == Roles.Trivia || block.Length == 0) continue;
 
-            var start = Math.Clamp(block.Span.Start, 0, source.Length);
-            var from = start == 0 ? 0 : source.LastIndexOf('\n', start - 1) + 1;
-
-            var to = source.IndexOf('\n', Math.Clamp(block.Span.End, from, Math.Max(source.Length - 1, 0)));
+            var from = block.Start == 0 ? 0 : source.LastIndexOf('\n', block.Start - 1) + 1;
+            var to = source.IndexOf('\n', Math.Clamp(block.End - 1, from, Math.Max(source.Length - 1, 0)));
             to = to < 0 ? source.Length : to + 1;
 
             var text = source[from..to];
             var first = text.IndexOf('\n');
             if (first < 0 || first + 1 >= text.Length) continue;
 
-            yield return new MarkdownInput(Cuts, $"{document.Id}@{block.Line + 1}", text);
+            yield return new MarkdownInput(Cuts, $"{document.Id}@{source.AsSpan(0, from).Count('\n') + 1}", text);
         }
     }
 

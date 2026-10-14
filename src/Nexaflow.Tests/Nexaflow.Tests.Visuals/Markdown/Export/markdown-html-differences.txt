@@ -1,5 +1,5 @@
-# The examples of CommonMark's specification the HTML writer writes otherwise than the specification says, each under a
-# line saying why (MarkdownHtmlSpecTests). A ratchet: one that comes right fails until it is taken out.
+# The examples of the specifications the HTML writer writes otherwise than the specification says, each under a line saying
+# why (MarkdownHtmlSpecTests). A ratchet: one that comes right fails until it is taken out.
 
 # A tab only partly taken by a list item or a quote: the reading keeps the tab as the code's own character, where CommonMark
 # writes the columns left of it as spaces.
@@ -13,3 +13,34 @@ CommonMark#96
 # Markdig's autolink extension is read: an address written bare is a link to itself.
 CommonMark#608
 CommonMark#611
+
+# An alert is written with the colour and the word it is drawn with, where Markdig writes GitHub's icon.
+AlertBlockSpecs#1
+AlertBlockSpecs#2
+AlertBlockSpecs#3
+
+# A link to an address written bare says the address as it was written, its mailto: or tel: and all, where Markdig drops
+# the scheme from the words.
+AutoLinks#1
+AutoLinks#8
+AutoLinks#18
+
+# &trade; is the trade mark sign, as HTML's own list of entities says, where Markdig writes it as the letters TM.
+EmphasisExtraSpecs#6
+
+# A grid table's columns are as wide as they are laid out, which is the reader's room, where Markdig writes each as its share
+# of the rule over the table.
+GridTableSpecs#1
+GridTableSpecs#3
+GridTableSpecs#4
+GridTableSpecs#5
+GridTableSpecs#6
+GridTableSpecs#7
+GridTableSpecs#8
+GridTableSpecs#9
+GridTableSpecs#12
+
+# GitHub's pipe tables drop a cell past the ones the head names; the reading reads pipe tables as Markdig's own do, which keep
+# it, and the table is as wide as its widest row.
+PipeTableGfmSpecs#7
+PipeTableGfmSpecs#25

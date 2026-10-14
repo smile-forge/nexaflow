@@ -2,9 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-using Markdig.Renderers.Html;
-using Markdig.Syntax;
-using Markdig.Syntax.Inlines;
+
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
@@ -141,36 +139,6 @@ public class MarkdownTargetsTests
         Assert.AreEqual(3, tree.SelfAndDescendants().Count(node => node.Kind == MarkdownKinds.Anchor && node.Held is string));
     }
 
-    [TestMethod]
-    [CoversNode("markdown-anchors")]
-    public void EveryHeadingInEverySample_IsNamedAsMarkdigNamesIt()
-    {
-        foreach (var path in Samples())
-        {
-            var source = File.ReadAllText(path);
-            var targets = new LinkTargets();
-            Worked(source, targets);
-
-            var markdig = Markdig.Markdown.Parse(source, Differential.MarkdownReadings.Oracle).Descendants<HeadingBlock>()
-                                 .Select(heading => heading.GetAttributes().Id).ToList();
-
-            CollectionAssert.AreEqual(markdig, targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToList(), Path.GetFileName(path));
-        }
-    }
-
-    [TestMethod]
-    public void EveryLinkMarkdigReadsInEverySample_IsALinkOnceWorkedOver()
-    {
-        foreach (var path in Samples())
-        {
-            var source = File.ReadAllText(path);
-            var document = Markdig.Markdown.Parse(source, Differential.MarkdownReadings.Oracle);
-            var markdig = document.Descendants<LinkInline>().Count() + document.Descendants<AutolinkInline>().Count();
-
-            Assert.AreEqual(markdig, Links(Worked(source)).Count(), Path.GetFileName(path));
-        }
-    }
-
     /// <summary><paramref name="source"/> read, and worked over as a document's links are.</summary>
     private static ContentNode Worked(string source, LinkTargets? targets = null)
     {
@@ -181,7 +149,4 @@ public class MarkdownTargetsTests
 
     private static IEnumerable<ContentNode> Links(ContentNode tree) =>
         tree.SelfAndDescendants().Where(node => node is { Kind: Kinds.Link or MarkdownKinds.Image, Role: Roles.Element });
-
-    private static IEnumerable<string> Samples() =>
-        [.. TestSampleData.Files("markdown"), Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md"))];
 }

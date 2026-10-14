@@ -1,11 +1,12 @@
 # Licences of the specifications in this folder
 
-These files are test data. The differential tests beside them read their examples (`MarkdownSpecs`); nothing ships
-them, so they are not in the product's third-party notices.
+These files are test data. The corpus tests beside them read their markdown, and the HTML writer's tests in
+`Tests.Visuals` the HTML each example comes to (`MarkdownSpecs`); nothing ships them, so they are not in the product's
+third-party notices.
 
-They are copied from Markdig's repository, unchanged but for line endings,, `src/Markdig.Tests/Specs/` at the tag `1.3.2` — the version of
-the Markdig package the app uses: <https://github.com/xoofx/markdig/tree/1.3.2/src/Markdig.Tests/Specs>. Moving the
-package moves these with it, from the tag it moves to.
+They are copied from Markdig's repository, unchanged but for line endings, `src/Markdig.Tests/Specs/` at the tag `1.3.2`:
+<https://github.com/xoofx/markdig/tree/1.3.2/src/Markdig.Tests/Specs>. The extensions' are the specifications of the
+extensions the reading reads, as Markdig defines them.
 
 ## `CommonMark.md`
 

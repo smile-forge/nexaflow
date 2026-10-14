@@ -40,7 +40,7 @@ public static class MarkdownSpecs
 
     /// <summary>Where the specifications are, in the tree.</summary>
     public static string Folder => Path.Combine(
-        TestSampleData.RepoRoot, "src", "Nexaflow.Tests", "Nexaflow.Tests.Markdown", "Prose", "Differential", "Specs");
+        TestSampleData.RepoRoot, "src", "Nexaflow.Tests", "Nexaflow.Tests.Markdown", "Prose", "Corpus", "Specs");
 
     /// <summary>Every example one specification gives, in the order it gives them.</summary>
     public static IReadOnlyList<SpecExample> Examples(string name)

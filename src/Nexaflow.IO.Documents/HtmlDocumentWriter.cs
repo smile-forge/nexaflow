@@ -195,7 +195,7 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
                 Cr(html);
                 html.Append("<footer>");
                 Cr(html);
-                this.Blocks(footer.Blocks, html, tight: false);
+                this.Blocks(footer.Blocks, html, tight: footer.Blocks is [ExportParagraph]);
                 html.Append("</footer>");
                 Cr(html);
                 return;
@@ -264,14 +264,15 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
         var head = table.Rows.TakeWhile(row => row.Head).ToList();
         var body = table.Rows.Skip(head.Count).ToList();
 
-        if (head.Count > 0) this.Rows("thead", "th", head, html);
-        if (body.Count > 0) this.Rows("tbody", "td", body, html);
+        if (head.Count > 0) this.Rows("thead", "th", head, table.Columns, html);
+        if (body.Count > 0) this.Rows("tbody", "td", body, table.Columns, html);
 
         html.Append("</table>");
         Cr(html);
     }
 
-    private void Rows(string group, string cell, List<ExportRow> rows, StringBuilder html)
+    /// <param name="columns">How many columns every row is drawn across — what a row written short is made up to with empty cells.</param>
+    private void Rows(string group, string cell, List<ExportRow> rows, int columns, StringBuilder html)
     {
         html.Append('<').Append(group).Append('>');
         Cr(html);
@@ -292,6 +293,12 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
                 this.Blocks(written.Blocks, html, tight: false);
 
                 html.Append("</").Append(cell).Append('>');
+                Cr(html);
+            }
+
+            for (var empty = row.Covered + row.Cells.Sum(written => written.Across); empty < columns; empty++)
+            {
+                html.Append('<').Append(cell).Append("></").Append(cell).Append('>');
                 Cr(html);
             }
 
@@ -352,7 +359,7 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
     {
         "mermaid" when block => $"<pre class=\"mermaid\">{Escaped(drawing.Source)}</pre>",
         "latex" or "math" or "tex" => block
-            ? $"<div class=\"math\">\\[{Escaped(drawing.Source)}\\]</div>"
+            ? $"<div class=\"math\">\n\\[\n{Escaped(drawing.Source)}\n\\]</div>"
             : $"<span class=\"math\">\\({Escaped(drawing.Source)}\\)</span>",
         _ => null,
     };
@@ -550,11 +557,13 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
     private const string Kept = ";/?:@&=+$,-_.!~*'()#";
 
     /// <summary>
-    /// An address as a link is written: every character that may not stand in one written as its bytes, and a percent sign
-    /// that already starts such a byte left as it is.
+    /// An address as a link is written: its host in the letters a name server reads (<see cref="IdnMapping"/>), every other
+    /// character that may not stand in one written as its bytes, and a percent sign that already starts such a byte left as it is.
     /// </summary>
     private static string Encoded(string address)
     {
+        address = Hosted(address);
+
         var said = new StringBuilder(address.Length);
         Span<byte> bytes = stackalloc byte[4];
 
@@ -584,6 +593,30 @@ public class HtmlDocumentWriter(HtmlWriting? writing = null) : IDocumentWriter
         }
 
         return said.ToString();
+    }
+
+    /// <summary>
+    /// An address with the host it names in ASCII — a name written in other letters as the punycode a name server is asked for —
+    /// or as it was, where it names no host or one that is no name.
+    /// </summary>
+    private static string Hosted(string address)
+    {
+        var scheme = address.IndexOf("://", StringComparison.Ordinal);
+        if (scheme < 0) return address;
+
+        var from = scheme + 3;
+        var to = address.AsSpan(from).IndexOfAny("/?#");
+        var host = to < 0 ? address[from..] : address.Substring(from, to);
+        if (Ascii.IsValid(host)) return address;
+
+        try
+        {
+            return string.Concat(address.AsSpan(0, from), new IdnMapping().GetAscii(host), to < 0 ? "" : address.AsSpan(from + to));
+        }
+        catch (ArgumentException)
+        {
+            return address;
+        }
     }
 
     /// <summary>A colour, <c>0xAARRGGBB</c>, as a style says one.</summary>

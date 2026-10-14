@@ -956,25 +956,3 @@ internal sealed class MarkdownTokenizer
     /// <summary>What stands between two places, a line ending between each two lines.</summary>
     public string Between(int from, int to) => MarkdownLinkSyntax.Between(_text, _lines, from, to);
 }
-
-/// <summary>What a character can start in a run of words (<see cref="MarkdownTokenizer.Starts"/>).</summary>
-internal enum MarkdownStarts
-{
-    /// <summary>Nothing: it is only itself.</summary>
-    Nothing,
-
-    /// <summary>
-    /// Something wherever it stands: an escape, a code span, an entity, a tag, a bracket, and emphasis written with one of a
-    /// character.
-    /// </summary>
-    Alone,
-
-    /// <summary>Something where two of it stand together: the emphasis written only with a pair — <c>++</c>, <c>==</c>, <c>""</c>.</summary>
-    Doubled,
-
-    /// <summary>Something where another of it stands further along: a formula, between dollars.</summary>
-    Paired,
-
-    /// <summary>Something where a bracket follows it: a picture.</summary>
-    Bracketed,
-}

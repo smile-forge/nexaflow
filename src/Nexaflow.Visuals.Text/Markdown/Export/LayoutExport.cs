@@ -110,9 +110,9 @@ public static class LayoutExport
             MarkdownKinds.List => this.Listed(part),
             MarkdownKinds.Item => new ExportList([this.Item(part)], null, Loose: false),
             MarkdownKinds.Table => this.Tabled(part),
-            MarkdownKinds.Definition => new ExportDefinitions(this.Blocks(Body(part))),
+            MarkdownKinds.Definition => new ExportDefinitions(this.Entries(Body(part).Children)),
             MarkdownKinds.Term => new ExportTerm(this.Words(Body(part))),
-            MarkdownKinds.Described => new ExportDescription(this.Blocks(Body(part))),
+            MarkdownKinds.Described => new ExportDefinitions(this.Entries([part])),
             MarkdownKinds.Figure => new ExportFigure(this.Blocks(Body(part))),
             MarkdownKinds.Caption => new ExportCaption(this.Words(Body(part))),
             MarkdownKinds.Footer => new ExportFooter(this.Blocks(Body(part))),
@@ -121,6 +121,28 @@ public static class LayoutExport
             Kinds.Block => this.Fenced(part),
             _ => new ExportParagraph(this.Words(Body(part)), part.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook),
         };
+
+        /// <summary>
+        /// The terms and what they mean, in the order they were written. The reading holds a term with what explains it as one
+        /// piece and what explains it as another of the same kind inside it, so each is told by what it holds: one holding a term is
+        /// the pair, and its own entries are the list's; any other is what a term means.
+        /// </summary>
+        private List<ExportBlock> Entries(IEnumerable<ContentPart> blocks)
+        {
+            var entries = new List<ExportBlock>();
+
+            foreach (var part in blocks)
+            {
+                if (part.Derived || part.Role == Roles.Trivia) continue;
+
+                if (part.Kind == MarkdownKinds.Term) entries.Add(new ExportTerm(this.Words(Body(part))));
+                else if (part.Kind != MarkdownKinds.Described) entries.Add(this.Block(part) ?? new ExportDescription([]));
+                else if (Body(part).Children.Any(child => child.Kind == MarkdownKinds.Term)) entries.AddRange(this.Entries(Body(part).Children));
+                else entries.Add(new ExportDescription(this.Blocks(Body(part))));
+            }
+
+            return entries;
+        }
 
         /// <summary>
         /// A fence: what its language drew, where it drew a picture of what was written — and otherwise the code it is, which is
@@ -195,16 +217,24 @@ public static class LayoutExport
             return new ExportItem(this.Blocks(item), marker, tick is null ? null : tick.Part(MarkdownRoles.Done) is not null);
         }
 
-        /// <summary>A table, row by row, each cell with what it holds and how it is set.</summary>
+        /// <summary>
+        /// A table, row by row, each cell with what it holds and how it is set — and as wide as its widest row, as it is drawn: a
+        /// row written short is drawn across every column all the same, and a cell written down through the rows under it covers
+        /// its columns in each.
+        /// </summary>
         private ExportTable Tabled(ContentPart table)
         {
             var rows = new List<ExportRow>();
+            var down = new List<(int Until, int Across)>();
+            var columns = 0;
 
             foreach (var row in Body(table).Children)
             {
                 if (row.Kind != MarkdownKinds.Row) continue;
 
                 var cells = new List<ExportCell>();
+                var at = rows.Count;
+                var covered = down.Where(cell => cell.Until > at).Sum(cell => cell.Across);
 
                 foreach (var cell in row.Children)
                 {
@@ -212,15 +242,18 @@ public static class LayoutExport
 
                     var held = Body(cell);
                     var spans = Held<MarkdownSpans>(cell, MarkdownKinds.Spans);
+                    var written = new ExportCell(held.Kind == Kinds.Words ? [new ExportWords(this.Words(held))] : this.Blocks(held),
+                                                 Held<string>(cell, MarkdownKinds.Aligned), spans?.Across ?? 1, spans?.Down ?? 1);
 
-                    cells.Add(new ExportCell(held.Kind == Kinds.Words ? [new ExportWords(this.Words(held))] : this.Blocks(held),
-                                             Held<string>(cell, MarkdownKinds.Aligned), spans?.Across ?? 1, spans?.Down ?? 1));
+                    if (written.Down > 1) down.Add((at + written.Down, written.Across));
+                    cells.Add(written);
                 }
 
-                rows.Add(new ExportRow(cells, row.Role == MarkdownRoles.Head));
+                columns = Math.Max(columns, covered + cells.Sum(cell => cell.Across));
+                rows.Add(new ExportRow(cells, row.Role == MarkdownRoles.Head, covered));
             }
 
-            return new ExportTable(rows);
+            return new ExportTable(rows, columns);
         }
 
         // ── Runs of a line ──────────────────────────────────────────────────

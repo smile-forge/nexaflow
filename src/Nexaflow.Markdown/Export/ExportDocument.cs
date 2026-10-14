@@ -60,11 +60,13 @@ public sealed record ExportList(IReadOnlyList<ExportItem> Items, MarkdownNumberi
 /// <param name="Done">Whether its box is ticked, for an item that has one.</param>
 public sealed record ExportItem(IReadOnlyList<ExportBlock> Blocks, string Marker, bool? Done = null);
 
-/// <summary>A table, row by row.</summary>
-public sealed record ExportTable(IReadOnlyList<ExportRow> Rows) : ExportBlock;
+/// <summary>A table, row by row — every one of them drawn across all its columns, written in it or not.</summary>
+/// <param name="Columns">How many columns it is drawn with: as many as its widest row covers.</param>
+public sealed record ExportTable(IReadOnlyList<ExportRow> Rows, int Columns) : ExportBlock;
 
 /// <summary>One row of a table — the head, or one of the rows under it.</summary>
-public sealed record ExportRow(IReadOnlyList<ExportCell> Cells, bool Head);
+/// <param name="Covered">How many of its columns a cell from a row above goes on down through.</param>
+public sealed record ExportRow(IReadOnlyList<ExportCell> Cells, bool Head, int Covered = 0);
 
 /// <summary>One cell of a row: what it holds, which way its column is set, and how many columns and rows it covers.</summary>
 /// <param name="Align"><see cref="MarkdownAligns"/>, or null where nothing says.</param>

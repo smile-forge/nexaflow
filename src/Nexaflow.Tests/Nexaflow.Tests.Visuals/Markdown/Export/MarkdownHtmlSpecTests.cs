@@ -10,9 +10,10 @@ using Nexaflow.Visuals.Text.Markdown.Export;
 namespace Nexaflow.Tests.Visuals.Markdown.Export;
 
 /// <summary>
-/// The HTML a document is written out as, held to CommonMark's own: every example of the specification laid out, walked and
-/// written, and compared with the HTML the specification gives — the one check on the reading that does not go through
-/// Markdig at all.
+/// The HTML a document is written out as, held to the specifications' own: every example of CommonMark's specification and of
+/// each extension's laid out, walked and written, and compared with the HTML the specification gives — written as a page that
+/// runs scripts would have it, so a formula is the markup a typesetter reads. Through the HTML, this is what holds the
+/// reading to the specifications: the blocks, the words, and what each extension makes of them.
 ///
 /// <para>
 /// Compared as CommonMark's own test runner compares, after normalising what no browser tells apart: the space between block
@@ -30,14 +31,14 @@ public partial class MarkdownHtmlSpecTests
                                                  "markdown-html-differences.txt");
 
     [TestMethod]
-    public void EveryCommonMarkExampleIsWrittenAsTheSpecificationSays_ButWhereTheLedgerSays() => UiThread.Run(() =>
+    public void EveryExampleIsWrittenAsItsSpecificationSays_ButWhereTheLedgerSays() => UiThread.Run(() =>
     {
-        var writer = new HtmlDocumentWriter();
+        var writer = new HtmlDocumentWriter(new HtmlWriting { Scripts = true });
         var known = Known();
         var found = new List<string>();
         var report = new StringBuilder();
 
-        foreach (var example in MarkdownSpecs.Examples(MarkdownSpecs.Core))
+        foreach (var example in MarkdownSpecs.Names.SelectMany(MarkdownSpecs.Examples))
         {
             var written = writer.Written(LayoutExport.Exported(example.Markdown, new ExportOccasion()));
             if (Normalised(written) == Normalised(example.Html)) continue;
@@ -53,8 +54,8 @@ public partial class MarkdownHtmlSpecTests
         var mended = known.Except(found).ToList();
 
         Assert.AreEqual(0, unexpected.Count + mended.Count,
-            $"written otherwise than CommonMark says, and not in the ledger: {string.Join(", ", unexpected)}\n"
-            + $"in the ledger, and now written as CommonMark says — take them out: {string.Join(", ", mended)}\n"
+            $"written otherwise than its specification says, and not in the ledger: {string.Join(", ", unexpected)}\n"
+            + $"in the ledger, and now written as its specification says — take them out: {string.Join(", ", mended)}\n"
             + $"every difference, with what was expected and what was written: {Path.Combine(AppContext.BaseDirectory, "markdown-html-differences.found.txt")}");
     });
 
