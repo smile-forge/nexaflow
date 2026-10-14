@@ -83,16 +83,123 @@
             "status": "done",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationBackgroundJobTests.cs",
             "class": "ConversationBackgroundJobTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/BackgroundTasksJourneyTests.cs",
+            "class": "BackgroundTasksJourneyTests"
+          }
+        ]
+      }
+    },
+    "aibar-bar-reply": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellAIResponseHandler.cs",
+          "class": "ShellAIResponseHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/BackgroundTasksJourneyTests.cs",
+            "class": "BackgroundTasksJourneyTests"
+          }
+        ]
+      }
+    },
+    "aibar-progress-line": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "ReportProgress"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml"
+        }
+      ]
+    },
+    "aibar-tool-approval": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "RequestToolBatchApprovalAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml"
+        }
+      ]
+    },
+    "aibar-final-answer": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "ShowFinal"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/AiReplyCard.xaml"
+        }
+      ]
+    },
+    "aibar-response-overlay": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/AiReplyCard.xaml.cs",
+          "class": "AiReplyCard"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/ShellAIResponseHandler.cs",
+          "class": "ShellAIResponseHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/ReplyCard.cs",
+          "class": "ReplyCard"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ReplyCardTests.cs",
+            "class": "ReplyCardTests"
           }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 13,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
-    "aibar-background-tasks"
+    "aibar-background-tasks",
+    "aibar-bar-reply",
+    "aibar-final-answer",
+    "aibar-progress-line",
+    "aibar-response-overlay",
+    "aibar-tool-approval"
   ]
 }

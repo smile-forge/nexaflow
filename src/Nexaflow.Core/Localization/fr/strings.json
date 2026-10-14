@@ -58,6 +58,7 @@
   "Shell.Voice.Send": "Envoyer",
   "Shell.Voice.DontSend": "Ne pas envoyer",
   "Shell.Generate.Announce.Draw": "dessiner",
+  "Shell.AiResponse.ApproveFormat": "{0} ?",
   "Shell.BackgroundTasks.Header": "Tâches en arrière-plan",
   "Shell.BackgroundTasks.CountOne": "1 tâche en arrière-plan",
   "Shell.BackgroundTasks.CountFormat": "{0} tâches en arrière-plan",

@@ -101,18 +101,39 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
     [TestMethod]
     public void APictureDrawnInTheBackground_IsListedFromThePill_AndStoppedThere()
     {
-        Check("the request is typed and sent", () => InFront() && Ask("Draw a picture of a lighthouse at dusk, in watercolour."));
+        Check("the request is typed and sent", () => InFront() && Ask($"Draw a picture of a lighthouse at dusk, in watercolour, and save it in {_folder}"));
 
-        // A picture at high quality is approved first, in the overlay or a page's own banner.
-        var accept = WaitForAnyId(["AiOverlay_Accept", "AiBanner_Accept"], Affordable(120));
-        Check("drawing at high quality is put to the user first", () => accept is not null);
-        if (accept is not null) CheckDoes("approving it sets it drawing", accept, () => WaitForId("AiBar_BackgroundTasks", Affordable(60)) is not null);
+        // A picture at high quality is approved first: in the bar's own line on a page like this one, in a page's banner on one
+        // that hosts it.
+        var allow = WaitForAnyId(["AiBar_Allow", "AiBanner_Accept"], Affordable(120));
+        Check("drawing at high quality is put to the user in the bar", () => allow == "AiBar_Allow");
+        if (allow is not null) CheckDoes("allowing it sets it drawing", allow, () => WaitForId("AiBar_BackgroundTasks", Affordable(60)) is not null);
 
+        // At once, while it draws: a picture takes seconds here.
         Check("the pill counts the workspace's background tasks", () => WaitForId("AiBar_BackgroundTasks", 5)?.Name is { Length: > 0 });
         CheckDoes("the pill opens their list, each with Stop", "AiBar_BackgroundTasks", () => WaitForId("AiBar_BackgroundTaskStop", 10) is not null);
         CheckDoes("Stop ends the drawing, and the pill goes with it", "AiBar_BackgroundTaskStop",
                   () => WaitForGone("AiBar_BackgroundTaskStop", 20) && WaitForGone("AiBar_BackgroundTasks", 20));
-        Check("nothing was drawn into the folder", () => Directory.GetFiles(_folder).Length == 0);
+        Check("nothing was drawn into the folder", () => !WaitForFs(() => Directory.GetFiles(_folder).Length > 0, 5));
+
+        // The reply went on while it drew, in the bar; its card shows the whole of it, pinned by a click.
+        Check("the reply is in the bar", () => WaitForId("AiBar_ContinueAsConversation", Affordable(60)) is not null && WaitForId("AiBar_Reply", 5)?.Name is { Length: > 0 });
+        CheckDoes("a click on the reply pins its card open", "AiBar_Reply", () => WaitForId("AiCard_Close", 10) is not null);
+        CheckDoes("the card's close puts it away", "AiCard_Close", () => WaitForGone("AiCard_Close", 5));
+        CheckDoes("the close beside the reply puts it away", "AiBar_ReplyDismiss", () => WaitForGone("AiBar_Reply", 5));
+
+        // Denied, nothing is drawn and nothing is left running — asked again, it is denied again.
+        Check("another picture is asked for", () => Ask($"Draw a picture of a red bicycle and save it in {_folder}"));
+        Check("it is put to the user in the bar again", () => WaitForId("AiBar_Deny", Affordable(60)) is not null);
+        CheckDoes("Deny leaves it undrawn", "AiBar_Deny", () => WaitForGone("AiBar_Deny", 10) && WaitForGone("AiBar_BackgroundTasks", 2));
+        for (var again = 0; again < 3 && WaitForId("AiBar_Deny", 15) is { } deny; again++) deny.Click();
+        Check("and nothing was drawn", () => Directory.GetFiles(_folder).Length == 0);
+
+        // A short answer carries on as a conversation page.
+        Check("a question is typed and sent", () => Ask("What is the capital of France? One word."));
+        Check("its answer is in the bar", () => WaitForId("AiBar_ContinueAsConversation", Affordable(60)) is not null);
+        CheckDoes("Continue as conversation opens it as a conversation page", "AiBar_ContinueAsConversation",
+                  () => WaitForId("Conversation_ToggleContext", 20) is not null && WaitForGone("AiBar_Reply", 5));
 
         AssertJourney();
     }
@@ -133,9 +154,6 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
 
     /// <summary>The first of <paramref name="ids"/> on screen within <paramref name="seconds"/>, or null.</summary>
     private string? WaitForAnyId(IReadOnlyList<string> ids, int seconds)
-    {
-        string? found = null;
-        WaitForFs(() => (found = ids.FirstOrDefault(id => WaitForId(id, 0) is not null)) is not null, seconds);
-        return found;
-    }
+        => WaitFor(() => ids.Select(id => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(id))).FirstOrDefault(el => el is not null), seconds)
+               ?.AutomationId;
 }

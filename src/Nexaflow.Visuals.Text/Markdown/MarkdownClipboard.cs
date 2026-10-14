@@ -114,7 +114,8 @@ public static class MarkdownClipboard
         return null;
     }
 
-    private static string ToPlainText(string source)
+    /// <summary>What <paramref name="source"/> reads as without its Markdown: the text, its marks taken away.</summary>
+    public static string ToPlainText(string source)
     {
         try   { return Markdig.Markdown.ToPlainText(source, MarkdownParser.Pipeline); }
         catch { return source; }

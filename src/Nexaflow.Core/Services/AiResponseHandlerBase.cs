@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -61,6 +62,9 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     /// <summary>Files the agent's tools touched this run; carried into a "Continue as Conversation".</summary>
     public IReadOnlyList<string> AgentContextPaths { get; set; } = [];
 
+    /// <summary>Whether the approval asked for is of a plan, which wants room to show its diagram and steps.</summary>
+    protected bool ApprovalIsPlan { get; private set; }
+
     // ── Placement (subclass shows/hides its own surface) ──────────────────
     protected abstract void Open();
     protected abstract void Close();
@@ -115,6 +119,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
             ? $"{AiResponseAiName} would like to run the following:"
             : explanationMarkdown;
         AiToolApprovalSummary = BuildBatchSummary(batch);
+        ApprovalIsPlan        = false;
         return ShowApprovalAndWait(ct);
     }
 
@@ -126,6 +131,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
         AiToolApprovalSummary = $"Approve plan: {plan.Title}";
+        ApprovalIsPlan        = true;
         return ShowApprovalAndWait(ct);
     }
 
@@ -138,6 +144,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         var to = string.Join(", ", destinations);
         AiResponseText        = Str.Format("Shell.AiResponse.ContextRelease.Explanation", to);
         AiToolApprovalSummary = Str.Format("Shell.AiResponse.ContextRelease.Question", to);
+        ApprovalIsPlan        = false;
         return ShowApprovalAndWait(ct);
     }
 
@@ -238,14 +245,13 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
     }
 
+    /// <summary>The question an approval asks, in the words a voice conversation says the actions: "Draw a high-quality
+    /// picture?"; a tool that does not say how it is announced is named by its name.</summary>
     private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
     {
-        if (batch.Count == 1)
-            return $"Run {batch[0].Tool}?";
-        var grouped = batch
-            .GroupBy(c => c.Tool)
-            .Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
-        return "Run " + string.Join(", ", grouped) + "?";
+        var calls = Voice.AnnouncedActions.Of(batch).Calls;
+        var asked = string.Join(Str.Get("Shell.Voice.And"), calls.Select(c => $"{c.Action} {c.Target}"));
+        return Str.Format("Shell.AiResponse.ApproveFormat", asked.Length == 0 ? asked : char.ToUpper(asked[0], CultureInfo.CurrentCulture) + asked[1..]);
     }
 
     private static string BuildPlanMarkdown(ClientPlan plan)

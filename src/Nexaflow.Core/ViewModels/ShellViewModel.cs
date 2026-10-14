@@ -255,6 +255,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
     public VoiceConversationViewModel Voice { get; }
 
+    /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, and while a response is in
+    /// the bar rather than the overlay.</summary>
+    public bool ShowsAiLine => Voice.IsActive || Ai.InBar;
+
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
 
@@ -561,9 +565,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>
-    /// The shell's default AI response handler — the in-shell popup overlay (progress, approvals,
-    /// final answer, "Continue as Conversation"). Used whenever the active page does not render AI
-    /// responses itself. <c>AiResponseOverlay.xaml</c> binds to this. See <see cref="IAIResponseHandler"/>.
+    /// The shell's default AI response handler: the AI bar's own line for progress, approvals and replies, and the reply card
+    /// above it for the whole of one. Used whenever the active page does not render AI responses itself. The bar and
+    /// <c>AiReplyCard.xaml</c> bind to this. See <see cref="IAIResponseHandler"/>.
     /// </summary>
     public ShellAIResponseHandler Ai { get; }
 
@@ -597,7 +601,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True when any window-modal overlay currently covers the page content area.</summary>
     private bool AnyOverlayCoversPage =>
         OptionsOpen || WorkspaceConfigOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
-        || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true || WorkspaceTasks.IsOpen;
+        || Ai.Card.IsOpen || _ribbon?.IsEditOpen == true || WorkspaceTasks.IsOpen;
 
     private void OnShellPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
     {
@@ -659,8 +663,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         PropertyChanged    += OnShellPropertyChangedForOverlay;
         Ai.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellAIResponseHandler.AiResponseOverlayOpen))
-                RefreshOverlayCoverage();
+            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar))
+                OnPropertyChanged(nameof(ShowsAiLine));
+        };
+        Voice.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
+                OnPropertyChanged(nameof(ShowsAiLine));
+        };
+        Ai.Card.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ReplyCard.IsOpen)) RefreshOverlayCoverage();
         };
 
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
@@ -1524,7 +1537,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             AiResponse? response;
             try
             {
-                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, sendToken);
+                // Answered in the bar, the reply is asked to lead with the answer, briefly.
+                var options = ReferenceEquals(handler, Ai) ? new AgentRunOptions { ReplyStyle = ShellAIResponseHandler.BarStyle } : AgentRunOptions.Typed;
+                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, options, sendToken);
             }
             catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
             catch (Exception ex)               { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }

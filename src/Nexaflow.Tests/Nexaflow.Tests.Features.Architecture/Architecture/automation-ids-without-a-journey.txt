@@ -289,14 +289,12 @@ Options_Toggle
 # the backlog delete, so whatever journey reaches it must be pressing a row it created itself.
 Projects_Detail_RemoveCriterion
 
-# src/Nexaflow.Core/Controls/AiResponseOverlay.xaml, src/Nexaflow.Core/Controls/AiResponseBanner.xaml
-# The shell's two AI response surfaces open only for a model turn or for a query handler with something to
-# say, and every handler that answers without a model renders its answer itself and says nothing. So both
-# need a configured provider, and Accept / Deny a live agent asking to run a tool batch — the same gate as
+# src/Nexaflow.Core/Controls/AiResponseBanner.xaml
+# The inline banner opens only on a page that hosts it, for a model turn or a query handler with something to
+# say; every handler that answers without a model renders its answer itself and says nothing. So it needs a
+# configured provider, and Accept / Deny a live agent asking to run a tool batch — the same gate as
 # Conversation_ApprovalAccept, and the same stubbed-agent journey would reach all of them.
-AiOverlay_Close
-AiOverlay_ContinueAsConversation
-AiOverlay_Deny
+
 AiBanner_Close
 AiBanner_OpenInConversation
 AiBanner_Deny

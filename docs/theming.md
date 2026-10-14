@@ -62,7 +62,7 @@ holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list determi
 
 > **Markdown follows the theme too.** `StyleFormat.FromTheme()` (in `Nexaflow.Visuals.Text`) reads
 > the active theme's brushes (`TextBrush`, `AccentBrush`, surfaces…) so rendered markdown — AI chat,
-> the response overlay, the editor — gets dark text on light themes and the theme's own accents; the
+> the AI bar's reply card, the editor — gets dark text on light themes and the theme's own accents; the
 > chart/graph renderers take a palette too, with a shared `StyleFormat.Series` mini-palette for
 > series colours. Fixed-surface callers (scratchpad post-its) still pass `StyleFormat.Light`.
 

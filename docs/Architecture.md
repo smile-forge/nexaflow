@@ -675,7 +675,7 @@ User submits text in AI input bar
         ```client_prefill blocks (JSON bodies); the harness executes the page's IClientTool
         objects and feeds results back, looping until a final message or a prefill
       → safe tools auto-run; approval-required batches and plans need per-batch/plan approval
-        via IToolApprovalCoordinator (the AiResponseOverlay)
+        through the IAIResponseHandler (on most pages the AI bar's own line, with the reply card above it)
   → Response text (if any) added to AI Chat conversation
 ```
 

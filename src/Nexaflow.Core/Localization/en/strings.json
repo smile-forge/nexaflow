@@ -66,6 +66,7 @@
   "Shell.Voice.DontSend": "Don't send",
   "Shell.Voice.ContextReleaseFormat": "This page holds sensitive information. Shall I send it to {0}?",
   "Shell.Generate.Announce.Draw": "draw",
+  "Shell.AiResponse.ApproveFormat": "{0}?",
   "Shell.BackgroundTasks.Header": "Background tasks",
   "Shell.BackgroundTasks.CountOne": "1 background task",
   "Shell.BackgroundTasks.CountFormat": "{0} background tasks",
