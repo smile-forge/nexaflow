@@ -485,13 +485,16 @@ public sealed class WorkspaceManager
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
 
         // A grid saved before the Local column has its models on this machine folded into it, once, and the Local column
-        // turned on where this machine runs a model; it is saved so.
+        // turned on where this machine runs a model; each job it is used for keeps a model the job offers here. It is
+        // saved so.
         var folded = LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal);
         if (ProviderManager.Instance.Assets is { } assets)
         {
             var shelf = new LocalModelShelf(fresh, assets);
-            folded |= LocalColumns.Seed(workspace.AiConfig, slot => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o),
-                                                                                                                o.Model.Tier == LocalColumns.TierOf(slot)))]);
+            IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)
+                => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o), o.Model.Tier == LocalColumns.TierOf(slot)))];
+            folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
+            folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
         }
         if (folded)
         {

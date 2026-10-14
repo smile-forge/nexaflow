@@ -34,10 +34,26 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
 {
     public ModelAssetStore Store => store;
 
-    /// <summary>The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order.</summary>
+    /// <summary>
+    /// The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order. Speech to text
+    /// holds a conversation, so it offers Nexaflow's own speech models; where this machine runs none of them it offers only
+    /// <see cref="LocalColumns.Dictation"/>.
+    /// </summary>
     public IReadOnlyList<LocalModelOption> OptionsFor(LocalSlot slot)
     {
-        var kind = LocalColumns.KindOf(slot);
+        var options = Catalogued(LocalColumns.KindOf(slot));
+        if (slot == LocalSlot.SpeechToText)
+        {
+            var converse = options.Where(o => !LocalColumns.Dictates(o.Column())).ToList();
+            options = converse.Any(o => o.Runs) ? converse : [.. options.Where(o => o.IsIn(LocalColumns.Dictation))];
+        }
+        var tier = LocalColumns.TierOf(slot);
+        return [.. options.OrderBy(o => o.Runs ? 0 : 1).ThenBy(o => o.Model.Tier == tier ? 0 : 1)];
+    }
+
+    /// <summary>Every model of <paramref name="kind"/> in the catalogs of the providers that are Nexaflow's own harness.</summary>
+    private List<LocalModelOption> Catalogued(ModelKind kind)
+    {
         var options = new List<LocalModelOption>();
         foreach (var provider in providers.Providers)
         {
@@ -48,16 +64,19 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
             foreach (var model in catalog.Unrunnable)
                 options.Add(new(provider.Name, assembly, kind, model.Model, null, model.Why));
         }
-        var tier = LocalColumns.TierOf(slot);
-        return [.. options.OrderBy(o => o.Runs ? 0 : 1).ThenBy(o => o.Model.Tier == tier ? 0 : 1)];
+        return options;
     }
 
-    /// <summary>Every model of every job, once each.</summary>
+    /// <summary>Every model in the catalogs, once each — those no job offers here too, so what is on disk can always be seen.</summary>
     public IReadOnlyList<LocalModelOption> All
-        => [.. Enum.GetValues<LocalSlot>().SelectMany(OptionsFor).DistinctBy(o => (o.ProviderName.ToLowerInvariant(), o.Id))];
+        => [.. Enum.GetValues<LocalSlot>().Select(LocalColumns.KindOf).Distinct().SelectMany(Catalogued).DistinctBy(o => (o.ProviderName.ToLowerInvariant(), o.Id))];
 
     /// <summary>Whether this machine runs any model for <paramref name="slot"/>.</summary>
     public bool Runs(LocalSlot slot) => OptionsFor(slot).Any(o => o.Runs);
+
+    /// <summary>Whether <paramref name="slot"/> only dictates here: the speech job where this machine runs none of Nexaflow's
+    /// own speech models, with <see cref="LocalColumns.Dictation"/> in their place.</summary>
+    public bool Dictates(LocalSlot slot) => OptionsFor(slot) is { Count: > 0 } options && options.All(o => LocalColumns.Dictates(o.Column()));
 
     /// <summary>Whether everything <paramref name="option"/> needs is here.</summary>
     public bool IsReady(LocalModelOption option) => option.Needs.All(f => store.Locate(f) is not null);

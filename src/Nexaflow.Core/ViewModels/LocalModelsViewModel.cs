@@ -85,11 +85,16 @@ public sealed partial class LocalJobViewModel : ObservableObject
 
     public ObservableCollection<LocalChoiceViewModel> Choices { get; } = [];
 
-    /// <summary>Whether this machine runs any model for the job.</summary>
-    public bool CanChoose => Choices.Any(c => c.Runs);
+    /// <summary>Whether there is a model to choose: one this machine runs, where the job is more than dictation.</summary>
+    public bool CanChoose => Choices.Any(c => c.Runs) && !IsDictationOnly;
+
+    /// <summary>The speech job where this machine runs none of Nexaflow's own speech models: the mic dictates with
+    /// <see cref="LocalColumns.Dictation"/>, and there is nothing to choose.</summary>
+    public bool IsDictationOnly => _shelf.Dictates(Slot);
 
     /// <summary>Why the job has nothing to choose from; null when it has.</summary>
     public string? Note => CanChoose ? null
+        : IsDictationOnly ? Str.Get("Shell.Config.Local.DictationNote")
         : Str.Get(Choices.Count == 0 ? "Shell.Config.AiGrid.Local.None" : "Shell.Config.AiGrid.Local.TooLarge");
 
     /// <summary>The model chosen — or being downloaded to be chosen.</summary>

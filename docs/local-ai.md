@@ -2,14 +2,14 @@
 
 **Status: phases 1, 2 and 3 built; phase 4 under way.** Replies stream through the agent harness; each ability is served by a chain of
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
-models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
-transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
+models, and the mic listens through the grid's Speech In chain (Nexaflow's own Whisper on this machine, OpenAI's
+realtime transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
 CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
 "Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
-A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
-Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
+A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
+small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and pictures
 on this machine with Z-Image Turbo, and at high quality with HiDream-O1; music on this machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
@@ -380,12 +380,13 @@ maps roles to models:
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
   **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
   its kind; an Audio Generation row arrives with its contract.
-- **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own and
-  Whisper, one chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
+- **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own, one
+  chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
   high-quality pictures, video — on the workspace's Local page (`LocalColumns`, `LocalModelShelf`). Each job's model is
   saved as a column under a reserved id, so a chain names it like any other. The column is on wherever the machine runs
   a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
-  every row of the job uses it. Its cell in a row is the job's model — marked ⬇ while that is not downloaded — or greyed
+  every row of the job uses it. Each time a workspace loads, a job on a model it no longer offers here moves to its first
+  (`LocalColumns.Settle`). Its cell in a row is the job's model — marked ⬇ while that is not downloaded — or greyed
   with the reason where the machine runs none. Nothing downloads by itself: warming a model loads it only once it is
   here. The grid offers to download every model it uses that is missing, or says to add a cloud service where the machine
   runs none. The Local page lists every model for a job — downloaded, the download it would take, or why this machine
@@ -510,9 +511,16 @@ at the same moment) puts a complete turn at about 0.9 s.
 - **The conversation page** is the focused form: speech and text both land in the conversation as messages, and rich
   content renders inline there instead of as an overlay.
 
-Push-to-talk dictation already runs on the speech capability: `DictationService` streams the microphone into the
-Speech In chain's model. Whisper on this machine re-transcribes the whole buffer every second; in the host it becomes
-the same streaming ASR as the voice loop, without the reply.
+**Speech to text on this machine is a conversation's ears.** The Local page offers Nexaflow's own speech models —
+the listening stack above with Whisper large-v3-turbo, small or small.en as its final pass — and every one of them hears
+when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, the job
+is **Dictation only**: whisper.cpp's base on the CPU (`LocalColumns.Dictation`), into which `DictationService` streams the
+microphone, re-transcribing the whole buffer every second. It hears words but not when a speaker has finished, so the
+mic dictates with it and never starts a conversation (`AIService.CanConverse`); the grid names the job "Dictation only".
+whisper.cpp's other sizes are not offered for the job, and a workspace on one moves to the job's first model as it loads.
+The small builds are ours too (`tools/ai-models/whisper-onnx-genai`, huggingface.co/smile-forge/whisper-onnx-genai);
+an English-only Whisper has one token less in its vocabulary — Whisper's own test — and takes no language or task in its
+prompt.
 
 ## Languages: English, French, German
 
@@ -718,7 +726,8 @@ loaded, sliding-window layers holding their window alone (RTX PRO 6000):
 - Qwen 3.8 reasons at its highest effort unless asked otherwise.
 
 The voice models — Nemotron streaming, Whisper large-v3-turbo and Kokoro — hold about 8 GB on a GPU together (the
-recogniser 2.25 GB, the transcriber 3.75 GB, each Kokoro 1 GB); Silero and Smart Turn run on the CPU. Where a GPU has
+recogniser 2.25 GB, the transcriber 3.75 GB, each Kokoro 1 GB); with Whisper small or small.en the transcriber is
+budgeted 2.75 GB, the listening stack measuring 1.3–1.4 GB less than with turbo. Silero and Smart Turn run on the CPU. Where a GPU has
 no room for one beside the language model, it runs on the CPU: the transcriber on its own CPU build, the others as
 they are.
 

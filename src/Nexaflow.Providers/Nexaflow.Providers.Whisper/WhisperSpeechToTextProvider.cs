@@ -5,9 +5,10 @@ using Whisper.net;
 namespace Nexaflow.Providers.Whisper;
 
 /// <summary>
-/// Speech to text on this machine, through whisper.cpp (Whisper.net) on a CPU with AVX — what listens wherever
-/// Nexaflow's own speech models are not there yet, or not chosen. The model's file comes from the asset store, described by the catalog this assembly ships; it is
-/// fetched when the model is first assigned, and the provider is available once it is on disk.
+/// Speech to text on this machine, through whisper.cpp (Whisper.net) on a CPU with AVX — the speech job's Dictation only,
+/// with Whisper base, where the machine runs none of Nexaflow's own speech models. It hears words, not when a speaker
+/// has finished, so the mic only dictates with it. The model's file comes from the asset store, described by the catalog
+/// this assembly ships; the provider is available once it is on disk.
 /// </summary>
 public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IDisposable
 {

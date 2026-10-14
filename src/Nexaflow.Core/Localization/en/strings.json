@@ -114,6 +114,8 @@
   "Shell.Config.Local.Job.Language": "Conversation and reasoning",
   "Shell.Config.Local.Job.SpeechToText": "Speech to text",
   "Shell.Config.Local.Job.TextToSpeech": "Text to speech",
+  "Shell.Config.Local.Dictation": "Dictation only",
+  "Shell.Config.Local.DictationNote": "Dictation only: this machine can't run a speech model that holds a conversation, so the mic types what you say into the box, with Whisper base.",
   "Shell.Config.Local.Job.ImageGeneration": "Pictures",
   "Shell.Config.Local.Job.HighQualityImageGeneration": "High-quality pictures",
   "Shell.Config.Local.Job.VideoGeneration": "Video",

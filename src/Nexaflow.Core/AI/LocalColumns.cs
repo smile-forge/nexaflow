@@ -6,7 +6,8 @@ namespace Nexaflow.Core.AI;
 public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, VideoGeneration }
 
 /// <summary>
-/// The ability grid's Local column: the models that run on this machine — Nexaflow's own and Whisper — one chosen for each
+/// The ability grid's Local column: the models that run on this machine — Nexaflow's own, and whisper.cpp's for dictation
+/// where this machine runs none of Nexaflow's speech models — one chosen for each
 /// job (<see cref="LocalSlot"/>). Each job's model is saved as a column of its own under a reserved id, so a chain names it
 /// like any other column and the rest of the app needs to know nothing of it; on screen the grid shows them as one column,
 /// whose cell in a row is the row's job's model.
@@ -15,9 +16,22 @@ public static class LocalColumns
 {
     private const string Prefix = "local-";
 
-    /// <summary>The assemblies of the Local column's providers — Nexaflow's own models and Whisper — loaded for every workspace,
+    /// <summary>The assemblies of the Local column's providers — Nexaflow's own models and whisper.cpp — loaded for every workspace,
     /// since every workspace has the column.</summary>
     public static readonly IReadOnlyList<string> Assemblies = ["Nexaflow.Providers.AiHost.dll", "Nexaflow.Providers.Whisper.dll"];
+
+    /// <summary>
+    /// Speech to text where this machine runs none of Nexaflow's own speech models: Whisper base on whisper.cpp, which
+    /// dictates into the box. It hears words but not when a speaker has finished, so it holds no conversation; Nexaflow's
+    /// own speech models always do.
+    /// </summary>
+    public static ProviderModelPair Dictation { get; } = new()
+    {
+        ProviderName = "Whisper", Model = "base", Kind = ModelKind.SpeechToText, AssemblyFileName = "Nexaflow.Providers.Whisper.dll",
+    };
+
+    /// <summary>Whether <paramref name="column"/> is whisper.cpp's — a model that only dictates.</summary>
+    public static bool Dictates(ProviderModelPair column) => string.Equals(column.ProviderName, Dictation.ProviderName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The reserved id of <paramref name="slot"/>'s column.</summary>
     public static string IdOf(LocalSlot slot) => Prefix + slot switch
@@ -139,13 +153,42 @@ public static class LocalColumns
         foreach (var slot in Enum.GetValues<LocalSlot>())
         {
             if (config.Columns.Any(c => c.Id == IdOf(slot))) continue;
-            var runs = options(slot).Where(o => o.Runs).ToList();
-            if (runs.Count == 0) continue;
-            Use(config, slot, runs.OrderBy(o => o.Suits ? 0 : 1).ThenBy(o => o.Here ? 0 : 1).First().Model);
+            if (FirstOf(options(slot)) is { } first) Use(config, slot, first);
         }
         config.LocalSeeded = true;
         return true;
     }
+
+    /// <summary>
+    /// Keeps every job a row uses the Local column for on a model the job offers here: one with no model yet, or whose model
+    /// the job no longer offers — whisper.cpp's sizes where this machine runs Nexaflow's own speech models, or those models
+    /// where it can only dictate — gets the job's first model, as <see cref="Seed"/> chooses. Nothing is downloaded: a model
+    /// not here is the grid's to offer. A job that offers nothing here is left as it is. Returns whether anything changed.
+    /// </summary>
+    /// <param name="options">The models each job offers, as for <see cref="Seed"/>.</param>
+    public static bool Settle(AiConfig config, Func<LocalSlot, IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here, bool Suits)>> options)
+    {
+        bool changed = false;
+        foreach (var slot in Enum.GetValues<LocalSlot>())
+        {
+            var id = IdOf(slot);
+            if (!AbilitiesOf(slot).Any(a => config.Assignments.GetValueOrDefault(a.ToString())?.ColumnIds.Contains(id) == true)) continue;
+
+            var offered = options(slot);
+            var chosen  = config.Columns.FirstOrDefault(c => c.Id == id);
+            if (chosen is not null && offered.Any(o => o.Model.Model == chosen.Model
+                                                     && string.Equals(o.Model.ProviderName, chosen.ProviderName, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            if (FirstOf(offered) is not { } first) continue;
+            Choose(config, slot, first);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /// <summary>The model a job starts on: one that runs here, made for the job before any other, and of those one already here.</summary>
+    private static ProviderModelPair? FirstOf(IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here, bool Suits)> options)
+        => options.Where(o => o.Runs).OrderBy(o => o.Suits ? 0 : 1).ThenBy(o => o.Here ? 0 : 1).Select(o => o.Model).FirstOrDefault();
 
     private static ProviderModelPair Copy(ProviderModelPair column, string id) => new()
     {

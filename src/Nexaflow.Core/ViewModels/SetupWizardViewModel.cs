@@ -241,8 +241,7 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
         _ctx.Harness = _content!.Choice;
         if (_ctx.Harness != WorkspaceHarness.Owned) return;
 
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns(),
-                                   LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns());
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
         _ctx.Owned.Fetch();
@@ -381,8 +380,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
 
         // The chosen language model serves every reasoning role — alongside Nexaflow's own when the workspace mixes
         // both; abilities of other kinds need models of their own.
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, _ctx.Harness == WorkspaceHarness.Mixed ? _ctx.Owned?.Columns() : null,
-                                   LegacyVoiceSettings.WhisperModel(ConfigManager.Instance.BaseDir));
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, _ctx.Harness == WorkspaceHarness.Mixed ? _ctx.Owned?.Columns() : null);
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();

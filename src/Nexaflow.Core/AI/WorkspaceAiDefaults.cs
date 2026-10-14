@@ -29,11 +29,11 @@ internal static class WorkspaceAiDefaults
 
     /// <summary>
     /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;
-    /// Speech In on the Local column — Nexaflow's own speech model where there is one, Whisper otherwise, which is all a
-    /// bridged workspace listens with; and Speech Out on Nexaflow's own voice where there is one. At least one language model
-    /// must be given.
+    /// Speech In on the Local column — Nexaflow's own speech model where there is one, otherwise the one the workspace settles
+    /// on when it loads (<see cref="LocalColumns.Settle"/>), which is all a bridged workspace listens with; and Speech Out on
+    /// Nexaflow's own voice where there is one. At least one language model must be given.
     /// </summary>
-    public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned, string whisperModel)
+    public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned)
     {
         var ownedLanguage = owned?.Language;
         if (bridged is null && ownedLanguage is null) throw new ArgumentException("A workspace needs a model.");
@@ -53,7 +53,7 @@ internal static class WorkspaceAiDefaults
             };
         }
 
-        config.AddDefaultSpeechIn(whisperModel);
+        config.AddDefaultSpeechIn();
         if (owned?.SpeechIn is { } speechIn) LocalColumns.Choose(config, LocalSlot.SpeechToText, speechIn);
         if (owned?.SpeechOut is { } speechOut)
         {

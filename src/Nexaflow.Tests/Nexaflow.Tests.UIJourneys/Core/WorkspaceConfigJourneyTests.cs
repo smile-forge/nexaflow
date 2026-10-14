@@ -86,7 +86,7 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         // ── Local: a model for each job on this machine, and what is on its disk ──────
         // A journey downloads nothing and deletes nothing — the models are this machine's — so neither list is acted on.
         SelectSection(sections!, "Local", "LocalModels_Choice");
-        Check("Each job this machine runs a model for has its list — speech to text at least, on Whisper",
+        Check("Each job this machine runs a model for has its list — speech to text among them, on Nexaflow's own Whisper",
               () => WaitForFs(() => CountOf("LocalModels_Choice") >= 2, 3));
 
         SelectSection(sections!, "Downloaded models", "DownloadedModels_List");

@@ -59,11 +59,13 @@ public sealed class AIService : IAIService
     public IVideoGenerationProvider? VideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.VideoGeneration).FirstOrDefault();
 
     /// <summary>
-    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens, a voice speaks the
-    /// language, and a model answers. Where it cannot, the mic dictates instead.
+    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens that hears when a turn
+    /// is over — anything but <see cref="LocalColumns.Dictation"/>, which only dictates — a voice speaks the language, and a
+    /// model answers. Where it cannot, the mic dictates instead.
     /// </summary>
     public bool CanConverse(string language)
-        => SpeechToText is not null && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
+        => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
+           && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
 
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
@@ -74,13 +76,19 @@ public sealed class AIService : IAIService
     /// on; a request that fails does not — it has cost its whole latency already.
     /// </summary>
     private IEnumerable<T> Candidates<T>(AiAbility ability) where T : class, IAiProvider
+        => CandidateColumns<T>(ability).Select(c => c.Provider);
+
+    /// <summary>The providers that can serve <paramref name="ability"/> now, as <see cref="Candidates"/> gives them, each with
+    /// the column that holds it.</summary>
+    private IEnumerable<(ProviderModelPair Column, T Provider)> CandidateColumns<T>(AiAbility ability) where T : class, IAiProvider
     {
         if (_abilityConfig is null || !_abilityConfig.Assignments.TryGetValue(ability.ToString(), out var chain))
             yield break;
 
         foreach (var columnId in chain.ColumnIds)
-            if (_providers.TryGetValue(columnId, out var p) && p is T served && p.IsAvailable)
-                yield return served;
+            if (_providers.TryGetValue(columnId, out var p) && p is T served && p.IsAvailable
+                && _abilityConfig.Columns.FirstOrDefault(c => c.Id == columnId) is { } column)
+                yield return (column, served);
     }
 
     /// <summary>The language model that serves <paramref name="ability"/>: the first available in its chain, or null.</summary>

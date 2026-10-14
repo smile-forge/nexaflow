@@ -109,4 +109,66 @@ public class LocalColumnsTests
         foreach (var ability in Enum.GetValues<AiAbility>())
             Assert.AreEqual(AiAbilityNames.Kind(ability), LocalColumns.KindOf(LocalColumns.SlotOf(ability)), ability.ToString());
     }
+
+    [TestMethod]
+    public void AJobOnAModelItNoLongerOffers_MovesToItsFirst_PreferringOneThatIsHere()
+    {
+        var speech = LocalColumns.IdOf(LocalSlot.SpeechToText);
+        var config = new AiConfig
+        {
+            Columns     = [Column(speech, "Whisper", "large-v3-turbo", ModelKind.SpeechToText)],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of(speech) },
+            LocalSeeded = true,
+        };
+        var turbo = Column("", "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText);
+        var small = Column("", "Nexaflow", "nemotron-whisper-small", ModelKind.SpeechToText);
+
+        Assert.IsTrue(LocalColumns.Settle(config, slot => slot == LocalSlot.SpeechToText ? [(turbo, true, false, true), (small, true, true, true)] : []));
+
+        Assert.AreEqual(("Nexaflow", "nemotron-whisper-small"), (config.Columns.Single().ProviderName, config.Columns.Single().Model),
+                        "whisper.cpp's large-v3-turbo is not offered where Nexaflow's speech models run");
+        CollectionAssert.AreEqual(new[] { speech }, config.Assignments["SpeechIn"].ColumnIds.ToArray(), "the row keeps its place for it");
+    }
+
+    [TestMethod]
+    public void WhereOnlyDictationRuns_NexaflowsSpeechModel_GivesWayToIt()
+    {
+        var speech = LocalColumns.IdOf(LocalSlot.SpeechToText);
+        var config = new AiConfig
+        {
+            Columns     = [Column(speech, "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText)],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of(speech) },
+        };
+
+        Assert.IsTrue(LocalColumns.Settle(config, _ => [(LocalColumns.Dictation, true, false, true)]));
+
+        Assert.IsTrue(LocalColumns.Dictates(config.Columns.Single()));
+        Assert.AreEqual(LocalColumns.Dictation.Model, config.Columns.Single().Model);
+    }
+
+    [TestMethod]
+    public void AJobARowUsesWithNoModelYet_GetsOne_AndAJobOnAModelItOffers_IsLeftAlone()
+    {
+        var speech   = LocalColumns.IdOf(LocalSlot.SpeechToText);
+        var language = LocalColumns.IdOf(LocalSlot.Language);
+        var gemma    = Column(language, "Nexaflow", "gemma-4-e4b-it", ModelKind.Language);
+        var config   = new AiConfig
+        {
+            Columns     = [gemma],
+            Assignments = { ["SpeechIn"] = AbilityChain.Of(speech), ["Conversation"] = AbilityChain.Of(language) },
+        };
+        var turbo = Column("", "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText);
+        var qwen  = Column("", "Nexaflow", "qwen-3.5-9b", ModelKind.Language);
+
+        Assert.IsTrue(LocalColumns.Settle(config, slot => slot switch
+        {
+            LocalSlot.SpeechToText => [(turbo, true, false, true)],
+            LocalSlot.Language     => [(qwen, true, true, true), (Column("", "Nexaflow", "gemma-4-e4b-it", ModelKind.Language), true, false, true)],
+            _                      => [],
+        }));
+
+        Assert.AreEqual("nemotron-whisper-turbo", config.Columns.Single(c => c.Id == speech).Model);
+        Assert.AreEqual("gemma-4-e4b-it", config.Columns.Single(c => c.Id == language).Model, "a model the job offers stays, even with another here");
+        Assert.IsFalse(LocalColumns.Settle(config, _ => []), "a job that offers nothing here is left as it is");
+    }
 }

@@ -259,19 +259,54 @@
       }
     },
     "aibar-voice-config": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/AiConfig.cs",
+          "class": "AiConfig",
+          "method": "AddDefaultSpeechIn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalModelsViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/LocalModelsControl.xaml.cs",
+          "class": "LocalModelsControl"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/LocalColumns.cs",
+          "class": "LocalColumns",
+          "method": "Settle"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalModelShelf.cs",
+          "class": "LocalModelShelf",
+          "method": "OptionsFor"
+        }
+      ],
       "concerns": {
         "tests": [
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
-            "class": "SpeechInTests",
-            "method": "AGridThatHasNeverHadSpeechIn_StartsOnWhisper"
-          },
           {
             "type": "code",
             "status": "done",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalModelsTests.cs",
             "class": "LocalModelsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SpeechInTests.cs",
+            "class": "SpeechInTests",
+            "method": "AGridThatHasNeverHadSpeechIn_StartsOnTheLocalColumn_ItsModelLeftForTheWorkspaceToSettle"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalColumnsTests.cs",
+            "class": "LocalColumnsTests"
           }
         ]
       }
@@ -381,10 +416,51 @@
           }
         ]
       }
+    },
+    "voice-input": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ToggleVoice"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Mic"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/DictationService.cs",
+          "class": "DictationService"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "CanConverse"
+        }
+      ]
+    },
+    "owned-speech": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/Phonemes/LexiconPhonemizer.cs",
+          "class": "LexiconPhonemizer"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/whisper-onnx-genai/README.md"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 21,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
@@ -396,6 +472,8 @@
     "aibar-response-overlay",
     "aibar-tool-approval",
     "aibar-voice-config",
-    "owned-images"
+    "owned-images",
+    "owned-speech",
+    "voice-input"
   ]
 }

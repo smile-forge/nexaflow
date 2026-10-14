@@ -35,30 +35,18 @@ public sealed class AiConfig : IProviderConfig
     public IReadOnlySet<string> AssignedColumnIds()
         => Assignments.Values.SelectMany(c => c.ColumnIds).ToHashSet();
 
-    /// <summary>The Whisper model Speech In starts on.</summary>
-    public const string DefaultSpeechModel = "base.en";
-
     /// <summary>
     /// Gives Speech In its starting chain when this grid has never had that row — a grid saved before abilities of other
-    /// kinds existed, or a new workspace: Whisper, on this machine, as the Local column's speech-to-text model, so dictation
-    /// works without a key or a subscription. A chain the user has emptied is a chain, and is left alone. Returns whether
-    /// anything was added.
+    /// kinds existed, or a new workspace: the Local column, whose speech model the workspace settles on when it loads
+    /// (<see cref="LocalColumns.Settle"/>), so the mic works without a key or a subscription. A chain the user has emptied
+    /// is a chain, and is left alone. Returns whether anything was added.
     /// </summary>
-    public bool AddDefaultSpeechIn(string whisperModel)
+    public bool AddDefaultSpeechIn()
     {
         var key = nameof(AiAbility.SpeechIn);
         if (Assignments.ContainsKey(key)) return false;
 
-        var id = LocalColumns.IdOf(LocalSlot.SpeechToText);
-        if (Columns.All(c => c.Id != id))
-            LocalColumns.Choose(this, LocalSlot.SpeechToText, new ProviderModelPair
-            {
-                ProviderName     = "Whisper",
-                Model            = whisperModel,
-                Kind             = ModelKind.SpeechToText,
-                AssemblyFileName = "Nexaflow.Providers.Whisper.dll",
-            });
-        Assignments[key] = AbilityChain.Of(id);
+        Assignments[key] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.SpeechToText));
         return true;
     }
 }

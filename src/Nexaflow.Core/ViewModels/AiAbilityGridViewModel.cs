@@ -298,7 +298,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         if (!_local.TryGetValue(slot, out var chosen)) return new(false, Str.Get("Shell.Config.AiGrid.Local.Choose"));
 
         var option = _shelf.OptionsFor(slot).FirstOrDefault(o => o.IsIn(chosen));
-        var name   = option?.Model.DisplayName ?? chosen.Model;
+        var name   = LocalColumns.Dictates(chosen) ? Str.Get("Shell.Config.Local.Dictation") : option?.Model.DisplayName ?? chosen.Model;
         var absent = option is not null && !_shelf.IsReady(option);
         return new(true, absent ? Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", name) : name, absent);
     }
@@ -331,7 +331,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
     private void RefreshNotice()
     {
         if (_shelf is null) { (LocalNotice, CanDownloadLocal) = (null, false); return; }
-        if (!Enum.GetValues<LocalSlot>().Any(_shelf.Runs)) { (LocalNotice, CanDownloadLocal) = (Str.Get("Shell.Config.AiGrid.Local.NoHardware"), false); return; }
+        if (!Enum.GetValues<LocalSlot>().Any(slot => _shelf.Runs(slot) && !_shelf.Dictates(slot))) { (LocalNotice, CanDownloadLocal) = (Str.Get("Shell.Config.AiGrid.Local.NoHardware"), false); return; }
 
         var missing = MissingLocal();
         if (missing.Count == 0) { (LocalNotice, CanDownloadLocal) = (null, false); return; }

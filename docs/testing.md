@@ -317,6 +317,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   holding the built lexicons (`fr.tsv.gz`, `de.tsv.gz`, from `tools/ai-models/kokoro-lexicons`) and espeak-ng's
   readings of real reply sentences (`context-fr-sentences.jsonl`, `context-de-sentences.jsonl`).
   `PhonemizerAgainstEspeakTests` counts the sentences that come out with espeak-ng's sounds;
+  `SpeechModelTests` hear spoken turns through the listening models in `NEXAFLOW_TEST_SPEECH` with Whisper
+  large-v3-turbo, or the Whisper whose folders `NEXAFLOW_TEST_WHISPER` names (`whisper-small-en` for
+  `whisper-small-en-cpu` and `-cuda`); an English-only Whisper skips the French and German case.
   `PhonemizerReadBackTests` (`TestCategory("OwnedModel")`, with `NEXAFLOW_TEST_SPEECH` too) speaks them through Kokoro,
   hears them back through Whisper and fails when ours is understood worse than espeak-ng's own reading. Unset, they are
   **inconclusive**; the rules themselves are pinned without models in `SpeechNormalizerTests` and `LexiconPhonemizerTests`.

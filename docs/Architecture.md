@@ -280,9 +280,10 @@ ships (`ModelCatalog`); the store fetches them. A provider that exposes its cata
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
 kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
 on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
-Speech In starts on `Whisper` (whisper.cpp, on this machine) when
-a workspace's grid has never had that row, and `DictationService` streams the microphone into whichever speech
-model the row's chain picks.
+Speech In starts on the Local column when a workspace's grid has never had that row; the workspace settles its model
+as it loads — one of Nexaflow's own speech models, or whisper.cpp's base where the machine runs none
+(`LocalColumns.Settle`). The mic holds a conversation on any speech model but that one; on it, `DictationService`
+streams the microphone into the box.
 
 All providers implement `IAiProvider` through their kind's contract (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 
@@ -292,7 +293,7 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.Claude` | Anthropic Claude API over HTTPS. |
 | `Nexaflow.Providers.Gemini` | Google Gemini API over HTTPS. |
 | `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS: chat models, and the realtime transcription API for speech to text. |
-| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU, for speech to text; its models come from the asset store. |
+| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU: Dictation only, with Whisper base, where the machine runs none of Nexaflow's own speech models; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 
 ---

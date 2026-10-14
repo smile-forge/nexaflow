@@ -3,6 +3,7 @@ using System.Speech.Synthesis;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Speech;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -22,6 +23,9 @@ public class SpeechModelTests
     private static ListenModels? _models;
     private static VoiceSpec? _voice;
 
+    /// <summary>Whether the Whisper hearing the turns is an English-only one: a vocabulary one token short of a multilingual model's.</summary>
+    private static bool _englishOnly;
+
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
@@ -38,14 +42,20 @@ public class SpeechModelTests
         int? gpu = pack is null ? null : 0;
         long Held(long bytes) => pack is null ? 0 : bytes;
         string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
+        // Which Whisper hears the turns: large-v3-turbo unless NEXAFLOW_TEST_WHISPER names another's folders, as the catalog
+        // lays them out — whisper-small-en, say, for whisper-small-en-cpu and whisper-small-en-cuda.
+        string whisper = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_WHISPER") is { Length: > 0 } w ? w : "whisper-large-v3-turbo";
         _models = new ListenModels(
             new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
             new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", Held(2L << 30), 0, Device: gpu),
             pack is null
-                ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, "genai-native", 0, 0)
-                : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, "genai-native", 4L << 30, 0,
+                ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, $"{whisper}-cpu"), null, "genai-native", 0, 0)
+                : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, $"{whisper}-cuda"), null, "genai-native", 4L << 30, 0,
                                 new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
+
+        using (var config = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(_models.Transcriber!.Folder, "genai_config.native.json"))))
+            _englishOnly = config.RootElement.GetProperty("model").GetProperty("vocab_size").GetInt32() < WhisperTranscriber.MultilingualVocabulary;
 
         _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, Held(1L << 30), 0,
                                                    Device: gpu),
@@ -152,6 +162,7 @@ public class SpeechModelTests
     public async Task FrenchAndGerman_AreSpokenFromTheirLexicons_AndHeardBack(string language, string folder, string voiceFile, string written, string heardWord)
     {
         if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
+        if (_englishOnly) Assert.Inconclusive("The Whisper NEXAFLOW_TEST_WHISPER names hears English only.");
         string root = System.IO.Path.GetDirectoryName(_voice!.Model.Folder)!;
         var voice = new VoiceSpec(language, _voice.Model with { Id = $"speech/kokoro-{language}", Folder = System.IO.Path.Combine(root, folder) },
                                   voiceFile, System.IO.Path.Combine(root, folder, "lexicons", $"{language}.tsv.gz"));

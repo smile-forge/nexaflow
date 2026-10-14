@@ -87,6 +87,8 @@
   "Shell.Config.Local.Job.Language": "Conversation et raisonnement",
   "Shell.Config.Local.Job.SpeechToText": "Parole en texte",
   "Shell.Config.Local.Job.TextToSpeech": "Texte en parole",
+  "Shell.Config.Local.Dictation": "Dictée seulement",
+  "Shell.Config.Local.DictationNote": "Dictée seulement : cet ordinateur ne peut pas faire tourner de modèle vocal capable de tenir une conversation ; le micro écrit donc ce que vous dites dans la zone de saisie, avec Whisper base.",
   "Shell.Config.Local.Job.ImageGeneration": "Images",
   "Shell.Config.Local.Job.HighQualityImageGeneration": "Images en haute qualité",
   "Shell.Config.Local.Job.VideoGeneration": "Vidéo",

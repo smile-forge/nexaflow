@@ -27,14 +27,14 @@ public class WorkspaceHarnessTests
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, bridged: null, Owned, whisperModel: "base.en");
+        WorkspaceAiDefaults.Assign(config, bridged: null, Owned);
 
         foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == ModelKind.Language))
             CollectionAssert.AreEqual(new[] { Local(LocalSlot.Language) }, Chain(config, ability), ability.ToString());
         CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn));
         CollectionAssert.AreEqual(new[] { Local(LocalSlot.TextToSpeech) }, Chain(config, AiAbility.SpeechOut));
         Assert.AreEqual(Gemma.Model, ModelOf(config, LocalSlot.Language));
-        Assert.AreEqual(Ears.Model, ModelOf(config, LocalSlot.SpeechToText), "Nexaflow's own listens, in Whisper's place");
+        Assert.AreEqual(Ears.Model, ModelOf(config, LocalSlot.SpeechToText), "Nexaflow's own listens");
         Assert.AreEqual(Voice.Model, ModelOf(config, LocalSlot.TextToSpeech));
     }
 
@@ -47,7 +47,7 @@ public class WorkspaceHarnessTests
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, Claude, Owned, "base.en");
+        WorkspaceAiDefaults.Assign(config, Claude, Owned);
 
         foreach (var ability in new[] { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition })
             CollectionAssert.AreEqual(new[] { Local(LocalSlot.Language), Claude.Id }, Chain(config, ability), ability.ToString());
@@ -56,15 +56,16 @@ public class WorkspaceHarnessTests
     }
 
     [TestMethod]
-    public void AProviderAlone_AnswersEveryLanguageRole_AndListensWithWhisper()
+    public void AProviderAlone_AnswersEveryLanguageRole_AndListensOnTheLocalColumn()
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, Claude, owned: null, "base.en");
+        WorkspaceAiDefaults.Assign(config, Claude, owned: null);
 
         Assert.AreEqual(1, config.Columns.Count(c => c.Kind == ModelKind.Language));
         CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.Conversation));
-        Assert.AreEqual("Whisper", config.Columns.Single(c => c.Id == Chain(config, AiAbility.SpeechIn).Single()).ProviderName);
+        CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn),
+                                  "the workspace settles on the speech model it offers here when it loads");
     }
 
     /// <summary>A step that applies or not as the test says.</summary>

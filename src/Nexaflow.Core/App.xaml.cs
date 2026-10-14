@@ -276,7 +276,7 @@ public partial class App : Application
             {
                 var ai = new AiConfig();
                 ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
-                ai.AddDefaultSpeechIn(AiConfig.DefaultSpeechModel);   // its provider loads with the rest; the workspace saves it
+                ai.AddDefaultSpeechIn();   // the workspace saves it
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Concat(LocalColumns.Assemblies)   // every workspace has the Local column

@@ -23,19 +23,27 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
-    public void TheShippedSpeechModel_HasEveryPartOnEachRuntime_AndFetchesOnlyTheBuildsForThisOne()
+    public void TheShippedSpeechModels_AreWhisperTurboSmallAndSmallEnglish_EachWithEveryPartOnEachRuntime_FetchingOnlyTheBuildsForThisOne()
     {
-        var speech = OwnedModels.OfKind(ModelKind.SpeechToText).Single();
+        var speech = OwnedModels.OfKind(ModelKind.SpeechToText).ToList();
+        CollectionAssert.AreEqual(new[] { "nemotron-whisper-turbo", "nemotron-whisper-small", "nemotron-whisper-small-en" }, speech.Select(m => m.Id).ToArray(),
+                                  "turbo first: a workspace starts on it");
 
-        foreach (var runtime in new[] { OwnedModels.Cuda, OwnedModels.Cpu })
-            CollectionAssert.AreEquivalent(OwnedRoles.Of(ModelKind.SpeechToText).ToArray(), speech.PartsFor(runtime).Select(p => p.Role).ToArray());
+        foreach (var model in speech)
+        {
+            var whisper = model.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).Folder[..^"-cuda".Length];
+            foreach (var runtime in new[] { OwnedModels.Cuda, OwnedModels.Cpu })
+                CollectionAssert.AreEquivalent(OwnedRoles.Of(ModelKind.SpeechToText).ToArray(), model.PartsFor(runtime).Select(p => p.Role).ToArray(), model.Id);
 
-        var onCuda = speech.CatalogFor(OwnedModels.Cuda).Files.Select(f => f.RelativePath).ToList();
-        var onCpu  = speech.CatalogFor(OwnedModels.Cpu).Files.Select(f => f.RelativePath).ToList();
-        Assert.IsTrue(onCuda.Any(f => f.StartsWith("models/whisper-large-v3-turbo-cuda/")) && !onCuda.Any(f => f.StartsWith("models/whisper-large-v3-turbo-cpu/")));
-        Assert.IsTrue(onCpu.Any(f => f.StartsWith("models/whisper-large-v3-turbo-cpu/")) && !onCpu.Any(f => f.StartsWith("models/whisper-large-v3-turbo-cuda/")));
-        CollectionAssert.Contains(onCpu, "models/nemotron-3.5-asr-streaming/silero_vad.onnx", "a part for either runtime is fetched on both");
-        Assert.AreEqual("1", speech.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).CudaOptions!["sdpa_kernel"]);
+            var onCuda = model.CatalogFor(OwnedModels.Cuda).Files.Select(f => f.RelativePath).ToList();
+            var onCpu  = model.CatalogFor(OwnedModels.Cpu).Files.Select(f => f.RelativePath).ToList();
+            Assert.IsTrue(onCuda.Any(f => f.StartsWith(whisper + "-cuda/")) && !onCuda.Any(f => f.StartsWith(whisper + "-cpu/")), model.Id);
+            Assert.IsTrue(onCpu.Any(f => f.StartsWith(whisper + "-cpu/")) && !onCpu.Any(f => f.StartsWith(whisper + "-cuda/")), model.Id);
+            CollectionAssert.Contains(onCpu, "models/nemotron-3.5-asr-streaming/silero_vad.onnx", "a part for either runtime is fetched on both");
+            Assert.AreEqual("1", model.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).CudaOptions!["sdpa_kernel"]);
+            Assert.IsTrue(model.Catalog.Files.Where(f => f.RelativePath.StartsWith(whisper)).All(f => f.Source.AbsoluteUri.Contains("/resolve/") && f.Sha256.Length == 64),
+                          "each Whisper build is pinned and hashed");
+        }
     }
 
     [TestMethod]
