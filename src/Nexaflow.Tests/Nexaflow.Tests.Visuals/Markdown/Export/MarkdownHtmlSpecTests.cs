@@ -22,6 +22,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Export;
 /// </para>
 /// </summary>
 [TestClass]
+[TestCategory("UI")]
 [CoversNode("markdown-export")]
 public partial class MarkdownHtmlSpecTests
 {

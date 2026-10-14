@@ -91,6 +91,29 @@ public class MarkdownTranspileTests
     }
 
     [TestMethod]
+    public void WhatGoesInBehindABackslashIsWhatTheWordsAreReadByAsMarkup()
+    {
+        var into = At("paragraph");
+
+        Assert.AreEqual(@"\^", Written(into, "^"), "one caret raises what follows it");
+        Assert.AreEqual("a + b = c", Written(into, "a + b = c"), "one plus and one equals sign are only themselves");
+        Assert.AreEqual(@"\+\+ and \=\=", Written(into, "++ and =="), "two together insert and mark what they hold");
+        Assert.AreEqual(@"\$5 and \$6", Written(into, "$5 and $6"), "two dollars could hold a formula between them");
+        Assert.AreEqual("$5", Written(into, "$5"), "and one alone is a dollar");
+        Assert.AreEqual(@"\!\[a\]", Written(into, "![a]"), "an exclamation mark before a bracket would make a picture");
+    }
+
+    [TestMethod]
+    public void AnItemCountedByALetterOrARomanNumeralIsOneOnlyWhereALineStarts()
+    {
+        var starting = At("A");
+
+        Assert.AreEqual(@"a\. first", Spelled(starting, starting.Start, "a. first"), "one letter counts an item");
+        Assert.AreEqual(@"iv\) fourth", Spelled(starting, starting.Start, "iv) fourth"), "and so do roman numerals");
+        Assert.AreEqual("Mr. Smith", Spelled(starting, starting.Start, "Mr. Smith"), "but a word is a word");
+    }
+
+    [TestMethod]
     public void APipeIsACellOnlyInATable()
     {
         Assert.AreEqual("|", Written(At("paragraph"), "|"), "a pipe in a paragraph is a pipe");

@@ -1,11 +1,9 @@
 using System.Net;
 using System.Text;
-using System.Text.RegularExpressions;
-using Markdig;
-using Markdig.Renderers;
-using Markdig.Renderers.Html;
-using Markdig.Syntax;
-using Markdig.Syntax.Inlines;
+
+using Nexaflow.IO.Documents;
+using Nexaflow.Markdown.Export;
+using Nexaflow.Visuals.Text.Markdown.Export;
 
 namespace Nexaflow.SiteGenerator;
 
@@ -13,124 +11,104 @@ namespace Nexaflow.SiteGenerator;
 internal sealed record Topic(string Id, string Text);
 
 /// <summary>
-/// Turns a help page into HTML. The pages are ordinary CommonMark but for three things the app understands and a
-/// browser does not: <c>help:</c> links to another page, <c>locate:</c> links that lasso a control on screen, and
-/// pictures stored beside the page. Each is rewritten before Markdig sees it, and only outside fenced samples —
-/// the Markdown help pages are full of fences showing this very syntax, and those must survive as text.
+/// Turns a help page into HTML: laid out as the app lays it, walked and written (<see cref="LayoutExport"/>), so the site
+/// renders what the app renders. The pages are ordinary markdown but for three things the app understands and a browser
+/// does not: <c>help:</c> links to another page, <c>locate:</c> links that lasso a control on screen, and pictures stored
+/// beside the page. Each is what the page's writer makes of a link or a picture (<see cref="PageHtml"/>) — so a fence
+/// showing this very syntax, which holds no link, is left as the code it is.
 /// </summary>
 internal static class Render
 {
-    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions()
-        .Build();
+    /// <summary>
+    /// What a page is laid out for: the width of the site's column, on a white page, and whatever another language draws kept
+    /// as the picture it is drawn as, twice as fine as it is laid so it stays sharp on a fine screen.
+    /// </summary>
+    private static readonly ExportOccasion Occasion = new() { Width = 760, Pictures = true, Scale = 2 };
+
+    private static readonly HtmlDocumentWriter Html = new(new HtmlWriting { Anchors = true });
+
+    private static readonly TextDocumentWriter Text = new();
 
     /// <summary>The page's body, and its topics — the same list the app puts at the top of every help page.</summary>
     public static (string Html, IReadOnlyList<Topic> Topics) Page(HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic)
     {
-        var document = Markdig.Markdown.Parse(Rewrite(page, byTopic), Pipeline);
+        var document = LayoutExport.Exported(page.Body, Occasion);
 
-        var topics = document.Descendants<HeadingBlock>()
-            .Where(h => h.Level == 2)
-            .Select(h => new Topic(h.GetAttributes().Id ?? string.Empty, TextOf(h.Inline)))
-            .Where(t => t.Id.Length > 0)
+        var topics = document.Blocks
+            .OfType<ExportHeading>()
+            .Where(heading => heading.Rank == 2 && heading.Anchor is { Length: > 0 })
+            .Select(heading => new Topic(heading.Anchor!, Text.Written(heading.Words)))
             .ToList();
 
-        var writer = new StringWriter();
-        var renderer = new HtmlRenderer(writer);
-        Pipeline.Setup(renderer);
-        renderer.Render(document);
-        writer.Flush();
-
-        return (writer.ToString(), topics);
+        return (new PageHtml(page, byTopic).Written(document), topics);
     }
-
-    private static string TextOf(ContainerInline? inline)
-        => inline is null ? string.Empty : string.Concat(inline.Descendants<LiteralInline>().Select(l => l.Content.ToString()));
 
     /// <summary>A page's summary line as inline HTML, so its emphasis and code spans read as the page wrote them.</summary>
-    public static string Inline(string markdown)
-    {
-        var html = Markdig.Markdown.ToHtml(markdown, Pipeline).Trim();
+    public static string Inline(string markdown) =>
+        LayoutExport.Exported(markdown, Occasion) is { Blocks: [ExportParagraph only] } ? Html.Written(only.Words) : Loose(markdown).Trim();
 
-        return html.StartsWith("<p>", StringComparison.Ordinal) && html.EndsWith("</p>", StringComparison.Ordinal)
-            ? html[3..^4]
-            : html;
-    }
-
-    /// <summary>The same text with its emphasis markers taken off, for somewhere that can only hold plain text.</summary>
-    public static string Plain(string markdown)
-        => markdown.Replace("**", "").Replace("`", "").Replace("*", "");
+    /// <summary>The same text with its marks taken off, on one line, for somewhere that can only hold plain text.</summary>
+    public static string Plain(string markdown) =>
+        Text.Written(LayoutExport.Exported(markdown, Occasion)).Trim().Replace('\n', ' ');
 
     /// <summary>A block of markdown as HTML — a section's opening prose, which carries no app link schemes.</summary>
-    public static string Loose(string markdown) => Markdig.Markdown.ToHtml(markdown, Pipeline);
+    public static string Loose(string markdown) => Html.Written(LayoutExport.Exported(markdown, Occasion));
 
-    private static string Rewrite(HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic)
+    /// <summary>
+    /// A help page's HTML, with what the app means by its links and pictures said as the site says it: another page is the
+    /// site's page for it, a control on screen is named rather than pointed at, and a picture stored beside the page is where
+    /// the site gathers every pack's pictures.
+    /// </summary>
+    private sealed class PageHtml(HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic) : HtmlDocumentWriter(new HtmlWriting { Anchors = true })
     {
-        var body = new StringBuilder();
-        string? fence = null;
-
-        foreach (var line in page.Body.Split('\n'))
+        protected override void WriteLink(ExportLink link, StringBuilder html)
         {
-            var run = FenceRun.Match(line.TrimStart());
-            if (run.Success)
+            var where = link.Destination;
+
+            // "Show me" points at a control in the running app. On the web it cannot do anything, but dropping it
+            // would lose the fact that the app can point the reader at the thing being described — so it stays,
+            // inert, and says what it would have shown.
+            if (where.StartsWith("locate:", StringComparison.OrdinalIgnoreCase))
             {
-                if (fence is null) fence = run.Value;
-                else if (run.Value[0] == fence[0] && run.Value.Length >= fence.Length && line.Trim() == run.Value) fence = null;
-                body.Append(line).Append('\n');
-                continue;
+                var ids = string.Join(", ", where["locate:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+                html.Append("<span class=\"locate\" title=\"In the app this points at ").Append(WebUtility.HtmlEncode(ids)).Append("\">");
+                this.WriteWords(link.Words, html);
+                html.Append("</span>");
+                return;
             }
 
-            body.Append(fence is null ? Links(line, page, byTopic) : line).Append('\n');
+            if (Paged(where) is { } topic)
+            {
+                // The index, or a page the site does not carry: keep the words, drop the link.
+                if (byTopic.TryGetValue(topic.Name, out var target))
+                    base.WriteLink(link with { Destination = $"../{target.Slug}/{topic.Anchor}" }, html);
+                else
+                    this.WriteWords(link.Words, html);
+
+                return;
+            }
+
+            base.WriteLink(link, html);
         }
 
-        return body.ToString();
-    }
-
-    private static string Links(string line, HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic)
-    {
-        // "Show me" points at a control in the running app. On the web it cannot do anything, but dropping it
-        // would lose the fact that the app can point the reader at the thing being described — so it stays,
-        // inert, and says what it would have shown.
-        line = LocateLink.Replace(line, m =>
-        {
-            var ids = string.Join(", ", m.Groups[2].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-            return $"<span class=\"locate\" title=\"In the app this points at {WebUtility.HtmlEncode(ids)}\">{m.Groups[1].Value}</span>";
-        });
-
-        line = HelpLink.Replace(line, m => Link(m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value, byTopic));
-        line = FileLink.Replace(line, m => Link(m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value, byTopic));
-
         // A picture lives beside its page in the pack; on the site every pack's pictures are gathered under
-        // help/_img/<project>/ so one file is stored once however many pages show it.
-        line = ImageRef.Replace(line, m =>
-            m.Groups[2].Value.Contains(':')
-                ? m.Value                                                    // remote: left as the page wrote it
-                : $"{m.Groups[1].Value}../_img/{page.Project}/{m.Groups[2].Value})");
+        // help/_img/<project>/ so one file is stored once however many pages show it. A remote one is left as the page wrote it.
+        protected override string Source(ExportImage image) =>
+            image.Source.Contains(':', StringComparison.Ordinal) ? image.Source : $"../_img/{page.Project}/{image.Source}";
 
-        return line;
+        /// <summary>The help page a link names — by <c>help:</c>, or as the file it is in — and where in it, or null for any other link.</summary>
+        private static (string Name, string Anchor)? Paged(string where)
+        {
+            var hash = where.IndexOf('#');
+            var (path, anchor) = hash < 0 ? (where, string.Empty) : (where[..hash], where[hash..]);
+
+            if (path.StartsWith("help:", StringComparison.OrdinalIgnoreCase)) path = path["help:".Length..];
+            else if (path.Contains(':', StringComparison.Ordinal) || !path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) return null;
+
+            if (path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) path = path[..^3];
+
+            return (path.Replace('\\', '/').Split('/')[^1], anchor);
+        }
     }
-
-    private static string Link(string text, string topic, string anchor, IReadOnlyDictionary<string, HelpPage> byTopic)
-    {
-        if (topic.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) topic = topic[..^3];
-        topic = topic.Replace('\\', '/').Split('/')[^1];
-
-        return byTopic.TryGetValue(topic, out var target)
-            ? $"[{text}](../{target.Slug}/{anchor})"
-            : text;   // the index, or a page the site does not carry: keep the words, drop the link
-    }
-
-    private static readonly Regex FenceRun = new(@"^(`{3,}|~{3,})", RegexOptions.Compiled);
-
-    private static readonly Regex LocateLink =
-        new(@"\[([^\]]*)\]\(\s*<?locate:([^)\s>]+)>?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex HelpLink =
-        new(@"\[([^\]]*)\]\(\s*<?help:([^)\s>#]+)(#[^)\s>]*)?>?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex FileLink =
-        new(@"\[([^\]]*)\]\(\s*<?(?!https?:)([A-Za-z0-9_.-]+\.md)(#[^)\s>]*)?>?\s*\)", RegexOptions.Compiled);
-
-    private static readonly Regex ImageRef =
-        new(@"(!\[[^\]]*\]\()\s*<?([^)\s>]+)>?\s*\)", RegexOptions.Compiled);
 }

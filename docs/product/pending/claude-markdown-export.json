@@ -30,6 +30,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Export/MarkdownHtmlSpecTests.cs",
             "class": "MarkdownHtmlSpecTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Export/MarkdownExportTests.cs",
+            "class": "MarkdownExportTests"
           }
         ]
       }

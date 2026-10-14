@@ -1,13 +1,12 @@
-using Markdig.Syntax;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using System.IO;
-using MdMarkdown = Markdig.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 
@@ -30,10 +29,9 @@ public class MarkdownSampleRenderTests
                      .Where(p => Path.GetFileName(p).StartsWith("mermaid-", StringComparison.Ordinal)))
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+            var    doc = Blocks(md);
 
-            var fences = doc.OfType<FencedCodeBlock>()
-                            .Where(f => ContentLanguages.Reads(f.Info))
+            var fences = Fences(doc).Where(f => ContentLanguages.Reads(Named(f)))
                             .ToList();
 
             Assert.AreNotEqual(0, fences.Count, $"no diagram fence in {Path.GetFileName(path)}");
@@ -48,15 +46,15 @@ public class MarkdownSampleRenderTests
     public void ExtensionsSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "extensions.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
         Lays(md, [], "the whole document");
 
-        var kinds = doc.OfType<Markdig.Extensions.Alerts.AlertBlock>()
-                       .Select(a => a.Kind.ToString().ToUpperInvariant()).ToHashSet();
+        var kinds = doc.Where(block => block.Kind == MarkdownKinds.Alert)
+                       .Select(alert => alert.SelfAndDescendants().First(part => part.Role == Roles.Name).Text.ToUpperInvariant()).ToHashSet();
         foreach (var k in new[] { "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION" })
             Assert.IsTrue(kinds.Contains(k), $"expected a [!{k}] alert");
-        Assert.IsTrue(doc.Descendants().OfType<Markdig.Extensions.Abbreviations.AbbreviationInline>().Any(),
+        Assert.IsTrue(doc.SelectMany(block => block.SelfAndDescendants()).Any(part => part.Kind == MarkdownKinds.Abbreviation && !part.Derived),
             "expected at least one abbreviation occurrence");
     });
 
@@ -75,7 +73,7 @@ public class MarkdownSampleRenderTests
         foreach (var path in files)
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+            var    doc = Blocks(md);
             Lays(md, [], Path.GetFileName(path));
         }
     });
@@ -110,12 +108,12 @@ public class MarkdownSampleRenderTests
         int typeset = 0, fellBack = 0;
         foreach (var path in files)
         {
-            var    doc  = MdMarkdown.Parse(File.ReadAllText(path), MarkdigReading.Pipeline);
+            var    doc  = Blocks(File.ReadAllText(path));
             string name = Path.GetFileName(path);
 
-            foreach (var math in doc.Descendants().OfType<Markdig.Extensions.Mathematics.MathInline>())
+            foreach (var math in doc.SelectMany(block => block.SelfAndDescendants()).Where(part => part.Node is BlockNode { Language: "latex" } && part.Part(Roles.Body) is not null))
             {
-                string latex = math.Content.ToString();
+                string latex = ContentNested.Own(math.Part(Roles.Body)!.Node);
 
                 var layout = Laying.Formula(latex, 20);
                 var ok = layout is not null
@@ -152,9 +150,8 @@ public class MarkdownSampleRenderTests
         foreach (var path in files)
         {
             string md  = File.ReadAllText(path);
-            var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
-            Assert.IsTrue(doc.OfType<Markdig.Syntax.FencedCodeBlock>()
-                             .Any(fence => fence.Info is "abc" or "lilypond"),
+            var    doc = Blocks(md);
+            Assert.IsTrue(Fences(doc).Any(fence => Named(fence) is "abc" or "lilypond"),
                 $"no music fence parsed in {Path.GetFileName(path)}");
             Lays(md, [], Path.GetFileName(path));
         }
@@ -170,10 +167,9 @@ public class MarkdownSampleRenderTests
     public void QrSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "qr-codes.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "qr".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "qr".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 14, $"expected the reference to show every type, found {fences.Count} qr fences");
@@ -197,10 +193,9 @@ public class MarkdownSampleRenderTests
     public void BarcodeSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "barcodes.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "barcode".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "barcode".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 23, $"expected the reference to show every format, found {fences.Count}");
@@ -219,10 +214,9 @@ public class MarkdownSampleRenderTests
     public void DataMatrixSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "datamatrix.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "datamatrix".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "datamatrix".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 9, $"expected the reference to show every type, found {fences.Count}");
@@ -234,10 +228,9 @@ public class MarkdownSampleRenderTests
     public void Pdf417SampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "pdf417.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "pdf417".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "pdf417".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 8, $"expected the reference to show every setting, found {fences.Count}");
@@ -249,10 +242,9 @@ public class MarkdownSampleRenderTests
     public void AztecSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "aztec.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "aztec".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "aztec".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 12, $"expected the reference to show both families, found {fences.Count}");
@@ -264,10 +256,9 @@ public class MarkdownSampleRenderTests
     public void SmilesSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "smiles.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "smiles".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "smiles".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 6, $"expected every section of the reference, found {fences.Count}");
@@ -284,10 +275,9 @@ public class MarkdownSampleRenderTests
     public void WordCloudSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "wordcloud.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
-        var fences = doc.OfType<FencedCodeBlock>()
-                        .Where(f => "wordcloud".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+        var fences = Fences(doc).Where(f => "wordcloud".Equals(Named(f), StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
         Assert.IsTrue(fences.Count >= 8, $"expected every section of the reference, found {fences.Count}");
@@ -303,19 +293,16 @@ public class MarkdownSampleRenderTests
     public void PlotSampleRenders() => UiThread.Run(() =>
     {
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "plots.md"));
-        var    doc = MdMarkdown.Parse(md, MarkdigReading.Pipeline);
+        var    doc = Blocks(md);
 
         string[] fences = ["scatter", "bubble", "heatmap", "density2d"];
 
-        var blocks = doc.OfType<FencedCodeBlock>()
-                        .Where(f => f.Info is not null
-                                    && fences.Contains(f.Info, StringComparer.OrdinalIgnoreCase))
-                        .ToList();
+        var blocks = Fences(doc).Where(f => fences.Contains(Named(f), StringComparer.OrdinalIgnoreCase)).ToList();
 
         Assert.IsTrue(blocks.Count >= 10, $"expected every section of the reference, found {blocks.Count}");
 
         foreach (var fence in fences)
-            Assert.IsTrue(blocks.Any(block => fence.Equals(block.Info, StringComparison.OrdinalIgnoreCase)),
+            Assert.IsTrue(blocks.Any(block => fence.Equals(Named(block), StringComparison.OrdinalIgnoreCase)),
                           $"the reference shows no {fence}");
 
         Lays(md, blocks, "plot");
@@ -326,7 +313,7 @@ public class MarkdownSampleRenderTests
     /// drawn: something on the page standing for its characters, a picture or, where it could not be drawn, what was
     /// written.
     /// </summary>
-    private static void Lays(string md, IEnumerable<FencedCodeBlock> fences, string what)
+    private static void Lays(string md, IEnumerable<ContentPart> fences, string what)
     {
         var laid = Laying.Lay(null, md, 700, StyleFormat.Dark);
         Assert.IsTrue(laid.Draws, $"{what}: the document drew nothing");
@@ -334,7 +321,17 @@ public class MarkdownSampleRenderTests
         var drawn = laid.Root.SelfAndDescendants().Where(piece => piece.Part is not null).Select(piece => piece.Sits().Start).ToList();
 
         foreach (var fence in fences)
-            Assert.IsTrue(drawn.Any(at => at >= fence.Span.Start && at <= fence.Span.End),
-                          $"{what}: nothing was drawn for the fence on line {fence.Line + 1}");
+            Assert.IsTrue(drawn.Any(at => at >= fence.Start && at <= fence.End),
+                          $"{what}: nothing was drawn for the fence on line {md.AsSpan(0, fence.Start).Count('\n') + 1}");
     }
+
+    /// <summary>The blocks a document is written in, as its reading has them.</summary>
+    private static IReadOnlyList<ContentPart> Blocks(string md) => ContentPart.Of(MarkdownParser.Worked(md)).Children;
+
+    /// <summary>Every fenced block of a document.</summary>
+    private static IEnumerable<ContentPart> Fences(IEnumerable<ContentPart> blocks) =>
+        blocks.Where(block => block.Kind == Kinds.Block && block.Node is BlockNode);
+
+    /// <summary>The language a fence names.</summary>
+    private static string Named(ContentPart fence) => ((BlockNode)fence.Node).Language;
 }

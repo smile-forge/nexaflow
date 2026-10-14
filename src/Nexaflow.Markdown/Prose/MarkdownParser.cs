@@ -104,6 +104,18 @@ public sealed class MarkdownParser : ITranspile
     }
 
     /// <summary>
+    /// <paramref name="source"/> read, and worked over by the stages that need nothing but the document: what its definitions say
+    /// its links and abbreviations mean, and the names its headings answer to — the reading anything that reads a document without
+    /// showing it asks of, such as a search through its words or a list of its sections.
+    /// </summary>
+    public static ContentNode Worked(string? source)
+    {
+        var targets = new LinkTargets();
+
+        return new AstPipeline(new WithTargets(targets), new WithReferences(targets)).Run(Parsing()(source ?? string.Empty).Tree);
+    }
+
+    /// <summary>
     /// What is written inside a block that holds blocks — a quote's lines, an alert's body.
     ///
     /// <para>
@@ -464,35 +476,54 @@ public sealed class MarkdownParser : ITranspile
         return said.ToString();
     }
 
-    /// <summary>Whether the character at <paramref name="at"/> would be read as markup where it stands.</summary>
-    private static bool Marked(string line, int at, bool begins, bool table) => line[at] switch
+    /// <summary>
+    /// Whether the character at <paramref name="at"/> would be read as markup where it stands — asked of the tables the reading
+    /// itself is read by: what the words' reading stops at (<see cref="MarkdownTokenizer.Starts"/>), and what may start a block
+    /// (<see cref="MarkdownBlockRules.MayStart"/>).
+    /// </summary>
+    private static bool Marked(string line, int at, bool begins, bool table)
     {
-        // Emphasis, code, a link and a strikethrough are read wherever they are written. So are an entity and a tag,
-        // which are only markup when something closes them — but what closes one can be the document's own next
-        // character rather than anything written here, and a run of words cannot see past its own end. A less-than that
-        // opens a link's target is the case that proves it: nothing follows it in the words at all.
-        '\\' or '`' or '*' or '_' or '[' or ']' or '~' or '&' or '<' => true,
+        var character = line[at];
+
+        var marked = MarkdownTokenizer.Starts(character) switch
+        {
+            // Emphasis, code, a link and a strikethrough are read wherever they are written. So are an entity and a tag,
+            // which are only markup when something closes them — but what closes one can be the document's own next
+            // character rather than anything written here, and a run of words cannot see past its own end. A less-than that
+            // opens a link's target is the case that proves it: nothing follows it in the words at all.
+            MarkdownStarts.Alone => true,
+
+            // These only where what makes them markup is written beside them.
+            MarkdownStarts.Doubled => (at > 0 && line[at - 1] == character) || (at + 1 < line.Length && line[at + 1] == character),
+            MarkdownStarts.Paired => line.AsSpan(0, at).Contains(character) || line.AsSpan(at + 1).Contains(character),
+            MarkdownStarts.Bracketed => at + 1 < line.Length && line[at + 1] == '[',
+
+            _ => false,
+        };
+
+        if (marked) return true;
 
         // A pipe divides cells in a table and is a pipe anywhere else.
-        '|' => table,
+        if (character == '|' && table) return true;
 
-        // And these only where a line starts, which is the one thing a part cannot say about itself.
-        '#' or '>' or '-' or '+' or '=' or ':' => begins && Opening(line, at),
-        '.' or ')' => begins && Numbered(line, at),
+        // And what starts a block, only where a line starts, which is the one thing a part cannot say about itself — or, after
+        // the number an item is counted by, what makes it an item's.
+        if (!begins) return false;
+        if (Opening(line, at)) return MarkdownLinkSyntax.Escapable(character) && MarkdownBlockRules.Reading.MayStart(character);
 
-        _ => false,
-    };
+        return character is '.' or ')' && Numbered(line, at);
+    }
 
     /// <summary>Whether nothing but space stands in front of <paramref name="at"/> on its line.</summary>
     private static bool Opening(string line, int at) => line.AsSpan(0, at).IsWhiteSpace();
 
-    /// <summary>Whether <paramref name="at"/> is what would make a numbered item of the digits in front of it.</summary>
+    /// <summary>Whether <paramref name="at"/> is what would make an item counted by the number or letters in front of it.</summary>
     private static bool Numbered(string line, int at)
     {
         var from = at;
-        while (from > 0 && char.IsAsciiDigit(line[from - 1])) from--;
+        while (from > 0 && char.IsAsciiLetterOrDigit(line[from - 1])) from--;
 
-        return from < at && line.AsSpan(0, from).IsWhiteSpace();
+        return from < at && Opening(line, from) && ItemRule.Counts(line.AsSpan(from, at - from));
     }
 
     /// <summary>

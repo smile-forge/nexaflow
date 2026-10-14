@@ -14,9 +14,11 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   extensions below. Every piece of the tree is cut from the source, so a document always prints back as exactly what was
   written ([markdown-ast.md](markdown-ast.md)). Both are held to Markdig **1.3.2** over the specifications, the samples and
   these pages by the differential harness in `Tests.Markdown`.
-- **Writing out:** copying as HTML and plain text, and the help's contents and search text, go through Markdig's renderers
-  with [`MarkdigReading.Pipeline`](../src/Nexaflow.Visuals.Text/Markdown/MarkdigReading.cs), which enables the same
-  extensions.
+- **Writing out:** copying as HTML and plain text writes the document as it is shown: laid out, walked into a
+  format-neutral document by [`LayoutExport`](../src/Nexaflow.Visuals.Text/Markdown/Export/LayoutExport.cs), and spelled by
+  the writers in `Nexaflow.IO.Documents` — the HTML one held to CommonMark's own expected HTML for every example of its
+  specification (`MarkdownHtmlSpecTests`). The help's search text and its list of sections read the reading's words and
+  the names its headings answer to.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
   abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
@@ -99,7 +101,7 @@ These are turned on in the pipeline **and** drawn by the builder. Every row is a
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`, ruled off from the document above. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
 | Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A formula keeps its typesetting while it is being written, whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; only being read, or with nothing it could set, it is shown as written, delimiters and all, with what is wrong marked and why beneath. **Inline and display are the same**; a sentence reads on round an inline formula shown as written. |
-| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
+| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
 | Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music, filling a share of the page and centred in it (see below). |
 
 > **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
@@ -2057,7 +2059,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 
 | File | Covers |
 |---|---|
-| [`Visuals/Markdown/MarkdownPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownPipelineTests.cs) | Pipeline parses pipe tables, math blocks, diagram and music fences; heading ids; singleton reuse. |
+| [`Markdown/Export/MarkdownHtmlSpecTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Export/MarkdownHtmlSpecTests.cs) | Every example of CommonMark's specification laid out, walked and written as HTML, compared with the HTML the specification gives; what differs is in a ledger beside it, each under why. (UI category.) |
 | [`Markdown/Prose/MarkdownBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs) | A document on the layout tree: every document draws and keeps drawing while typed, everything drawn stands for characters that are there, headings, lists, ticks, tables, fences, formulas (display and inline, readable or not), alerts, definition lists, figures, footers, front matter, raw HTML, escapes, citations. (UI category.) |
 | [`Markdown/Prose/MarkdownParityTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownParityTests.cs) | The corners of CommonMark and its extensions: setext headings, rules, quotes, loose lists, indented code, code spans, reference links wherever their definition is, autolinks bare and bracketed, remote pictures never fetched, emphasis extras, abbreviations, the Important alert, and every pipe- and grid-table edge case. (UI category.) |
 | [`Markdown/Prose/MarkdownLinkTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs) · [`MarkdownAnchorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownAnchorTests.cs) | Where a link goes, in-page anchors resolved by the document and never the host, relative links inert, and the host's say in how a link looks. (UI category.) |
@@ -2126,5 +2128,5 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 
 If any of the disabled extensions are wanted, the change is a rule in the reading — a block rule in
 `MarkdownBlockRules`, or a token in `MarkdownTokenizer` matched in `MarkdownDelimiters` — with the extension's
-specification among the harness's and its `.UseX()` in the harness's oracle and in `MarkdigReading`, **plus** a case in
+specification among the harness's and its `.UseX()` in the harness's oracle, **plus** a case in
 `MarkdownBuilder` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).

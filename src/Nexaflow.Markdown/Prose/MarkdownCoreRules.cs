@@ -523,6 +523,24 @@ internal sealed class ItemRule(bool lettered) : MarkdownBlockRule
 
     private static bool IsRoman(char character) => character is 'i' or 'v' or 'x' or 'I' or 'V' or 'X';
 
+    /// <summary>
+    /// Whether <paramref name="written"/> is what an item's marker counts by in front of its <c>.</c> or <c>)</c>: up to nine
+    /// digits, one letter, or roman numerals all of one case — as <see cref="Marked"/> reads a marker.
+    /// </summary>
+    public static bool Counts(ReadOnlySpan<char> written)
+    {
+        if (written.IsEmpty) return false;
+        if (char.IsAsciiDigit(written[0])) return written.Length <= 9 && !written.ContainsAnyExcept("0123456789");
+        if (written.Length == 1) return char.IsAsciiLetter(written[0]);
+
+        var lower = char.IsAsciiLetterLower(written[0]);
+
+        foreach (var character in written)
+            if (!IsRoman(character) || char.IsAsciiLetterLower(character) != lower) return false;
+
+        return true;
+    }
+
     /// <summary>Whether an ordered marker numbers the first item of its list: one, or the first letter or numeral.</summary>
     private static bool First(ScannedMarker marker) =>
         marker.Bullet == '1' ? int.TryParse(marker.Number, out var number) && number == 1 : marker.Number == marker.Bullet.ToString();

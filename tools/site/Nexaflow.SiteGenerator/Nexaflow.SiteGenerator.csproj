@@ -1,22 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Builds the GitHub Pages site from the help pages the app itself ships. Deliberately outside
+  <!-- Builds the GitHub Pages site from the help pages the app ships. Deliberately outside
        Nexaflow.slnx (as the installer is): it is release tooling, not part of the app, and nothing in
-       the app may depend on it. Plain net10.0 with no WPF — the rendered figures it lays out are the
-       PNGs the help pages already carry, so nothing here needs a UI thread. -->
+       the app may depend on it. WPF, because a page is laid out as the app lays it and written from that
+       layout (Visuals.Text's LayoutExport), so the site renders what the app renders. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Nexaflow.SiteGenerator</RootNamespace>
     <AssemblyName>Nexaflow.SiteGenerator</AssemblyName>
-    <InvariantGlobalization>true</InvariantGlobalization>
+
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- A WPF project leaves System.IO out of the implicit usings, for the Path WPF draws with; nothing here draws one. -->
   <ItemGroup>
-    <PackageReference Include="Markdig" Version="1.3.2" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\..\..\src\Nexaflow.IO.Documents\Nexaflow.IO.Documents.csproj" />
   </ItemGroup>
 
 </Project>
