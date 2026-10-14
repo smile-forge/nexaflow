@@ -37,9 +37,7 @@ public static class MarkdownList
         var counting = Counting(scanned);
         Items(scanned, parts, read);
         read.Gap(parts, read.Length);
-
-        if (counting is not null)
-            parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+        Facts(scanned, counting, parts);
 
         return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
@@ -57,9 +55,7 @@ public static class MarkdownList
         var counting = Counting(list);
         Items(list, parts, read);
         read.Gap(parts, to);
-
-        if (counting is not null)
-            parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+        Facts(list, counting, parts);
 
         return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body, at);
     }
@@ -75,6 +71,27 @@ public static class MarkdownList
             else if (block.Children.Count > 0) Items(block, parts, read);
     }
 
+    /// <summary>What the scan knows of the list that none of its characters say: how it counts, and whether it is loose.</summary>
+    private static void Facts(ScannedBlock blocks, MarkdownNumbering? counting, List<ContentNode> parts)
+    {
+        if (counting is not null) parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+        if (Listed(blocks) is { Loose: true }) parts.Add(ContentNode.Holding(MarkdownKinds.Loose, Roles.Derived, true));
+    }
+
+    /// <summary>The list the scan found, wherever in the reading it turns up.</summary>
+    private static ScannedList? Listed(ScannedBlock blocks)
+    {
+        if (blocks is ScannedList itself) return itself;
+
+        foreach (var block in blocks.Children)
+        {
+            if (block is ScannedList list) return list;
+            if (block.Children.Count > 0 && Listed(block) is { } found) return found;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// How this list counts itself, where it counts at all.
     ///
@@ -87,17 +104,7 @@ public static class MarkdownList
     /// </summary>
     private static MarkdownNumbering? Counting(ScannedBlock blocks)
     {
-        if (blocks is ScannedList itself) return itself.Marker.Ordered ? new MarkdownNumbering(itself.Marker.Bullet, Started(itself.Marker)) : null;
-
-        foreach (var block in blocks.Children)
-        {
-            if (block is ScannedList list)
-                return list.Marker.Ordered ? new MarkdownNumbering(list.Marker.Bullet, Started(list.Marker)) : null;
-
-            if (block.Children.Count > 0 && Counting(block) is { } found) return found;
-        }
-
-        return null;
+        return Listed(blocks) is { Marker.Ordered: true } list ? new MarkdownNumbering(list.Marker.Bullet, Started(list.Marker)) : null;
     }
 
     /// <summary>

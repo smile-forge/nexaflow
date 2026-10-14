@@ -166,7 +166,8 @@ internal static class MarkdownShape
     {
         MarkdownKinds.Heading => Facts(("rank", Said(node, MarkdownKinds.Rank)), ("id", Said(node, MarkdownKinds.Anchor))),
         MarkdownKinds.List => Facts(("counts", (Said(node, MarkdownKinds.Numbering) ?? (node.Part(Roles.Body) is { } items ? Said(items, MarkdownKinds.Numbering) : null))
-            is MarkdownNumbering n ? Counted(n.Bullet, n.Start) : null)),
+                                         is MarkdownNumbering n ? Counted(n.Bullet, n.Start) : null),
+                                    ("loose", (Said(node, MarkdownKinds.Loose) ?? (node.Part(Roles.Body) is { } held ? Said(held, MarkdownKinds.Loose) : null)) is true)),
         MarkdownKinds.Task => Facts(("done", node.Children.Any(child => child.Role == MarkdownRoles.Done))),
         MarkdownKinds.Row => Facts(("head", node.Role == MarkdownRoles.Head)),
         MarkdownKinds.Cell => Facts(("align", Said(node, MarkdownKinds.Aligned)),
@@ -298,7 +299,8 @@ internal static class MarkdownShape
     private static string TheirFacts(Block block, string kind) => block switch
     {
         HeadingBlock heading => Facts(("rank", heading.Level.ToString(CultureInfo.InvariantCulture)), ("id", heading.TryGetAttributes()?.Id)),
-        ListBlock list => Facts(("counts", list.IsOrdered ? Counted(list.BulletType, Started(list.BulletType, list.OrderedStart)) : null)),
+        ListBlock list => Facts(("counts", list.IsOrdered ? Counted(list.BulletType, Started(list.BulletType, list.OrderedStart)) : null),
+                                ("loose", list.IsLoose)),
         TableRow row => Facts(("head", row.IsHeader)),
         TableCell cell => Facts(("align", Aligned(cell)), ("spans", cell.ColumnSpan > 1 || cell.RowSpan > 1 ? $"{Math.Max(cell.ColumnSpan, 1)}x{Math.Max(cell.RowSpan, 1)}" : null)),
         AlertBlock alert => Facts(("name", alert.Kind.ToString())),

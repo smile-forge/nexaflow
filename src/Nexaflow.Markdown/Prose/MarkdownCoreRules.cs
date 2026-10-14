@@ -290,6 +290,7 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
                 fence.Shut = line;
                 fence.Reach(run);
                 fence.LastLine = scan.LineIndex;
+                fence.LastWritten = scan.LineIndex;
                 scan.Close(fence);
                 return Continued.Consumed;
             }
@@ -531,6 +532,28 @@ internal sealed class ItemRule(bool lettered) : MarkdownBlockRule
     {
         public override Continued Continues(MarkdownScanner scan, ScannedBlock block) => Continued.Matched;
 
-        public override bool Holds(ScannedKind kind) => kind == ScannedKind.Item;
+    public override bool Holds(ScannedKind kind) => kind == ScannedKind.Item;
+
+        public override bool Marks => false;
+
+        /// <summary>
+        /// Whether the list is loose: two of its items with a blank line between them, or an item holding two blocks with one
+        /// between them. A line between two blocks that neither of them was written on is a blank one.
+        /// </summary>
+        public override void Close(MarkdownScanner scan, ScannedBlock block)
+        {
+            var list = (ScannedList)block;
+
+            list.Loose = Apart(list.Children) || list.Children.Any(item => Apart(item.Children));
+        }
+
+        /// <summary>Whether a blank line stands between any two of <paramref name="blocks"/>, one after another.</summary>
+        private static bool Apart(IReadOnlyList<ScannedBlock> blocks)
+        {
+            for (var at = 0; at + 1 < blocks.Count; at++)
+                if (blocks[at + 1].Line > blocks[at].WrittenThrough + 1) return true;
+
+            return false;
+        }
     }
 }
