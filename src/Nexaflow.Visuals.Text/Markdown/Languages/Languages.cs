@@ -62,6 +62,10 @@ internal static class Shipped
         Parser: MarkdownParser.Parsing,
         Stages: static (_, show) =>
         [
+            // First, because what a link by name means is written anywhere in the document, and the links after ask for it.
+            new WithTargets(show.Targets),
+            new WithReferences(show.Targets),
+
             new WithImages(show.Inputs.Pictures),
             new WithLinks(show.Inputs.Links),
 
@@ -74,6 +78,7 @@ internal static class Shipped
         Builder: typeof(MarkdownBuilder))
         {
             Writable = true,
+            Windowed = MarkdownParser.Windowed,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
         };
@@ -97,6 +102,7 @@ internal static class Shipped
         ],
         Builder: typeof(MarkdownBuilder))
         {
+            Windowed = RtfParser.Windowed,
             Editing = new ReadAsDrawn(),
         };
 

@@ -81,16 +81,16 @@ public class RereadingTests
     }
 
     [TestMethod]
-    public void ADefinitionWrittenAgainReadsEveryBlockAgain()
+    public void ADefinitionWrittenAgain_LeavesTheBlocksNamingItAsTheyWereRead()
     {
-        // Every block's words are read beside what the document defines, so a change there is a change to every block.
+        // A block is read from what it says and nothing else: what a name means is the stages' to work out, after the reading.
         const string defined = "Go [there][a].\n\n[a]: https://one.example\n";
         var parse = MarkdownParser.Parsing();
 
         var before = Blocks(parse(defined).Tree);
         var after = Blocks(parse(defined.Replace("one", "two")).Tree);
 
-        Assert.AreNotSame(before[0], after[0]);
+        Assert.AreSame(before[0], after[0]);
     }
 
     /// <summary>Whether <paramref name="now"/> is <paramref name="was"/> moved <paramref name="by"/> characters along, and nothing else.</summary>

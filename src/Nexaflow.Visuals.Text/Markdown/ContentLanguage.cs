@@ -54,6 +54,13 @@ public sealed record ContentLanguage(
     /// </summary>
     public Func<string, ContentParse>? SlowParser { get; init; }
 
+    /// <summary>
+    /// Makes a parse that reads a large document a stretch at a time (<see cref="ContentStretch"/>), or null for a language only
+    /// ever read whole. Content in a language that has one, past a length, is read and laid only as far as the reader has
+    /// looked (<see cref="ContentEngine"/>) — laid by the same builder, which never learns it is laying part of something.
+    /// </summary>
+    public Func<Func<ContentStretch, ContentParse>>? Windowed { get; init; }
+
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 
@@ -118,6 +125,12 @@ public sealed record ContentShowing(string Named, StyleFormat Style, bool Writin
     /// for content inside it, which is laid again with the block holding it or kept with it.
     /// </summary>
     public IAstStage? Unchanged { get; init; }
+
+    /// <summary>
+    /// Where the places the content's links can name are said and asked after (<see cref="LinkTargets"/>) — the engine's, kept for
+    /// the content it was asked to show; a list of the content's own for content inside it, and wherever nothing keeps one.
+    /// </summary>
+    public LinkTargets Targets { get; init; } = new();
 
     /// <summary><see cref="Shown"/> counted in this content's own source, or null where it is not inside it.</summary>
     public RawZone? Own(int length) =>

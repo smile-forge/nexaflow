@@ -17,15 +17,16 @@ namespace Nexaflow.Tests.Fixtures;
 /// <para>
 /// Generated, because what it is is a shape rather than a text: a handful of sections, each the same shape with
 /// different words in it, and a block of one language or another dropped in every few. Written out instead it would
-/// be two thousand lines of literal saying what forty lines of this say, and nobody could change the mix without
+/// be five thousand lines of literal saying what forty lines of this say, and nobody could change the mix without
 /// retyping the file. <see cref="MixedLines"/> is held exactly so that a change in what it costs to open is a change
-/// in the engine rather than in the fixture.
+/// in the engine rather than in the fixture — and long enough, at about 200 KB, to be read and laid a stretch at a
+/// time, as a long page is.
 /// </para>
 /// </summary>
 internal sealed partial class MarkdownSamples
 {
     /// <summary>How many lines the document comes to — held exactly, so its cost is comparable run to run.</summary>
-    private const int MixedLines = 2000;
+    private const int MixedLines = 5000;
 
     private static readonly string[] MixedTopics =
     [

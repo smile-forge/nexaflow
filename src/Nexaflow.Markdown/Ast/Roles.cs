@@ -227,4 +227,10 @@ public static class Kinds
     /// </para>
     /// </summary>
     public const string Hole = "hole";
+
+    /// <summary>
+    /// What of a large document is still to be read, held as written: trivia standing at the end of the document, which nothing
+    /// draws, until the stretches before it reach it (<see cref="ContentChunks"/>).
+    /// </summary>
+    public const string Unreached = "unreached";
 }

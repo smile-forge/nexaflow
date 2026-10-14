@@ -6,7 +6,7 @@ namespace Nexaflow.Markdown.Rtf;
 /// <summary>
 /// What a row's definition says of one of its cells: where its right edge is, and whether it is merged with a neighbour.
 /// </summary>
-internal sealed class RtfCellDefinition
+internal sealed record RtfCellDefinition
 {
     /// <summary>Its right edge in twips (<c>\cellx</c>), or null where none was given.</summary>
     public int? Right { get; set; }

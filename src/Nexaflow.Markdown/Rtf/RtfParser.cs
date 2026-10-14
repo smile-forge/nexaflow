@@ -48,7 +48,15 @@ public static class RtfParser
     }
 
     /// <summary><paramref name="source"/> — the document's bytes, one character to each — as the blocks it is drawn as.</summary>
-    public static ContentNode Parse(string? source) => new RtfReading(source ?? string.Empty).Read();
+    public static ContentNode Parse(string? source) => new RtfReading(source ?? string.Empty).Read().Tree;
+
+    /// <summary>
+    /// A parse for one large document read a stretch at a time (<see cref="ContentStretch"/>): each stretch read on from where the
+    /// one before it stopped, in what that one stopped in, and stopped at the end of the first paragraph past its length that
+    /// leaves nothing open but the groups round the text — so the stretches together read exactly as the whole document does.
+    /// </summary>
+    public static Func<ContentStretch, ContentParse> Windowed() =>
+        stretch => new RtfReading(stretch.Source, stretch.From, stretch.Resume as RtfResume).Read(stretch.SoftMaxLength);
 
     /// <summary>
     /// The words of an RTF document as plain text — what a reader of it reads, for whatever wants its words without drawing

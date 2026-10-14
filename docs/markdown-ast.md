@@ -66,9 +66,9 @@ content is set is a fact about the content. A builder that reads the display, th
 
 ## 2. The AST
 
-**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`). Only a
-parser says it, because a parser is the only thing that reads source; a stage that works something out says nothing,
-and what it hangs is derived and stands for no characters at all. Where a part sits in the document is still worked out
+**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`). A parser
+says it for every piece it reads; a stage that cuts, joins or rewrites pieces says it for the pieces it makes, from the
+ones it was handed; and what a stage hangs is derived and stands for no characters at all. Where a part sits in the document is still worked out
 by a walk when somebody asks (`ContentReading`, `ContentPart`), which is what positions a language read from its own
 slice inside the document holding it.
 
@@ -159,8 +159,10 @@ a flowchart's statement does not end where a line does — a quoted value spans 
 `MermaidDiagrams.ParserFor` names the parser a diagram is read by and is the only place that choice is made, so the
 shipped language and the tests read a block the same way.
 
-**A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
-change.
+**A parser is not a stage.** A parser reads: it says what the characters are as written, and holds nothing of what they
+mean and nothing between one reading and the next. It marks an id only where the syntax says one goes; anything that
+could be any string — a heading's title, the words in a `[label]` — it holds as the words it was written as. What any of
+it means is a stage's to work out (§4).
 
 **A language may have a second, slower parser.** `Parser` is fast; `SlowParser`, where a language has one, reads the
 same characters more fully. Code is the example: read as written at once, and by its grammar (tree-sitter) in the
@@ -178,7 +180,9 @@ nodes, merges neighbours, splits one piece into several, replaces a node with on
 derived parts underneath. What belongs together but was written apart is gathered under a parent of the language's own
 rather than flattened into one node.
 
-**R10 — `stage.Run(t).Print() == t.Print()`.** The characters coming out are the characters that went in.
+**R10 — `stage.Run(t).Print() == t.Print()`.** The characters coming out are the characters that went in. It is a
+stage's one rule: whatever keeps it — regrouping, splitting a piece, merging pieces, rewriting the tree whole — is a
+stage's to do.
 `AstPipeline` checks this between stages in a Debug build and names the stage that broke it.
 `AstRewrite.Regrouping` keeps a node's own derived parts from being swept into a group made of its children, where
 they would no longer be true.

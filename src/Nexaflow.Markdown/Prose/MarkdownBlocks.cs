@@ -21,9 +21,9 @@ namespace Nexaflow.Markdown.Prose;
 /// </para>
 /// <para>
 /// <strong>One per document, read again and again as it is written.</strong> A keystroke changes one block, and reading is a
-/// function of what a block says and what the document defines — nothing else goes in. So a block written the same beside
-/// the same definitions is handed back as it was read last time, and only the one typed in is read again. Kept for the blocks
-/// of one reading at a time: what the reading before that held is let go.
+/// function of what a block says — nothing else goes in. So a block written the same is handed back as it was read last time,
+/// and only the one typed in is read again. Kept for the blocks of one reading at a time: what the reading before that held is
+/// let go.
 /// </para>
 /// </summary>
 internal sealed class MarkdownBlocks
@@ -34,19 +34,11 @@ internal sealed class MarkdownBlocks
     /// </summary>
     private Dictionary<(string Lead, string Written), List<(ContentNode Written, ContentNode Read)>> _before = [];
 
-    /// <summary>What the definitions of the document said the last time, which every block's words were read beside.</summary>
-    private string? _besides;
-
     /// <summary>The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.</summary>
     /// <param name="document">The document as the split hands it over: every block named, every body still its own source.</param>
     /// <param name="source">What the document was read from, which says what stands in front of each block on its line.</param>
     public ContentNode Read(ContentNode document, string source)
     {
-        var besides = MarkdownDefinitions.Of(document)?.Text;
-
-        if (besides != _besides) _before = [];
-        _besides = besides;
-
         var now = new Dictionary<(string Lead, string Written), List<(ContentNode Written, ContentNode Read)>>(_before.Count);
         var seen = new ContentNode[document.Children.Count];
         var moved = false;
@@ -57,12 +49,12 @@ internal sealed class MarkdownBlocks
 
             if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim or Kinds.Nested } body)
             {
-                seen[at] = Read(block, besides, source);
+                seen[at] = ReadIn(block, source);
             }
             else
             {
                 var written = (Lead(source, body.Offset), body.Text);
-                seen[at] = Remembered(written, block) ?? Read(block, besides, source);
+                seen[at] = Remembered(written, block) ?? ReadIn(block, source);
 
                 if (!now.TryGetValue(written, out var alike)) now[written] = alike = [];
                 alike.Add((block, seen[at]));
@@ -103,7 +95,7 @@ internal sealed class MarkdownBlocks
 
     /// <summary>
     /// Whether two blocks say the same: the same characters in the same shape, and the same things the parser worked out
-    /// about them — a heading's name, which moves when another heading is written above it, is not in its characters.
+    /// about them.
     ///
     /// <para>
     /// Where a block stands is deliberately none of it. What a reading came to depends on the characters, so the same
@@ -145,14 +137,13 @@ internal sealed class MarkdownBlocks
     /// is not one stretch of lines in the document, so it reads without.
     /// </para>
     /// </summary>
-    /// <param name="besides">What the document defines, which the words of a block are read beside.</param>
-    private static Func<string, int, string, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
+    private static Func<string, int, string, ContentNode>? Reader(ContentNode node) => node.Kind switch
     {
         MarkdownKinds.Cell when Holds(node) => static (source, at, _) => MarkdownParser.Inside(source, at: at),
 
         MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
             or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            (source, at, _) => MarkdownInline.Read(source, besides: besides, at: at).As(Roles.Body),
+            static (source, at, _) => MarkdownInline.Read(source, at: at).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
             or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at, lead) => MarkdownParser.Inside(source, at: at, lead: lead),
@@ -182,14 +173,14 @@ internal sealed class MarkdownBlocks
     }
 
     /// <summary>This piece with its body read, everything under it the same, and then finished.</summary>
-    private static ContentNode Read(ContentNode node, string? besides, string source)
+    private static ContentNode ReadIn(ContentNode node, string source)
     {
         if (node.IsLeaf) return node;
 
         // The reader is told where the body's characters stand, which is what the body itself says — the split that
         // named this block cut them out of the document and said so. A body that says nothing is read from nought,
         // which is the only answer left and the one the oracle over every corpus is there to catch.
-        if (Reader(node, besides) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
+        if (Reader(node) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
             && reader(body.Text, body.Offset ?? 0, Lead(source, body.Offset)) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
@@ -198,7 +189,7 @@ internal sealed class MarkdownBlocks
         for (var at = 0; at < node.Children.Count; at++)
         {
             var child = node.Children[at];
-            var now = Read(child, besides, source);
+            var now = ReadIn(child, source);
 
             if (seen is null && !ReferenceEquals(now, child))
             {
