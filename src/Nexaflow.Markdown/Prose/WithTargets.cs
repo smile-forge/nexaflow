@@ -1,8 +1,4 @@
-using System.Net;
 using System.Text;
-
-using Markdig.Helpers;
-using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
@@ -14,9 +10,9 @@ namespace Nexaflow.Markdown.Prose;
 /// abbreviation written in it, and every heading, by the name a link calls it.
 ///
 /// <para>
-/// <strong>A definition is put back where it was written.</strong> Markdig takes definitions out of the blocks they were written
-/// among, so the parse holds what they were written as among the trivia between blocks (<see cref="MarkdownParser"/>). Each is
-/// read out of that trivia here into a piece of its own — trivia still, which nothing draws — holding what it says.
+/// <strong>A definition is put back where it was written.</strong> A definition is read for what it defines and not drawn, so
+/// the parse holds what it was written as among the trivia between blocks (<see cref="MarkdownParser"/>). Each is read out of
+/// that trivia here into a piece of its own — trivia still, which nothing draws — holding what it says.
 /// </para>
 /// <para>
 /// <strong>A heading is named here</strong>, GitHub's way — its words lower-cased, spaces made hyphens and punctuation dropped,
@@ -44,11 +40,10 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
     }
 
     /// <summary>
-    /// What a <c>[text][name]</c> link's name is compared by: its words with every run of space made one space, in either case —
-    /// as CommonMark matches a link to its definition.
+    /// What a <c>[text][name]</c> link's name is compared by: its words with every run of space made one space, case-folded — as
+    /// CommonMark matches a link to its definition (<see cref="MarkdownLabels"/>).
     /// </summary>
-    public static string Label(string name) =>
-        string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+    public static string Label(string name) => MarkdownLabels.Folded(name);
 
     /// <summary>How far into the document a tree reaches: to its end, or to where what is not read yet starts.</summary>
     private static int Reached(ContentNode tree)
@@ -105,7 +100,7 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
         var said = new StringBuilder();
         Plain(heading, said);
 
-        var called = LinkHelper.UrilizeAsGfm(said.ToString());
+        var called = Anchored(said.ToString());
         if (called.Length == 0) called = "section";
 
         var name = called;
@@ -114,6 +109,21 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
         found.Add(new LinkTarget(MarkdownKinds.Anchor, name, name, heading.Offset ?? 0));
 
         return heading.Holding(MarkdownKinds.Anchor, Roles.Derived, name);
+    }
+
+    /// <summary>
+    /// What a heading saying <paramref name="said"/> is called, GitHub's way: its letters and digits lower-cased, its hyphens and
+    /// underscores kept, each space a hyphen, and everything else dropped.
+    /// </summary>
+    private static string Anchored(string said)
+    {
+        var called = new StringBuilder(said.Length);
+
+        foreach (var character in said)
+            if (char.IsLetterOrDigit(character) || character is '-' or '_') called.Append(char.ToLowerInvariant(character));
+            else if (character == ' ') called.Append('-');
+
+        return called.ToString();
     }
 
     /// <summary>
@@ -135,15 +145,17 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
                 return;
 
             case MarkdownKinds.Entity when node.IsLeaf:
-                said.Append(WebUtility.HtmlDecode(node.Text));
+                said.Append(MarkdownEntities.Decoded(node.Text) ?? node.Text);
                 return;
 
             case MarkdownKinds.Break:
                 said.Append('\n');
                 return;
 
+            // What a code span holds, without the marks of the containers its lines are written in.
             case MarkdownKinds.Code:
-                if (node.Part(Roles.Body) is { IsLeaf: true } code) said.Append(Spanned(code.Text));
+                if (node.Part(Roles.Body) is { } code)
+                    said.Append(Spanned(code.IsLeaf ? code.Text : string.Concat(code.Children.Where(part => part.Role != Roles.Trivia).Select(part => part.Text))));
                 return;
 
             case MarkdownKinds.Html:
@@ -174,9 +186,8 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
     /// The trivia <paramref name="trivia"/> held, with every definition in it a piece of its own — or null where it holds none.
     ///
     /// <para>
-    /// Nothing but what Markdig took out of the text is ever trivia beside the marks of the blocks holding it — a quote's
-    /// <c>&gt;</c>, an item's bullet, the space between two blocks — so whatever reads as a definition where a line starts in
-    /// it is one.
+    /// Nothing but a definition is ever trivia beside the marks of the blocks holding it — a quote's <c>&gt;</c>, an item's
+    /// bullet, the space between two blocks — so whatever reads as a definition where a line starts in it is one.
     /// </para>
     /// </summary>
     private static IReadOnlyList<ContentNode>? Defined(ContentNode trivia, List<LinkTarget> found)
@@ -243,15 +254,36 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
             return new Said(MarkdownKinds.Abbreviation, Roles.Tip, name, text[(shut + 2)..line].Trim(), Ended(text, line));
         }
 
-        // A link's, read as Markdig reads one: [name]: where "title".
-        var slice = new StringSlice(text, at, text.Length - 1);
-        if (!LinkReferenceDefinition.TryParse(ref slice, out var link) || link.Label is not { Length: > 0 } label) return null;
+        // A link's — [name]: where "title" — read as the scan read it, over the lines it is written on: each from past the
+        // marks of the blocks holding it. It goes where its address says, escapes and entities read.
+        var lines = Lines(text, at);
+        if (LinkDefinitions.Written(text, lines, 0) is not { } link) return null;
 
-        // Markdig reads on past the line the definition ends on, over whatever space follows it: it ends with its line.
-        var last = slice.Start;
-        while (last > at && char.IsWhiteSpace(text[last - 1])) last--;
+        var label = Label(MarkdownLinkSyntax.Between(text, lines, link.Label.From, link.Label.To));
+        var meaning = MarkdownLinkSyntax.Unescaped(text[link.Destination.From..link.Destination.To]);
 
-        return new Said(MarkdownKinds.Reference, Roles.Destination, Label(label), link.Url ?? string.Empty, Ended(text, LineEnd(text, last)));
+        return new Said(MarkdownKinds.Reference, Roles.Destination, label, meaning, Ended(text, lines[link.Last].To));
+    }
+
+    /// <summary>
+    /// The lines from <paramref name="at"/> on, each from where what it says starts: the first from <paramref name="at"/>, each
+    /// after it past its indentation and the quote marks a quote puts in front of it.
+    /// </summary>
+    private static List<(int From, int To)> Lines(string text, int at)
+    {
+        var lines = new List<(int From, int To)>();
+
+        for (var start = at; ;)
+        {
+            var end = LineEnd(text, start);
+            lines.Add((start, end));
+
+            var next = Ended(text, end);
+            if (next == end || next >= text.Length) return lines;
+
+            start = next;
+            while (start < text.Length && text[start] is ' ' or '\t' or '>') start++;
+        }
     }
 
     /// <summary>

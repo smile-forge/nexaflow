@@ -313,8 +313,60 @@ public class ContentNode
         }
     }
 
-    /// <summary>Whether this tree prints as <paramref name="text"/>.</summary>
-    public bool Prints(string text) => string.Equals(this.Print(), text, StringComparison.Ordinal);
+    /// <summary>
+    /// Whether this tree prints as <paramref name="text"/>.
+    ///
+    /// <para>
+    /// Asked of every reading before it is handed out, so it is answered without printing anything where it can be: a tree as a
+    /// parser hands it out holds its pieces in the order they print, and each is held up against the text where it falls. Only a
+    /// tree whose pieces say they stand in some other order is printed whole and compared.
+    /// </para>
+    /// </summary>
+    public bool Prints(string text)
+    {
+        var last = int.MinValue;
+        if (!this.InOrder(ref last)) return string.Equals(this.Print(), text, StringComparison.Ordinal);
+
+        var at = 0;
+        return this.Matches(text, ref at) && at == text.Length;
+    }
+
+    /// <summary>Whether every piece says it stands no earlier than the piece before it — so the tree prints in the order it holds them.</summary>
+    private bool InOrder(ref int last)
+    {
+        if (this.IsDerived) return true;
+
+        if (this.Offset is { } offset)
+        {
+            if (offset < last) return false;
+            last = offset;
+        }
+
+        for (var child = 0; child < this.Children.Count; child++)
+            if (!this.Children[child].InOrder(ref last)) return false;
+
+        return true;
+    }
+
+    /// <summary>Whether the pieces under this one, in the order it holds them, are what <paramref name="text"/> says from <paramref name="at"/> on.</summary>
+    private bool Matches(string text, ref int at)
+    {
+        if (this.IsDerived) return true;
+
+        if (this.IsLeaf)
+        {
+            var length = this.Text.Length;
+            if (length > text.Length - at || string.CompareOrdinal(text, at, this.Text, 0, length) != 0) return false;
+
+            at += length;
+            return true;
+        }
+
+        for (var child = 0; child < this.Children.Count; child++)
+            if (!this.Children[child].Matches(text, ref at)) return false;
+
+        return true;
+    }
 
     // ── Finding out where they landed ───────────────────────────────────────
 

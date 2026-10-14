@@ -43,7 +43,7 @@ public class HelpContentsTests
     public void EverySection_EndsWithALinkBackToTheList()
     {
         var result = HelpContents.AddTopics(Page);
-        var listId = MarkdownAnchors.IdOf(Markdig.Markdown.Parse(result, MarkdownParser.Pipeline)
+        var listId = MarkdownAnchors.IdOf(Markdig.Markdown.Parse(result, MarkdigReading.Pipeline)
                                                  .OfType<HeadingBlock>().First(h => h.Level == 2));
 
         var backs = Regex.Matches(result, @"\]\(#([^)]+)\)\s*$", RegexOptions.Multiline)

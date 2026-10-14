@@ -79,6 +79,11 @@ public static class TestSampleData
     /// <summary>The dataset root (<c>&lt;repoRoot&gt;/test-samples</c>), generating any missing samples on first access.</summary>
     public static string Root => RootLazy.Value;
 
+    /// <summary>The repository root — the folder holding <c>Nexaflow.slnx</c> — found by walking up from the test binary.</summary>
+    public static string RepoRoot => RepoRootLazy.Value;
+
+    private static readonly Lazy<string> RepoRootLazy = new(Locate);
+
     /// <summary>Absolute path of a sample under the dataset root; ensures the dataset is generated first.</summary>
     public static string Path(params string[] segments) =>
         System.IO.Path.Combine([Root, .. segments]);
@@ -104,7 +109,7 @@ public static class TestSampleData
 
     private static string EnsureAll()
     {
-        string root = Locate();
+        string root = System.IO.Path.Combine(RepoRoot, DirName);
         Directory.CreateDirectory(root);
         WriteIfChanged(new SampleFile("README.md", Encoding.UTF8.GetBytes(ReadmeText.Replace("\r\n", "\n")), IsText: true), root);
 
@@ -142,7 +147,7 @@ public static class TestSampleData
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             if (File.Exists(System.IO.Path.Combine(dir.FullName, "Nexaflow.slnx")))
-                return System.IO.Path.Combine(dir.FullName, DirName);
+                return dir.FullName;
         }
         throw new InvalidOperationException(
             $"Could not locate the repo root (no Nexaflow.slnx above '{AppContext.BaseDirectory}').");

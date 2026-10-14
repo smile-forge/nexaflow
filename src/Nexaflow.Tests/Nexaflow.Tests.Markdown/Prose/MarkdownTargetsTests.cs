@@ -151,7 +151,7 @@ public class MarkdownTargetsTests
             var targets = new LinkTargets();
             Worked(source, targets);
 
-            var markdig = Markdig.Markdown.Parse(source, MarkdownParser.Pipeline).Descendants<HeadingBlock>()
+            var markdig = Markdig.Markdown.Parse(source, Differential.MarkdownReadings.Oracle).Descendants<HeadingBlock>()
                                  .Select(heading => heading.GetAttributes().Id).ToList();
 
             CollectionAssert.AreEqual(markdig, targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToList(), Path.GetFileName(path));
@@ -164,7 +164,7 @@ public class MarkdownTargetsTests
         foreach (var path in Samples())
         {
             var source = File.ReadAllText(path);
-            var document = Markdig.Markdown.Parse(source, MarkdownParser.Pipeline);
+            var document = Markdig.Markdown.Parse(source, Differential.MarkdownReadings.Oracle);
             var markdig = document.Descendants<LinkInline>().Count() + document.Descendants<AutolinkInline>().Count();
 
             Assert.AreEqual(markdig, Links(Worked(source)).Count(), Path.GetFileName(path));

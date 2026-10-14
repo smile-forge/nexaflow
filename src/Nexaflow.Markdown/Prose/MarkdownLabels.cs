@@ -1,0 +1,113 @@
+using System.Collections.Frozen;
+using System.Globalization;
+using System.Text;
+
+namespace Nexaflow.Markdown.Prose;
+
+/// <summary>
+/// A link's label as CommonMark compares one: what stands between its brackets, the space at either end taken off, every
+/// run of space inside it made one space, and every letter case-folded — so <c>[Foo  Bar]</c> names what <c>[foo bar]</c>
+/// defines, and <c>[ẞ]</c> what <c>[SS]</c> does. Nothing else is done to it: an escape in a label is part of its name.
+///
+/// <para>
+/// Case folding is Unicode's, in full (<c>CaseFolding.txt</c>, its common and full mappings). For nearly every letter it is
+/// what lower-casing gives; the few where it is not — ß folding to ss, a final sigma to σ, Cherokee to its capitals — are
+/// listed here with what they fold to instead.
+/// </para>
+/// </summary>
+internal static class MarkdownLabels
+{
+    /// <summary><paramref name="label"/> as it is compared with every other.</summary>
+    public static string Folded(ReadOnlySpan<char> label)
+    {
+        var folded = new StringBuilder(label.Length);
+        Span<char> written = stackalloc char[2];
+        var spaced = false;
+
+        foreach (var rune in label.EnumerateRunes())
+        {
+            if (rune.Value is ' ' or '\t' or '\r' or '\n')
+            {
+                spaced = true;
+                continue;
+            }
+
+            if (spaced && folded.Length > 0) folded.Append(' ');
+            spaced = false;
+
+            if (Folds.TryGetValue(rune.Value, out var instead))
+            {
+                folded.Append(instead);
+                continue;
+            }
+
+            folded.Append(written[..Rune.ToLowerInvariant(rune).EncodeToUtf16(written)]);
+        }
+
+        return folded.ToString();
+    }
+
+    private static readonly FrozenDictionary<int, string> Folds = Read();
+
+    /// <summary>The list, from how it is written down here: each code point, an equals sign, what it folds to, a semicolon.</summary>
+    private static FrozenDictionary<int, string> Read()
+    {
+        var folds = new Dictionary<int, string>();
+
+        foreach (var entry in List.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var equals = entry.IndexOf('=');
+            var instead = string.Empty;
+
+            foreach (var point in entry[(equals + 1)..].Split(','))
+                instead += char.ConvertFromUtf32(int.Parse(point, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture));
+
+            folds[int.Parse(entry.AsSpan(0, equals), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture)] = instead;
+        }
+
+        return folds.ToFrozenDictionary();
+    }
+
+    /// <summary>Every letter whose case folding is not what lower-casing it gives.</summary>
+    private const string List = """
+        B5=3BC;DF=73,73;130=69,307;149=2BC,6E;17F=73;1F0=6A,30C;345=3B9;390=3B9,308,301;3B0=3C5,308,301;3C2=3C3;3D0=3B2;
+        3D1=3B8;3D5=3C6;3D6=3C0;3F0=3BA;3F1=3C1;3F5=3B5;587=565,582;13A0=13A0;13A1=13A1;13A2=13A2;13A3=13A3;13A4=13A4;
+        13A5=13A5;13A6=13A6;13A7=13A7;13A8=13A8;13A9=13A9;13AA=13AA;13AB=13AB;13AC=13AC;13AD=13AD;13AE=13AE;13AF=13AF;
+        13B0=13B0;13B1=13B1;13B2=13B2;13B3=13B3;13B4=13B4;13B5=13B5;13B6=13B6;13B7=13B7;13B8=13B8;13B9=13B9;13BA=13BA;
+        13BB=13BB;13BC=13BC;13BD=13BD;13BE=13BE;13BF=13BF;13C0=13C0;13C1=13C1;13C2=13C2;13C3=13C3;13C4=13C4;13C5=13C5;
+        13C6=13C6;13C7=13C7;13C8=13C8;13C9=13C9;13CA=13CA;13CB=13CB;13CC=13CC;13CD=13CD;13CE=13CE;13CF=13CF;13D0=13D0;
+        13D1=13D1;13D2=13D2;13D3=13D3;13D4=13D4;13D5=13D5;13D6=13D6;13D7=13D7;13D8=13D8;13D9=13D9;13DA=13DA;13DB=13DB;
+        13DC=13DC;13DD=13DD;13DE=13DE;13DF=13DF;13E0=13E0;13E1=13E1;13E2=13E2;13E3=13E3;13E4=13E4;13E5=13E5;13E6=13E6;
+        13E7=13E7;13E8=13E8;13E9=13E9;13EA=13EA;13EB=13EB;13EC=13EC;13ED=13ED;13EE=13EE;13EF=13EF;13F0=13F0;13F1=13F1;
+        13F2=13F2;13F3=13F3;13F4=13F4;13F5=13F5;13F8=13F0;13F9=13F1;13FA=13F2;13FB=13F3;13FC=13F4;13FD=13F5;1C80=432;
+        1C81=434;1C82=43E;1C83=441;1C84=442;1C85=442;1C86=44A;1C87=463;1C88=A64B;1C89=1C8A;1E96=68,331;1E97=74,308;
+        1E98=77,30A;1E99=79,30A;1E9A=61,2BE;1E9B=1E61;1E9E=73,73;1F50=3C5,313;1F52=3C5,313,300;1F54=3C5,313,301;
+        1F56=3C5,313,342;1F80=1F00,3B9;1F81=1F01,3B9;1F82=1F02,3B9;1F83=1F03,3B9;1F84=1F04,3B9;1F85=1F05,3B9;1F86=1F06,3B9;
+        1F87=1F07,3B9;1F88=1F00,3B9;1F89=1F01,3B9;1F8A=1F02,3B9;1F8B=1F03,3B9;1F8C=1F04,3B9;1F8D=1F05,3B9;1F8E=1F06,3B9;
+        1F8F=1F07,3B9;1F90=1F20,3B9;1F91=1F21,3B9;1F92=1F22,3B9;1F93=1F23,3B9;1F94=1F24,3B9;1F95=1F25,3B9;1F96=1F26,3B9;
+        1F97=1F27,3B9;1F98=1F20,3B9;1F99=1F21,3B9;1F9A=1F22,3B9;1F9B=1F23,3B9;1F9C=1F24,3B9;1F9D=1F25,3B9;1F9E=1F26,3B9;
+        1F9F=1F27,3B9;1FA0=1F60,3B9;1FA1=1F61,3B9;1FA2=1F62,3B9;1FA3=1F63,3B9;1FA4=1F64,3B9;1FA5=1F65,3B9;1FA6=1F66,3B9;
+        1FA7=1F67,3B9;1FA8=1F60,3B9;1FA9=1F61,3B9;1FAA=1F62,3B9;1FAB=1F63,3B9;1FAC=1F64,3B9;1FAD=1F65,3B9;1FAE=1F66,3B9;
+        1FAF=1F67,3B9;1FB2=1F70,3B9;1FB3=3B1,3B9;1FB4=3AC,3B9;1FB6=3B1,342;1FB7=3B1,342,3B9;1FBC=3B1,3B9;1FBE=3B9;
+        1FC2=1F74,3B9;1FC3=3B7,3B9;1FC4=3AE,3B9;1FC6=3B7,342;1FC7=3B7,342,3B9;1FCC=3B7,3B9;1FD2=3B9,308,300;
+        1FD3=3B9,308,301;1FD6=3B9,342;1FD7=3B9,308,342;1FE2=3C5,308,300;1FE3=3C5,308,301;1FE4=3C1,313;1FE6=3C5,342;
+        1FE7=3C5,308,342;1FF2=1F7C,3B9;1FF3=3C9,3B9;1FF4=3CE,3B9;1FF6=3C9,342;1FF7=3C9,342,3B9;1FFC=3C9,3B9;A7CB=264;
+        A7CC=A7CD;A7CE=A7CF;A7D2=A7D3;A7D4=A7D5;A7DA=A7DB;A7DC=19B;A7DD=277;A7E2=27C;AB6C=AB4B;AB6D=AB4C;AB70=13A0;
+        AB71=13A1;AB72=13A2;AB73=13A3;AB74=13A4;AB75=13A5;AB76=13A6;AB77=13A7;AB78=13A8;AB79=13A9;AB7A=13AA;AB7B=13AB;
+        AB7C=13AC;AB7D=13AD;AB7E=13AE;AB7F=13AF;AB80=13B0;AB81=13B1;AB82=13B2;AB83=13B3;AB84=13B4;AB85=13B5;AB86=13B6;
+        AB87=13B7;AB88=13B8;AB89=13B9;AB8A=13BA;AB8B=13BB;AB8C=13BC;AB8D=13BD;AB8E=13BE;AB8F=13BF;AB90=13C0;AB91=13C1;
+        AB92=13C2;AB93=13C3;AB94=13C4;AB95=13C5;AB96=13C6;AB97=13C7;AB98=13C8;AB99=13C9;AB9A=13CA;AB9B=13CB;AB9C=13CC;
+        AB9D=13CD;AB9E=13CE;AB9F=13CF;ABA0=13D0;ABA1=13D1;ABA2=13D2;ABA3=13D3;ABA4=13D4;ABA5=13D5;ABA6=13D6;ABA7=13D7;
+        ABA8=13D8;ABA9=13D9;ABAA=13DA;ABAB=13DB;ABAC=13DC;ABAD=13DD;ABAE=13DE;ABAF=13DF;ABB0=13E0;ABB1=13E1;ABB2=13E2;
+        ABB3=13E3;ABB4=13E4;ABB5=13E5;ABB6=13E6;ABB7=13E7;ABB8=13E8;ABB9=13E9;ABBA=13EA;ABBB=13EB;ABBC=13EC;ABBD=13ED;
+        ABBE=13EE;ABBF=13EF;FB00=66,66;FB01=66,69;FB02=66,6C;FB03=66,66,69;FB04=66,66,6C;FB05=73,74;FB06=73,74;FB13=574,576;
+        FB14=574,565;FB15=574,56B;FB16=57E,576;FB17=574,56D;10D50=10D70;10D51=10D71;10D52=10D72;10D53=10D73;10D54=10D74;
+        10D55=10D75;10D56=10D76;10D57=10D77;10D58=10D78;10D59=10D79;10D5A=10D7A;10D5B=10D7B;10D5C=10D7C;10D5D=10D7D;
+        10D5E=10D7E;10D5F=10D7F;10D60=10D80;10D61=10D81;10D62=10D82;10D63=10D83;10D64=10D84;10D65=10D85;16EA0=16EBB;
+        16EA1=16EBC;16EA2=16EBD;16EA3=16EBE;16EA4=16EBF;16EA5=16EC0;16EA6=16EC1;16EA7=16EC2;16EA8=16EC3;16EA9=16EC4;
+        16EAA=16EC5;16EAB=16EC6;16EAC=16EC7;16EAD=16EC8;16EAE=16EC9;16EAF=16ECA;16EB0=16ECB;16EB1=16ECC;16EB2=16ECD;
+        16EB3=16ECE;16EB4=16ECF;16EB5=16ED0;16EB6=16ED1;16EB7=16ED2;16EB8=16ED3;1DF40=1DF41;1DF48=1DF49;1DF4A=1DF4B;
+        1DF4D=1DF4E;1DF51=1DF52;1DF68=1DF69;1DF6A=1DF6B;1DF6C=1DF6D;1DF6E=1DF6F;1DF72=1DF73;1DF74=1DF75;1DF76=1DF77;
+        1DF78=1DF79;1DF7A=1DF7B;1DF7C=1DF7D;1DF7E=1DF7F;1DF95=73,73;
+        """;
+}

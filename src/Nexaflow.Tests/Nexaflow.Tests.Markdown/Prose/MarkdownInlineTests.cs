@@ -266,14 +266,14 @@ public class MarkdownInlineTests
     [TestMethod]
     public void ATickedItemSaysSoAndAnUntickedOneSaysSoToo()
     {
-        Assert.IsNotNull(One("- [x] done", MarkdownKinds.Task).Part(MarkdownRoles.Done));
-        Assert.IsNotNull(One("- [ ] to do", MarkdownKinds.Task).Part(MarkdownRoles.Todo));
+        Assert.IsNotNull(Ticked("- [x] done").Part(MarkdownRoles.Done));
+        Assert.IsNotNull(Ticked("- [ ] to do").Part(MarkdownRoles.Todo));
     }
 
     [TestMethod]
     public void ABoxIsItsBracketsAndTheOneMarkBetweenThem()
     {
-        var mark = One("- [x] done", MarkdownKinds.Task).Part(MarkdownRoles.Done);
+        var mark = Ticked("- [x] done").Part(MarkdownRoles.Done);
 
         Assert.AreEqual("x", mark?.Text, "the mark is the one character a press rewrites");
     }
@@ -282,7 +282,7 @@ public class MarkdownInlineTests
     public void TheMarksOfATickAreKeptSoItCanBeWrittenIn()
     {
         // What is drawn is a box; what is there is three characters, and ticking one writes over them.
-        Assert.AreEqual("[x]", One("- [x] done", MarkdownKinds.Task).Print());
+        Assert.AreEqual("[x]", Ticked("- [x] done").Print());
     }
 
     // ── What nobody finished typing ─────────────────────────────────────────
@@ -319,6 +319,15 @@ public class MarkdownInlineTests
 
     private static IReadOnlyList<ContentNode> Every(string source, string kind) =>
         [.. MarkdownInline.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
+
+    /// <summary>The box of the one item written in <paramref name="source"/> — the item's, read with the list, not its words'.</summary>
+    private static ContentNode Ticked(string source)
+    {
+        var found = MarkdownList.Read(source).SelfAndDescendants().Where(node => node.Kind == MarkdownKinds.Task).ToList();
+        Assert.AreEqual(1, found.Count, $"'{source}' should hold one box");
+
+        return found[0];
+    }
 
     private static string Body(ContentNode node) => node.Part(Roles.Body)?.Print() ?? string.Empty;
 }

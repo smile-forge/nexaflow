@@ -65,7 +65,7 @@ internal static class MarkdownGroups
         foreach (var child in words.Children)
         {
             if (child is BlockNode { Language: MarkdownParser.Maths } found && formula is null) formula = found;
-            else if (child.Role != Roles.Trivia) return null;
+            else if (child.Role != Roles.Trivia && !child.IsDerived) return null;
         }
 
         if (formula?.Part(Roles.Open) is not { } opens || !opens.Text.StartsWith("$$", StringComparison.Ordinal)) return null;

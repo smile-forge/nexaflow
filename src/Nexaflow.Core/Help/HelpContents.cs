@@ -45,7 +45,7 @@ internal static partial class HelpContents
 
     // The page's top-level "##" headings — not one quoted, listed or fenced — with the ids the pipeline gives them.
     private static List<(int Line, string Id)> Sections(string markdown)
-        => Markdig.Markdown.Parse(markdown, MarkdownParser.Pipeline)
+        => Markdig.Markdown.Parse(markdown, MarkdigReading.Pipeline)
             .OfType<HeadingBlock>()
             .Where(h => h.Level == 2)
             .Select(h => (h.Line, MarkdownAnchors.IdOf(h) ?? ""))

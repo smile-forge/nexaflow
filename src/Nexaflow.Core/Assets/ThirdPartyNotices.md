@@ -59,6 +59,8 @@ under the license noted below.
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | MIT |
 | [XAML-Math / WpfMath](https://github.com/ForNeVeR/xaml-math) (vendored — see below) | MIT |
 | [PDF417 Barcode Encoder](https://github.com/Uzi-Granot/PDF417BarcodeEncoder) (ingested — see below) | CPOL-1.02 |
+| [HTML Living Standard — named character references](https://html.spec.whatwg.org/multipage/named-characters.html) (ingested — see below) | CC-BY-4.0 |
+| [Unicode Character Database — case folding](https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt) (ingested — see below) | Unicode-3.0 |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
 
@@ -92,3 +94,10 @@ CPOL 1.02 permits use in commercial applications, redistribution, and derivative
 verified rather than trusted — `Pdf417EncoderTests` asserts every one of the 2,787 entries really is a
 legal symbol character in the cluster it is filed under, and symbols produced by two other generators
 decode straight out of it.
+
+**Two tables markdown is read with are ingested as data.** The names HTML gives characters — `&amp;`,
+`&HilbertSpace;` and 2,123 others — and what each stands for are the HTML Living Standard's list of named
+character references (© WHATWG, CC BY 4.0), held as `src/Nexaflow.Markdown/Prose/MarkdownEntities.cs`. The
+letters whose Unicode case folding is not their lower case, by which a link's label is compared, are from the
+Unicode Character Database's `CaseFolding.txt` (© Unicode, Inc., Unicode License v3), held as
+`src/Nexaflow.Markdown/Prose/MarkdownLabels.cs`. Both are as published, written down in another form.

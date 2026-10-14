@@ -127,29 +127,26 @@ internal sealed class MarkdownBlocks
     /// can read yet, and what it holds stays exactly as it was typed.
     ///
     /// <para>
-    /// Asked of the node rather than of its kind alone, because one kind is read two ways: a cell of a pipe
-    /// table holds a run of words and a cell of a grid table can hold a whole document, and which it is was
-    /// settled by the reader that took the table in.
-    /// </para>
-    /// <para>
-    /// The readers of blocks that hold blocks are told what stands in front of the block on its first line too, because
-    /// they read lines, and a block's later lines carry its containers' marks where its first does not. A grid table's cell
-    /// is not one stretch of lines in the document, so it reads without.
+    /// Every reader is told what stands in front of the block on its first line too, because it reads lines, and a block's
+    /// later lines carry its containers' marks where its first does not. A table's cells are no block of their own: the
+    /// table's reader reads them where they stand (<see cref="MarkdownTable"/>), a grid table's cell being no one stretch of the
+    /// document.
     /// </para>
     /// </summary>
     private static Func<string, int, string, ContentNode>? Reader(ContentNode node) => node.Kind switch
     {
-        MarkdownKinds.Cell when Holds(node) => static (source, at, _) => MarkdownParser.Inside(source, at: at),
 
-        MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
-            or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            static (source, at, _) => MarkdownInline.Read(source, at: at).As(Roles.Body),
+
+        MarkdownKinds.Paragraph or MarkdownKinds.Term or MarkdownKinds.Caption =>
+            static (source, at, lead) => MarkdownInline.Read(source, at: at, lead: lead).As(Roles.Body),
+
+        MarkdownKinds.Heading => static (source, at, lead) => MarkdownInline.Heading(source, at: at, lead: lead).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
             or MarkdownKinds.Figure or MarkdownKinds.Footer => static (source, at, lead) => MarkdownParser.Inside(source, at: at, lead: lead),
 
         MarkdownKinds.List => static (source, at, lead) => MarkdownList.Read(source, at: at, lead: lead),
-        MarkdownKinds.Table => static (source, at, _) => MarkdownTable.Read(source, at: at),
+        MarkdownKinds.Table => static (source, at, lead) => MarkdownTable.Read(source, at: at, lead: lead),
 
         _ => null,
     };
@@ -160,16 +157,6 @@ internal sealed class MarkdownBlocks
         if (at is not { } stands || stands <= 0 || stands > document.Length) return string.Empty;
 
         return document[(document.LastIndexOf('\n', stands - 1) + 1)..stands];
-    }
-
-    /// <summary>Whether the reader that took this piece in said it holds blocks rather than words.</summary>
-    private static bool Holds(ContentNode node)
-    {
-        foreach (var child in node.Children)
-            foreach (var held in child.Children)
-                if (held.Kind == MarkdownKinds.Blocks) return true;
-
-        return false;
     }
 
     /// <summary>This piece with its body read, everything under it the same, and then finished.</summary>

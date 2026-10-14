@@ -13,18 +13,27 @@ namespace Nexaflow.Markdown.Prose;
 /// </summary>
 public static class MarkdownLinks
 {
-    /// <summary>Where <paramref name="link"/> goes, or null where it says nowhere.</summary>
+    /// <summary>
+    /// Where <paramref name="link"/> goes, or null where it says nowhere: what was worked out for it where anything was — a
+    /// definition's address, or the address written with its escapes and entities read — and otherwise the address as written.
+    /// </summary>
     public static string? Goes(ContentNode link)
     {
+        string? written = null;
+
         foreach (var child in link.Children)
         {
-            if (child.Role == Roles.Destination) return child.Text;
-
             if (child.IsDerived)
+            {
                 foreach (var held in child.Children)
                     if (held.Role == Roles.Destination && held.Held is string defined) return defined;
+            }
+            else if (written is null && child.Role == Roles.Destination)
+            {
+                written = child.Text;
+            }
         }
 
-        return null;
+        return written;
     }
 }

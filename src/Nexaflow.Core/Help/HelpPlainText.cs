@@ -23,7 +23,7 @@ internal static class HelpPlainText
     public static string Extract(string? markdown)
     {
         var sb = new StringBuilder();
-        foreach (var block in Markdig.Markdown.Parse(markdown ?? "", MarkdownParser.Pipeline))
+        foreach (var block in Markdig.Markdown.Parse(markdown ?? "", MarkdigReading.Pipeline))
             Append(block, sb);
         return sb.ToString();
     }

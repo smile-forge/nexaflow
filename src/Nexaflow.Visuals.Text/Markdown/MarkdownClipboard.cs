@@ -57,7 +57,7 @@ public static class MarkdownClipboard
         var plain = ToPlainText(markdown);
         string html;
 
-        try { html = WrapCfHtml(Markdig.Markdown.ToHtml(markdown, MarkdownParser.Pipeline)); }
+        try { html = WrapCfHtml(Markdig.Markdown.ToHtml(markdown, MarkdigReading.Pipeline)); }
         catch { html = string.Empty; }
 
         return new ContentCopy(markdown, plain, html);
@@ -116,7 +116,7 @@ public static class MarkdownClipboard
 
     private static string ToPlainText(string source)
     {
-        try   { return Markdig.Markdown.ToPlainText(source, MarkdownParser.Pipeline); }
+        try   { return Markdig.Markdown.ToPlainText(source, MarkdigReading.Pipeline); }
         catch { return source; }
     }
 

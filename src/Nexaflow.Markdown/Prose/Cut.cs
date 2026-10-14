@@ -1,6 +1,3 @@
-using System.Text;
-using Markdig.Syntax;
-
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Prose;
@@ -10,12 +7,11 @@ namespace Nexaflow.Markdown.Prose;
 ///
 /// <para>
 /// Every piece of every markdown tree comes through here, so one place can answer the question the whole
-/// design rests on: was this character copied, or made up? Markdig's own tree is no use for that — it holds
-/// text it has already read, an entity decoded, an escape taken off, a line's indentation dropped — so
-/// nothing in it is copied across. Only the spans are, and the characters are cut out of the source at them.
+/// design rests on: was this character copied, or made up? Every reader hands over places — the scan's blocks, the
+/// matching's words — and the characters are cut out of the source at them, never taken from the reading.
 /// </para>
 /// <para>
-/// What falls between two spans is not lost either. A bullet, a quote's <c>&gt;</c>, the pipes round a cell:
+/// What falls between two places is not lost either. A bullet, a quote's <c>&gt;</c>, the pipes round a cell:
 /// none of it is stripped and none of it is invented, because it is kept as the trivia it is, exactly where
 /// the writer put it. That is the whole of why a reading prints back as what it was read from.
 /// </para>
@@ -25,131 +21,147 @@ namespace Nexaflow.Markdown.Prose;
 /// that holds it.
 /// </para>
 /// <para>
-/// <strong>A block is read as it reads where it was written.</strong> A list written inside a list item starts part-way
-/// along its first line, and every line after that carries the indentation — or the <c>&gt;</c> — of the containers it
-/// sits in. Handed to the reader as it stands, its second item is indented past its first and reads as a list inside it,
-/// and the third inside that. So the reader is handed <see cref="Contained"/>: the block's lines with what its containers
-/// put in front of each one taken off, which is what they are inside those containers. The spans it hands back are counted
-/// in those lines, and every one is turned back into the source here (<see cref="Original"/>), so what was taken off is
-/// still in the reading, as the trivia between the pieces either side of it.
+/// <strong>What a reading owns need not be one stretch.</strong> A grid table's cell is its slice of each line it covers,
+/// with the other cells and the table's pipes between: a reading of a cell owns its slices and nothing between them, so
+/// what it passes over between two of them is somebody else's and is no trivia of its own.
 /// </para>
 /// </summary>
 internal sealed class Cut
 {
-    /// <summary>How many columns a tab advances to the next multiple of.</summary>
-    private const int TabStop = 4;
-
     private readonly string _source;
     private readonly int _stands;
+    private readonly int _from;
+    private readonly int _to;
 
-    /// <summary>For each character of <see cref="Contained"/>, where it stands in the source; null when the two are one.</summary>
-    private readonly int[]? _written;
+    /// <summary>The stretches of the source this reading owns, where it does not own all of it from its start to its end.</summary>
+    private readonly IReadOnlyList<(int From, int To)>? _owned;
 
     /// <param name="source">The block's own source, as the document holds it.</param>
     /// <param name="stands">Where <paramref name="source"/>'s first character stands in the document holding it — nought for a document.</param>
-    /// <param name="lead">
-    /// What stands in front of the block on the line it starts on — its containers' marks and indentation — or nothing
-    /// for a block that starts its line.
-    /// </param>
-    public Cut(string source, int stands = 0, string? lead = null)
+    public Cut(string source, int stands = 0)
+        : this(source, stands, 0, source.Length, null)
+    {
+    }
+
+    /// <summary>A stretch of a document, from <paramref name="from"/> to <paramref name="to"/>, every place counted in the whole of it.</summary>
+    public Cut(string source, int from, int to)
+        : this(source, 0, from, to, null)
+    {
+    }
+
+    /// <summary>
+    /// What is written in <paramref name="owned"/> stretches of <paramref name="source"/> and in nothing between them — a grid
+    /// table's cell.
+    /// </summary>
+    /// <param name="stands">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
+    public Cut(string source, int stands, IReadOnlyList<(int From, int To)> owned)
+        : this(source, stands, owned.Count > 0 ? owned[0].From : 0, owned.Count > 0 ? owned[^1].To : 0, owned)
+    {
+    }
+
+    private Cut(string source, int stands, int from, int to, IReadOnlyList<(int From, int To)>? owned)
     {
         _source = source;
         _stands = stands;
-
-        if (lead is { Length: > 0 } && Within(source, lead) is { } within)
-            (this.Contained, _written) = within;
-        else
-            this.Contained = source;
+        _from = from;
+        _to = to;
+        _owned = owned;
+        this.At = from;
     }
 
-    /// <summary>The source as it reads inside the containers it was written in — what the reader is handed.</summary>
-    public string Contained { get; }
+    /// <summary>The characters cut from — the stretch handed over, or the whole of what holds the stretches owned.</summary>
+    public string Source => _source;
+
+    /// <summary>Where <see cref="Source"/>'s first character stands in the document.</summary>
+    public int Stands => _stands;
+
+    /// <summary>
+    /// Whether this reading owns only stretches of what it reads over — in which case nothing in it can be held as one stretch
+    /// of source for a reader later, and each block in it is read where it stands.
+    /// </summary>
+    public bool Sliced => _owned is not null;
 
     /// <summary>How much of the source has been accounted for.</summary>
     public int At { get; private set; }
 
-    /// <summary>How much of it there is.</summary>
-    public int Length => _source.Length;
+    /// <summary>Where the stretch being read ends.</summary>
+    public int Length => _to;
 
     /// <summary>Where this source begins in the document holding it.</summary>
-    public int From => _stands;
+    public int From => _stands + _from;
 
     /// <summary>Where the next character to be accounted for stands in that document.</summary>
     public int Here => _stands + this.At;
 
-    /// <summary>Where a position the reader counted in <see cref="Contained"/> stands in the source.</summary>
-    public int Original(int position)
-    {
-        if (_written is null || position < 0) return position;
-
-        return position < _written.Length ? _written[position] : _source.Length + (position - _written.Length);
-    }
-
-    /// <summary>Where something starts, never behind what has already been taken.</summary>
-    public int Starts(MarkdownObject what) => Math.Clamp(this.Original(what.Span.Start), this.At, _source.Length);
-
-    /// <summary>One past the last character something stands for.</summary>
-    public int Ends(MarkdownObject what) => Math.Clamp(this.Original(what.Span.End) + 1, this.At, _source.Length);
+    /// <summary>The stretches owned, or null where everything from the start to the end is.</summary>
+    public IReadOnlyList<(int From, int To)>? Owned => _owned;
 
     /// <summary>
-    /// Where a block closes: past the end of the line it stopped on.
-    ///
-    /// <para>
-    /// A span alone will not do. Markdig measures a block by what it read, which stops a heading's span
-    /// before the newline where a paragraph's takes it in, and gives a fence nobody closed a span of four
-    /// characters because there was no closing fence to measure to. Half-written input is what an editor
-    /// holds all day, so a block reaches as far as its span or its own lines, whichever is further, and then
-    /// to the end of the line that leaves it on — which is also what puts every block on a line of its own,
-    /// as it was written.
-    /// </para>
+    /// Where a block reaching to <paramref name="end"/> closes: past the end of the line it stopped on — which is also what
+    /// puts every block on a line of its own, as it was written. A line of a stretch owned ends where the stretch does.
     /// </summary>
-    public int Closes(Block block, int from)
+    public int Closing(int end, int from)
     {
-        var to = Math.Max(this.Original(block.Span.End) + 1, from);
+        var to = Math.Clamp(end, from, _to);
 
-        if (block is LeafBlock { Lines.Count: > 0 } leaf)
-            to = Math.Max(to, this.Original(leaf.Lines.Lines[leaf.Lines.Count - 1].Slice.End) + 1);
+        while (to < _to && this.Owns(to) && _source[to] != '\n') to++;
 
-        to = Math.Clamp(to, from, _source.Length);
-
-        while (to < _source.Length && _source[to] != '\n') to++;
-
-        return to < _source.Length ? to + 1 : to;
+        return to < _to && this.Owns(to) && _source[to] == '\n' ? to + 1 : to;
     }
 
-    public string Between(int from, int to) => _source[from..Math.Clamp(to, from, _source.Length)];
+    public string Between(int from, int to) => _source[from..Math.Clamp(to, from, _to)];
 
-    /// <summary>Everything not yet accounted for, shown as the characters it was written with.</summary>
-    public ContentNode Unaccounted()
-    {
-        var at = this.Here;
-
-        return ContentNode.Shown(this.Text(this.Length), offset: at);
-    }
-
-    /// <summary>Whatever has been passed over since the last piece, kept where it was written.</summary>
+    /// <summary>Whatever has been passed over since the last piece, kept where it was written — what of it is this reading's.</summary>
     public void Gap(List<ContentNode> parts, int stop)
     {
-        if (stop > this.At) parts.Add(this.Take(stop, Roles.Trivia));
+        if (stop <= this.At) return;
+
+        if (_owned is null)
+        {
+            parts.Add(this.Take(stop, Roles.Trivia));
+            return;
+        }
+
+        foreach (var (from, to) in this.Stretches(this.At, stop))
+        {
+            var text = _source[from..to];
+            parts.Add(ContentNode.Leaf(text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token, text, Roles.Trivia, offset: _stands + from));
+        }
+
+        this.At = Math.Min(stop, _to);
     }
 
-    /// <summary>The source up to the next <paramref name="mark"/>, where one stands before the end.</summary>
-    public ContentNode? Upto(char mark, int end)
+    /// <summary>Everything up to <paramref name="stop"/> accounted for by pieces cut out somewhere else — the words of a block, read over its lines.</summary>
+    public void Accounted(int stop)
     {
-        var found = _source.IndexOf(mark, this.At);
-
-        return found >= this.At && found < end ? this.Take(found + 1, Roles.Close, Kinds.Token) : null;
+        if (stop > this.At) this.At = Math.Min(stop, _to);
     }
 
-    /// <summary>Where a stretch stands in the source, with whatever the writer left in front of it.</summary>
-    public (ContentNode? Before, ContentNode Found)? Finds(string what, int end)
+    /// <summary>The stretches of what this reading owns between <paramref name="from"/> and <paramref name="to"/>, in order.</summary>
+    public IEnumerable<(int From, int To)> Stretches(int from, int to)
     {
-        var at = _source.IndexOf(what, this.At, StringComparison.Ordinal);
-        if (at < this.At || at + what.Length > end) return null;
+        if (_owned is null)
+        {
+            if (to > from) yield return (from, to);
+            yield break;
+        }
 
-        var before = at > this.At ? this.Take(at, Roles.Trivia, Kinds.Token) : null;
+        foreach (var (start, end) in _owned)
+        {
+            var (cut, stop) = (Math.Max(start, from), Math.Min(end, to));
+            if (stop > cut) yield return (cut, stop);
+        }
+    }
 
-        return (before, this.Take(at + what.Length, Roles.Element, MarkdownKinds.Word));
+    /// <summary>Whether the character at <paramref name="at"/> is this reading's.</summary>
+    private bool Owns(int at)
+    {
+        if (_owned is null) return true;
+
+        foreach (var (from, to) in _owned)
+            if (at >= from && at < to) return true;
+
+        return false;
     }
 
     /// <summary>
@@ -164,6 +176,24 @@ internal sealed class Cut
         return ContentNode.Leaf(kind ?? (text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token), text, role, offset: at);
     }
 
+    /// <summary>
+    /// What this reading owns up to <paramref name="stop"/>, as one piece of <paramref name="kind"/> where it is one stretch — or,
+    /// where it runs over another's, as a piece of each stretch held together.
+    /// </summary>
+    public ContentNode Held(int stop, string kind, string role)
+    {
+        if (_owned is null) return this.Take(stop, role, kind);
+
+        var pieces = new List<ContentNode>();
+
+        foreach (var (from, to) in this.Stretches(this.At, stop))
+            pieces.Add(ContentNode.Leaf(kind, _source[from..to], Roles.Element, offset: _stands + from));
+
+        this.At = Math.Min(stop, _to);
+
+        return pieces.Count == 1 ? pieces[0].As(role) : ContentNode.Branch(kind, pieces, role);
+    }
+
     /// <summary>The source up to <paramref name="stop"/>, handed over for somebody else to read.</summary>
     public string Text(int stop)
     {
@@ -171,126 +201,5 @@ internal sealed class Cut
         this.At += text.Length;
 
         return text;
-    }
-
-    // ── A block's lines inside its containers ─────────────────────────────────
-
-    /// <summary>
-    /// <paramref name="source"/>'s lines with what its containers put in front of every line after the first taken off, and
-    /// where each character left stands in the source — or null where no line carries anything to take off.
-    /// </summary>
-    private static (string Lines, int[] Written)? Within(string source, string lead)
-    {
-        var marks = Marks(lead);
-        var lines = new StringBuilder(source.Length);
-        var written = new List<int>(source.Length);
-        var trimmed = false;
-
-        for (var at = 0; at < source.Length;)
-        {
-            var start = at == 0 ? 0 : Past(source, at, marks);
-            trimmed |= start > at;
-
-            var end = source.IndexOf('\n', start);
-            end = end < 0 ? source.Length : end + 1;
-
-            for (var character = start; character < end; character++)
-            {
-                lines.Append(source[character]);
-                written.Add(character);
-            }
-
-            at = end;
-        }
-
-        return trimmed ? (lines.ToString(), written.ToArray()) : null;
-    }
-
-    /// <summary>
-    /// What a block's containers put at the head of each of its lines, read off the line it starts on: a quote's
-    /// <c>&gt;</c> where one stands, which every line the quote holds carries again, and the width of everything else —
-    /// indentation, and a list item's marker, which its later lines carry as that many columns of space.
-    /// </summary>
-    private static List<int> Marks(string lead)
-    {
-        // A quote's marker is a column of -1; anything else is how many columns of space stand for it.
-        var marks = new List<int>();
-        var column = 0;
-        var width = 0;
-
-        foreach (var character in lead)
-        {
-            if (character == '>')
-            {
-                if (width > 0) marks.Add(width);
-                marks.Add(-1);
-
-                width = 0;
-                column++;
-                continue;
-            }
-
-            var next = character == '\t' ? (column / TabStop + 1) * TabStop : column + 1;
-            width += next - column;
-            column = next;
-        }
-
-        if (width > 0) marks.Add(width);
-
-        return marks;
-    }
-
-    /// <summary>
-    /// Where the line starting at <paramref name="at"/> begins inside the block's containers: past each quote marker it
-    /// carries and as much of each run of indentation as the first line's marks take up. A line that stops carrying them —
-    /// a lazy continuation — keeps whatever is left.
-    /// </summary>
-    private static int Past(string source, int at, List<int> marks)
-    {
-        var column = 0;
-
-        foreach (var mark in marks)
-        {
-            if (mark < 0)
-            {
-                // Up to three spaces may stand in front of a quote's marker.
-                var probe = at;
-                var spaces = 0;
-
-                while (probe < source.Length && source[probe] == ' ' && spaces < 3)
-                {
-                    probe++;
-                    spaces++;
-                }
-
-                if (probe >= source.Length || source[probe] != '>') return at;
-
-                column += spaces + 1;
-                at = probe + 1;
-                continue;
-            }
-
-            var goal = column + mark;
-
-            while (at < source.Length && column < goal)
-            {
-                var next = source[at] switch
-                {
-                    ' ' => column + 1,
-                    '\t' => (column / TabStop + 1) * TabStop,
-                    _ => -1,
-                };
-
-                // Not indentation, or a tab reaching past what the containers take: the rest is the block's own.
-                if (next < 0 || next > goal) return at;
-
-                column = next;
-                at++;
-            }
-
-            if (column < goal) return at;
-        }
-
-        return at;
     }
 }

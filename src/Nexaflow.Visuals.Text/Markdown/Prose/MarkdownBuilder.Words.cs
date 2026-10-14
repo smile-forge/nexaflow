@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Net;
+
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
@@ -150,10 +150,18 @@ public sealed partial class MarkdownBuilder
             // Nothing inside a code span is read, so nothing inside it is set: what is there is what was typed. It is set in
             // the accent on its own wash, so it reads as code inside a highlighter's wash as much as outside one.
             case MarkdownKinds.Code when part.Part(Roles.Body) is { } code:
-                runs.Add(new Run(code.Text, code,
-                                 face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent, Wash = Style.CodeBg },
-                                 Maps: true));
+            {
+                var set = face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent, Wash = Style.CodeBg };
+
+                // Written over the lines of a quote, it holds the quote's marks between its lines as trivia: what is set is the
+                // code on each line.
+                if (code.Children.Count == 0) runs.Add(new Run(code.Text, code, set, Maps: true));
+                else
+                    foreach (var written in code.Children)
+                        if (written.Role != Roles.Trivia) runs.Add(new Run(written.Text, written, set, Maps: true));
+
                 return;
+            }
 
             case MarkdownKinds.Image:
                 Pictured(part, face, runs);
@@ -166,7 +174,7 @@ public sealed partial class MarkdownBuilder
             // Written as the characters that could hold it, drawn as the character it stands for — so what is drawn is
             // not what was written, and a press on it says so.
             case MarkdownKinds.Entity:
-                runs.Add(new Run(WebUtility.HtmlDecode(part.Text), part, face, Maps: false));
+                runs.Add(new Run(MarkdownEntities.Decoded(part.Text) ?? part.Text, part, face, Maps: false));
                 return;
 
             // The same bargain, spelled with a backslash: two characters that mean the second one.
