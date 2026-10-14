@@ -147,8 +147,14 @@ internal sealed class ScannedFence(MarkdownBlockRule rule, ScannedKind kind, int
     /// <summary>The language the word after the fence names, as it means rather than as it was spelled — or nothing.</summary>
     public string Language { get; set; } = string.Empty;
 
-    /// <summary>Where the line closing it starts, where one did.</summary>
+    /// <summary>Where the marks closing it start, where a line closed it.</summary>
     public int? Closed { get; set; }
+
+    /// <summary>
+    /// Where the line closing it starts past what its containers put in front of it — a quote's <c>&gt;</c>, an item's
+    /// indentation — which are theirs, where the fence's own indentation in front of its marks is the fence's.
+    /// </summary>
+    public int? Shut { get; set; }
 }
 
 /// <summary>A list: how its items are marked, and the number the first stands for.</summary>

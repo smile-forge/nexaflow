@@ -141,44 +141,50 @@ list names pieces by their place in the run, never by offset, so a block kept fr
 (`FurtherOn`) holds a list that is still true. `Atoms`, `Bracketed`, `Leftover`, `Joined` and the cutting of words at
 brackets go: nothing has to be recovered from a tree that is told it outright.
 
-### Export — one reading, written out in any format
+### Export — one laid document, written out in any format
 
-Copying as HTML, the published site, and later Word and ODF are one job: the reading written out in another format. So
-there is one walk and one writer per format, and a new format is a writer and nothing else.
+Copying as HTML, the published site, and later Word and ODF are one job: the document as it is shown, written out in
+another format. So there is one walk and one writer per format, and a new format is a writer and nothing else.
 
-- **The walk** (`MarkdownExport`) turns the reading, worked over by its stages, into a format-neutral document
-  (`ExportDocument`): headings with their rank and anchor, paragraphs, lists with their numbering, items with their box,
-  quotes and alerts, tables with their alignment and spans, definition lists, figures, rules, code with its language;
-  and inside them runs of words — emphasised every way markdown has, code, links with where they go, pictures, breaks,
-  abbreviations with what they stand for. Every one of those facts is already on the reading, so no writer reads source
-  or works anything out again — the same discipline as a builder's (R12, R13).
+**What is exported is the layout, not the reading.** The reading is what a document *means*; the layout tree is what it
+*looks like*, and the two are not one to one. Stages and builders add what nobody wrote — an alert's colour and the word
+it calls itself, a list's numbers as drawn, a box ticked, a link's look — and content in another language is drawn as
+whatever that language draws: a diagram, a formula, a SMILES structure in every cell of a column. Read from the reading
+alone, each of those would have to be worked out again, stage by stage and builder by builder, or the page drawn as one
+picture. Laid out, each is already there, where it stands.
+
+- **The walk** (`LayoutExport`, in `Visuals.Text`, since laying out is WPF) lays the document out read-only at the page's
+  width and walks its pieces into a format-neutral document (`ExportDocument`). What a piece *is* comes from the part it
+  stands for — a heading and its rank and anchor, a list and how it counts, a row, a cell and how it is aligned and what
+  it covers, a link and where it goes, a definition, a figure, a rule, code and its language. What it *looks like* comes
+  from the piece — the ink and wash of its marks, the marker drawn, the label an alert is given, the box. Runs of words
+  carry their emphasis, code, links, breaks and abbreviations.
 - **Content in another language** is exported as what its language offers, a language's own `ContentLanguage` saying
   so: a form of its own a writer understands (MathML from a formula for HTML, OMML for Word, once a language offers it),
-  else a picture, else its code. Which blocks are pictures is already answered: the language's corner says a block
-  saves as one (`IContentLanguage.Corner`, `BlockCorner.Saves`), which is what offers *Save as a picture* on a diagram
-  or a formula and never on code. The picture is the one thing the walk cannot make — drawing is WPF — so it asks
-  through `IExportPictures`, which `Visuals.Text` answers with the painting that Save and a block's copy already use
-  (`MarkdownSurface.CapturePicture`, `ContentEngine.CopyOf`). Which of these a writer takes is the writer's and the
-  occasion's: copying to the clipboard as HTML takes no pictures, so a diagram is its code block, as any fence is; the
-  site, a Word document or a PDF put the diagram in as its picture.
-- **The writers** (`IDocumentWriter`) only spell: text first (the clipboard's plain text and the help search's index,
-  which then match what the page shows by construction), HTML next (the clipboard and the site), Word and ODF when they
-  are wanted.
-- **Where it lives.** The document and the walk sit in `Nexaflow.Markdown/Export`, WPF-free, beside the reading they
-  walk. The writers go in a new `Nexaflow.IO.Documents`, WPF-free, which is where a format's own package — OpenXML for
-  Word — is taken when that format arrives, so `Nexaflow.Markdown` keeps depending on nothing.
+  else the picture its piece is painted as — the painting *Save as a picture* and a block's copy already use, so a
+  SMILES structure in a cell is that cell's picture — else its code. Which a writer takes is the occasion's: copying to
+  the clipboard as HTML takes no pictures, so a diagram is its code block, as any fence is; the site, a Word document or
+  a PDF put the diagram in as its picture.
+- **The document** (`ExportDocument`, in `Nexaflow.Markdown/Export`, WPF-free) holds only what a writer spells: colours
+  as values, pictures as their encoded bytes and size.
+- **The writers** (`IDocumentWriter`) only spell: text (the clipboard's plain text), HTML (the clipboard and the site),
+  Word and ODF when they are wanted. They go in a new `Nexaflow.IO.Documents`, WPF-free, which is where a format's own
+  package — OpenXML for Word — is taken when that format arrives, so `Nexaflow.Markdown` keeps depending on nothing.
 
 The HTML writer is held to CommonMark's own expected HTML for every core example, which makes it the one check here
 that does not go through Markdig at all.
+
+The layout tree is WPF today, which is what puts the walk in `Visuals.Text`; a layout tree free of WPF would let it move
+down beside the document.
 
 ### What else reads markdown
 
 | Today | After |
 |---|---|
-| `HelpPlainText` — a Markdig walk | the text writer |
+| `HelpPlainText` — a Markdig walk | the words of the reading: a search finds words, and needs no layout |
 | `HelpContents` — Markdig's ids | the anchors `WithTargets` hangs, which are the ids the page follows |
-| `MarkdownClipboard` — `Markdig.ToPlainText`, `Markdig.ToHtml` | the text and HTML writers, without pictures |
-| `tools/site` — Markdig's HTML renderer | its page shell, its `help:` and `locate:` links and its figures stay; the body is the HTML writer's, so the site renders what the app renders |
+| `MarkdownClipboard` — `Markdig.ToPlainText`, `Markdig.ToHtml` | the walk, and the text and HTML writers, without pictures |
+| `tools/site` — Markdig's HTML renderer | its page shell, its `help:` and `locate:` links and its figures stay; the body is the walk's and the HTML writer's, so the site renders what the app renders |
 | `Features.Markdown` — a reference nothing uses | removed |
 
 Until then they read through `MarkdigReading` in `Visuals.Text`, which enables what the reading reads.
@@ -302,8 +308,11 @@ reader keeps. Markdig leaves `Nexaflow.Markdown`.
 
 ## Phase 4 — export
 
-The export document, the walk and `IExportPictures`; the text and HTML writers in `Nexaflow.IO.Documents`, the HTML
-one held to CommonMark's expected HTML. `HelpPlainText`, `HelpContents`, the clipboard and `tools/site` on them.
+A code block's body is the lines written in it, with what its containers put in front of each — a quote's `>`, an item's
+indentation — and the code's own indentation held as trivia between them, and a language written in a fence is read over
+those lines rather than over the stretch they stand in. A list says whether it is loose. The export document, the walk
+over the laid document, and the text and HTML writers in `Nexaflow.IO.Documents`, the HTML one held to CommonMark's
+expected HTML. The clipboard and `tools/site` on them; `HelpPlainText` and `HelpContents` on the reading's words and anchors.
 `MarkdownParser.Rewrite`'s list of the characters that need a backslash (`Marked`) is taken from the scanner's own
 character classes, so what is escaped and what is read as markup are one table. Markdig then stays only where it is the
 oracle, `Tests.Markdown`.

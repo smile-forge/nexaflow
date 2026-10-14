@@ -243,6 +243,9 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
 
     public override bool TakesLines => true;
 
+    /// <summary>Where each line written inside starts past its containers' marks and the fence's own indentation — what the body is.</summary>
+    public override bool KeepsLines => true;
+
     public override bool MayStart(char first) => marks.Contains(first);
 
     public override Started TryStart(MarkdownScanner scan, ScannedBlock container)
@@ -273,6 +276,7 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
     public override Continued Continues(MarkdownScanner scan, ScannedBlock block)
     {
         var fence = (ScannedFence)block;
+        var line = scan.Offset;
         var at = scan.NextNonspace;
 
         if (!scan.Indented && scan.Peek(at) == fence.Mark)
@@ -283,6 +287,7 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
             if (run - at >= fence.Length && scan.Trimmed(run) == run)
             {
                 fence.Closed = at;
+                fence.Shut = line;
                 fence.Reach(run);
                 fence.LastLine = scan.LineIndex;
                 scan.Close(fence);
@@ -323,6 +328,9 @@ internal sealed class FenceRule(ScannedKind kind, string marks, int least, int m
 internal sealed class IndentedCodeRule : MarkdownBlockRule
 {
     public override bool TakesLines => true;
+
+    /// <summary>Where each line's code starts, past its containers' marks and the four columns that made it code.</summary>
+    public override bool KeepsLines => true;
 
     public override Started TryStart(MarkdownScanner scan, ScannedBlock container)
     {

@@ -24,6 +24,9 @@ internal sealed partial class HtmlBlockRule : MarkdownBlockRule
 
     public override bool TakesLines => true;
 
+    /// <summary>Where each line's markup starts, past its containers' marks.</summary>
+    public override bool KeepsLines => true;
+
     public override bool MayStart(char first) => first == '<';
 
     public override Started TryStart(MarkdownScanner scan, ScannedBlock container)

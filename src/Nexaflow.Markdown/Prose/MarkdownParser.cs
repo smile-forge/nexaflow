@@ -200,7 +200,7 @@ public sealed class MarkdownParser : ITranspile
         }
 
         // Where it stands is asked for before the characters are taken, which is what moves the cut along.
-        parts.Add(Block(block, read.Here, read.Text(to)));
+        parts.Add(Block(block, read.Here, read.Text(to), from));
     }
 
     /// <summary>
@@ -290,13 +290,19 @@ public sealed class MarkdownParser : ITranspile
     /// out of the body here, because what is inside is a different language with a different grammar, and
     /// reading it is its own parser's business — which happens a pass later, in <see cref="MarkdownBlocks"/>.
     /// </summary>
-    private static ContentNode Block(ScannedBlock block, int at, string source)
+    /// <param name="origin">Where <paramref name="source"/>'s first character stands in what the scan read, which the lines it found are counted from.</param>
+    private static ContentNode Block(ScannedBlock block, int at, string source, int origin)
     {
         // A maths block is a fence, and reads the same way: a delimiter, a body in another language, a delimiter. What
         // differs is only that nobody writes the language after the fence, because the $$ is what says it.
-        if (block is ScannedFence { Kind: ScannedKind.Fence or ScannedKind.Maths } fence) return Fenced(fence, at, source);
+        if (block is ScannedFence { Kind: ScannedKind.Fence or ScannedKind.Maths } fence) return Fenced(fence, at, source, origin);
 
-        var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
+        // Code and markup are held as their lines, past the marks a container put in front of each: those are the container's.
+        var body = block.Kind is ScannedKind.IndentedCode or ScannedKind.Html
+            ? Lined(Kinds.Verbatim, source, at, 0, source.Length, [.. block.Lines.Select(line => Math.Max(line.From - origin, 0))])
+            : ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at);
+
+        var read = ContentNode.Branch(Kind(block), [body], offset: at);
 
         // How deep a heading is, which the scan counted as it read the hashes or saw which character underlined it.
         if (block is ScannedHeading ranked)
@@ -307,9 +313,10 @@ public sealed class MarkdownParser : ITranspile
 
     /// <summary>
     /// A fence: a block in the language the word after it names — or maths, which a <c>$$</c> says by being one — holding the
-    /// fence line, the characters written in that language (<see cref="Kinds.Nested"/>, unread), and the closing fence.
+    /// fence line, the lines written in that language (<see cref="Kinds.Nested"/>, unread) with whatever a container put in front
+    /// of each between them, and the closing fence.
     /// </summary>
-    private static ContentNode Fenced(ScannedFence fence, int at, string source)
+    private static ContentNode Fenced(ScannedFence fence, int at, string source, int origin)
     {
         if (source.Length == 0 || source[0] != fence.Mark)
             return ContentNode.Branch(MarkdownKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body, offset: at)], offset: at);
@@ -317,23 +324,62 @@ public sealed class MarkdownParser : ITranspile
         var line = source.IndexOf('\n');
         var body = line < 0 ? source.Length : line + 1;
 
-        // The closing fence is the line the scan closed it on, from the space in front of its marks. The line ending before
-        // it belongs to the body: it ends the last line somebody wrote in there.
-        var shut = fence.Closed is { } closed ? Math.Clamp(closed - fence.Start, body, source.Length) : source.Length;
-        while (shut > body && source[shut - 1] is ' ' or '\t') shut--;
+        // The closing fence is the line the scan closed it on, from past what its containers put in front of it: the fence's own
+        // indentation in front of its marks is the fence's. The line ending before it belongs to the body — it ends the last line
+        // somebody wrote in there — and so do the containers' marks on the closing line, which stand between the two.
+        var shut = fence.Shut is { } closing ? Math.Clamp(closing - origin, body, source.Length) : source.Length;
 
         var language = fence.Kind == ScannedKind.Maths ? Maths : fence.Language;
 
         List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, source[..body], Roles.Open, offset: at)];
 
         // Held as written and nothing read out of it: what is in there is a different language — or, where the fence names none, the
-        // document's own code, as indented code is.
-        if (shut > body) parts.Add(ContentNode.Leaf(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source[body..shut], Roles.Body, offset: at + body));
+        // document's own code, as indented code is. The fence's own line is no line of it.
+        if (shut > body)
+            parts.Add(Lined(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source, at, body, shut,
+                            [.. fence.Lines.Skip(1).Select(written => written.From - origin)]));
+
         if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close, offset: at + shut));
 
         return language.Length > 0
             ? new BlockNode(language, parts, offset: at)
             : ContentNode.Branch(MarkdownKinds.Code, parts, offset: at);
+    }
+
+    /// <summary>
+    /// What a block holding its lines as written holds, from <paramref name="start"/> to <paramref name="end"/> of
+    /// <paramref name="source"/>: each line from where the block's characters start on it (<paramref name="starts"/>) — past the
+    /// marks its containers put in front of it and the indentation the block itself takes — to the line ending closing it, and
+    /// whatever stands in front of a line held as trivia between them. One run of characters where nothing stands in front of any
+    /// line, which is every block standing at the head of its lines.
+    /// </summary>
+    private static ContentNode Lined(string kind, string source, int at, int start, int end, IReadOnlyList<int> starts)
+    {
+        var pieces = new List<(int From, int To, bool Marks)>(starts.Count * 2);
+        var cursor = start;
+
+        foreach (var begins in starts)
+        {
+            if (begins < cursor) continue;
+            if (begins >= end) break;
+
+            if (begins > cursor) pieces.Add((cursor, begins, true));
+
+            var ending = source.IndexOf('\n', begins, end - begins);
+            var stop = ending < 0 ? end : ending + 1;
+
+            pieces.Add((begins, stop, false));
+            cursor = stop;
+        }
+
+        if (cursor < end) pieces.Add((cursor, end, true));
+
+        if (!pieces.Exists(piece => piece.Marks)) return ContentNode.Leaf(kind, source[start..end], Roles.Body, offset: at + start);
+
+        return ContentNode.Branch(kind, [.. pieces.Select(piece => piece.Marks
+            ? ContentNode.Leaf(source.AsSpan(piece.From, piece.To - piece.From).IsWhiteSpace() ? Kinds.Space : Kinds.Token,
+                               source[piece.From..piece.To], Roles.Trivia, offset: at + piece.From)
+            : ContentNode.Leaf(kind, source[piece.From..piece.To], offset: at + piece.From))], Roles.Body, at + start);
     }
 
     /// <summary>Which language reads a block's body.</summary>

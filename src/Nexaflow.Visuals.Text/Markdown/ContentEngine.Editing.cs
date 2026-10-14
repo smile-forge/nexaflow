@@ -193,12 +193,12 @@ public sealed partial class ContentEngine
         var state = edit.State;
         if (state.HasSelection || Holder(edit) is not { } holder || holder.Part(Roles.Body) is not { } body) return null;
 
-        var (start, length) = ContentNested.Own(body);
-        var inside = state.Source.Substring(start, length);
+        // What is written in the language, not the marks a container put between its lines.
+        var inside = ContentNested.Own(body.Node);
         if (string.IsNullOrWhiteSpace(inside)) return ContentChange.Write(holder.Start, holder.Length, string.Empty);
 
-        var first = start + (inside.Length - inside.TrimStart().Length);
-        var last = start + length - (inside.Length - inside.TrimEnd().Length);
+        var first = ContentNested.DocumentAt(body, inside.Length - inside.TrimStart().Length);
+        var last = ContentNested.DocumentAt(body, inside.TrimEnd().Length);
 
         return (edit.Kind == EditKind.Deleting ? state.Caret >= last : state.Caret <= first) ? ContentChange.Stay(state) : null;
     }

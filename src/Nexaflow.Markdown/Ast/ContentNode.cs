@@ -176,6 +176,14 @@ public class ContentNode
     public ContentNode With(IReadOnlyList<ContentNode> children) =>
         this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, this.Offset, this.Trouble, this.Held));
 
+    /// <summary>The same piece, made of different parts and standing where <paramref name="offset"/> says.</summary>
+    public ContentNode With(IReadOnlyList<ContentNode> children, int? offset) =>
+        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, offset, this.Trouble, this.Held));
+
+    /// <summary>The same piece, standing for other characters, where <paramref name="offset"/> says.</summary>
+    public ContentNode With(string text, int? offset) =>
+        this.Reshaped(new ContentNode(this.Kind, this.Role, text, this.Children, offset, this.Trouble, this.Held));
+
     /// <summary>The same piece, with something to say about it.</summary>
     public ContentNode Saying(string? trouble) =>
         trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, this.Offset, trouble, this.Held));
