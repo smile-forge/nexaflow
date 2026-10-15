@@ -6,6 +6,7 @@ using Nexaflow.Features.Images.Editing.Restoring;
 using Nexaflow.IO.Common;
 using SkiaSharp;
 using System.IO;
+using Nexaflow.Features.Images.Editing.CuttingOut;
 
 namespace Nexaflow.Features.Images.Editing;
 
@@ -19,9 +20,11 @@ public sealed class ImageEditingServices : IDisposable
     public ImageEditingServices() : this(new ImageRecipeStore()) { }
 
     /// <param name="restored">Where restorations are kept; the app's cache when not given.</param>
-    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null)
+    /// <param name="cutOuts">Where cut-out masks are kept; the app's cache when not given.</param>
+    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null)
     {
     Restored = restored ?? new RestoredPictures();
+    CutOuts = cutOuts ?? new CutOutMasks();
         var jpeg = new JpegMetadata();
         var png  = new PngMetadata();
         var webp = new WebpMetadata();
@@ -45,6 +48,9 @@ public sealed class ImageEditingServices : IDisposable
 
     /// <summary>The restorations the picture tools made, kept on disk.</summary>
     public RestoredPictures Restored { get; }
+
+    /// <summary>The masks photos are cut out of their backgrounds by, kept so each is picked once.</summary>
+    public CutOutMasks CutOuts { get; }
 
     /// <summary>True when <paramref name="path"/> is a file on disk — one a sidecar can sit beside and a save can replace.</summary>
     public static bool IsFileBacked(string path) => File.Exists(path);
@@ -85,7 +91,8 @@ public sealed class ImageEditingServices : IDisposable
     }
 
     /// <summary>A pipeline over <paramref name="source"/> — and its restoration, where the recipe restores it.</summary>
-    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null) => new(source, Adjustments, Markup, cache, restored);
+    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null, SKImage? cutOut = null)
+        => new(source, Adjustments, Markup, cache, restored, cutOut);
 
     /// <summary>
     /// The restoration kept at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given, as the

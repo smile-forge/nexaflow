@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
@@ -16,7 +17,7 @@ namespace Nexaflow.Features.Images.Services;
 /// </summary>
 /// <param name="restored">The photo's restoration, for a recipe that restores it.</param>
 public sealed class ImageSaveTask(ImageEditingServices services, string sourcePath, ImageRecipe recipe,
-                                  ImageContainer target, string destination, bool replace, string? restored = null) : IBackgroundTask
+                                  ImageContainer target, string destination, bool replace, MadeByTools? made = null) : IBackgroundTask
 {
     public string Destination { get; } = destination;
 
@@ -29,7 +30,7 @@ public sealed class ImageSaveTask(ImageEditingServices services, string sourcePa
     {
         try
         {
-            var bytes = services.Exporter.Export(sourcePath, recipe, target, ct, restored);
+            var bytes = services.Exporter.Export(sourcePath, recipe, target, ct, made);
             ct.ThrowIfCancellationRequested();
             if (replace) ImageExporter.ReplaceFile(Destination, bytes);
             else File.WriteAllBytes(Destination, bytes);

@@ -16,9 +16,9 @@ namespace Nexaflow.Features.Images.Editing.Recipe;
 public sealed record ImageRecipe
 {
     /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
-    /// rewritten. Version 2 added <see cref="Restore"/>; a recipe without one is still written as version 1, so a build
-    /// from before reads it.</summary>
-    public const int CurrentVersion = 2;
+    /// rewritten. Version 2 added <see cref="Restore"/> and version 3 <see cref="CutOut"/>; a recipe is written as the
+    /// oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
+    public const int CurrentVersion = 3;
 
     public static ImageRecipe Identity { get; } = new();
 
@@ -49,18 +49,24 @@ public sealed record ImageRecipe
     /// <summary>The picture restored by the picture tools before anything else is done to it; null leaves it as it is.</summary>
     public RecipeRestore? Restore { get; init; }
 
+    /// <summary>The photo cut out of its background — only what this picks kept — before anything else is done to it;
+    /// null keeps the whole photo.</summary>
+    public RecipeCutOut? CutOut { get; init; }
+
     /// <summary>The version a file of this recipe is written as: the oldest that holds everything in it.</summary>
     [JsonIgnore]
-    public int WrittenVersion => Restore is null ? 1 : CurrentVersion;
+    public int WrittenVersion => CutOut is not null ? 3 : Restore is not null ? 2 : 1;
 
     /// <summary>True when applying the recipe changes nothing — such a recipe is not worth a file.</summary>
     [JsonIgnore]
     public bool IsIdentity =>
-        Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Restore is null && Export == RecipeExport.Default;
+        Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Restore is null && CutOut is null
+        && Export == RecipeExport.Default;
 
     /// <summary>True when the pixels differ from the source — what the export settings alone never do.</summary>
     [JsonIgnore]
-    public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null || Restore is not null;
+    public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null || Restore is not null
+                                 || CutOut is not null;
 
     public bool Equals(ImageRecipe? other) =>
         other is not null
@@ -71,9 +77,10 @@ public sealed record ImageRecipe
         && Markup.AsSpan().SequenceEqual(other.Markup.AsSpan())
         && Resize == other.Resize
         && Restore == other.Restore
+        && CutOut == other.CutOut
         && Export == other.Export;
 
-    public override int GetHashCode() => HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export);
+    public override int GetHashCode() => HashCode.Combine(HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export), CutOut);
 }
 
 /// <summary>Where the image goes on the way out: straighten, crop, quarter turns and flips.</summary>
@@ -215,6 +222,48 @@ public sealed record RecipeRestore
 
     /// <summary>The same restored picture as <paramref name="other"/>, whatever strength each lays it at.</summary>
     public bool MakesSameAs(RecipeRestore? other) => other is not null && Scale == other.Scale && Faces == other.Faces;
+}
+
+/// <summary>A click on the photo for its cut-out, in oriented-source pixels: on the thing kept, or off it.</summary>
+public sealed record RecipeCutClick(double X, double Y, bool Include);
+
+/// <summary>A box on the photo for its cut-out, in oriented-source pixels.</summary>
+public sealed record RecipeCutBox(double Left, double Top, double Right, double Bottom);
+
+/// <summary>
+/// The photo cut out of its background: only what picture selection picks by these is kept, the rest made clear — by
+/// clicks on the thing and off it and a box round it, or everything a phrase names. Kept as what was asked rather than as
+/// the mask, so it reads the same at any size and is picked again by newer models.
+/// </summary>
+public sealed record RecipeCutOut
+{
+    /// <summary>The clicks, in the order they were made.</summary>
+    /// <remarks>Never default: a recipe read from a file that names no clicks has none, not a missing list.</remarks>
+    public ImmutableArray<RecipeCutClick> Clicks
+    {
+        get => _clicks.IsDefault ? [] : _clicks;
+        init => _clicks = value;
+    }
+
+    private readonly ImmutableArray<RecipeCutClick> _clicks = [];
+
+    /// <summary>The box drawn round the thing; null where none was.</summary>
+    public RecipeCutBox? Box { get; init; }
+
+    /// <summary>What the kept things are called — everything it names is kept — instead of clicks and a box.</summary>
+    public string? Phrase { get; init; }
+
+    public bool Equals(RecipeCutOut? other) =>
+        other is not null && Clicks.AsSpan().SequenceEqual(other.Clicks.AsSpan()) && Box == other.Box && Phrase == other.Phrase;
+
+    public override int GetHashCode() => HashCode.Combine(Clicks.Length, Box, Phrase);
+
+    /// <summary>The cut-out as one line of text, the same for the same cut-out: what its kept mask is filed by.</summary>
+    public string Describe()
+        => Phrase is { } phrase
+            ? $"phrase:{phrase}"
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"clicks:{string.Join(";", Clicks.Select(c => $"{c.X:R},{c.Y:R},{(c.Include ? 1 : 0)}"))}|box:{(Box is { } b ? $"{b.Left:R},{b.Top:R},{b.Right:R},{b.Bottom:R}" : "")}");
 }
 
 /// <summary>What a save writes besides the pixels.</summary>

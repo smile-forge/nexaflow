@@ -1,8 +1,10 @@
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
+using SkiaSharp;
 using System;
 using System.IO;
 using System.Threading;
@@ -41,10 +43,15 @@ public sealed class ImageDisplay : IDisposable
     private CancellationTokenSource? _decodeCts;
     private int _decodingEdge;
 
-    // The restoration being decoded: its file, and the long edge asked of it.
+    // The restoration decoded or being decoded: its file, the long edge asked of it, and whether it is still on its way.
     private CancellationTokenSource? _restoredCts;
     private string? _restoredFile;
     private int _restoredEdge;
+    private bool _restoredUnderway;
+
+    // The cut-out mask being decoded: its file, while it is on its way.
+    private CancellationTokenSource? _cutOutCts;
+    private string? _cutOutFile;
 
     // The surface the photo is shown on, in device-independent pixels, its pixel density, and the edit canvas's zoom.
     private double _viewportWidth = 1600, _viewportHeight = 1000, _pixelsPerDip = 1, _editZoom = 1;
@@ -74,6 +81,9 @@ public sealed class ImageDisplay : IDisposable
     /// <summary>The photo's restoration could not be decoded — its kept file gone, say. On the UI thread.</summary>
     public event Action<ImageEditSession>? RestoredDecodeFailed;
 
+    /// <summary>The photo's cut-out mask could not be decoded — its kept file gone, say. On the UI thread.</summary>
+    public event Action<ImageEditSession>? CutOutDecodeFailed;
+
     /// <summary>The photo to show from now on; a different one — or the same one still without pixels — starts its decodes afresh and, until it has pixels, shows nothing.</summary>
     public void Show(ImageEditSession? session)
     {
@@ -83,6 +93,9 @@ public sealed class ImageDisplay : IDisposable
         _restoredCts?.Cancel();
         _restoredFile = null;
         _restoredEdge = 0;
+        _restoredUnderway = false;
+        _cutOutCts?.Cancel();
+        _cutOutFile = null;
         _session = session;
         if (session?.Proxy is null) _presenter.Clear();
     }
@@ -148,6 +161,7 @@ public sealed class ImageDisplay : IDisposable
         var sourceToCanvas = CropGeometry.SourceToCanvas(recipe, source, frame, renderScale, out _);
         EnsureSharpEnough(session, proxy, CropGeometry.SourcePixelsPerCanvasPixel(sourceToCanvas));
         if (recipe.Restore is { } restore && session.RestoredPath is { } restoredFile) EnsureRestoredDecoded(session, restoredFile, proxy, restore.Scale);
+                if (recipe.CutOut is not null && session.CutOutPath is { } cutOutFile) EnsureCutOutDecoded(session, cutOutFile);
 
         var straightenedToLayout = CropGeometry.FrameToCanvas(recipe, source, frame, layoutScale, out var layout);
         var canvas = new EditCanvas(recipe, frame, source, layoutScale, layout, straightenedToLayout,
@@ -211,9 +225,12 @@ public sealed class ImageDisplay : IDisposable
     private void EnsureRestoredDecoded(ImageEditSession session, string file, DecodedImage proxy, int scale)
     {
         int edge = proxy.IsFullResolution ? int.MaxValue : Math.Max(proxy.Pixels.Width, proxy.Pixels.Height) * scale;
-        if (string.Equals(file, _restoredFile, StringComparison.OrdinalIgnoreCase) && _restoredEdge >= edge) return;
+        // Decoded at this size already, or on its way: the session let go of a decode only when it was handed another file.
+        if (string.Equals(file, _restoredFile, StringComparison.OrdinalIgnoreCase) && _restoredEdge >= edge
+            && (_restoredUnderway || session.RestoredProxy is not null)) return;
         _restoredFile = file;
         _restoredEdge = edge;
+        _restoredUnderway = true;
         _restoredCts?.Cancel();
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
         _restoredCts = cts;
@@ -240,7 +257,48 @@ public sealed class ImageDisplay : IDisposable
             if (cts.IsCancellationRequested) { restored.Dispose(); return; }
 
             session.AttachRestored(restored, file);
-            _ = _runOnUi(() => { if (ReferenceEquals(_session, session)) Decoded?.Invoke(session); });
+            _ = _runOnUi(() =>
+            {
+                if (ReferenceEquals(_restoredCts, cts)) _restoredUnderway = false;
+                if (ReferenceEquals(_session, session)) Decoded?.Invoke(session);
+            });
+        }, cts.Token);
+    }
+
+    /// <summary>Decodes the cut-out mask off the UI thread, once per file the session is handed.</summary>
+    private void EnsureCutOutDecoded(ImageEditSession session, string file)
+    {
+        if (session.CutOutMask is not null || string.Equals(file, _cutOutFile, StringComparison.OrdinalIgnoreCase)) return;
+        _cutOutFile = file;
+        _cutOutCts?.Cancel();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+        _cutOutCts = cts;
+
+        _ = Task.Run(() =>
+        {
+            SKImage mask;
+            try
+            {
+                mask = CutOutMasks.Decode(file);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                if (!cts.IsCancellationRequested)
+                    _ = _runOnUi(() =>
+                    {
+                        if (ReferenceEquals(_cutOutCts, cts)) _cutOutFile = null;
+                        if (ReferenceEquals(_session, session)) CutOutDecodeFailed?.Invoke(session);
+                    });
+                return;
+            }
+            if (cts.IsCancellationRequested) { mask.Dispose(); return; }
+
+            session.AttachCutOut(mask, file);
+            _ = _runOnUi(() =>
+            {
+                if (ReferenceEquals(_cutOutCts, cts)) _cutOutFile = null;
+                if (ReferenceEquals(_session, session)) Decoded?.Invoke(session);
+            });
         }, cts.Token);
     }
 
@@ -250,6 +308,7 @@ public sealed class ImageDisplay : IDisposable
     {
         _decodeCts?.Cancel();
         _restoredCts?.Cancel();
+        _cutOutCts?.Cancel();
         _presenter.Dispose();
     }
 }

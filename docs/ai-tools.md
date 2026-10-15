@@ -93,6 +93,13 @@ makers' tokenizer.
 **For features.** `IPictureSelection.OpenAsync` takes a picture's pixels and gives a session; its masks come back as
 bytes, the files between Core and the host kept in a folder of the session's own.
 
+**In the image editor.** The Cut out panel picks with clicks, a box or a phrase, shown at up to 1280 pixels
+(`PictureCutter`). Remove background makes what is picked the recipe's cut-out section (`RecipeCutOut`, version 3 of
+the recipe): `BackgroundRemover` finds its mask kept on disk (`CutOutMasks`, keyed by the photo's content, the cut-out
+and `IPictureSelection.ModelsVersion`) or picks it again at full size in the background, as an 8-bit grey PNG. The display
+decodes it beside the photo, and the render pipeline clears what it does not keep at the end of the geometry pass. A
+photo whose format holds no transparency is saved only as a copy.
+
 **For the assistant.** `cut_out` cuts what a phrase names, or what a box holds, out of a picture file into a new PNG
 beside it — transparent around it, cropped to it — and opens it; the original is never touched.
 
@@ -107,4 +114,5 @@ beside it — transparent around it, cropped to it — and opens it; the origina
 4. Its front in `Providers.AiHost`, deriving `OwnedToolFront`; its contract in `Features.Common`, extending
    `IToolModels`; and Core's service, deriving `LocalToolModels` and implementing the contract, built in
    `App.InitializeApp`, passed to `ProviderManager.Initialize` and given to features with `FeatureManager.ProvideTool`.
-5. The client tool, and the pages that use it.
+5. The client tool, and the pages that use it. An edit a tool makes to a photo is a recipe section and a `ToolEdit`,
+   its results kept by `KeptFiles` and named to the renderer and the exporter in `MadeByTools`.

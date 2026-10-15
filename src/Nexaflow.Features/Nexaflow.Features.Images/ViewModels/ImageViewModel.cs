@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
@@ -484,6 +485,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>What gives the photo on screen the restoration its recipe asks for, and says what it is doing.</summary>
     public PhotoRestorer Restorer { get; }
 
+    /// <summary>What gives the photo on screen the removed background its recipe asks for, and says what it is doing.</summary>
+    public BackgroundRemover Remover { get; }
+
     /// <summary>What picks things out of the photo for the editor's cut-out tool.</summary>
     public PictureCutter Cutter { get; }
 
@@ -509,11 +513,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.DecodeFailed += session => { if (ReferenceEquals(CurrentSession, session)) LoadFailed = true; };
 
         Restorer = new PhotoRestorer(_editing, pictures, runOnUi);
-        Restorer.Restored += RequestRender;
+        Restorer.Made += RequestRender;
         _display.RestoredDecodeFailed += session => Restorer.Lost(session);
 
+        Remover = new BackgroundRemover(_editing, selection, runOnUi);
+        Remover.Made += RequestRender;
+        _display.CutOutDecodeFailed += session => Remover.Lost(session);
+
         Cutter = new PictureCutter(_editing, selection, shell, runOnUi);
-        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Cutter);
+        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
             EncodeCurrentPng);
@@ -555,8 +563,14 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (_thumbsRequested || _shell is null || Thumbnails.Count == 0) return;
         _thumbsRequested = true;
-        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing, Restorer.KeptFor), ct: _cts.Token);
+        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing, KeptByTools), ct: _cts.Token);
     }
+
+    /// <summary>What the picture tools made and kept for <paramref name="photo"/>'s <paramref name="recipe"/> — what its
+    /// thumbnail is drawn with.</summary>
+    private MadeByTools KeptByTools(string photo, ImageRecipe recipe) => new(
+        recipe.Restore is { } restore ? Restorer.KeptFor(photo, restore) : null,
+        recipe.CutOut is { } cutOut ? Remover.KeptFor(photo, cutOut) : null);
 
     /// <summary>The current photo's thumbnail, redrawn with its edits — once the grids have thumbnails to show.</summary>
     private void RefreshCurrentThumbnail()
@@ -641,6 +655,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Canvas = null;
         Editor.OnSessionChanged();
         Restorer.Follow(session);
+        Remover.Follow(session);
 
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
@@ -659,6 +674,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.Show(null);
         CurrentSession = null;
         Restorer.Follow(null);
+        Remover.Follow(null);
         Cutter.Close();
     }
     session.Dispose();
@@ -691,6 +707,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         UndoEditCommand.NotifyCanExecuteChanged();
         RedoEditCommand.NotifyCanExecuteChanged();
         Restorer.Follow(CurrentSession);
+        Remover.Follow(CurrentSession);
         Editor.OnRecipeChanged();
         RequestRender();
 

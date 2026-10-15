@@ -258,14 +258,62 @@
           ]
         }
       ]
+    },
+    "images-edit-remove-background": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/BackgroundRemover.cs",
+          "class": "BackgroundRemover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/CuttingOut/CutOutMasks.cs",
+          "class": "CutOutMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeCutOut"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "RemoveBackground"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 12,
   "touched_nodes": [
     "ai-tools",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
+    "images-edit-remove-background",
     "images-edit-restore",
     "picture-selection",
     "picture-tools",

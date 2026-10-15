@@ -1,4 +1,6 @@
 using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.CuttingOut;
+using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using SkiaSharp;
@@ -28,6 +30,8 @@ public sealed class ImageEditSession : IDisposable
     private DecodedImage? _proxy;
     private DecodedImage? _restoredProxy;
     private string? _restoredPath;
+    private string? _cutOutPath;
+    private SKImage? _cutOutMask;
     private RenderPipeline? _pipeline;
     private bool _disposed;
 
@@ -114,6 +118,61 @@ public sealed class ImageEditSession : IDisposable
         }
     }
 
+    /// <summary>The mask the recipe's cut-out asks for, once it is made: the file it is kept in; null while there is none.</summary>
+    public string? CutOutPath
+    {
+        get { lock (_renderGate) return _cutOutPath; }
+    }
+
+    /// <summary>What the tools made for the recipe, by file — what a save renders from.</summary>
+    public MadeByTools Made
+    {
+        get { lock (_renderGate) return new MadeByTools(_restoredPath, _cutOutPath); }
+    }
+
+    /// <summary>
+    /// The cut-out mask the photo is shown through from now on — its file, or null for none. A different file lets the decoded
+    /// mask go; the display decodes again from the new file.
+    /// </summary>
+    public void UseCutOut(string? path)
+    {
+        lock (_renderGate)
+        {
+            if (string.Equals(path, _cutOutPath, StringComparison.OrdinalIgnoreCase)) return;
+            _cutOutPath = path;
+            _pipeline?.Dispose();
+            _pipeline = null;
+            _cutOutMask?.Dispose();
+            _cutOutMask = null;
+        }
+    }
+
+    /// <summary>The cut-out mask decoded, once there is one.</summary>
+    public SKImage? CutOutMask
+    {
+        get { lock (_renderGate) return _cutOutMask; }
+    }
+
+    /// <summary>
+    /// Hands over the cut-out mask decoded from <paramref name="path"/>: drawn through from the next frame. One that is no
+    /// longer the mask in use — or arrives after disposal — is disposed at once. The caller hands ownership over.
+    /// </summary>
+    public void AttachCutOut(SKImage mask, string path)
+    {
+        lock (_renderGate)
+        {
+            if (_disposed || !string.Equals(path, _cutOutPath, StringComparison.OrdinalIgnoreCase))
+            {
+                mask.Dispose();
+                return;
+            }
+            _pipeline?.Dispose();
+            _pipeline = null;
+            _cutOutMask?.Dispose();
+            _cutOutMask = mask;
+        }
+    }
+
     /// <summary>Raised on the UI thread whenever the recipe changes, by an edit, an undo or a reload.</summary>
     public event Action? RecipeChanged;
 
@@ -146,7 +205,7 @@ public sealed class ImageEditSession : IDisposable
         lock (_renderGate)
         {
             if (_disposed || _proxy is null) return false;
-            _pipeline ??= _services.Pipeline(_proxy, restored: _restoredProxy);
+            _pipeline ??= _services.Pipeline(_proxy, restored: _restoredProxy, cutOut: _cutOutMask);
             consume(_pipeline.Render(recipe, request));
             return true;
         }
@@ -161,7 +220,7 @@ public sealed class ImageEditSession : IDisposable
         lock (_renderGate)
         {
             if (_disposed || _proxy is null) return null;
-            using var pipeline = _services.Pipeline(_proxy, cache: false, _restoredProxy);
+            using var pipeline = _services.Pipeline(_proxy, cache: false, _restoredProxy, _cutOutMask);
             using var picture = pipeline.Render(recipe, request);
             return SKImage.FromBitmap(SKBitmap.FromImage(picture));
         }
@@ -250,6 +309,8 @@ public sealed class ImageEditSession : IDisposable
             _pipeline = null;
             _restoredProxy?.Dispose();
             _restoredProxy = null;
+            _cutOutMask?.Dispose();
+            _cutOutMask = null;
             _proxy?.Dispose();
             _proxy = null;
         }

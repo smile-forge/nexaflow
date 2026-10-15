@@ -390,6 +390,15 @@
                                         AutomationProperties.AutomationId="Image_CutOutClear">
                                     <TextBlock Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
                                 </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.RemoveBackgroundCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.RemoveBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutRemoveBackground">
+                                    <TextBlock Text="{loc:Str Images.CutOut.RemoveBackground}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.KeepBackgroundCommand}"
+                                        Visibility="{Binding Editor.RemovesBackground, Converter={StaticResource BoolToVis}}"
+                                        ToolTip="{loc:Str Images.CutOut.KeepBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutKeepBackground">
+                                    <TextBlock Text="{loc:Str Images.CutOut.KeepBackground}" FontSize="11"/>
+                                </Button>
                             </WrapPanel>
                         </StackPanel>
 

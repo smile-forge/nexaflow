@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Visuals.Common.Formatting;
@@ -79,6 +80,16 @@ public sealed partial class PictureCutter : ObservableObject
 
     /// <summary>Something is picked, to copy or save.</summary>
     public bool HasSelection => Shown?.Bounds is not null;
+
+    /// <summary>What is picked, as a recipe's cut-out — the phrase whose finds are shown, else the clicks and the box — for
+    /// removing the photo's background by; null where nothing is picked.</summary>
+    public RecipeCutOut? PickedCutOut => !HasSelection ? null
+        : Found is { } found ? new RecipeCutOut { Phrase = found }
+        : new RecipeCutOut
+        {
+            Clicks = [.. _points.Select(p => new RecipeCutClick(p.X, p.Y, p.Include))],
+            Box = Box is { } b ? new RecipeCutBox(b.Left, b.Top, b.Right, b.Bottom) : null,
+        };
 
     /// <summary>The photo is being read, or a pick made.</summary>
     [ObservableProperty] private bool _isWorking;

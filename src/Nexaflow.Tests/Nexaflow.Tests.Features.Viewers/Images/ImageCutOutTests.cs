@@ -8,6 +8,10 @@ using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using Nexaflow.Features.Images.Editing.CuttingOut;
+using Nexaflow.Features.Images.Editing.Kept;
+using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Services;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -28,6 +32,7 @@ public class ImageCutOutTests
     private string _dir = "";
     private string _photo = "";
     private ViewerUiThread _ui = null!;
+    private ImageEditingServices _services = null!;
 
     [TestInitialize]
     public void Make()
@@ -36,6 +41,8 @@ public class ImageCutOutTests
         _photo = Path.Combine(_dir, "mug.png");
         using (var bitmap = Flat(32, 24, Photo)) File.WriteAllBytes(_photo, EncodePng(bitmap));
         _ui = new ViewerUiThread();
+        _services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)),
+                                             cutOuts: new CutOutMasks(Path.Combine(_dir, "cutouts"), CutOutMasks.DefaultBudget));
     }
 
     [TestCleanup]
@@ -50,17 +57,32 @@ public class ImageCutOutTests
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>()).Returns(saveAs);
+        shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>?>(), Arg.Any<CancellationToken>()))
+             .Do(call =>
+             {
+                 call.Arg<IBackgroundTask>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+                 call.Arg<Action<bool>?>()?.Invoke(true);
+             });
         return shell;
     }
 
-    private ImageViewModel Editing(Patch selection, IShellServices? shell = null)
+    private ImageViewModel Editing(Patch selection, IShellServices? shell = null, string? photo = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit,
-                                    new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))), selection: selection);
+        var vm = new ImageViewModel([photo ?? _photo], shell ?? Shell(), ImageViewMode.Edit, _services, selection: selection);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         OnUi(() => vm.Editor.Tool = EditTool.CutOut);
         return vm;
+    }
+
+    /// <summary>Picks the patch with a click and removes the photo's background around it, then waits for its mask to be
+    /// made and drawn through.</summary>
+    private void RemoveBackgroundAroundAClick(ImageViewModel vm)
+    {
+        OnUi(() => vm.Cutter.Click(10, 8, include: true));
+        Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
+        OnUi(() => vm.Editor.RemoveBackgroundCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutMask is not null);
     }
 
     /// <summary>Does <paramref name="action"/> on the viewer's UI thread, where it is driven.</summary>
@@ -195,8 +217,7 @@ public class ImageCutOutTests
     public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing()
     {
         var selection = new Patch();
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel,
-                                    new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))), selection: selection);
+        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, _services, selection: selection);
         Until(() => vm.CurrentSession is not null);
         var tool = vm.GetClientTools().Single(t => t.Name == "select_in_picture");
 
@@ -235,6 +256,160 @@ public class ImageCutOutTests
         Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool("lasso"));
     }
 
+    // ── Remove background: what is picked kept in the photo itself ──────────
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void RemoveBackground_KeepsWhatIsPicked_InThePhotoItself_TheRestClear()
+    {
+        var selection = new Patch();
+        var vm = Editing(selection);
+
+        RemoveBackgroundAroundAClick(vm);
+
+        var session = _ui.Invoke(() => vm.CurrentSession!);
+        Assert.AreEqual(new RecipeCutOut { Clicks = [new RecipeCutClick(10, 8, true)] }, session.Recipe.CutOut);
+        Assert.AreEqual((32, 24), (selection.Asks[^1].Width, selection.Asks[^1].Height), "the mask is picked at the photo's full size");
+        using var picture = session.Snapshot(session.Recipe, RenderRequest.Saved)!;
+        using var bitmap = SKBitmap.FromImage(picture);
+        Assert.AreEqual((32, 24), (bitmap.Width, bitmap.Height), "the photo keeps its size");
+        Assert.AreEqual(Photo, bitmap.GetPixel(8, 6), "what is picked, as it was");
+        Assert.AreEqual(0, bitmap.GetPixel(0, 0).Alpha, "the background is clear");
+        Assert.IsTrue(bitmap.GetPixel(Patch.Left, Patch.Top).Alpha < 64, "the patch's notched corner is all but clear, its edge resampled");
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null)), "what is picked is what is kept already");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.KeepBackgroundCommand.CanExecute(null)));
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void TheMask_IsMadeOnce_AndDrawnThroughAgainAfterAnUndoAndRedo()
+    {
+        var selection = new Patch();
+        var vm = Editing(selection);
+        RemoveBackgroundAroundAClick(vm);
+        int opened = selection.Opened;
+
+        OnUi(() => vm.UndoEditCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutPath is null);
+        Assert.IsNull(_ui.Invoke(() => vm.CurrentSession!.CutOutMask), "the background is back");
+
+        OnUi(() => vm.RedoEditCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutMask is not null);
+        Assert.IsNotNull(_ui.Invoke(() => vm.CurrentSession!.CutOutMask), "the kept mask is drawn through again");
+        Assert.AreEqual(opened, selection.Opened, "and not picked again");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void KeepBackground_PutsItBack()
+    {
+        var vm = Editing(new Patch());
+        RemoveBackgroundAroundAClick(vm);
+
+        OnUi(() => vm.Editor.KeepBackgroundCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutPath is null);
+
+        Assert.IsNull(_ui.Invoke(() => vm.CurrentSession!.Recipe.CutOut));
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.RemovesBackground));
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void AFoundPhrase_IsWhatIsKept_PickedAgainAtFullSize()
+    {
+        var selection = new Patch();
+        var vm = Editing(selection);
+        OnUi(() => vm.Cutter.Phrase = "mug");
+        OnUi(() => vm.Cutter.FindCommand.Execute(null));
+        Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
+
+        OnUi(() => vm.Editor.RemoveBackgroundCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutPath is not null);
+
+        Assert.AreEqual("mug", _ui.Invoke(() => vm.CurrentSession!.Recipe.CutOut!.Phrase));
+        CollectionAssert.AreEqual(new[] { "mug", "mug" }, selection.Phrases, "found once to show, once for the mask");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public async Task ACopy_IsSavedTransparentAroundWhatIsKept()
+    {
+        var copy = Path.Combine(_dir, "mug copy.png");
+        var vm = Editing(new Patch(), Shell(saveAs: copy));
+        RemoveBackgroundAroundAClick(vm);
+        Until(() => vm.Editor.SaveCopyCommand.CanExecute(null));
+
+        await _ui.Invoke(() => vm.Editor.SaveCopyCommand.ExecuteAsync(null));
+
+        using var saved = SKBitmap.Decode(copy);
+        Assert.AreEqual((32, 24), (saved.Width, saved.Height));
+        Assert.AreEqual(Photo, saved.GetPixel(8, 6));
+        Assert.AreEqual(0, saved.GetPixel(0, 0).Alpha, "transparent where the background was");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public async Task AJpegWithItsBackgroundRemoved_IsSavedOnlyAsACopy_OfferedAsAPng()
+    {
+        var jpeg = Path.Combine(_dir, "mug.jpg");
+        using (var bitmap = Flat(32, 24, Photo))
+        using (var image = SKImage.FromBitmap(bitmap))
+        using (var data = image.Encode(SKEncodedImageFormat.Jpeg, 95))
+            File.WriteAllBytes(jpeg, data.ToArray());
+        var copy = Path.Combine(_dir, "mug copy.png");
+        var shell = Shell(saveAs: copy);
+        var vm = Editing(new Patch(), shell, jpeg);
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.CanSaveInPlace), "a JPEG is saved in place while it keeps its background");
+
+        RemoveBackgroundAroundAClick(vm);
+        Until(() => vm.Editor.SaveCopyCommand.CanExecute(null));
+
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.CanSaveInPlace));
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.SaveCommand.CanExecute(null)));
+        Assert.AreEqual(Str.Format("Images.Edit.Save.NoteNoTransparencyFormat", "JPEG"), _ui.Invoke(() => vm.Editor.SaveNote));
+        await _ui.Invoke(() => vm.Editor.SaveCopyCommand.ExecuteAsync(null));
+        await shell.Received().PickSaveFileAsync(Arg.Is<string>(name => name.EndsWith(".png")), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>());
+        using var saved = SKBitmap.Decode(copy);
+        Assert.AreEqual(0, saved.GetPixel(0, 0).Alpha, "the copy is transparent where the background was");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void APhotoWhoseBackgroundIsRemoved_WaitsForPictureSelection_AndOffersIt()
+    {
+        File.WriteAllText(ImageRecipeStore.SidecarPath(_photo),
+                          ImageRecipeJson.Serialize(ImageRecipe.Identity with { CutOut = new RecipeCutOut { Phrase = "mug" } }));
+        var selection = new Patch { State = ToolModelsState.NotDownloaded };
+        var vm = Editing(selection);
+        Until(() => vm.Remover.HasNotice);
+
+        Assert.IsTrue(_ui.Invoke(() => vm.Remover.CanDownload));
+        Assert.AreEqual(Str.Get("Images.RemoveBackground.Download"), _ui.Invoke(() => vm.Remover.ActionLabel));
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.SaveCopyCommand.CanExecute(null)), "not until its background is removed");
+        OnUi(() => vm.Remover.ActCommand.Execute(null));
+        Assert.IsTrue(selection.Downloading);
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public async Task AThumbnail_IsDrawnThroughItsKeptMask()
+    {
+        var selection = new Patch();
+        var cutOut = new RecipeCutOut { Clicks = [new RecipeCutClick(10, 8, true)] };
+        _services.Recipes.SaveDebounced(_photo, ImageRecipe.Identity with { CutOut = cutOut });
+        _services.Recipes.Flush(_photo);
+        var mask = await _services.CutOuts.MakeAsync(_services, _photo, cutOut, selection, null, CancellationToken.None);
+        var item = new ImageThumbItem { FilePath = _photo, FileName = Path.GetFileName(_photo) };
+
+        await new ThumbnailLoadTask([item], 32, Shell(), _services, (_, _) => new MadeByTools(CutOut: mask)).RunAsync(CancellationToken.None);
+        Until(() => item.Thumbnail is not null);
+
+        var thumb = new System.Windows.Media.Imaging.FormatConvertedBitmap(item.Thumbnail!, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        var corner = new byte[4];
+        thumb.CopyPixels(new System.Windows.Int32Rect(0, 0, 1, 1), corner, 4, 0);
+        Assert.AreEqual(0, corner[3], "the thumbnail shows the photo without its background");
+    }
+
     /// <summary>Picture selection that picks the patch from (4, 2) to (12, 10) of the photo, but for its top-left
     /// pixel, wherever it is asked; a phrase finds it twice.</summary>
     private sealed class Patch : IPictureSelection, IPictureSelectionSession
@@ -252,6 +427,8 @@ public class ImageCutOutTests
         public bool FailNext { get; set; }
 
         public ToolModelsState State { get; init; } = ToolModelsState.Ready;
+
+        public string ModelsVersion => "patch-1";
         public long DownloadBytes => 1 << 30;
         public int DownloadPercent => 0;
         public event EventHandler? Changed { add { } remove { } }

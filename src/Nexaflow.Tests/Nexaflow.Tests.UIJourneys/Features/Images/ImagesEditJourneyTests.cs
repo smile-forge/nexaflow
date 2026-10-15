@@ -30,6 +30,11 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     private const string StaleRecipe =
         """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""";
 
+    /// <summary>The same, with the photo's background removed around whatever is called a mug: kept, it asks for picture
+    /// selection, which is never here.</summary>
+    private const string StaleCutOutRecipe =
+        """{ "version": 3, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 }, "cutOut": { "phrase": "mug" } }""";
+
     /// <summary>
     /// An AI folder of its own, empty: the picture tools are never here, so AI enhance always offers them for download —
     /// the same banner on every machine, whatever this one has downloaded. A journey downloads nothing.
@@ -57,7 +62,8 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             File.Copy(TestSampleData.Path("images", OrientedPhotoSample.FileName), photo);
             var plain = Path.Combine(folder, "b_" + Path.GetFileName(TestSampleData.Files("images").First(f => f.EndsWith(".png"))));
             File.Copy(TestSampleData.Files("images").First(f => f.EndsWith(".png")), plain);
-            foreach (var p in new[] { photo, plain }) File.WriteAllText(p + ".nfedit", StaleRecipe);
+            File.WriteAllText(photo + ".nfedit", StaleCutOutRecipe);
+            File.WriteAllText(plain + ".nfedit", StaleRecipe);
 
             NavigateFileBrowserTo(folder);
             var slideshow = WaitForId("SlideshowFolderAction", 8);
@@ -67,6 +73,8 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
 
             // ── The photos changed since their recipes: keep one, discard the other ──
             CheckDoes("Keep the edits made against an earlier file", "Image_EditKeepChanged", () => WaitForFs(() => !Exists("Image_EditKeepChanged"), 3));
+            Check("The kept edits remove its background, and the banner offers picture selection",
+                  () => WaitForFs(() => WaitForId("Image_RemoveBackgroundAction", 1)?.IsEnabled == true, 5));
             CheckInvoke("Next photo", "Image_Next");
             CheckDoes("Discard the edits made against an earlier file", "Image_EditDiscardChanged", () => WaitForFs(() => !Exists("Image_EditDiscardChanged"), 3));
             CheckInvoke("Back to the first photo", "Image_Previous");
@@ -154,6 +162,9 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             CheckPresent("Copy the cut-out", "Image_CutOutCopy");
             CheckPresent("Save the cut-out", "Image_CutOutSave");
             CheckInvoke("Clear what is picked", "Image_CutOutClear");
+            CheckPresent("Remove background, ready for something picked", "Image_CutOutRemoveBackground");
+            CheckDoes("Keep background puts it back, and the banner goes", "Image_CutOutKeepBackground",
+                      () => WaitForGone("Image_RemoveBackgroundAction", 3));
 
             // Export options
             Check("Export panel", () => SelectRadio("Image_EditToolExport"));

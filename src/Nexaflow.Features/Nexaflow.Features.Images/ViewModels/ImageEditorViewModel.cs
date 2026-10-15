@@ -40,6 +40,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private readonly ImageEditingServices _services;
 
     private readonly PhotoRestorer _restorer;
+    private readonly BackgroundRemover _remover;
 
     private CropRect? _straightenBase;
     private bool _straightenGesture;
@@ -64,19 +65,47 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The cut-out tool: a thing in the photo picked out and copied or saved cut out of its background.</summary>
     public PictureCutter Cutter { get; }
 
-    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, PictureCutter cutter)
+    /// <summary>The photo's background is removed: only what was picked is kept, the rest transparent.</summary>
+    public bool RemovesBackground => Recipe.CutOut is not null;
+
+    /// <summary>Keeps only what the cut-out tool has picked in the photo itself — an edit like any other, undone or put back
+    /// by Keep background; the mask is made at full size in the background and kept.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveBackground))]
+    private void RemoveBackground()
+    {
+        if (Cutter.PickedCutOut is { } cutOut) Commit(r => r with { CutOut = cutOut });
+    }
+
+    private bool CanRemoveBackground() => !Cutter.IsWorking && Cutter.PickedCutOut is { } cutOut && cutOut != Recipe.CutOut;
+
+    /// <summary>Puts the photo's background back.</summary>
+    [RelayCommand(CanExecute = nameof(RemovesBackground))]
+    private void KeepBackground() => Commit(r => r with { CutOut = null });
+
+    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
+                                      PictureCutter cutter)
     {
     _viewer   = viewer;
     Cutter    = cutter;
     _shell    = shell;
     _services = services;
     _restorer = restorer;
-    // A restoration arriving lets the photo be saved.
-    restorer.Restored += () =>
+    _remover  = remover;
+    // A restoration or a cut-out mask arriving lets the photo be saved.
+    restorer.Made += ToolMade;
+    remover.Made  += ToolMade;
+    // What is picked is what Remove background keeps.
+    cutter.PropertyChanged += (_, e) =>
+    {
+        if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking))
+            RemoveBackgroundCommand.NotifyCanExecuteChanged();
+    };
+    }
+
+    private void ToolMade()
     {
         SaveCommand.NotifyCanExecuteChanged();
         SaveCopyCommand.NotifyCanExecuteChanged();
-    };
     }
 
     private ImageEditSession? Session => _viewer.CurrentSession;
@@ -155,6 +184,8 @@ public partial class ImageEditorViewModel : ObservableObject
         OnPropertyChanged(string.Empty);
         SaveCommand.NotifyCanExecuteChanged();
         SaveCopyCommand.NotifyCanExecuteChanged();
+        RemoveBackgroundCommand.NotifyCanExecuteChanged();
+        KeepBackgroundCommand.NotifyCanExecuteChanged();
     }
 
     private void CancelOpenGestures()
@@ -777,8 +808,10 @@ public partial class ImageEditorViewModel : ObservableObject
     private SaveCapability Capability =>
         _services.Exporter.Capability(SourceContainer, Session?.Proxy?.IsAnimated == true, SourceContainer);
 
-    /// <summary>The photo can be overwritten in place (Save), not only copied.</summary>
-    public bool CanSaveInPlace => Session is { IsFileBacked: true, Proxy: not null } && Capability.CanSaveInPlace;
+    /// <summary>The photo can be overwritten in place (Save), not only copied: its format can be written, and holds the
+    /// transparency a removed background leaves.</summary>
+    public bool CanSaveInPlace => Session is { IsFileBacked: true, Proxy: not null } && Capability is { CanSaveInPlace: true } capability
+                                  && (Recipe.CutOut is null || capability.KeepsTransparency);
 
     /// <summary>Why Save is unavailable, or what it will not keep; null when there is nothing to say.</summary>
     public string? SaveNote => Session switch
@@ -787,6 +820,8 @@ public partial class ImageEditorViewModel : ObservableObject
         { IsFileBacked: false }             => Str.Get("Images.Edit.Save.NoteArchive"),
         { Proxy.IsAnimated: true }          => Str.Get("Images.Edit.Save.NoteAnimated"),
         _ when !Capability.CanSaveInPlace   => Str.Format("Images.Edit.Save.NoteFormatFormat", SourceContainer.ToString().ToUpperInvariant()),
+        _ when Recipe.CutOut is not null && !Capability.KeepsTransparency
+                                            => Str.Format("Images.Edit.Save.NoteNoTransparencyFormat", SourceContainer.ToString().ToUpperInvariant()),
         _ when !Capability.KeepsMetadata && !StripMetadata => Str.Format("Images.Edit.Save.NoteNoMetadataFormat", SourceContainer.ToString().ToUpperInvariant()),
         _                                   => null,
     };
@@ -796,9 +831,9 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCopyCommand))]
     private bool _isSaving;
 
-    /// <summary>The photo can be written: not saving already, and its restoration — where its recipe asks for one — made.</summary>
-    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending;
-    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending;
+    /// <summary>The photo can be written: not saving already, and what its recipe asks of the picture tools made.</summary>
+    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending;
+    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending;
 
     /// <summary>Bakes the edits into the original after a confirmation; the recipe is then spent.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -809,7 +844,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (!await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
             return;
 
-        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, replace: true, session.RestoredPath), success =>
+        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, replace: true, session.Made), success =>
         {
             if (!success) return;
             session.Baked();
@@ -824,7 +859,9 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         if (_shell is null || Session is not { } session) return;
         var source = SourceContainer;
-        var defaultTarget = _services.Encoders.CanEncode(source) ? source : ImageContainer.Jpeg;
+        // A photo whose background is removed is offered as a PNG unless its own format holds the transparency.
+        var defaultTarget = session.Recipe.CutOut is not null && !_services.Encoders.CarriesTransparency(source) ? ImageContainer.Png
+                          : _services.Encoders.CanEncode(source) ? source : ImageContainer.Jpeg;
         var suggested = Path.GetFileNameWithoutExtension(session.Path) + Str.Get("Images.Edit.Save.CopySuffix") + defaultTarget.Extension();
         var extensions = ImageExporter.CopyFormats.Select(c => c.Extension()).Prepend(defaultTarget.Extension()).Distinct().ToList();
         var folder = session.IsFileBacked ? Path.GetDirectoryName(session.Path) : null;
@@ -840,7 +877,7 @@ public partial class ImageEditorViewModel : ObservableObject
         }
 
         var recipe = session.Recipe;
-        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, replace: File.Exists(destination), session.RestoredPath), success =>
+        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, replace: File.Exists(destination), session.Made), success =>
         {
             if (success) _shell.ShowNotification(Str.Format("Images.Edit.Save.CopyDoneFormat", Path.GetFileName(destination)));
         });

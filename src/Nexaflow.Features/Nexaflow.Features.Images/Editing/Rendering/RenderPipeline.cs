@@ -33,6 +33,7 @@ public sealed class RenderPipeline : IDisposable
 {
     private readonly DecodedImage _source;
     private readonly DecodedImage? _restored;
+    private readonly SKImage? _cutOut;
     private readonly AdjustmentFilter _adjust;
     private readonly MarkupPainter _markup;
     private readonly bool _cache;
@@ -48,10 +49,14 @@ public sealed class RenderPipeline : IDisposable
     /// <param name="restored">The picture as the picture tools restored it, for a recipe that restores it: the same picture,
     /// upright and larger, laid over <paramref name="source"/> at the restoration's strength. Without it, a recipe that
     /// restores the picture shows it unrestored, at the restored size.</param>
-    public RenderPipeline(DecodedImage source, AdjustmentFilter adjust, MarkupPainter markup, bool cache = true, DecodedImage? restored = null)
+    /// <param name="cutOut">The mask the recipe's cut-out keeps the picture by — alpha over the upright source, 255 kept and
+    /// 0 cleared — for a recipe that cuts it out. Without it, such a recipe shows the whole picture. The caller owns it.</param>
+    public RenderPipeline(DecodedImage source, AdjustmentFilter adjust, MarkupPainter markup, bool cache = true, DecodedImage? restored = null,
+                          SKImage? cutOut = null)
     {
         _source   = source;
         _restored = restored;
+        _cutOut   = cutOut;
         _adjust   = adjust;
         _markup   = markup;
         _cache    = cache;
@@ -67,12 +72,12 @@ public sealed class RenderPipeline : IDisposable
     {
         var sourceToCanvas = CropGeometry.SourceToCanvas(recipe, _source.SourceSize, request.Frame, request.Scale, out var canvas);
 
-        var geometryKey = new GeometryKey(recipe.Geometry, recipe.Resize, recipe.Restore, request.Frame, canvas);
+        var geometryKey = new GeometryKey(recipe.Geometry, recipe.Resize, recipe.Restore, recipe.CutOut, request.Frame, canvas);
         if (_geometryLayer is null || _geometryKey != geometryKey)
         {
             DropTone();
             DropGeometry();
-            _geometryLayer = DrawGeometry(sourceToCanvas, canvas, recipe.Restore);
+            _geometryLayer = DrawGeometry(sourceToCanvas, canvas, recipe.Restore, recipe.CutOut);
             _geometryKey   = geometryKey;
         }
 
@@ -96,11 +101,12 @@ public sealed class RenderPipeline : IDisposable
     /// <summary>
     /// The picture drawn through the whole matrix — and, where the recipe restores it and the restored picture is here, the
     /// restored picture through its own matrix over it, at the restoration's strength: all restored, the picture beneath is
-    /// not drawn at all.
+    /// not drawn at all. Where the recipe cuts it out and its mask is here, what the mask does not keep is cleared.
     /// </summary>
-    private SKImage DrawGeometry(SKMatrix sourceToCanvas, SKSizeI canvas, RecipeRestore? restore)
+    private SKImage DrawGeometry(SKMatrix sourceToCanvas, SKSizeI canvas, RecipeRestore? restore, RecipeCutOut? cutOut)
     {
         var over = restore is not null ? _restored : null;
+        var mask = cutOut is not null ? _cutOut : null;
         var pixelsToCanvas = _source.PixelsToSource.PostConcat(sourceToCanvas);
         var restoredToCanvas = over?.PixelsToSource.PostConcat(sourceToCanvas);
         bool beneath = over is null || restore!.Strength < 1;
@@ -109,6 +115,8 @@ public sealed class RenderPipeline : IDisposable
             if (beneath) Draw(c, _source.Pixels, pixelsToCanvas, SKBlendMode.Src, 255);
             if (over is not null)
                 Draw(c, over.Pixels, restoredToCanvas!.Value, beneath ? SKBlendMode.SrcOver : SKBlendMode.Src, (byte)Math.Round(Math.Clamp(restore!.Strength, 0, 1) * 255));
+            if (mask is not null)
+                Draw(c, mask, sourceToCanvas, SKBlendMode.DstIn, 255);
         });
     }
 
@@ -221,5 +229,5 @@ public sealed class RenderPipeline : IDisposable
         DropGeometry();
     }
 
-    private sealed record GeometryKey(RecipeGeometry Geometry, RecipeResize? Resize, RecipeRestore? Restore, RenderFrame Frame, SKSizeI Canvas);
+    private sealed record GeometryKey(RecipeGeometry Geometry, RecipeResize? Resize, RecipeRestore? Restore, RecipeCutOut? CutOut, RenderFrame Frame, SKSizeI Canvas);
 }

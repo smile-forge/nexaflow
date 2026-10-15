@@ -11,6 +11,7 @@ using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Features.Images.Editing.Kept;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -219,7 +220,7 @@ public class ImageRestoreTests
         await _restored.MakeAsync(services, _photo, restore, tools, null, CancellationToken.None);
         var item = new ImageThumbItem { FilePath = _photo, FileName = Path.GetFileName(_photo) };
 
-        await new ThumbnailLoadTask([item], 32, Shell(), services, (photo, r) => _restored.Find(photo, r, tools.ModelsVersion)).RunAsync(CancellationToken.None);
+        await new ThumbnailLoadTask([item], 32, Shell(), services, (photo, r) => new MadeByTools(Restored: _restored.Find(photo, r.Restore!, tools.ModelsVersion))).RunAsync(CancellationToken.None);
         Until(() => item.Thumbnail is not null);
 
         var thumb = new System.Windows.Media.Imaging.FormatConvertedBitmap(item.Thumbnail!, System.Windows.Media.PixelFormats.Bgra32, null, 0);

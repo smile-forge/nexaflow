@@ -59,6 +59,9 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
   vest", and press **Find** to pick out every one. **Copy** puts it on the clipboard without its background, and
   **Save cut-out** saves it as a PNG, transparent around it and cropped to it; the picture itself is untouched. The first
   time, picture selection is a download of about 1.8 GB, offered in the panel. [Show me](locate:Image_EditToolCutOut,Image_CutOutPhrase,Image_CutOutSave)
+  **Remove background** keeps what is picked in the picture itself and makes everything else transparent — an edit like
+  any other, undone or put back with **Keep background**. A JPEG can't be transparent, so it is then saved as a copy,
+  offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
 - **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
 - **AI upscale** makes the picture twice or four times its size with the picture tools, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
 - **Export** chooses whether saving keeps the camera details, location, dates and descriptions, or removes them, and sets the quality of a JPEG or WebP. The colour profile is always kept. [Show me](locate:Image_EditToolExport,Image_EditStripMetadata)

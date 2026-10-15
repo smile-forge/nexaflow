@@ -151,6 +151,8 @@ public class CutOutToolTests
         public bool Ended { get; private set; }
 
         public ToolModelsState State { get; init; } = ToolModelsState.Ready;
+
+        public string ModelsVersion => "fake-1";
         public long DownloadBytes => 0;
         public int DownloadPercent => 0;
         public event EventHandler? Changed { add { } remove { } }

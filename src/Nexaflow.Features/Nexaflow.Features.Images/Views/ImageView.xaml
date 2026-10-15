@@ -492,6 +492,20 @@
                     <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
+            <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Remover.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Remover.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_RemoveBackgroundAction" AutomationProperties.Name="{Binding Remover.ActionLabel}">
+                            <TextBlock Text="{Binding Remover.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
         </StackPanel>
 
         <!-- ══ Content: exactly one sub-view is shown ══ -->

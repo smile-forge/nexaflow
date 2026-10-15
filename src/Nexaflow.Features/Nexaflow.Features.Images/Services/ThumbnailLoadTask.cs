@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.CuttingOut;
+using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
@@ -40,18 +42,18 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
     private readonly int _size;
     private readonly IShellServices _shell;
     private readonly ImageEditingServices _editing;
-    private readonly Func<string, RecipeRestore, string?>? _restored;
+    private readonly Func<string, ImageRecipe, MadeByTools>? _made;
 
-    /// <param name="restored">Finds the restoration kept for a photo whose recipe restores it; without it, or where none is
-    /// kept, an enhanced photo's thumbnail shows it unrestored.</param>
+    /// <param name="made">Finds what the picture tools made and kept for a photo's recipe — its restoration, its cut-out's
+    /// mask; without it, or where none is kept, the thumbnail shows the photo without them.</param>
     public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell, ImageEditingServices editing,
-                             Func<string, RecipeRestore, string?>? restored = null)
+                             Func<string, ImageRecipe, MadeByTools>? made = null)
     {
     _items    = items;
     _size     = size;
     _shell    = shell;
     _editing  = editing;
-    _restored = restored;
+    _made     = made;
     }
 
     public string Description => Str.Format("Images.Status.LoadingThumbnailsFormat", _items.Count);
@@ -89,13 +91,15 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
             using var decoded = _editing.Decode(path, _size * EditedDecodeFactor);
             var output = CropGeometry.OutputSize(recipe, decoded.SourceSize);
             double scale = Math.Min(1, (double)_size / Math.Max(output.Width, output.Height));
-            using var restored = recipe.Restore is { } restore && _restored?.Invoke(path, restore) is { } kept
+            var made = _made?.Invoke(path, recipe) ?? MadeByTools.None;
+            using var restored = recipe.Restore is { } restore && made.Restored is { } kept
                 ? _editing.DecodeRestored(kept, decoded.SourceSize, _size * EditedDecodeFactor * restore.Scale)
                 : null;
-            using var pipeline = _editing.Pipeline(decoded, cache: false, restored);
+            using var mask = recipe.CutOut is not null && made.CutOut is { } cut ? CutOutMasks.Decode(cut) : null;
+            using var pipeline = _editing.Pipeline(decoded, cache: false, restored, mask);
             return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
         }
-        catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
             return null;   // the shell's thumbnail of the unedited photo is shown instead
         }
