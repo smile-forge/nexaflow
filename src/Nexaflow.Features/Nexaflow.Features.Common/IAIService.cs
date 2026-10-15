@@ -114,6 +114,16 @@ namespace Nexaflow.Features.Common
         Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 
         /// <summary>
+        /// Notes on a stretch of conversation, for the assistant to carry on from in place of the conversation itself: what
+        /// was asked and decided, the facts, names and numbers that came up, what was acted on and how, and what is left open.
+        /// Condensed by the Analysis model without reasoning, a part at a time where the stretch is longer than it reads at
+        /// once. <paramref name="earlier"/>, notes condensed before it, are carried into them. Null when there is no model to
+        /// condense with, or it could not.
+        /// </summary>
+        /// <param name="messages">The stretch, oldest first: who said each thing, and what.</param>
+        Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default);
+
+        /// <summary>
         /// Runs a one-shot completion on the model assigned to the Problem Solving ability and
         /// returns its raw text. Falls back to the Analysis model when Problem Solving has not been
         /// assigned, and returns null when neither is configured.

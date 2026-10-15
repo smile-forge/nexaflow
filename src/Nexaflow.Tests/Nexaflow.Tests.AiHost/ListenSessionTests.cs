@@ -29,7 +29,7 @@ public class ListenSessionTests
         public ListenSession Session(UtteranceEnd end, bool transcribe = true, bool detectTurns = true) => new(
             7, "en", end, new Vad(this), () => new Recognizer(this),
             transcribe ? new Transcriber(this) : null, detectTurns ? new Turns(this) : null,
-            reply => { Replies.Add(reply); return Task.CompletedTask; });
+            reply => { lock (Replies) Replies.Add(reply); return Task.CompletedTask; });   // partials come from the recogniser's pump, beside the frames
 
         public async Task RunAsync(ListenSession session)
         {

@@ -281,7 +281,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
   the assembly it happens to sit in would pass over the other one and read green while testing nothing.
 - **`TestCategory("OwnedModel")`** *(`Tests.Core/AiPaths`, and `OwnedModelTests` in `Tests.AiHost`)* — the agent loop
-  and the AI host on a real model, Gemma 4 E4B, where a machine has it. `NEXAFLOW_TEST_GEMMA` names a folder holding
+  and the AI host on a real model, Gemma 4 E4B, where a machine has it. The AI-path suite checks the app's own paths, so
+  it runs the model greedy (`NEXAFLOW_AI_GREEDY`) and each run gives the same replies as the last; `OwnedModelTests`
+  checks the model's sampling itself, drawing on fresh hosts so a seed repeats. `NEXAFLOW_TEST_GEMMA` names a folder holding
   its files as its catalog lays them out (its GGUF and its projector), and
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack to run it on; without the first they are **inconclusive**, which is what
   they are in CI. One host and one loaded model serve a run, so the classes do not parallelise. They assert what the
@@ -297,7 +299,13 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack — the model is built for the GPU only. They assert a drawing's shape: its
   steps, its size, a picture rather than a flat field, the same picture from the same seed, a stop between steps, and
   the prompt encoder's tokens against Hugging Face's; the fox one draws is attached to the run's results to look at.
-  Unset, each is **inconclusive**. How the build compares with PyTorch is `tools/ai-models/z-image-turbo/check_z_image.py`.
+    Unset, each is **inconclusive**. How the build compares with PyTorch is `tools/ai-models/z-image-turbo/check_z_image.py`.
+  - **`HiDreamModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for HiDream-O1's graph:
+    `NEXAFLOW_TEST_HIDREAM` names a folder holding the published build (`denoiser\`), with `NEXAFLOW_TEST_RUNTIME_PACK`.
+    They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
+    trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
+    results. Unset, each is **inconclusive**. How the build compares with PyTorch is
+    `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
 - **`OllamaToolCallTests`** *(`Tests.Providers`)* — native tool calling against the Ollama server on this machine:
   `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
   then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).
@@ -311,6 +319,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   holding the built lexicons (`fr.tsv.gz`, `de.tsv.gz`, from `tools/ai-models/kokoro-lexicons`) and espeak-ng's
   readings of real reply sentences (`context-fr-sentences.jsonl`, `context-de-sentences.jsonl`).
   `PhonemizerAgainstEspeakTests` counts the sentences that come out with espeak-ng's sounds;
+  `SpeechModelTests` hear spoken turns through the listening models in `NEXAFLOW_TEST_SPEECH` with Whisper
+  large-v3-turbo, or the Whisper whose folders `NEXAFLOW_TEST_WHISPER` names (`whisper-small-en` for
+  `whisper-small-en-cpu` and `-cuda`); an English-only Whisper skips the French and German case.
   `PhonemizerReadBackTests` (`TestCategory("OwnedModel")`, with `NEXAFLOW_TEST_SPEECH` too) speaks them through Kokoro,
   hears them back through Whisper and fails when ours is understood worse than espeak-ng's own reading. Unset, they are
   **inconclusive**; the rules themselves are pinned without models in `SpeechNormalizerTests` and `LexiconPhonemizerTests`.
@@ -341,7 +352,7 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   > It is asked once per process at the first launch — not at assembly load — so a headless run never
   > sees it, and it is suppressed entirely on CI (`CI`, `TF_BUILD`, `GITHUB_ACTIONS`, `JENKINS_URL`,
   > `TEAMCITY_VERSION`) or with **`NEXAFLOW_UITESTS_NOPROMPT=1`** for a deliberately unattended local
-  > run. An unanswered prompt proceeds after two minutes, so nothing can stall on an absent human.
+  > run. An unanswered prompt proceeds after thirty seconds, so nothing can stall on an absent human.
 - **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
   of an external API is actually correct. Read-only and safe to run on any developer machine, but the
   results depend on that machine's state, so CI never runs them (the workflow filters out both this

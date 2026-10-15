@@ -29,6 +29,7 @@ using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Core.Localization;
 using Nexaflow.AiHost.Client;
 using Nexaflow.IO.Common.Hardware;
+using Nexaflow.Core.Services.LocalAi;
 
 namespace Nexaflow.Core;
 
@@ -259,11 +260,13 @@ public partial class App : Application
         // A UI journey fetches nothing: a download is minutes of network the run cannot wait on or count on.
         // The AI host — the process models Nexaflow runs itself are loaded in — starts on the first request for one.
         // Where the host's models run is planned once for the machine, across every workspace's models.
+        // Models on this machine are downloaded once each, app-wide, whichever workspace asks.
         var aiHost = StartAiHost();
-        ProviderManager.Instance.Initialize(activityManager,
-            new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
-                                downloadsAllowed: !UiTest),
-            aiHost, new HostModelSetup(aiHost), ComputeHardware.Probe());
+        var assets = new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
+                                         downloadsAllowed: !UiTest);
+        ProviderManager.Instance.Initialize(activityManager, assets,
+            aiHost, new HostModelSetup(aiHost), ComputeHardware.Probe(),
+            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel));
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -273,9 +276,10 @@ public partial class App : Application
             {
                 var ai = new AiConfig();
                 ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
-                ai.AddDefaultSpeechIn(AiConfig.DefaultSpeechModel);   // its provider loads with the rest; the workspace saves it
+                ai.AddDefaultSpeechIn();   // the workspace saves it
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
+            .Concat(LocalColumns.Assemblies)   // every workspace has the Local column
             .Distinct();
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
         StartupTimings.Mark("Init.Providers");
@@ -296,6 +300,7 @@ public partial class App : Application
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
+        WorkspaceManager.Instance.BackgroundTasks   = activityManager;
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. File map + external apps ──────────────────────────────────────

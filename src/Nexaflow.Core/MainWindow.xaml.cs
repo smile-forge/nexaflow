@@ -13,6 +13,7 @@ using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
 using Nexaflow.Visuals.Common.Localization;
 using System.Windows.Media.Animation;
+using System.Windows.Media;
 
 namespace Nexaflow.Core;
 
@@ -105,7 +106,8 @@ public partial class MainWindow : Window
                 _vm.OptionsOpen            = false;
                 _vm.WorkspaceConfigOpen    = false;
                 _vm.NotificationsOpen      = false;
-                _vm.Ai.AiResponseOverlayOpen = false;
+                _vm.Ai.Card.Close();
+                _vm.WorkspaceTasks.IsOpen  = false;
                 _vm.Voice.PutAwayShown();
                 RibbonControl.ViewModel.IsEditOpen = false;
             }
@@ -156,11 +158,18 @@ public partial class MainWindow : Window
             }
         };
 
+        // A pinned reply card is put away by a click anywhere but on it or on the reply it shows.
+        PreviewMouseDown += (_, e) =>
+        {
+            if (_vm.Ai.Card.IsPinned && e.OriginalSource is DependencyObject hit && !Within(hit, ReplyCardView) && !Within(hit, AiReplyLine))
+                _vm.Ai.Card.Close();
+        };
+
         SizeChanged    += (_, _) => CapAiRowHeight();
         RootGrid.LayoutUpdated += (_, _) => CapAiRowHeight();
-        _vm.Voice.PropertyChanged += (_, e) =>
+        _vm.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) LayOutForVoice(_vm.Voice.IsActive, animate: true);
+            if (e.PropertyName == nameof(ShellViewModel.ShowsAiLine)) LayOutAiLine(_vm.ShowsAiLine, animate: true);
         };
 
 
@@ -222,6 +231,21 @@ public partial class MainWindow : Window
     private void NotificationScrim_MouseDown(object sender, MouseButtonEventArgs e)
         => _vm.NotificationsOpen = false;
 
+    private void BackgroundTasksScrim_MouseDown(object sender, MouseButtonEventArgs e)
+        => _vm.WorkspaceTasks.IsOpen = false;
+
+    private void AiReply_MouseEnter(object sender, MouseEventArgs e) => _vm.Ai.Card.PointerOver(true);
+
+    private void AiReply_MouseLeave(object sender, MouseEventArgs e) => _vm.Ai.Card.PointerOver(false);
+
+    /// <summary>Whether <paramref name="element"/> is <paramref name="root"/> or inside it, through text as well as visuals.</summary>
+    private static bool Within(DependencyObject? element, DependencyObject root)
+    {
+        for (; element is not null; element = element is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element))
+            if (ReferenceEquals(element, root)) return true;
+        return false;
+    }
+
     private void CapAiRowHeight()
     {
         double maxAi = (ActualHeight - 91) * 0.5;
@@ -237,7 +261,7 @@ public partial class MainWindow : Window
     /// field gives the top line up to it. Out of voice mode the AI is the dot alone and the user's field is full height.
     /// Once grown, the AI's field stretches with the bar again.
     /// </summary>
-    private void LayOutForVoice(bool active, bool animate)
+    private void LayOutAiLine(bool active, bool animate)
     {
         var time = animate ? VoiceLayoutTime : new Duration(TimeSpan.Zero);
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -253,7 +277,7 @@ public partial class MainWindow : Window
         if (active)
             width.Completed += (_, _) =>
             {
-                if (!_vm.Voice.IsActive) return;
+                if (!_vm.ShowsAiLine) return;
                 AiField.BeginAnimation(WidthProperty, null);
                 AiField.Width = double.NaN;
                 AiField.HorizontalAlignment = HorizontalAlignment.Stretch;

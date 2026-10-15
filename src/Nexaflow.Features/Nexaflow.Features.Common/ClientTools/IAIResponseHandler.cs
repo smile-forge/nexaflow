@@ -64,8 +64,19 @@ public interface IAIResponseHandler
     /// <summary>Renders the model's final answer (and, for a conversation, persists the exchange).</summary>
     void ShowFinal(string finalMarkdown);
 
+    /// <summary>How much of the model's context the conversation fills after a step: <paramref name="tokens"/> of its
+    /// <paramref name="window"/>. Told after each step whose model says; a handler that does not show it ignores it.</summary>
+    void ReportContextUse(int tokens, int window) { }
+
     /// <summary>Aborts the in-flight response UI (cancel / error / prefill): clears the placeholder.</summary>
     void Abort();
+
+    /// <summary>
+    /// A call a run of this handler set going in the background has ended, after the run itself: <paramref name="outcome"/> says
+    /// what came of it, as the model would read it. A conversation keeps it, so what follows can build on it. Default: no-op —
+    /// the user is told by the app either way.
+    /// </summary>
+    void BackgroundJobEnded(string outcome) { }
 
     /// <summary>
     /// Queues a message the user submitted WHILE this response was being generated. The agent loop

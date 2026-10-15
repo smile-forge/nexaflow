@@ -102,7 +102,7 @@ internal sealed unsafe class MediaProjector : IDisposable
 
     /// <summary>Reads a medium's chunk into a sequence at <paramref name="position"/>: encoded, then decoded into the
     /// context. Returns the next position.</summary>
-    internal int Read(LlamaContext context, PromptPiece piece, int sequence, int position, bool sample, out int? next)
+    internal int Read(LlamaContext context, PromptPiece piece, int sequence, int position, bool sample, out int? next, LlamaSampler? sampler = null)
     {
         int after = 0;
         next = context.Read(handle =>
@@ -111,7 +111,7 @@ internal sealed unsafe class MediaProjector : IDisposable
             int result = MtmdNative.EvalChunk(Handle, handle, piece.Chunk, position, sequence, LlamaContext.Batch, sample, &past);
             after = past;
             return result;
-        }, sample);
+        }, sample, sampler);
         return after;
     }
 

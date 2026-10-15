@@ -79,7 +79,8 @@ internal sealed class GenerateImageTool : IClientTool
         ReferenceEquals(Model(arguments), _highQuality)
             ? new(Str.Get("Shell.Generate.Announce.Draw"), Str.Get("Shell.Generate.Announce.HighQualityPicture"),
                   Str.Get("Shell.Generate.Announce.DrawingHighQualityPicture"),
-                  Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"))
+                  Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"),
+                  Str.Get("Shell.Generate.Announce.DrawingInBackground"))
             : null;
 
     /// <summary>The model a call draws with: the high-quality one when asked for, or when it is the only one.</summary>
@@ -131,4 +132,7 @@ internal sealed class GenerateImageTool : IClientTool
     /// <summary>The shape a model asked for, or <paramref name="fallback"/> where it named none it has.</summary>
     internal static MediaShape Shape(string? asked, MediaShape fallback) =>
         Enum.TryParse<MediaShape>(asked, ignoreCase: true, out var shape) && Enum.IsDefined(shape) ? shape : fallback;
+
+    /// <summary>A picture at high quality takes minutes: it is drawn in the background.</summary>
+    public bool RunsInBackground(JsonObject arguments) => ReferenceEquals(Model(arguments), _highQuality);
 }

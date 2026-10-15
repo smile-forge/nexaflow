@@ -4,6 +4,7 @@ using Nexaflow.Core.AI;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -53,6 +54,12 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// chosen on either is the same edit.</summary>
     private readonly AiAbilityGridViewModel _grid;
 
+    /// <summary>The models on this machine, read from the editing provider set; null without an asset store.</summary>
+    private readonly LocalModelShelf? _shelf;
+
+    /// <summary>The app's downloads of models on this machine; null where the app has none.</summary>
+    private readonly LocalModelDownloads? _downloads;
+
     /// <summary>The pages whose apply writes the ability grid, saved as <see cref="_aiConfig"/>.</summary>
     private readonly List<ConfigEditViewModel> _gridSections = [];
 
@@ -87,7 +94,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
         _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
         _aiConfig.Providers  = _editingProviderSet;
-        _grid                = new AiAbilityGridViewModel(_aiConfig);
+        _shelf               = ProviderManager.Instance.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
+        _downloads           = ProviderManager.Instance.Service<LocalModelDownloads>();
+        _grid                = new AiAbilityGridViewModel(_aiConfig, _shelf, _downloads);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -116,18 +125,19 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         Sections.Add(_defaultTabsSection);
 
         Sections.Add(GridSection(new AiAbilityGridControl { DataContext = _grid }, _aiConfig.ConfigName, _aiConfig.FriendlyName));
+
+        // The models on this machine: a page choosing one for each job, and one of what is on disk.
+        if (_shelf is not null && _downloads is not null)
+        {
+            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice);
+            Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
+            Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids)),
+                                                              "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
+        }
         Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
         foreach (var config in _providerConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
 
-        // A provider whose models are files on this machine gets a page for them, after the providers' own settings.
-        if (ProviderManager.Instance.Assets is { } assets && _editingProviderSet is { } set)
-            foreach (var provider in set.Providers)
-                if (provider is ILocalModelCatalog catalog)
-                {
-                    var page = new LocalModelsViewModel(provider, catalog, _grid, assets, ProviderManager.Instance.ActivityManager, SaveGrid);
-                    Sections.Add(GridSection(new LocalModelsControl(page, _grid), $"local-models-{provider.Name}", provider.Name));
-                }
         foreach (var config in _workspaceConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
     }
@@ -139,8 +149,20 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         return section;
     }
 
-    /// <summary>Saves the ability grid's config as it stands — a local-model page's choice, written into it at once.</summary>
-    private void SaveGrid() => SaveGridConfig();
+    /// <summary>Saves a Local page choice of a model that is here, written into the grid's config at once. A choice that waits on
+    /// a download is saved by the app's downloads when it lands, whether or not this panel is still open.</summary>
+    private void CommitLocalChoice() => SaveGridConfig();
+
+    /// <summary>Every workspace's grid as saved, by name — this one's as this panel holds it — for who uses which model.</summary>
+    private IReadOnlyList<(string Workspace, AiConfig Config)> SavedGrids()
+        => [.. WorkspaceManager.Instance.Workspaces.Select(w => (w.Name, ReferenceEquals(w, _workspace) ? _aiConfig : SavedGrid(w)))];
+
+    private static AiConfig SavedGrid(Workspace workspace)
+    {
+        var config = new AiConfig();
+        ConfigManager.Instance.LoadFrom(workspace.Dir, config, config.ConfigName);
+        return config;
+    }
 
     /// <summary>Saves the ability grid's config; every page that edits the grid is then unchanged.</summary>
     private bool SaveGridConfig()

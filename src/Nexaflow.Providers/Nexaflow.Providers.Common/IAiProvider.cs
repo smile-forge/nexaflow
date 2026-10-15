@@ -43,6 +43,12 @@ public interface IAiProvider
     event EventHandler? AvailabilityChanged { add { } remove { } }
 
     /// <summary>
+    /// Whether the model has made way on its GPU for a picture being drawn: it is still available, but a request waits
+    /// for it until the picture is done. <see cref="AvailabilityChanged"/> is raised when this changes. Default: never.
+    /// </summary>
+    bool IsMakingWay => false;
+
+    /// <summary>
     /// Returns the model identifiers this provider offers for its kind (independent of the bound model — a
     /// provider/config-level capability). Implementations may query a remote API or return a static list.
     /// Returns an empty list on failure; never throws.

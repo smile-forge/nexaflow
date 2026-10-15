@@ -59,11 +59,16 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     [NotifyPropertyChangedFor(nameof(Line))]
     private string? _progress;
 
+    /// <summary>How much of the model's context the conversation fills, as its last step said; null until one has.</summary>
+    [ObservableProperty] private ContextUse? _contextUse;
+
     /// <summary>The assistant's one line: its reply as it is said, and between words what it is doing — "Thinking…",
     /// "Working… Deleting file test.zip". The reply stays until the next turn begins.</summary>
     public string Line => State switch
     {
         VoiceState.Working                          => $"{Str.Get("Shell.AiBar.Voice.Working")} {Progress}".TrimEnd(),
+        // The model that answers made way for a picture: nothing said now could be answered till it is back.
+        VoiceState.Paused                           => Str.Get("Shell.AiBar.Voice.Working"),
         // Speaking, but not a word heard yet: the voice is still on its way.
         VoiceState.Thinking or VoiceState.Speaking when Saying.Length == 0 => Str.Get("Shell.AiBar.Voice.Thinking"),
         _ when Saying.Length > 0                    => Saying,
@@ -99,6 +104,7 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
         if (IsActive) return;
         _inline   = inline is not null;
         Saying    = "";
+        ContextUse = null;
         _playback = new SpeakerPlayback();
         _capture  = new CommunicationsCapture(_playback.EndpointId);
         var parts = new VoiceSessionParts(service.SpeechToText!, service.TextToSpeech!, _capture, _playback,
@@ -233,6 +239,8 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     public void ReportProgress(string message) => OnUi(() => Progress = message);
 
     public void ShowFinal(string finalMarkdown) => OnUi(() => Progress = null);
+
+    public void ReportContextUse(int tokens, int window) => OnUi(() => ContextUse = new(tokens, window));
 
     public void Abort() => OnUi(() => Progress = null);
 

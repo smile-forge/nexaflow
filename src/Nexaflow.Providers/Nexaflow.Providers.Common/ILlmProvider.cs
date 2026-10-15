@@ -70,11 +70,33 @@ public interface ILlmProvider : IAiProvider
         => StreamAsync(messages, urgency, ct);
 
     /// <summary>
+    /// The same, saying whether the model may reason before it answers. Reasoning makes a smaller model's answers worth
+    /// having and costs time before the first word; a quick question asks without it. A model that does not reason, or
+    /// whose provider cannot switch it, ignores it — the default.
+    /// </summary>
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        LlmThinking               thinking,
+        CancellationToken         ct = default)
+        => StreamAsync(messages, tools, urgency, ct);
+
+    /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't
     /// know. Default implementation returns null.
     /// </summary>
     Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
         => Task.FromResult<ModelInfo?>(null);
+}
+
+/// <summary>Whether a model may reason before it answers.</summary>
+public enum LlmThinking
+{
+    /// <summary>As the model does by default: a model that reasons, reasons.</summary>
+    Allowed,
+    /// <summary>Answer at once — a quick spoken reply, a one-word judgement.</summary>
+    Off,
 }
 
 /// <summary>Who is waiting on a request.</summary>

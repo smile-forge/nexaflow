@@ -7,9 +7,10 @@ namespace Nexaflow.Core.Services.Agent;
 /// <summary>
 /// One step of the model, read: what it wrote, what that means to the agent loop, and its calls — each with an id,
 /// <see cref="Calls"/> lined up with the turn's <see cref="ParsedAssistantTurn.ToolCalls"/>, and the plan it proposed
-/// as a call of its own.
+/// as a call of its own — and why its reply ended, where the provider says.
 /// </summary>
-internal sealed record AgentStep(string Written, ParsedAssistantTurn Turn, IReadOnlyList<LlmToolCall> Calls, LlmToolCall? PlanCall);
+internal sealed record AgentStep(string Written, ParsedAssistantTurn Turn, IReadOnlyList<LlmToolCall> Calls, LlmToolCall? PlanCall,
+                                 LlmReplyEnded? Ended = null);
 
 /// <summary>What came of one call, as the model reads it.</summary>
 internal sealed record ToolOutcome(string Text, bool IsError = false);
@@ -33,10 +34,11 @@ internal abstract class ToolProtocol
     /// tools are offered in the model's own protocol.</summary>
     public abstract string? Instructions(IReadOnlyList<IClientTool> tools);
 
-    /// <summary>One step of the model on the conversation so far: its prose streamed to the handler as a draft, and
-    /// the step read.</summary>
+    /// <summary>One step of the model on the conversation so far, reasoning first or not as <paramref name="thinking"/>
+    /// says: its prose streamed to the handler as a draft, and the step read.</summary>
     public abstract Task<AgentStep> StepAsync(ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IReadOnlyList<IClientTool> tools,
-                                              IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, CancellationToken ct);
+                                              IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, LlmThinking thinking,
+                                              CancellationToken ct);
 
     /// <summary>The step as the conversation remembers it.</summary>
     public abstract LlmMessage Said(AgentStep step);
@@ -60,22 +62,28 @@ internal abstract class ToolProtocol
     public abstract Task<AgentStep?> RepairAsync(ILlmProvider provider, AgentStep step, IReadOnlyList<IClientTool> tools,
                                                  IReadOnlyCollection<string> toolNames, CancellationToken ct);
 
-    /// <summary>The model's reply streamed: its prose to the handler as a draft, kept clear of anything it acts on, and
-    /// the calls it made in its own protocol.</summary>
-    protected static async Task<(string Text, IReadOnlyList<LlmToolCall> Calls)> StreamAsync(IAsyncEnumerable<LlmStreamEvent> events,
-                                                                                              IAIResponseHandler handler)
+    /// <summary>The model's reply streamed: its prose to the handler as a draft, kept clear of anything it acts on, the
+    /// calls it made in its own protocol, and why it ended where the provider says.</summary>
+    protected static async Task<(string Text, IReadOnlyList<LlmToolCall> Calls, LlmReplyEnded? Ended)> StreamAsync(
+        IAsyncEnumerable<LlmStreamEvent> events, IAIResponseHandler handler)
     {
         var raw   = new System.Text.StringBuilder();
         var calls = new List<LlmToolCall>();
         var draft = new ReplyDraft();
         var shown = string.Empty;
         var next  = 0L;   // the first words show at once; later ones wait out the interval
+        LlmReplyEnded? ended = null;
 
         await foreach (var e in events)
         {
             if (e is LlmToolCallRequested requested)
             {
                 calls.Add(requested.Call);
+                continue;
+            }
+            if (e is LlmReplyEnded end)
+            {
+                ended = end;
                 continue;
             }
             if (e is not LlmTextDelta delta) continue;
@@ -91,6 +99,6 @@ internal abstract class ToolProtocol
             shown = text;
             next  = Stopwatch.GetTimestamp() + (long)(DraftInterval.TotalSeconds * Stopwatch.Frequency);
         }
-        return (raw.ToString().Trim(), calls);
+        return (raw.ToString().Trim(), calls, ended);
     }
 }

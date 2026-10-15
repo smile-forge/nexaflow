@@ -133,31 +133,42 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    public async Task WarmingUp_FetchesTheModelAndTheCudaPack_WhereThePackSuitsTheMachine_ThenLoadsItOnTheGpu()
+    public async Task WarmingUp_LoadsAModelThatIsHere_OnTheGpu_RunningFromThePack_AndDownloadsNothing()
     {
-        var store = new FakeModelStore();
+        var store = new FakeModelStore([.. Gemma.Files, .. CudaRuntimePack.Files]);
         var host = new FakeAiHost();
         var provider = Provider(store, host, Nvidia());
 
         await provider.WarmupAsync();
 
-        CollectionAssert.IsSubsetOf(CudaRuntimePack.Files.ToArray(), store.Fetched.Single().ToArray());
+        Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
         Assert.IsNotNull(host.Environment.RuntimePack, "the host runs from the pack");
         var load = (LoadModel)host.Requests.Single();
-        Assert.AreEqual((0, 32768), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with the context the catalog gives it where there is room");
-        Assert.AreEqual(5905580032L + 17920L * 32768, load.Model.MemoryBytes, "what it holds there, context and all");
+        Assert.AreEqual((0, 131072), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
+        Assert.AreEqual(5905580032L + 17920L * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
     }
 
     [TestMethod]
-    public async Task OnAMachineThePackDoesNotSuit_OnlyTheModelIsFetched_AndItRunsOnTheCpu()
+    public async Task WarmingUp_AModelNotHere_DownloadsNothing_AndLoadsNothing()
     {
-        var store = new FakeModelStore();
+        var store = new FakeModelStore([.. Gemma.Files]);   // the pack it needs on this machine is not
+        var host = new FakeAiHost();
+
+        await Provider(store, host, Nvidia()).WarmupAsync();
+
+        Assert.AreEqual(0, store.Fetched.Count);
+        Assert.AreEqual(0, host.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task OnAMachineThePackDoesNotSuit_TheModelAloneIsAllItNeeds_AndItRunsOnTheCpu()
+    {
+        var store = new FakeModelStore([.. Gemma.Files]);
         var host = new FakeAiHost();
         var provider = Provider(store, host, Hardware(ComputeVendor.Amd));
 
         await provider.WarmupAsync();
 
-        CollectionAssert.AreEquivalent(Gemma.Files.ToArray(), store.Fetched.Single().ToArray());
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
         Assert.AreEqual((null, 0L), (((LoadModel)host.Requests.Single()).Model.Device, ((LoadModel)host.Requests.Single()).Model.MemoryBytes));
     }
@@ -204,5 +215,53 @@ public class OwnedLlmProviderTests
         Assert.AreEqual(MediaKind.Audio, media.Kind);
         CollectionAssert.AreEqual(new byte[] { 1, 2 }, media.Bytes);
         Assert.IsTrue(provider.SupportsAudio);
+    }
+
+    [TestMethod]
+    public void WhileItsModelMakesWayForAPicture_ItSaysSo_AndAgainWhenItIsBack()
+    {
+        var host     = new FakeAiHost();
+        var setup    = new HostModelSetup(host);
+        var provider = new OwnedLlmProvider(new FakeActivityManager(), new FakeModelStore(), host, setup, Hardware(), new ProviderModel("gemma-4-e4b-it"));
+        int changes  = 0;
+        provider.AvailabilityChanged += (_, _) => changes++;
+        var gemma = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == "gemma-4-e4b-it");
+        string[] parts = [.. new[] { OwnedModels.Cuda, OwnedModels.Cpu }.SelectMany(gemma.PartsFor).Select(p => $"{gemma.Id}/{p.Name}").Distinct()];
+
+        using (setup.MakingWay(["z-image-turbo/decoder"]))
+            Assert.IsFalse(provider.IsMakingWay, "another model made way");
+
+        var back = setup.MakingWay(parts);
+        Assert.IsTrue(provider.IsMakingWay);
+    
+        back.Dispose();
+        Assert.IsFalse(provider.IsMakingWay);
+        Assert.AreEqual(4, changes, "each change is told, so the conversation can pause and take up listening again");
+    }
+
+    [TestMethod]
+    public void AReply_IsSampledForWhetherItReasons_AndASeedMakesItRepeatable()
+    {
+        var qwen = OwnedModels.All.Single(m => m.Id == "qwen-3.5-9b");
+        var before = Environment.GetEnvironmentVariable(OwnedLlmProvider.SeedVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, null);
+            Assert.AreEqual(0.7f, OwnedLlmProvider.SamplingOf(qwen, thinks: false)!.Temperature);
+            Assert.AreEqual(1.0f, OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Temperature);
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Seed, "a different draw each time");
+
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, "7");
+            Assert.AreEqual(7u, OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Seed);
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(OwnedModels.All.Single(m => m.Id == "phi-4"), thinks: true));
+
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.GreedyVariable, "1");
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(qwen, thinks: true), "tests of the app's own paths take the likeliest token");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, before);
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.GreedyVariable, null);
+        }
     }
 }

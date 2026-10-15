@@ -17,9 +17,6 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 {
     public const string ProviderName = "Nexaflow";
 
-    /// <summary>The longest a reply may run before it is cut off.</summary>
-    internal const int MaxReplyTokens = 4096;
-
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
@@ -29,6 +26,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
+        _runtime.MadeWayChanged += OnMadeWayChanged;
     }
 
     public string Name => ProviderName;
@@ -40,6 +38,10 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.Language).Select(_runtime.CatalogOf)];
 
+    public IReadOnlyList<UnrunnableModel> Unrunnable => [.. _runtime.Unrunnable(ModelKind.Language)];
+
+    public LocalRuntime? RuntimeOf(string modelId) => _runtime.Runtime;
+
     public bool LoadsOnDemand => false;
 
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
@@ -47,6 +49,10 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>Its files are here and verified.</summary>
     public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+
+    public bool IsMakingWay => _model is not null && _runtime.IsMakingWay(_model);
+
+    private void OnMadeWayChanged(object? sender, EventArgs e) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
 
     public event EventHandler? AvailabilityChanged;
 
@@ -79,6 +85,12 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// template, and its calls come back as it makes them.</summary>
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
                                                         CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, LlmThinking.Allowed, ct);
+
+    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says. A reply may be as long as
+    /// the model's context leaves room for; it ends with why it ended, and how full the context now is.</summary>
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        LlmThinking thinking, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{ProviderName} has no model to answer with.");
         var request = Turns(messages, _model);
@@ -87,13 +99,13 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             : null;
         var priority = urgency == LlmUrgency.Background ? RequestPriority.Background : RequestPriority.Interactive;
         return LlmStreamRunner.RunAsync(_runtime.Activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
-            token => Events(_model, request, offered, priority, token), ct);
+            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, token), ct);
     }
 
     /// <summary>The reply as the host writes it. A host lost before a word of it — it crashed, and the next request
     /// starts another — is asked once more; after a word, the reader has seen part of a reply and it is not.</summary>
     private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
-                                                          RequestPriority priority, [EnumeratorCancellation] CancellationToken ct)
+                                                          RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
     {
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
@@ -101,7 +113,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxReplyTokens, priority, tools), OwnedModelRuntime.StallLimit, ct)
+            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {
@@ -123,9 +135,36 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
                     written = true;
                     yield return new LlmToolCallRequested(LlmToolCall.Read(made.Call.Id, made.Call.Name, made.Call.Arguments));
                 }
+                else if (replies.Current is GenerationEnded ended)
+                {
+                    yield return new LlmReplyEnded(ended.Reason switch
+                    {
+                        StopReason.MaxTokens   => LlmReplyEnd.LengthLimit,
+                        StopReason.ContextFull => LlmReplyEnd.ContextFull,
+                        StopReason.Circling    => LlmReplyEnd.Circling,
+                        _                      => LlmReplyEnd.Finished,
+                    }, ended.PromptTokens + ended.GeneratedTokens);
+                }
             }
         }
     }
+
+    /// <summary>Names a seed every reply's draws start from: the same requests in the same order on a fresh host then draw the
+    /// same replies — for tests of the model's own behaviour. Unset, every reply draws afresh.</summary>
+    internal const string SeedVariable = "NEXAFLOW_AI_SEED";
+
+    /// <summary>How the model chooses its tokens for a request that reasons first or not, as its makers recommend; null —
+    /// the likeliest each time — for a model whose makers recommend nothing, or under <see cref="GreedyVariable"/>.</summary>
+    internal static TokenSampling? SamplingOf(OwnedModel model, bool thinks)
+    {
+        if (Environment.GetEnvironmentVariable(GreedyVariable) is { Length: > 0 }) return null;
+        if (model.TokenSampling?.For(thinks) is not { } sampling) return null;
+        return uint.TryParse(Environment.GetEnvironmentVariable(SeedVariable), out var seed) ? sampling with { Seed = seed } : sampling;
+    }
+
+    /// <summary>Set, every reply takes the likeliest token each time — for tests of the app's own paths through a real model,
+    /// which want the same replies run after run whatever came before them.</summary>
+    internal const string GreedyVariable = "NEXAFLOW_AI_GREEDY";
 
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
     /// them; any other attachment is named in the text, as for any provider that cannot read it. A turn's tool calls, and
@@ -156,6 +195,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     public ValueTask DisposeAsync()
     {
         _runtime.Assets.Changed -= OnAssetChanged;
+        _runtime.MadeWayChanged -= OnMadeWayChanged;
         return ValueTask.CompletedTask;
     }
 }

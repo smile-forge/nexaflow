@@ -2,16 +2,16 @@
 
 **Status: phases 1, 2 and 3 built; phase 4 under way.** Replies stream through the agent harness; each ability is served by a chain of
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
-models, and dictation runs through the grid's Speech In chain (Whisper on this machine, OpenAI's realtime
-transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
+models, and the mic listens through the grid's Speech In chain (Nexaflow's own Whisper on this machine, OpenAI's
+realtime transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
 CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
 "Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
-A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, Smart
-Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
+A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
+small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and pictures
-on this machine with Z-Image Turbo, at a standard and a high quality; music on this machine is still to come. This
+on this machine with Z-Image Turbo, and at high quality with HiDream-O1; music on this machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
@@ -44,7 +44,7 @@ and audio generators; our own catalog, downloads, runtime provisioning, chat tem
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
-| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** will be its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures, at 94 s. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
+| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
 | Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
 | Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
 | Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax and Qwen's `<function=…>` tags, read from their tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
@@ -296,20 +296,30 @@ The host owns:
   drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
   reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
   is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
-  done.
+  done. The picture's request says which residents made way for it (`MadeWay`, protocol 8); the app holds them as away
+  until the picture is done (`HostModelSetup.MakingWay`), and a provider whose model is away says so
+  (`IAiProvider.IsMakingWay`). A voice conversation whose answering model is away pauses: it passes nothing the
+  microphone hears to the listener, and the AI bar says "Working…" until the model is back.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
-  generation jobs. Concurrent models time-slice the GPU, so the GPU takes one step at a time — a token, a 512-token
-  slice of prompt — and gives the next to the highest-priority request waiting; a background analysis yields to a
-  reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
-
-The GPU steps of every request take turns across all of the host's GPUs, one step at a time.
+  generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
+  slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to
+  a reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
+- **Each card takes its own turns** (`GpuScheduler`): models on different GPUs never wait for each other, and the CPU
+  takes turns of its own.
+- **A generation job gives way to people, then runs alongside them.** A job's step is not token-sized — a HiDream
+  denoiser pass holds the GPU about 350 ms — and a reply asks for its next token just after the GPU has been handed on,
+  so taking turns would give the reply one token a pass. For its first 45 s, when whoever asked for it is most likely to
+  change their mind or add to it, a job takes no step on a card where someone is being attended to: a reply being
+  written, an utterance being heard and transcribed, speech being made. After that it stops taking turns and runs
+  alongside, the card time-slicing the two: a reply at about half speed instead of a token a pass.
 
 ### The machine's setup
 
 The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
 reports. Language models are placed first, then the rest from the largest down, each on the GPU it fills most nearly —
-so a GPU stays as whole as it can for a picture. A language model gets its catalog's context (32k for most) where there
-is room and a shorter one where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
+so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
+read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
+where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
 its CPU build, and one with no CPU build is left out. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
@@ -372,7 +382,7 @@ maps roles to models:
 - **Each cell is an ordered chain** of models, set by clicking cells in the order they should be tried: owned Gemma,
   then Claude. A chain advances on unavailability — a provider not available (no API key; for the host, model not
   downloaded, host down, budget refused) — not on "try one, retry the next" for every request: a failed attempt has
-  cost its whole latency already.
+  cost its whole latency already. A reasoning row holding models of both kinds routes by weight instead (below).
 - **High-risk context leaves only with consent.** A request whose context reports a high `GetContextSecurityRisk`
   goes to the chain's model like any other; when that model sends data off this machine, the user is asked first,
   and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
@@ -380,11 +390,83 @@ maps roles to models:
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
   **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
   its kind; an Audio Generation row arrives with its contract.
+- **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own, one
+  chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
+  high-quality pictures, video — on the workspace's Local page (`LocalColumns`, `LocalModelShelf`). Each job's model is
+  saved as a column under a reserved id, so a chain names it like any other. The column is on wherever the machine runs
+  a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
+  every row of the job uses it. Each time a workspace loads, a job on a model it no longer offers here moves to its first
+  (`LocalColumns.Settle`). Its cell in a row is the job's model — marked ⬇ while that is not downloaded — or greyed
+  with the reason where the machine runs none. Nothing downloads by itself: warming a model loads it only once it is
+  here. The grid offers to download every model it uses that is missing, or says to add a cloud service where the machine
+  runs none. The Local page lists every model for a job — downloaded, the download it would take, or why this machine
+  cannot run it; choosing one that is not here downloads it with its runtime first, the job keeping its model meanwhile,
+  and a job no row used starts on it in every row. Downloads are the app's (`LocalModelDownloads`): one for each model
+  however many jobs or workspaces chose it, going on after the page closes and shown again when it opens, with about how
+  long is left read from the last few seconds' speed. The setup wizard starts the downloads of what it chose. The
+  Downloaded models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are
+  never a provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
-  the machine's GPUs is not offered.
+  the machine's GPUs is listed greyed, never chosen.
 
 In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
 to the owned model, which is where API cost actually goes.
+
+### Light work here, heavy work elsewhere
+
+A Conversation, Problem Solving or Analysis row holding both a model on this machine and one elsewhere is not a fallback
+chain: each request goes to the model that suits it (`RequestTriage`). A row of one kind — only models here, or only
+models elsewhere — always uses its first available model.
+
+**How long a reply may be, and how it ends.** A reply has no fixed limit: it may be as long as the model's context leaves
+room for, its reasoning included. What stops one that has stopped going anywhere is the host's `CircleWatch`: the same
+stretch of tokens back to back, round three times and filling 256 tokens, ends the reply as going in circles. Reasoning
+is not shown, so the host reports it every 64 tokens and the app's watchdog hears the reply is alive. Every reply ends
+with why (`LlmReplyEnded`) and how much of the context the conversation now fills. A step with nothing in it is never
+taken for an answer: the run is stuck, handed to the larger model where the row has one, and otherwise says why — it
+went in circles, or filled the context. The AI bar draws how full the context is as a hairline along the foot of its
+line, amber from 80%.
+
+**Each model chooses its tokens as its makers recommend** (`TokenSampling`, built per request into llama.cpp's sampler
+chain by `LlamaSampler`). The catalog carries each language model's settings, from its GGUF's `general.sampling` keys or
+its model card, for reasoning and for answering straight away: Gemma 4 at temperature 1.0, top-k 64, top-p 0.95 either
+way; Qwen 3.5–3.8 at 1.0 / top-k 20 / top-p 0.95 reasoning and 0.7 / 20 / 0.8 answering, with the presence penalty their
+cards give; MiMo at 0.6 / 20 / 0.95; Phi-4, whose makers recommend nothing, the likeliest token each time. Taking the
+likeliest token each time sent Gemma 4 26B's reasoning round the same thought on an opinion question every time; sampled,
+it answered five times in five, after 1.6–3.2k tokens of thought. `NEXAFLOW_AI_SEED` makes a fresh host draw the same
+replies for the same requests in the same order — what other conversations hold in its cache moves the arithmetic
+slightly, so not one request against the next — and `NEXAFLOW_AI_GREEDY` takes the likeliest token, for tests of the
+app's own paths through a real model.
+
+**Thinking, per request.** Reasoning makes a smaller model's answers worth having, and costs time before the first word.
+A voice turn is weighed first by the Disambiguation model, without reasoning of its own (`RequestTriage.NeedsThoughtAsync`):
+a greeting, a plain fact, or something a tool does — however richly it is described, as a picture to draw usually is —
+is answered at once, without reasoning; an opinion, a plan over several steps, code or maths is told "Let me think
+about that." straight away and reasoned over. Typed requests always reason.
+Every judgement — routing, weighing, a spoken yes or no — is asked without reasoning.
+
+**Long conversations are condensed, not cut.** When the conversation a run continues outgrows half the model's context,
+its older part is condensed by the Analysis model into notes (`IAIService.CondenseConversationAsync`, a part at a time
+where it is longer than the model reads at once); the newest quarter is kept word for word, the notes before it, and the
+AI bar's and the voice conversation's history keep the condensed form. The Conversation page keeps two histories apart:
+earlier sessions are the analysis made when they closed, and this session's older messages, once they outgrow half the
+context, become notes of their own — the next request waiting for them.
+
+- **The Disambiguation model judges**, in one word, from the request and the reply it follows — never the page's
+  contents. Everyday work (a short answer; a few steps with files, folders, pages and apps; short writing; summarising
+  or translating something short) goes to the machine's model, which costs nothing. Reasoning over several steps,
+  code, long or careful writing, long or technical material, maths, and anything costly to get wrong go to the larger
+  one. Gemma 4 E4B judges in about 35 ms. A request whose conversation is too long for the machine's model to read goes
+  to the larger one unjudged; with no Disambiguation model, the row's order stands.
+- **Stuck, the machine's model hands over.** A run that repeats the same call or runs out of steps goes to the larger
+  model with the request and every step taken and what came of it, and the larger model carries it on. The conversation
+  keeps what both did.
+- **The larger model can hand reading back.** Running in such a row, it is offered `ask_local_model`, a sub-agent on
+  the machine's model (`ReadingTool`). It reads the files it is given — text, and PDF, Office and RTF through the
+  shell's text extractors — in parts of 60% of its context, notes what the task needs from each, merges the notes while
+  they outgrow the context, and does the task from them. It is given no tools, so it reads and nothing else; a long
+  document costs the larger model the answer rather than the document. Gemma 4 E4B finds a fact placed 45% of the way
+  into a document three times its context in 19 s.
 
 ### What the model is handed
 
@@ -473,9 +555,16 @@ at the same moment) puts a complete turn at about 0.9 s.
 - **The conversation page** is the focused form: speech and text both land in the conversation as messages, and rich
   content renders inline there instead of as an overlay.
 
-Push-to-talk dictation already runs on the speech capability: `DictationService` streams the microphone into the
-Speech In chain's model. Whisper on this machine re-transcribes the whole buffer every second; in the host it becomes
-the same streaming ASR as the voice loop, without the reply.
+**Speech to text on this machine is a conversation's ears.** The Local page offers Nexaflow's own speech models —
+the listening stack above with Whisper large-v3-turbo, small or small.en as its final pass — and every one of them hears
+when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, the job
+is **Dictation only**: whisper.cpp's base on the CPU (`LocalColumns.Dictation`), into which `DictationService` streams the
+microphone, re-transcribing the whole buffer every second. It hears words but not when a speaker has finished, so the
+mic dictates with it and never starts a conversation (`AIService.CanConverse`); the grid names the job "Dictation only".
+whisper.cpp's other sizes are not offered for the job, and a workspace on one moves to the job's first model as it loads.
+The small builds are ours too (`tools/ai-models/whisper-onnx-genai`, huggingface.co/smile-forge/whisper-onnx-genai);
+an English-only Whisper has one token less in its vocabulary — Whisper's own test — and takes no language or task in its
+prompt.
 
 ## Languages: English, French, German
 
@@ -553,12 +642,24 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 ## Generation tools
 
 Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
-and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on Video Generation. It runs its capability as a job whose
-progress shows on the activity ticker, saves the result where the model asked — else under Pictures, Music or Videos,
-in a `Nexaflow` folder — never over a file already there, and opens it as a double-click would, in Nexaflow's own
-image, audio or video viewer. The model is told where it went, the conversation carries the file, and a picture goes
-back as a `ContextImage`, so the model sees what it drew; the existing loop, approvals and context handling apply
-unchanged.
+and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on Video Generation. It saves the
+result where the model asked — else under Pictures, Music or Videos, in a `Nexaflow` folder — never over a file already
+there, and opens it as a double-click would, in Nexaflow's own image, audio or video viewer. The model is told where it
+went, the conversation carries the file, and a picture made while the model waits goes back as a `ContextImage`, so the
+model sees what it drew; the existing loop, approvals and context handling apply unchanged.
+
+- **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
+  (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is
+  told at once that it has started, and under which id. A voice conversation that announced the call says it has
+    started in the background — never that it is done (`ToolResult.InBackground`). The AI bar's pill counts the workspace's running jobs and opens
+    their list: what each is doing (the provider's own progress, a picture's step), for how long, and Stop. When a job
+    ends the user is notified, and a conversation keeps what came of it, after the turn in progress. A workspace's jobs
+    stop when its models go: a switch, a change of providers, its last window closing. Faster calls show their progress
+    on the activity ticker.
+  - **The model can ask after them.** While its workspace has a job running or among the last ten ended, every run
+    offers `get_background_tasks` — each job's id, what it is, and either how long it has run and what it is doing now
+    (the only partial result a provider gives) or how it ended and what came of it, a finished picture shown to the model
+    once — and `stop_background_task`, for when the user no longer wants one.
 
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
@@ -576,7 +677,7 @@ unchanged.
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo, our ONNX build, sampled by the host; HiDream-O1 for high quality | built; HiDream-O1 next |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.1-1.3B only, minutes per clip | cloud built; cloud only |
@@ -614,6 +715,29 @@ Face's. Loaded part by part — encoder 5.1 GB, denoiser 9.4 GB, decoder 5.3 GB 
 for the denoiser alone, and where the resident models leave less, they make way while it draws. It is built for CUDA
 only, and offered where a GPU's budget holds the denoiser.
 
+HiDream-O1 (the full model, MIT) is the high-quality one: one ONNX graph Nexaflow builds and publishes
+(`tools/ai-models/hidream-o1`, huggingface.co/smile-forge/hidream-o1-image-onnx), with no VAE — it draws in pixels, a
+whole Qwen3-VL language model reading the prompt, a timestep token and one token per 32×32 patch together.
+
+- **The prompt is read once.** The prompt's tokens attend only to the prompt before them, so their keys and values are
+  the same at every step; the denoiser takes them as a cache, and after its first call for a prompt reads only the
+  timestep and the picture. Against the original in fp32 the cached call gives its prediction to 2×10⁻⁷.
+- **An fp32 residual stream.** A few tokens' activations pass 10⁵ from layer 6 on and reach 2.8×10⁶ in the last layer;
+  the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
+  values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
+- **Two builds.** With 8-bit weights it fits a 16 GB card (13.2 GB at its peak); with fp16 weights it needs a 24 GB one
+  (19.1 GB) and draws 0.1–2.3 dB closer to HiDream's model in fp32 — a difference too small to measure as better, so
+  both are offered and the Local page lets the user choose, the 8-bit build first.
+- **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
+  prompt and without and steering by 5, its noise levels shifted twice and shown to the model as whole timesteps, as
+  HiDream's scheduler does (`HiDreamUniPc`, held to HiDream's own by `HiDreamSamplerTests`).
+
+It draws only at the sizes it was trained on, all about 4–5 megapixels — 2048×2048, 2560×1440, 1440×2560 for the three
+shapes — in 35 s on an RTX PRO 6000 (PyTorch: 95 s); twelve prompts drawn with either build and with
+HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
+entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
+with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.
+
 ## Models
 
 **No conversion on the user's machine.** Language models come as the GGUF builds their makers or llama.cpp's own
@@ -647,7 +771,8 @@ loaded, sliding-window layers holding their window alone (RTX PRO 6000):
 - Qwen 3.8 reasons at its highest effort unless asked otherwise.
 
 The voice models — Nemotron streaming, Whisper large-v3-turbo and Kokoro — hold about 8 GB on a GPU together (the
-recogniser 2.25 GB, the transcriber 3.75 GB, each Kokoro 1 GB); Silero and Smart Turn run on the CPU. Where a GPU has
+recogniser 2.25 GB, the transcriber 3.75 GB, each Kokoro 1 GB); with Whisper small or small.en the transcriber is
+budgeted 2.75 GB, the listening stack measuring 1.3–1.4 GB less than with turbo. Silero and Smart Turn run on the CPU. Where a GPU has
 no room for one beside the language model, it runs on the CPU: the transcriber on its own CPU build, the others as
 they are.
 
@@ -683,7 +808,8 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
-| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and a high-quality image row. To come: HiDream-O1 as the high-quality model on this machine, then the audio generation contract with music (ACE-Step) | medium per tool |
+| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row. To come: the audio generation contract with music (ACE-Step) | medium per tool |
+| 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill. To come: OCR, then a web agent on Fara 1.5, each a sub-agent with what it may touch set by what it does | medium |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 

@@ -33,7 +33,8 @@ internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : Ho
             () => streaming.Open(request.Language, gpu, request.Priority),
             transcriber?.As<WhisperTranscriber>().For(request.Language, gpu, request.Priority),
             turn?.As<SmartTurn>(),
-            reply, ct);
+            reply, ct,
+            () => gpu.Engage(request.Priority, [parts.Recognizer.Device, .. parts.Transcriber is { } heard ? [heard.Device] : Array.Empty<int?>()]));
 
         var frames = new PcmFrames(ListenSession.FrameSamples);
         long heardSamples = 0;

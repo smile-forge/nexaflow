@@ -215,6 +215,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     public ObservableCollection<BackgroundTask> BackgroundTasks => _activityManager.Tasks;
 
+    /// <summary>The jobs this window's workspace has running in the background: the AI bar's pill and its list.</summary>
+    public WorkspaceBackgroundTasks WorkspaceTasks { get; }
+
+    partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
+
     /// <summary>Page-registered controls shown just left of the activity ticker (per-workspace, shared across
     /// this workspace's windows). See <see cref="ShellServices.MediatedTasks"/> / <c>RegisterMediatedTask</c>.</summary>
     public ObservableCollection<MediatedTaskRegistration> MediatedTasks => _shellServices.MediatedTasks;
@@ -249,6 +254,24 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
     public VoiceConversationViewModel Voice { get; }
+
+    /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, while a response is in the bar,
+    /// and while the workspace has background tasks, whose pill sits at the line's end.</summary>
+    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any;
+
+    /// <summary>Whether the AI's line was shown when last told: its coming and going is animated, so it is told only when it changes.</summary>
+    private bool _aiLineShown;
+
+    private void RecheckAiLine()
+    {
+        if (ShowsAiLine == _aiLineShown) return;
+        _aiLineShown = ShowsAiLine;
+        OnPropertyChanged(nameof(ShowsAiLine));
+    }
+
+    /// <summary>How much of the model's context the conversation in the AI bar fills — the voice conversation's while one is
+    /// held, else the typed one's while its reply is in the bar; null when there is none, or no model has said.</summary>
+    public ContextUse? AiContextUse => Voice.IsActive ? Voice.ContextUse : Ai.InBar ? Ai.ContextUse : null;
 
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
@@ -556,9 +579,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>
-    /// The shell's default AI response handler — the in-shell popup overlay (progress, approvals,
-    /// final answer, "Continue as Conversation"). Used whenever the active page does not render AI
-    /// responses itself. <c>AiResponseOverlay.xaml</c> binds to this. See <see cref="IAIResponseHandler"/>.
+    /// The shell's default AI response handler: the AI bar's own line for progress, approvals and replies, and the reply card
+    /// above it for the whole of one. Used whenever the active page does not render AI responses itself. The bar and
+    /// <c>AiReplyCard.xaml</c> bind to this. See <see cref="IAIResponseHandler"/>.
     /// </summary>
     public ShellAIResponseHandler Ai { get; }
 
@@ -592,7 +615,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True when any window-modal overlay currently covers the page content area.</summary>
     private bool AnyOverlayCoversPage =>
         OptionsOpen || WorkspaceConfigOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
-        || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true;
+        || Ai.Card.IsOpen || _ribbon?.IsEditOpen == true || WorkspaceTasks.IsOpen;
 
     private void OnShellPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
     {
@@ -631,6 +654,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // conversation analysis) report through the activity ticker without blocking AI input.
         _currentRuntime = workspace;
         _shellServices = workspace.ShellServices!;
+        WorkspaceTasks = new WorkspaceBackgroundTasks(activityManager, () => CurrentRuntime);
+        WorkspaceTasks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(WorkspaceBackgroundTasks.IsOpen)) RefreshOverlayCoverage();
+            if (e.PropertyName == nameof(WorkspaceBackgroundTasks.Any))    RecheckAiLine();
+        };
         Ai = new ShellAIResponseHandler(this);
         Voice = new VoiceConversationViewModel(_ui);
 
@@ -649,8 +678,19 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         PropertyChanged    += OnShellPropertyChangedForOverlay;
         Ai.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellAIResponseHandler.AiResponseOverlayOpen))
-                RefreshOverlayCoverage();
+            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar)) RecheckAiLine();
+            if (e.PropertyName is nameof(ShellAIResponseHandler.InBar) or nameof(ShellAIResponseHandler.ContextUse))
+                OnPropertyChanged(nameof(AiContextUse));
+        };
+        Voice.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) RecheckAiLine();
+            if (e.PropertyName is nameof(VoiceConversationViewModel.IsActive) or nameof(VoiceConversationViewModel.ContextUse))
+                OnPropertyChanged(nameof(AiContextUse));
+        };
+        Ai.Card.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ReplyCard.IsOpen)) RefreshOverlayCoverage();
         };
 
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
@@ -1514,7 +1554,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             AiResponse? response;
             try
             {
-                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, sendToken);
+                // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
+                var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
+                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, options, sendToken);
             }
             catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
             catch (Exception ex)               { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }

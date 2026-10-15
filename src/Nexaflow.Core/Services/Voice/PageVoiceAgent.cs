@@ -27,7 +27,8 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
         "goodbye or that they are done, call end_voice_session.";
 
     public Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                         IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct)
+    IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, Action<IReadOnlyList<LlmMessage>> condensed,
+                         LlmThinking thinking, CancellationToken ct)
     {
         var options = new AgentRunOptions
         {
@@ -35,10 +36,15 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
             ReplyStyle = SpokenStyle,
             Tools      = sessionTools,
             Ran        = ran,
+            HistoryCondensed = condensed,
+            Thinking   = thinking,
         };
         return ui.InvokeAsync(() => service.RunAgentAsync(currentPage(), userText, includeContext(), handler, options, ct),
                               DispatcherPriority.Normal, ct).Task.Unwrap();
     }
+
+    public Task<bool> NeedsThoughtAsync(string userText, IReadOnlyList<LlmMessage> history, CancellationToken ct)
+        => service.NeedsThoughtAsync(userText, history, ct);
 
     /// <summary>Asks the workspace's Disambiguation model what the words meant — the plain yeses and noes are told apart
     /// before it is asked. No model, or no clear choice, is unclear.</summary>
@@ -60,5 +66,13 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
             2 => AnswerIntent.Instruction,
             _ => AnswerIntent.Unclear,
         };
+    }
+
+    public bool IsAway => service.ConversationMakingWay;
+
+    public event EventHandler? AwayChanged
+    {
+        add => service.ProvidersChanged += value;
+        remove => service.ProvidersChanged -= value;
     }
 }

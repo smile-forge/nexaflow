@@ -9,18 +9,20 @@ namespace Nexaflow.AiHost.Generation;
 /// <summary>
 /// A conversation as the model reads it: rendered by the model's own chat template, so a new model needs no harness
 /// of its own. The template is given what transformers would give it — OpenAI-style messages, the tools, the
-/// generation prompt, the model's start and end tokens — with reasoning on: a model says what its actions came to only
-/// when it has thought about them. Where a turn carries a picture or a
+/// generation prompt, the model's start and end tokens — with reasoning on unless the request asks otherwise: a model
+/// says what its actions came to only when it has thought about them, and a quick spoken answer is asked without it.
+/// Where a turn carries a picture or a
 /// recording the model can take in, its content holds the projector's marker, which the medium is read in place of;
 /// any other is noted in words.
 /// </summary>
 internal static class ChatPrompt
 {
-    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, IReadOnlyList<ChatTool>? tools = null)
+    public static string Render(ChatModel model, IReadOnlyList<ChatTurn> turns, bool generationPrompt, IReadOnlyList<ChatTool>? tools = null,
+                                bool thinks = true)
     {
         try
         {
-            return model.Template.Render(Variables(turns, generationPrompt, tools, model.Model.BosText, model.Model.EosText, model.MarkerFor));
+            return model.Template.Render(Variables(turns, generationPrompt, tools, model.Model.BosText, model.Model.EosText, model.MarkerFor, thinks));
         }
         catch (JinjaException ex)
         {
@@ -33,8 +35,9 @@ internal static class ChatPrompt
         => [.. turns.SelectMany(t => t.Media ?? []).Where(m => model.MarkerFor(m.Kind) is not null)];
 
     /// <param name="marker">What stands in a prompt for a medium of a kind the model reads; null for one it cannot.</param>
+    /// <param name="thinks">Whether the model reasons before it answers, as the template's <c>enable_thinking</c> asks.</param>
     internal static Dictionary<string, object?> Variables(IReadOnlyList<ChatTurn> turns, bool generationPrompt, IReadOnlyList<ChatTool>? tools,
-                                                          string bos, string eos, Func<MediaKind, string?> marker)
+                                                          string bos, string eos, Func<MediaKind, string?> marker, bool thinks = true)
     {
         var variables = new Dictionary<string, object?>
         {
@@ -42,7 +45,7 @@ internal static class ChatPrompt
             ["add_generation_prompt"] = generationPrompt,
             ["bos_token"]             = bos,
             ["eos_token"]             = eos,
-            ["enable_thinking"]       = true,
+            ["enable_thinking"]       = thinks,
         };
         if (tools is { Count: > 0 })
             variables["tools"] = tools.Select(t => (object?)JinjaValues.Mapping(

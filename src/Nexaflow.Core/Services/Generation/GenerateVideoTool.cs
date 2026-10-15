@@ -42,7 +42,8 @@ internal sealed class GenerateVideoTool(IVideoGenerationProvider model, Generate
         var seconds = Seconds(arguments);
         return new(Str.Get("Shell.Generate.Announce.Make"), Str.Format("Shell.Generate.Announce.VideoFormat", seconds),
                    Str.Format("Shell.Generate.Announce.MakingVideoFormat", seconds),
-                   Str.Get("Shell.Generate.Announce.VideoMade"), Str.Get("Shell.Generate.Announce.NoVideo"));
+                   Str.Get("Shell.Generate.Announce.VideoMade"), Str.Get("Shell.Generate.Announce.NoVideo"),
+                   Str.Get("Shell.Generate.Announce.MakingInBackground"));
     }
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -83,4 +84,7 @@ internal sealed class GenerateVideoTool(IVideoGenerationProvider model, Generate
 
     internal static int Nearest(IReadOnlyList<int> lengths, int seconds) =>
         lengths.OrderBy(l => Math.Abs(l - seconds)).ThenByDescending(l => l).First();
+
+    /// <summary>A clip takes minutes: it is made in the background.</summary>
+    public bool RunsInBackground(JsonObject arguments) => true;
 }

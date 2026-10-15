@@ -67,9 +67,11 @@ public class ModelRegistryTests
         var (registry, runner) = Registry();
         (await registry.AcquireAsync(Spec("chat", 6), resident: true, Quiet, default)).Dispose();
 
-        using (var room = registry.BorrowRoom())
+        var told = new List<string>();
+        using (var room = registry.BorrowRoom(ids => { told.AddRange(ids); return Task.CompletedTask; }))
         using (await registry.AcquireAsync(Spec("denoiser", 9), resident: false, Quiet, default, room))
             CollectionAssert.AreEqual(new[] { "chat", "denoiser" }, runner.Loads.ToArray(), "the chat model made way");
+        CollectionAssert.AreEqual(new[] { "chat" }, told, "whoever draws hears which residents made way");
 
         await WaitFor(() => runner.Loads.Count(id => id == "chat") == 2);
         using var chat = await registry.AcquireAsync(Spec("chat", 6), resident: true, Quiet, default);

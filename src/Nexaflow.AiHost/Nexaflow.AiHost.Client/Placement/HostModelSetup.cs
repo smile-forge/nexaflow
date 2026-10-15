@@ -25,6 +25,49 @@ public sealed class HostModelSetup(IAiHost host)
     private readonly SemaphoreSlim _planning = new(1, 1);
     private readonly Dictionary<IModelHolder, IReadOnlyList<PlacementNeed>> _held = [];
 
+    private readonly object _wayGate = new();
+    /// <summary>The models that have made way for pictures being drawn, each with how many pictures it made way for.</summary>
+    private readonly Dictionary<string, int> _madeWay = new(StringComparer.Ordinal);
+
+    /// <summary>Raised, on whichever thread it happened, when models make way for a picture or are back after it.</summary>
+    public event EventHandler? MadeWayChanged;
+
+    /// <summary>Whether the host's model <paramref name="id"/> has made way on its GPU for a picture being drawn: until the
+    /// picture is done it answers nothing, and a request for it waits.</summary>
+    public bool HasMadeWay(string id)
+    {
+        lock (_wayGate) return _madeWay.ContainsKey(id);
+    }
+
+    /// <summary>The host's models <paramref name="ids"/> made way for a picture, until the returned value is disposed —
+    /// once the picture is done, when they load again.</summary>
+    public IDisposable MakingWay(IReadOnlyList<string> ids)
+    {
+        lock (_wayGate)
+            foreach (var id in ids) _madeWay[id] = _madeWay.GetValueOrDefault(id) + 1;
+        MadeWayChanged?.Invoke(this, EventArgs.Empty);
+        return new Back(this, ids);
+    }
+
+    private void CameBack(IReadOnlyList<string> ids)
+    {
+        lock (_wayGate)
+            foreach (var id in ids)
+                if (_madeWay.TryGetValue(id, out int pictures) && pictures > 1) _madeWay[id] = pictures - 1;
+                else _madeWay.Remove(id);
+        MadeWayChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private sealed class Back(HostModelSetup setup, IReadOnlyList<string> ids) : IDisposable
+    {
+        private int _done;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _done, 1) == 0) setup.CameBack(ids);
+        }
+    }
+
     /// <summary>The plan as it stands; null before any model is held.</summary>
     public Placement? Current { get; private set; }
 

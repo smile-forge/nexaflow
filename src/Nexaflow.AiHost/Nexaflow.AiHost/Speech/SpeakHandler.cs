@@ -36,10 +36,12 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
                 if (item is not TextToSpeak text) continue;
                 var voice = voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? voices[0];
                 string phonemes = phonemizers.For(voice.Language, voice.Lexicon).Phonemize(text.Text);
+                int? device = voice.Synthesizer.Spec.Device;
+                using var speaking = gpu.Engage(request.Priority, device);   // a young job on its card waits while this is said
                 foreach (var piece in voice.Synthesizer.Tokenize(phonemes))
                 {
                     float[] wave;
-                    using (await gpu.NextAsync(request.Priority, ct))
+                    using (await gpu.NextAsync(request.Priority, device, ct))
                     {
                         ct.ThrowIfCancellationRequested();
                         wave = voice.Synthesizer.Synthesize(piece, voice.Synthesizer.Voice(voice.File), request.Speed);

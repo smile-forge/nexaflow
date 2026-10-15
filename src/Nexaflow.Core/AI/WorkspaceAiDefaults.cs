@@ -29,38 +29,36 @@ internal static class WorkspaceAiDefaults
 
     /// <summary>
     /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;
-    /// Speech In on Nexaflow's own speech model where there is one, with Whisper behind it — all a bridged workspace
-    /// listens with; and Speech Out on Nexaflow's own voice where there is one. At least one language model must be given.
+    /// Speech In on the Local column — Nexaflow's own speech model where there is one, otherwise the one the workspace settles
+    /// on when it loads (<see cref="LocalColumns.Settle"/>), which is all a bridged workspace listens with; and Speech Out on
+    /// Nexaflow's own voice where there is one. At least one language model must be given.
     /// </summary>
-    public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned, string whisperModel)
+    public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned)
     {
         var ownedLanguage = owned?.Language;
         if (bridged is null && ownedLanguage is null) throw new ArgumentException("A workspace needs a model.");
 
-        config.Columns = [.. new[] { bridged, ownedLanguage }.OfType<ProviderModelPair>()];
+        config.Columns = [.. new[] { bridged }.OfType<ProviderModelPair>()];
+        if (ownedLanguage is not null) LocalColumns.Choose(config, LocalSlot.Language, ownedLanguage);
+        var local = LocalColumns.IdOf(LocalSlot.Language);
         config.Assignments.Clear();
         foreach (var ability in Enum.GetValues<AiAbility>())
         {
             if (AiAbilityNames.Kind(ability) != ModelKind.Language) continue;
             config.Assignments[ability.ToString()] = (bridged, ownedLanguage) switch
             {
-                ({ } b, { } o) => FrequentRoles.Contains(ability) ? AbilityChain.Of(o.Id, b.Id) : AbilityChain.Of(b.Id, o.Id),
-                ({ } b, null)  => AbilityChain.Of(b.Id),
-                _              => AbilityChain.Of(ownedLanguage!.Id),
+                ({ } b, { }) => FrequentRoles.Contains(ability) ? AbilityChain.Of(local, b.Id) : AbilityChain.Of(b.Id, local),
+                ({ } b, null) => AbilityChain.Of(b.Id),
+                _             => AbilityChain.Of(local),
             };
         }
 
-        config.AddDefaultSpeechIn(whisperModel);
-        if (owned?.SpeechIn is { } speechIn)
-        {
-            var key = nameof(AiAbility.SpeechIn);
-            config.Columns.Add(speechIn);
-            config.Assignments[key] = AbilityChain.Of([speechIn.Id, .. config.Assignments[key].ColumnIds]);
-        }
+        config.AddDefaultSpeechIn();
+        if (owned?.SpeechIn is { } speechIn) LocalColumns.Choose(config, LocalSlot.SpeechToText, speechIn);
         if (owned?.SpeechOut is { } speechOut)
         {
-            config.Columns.Add(speechOut);
-            config.Assignments[nameof(AiAbility.SpeechOut)] = AbilityChain.Of(speechOut.Id);
+            LocalColumns.Choose(config, LocalSlot.TextToSpeech, speechOut);
+            config.Assignments[nameof(AiAbility.SpeechOut)] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.TextToSpeech));
         }
     }
 }

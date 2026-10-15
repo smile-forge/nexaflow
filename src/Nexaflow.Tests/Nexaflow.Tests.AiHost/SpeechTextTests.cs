@@ -78,8 +78,9 @@ public class SpeechTextTests
     [TestMethod]
     public void TheTranscribersLanguage_IsForcedWhenKnown()
     {
-        Assert.AreEqual("<|startoftranscript|><|de|><|transcribe|><|notimestamps|>", WhisperTranscriber.Prompt("de"));
-        Assert.AreEqual("<|startoftranscript|>", WhisperTranscriber.Prompt(null));
+        Assert.AreEqual("<|startoftranscript|><|de|><|transcribe|><|notimestamps|>", WhisperTranscriber.Prompt("de", multilingual: true));
+        Assert.AreEqual("<|startoftranscript|>", WhisperTranscriber.Prompt(null, multilingual: true));
+        Assert.AreEqual("<|startoftranscript|><|notimestamps|>", WhisperTranscriber.Prompt("en", multilingual: false), "an English-only model knows no language or task");
         Assert.AreEqual("Nein, nicht das.", WhisperTranscriber.Clean("<|startoftranscript|><|de|><|transcribe|><|notimestamps|> Nein, nicht das.<|endoftext|>"));
     }
 

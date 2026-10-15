@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Nexaflow.Providers.Common;
 
@@ -56,14 +57,49 @@ public interface IModelAssetStore
 public interface ILocalModelCatalog
 {
     IReadOnlyList<CatalogModel> Catalog { get; }
+
+    /// <summary>The catalog's models this machine cannot run, each with why — shown so the user sees what there is, never
+    /// chosen. Default: none.</summary>
+    IReadOnlyList<UnrunnableModel> Unrunnable => [];
+
+    /// <summary>What <paramref name="modelId"/> needs besides its own files that other models share — a GPU runtime — fetched
+    /// with it, and kept while any model that needs it is; null when it needs nothing more. Default: null.</summary>
+    LocalRuntime? RuntimeOf(string modelId) => null;
 }
 
 /// <summary>One model a provider offers, and the files it needs.</summary>
-public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files);
+/// <param name="Tier">Which job of its kind it is made for: the everyday one, or the one where quality is worth the wait.</param>
+public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files, ModelTier Tier = ModelTier.Standard);
+
+/// <summary>Which job of its kind a model is made for.</summary>
+public enum ModelTier
+{
+    /// <summary>The everyday job: quick, and good enough.</summary>
+    Standard,
+
+    /// <summary>The job where quality is worth the wait — a high-quality picture.</summary>
+    HighQuality,
+}
+
+/// <summary>Why this machine cannot run a model.</summary>
+public enum UnrunnableReason
+{
+    /// <summary>The model has no build for this machine's hardware.</summary>
+    NoBuildForThisMachine,
+    /// <summary>The model needs more GPU memory than this machine has.</summary>
+    TooLargeForThisMachine,
+}
+
+/// <summary>A model of a catalog this machine cannot run, and why.</summary>
+public sealed record UnrunnableModel(CatalogModel Model, UnrunnableReason Why);
+
+/// <summary>Files several local models need besides their own — a GPU runtime — under the name it is shown by.</summary>
+public sealed record LocalRuntime(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files);
 
 /// <summary>
 /// The manifest a provider ships of the models it can fetch: for each, an id (what an ability-grid column names),
-/// a display name, and its files with their source, size and SHA-256. A file published inside an archive gives the
+/// a display name, the job of its kind it is made for (<c>"tier": "highQuality"</c>; standard when it says nothing), and
+/// its files with their source, size and SHA-256. A file published inside an archive gives the
 /// archive's address as its url, and says which entry it is and what the archive must be:
 /// <code>
 /// { "models": [ { "id": "base.en", "displayName": "…",
@@ -74,10 +110,14 @@ public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<M
 /// </summary>
 public static class ModelCatalog
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
 
     private sealed record Manifest(List<ManifestModel>? Models);
-    private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files);
+    private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files, ModelTier? Tier);
     private sealed record ManifestFile(string? Path, string? Url, long Size, string? Sha256, ManifestArchive? Archive);
     private sealed record ManifestArchive(string? Entry, long Size, string? Sha256);
 
@@ -97,7 +137,7 @@ public static class ModelCatalog
         if (m.Files is not { Count: > 0 }) throw new InvalidDataException($"Catalog model '{m.Id}' lists no files.");
 
         return new CatalogModel(m.Id, string.IsNullOrWhiteSpace(m.DisplayName) ? m.Id : m.DisplayName!,
-            [.. m.Files.Select(f => ToAsset(m.Id, f))]);
+            [.. m.Files.Select(f => ToAsset(m.Id, f))], m.Tier ?? ModelTier.Standard);
     }
 
     private static ModelAsset ToAsset(string modelId, ManifestFile f)

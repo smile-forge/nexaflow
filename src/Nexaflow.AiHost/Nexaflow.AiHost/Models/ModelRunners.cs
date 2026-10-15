@@ -38,6 +38,7 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
     new Drawing.ZImagePromptEncoderRunner(),
     new Drawing.ZImageDenoiserRunner(),
     new Drawing.ZImageDecoderRunner(),
+    new Drawing.HiDreamDenoiserRunner(),
     ]);
 
     /// <exception cref="HostRequestException">This host has no runner of that name.</exception>

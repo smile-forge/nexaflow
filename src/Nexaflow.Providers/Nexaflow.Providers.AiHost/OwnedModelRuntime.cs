@@ -44,6 +44,18 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// that fit it.</summary>
     public IEnumerable<OwnedModel> Runnable(ModelKind kind) => OwnedModels.OfKind(kind).Where(m => m.RunsOn(ExecutionProvider) && Fits(m));
 
+    /// <summary>The owned models of <paramref name="kind"/> this machine cannot run: with no build for its runtime, or too large
+    /// for its GPUs.</summary>
+    public IEnumerable<UnrunnableModel> Unrunnable(ModelKind kind)
+        => OwnedModels.OfKind(kind)
+            .Where(m => !m.RunsOn(ExecutionProvider) || !Fits(m))
+            .Select(m => m.RunsOn(ExecutionProvider)
+                ? new UnrunnableModel(CatalogOf(m), UnrunnableReason.TooLargeForThisMachine)
+                : new UnrunnableModel(m.Catalog, UnrunnableReason.NoBuildForThisMachine));
+
+    /// <summary>The CUDA pack every owned model is fetched with where it suits this machine; null where they run on its CPU.</summary>
+    public LocalRuntime? Runtime => CudaRuntimePack.Applies(hardware) ? new LocalRuntime(CudaRuntimePack.Id, "CUDA runtime", CudaRuntimePack.Files) : null;
+
     /// <summary>
     /// Whether <paramref name="model"/> fits this machine, as its GPUs are expected before the host has run: every part
     /// placed — a picture's parts each on a GPU in turn — and a language model on a GPU, but for the catalog's first,
@@ -70,20 +82,24 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
     public bool IsHere(OwnedModel model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
 
+    /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
+    public bool IsReady(OwnedModel model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.Locate(assets) is not null);
+
+    /// <summary>Whether any part of <paramref name="model"/> has made way on its GPU for a picture being drawn.</summary>
+    public bool IsMakingWay(OwnedModel model) => model.PartsFor(ExecutionProvider).Any(part => setup.HasMadeWay(PartId(model, part)));
+
+    /// <summary>The host's models <paramref name="ids"/> made way for a picture, until the returned value is disposed.</summary>
+    public IDisposable MakingWay(IReadOnlyList<string> ids) => setup.MakingWay(ids);
+
+    /// <summary>Raised when models make way for a picture or are back after it.</summary>
+    public event EventHandler? MadeWayChanged
+    {
+        add => setup.MadeWayChanged += value;
+        remove => setup.MadeWayChanged -= value;
+    }
+
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
     public bool IsFileOf(OwnedModel model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
-
-    /// <summary>
-    /// Fetches what is missing — the model's files for this machine, and the CUDA pack where it suits it — reporting how
-    /// far it has got. Returns whether everything is here; a failure is reported, never thrown.
-    /// </summary>
-    public async Task<bool> FetchAsync(OwnedModel model, CancellationToken ct)
-    {
-        if (!model.RunsOn(ExecutionProvider)) return false;   // nothing of it runs on this machine
-        var files = CatalogOf(model).Files.ToList();
-        if (CudaRuntimePack.Applies(hardware)) files.AddRange(CudaRuntimePack.Files);
-        return await FetchFilesAsync(model, files, ct);
-    }
 
     private async Task<bool> FetchFilesAsync(OwnedModel model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
@@ -112,11 +128,12 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         }
     }
 
-    /// <summary>Fetches the model and has the setup place its parts beside every other model held, the host holding
-    /// them where they are placed. Never throws: a model that will not load says why when a request asks for it.</summary>
+    /// <summary>Has the setup place the model's parts beside every other model held, the host holding them where they are
+    /// placed — once its files, and the CUDA pack where it suits the machine, are here: warming a model never downloads it, a
+    /// download being the user's to start. Never throws: a model that will not load says why when a request asks for it.</summary>
     public async Task WarmupAsync(OwnedModel model, CancellationToken ct)
     {
-        if (!await FetchAsync(model, ct)) return;
+        if (!IsReady(model)) return;
         try
         {
             await HoldAsync(model, ct);

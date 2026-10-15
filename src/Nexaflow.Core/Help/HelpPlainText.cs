@@ -51,7 +51,7 @@ internal static class HelpPlainText
             }
 
             // A block of words is a line of them; anything else is the blocks it holds.
-            if (part.Part(Roles.Body) is { Kind: Kinds.Words } words) Line(sb, InlineText(words));
+            if (part.Part(Roles.Body) is { Kind: Kinds.Words } words) Line(sb, MarkdownProse.Words(words));
             else Blocks(part.Part(Roles.Body) ?? part, sb);
         }
     }
@@ -83,50 +83,5 @@ internal static class HelpPlainText
         foreach (var line in text.Split('\n'))
             if (line.Trim() is { Length: > 0 } trimmed)
                 sb.Append(trimmed).Append('\n');
-    }
-
-    private static string InlineText(ContentPart words)
-    {
-        var sb = new StringBuilder();
-        Walk(words);
-        return sb.ToString();
-
-        void Walk(ContentPart part)
-        {
-            if (part.Derived) return;
-
-            switch (part.Kind)
-            {
-                case MarkdownKinds.Image:                         return;   // a picture, not text
-                case MarkdownKinds.Html:                          return;
-                case MarkdownKinds.Task:                          return;
-                case Kinds.Block or MarkdownKinds.Formula:        return;   // typeset, not text
-                case MarkdownKinds.Entity:                        sb.Append(MarkdownEntities.Decoded(part.Text) ?? part.Text); return;
-                case MarkdownKinds.Escape when part.Text.Length > 1: sb.Append(part.Text[1..]); return;
-                case MarkdownKinds.Break:
-                    if (!MarkdownLineEnds.Closes(part)) sb.Append(part.Role == MarkdownRoles.Hard ? '\n' : ' ');
-                    return;
-                case MarkdownKinds.Code when part.Part(Roles.Body) is { } code:
-                    foreach (var leaf in code.Node.Leaves())
-                        sb.Append(leaf.Role != Roles.Trivia ? leaf.Text : leaf.Text.Contains('\n') ? " " : "");
-                    return;
-
-                // A link to itself has its address for its words; any other link is its words, never its target.
-                case Kinds.Link when part.Part(Roles.Body) is null:
-                    sb.Append(MarkdownLinks.Goes(part.Node));
-                    return;
-            }
-
-            if (part.Children.Count > 0)
-            {
-                foreach (var child in part.Children)
-                    if (child.Role is not (Roles.Destination or MarkdownRoles.Title)) Walk(child);
-                return;
-            }
-
-            if (part.Role is Roles.Open or Roles.Close or Roles.Name or Roles.Trivia or Roles.Silent) return;
-
-            sb.Append(part.Text.Replace('\n', ' '));
-        }
     }
 }

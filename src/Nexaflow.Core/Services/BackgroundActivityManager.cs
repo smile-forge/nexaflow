@@ -37,6 +37,13 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
 
     public IActivityHandle StartActivity(string description)
     {
+        // Work done for a job is told on the job's row, not a row of its own.
+        if (s_job.Value is { } job)
+        {
+            Dispatch(() => job.Detail = description);
+            return new JobDetail(this, job);
+        }
+
         var task = new BackgroundTask { Description = description };
 
         Dispatch(() =>
@@ -80,6 +87,52 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
     }
 
     // ── Shell helpers (used by ShellViewModel.AddBackgroundTask) ──────────
+
+    // ── Jobs ────────────────────────────────────────────────────────────────
+
+    /// <summary>The job the work in this flow is done for, if any.</summary>
+    private static readonly AsyncLocal<BackgroundTask?> s_job = new();
+
+    /// <summary>
+    /// Starts a job the assistant of <paramref name="workspace"/> set going: a task of its own, shown with that workspace's, that
+    /// <paramref name="stopping"/> stops.
+    /// </summary>
+    public BackgroundTask StartJob(string description, WorkspaceRuntime workspace, CancellationTokenSource stopping)
+    {
+        var job = new BackgroundTask { Description = description, Workspace = workspace, Stopping = stopping };
+        Dispatch(() =>
+        {
+            RemoveIdlePlaceholder();
+            Tasks.Insert(0, job);
+        });
+
+        Interlocked.Increment(ref _activeCount);
+        SetIsActive(true);
+        return job;
+    }
+
+    /// <summary>Has every activity started from here on, in the calling flow and what it awaits, told as <paramref name="job"/>'s
+    /// detail rather than as a task of its own.</summary>
+    public static void Within(BackgroundTask job) => s_job.Value = job;
+
+    /// <summary>Ends a job as <paramref name="status"/>, saying how in <paramref name="detail"/>.</summary>
+    public void EndJob(BackgroundTask job, TaskStatus status, string? detail)
+    {
+        Dispatch(() =>
+        {
+            job.Detail = detail;
+            job.Status = status;
+        });
+        DecrementActive();
+    }
+
+    /// <summary>Stops every job the assistant of <paramref name="workspace"/> has running: the models they run on go with it.</summary>
+    public void StopJobsOf(WorkspaceRuntime workspace) => Dispatch(() =>
+    {
+        foreach (var task in Tasks.ToList())
+            if (ReferenceEquals(task.Workspace, workspace) && task.CanStop)
+                task.Stopping!.Cancel();
+    });
 
     /// <summary>Inserts a task that was created outside the activity system.</summary>
     public void AddTask(BackgroundTask task) => Dispatch(() => Tasks.Insert(0, task));
@@ -128,5 +181,13 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
         public void Complete()                   => manager.OnComplete(task);
         public void Fail(string? reason)         => manager.OnFail(task, reason);
         public void Update(string description)   => manager.Dispatch(() => task.Description = description);
+    }
+
+    /// <summary>An activity started for a job: what it says is the job's detail, and its end is the job's to tell.</summary>
+    private sealed class JobDetail(BackgroundActivityManager manager, BackgroundTask job) : IActivityHandle
+    {
+        public void Complete() { }
+        public void Fail(string? reason)       { if (reason is not null) manager.Dispatch(() => job.Detail = reason); }
+        public void Update(string description) => manager.Dispatch(() => job.Detail = description);
     }
 }

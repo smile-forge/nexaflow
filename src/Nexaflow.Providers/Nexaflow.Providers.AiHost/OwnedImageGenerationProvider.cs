@@ -6,20 +6,13 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Providers.AiHost;
 
 /// <summary>
-/// Pictures Nexaflow draws itself, in its AI host: Z-Image Turbo from a prompt. Its three parts load when a picture is
-/// asked for — an image model is not kept resident beside the language and speech models — and stay until the room is
-/// needed. Each denoising step is shown on the activity as it finishes. Nothing leaves this machine.
+/// Pictures Nexaflow draws itself, in its AI host, from a prompt: Z-Image Turbo for everyday pictures, HiDream-O1 for
+/// high-quality ones — each at the sizes it was trained on, by the method its catalog entry names. Its parts load when a
+/// picture is asked for — an image model is not kept resident beside the language and speech models — and stay until
+/// the room is needed. Each denoising step is shown on the activity as it finishes. Nothing leaves this machine.
 /// </summary>
 public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILocalModelCatalog, IAsyncDisposable
 {
-    /// <summary>The pixel size each shape is drawn at: about a megapixel, in whole patches the model takes.</summary>
-    internal static (int Width, int Height) Size(MediaShape shape) => shape switch
-    {
-        MediaShape.Landscape => (1344, 768),
-        MediaShape.Portrait  => (768, 1344),
-        _                    => (1024, 1024),
-    };
-
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
@@ -37,6 +30,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
 
     /// <summary>The image models this machine can run: they are built for CUDA only.</summary>
     public IReadOnlyList<CatalogModel> Catalog => [.. _runtime.Runnable(ModelKind.ImageGeneration).Select(_runtime.CatalogOf)];
+
+    public IReadOnlyList<UnrunnableModel> Unrunnable => [.. _runtime.Unrunnable(ModelKind.ImageGeneration)];
+
+    public LocalRuntime? RuntimeOf(string modelId) => _runtime.Runtime;
 
     public bool LoadsOnDemand => true;
 
@@ -59,9 +56,6 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.ImageGeneration).Select(m => m.Id)]);
 
-    /// <summary>Fetches the model's files; its parts load with the first picture, not before.</summary>
-    public Task WarmupAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.FetchAsync(_model, ct);
-
     public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
     /// <summary>Draws at the job priority: speech and replies take the GPU between its steps.</summary>
@@ -71,16 +65,18 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         if (request.Sources.Count > 0 || request.Mask is not null) throw new ArgumentException($"{_model.Catalog.DisplayName} draws from a prompt only.", nameof(request));
         if (_model.Sampler is not { } sampler) throw new LlmProviderException($"{_model.Id} does not say how it samples.");
 
-        var (width, height) = Size(request.Shape);
-        var drawing = new DrawingModel(await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.PromptEncoder, ct),
-                                       await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.Denoiser, ct),
-                                       await _runtime.PlacedOnDemandAsync(_model, OwnedRoles.Decoder, ct), sampler.Steps, sampler.Shift);
+        var (width, height) = sampler.Sizes[request.Shape];
+        var parts = new Dictionary<string, ModelSpec>();
+        foreach (var role in DrawingParts.Of(sampler.Method))
+            parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
+        var drawing = new DrawingModel(sampler.Method, parts, sampler.Steps, sampler.Shift, sampler.Guidance);
         long seed = Random.Shared.NextInt64();
 
         var label    = $"Drawing with {_model.Catalog.DisplayName}";
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;
+        var madeWay  = new List<IDisposable>();   // the models that make way for this picture, back once it is done
         try
         {
             byte[]? png = null;
@@ -94,6 +90,9 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
                         break;
                     case Drawn drawn:
                         png = drawn.Png;
+                        break;
+                    case MadeWay made:
+                        madeWay.Add(_runtime.MakingWay(made.Models));
                         break;
                 }
             }
@@ -115,6 +114,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         {
             activity.Fail(ex.Message);
             throw;
+        }
+        finally
+        {
+            foreach (var back in madeWay) back.Dispose();
         }
     }
 

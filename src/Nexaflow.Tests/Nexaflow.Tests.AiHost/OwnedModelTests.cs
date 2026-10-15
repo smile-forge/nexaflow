@@ -55,13 +55,14 @@ public class OwnedModelTests
     private sealed record Answer(string Text, GenerationEnded Ended, IReadOnlyList<ChatToolCall> Calls);
 
     /// <summary>Asks the model; <paramref name="maxNew"/> counts its reasoning too, so it is the app's own budget.</summary>
-    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 4096, IReadOnlyList<ChatTool>? tools = null, CancellationToken ct = default)
+    private static async Task<Answer> AskAsync(List<ChatTurn> turns, int maxNew = 4096, IReadOnlyList<ChatTool>? tools = null, CancellationToken ct = default,
+                                               TokenSampling? sampling = null)
     {
         var (client, model) = Model();
         var text = new StringBuilder();
         var calls = new List<ChatToolCall>();
         GenerationEnded? ended = null;
-        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools),
+        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools, Sampling: sampling),
                                                      TimeSpan.FromMinutes(2), ct))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
@@ -89,6 +90,46 @@ public class OwnedModelTests
         Assert.AreEqual(first.Ended.PromptTokens, first.Ended.ReadTokens, $"the first turn reads the whole prompt ({first.Ended})");
         Assert.IsTrue(second.Ended.ReadTokens < second.Ended.PromptTokens / 2,
             $"the follow-up read {second.Ended.ReadTokens} of {second.Ended.PromptTokens} tokens: it should only append its own turn");
+    }
+
+    /// <summary>
+    /// Sampling as Google recommends draws differently from seed to seed; one seed, asked the same in the same order on a
+    /// fresh host, draws the same. Not within one host: what other conversations hold in the cache moves the arithmetic a
+    /// little, enough to move a draw — and a greedy reply too.
+    /// </summary>
+    [TestMethod]
+    public async Task AReplySampledAsGoogleRecommends_DiffersBySeed_AndOneSeedOnAFreshHostDrawsTheSame()
+    {
+        var (_, model) = Model();
+        var gemma = new TokenSampling(1.0f, 64, 0.95f, Seed: 11);
+        List<ChatTurn> Asked() => Conversation("Write two sentences about a lighthouse keeper.");
+
+        async Task<string[]> OnAFreshHostAsync()
+        {
+            string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
+            await using var host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
+                                                                              Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName))
+            {
+                Environment = new AiHostEnvironment(pack),
+            };
+            await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+            var replies = new List<string>();
+            foreach (var seed in new uint[] { 11, 12, 13 })
+            {
+                var text = new StringBuilder();
+                await foreach (var reply in host.SendAsync(id => new Generate(id, model, Asked(), 200, RequestPriority.Interactive, Sampling: gemma with { Seed = seed }),
+                                                           TimeSpan.FromMinutes(2)))
+                    if (reply is TextDelta delta) text.Append(delta.Text);
+                replies.Add(text.ToString());
+            }
+            return [.. replies];
+        }
+
+        var first = await OnAFreshHostAsync();
+        var again = await OnAFreshHostAsync();
+
+        CollectionAssert.AreEqual(first, again, "the same requests in the same order draw the same");
+        Assert.IsTrue(first.Distinct().Count() > 1, "it is sampled, not the likeliest token each time");
     }
 
     [TestMethod]

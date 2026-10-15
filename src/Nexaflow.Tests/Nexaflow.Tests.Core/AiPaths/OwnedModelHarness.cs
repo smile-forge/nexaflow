@@ -41,6 +41,9 @@ internal static class OwnedModelHarness
         {
             if (_model is not null) return _model;
 
+            // These tests check the app's own paths through the model, not the model: it takes the likeliest token each
+            // time, so a run gives the same replies as the last, whatever its sampling would draw.
+            Environment.SetEnvironmentVariable("NEXAFLOW_AI_GREEDY", "1");
             var aiDir = Directory.CreateTempSubdirectory("nexaflow-aipaths-").FullName;
             _host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
             var store = new FolderStore(folder, Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK"));

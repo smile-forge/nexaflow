@@ -41,10 +41,11 @@ internal sealed class NativeToolProtocol : ToolProtocol
     public override string? Instructions(IReadOnlyList<IClientTool> tools) => null;
 
     public override async Task<AgentStep> StepAsync(ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IReadOnlyList<IClientTool> tools,
-                                                    IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, CancellationToken ct)
+                                                    IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, LlmThinking thinking,
+                                                    CancellationToken ct)
     {
         IReadOnlyList<LlmTool> declared = [.. tools.Select(Declare), Plan, Suggest];
-        var (text, made) = await StreamAsync(provider.StreamAsync(messages, declared, LlmUrgency.Interactive, ct), handler);
+        var (text, made, ended) = await StreamAsync(provider.StreamAsync(messages, declared, LlmUrgency.Interactive, thinking, ct), handler);
 
         var planCall = made.FirstOrDefault(c => c.Name == PlanTool);
         var suggest  = made.FirstOrDefault(c => c.Name == SuggestTool);
@@ -55,7 +56,7 @@ internal sealed class NativeToolProtocol : ToolProtocol
             planCall is null ? null : ClientBlockParser.ParsePlan(planCall.Arguments),
             suggest is null ? null : (string?)suggest.Arguments["text"] ?? "",
             []);
-        return new AgentStep(Written(text, made), turn, calls, planCall);
+        return new AgentStep(Written(text, made), turn, calls, planCall, ended);
     }
 
     public override LlmMessage Said(AgentStep step)

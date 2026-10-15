@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
@@ -34,17 +35,17 @@ internal static class OwnedRoles
     public const string Transcriber   = "transcriber";
     public const string TurnDetector  = "turnDetector";
     public const string Synthesizer   = "synthesizer";
-    public const string PromptEncoder = "promptEncoder";
-    public const string Denoiser      = "denoiser";
-    public const string Decoder       = "decoder";
+    public const string PromptEncoder = DrawingParts.PromptEncoder;
+    public const string Denoiser      = DrawingParts.Denoiser;
+    public const string Decoder       = DrawingParts.Decoder;
 
-    /// <summary>The parts a model of each kind is made of.</summary>
-    public static IReadOnlyList<string> Of(ModelKind kind) => kind switch
+    /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes.</summary>
+    public static IReadOnlyList<string> Of(ModelKind kind, OwnedSampler? sampler = null) => kind switch
     {
-        ModelKind.Language     => [Chat],
-        ModelKind.SpeechToText => [VoiceActivity, Recognizer, Transcriber, TurnDetector],
+        ModelKind.Language        => [Chat],
+        ModelKind.SpeechToText    => [VoiceActivity, Recognizer, Transcriber, TurnDetector],
         ModelKind.TextToSpeech    => [Synthesizer],
-        ModelKind.ImageGeneration => [PromptEncoder, Denoiser, Decoder],
+        ModelKind.ImageGeneration => DrawingParts.Of((sampler ?? throw new ArgumentNullException(nameof(sampler), "an image model's parts are its drawing method's")).Method),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned model is of this kind"),
     };
 
@@ -56,10 +57,12 @@ internal static class OwnedRoles
 /// <summary>
 /// A model Nexaflow runs itself: its catalog entry — every file any machine might need — its parts, and, for a model
 /// that speaks, its voices. A part built for one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is
-/// fetched and run only on that runtime. A model that draws says how it samples.
+/// fetched and run only on that runtime. A model that draws says how it samples; a language model, how it chooses its
+/// tokens (<see cref="OwnedTokenSampling"/>).
 /// </summary>
 internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
-                                  bool Images, bool Audio, bool ToolCalls = false, OwnedSampler? Sampler = null)
+                                  bool Images, bool Audio, bool ToolCalls = false, OwnedSampler? Sampler = null,
+                                  OwnedTokenSampling? TokenSampling = null)
 {
     public string Id => Catalog.Id;
 
@@ -88,8 +91,23 @@ internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnl
 /// folder, and — for a language read from a lexicon — the lexicon's file there.</summary>
 internal sealed record OwnedVoice(string Language, string Part, string File, string? Lexicon = null);
 
-/// <summary>How a model that draws samples: its number of denoising steps and the shift of the noise levels they run through.</summary>
-internal sealed record OwnedSampler(int Steps, float Shift);
+/// <summary>
+/// How a model that draws samples: the method it draws with, its number of denoising steps, the shift of the noise levels
+/// they run through, how far each step steers away from the empty prompt (0 for a model that does not), and the size it
+/// draws each shape at — sizes it was trained on.
+/// </summary>
+internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes);
+
+/// <summary>
+/// How a language model chooses its tokens, as its makers recommend — in its GGUF's <c>general.sampling</c> keys or its
+/// model card: <see cref="Thinking"/> when it reasons first, <see cref="Answering"/> when it answers straight away, the
+/// same unless its makers say otherwise. A model whose makers recommend nothing takes the likeliest token each time.
+/// </summary>
+internal sealed record OwnedTokenSampling(TokenSampling Thinking, TokenSampling Answering)
+{
+    /// <summary>The sampling for a request that reasons first, or not.</summary>
+    public TokenSampling For(bool thinks) => thinks ? Thinking : Answering;
+}
 
 /// <summary>
 /// The models in <c>owned-models.json</c>: a model catalog (<see cref="ModelCatalog"/>) whose entries also say what kind
@@ -110,8 +128,11 @@ internal static class OwnedModels
     };
 
     private sealed record Manifest(List<Entry>? Models);
-    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices, Sampler? Sampler);
-    private sealed record Sampler(int Steps, float Shift);
+    private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices, Sampler? Sampler,
+                                Choosing? TokenSampling);
+    private sealed record Choosing(Choice? Thinking, Choice? Answering);
+    private sealed record Choice(float Temperature, int TopK, float TopP, float PresencePenalty);
+    private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken);
@@ -144,19 +165,22 @@ internal static class OwnedModels
             var parts  = (e.Parts ?? []).Select(p => ToPart(e.Id, kind, p)).ToList();
             var voices = (e.Voices ?? []).Select(v => ToVoice(e.Id, model, parts, v)).ToList();
             if (kind == ModelKind.TextToSpeech && voices.Count == 0) throw new InvalidDataException($"Owned model '{e.Id}' speaks with no voice.");
-            if (kind == ModelKind.ImageGeneration && e.Sampler is not { Steps: > 0, Shift: > 0 })
+            var sampler = e.Sampler is { } s ? ToSampler(e.Id, s) : null;
+            if (kind == ModelKind.ImageGeneration && sampler is null)
                 throw new InvalidDataException($"Owned model '{e.Id}' draws without saying how it samples.");
             if (kind == ModelKind.Language && (e.Images || e.Audio) && parts.Any(p => p.Projector is null))
                 throw new InvalidDataException($"Owned model '{e.Id}' sees or hears with no projector to do it through.");
-            var sampler = e.Sampler is { } s ? new OwnedSampler(s.Steps, s.Shift) : null;
-            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler);
+            if (e.TokenSampling is not null && kind != ModelKind.Language)
+                throw new InvalidDataException($"Owned model '{e.Id}' chooses tokens but writes none.");
+            var choosing = e.TokenSampling is { } c ? ToTokenSampling(e.Id, c) : null;
+            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing);
             if (!owned.RunsOn(Cuda) && !owned.RunsOn(Cpu)) throw new InvalidDataException($"Owned model '{e.Id}' runs on no runtime.");
             foreach (var runtime in new[] { Cuda, Cpu })
             {
                 var onRuntime = owned.PartsFor(runtime);
                 if (onRuntime.Count == 0) continue;   // not built for this runtime
                 var roles = onRuntime.Select(p => p.Role).ToList();
-                var needed = OwnedRoles.Of(kind);
+                var needed = OwnedRoles.Of(kind, sampler);
                 bool complete = needed.All(roles.Contains) && roles.All(needed.Contains)
                              && roles.Where(r => !OwnedRoles.Repeats(r)).GroupBy(r => r).All(g => g.Count() == 1)
                              && onRuntime.GroupBy(p => p.Name).All(g => g.Count() == 1);
@@ -170,6 +194,41 @@ internal static class OwnedModels
                 throw new InvalidDataException($"Owned model '{e.Id}' has a part with no files.");
             return owned;
         })];
+    }
+
+    /// <exception cref="InvalidDataException">The sampler does not say how it draws, how many steps and how far shifted, or
+    /// a size for every shape.</exception>
+    private static OwnedSampler ToSampler(string modelId, Sampler s)
+    {
+        if (s is not { Method: { } method, Steps: > 0, Shift: > 0, Guidance: >= 0 })
+            throw new InvalidDataException($"Owned model '{modelId}' draws without saying how it samples.");
+        var sizes = new Dictionary<MediaShape, (int Width, int Height)>();
+        foreach (var (name, size) in s.Sizes ?? [])
+        {
+            if (!Enum.TryParse<MediaShape>(name, ignoreCase: true, out var shape) || size is not [> 0, > 0])
+                throw new InvalidDataException($"Owned model '{modelId}' gives '{name}' a size that is not a shape's width and height.");
+            sizes[shape] = (size[0], size[1]);
+        }
+        if (Enum.GetValues<MediaShape>().Any(shape => !sizes.ContainsKey(shape)))
+            throw new InvalidDataException($"Owned model '{modelId}' does not say what size it draws each shape at.");
+        return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes);
+    }
+
+    /// <exception cref="InvalidDataException">It says nothing of how the model chooses when it reasons, or gives a temperature,
+    /// top-k or top-p no sampler takes.</exception>
+    private static OwnedTokenSampling ToTokenSampling(string modelId, Choosing c)
+    {
+        if (c.Thinking is not { } thinking)
+            throw new InvalidDataException($"Owned model '{modelId}' says how it chooses tokens without saying how when it reasons.");
+        var reasoning = Read(thinking);
+        return new(reasoning, c.Answering is { } answering ? Read(answering) : reasoning);
+
+        TokenSampling Read(Choice choice)
+        {
+            if (choice.Temperature <= 0 || choice.TopK < 0 || choice.TopP is <= 0 or > 1)
+                throw new InvalidDataException($"Owned model '{modelId}' chooses tokens at temperature {choice.Temperature}, top-k {choice.TopK}, top-p {choice.TopP}.");
+            return new TokenSampling(choice.Temperature, choice.TopK, choice.TopP, choice.PresencePenalty);
+        }
     }
 
     private static OwnedPart ToPart(string modelId, ModelKind kind, Part p)

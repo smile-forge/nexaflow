@@ -50,6 +50,17 @@ public class VoiceSessionTests
             return this;
         }
 
+        /// <summary>
+        /// Waits until the voice has been given <paramref name="sentences"/> sentences and the speaker holds all of their audio.
+        /// The audio reaches the speaker on the session's own pump, after the voice is given the text — so a test that plays into a
+        /// later sentence waits for this, not for the text alone.
+        /// </summary>
+        public Task SaidAndQueuedAsync(int sentences) => Until(() =>
+        {
+            var said = Voice.Texts;
+            return said.Length == sentences && Speaker.QueuedSamples >= said.Sum(text => (long)text.Length * FakeSpeaker.SamplesPerChar);
+        }, $"{sentences} sentence(s) to be said and their audio queued");
+
         /// <summary>Plays whatever is queued until the turn is over — the voice may still be queueing when it is called.</summary>
         public Task PlayOutAsync() => Until(() =>
         {
@@ -141,8 +152,7 @@ public class VoiceSessionTests
 
         await Until(() => rig.Session.State == VoiceState.Speaking, "speech");
         CollectionAssert.AreEqual(new[] { "It is three o'clock." }, rig.Voice.Texts);
-        rig.Speaker.Play();
-        await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
+        await rig.PlayOutAsync();
 
         CollectionAssert.AreEqual(new[] { "What time is it?", "It is three o'clock." }, rig.Session.History.Select(m => m.Text).ToArray());
     }
@@ -175,7 +185,7 @@ public class VoiceSessionTests
     {
         await using var rig = await new Rig(Answer("First comes this sentence. Then comes a second one. And a third.")).StartAsync();
         rig.Ears.Hear(new TranscriptFinal("Tell me three things."));
-        await Until(() => rig.Voice.Texts.Length == 3, "the reply to be synthesised");
+        await rig.SaidAndQueuedAsync(3);
 
         rig.Speaker.Play("First comes this sentence.".Length * FakeSpeaker.SamplesPerChar + 1);   // into the second sentence
         rig.Ears.Hear(new SpeechActivity(true));
@@ -215,8 +225,7 @@ public class VoiceSessionTests
 
         rig.Ears.Hear(new TranscriptFinal("Delete old."));
         await Until(() => rig.Session.State == VoiceState.Speaking, "speech");
-        rig.Speaker.Play();
-        await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
+        await rig.PlayOutAsync();
 
         CollectionAssert.AreEqual(new[] { LlmRole.User, LlmRole.Assistant, LlmRole.Tool, LlmRole.Assistant }, rig.Session.History.Select(m => m.Role).ToArray());
         Assert.AreEqual("c1", rig.Session.History[1].ToolCalls!.Single().Id);
@@ -230,7 +239,7 @@ public class VoiceSessionTests
         await using var rig = await new Rig(Answer("I deleted old. It is in the Recycle Bin.")).StartAsync();
         rig.Agent.Runs = asked => RanADeletion(asked, "I deleted old. It is in the Recycle Bin.");
         rig.Ears.Hear(new TranscriptFinal("Delete old."));
-        await Until(() => rig.Voice.Texts.Length == 2, "the reply to be synthesised");
+        await rig.SaidAndQueuedAsync(2);
 
         rig.Speaker.Play("I deleted old.".Length * FakeSpeaker.SamplesPerChar + 1);
         rig.Ears.Hear(new SpeechActivity(true));
@@ -280,7 +289,7 @@ public class VoiceSessionTests
         await using var rig = await new Rig(Delete(p => proceeded = p)).StartAsync();
 
         rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
-        await Until(() => rig.Confirmations.Showing, "the announcement");
+        await Until(() => rig.Confirmations.Showing && rig.Voice.Texts.Length > 0, "the announcement");
         CollectionAssert.AreEqual(new[] { Announcement }, rig.Voice.Texts, "fixed words, not the model's");
         var shown = rig.Confirmations.Shown.Single();
         Assert.AreEqual((Announcement, "Delete", Str.Get("Shell.Voice.Stop")), (shown.Text, shown.ProceedLabel, shown.StopLabel));
@@ -552,9 +561,12 @@ public class VoiceSessionTests
         rig.Ears.Hear(new TranscriptFinal("That's all, thanks."));
         await Until(() => rig.Voice.Texts.Contains("Goodbye!"));
         Assert.AreNotEqual(VoiceState.Ended, rig.Session.State, $"not before it is said (ended: {rig.EndedBecause})");
-        rig.Speaker.Play();
         // The state turns to Ended before the closing is done and Ended is raised: the event is what is waited on.
-        await Until(() => rig.Session.State == VoiceState.Ended && rig.EndedBecause != "still going", "the end");
+        await Until(() =>
+        {
+            rig.Speaker.Play();
+            return rig.Session.State == VoiceState.Ended && rig.EndedBecause != "still going";
+        }, "the end");
 
         Assert.IsNull(rig.EndedBecause);
         Assert.IsTrue(rig.Microphone.Disposed);
@@ -592,5 +604,90 @@ public class VoiceSessionTests
 
         Assert.AreEqual("Find the report from last week.", rig.Agent.Turns[1].Text);
         Assert.AreEqual(0, rig.Agent.Turns[1].History.Count, "nothing of the first attempt was heard");
+    }
+
+    [TestMethod]
+    public void AnAnnouncedCallThatGoesOnInTheBackground_IsSaidToHaveStarted_NeverToBeDone()
+    {
+        var picture = new ToolCallAnnouncement("draw", "a high-quality picture", "Drawing a high-quality picture", "Picture made.",
+                                               "No picture was made.", "Drawing it in the background.");
+        var delete  = new ToolCallAnnouncement("delete", "file a.txt", "Deleting file a.txt", "File deleted.", "The file is unchanged.");
+        var actions = AnnouncedActions.Of([new ToolCall("generate_image", [], Announcement: picture), new ToolCall("delete", [], Announcement: delete)]);
+
+        var started = ToolResult.Ok("started in the background") with { InBackground = true };
+        Assert.AreEqual("Drawing it in the background. File deleted.",
+                        actions.After([new ToolRunResult("generate_image", started), new ToolRunResult("delete", ToolResult.Ok("deleted"))]));
+        Assert.AreEqual("Picture made. File deleted.",
+                        actions.After([new ToolRunResult("generate_image", ToolResult.Ok("drawn")), new ToolRunResult("delete", ToolResult.Ok("deleted"))]),
+                        "the same call done there and then is done");
+
+        var unannounced = AnnouncedActions.Of([new ToolCall("make_video", [])]);
+        Assert.AreEqual(Str.Get("Shell.Voice.CarriesOn"), unannounced.After([new ToolRunResult("make_video", started)]),
+                        "a call with no words of its own for it is still not said to be done");
+    }
+
+    [TestMethod]
+    public async Task WhileTheModelThatAnswersMakesWayForAPicture_ListeningIsPaused_AndTakenUpAgainWhenItIsBack()
+    {
+        await using var rig = await new Rig(Answer("Hello.")).StartAsync();
+        byte[] pcm = new byte[320];
+
+        rig.Microphone.Hears(pcm);
+        await Until(() => rig.Ears.Appended == 1, "the microphone to be listened to");
+
+        rig.Agent.Away(true);
+        await Until(() => rig.Session.State == VoiceState.Paused, "listening to pause");
+        rig.Microphone.Hears(pcm);
+        await Task.Delay(100);
+        Assert.AreEqual(1, rig.Ears.Appended, "nothing said now could be answered, so nothing is listened to");
+
+        rig.Agent.Away(false);
+        await Until(() => rig.Session.State == VoiceState.Listening, "listening to be taken up again");
+        rig.Microphone.Hears(pcm);
+        await Until(() => rig.Ears.Appended == 2, "the microphone to be listened to again");
+    }
+
+    [TestMethod]
+    public async Task AReplyThatEndsWhileTheModelIsAway_LeavesTheConversationPaused()
+    {
+        await using var rig = await new Rig(Answer("Drawing it now.")).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Draw me a fox."));
+        await Until(() => rig.Session.State is VoiceState.Thinking or VoiceState.Speaking, "the reply");
+        rig.Agent.Away(true);
+        Assert.AreNotEqual(VoiceState.Paused, rig.Session.State, "a reply under way carries on");
+
+        await Until(() =>
+        {
+            rig.Speaker.Play();
+            return rig.Session.State == VoiceState.Paused;
+        }, "the conversation to pause once the reply is heard");
+    }
+
+    [TestMethod]
+    public async Task AQuickTurn_IsAnsweredStraightAway_WithoutReasoning()
+    {
+        await using var rig = await new Rig(Answer("Hello there.")).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Hello."));
+    await Until(() => rig.Agent.Count == 1, "the turn to be taken");
+        await rig.PlayOutAsync();
+
+        CollectionAssert.AreEqual(new[] { LlmThinking.Off }, rig.Agent.Thinking);
+        CollectionAssert.DoesNotContain(rig.Voice.Texts, Str.Get("Shell.Voice.LetMeThink"));
+    }
+
+    [TestMethod]
+    public async Task ATurnThatNeedsThought_IsToldSoAtOnce_AndReasonedOver()
+    {
+        await using var rig = await new Rig(Answer("It tracks a lot, and the tests are thin.")).StartAsync();
+        rig.Agent.NeedsThought = _ => true;
+
+        rig.Ears.Hear(new TranscriptFinal("What do you think of this product?"));
+    await Until(() => rig.Agent.Count == 1, "the turn to be taken");
+        await rig.PlayOutAsync();
+
+        CollectionAssert.AreEqual(new[] { LlmThinking.Allowed }, rig.Agent.Thinking);
+        Assert.AreEqual(Str.Get("Shell.Voice.LetMeThink"), rig.Voice.Texts[0], "something is said at once, while it thinks");
     }
 }

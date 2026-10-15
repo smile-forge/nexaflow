@@ -2,6 +2,7 @@
   "models": [
     {
           "id": "gemma-4-e4b-it",
+          "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 64, "topP": 0.95 } },
           "displayName": "Gemma 4 E4B",
           "kind": "language",
           "images": true,
@@ -16,7 +17,7 @@
               "projector": "gemma-4-E4B-it-mmproj.gguf",
               "memoryBytes": 5905580032,
               "bytesPerToken": 17920,
-              "contextTokens": 32768
+              "contextTokens": 131072
             }
           ],
           "files": [
@@ -36,6 +37,7 @@
         },
     {
       "id": "qwen-3.5-9b",
+      "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 20, "topP": 0.95, "presencePenalty": 1.5 }, "answering": { "temperature": 0.7, "topK": 20, "topP": 0.8, "presencePenalty": 1.5 } },
       "displayName": "Qwen 3.5 9B",
       "kind": "language",
       "images": true,
@@ -50,7 +52,7 @@
           "projector": "mmproj-F16.gguf",
           "memoryBytes": 8321499136,
           "bytesPerToken": 30720,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -70,6 +72,7 @@
     },
     {
       "id": "mimo-v2.6-9b",
+      "tokenSampling": { "thinking": { "temperature": 0.6, "topK": 20, "topP": 0.95 } },
       "displayName": "MiMo V2.6 9B",
       "kind": "language",
       "images": true,
@@ -84,7 +87,7 @@
           "projector": "mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
           "memoryBytes": 8589934592,
           "bytesPerToken": 34816,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -131,6 +134,7 @@
     },
     {
       "id": "gemma-4-26b-a4b-it",
+      "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 64, "topP": 0.95 } },
       "displayName": "Gemma 4 26B A4B",
       "kind": "language",
       "images": true,
@@ -145,7 +149,7 @@
           "projector": "gemma-4-26B-it-mmproj.gguf",
           "memoryBytes": 18790481920,
           "bytesPerToken": 25600,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -165,6 +169,7 @@
     },
     {
       "id": "qwen-3.6-35b-a3b",
+      "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 20, "topP": 0.95, "presencePenalty": 1.5 }, "answering": { "temperature": 0.7, "topK": 20, "topP": 0.8, "presencePenalty": 1.5 } },
       "displayName": "Qwen 3.6 35B A3B",
       "kind": "language",
       "images": true,
@@ -179,7 +184,7 @@
           "projector": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
           "memoryBytes": 23085449216,
           "bytesPerToken": 22528,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -199,6 +204,7 @@
     },
     {
       "id": "qwen-3.8-27b",
+      "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 20, "topP": 0.95 }, "answering": { "temperature": 0.7, "topK": 20, "topP": 0.8, "presencePenalty": 1.5 } },
       "displayName": "Qwen 3.8 27B",
       "kind": "language",
       "images": true,
@@ -213,7 +219,7 @@
           "projector": "mmproj-Qwen3.8-27B-Q8_0.gguf",
           "memoryBytes": 22011707392,
           "bytesPerToken": 63488,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -233,6 +239,7 @@
     },
     {
       "id": "gemma-4-31b-it",
+      "tokenSampling": { "thinking": { "temperature": 1.0, "topK": 64, "topP": 0.95 } },
       "displayName": "Gemma 4 31B",
       "kind": "language",
       "images": true,
@@ -247,7 +254,7 @@
           "projector": "gemma-4-31B-it-mmproj.gguf",
           "memoryBytes": 27111981056,
           "bytesPerToken": 96768,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -267,7 +274,7 @@
     },
     {
       "id": "nemotron-whisper-turbo",
-      "displayName": "Nemotron 3.5 + Whisper large-v3-turbo",
+      "displayName": "Whisper large-v3-turbo",
       "kind": "speechToText",
       "parts": [
         {
@@ -486,6 +493,446 @@
       ]
     },
     {
+      "id": "nemotron-whisper-small",
+      "displayName": "Whisper small",
+      "kind": "speechToText",
+      "parts": [
+        {
+          "role": "voiceActivity",
+          "runner": "silero-vad",
+          "folder": "models/nemotron-3.5-asr-streaming",
+          "file": "silero_vad.onnx"
+        },
+        {
+          "role": "recognizer",
+          "runner": "genai-streaming-asr",
+          "folder": "models/nemotron-3.5-asr-streaming",
+          "adapter": "genai-native",
+          "memoryBytes": 2415919104
+        },
+        {
+          "role": "transcriber",
+          "runner": "genai-whisper",
+          "folder": "models/whisper-small-cuda",
+          "adapter": "genai-native",
+          "memoryBytes": 2952790016,
+          "cudaOptions": {
+            "sdpa_kernel": "1"
+          },
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "transcriber",
+          "runner": "genai-whisper",
+          "folder": "models/whisper-small-cpu",
+          "adapter": "genai-native",
+          "executionProvider": "cpu"
+        },
+        {
+          "role": "turnDetector",
+          "runner": "smart-turn",
+          "folder": "models/smart-turn-v3",
+          "file": "smart-turn-v3.2-cpu.onnx"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/nemotron-3.5-asr-streaming/audio_processor_config.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/audio_processor_config.json",
+          "size": 413,
+          "sha256": "ab28d41eb87ce3922006edeb9c3fad4d5ce451f9a56a12d84f470f02a5ec157b"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/decoder.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/decoder.onnx",
+          "size": 4696,
+          "sha256": "6a9f608dcbab71ebd81ffa4c198e82a5b6bb10f1c1830a94c752c5f543454df3"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/decoder.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/decoder.onnx.data",
+          "size": 59785216,
+          "sha256": "e5fd55cbeeb268f9d383e2ee72735b9fbbb13aea4bc7cd38cb73b8e16f1366c7"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/encoder.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/encoder.onnx",
+          "size": 2677548,
+          "sha256": "0b05217594ec0bda442e43a90a298ac2471a3bdcea9b169de34214e61a730e17"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/encoder.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/encoder.onnx.data",
+          "size": 690089984,
+          "sha256": "2f27295855aeb99ab1f8cd2254418d9ad7a087ea8dbe85f5596b4d887ea7d630"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/genai_config.native.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/genai_config.json",
+          "size": 1892,
+          "sha256": "39568fbeebbe848696a1e2a01c7f33df000f72c29f2285509fd12442bda9571e"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/joint.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/joint.onnx",
+          "size": 2136,
+          "sha256": "e2c7d2fa40a243bf82eaca36c15698c52129de9361d2875d7f223f67fcd9482d"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/joint.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/joint.onnx.data",
+          "size": 37830656,
+          "sha256": "2e0fb1c060f3777a1a76e78d5589dd54f01505a06dffbd2588e315508b402c12"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/silero_vad.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/silero_vad.onnx",
+          "size": 2243022,
+          "sha256": "a4a068cd6cf1ea8355b84327595838ca748ec29a25bc91fc82e6c299ccdc5808"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/tokenizer.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/tokenizer.json",
+          "size": 642525,
+          "sha256": "24e1e8335c8396884a86f06880271376ae46a29381cfc35c82c6295d407acec7"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/tokenizer_config.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/tokenizer_config.json",
+          "size": 183,
+          "sha256": "ea4b35353f468fea11f436f837d9621a29b4ba9d1c73c1ed0aa5743f5a53919e"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/vocab.txt",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/vocab.txt",
+          "size": 64024,
+          "sha256": "ca88922ac5a92c911b79985b69634d7a4c2ef604d61b71bbe2982210dd77cd43"
+        },
+        {
+          "path": "models/smart-turn-v3/smart-turn-v3.2-cpu.onnx",
+          "url": "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/f766f81d3cfdf7737ac64aad813d91bbfd56bf93/smart-turn-v3.2-cpu.onnx",
+          "size": 8679182,
+          "sha256": "2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f"
+        },
+        {
+          "path": "models/whisper-small-cuda/audio_processor_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/audio_processor_config.json",
+          "size": 20739,
+          "sha256": "d2720ef04446a78e8e134c3b3626f7d75e693bb9f66175239d842b3e1c9592c3"
+        },
+        {
+          "path": "models/whisper-small-cuda/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/decoder.onnx",
+          "size": 137146,
+          "sha256": "0422884124d2434dd5375d9c67abf18b3311d7ebc464f27f764191f2e7239532"
+        },
+        {
+          "path": "models/whisper-small-cuda/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/decoder.onnx.data",
+          "size": 358585856,
+          "sha256": "f377d1134d3ccb81691029b2198abe36543204e343bcaf4a26ee5aea93a2b66e"
+        },
+        {
+          "path": "models/whisper-small-cuda/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/encoder.onnx",
+          "size": 96733,
+          "sha256": "a072ff2affc77313a62f42eb0a77dbf0396a9aeaeeda550088a9e2a00831125a"
+        },
+        {
+          "path": "models/whisper-small-cuda/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/encoder.onnx.data",
+          "size": 204734464,
+          "sha256": "3b4a4b96b9d5c51cc6e2d8bcdfb0489132b80eedf6c3abde85a9aff2f101dc69"
+        },
+        {
+          "path": "models/whisper-small-cuda/genai_config.native.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/genai_config.json",
+          "size": 2678,
+          "sha256": "345f59fb27bc8941309a2f37e7ee300e2af137777cce1ebf318cf6168c45d293"
+        },
+        {
+          "path": "models/whisper-small-cuda/tokenizer_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/tokenizer_config.json",
+          "size": 2239,
+          "sha256": "275a40196ed2abb6f4c3b3ccb52744ad862d034a7912a76020dd29ee4078fa2a"
+        },
+        {
+          "path": "models/whisper-small-cuda/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cuda/tokenizer.json",
+          "size": 3930494,
+          "sha256": "7b469ff15eb7816315aa45eec391f5943d639b9d73d110f5c003df5192fd54e3"
+        },
+        {
+          "path": "models/whisper-small-cpu/audio_processor_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/audio_processor_config.json",
+          "size": 20739,
+          "sha256": "d2720ef04446a78e8e134c3b3626f7d75e693bb9f66175239d842b3e1c9592c3"
+        },
+        {
+          "path": "models/whisper-small-cpu/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/decoder.onnx",
+          "size": 171944,
+          "sha256": "09240dd473b074a1909f9d8f98536423168bf64e5e85a9015d536d7d7f65145c"
+        },
+        {
+          "path": "models/whisper-small-cpu/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/decoder.onnx.data",
+          "size": 317664256,
+          "sha256": "a1cb650b3e60ec17942a86804f22d354453975b4103bc72bcb21c3f845fa94ab"
+        },
+        {
+          "path": "models/whisper-small-cpu/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/encoder.onnx",
+          "size": 118381,
+          "sha256": "e06b0ec92bebab1407f5e5b5634180c7fd4caba63cdd7cbb5a77920cafc00a95"
+        },
+        {
+          "path": "models/whisper-small-cpu/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/encoder.onnx.data",
+          "size": 185532416,
+          "sha256": "ed853bbcb47e34586c180785e06c5f98b06ff0dd569991d946e7416db75bb1f0"
+        },
+        {
+          "path": "models/whisper-small-cpu/genai_config.native.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/genai_config.json",
+          "size": 2318,
+          "sha256": "58e863ccd84ca3b4d6bf881f219b84555bc552f98cff688526b54db4e9cbf6fd"
+        },
+        {
+          "path": "models/whisper-small-cpu/tokenizer_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/tokenizer_config.json",
+          "size": 2239,
+          "sha256": "275a40196ed2abb6f4c3b3ccb52744ad862d034a7912a76020dd29ee4078fa2a"
+        },
+        {
+          "path": "models/whisper-small-cpu/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small/cpu/tokenizer.json",
+          "size": 3930494,
+          "sha256": "7b469ff15eb7816315aa45eec391f5943d639b9d73d110f5c003df5192fd54e3"
+        }
+      ]
+    },
+    {
+      "id": "nemotron-whisper-small-en",
+      "displayName": "Whisper small (English)",
+      "kind": "speechToText",
+      "parts": [
+        {
+          "role": "voiceActivity",
+          "runner": "silero-vad",
+          "folder": "models/nemotron-3.5-asr-streaming",
+          "file": "silero_vad.onnx"
+        },
+        {
+          "role": "recognizer",
+          "runner": "genai-streaming-asr",
+          "folder": "models/nemotron-3.5-asr-streaming",
+          "adapter": "genai-native",
+          "memoryBytes": 2415919104
+        },
+        {
+          "role": "transcriber",
+          "runner": "genai-whisper",
+          "folder": "models/whisper-small-en-cuda",
+          "adapter": "genai-native",
+          "memoryBytes": 2952790016,
+          "cudaOptions": {
+            "sdpa_kernel": "1"
+          },
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "transcriber",
+          "runner": "genai-whisper",
+          "folder": "models/whisper-small-en-cpu",
+          "adapter": "genai-native",
+          "executionProvider": "cpu"
+        },
+        {
+          "role": "turnDetector",
+          "runner": "smart-turn",
+          "folder": "models/smart-turn-v3",
+          "file": "smart-turn-v3.2-cpu.onnx"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/nemotron-3.5-asr-streaming/audio_processor_config.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/audio_processor_config.json",
+          "size": 413,
+          "sha256": "ab28d41eb87ce3922006edeb9c3fad4d5ce451f9a56a12d84f470f02a5ec157b"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/decoder.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/decoder.onnx",
+          "size": 4696,
+          "sha256": "6a9f608dcbab71ebd81ffa4c198e82a5b6bb10f1c1830a94c752c5f543454df3"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/decoder.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/decoder.onnx.data",
+          "size": 59785216,
+          "sha256": "e5fd55cbeeb268f9d383e2ee72735b9fbbb13aea4bc7cd38cb73b8e16f1366c7"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/encoder.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/encoder.onnx",
+          "size": 2677548,
+          "sha256": "0b05217594ec0bda442e43a90a298ac2471a3bdcea9b169de34214e61a730e17"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/encoder.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/encoder.onnx.data",
+          "size": 690089984,
+          "sha256": "2f27295855aeb99ab1f8cd2254418d9ad7a087ea8dbe85f5596b4d887ea7d630"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/genai_config.native.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/genai_config.json",
+          "size": 1892,
+          "sha256": "39568fbeebbe848696a1e2a01c7f33df000f72c29f2285509fd12442bda9571e"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/joint.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/joint.onnx",
+          "size": 2136,
+          "sha256": "e2c7d2fa40a243bf82eaca36c15698c52129de9361d2875d7f223f67fcd9482d"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/joint.onnx.data",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/joint.onnx.data",
+          "size": 37830656,
+          "sha256": "2e0fb1c060f3777a1a76e78d5589dd54f01505a06dffbd2588e315508b402c12"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/silero_vad.onnx",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/silero_vad.onnx",
+          "size": 2243022,
+          "sha256": "a4a068cd6cf1ea8355b84327595838ca748ec29a25bc91fc82e6c299ccdc5808"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/tokenizer.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/tokenizer.json",
+          "size": 642525,
+          "sha256": "24e1e8335c8396884a86f06880271376ae46a29381cfc35c82c6295d407acec7"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/tokenizer_config.json",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/tokenizer_config.json",
+          "size": 183,
+          "sha256": "ea4b35353f468fea11f436f837d9621a29b4ba9d1c73c1ed0aa5743f5a53919e"
+        },
+        {
+          "path": "models/nemotron-3.5-asr-streaming/vocab.txt",
+          "url": "https://huggingface.co/onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4/resolve/8364d9e2dd9da23789b480bdbba9e423717e42ee/vocab.txt",
+          "size": 64024,
+          "sha256": "ca88922ac5a92c911b79985b69634d7a4c2ef604d61b71bbe2982210dd77cd43"
+        },
+        {
+          "path": "models/smart-turn-v3/smart-turn-v3.2-cpu.onnx",
+          "url": "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/f766f81d3cfdf7737ac64aad813d91bbfd56bf93/smart-turn-v3.2-cpu.onnx",
+          "size": 8679182,
+          "sha256": "2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/audio_processor_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/audio_processor_config.json",
+          "size": 20739,
+          "sha256": "d2720ef04446a78e8e134c3b3626f7d75e693bb9f66175239d842b3e1c9592c3"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/decoder.onnx",
+          "size": 137146,
+          "sha256": "8ba920aa47abd10d6f6fad6a6443263a6a561cea7c8c3038729850b8c4c45b35"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/decoder.onnx.data",
+          "size": 358584320,
+          "sha256": "75225b98fb5d33025b20f6e350a3303f3e1bc1a45f6552273379d973c5a16878"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/encoder.onnx",
+          "size": 96733,
+          "sha256": "a072ff2affc77313a62f42eb0a77dbf0396a9aeaeeda550088a9e2a00831125a"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/encoder.onnx.data",
+          "size": 204734464,
+          "sha256": "c7b9177fb42d869f626a3a25e4540a73a721118d62a50ecce4f90e1e461c8031"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/genai_config.native.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/genai_config.json",
+          "size": 2678,
+          "sha256": "005704f93d2369f725485f617dfa0866da388a5b291c0eb8b7f126199f55a512"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/tokenizer_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/tokenizer_config.json",
+          "size": 2217,
+          "sha256": "67f7ee56b57bec47d618e520838604bba6a0055b6c1c67b0b9b317b87851f588"
+        },
+        {
+          "path": "models/whisper-small-en-cuda/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cuda/tokenizer.json",
+          "size": 3855707,
+          "sha256": "287537d5be89a39bd18e7e3875ad9900faa668493fb759392b8f52a492eca5db"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/audio_processor_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/audio_processor_config.json",
+          "size": 20739,
+          "sha256": "d2720ef04446a78e8e134c3b3626f7d75e693bb9f66175239d842b3e1c9592c3"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/decoder.onnx",
+          "size": 171944,
+          "sha256": "64d76aa05900aed837e261dc3deda983c62932e6fc5e0f0bd62aefcc8118aada"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/decoder.onnx.data",
+          "size": 317661184,
+          "sha256": "5406df973cd0942198759a6da8fe61d13249810b5a454ab209e8c46b631ef571"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/encoder.onnx",
+          "size": 118381,
+          "sha256": "e06b0ec92bebab1407f5e5b5634180c7fd4caba63cdd7cbb5a77920cafc00a95"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/encoder.onnx.data",
+          "size": 185532416,
+          "sha256": "a58e27e3697fd976a903915a450afef479c9445e907d62baad06f49fc30d02fc"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/genai_config.native.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/genai_config.json",
+          "size": 2318,
+          "sha256": "e81a64730938e96f725621c9ec5146993e7933e7ca5afc49a353f7d7e1e8b2e0"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/tokenizer_config.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/tokenizer_config.json",
+          "size": 2217,
+          "sha256": "67f7ee56b57bec47d618e520838604bba6a0055b6c1c67b0b9b317b87851f588"
+        },
+        {
+          "path": "models/whisper-small-en-cpu/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/whisper-onnx-genai/resolve/16ad7ec03711845206164a716a8ec7680b7c58c0/small.en/cpu/tokenizer.json",
+          "size": 3855707,
+          "sha256": "287537d5be89a39bd18e7e3875ad9900faa668493fb759392b8f52a492eca5db"
+        }
+      ]
+    },
+    {
       "id": "kokoro-82m",
       "displayName": "Kokoro 82M",
       "kind": "textToSpeech",
@@ -586,7 +1033,8 @@
       "id": "z-image-turbo",
       "displayName": "Z-Image Turbo",
       "kind": "imageGeneration",
-      "sampler": { "steps": 9, "shift": 3.0 },
+      "sampler": { "method": "zImage", "steps": 9, "shift": 3.0, "guidance": 0,
+                   "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } },
       "parts": [
         {
           "role": "promptEncoder",
@@ -655,6 +1103,82 @@
           "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/decoder/decoder.onnx.data",
           "size": 99090432,
           "sha256": "fd3137e9b33ec6f639e4aee6dc25343dc355606bf1308e859181504e9abd67b7"
+        }
+      ]
+    },
+    {
+      "id": "hidream-o1-image",
+      "displayName": "HiDream-O1 (8-bit)",
+      "kind": "imageGeneration",
+      "tier": "highQuality",
+      "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
+                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+      "parts": [
+        {
+          "role": "denoiser",
+          "runner": "hidream-denoiser",
+          "folder": "models/hidream-o1-image/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 13837008896,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/hidream-o1-image/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx",
+          "size": 3112593,
+          "sha256": "4c580594367c6ec334219ffc450224533814f1c713ea094ecff407d40ac8c9e5"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx.data",
+          "size": 8776790016,
+          "sha256": "a4724f29fa18a4b963582cac17ad62ce3b5a76bd5c0f55b9a053c64479ede03c"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/tokenizer.json",
+          "size": 7033338,
+          "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
+        }
+      ]
+    },
+    {
+      "id": "hidream-o1-image-fp16",
+      "displayName": "HiDream-O1 (16-bit)",
+      "kind": "imageGeneration",
+      "tier": "highQuality",
+      "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
+                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+      "parts": [
+        {
+          "role": "denoiser",
+          "runner": "hidream-denoiser",
+          "folder": "models/hidream-o1-image/denoiser-fp16",
+          "file": "denoiser.onnx",
+          "memoryBytes": 20025704448,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx",
+          "size": 3323423,
+          "sha256": "a50f0f9d547c071f80f05e7a7d54adbbd13f43bac9e05745b85868a4594749ed"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx.data",
+          "size": 15288500224,
+          "sha256": "b923e69a5b7c84af1b264385d19cb37a1442c28921a67eb18216869c9071007b"
+        },
+        {
+          "path": "models/hidream-o1-image/denoiser-fp16/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/tokenizer.json",
+          "size": 7033338,
+          "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
         }
       ]
     }

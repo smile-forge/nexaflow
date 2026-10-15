@@ -1,5 +1,7 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.Services.Agent;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -46,6 +48,15 @@ public sealed class WorkspaceManager
     /// referencing <c>MainWindow</c>.
     /// </summary>
     internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
+
+    /// <summary>The app's background tasks: each workspace's assistant runs its slow work there, and a workspace's jobs stop when
+    /// its models go.</summary>
+    internal BackgroundActivityManager? BackgroundTasks { get; set; }
+
+    /// <summary>Where <paramref name="ws"/>'s assistant runs its slow work, telling the user through the app's notifications when
+    /// each piece ends; null before the app has its background tasks.</summary>
+    private BackgroundJobs? JobsOf(WorkspaceRuntime ws)
+        => BackgroundTasks is { } tasks ? new(tasks, ws, MessageCenter.Instance.Post) : null;
 
     private WorkspaceManager() { }
 
@@ -215,8 +226,9 @@ public sealed class WorkspaceManager
         // 2. Drop cached feature/handler instances that captured the old AIService/IShellServices.
         FeatureManager.Instance.EvictWorkspace(ws);
 
-        // 3. Rebuild the AIService for the (possibly new) workspace.
-        var service = new AIService(ws, workspace.ConversationsDir);
+        // 3. Rebuild the AIService for the (possibly new) workspace. The old one's jobs stop: the models they run on are going.
+        BackgroundTasks?.StopJobsOf(ws);
+        var service = new AIService(ws, workspace.ConversationsDir, JobsOf(ws));
         service.LoadAbilityConfig(workspace.AiConfig);
         ws.AiService = service;
 
@@ -237,6 +249,7 @@ public sealed class WorkspaceManager
     {
         if (ws.ShellServices is { HasWindows: true }) return;
 
+        BackgroundTasks?.StopJobsOf(ws);
         FeatureManager.Instance.EvictWorkspace(ws);
         ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
         ws.Providers = null;
@@ -261,6 +274,19 @@ public sealed class WorkspaceManager
     /// so newly-assigned models get an execution instance (and are warmed) and dropped ones are cooled.
     /// </summary>
     public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
+
+    /// <summary>
+    /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
+    /// has landed — saving it, and having every running window of the workspace take it up without closing its tabs.
+    /// </summary>
+    public void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
+    {
+        workspace.EnsureSharedServicesLoaded();
+        LocalColumns.Use(workspace.AiConfig, slot, model);
+        ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        foreach (var ws in _workspaces.Where(w => ReferenceEquals(w.Workspace, workspace)).ToList())
+            AcquireAndRegister(ws);
+    }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
     public Workspace AddWorkspace(string name)
@@ -457,6 +483,26 @@ public sealed class WorkspaceManager
 
         var fresh = ProviderManager.Instance.AcquireProviderSet(
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
+
+        // A grid saved before the Local column has its models on this machine folded into it, once, and the Local column
+        // turned on where this machine runs a model; each job it is used for keeps a model the job offers here. It is
+        // saved so.
+        var folded = LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal);
+        if (ProviderManager.Instance.Assets is { } assets)
+        {
+            var shelf = new LocalModelShelf(fresh, assets);
+            IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)
+                => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o), o.Model.Tier == LocalColumns.TierOf(slot)))];
+            folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
+            folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
+        }
+        if (folded)
+        {
+            ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+            var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
+            ProviderManager.Instance.ReleaseProviderSet(fresh);
+            fresh = again;
+        }
         var old   = ws.Providers;
         ws.Providers               = fresh;
         workspace.AiConfig.Providers = fresh;
@@ -482,7 +528,7 @@ public sealed class WorkspaceManager
     {
         var workspace = ws.Workspace;
 
-        var service = new AIService(ws, workspace.ConversationsDir);
+        var service = new AIService(ws, workspace.ConversationsDir, Instance.JobsOf(ws));
         service.LoadAbilityConfig(workspace.AiConfig);
         ws.AiService = service;
 

@@ -61,11 +61,12 @@ public class OwnedImageGenerationProviderTests
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((RequestPriority.Job, "a fox", 1344, 768), (draw.Priority, draw.Prompt, draw.Width, draw.Height));
+        var parts = draw.Model.Parts;
         Assert.AreEqual(("z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder"),
-                        (draw.Model.PromptEncoder.Runner, draw.Model.Denoiser.Runner, draw.Model.Decoder.Runner));
-        Assert.AreEqual((9, 3f), (draw.Model.Steps, draw.Model.Shift));
-        StringAssert.StartsWith(draw.Model.Denoiser.Folder, @"C:\ai\models\z-image-turbo", "the folder is where the store keeps its files");
-        Assert.AreEqual(0, draw.Model.Denoiser.Device, "on the GPU the host found");
+                        (parts[DrawingParts.PromptEncoder].Runner, parts[DrawingParts.Denoiser].Runner, parts[DrawingParts.Decoder].Runner));
+        Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
+        StringAssert.StartsWith(parts[DrawingParts.Denoiser].Folder, @"C:\ai\models\z-image-turbo", "the folder is where the store keeps its files");
+        Assert.AreEqual(0, parts[DrawingParts.Denoiser].Device, "on the GPU the host found");
         CollectionAssert.AreEqual(new byte[] { 0x89, 0x50 }, made.Media.Bytes);
         Assert.AreEqual("image/png", made.Media.MimeType);
     }
@@ -127,11 +128,11 @@ public class OwnedImageGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task WarmingUp_FetchesTheFiles_ButLoadsNothing()
+    public async Task WarmingUp_LoadsNothing()
     {
         var host = new FakeAiHost();
 
-        await Provider(Here(), host).WarmupAsync();
+        await ((IAiProvider)Provider(Here(), host)).WarmupAsync();
 
         Assert.AreEqual(0, host.Requests.Count, "an image model loads with its first picture, not beside the resident models");
     }

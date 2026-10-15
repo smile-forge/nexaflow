@@ -23,43 +23,49 @@ public class WorkspaceHarnessTests
     private static string[] Chain(AiConfig config, AiAbility ability) => [.. config.Assignments[ability.ToString()].ColumnIds];
 
     [TestMethod]
-    public void NexaflowAlone_AnswersEveryLanguageRole_ListensWithItsOwnSpeechModel_WhisperBehindIt_AndSpeaksWithItsOwnVoice()
+    public void NexaflowAlone_AnswersEveryLanguageRole_ListensWithItsOwnSpeechModel_AndSpeaksWithItsOwnVoice_AllOnTheLocalColumn()
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, bridged: null, Owned, whisperModel: "base.en");
+        WorkspaceAiDefaults.Assign(config, bridged: null, Owned);
 
         foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == ModelKind.Language))
-            CollectionAssert.AreEqual(new[] { Gemma.Id }, Chain(config, ability), ability.ToString());
-        var speechIn = Chain(config, AiAbility.SpeechIn);
-        Assert.AreEqual(Ears.Id, speechIn[0]);
-        Assert.AreEqual("Whisper", config.Columns.Single(c => c.Id == speechIn[1]).ProviderName, "Whisper listens while Nexaflow's own is still downloading");
-        CollectionAssert.AreEqual(new[] { Voice.Id }, Chain(config, AiAbility.SpeechOut));
+            CollectionAssert.AreEqual(new[] { Local(LocalSlot.Language) }, Chain(config, ability), ability.ToString());
+        CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn));
+        CollectionAssert.AreEqual(new[] { Local(LocalSlot.TextToSpeech) }, Chain(config, AiAbility.SpeechOut));
+        Assert.AreEqual(Gemma.Model, ModelOf(config, LocalSlot.Language));
+        Assert.AreEqual(Ears.Model, ModelOf(config, LocalSlot.SpeechToText), "Nexaflow's own listens");
+        Assert.AreEqual(Voice.Model, ModelOf(config, LocalSlot.TextToSpeech));
     }
+
+    private static string Local(LocalSlot slot) => LocalColumns.IdOf(slot);
+
+    private static string ModelOf(AiConfig config, LocalSlot slot) => config.Columns.Single(c => c.Id == Local(slot)).Model;
 
     [TestMethod]
     public void AMixedWorkspace_GivesTheFrequentRolesToNexaflowFirst_AndTheConversationToTheProvider()
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, Claude, Owned, "base.en");
+        WorkspaceAiDefaults.Assign(config, Claude, Owned);
 
         foreach (var ability in new[] { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition })
-            CollectionAssert.AreEqual(new[] { Gemma.Id, Claude.Id }, Chain(config, ability), ability.ToString());
+            CollectionAssert.AreEqual(new[] { Local(LocalSlot.Language), Claude.Id }, Chain(config, ability), ability.ToString());
         foreach (var ability in new[] { AiAbility.Conversation, AiAbility.ProblemSolving })
-            CollectionAssert.AreEqual(new[] { Claude.Id, Gemma.Id }, Chain(config, ability), $"{ability}: the stronger model first, the owned one standing in");
+            CollectionAssert.AreEqual(new[] { Claude.Id, Local(LocalSlot.Language) }, Chain(config, ability), $"{ability}: the stronger model first, the owned one standing in");
     }
 
     [TestMethod]
-    public void AProviderAlone_AnswersEveryLanguageRole_AndListensWithWhisper()
+    public void AProviderAlone_AnswersEveryLanguageRole_AndListensOnTheLocalColumn()
     {
         var config = new AiConfig();
 
-        WorkspaceAiDefaults.Assign(config, Claude, owned: null, "base.en");
+        WorkspaceAiDefaults.Assign(config, Claude, owned: null);
 
         Assert.AreEqual(1, config.Columns.Count(c => c.Kind == ModelKind.Language));
         CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.Conversation));
-        Assert.AreEqual("Whisper", config.Columns.Single(c => c.Id == Chain(config, AiAbility.SpeechIn).Single()).ProviderName);
+        CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn),
+                                  "the workspace settles on the speech model it offers here when it loads");
     }
 
     /// <summary>A step that applies or not as the test says.</summary>

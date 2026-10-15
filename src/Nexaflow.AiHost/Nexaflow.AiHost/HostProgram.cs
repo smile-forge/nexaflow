@@ -51,7 +51,7 @@ internal static class HostProgram
                 new GenerateHandler(models, scheduler),
                 new ListenHandler(models, scheduler),
                 new SpeakHandler(models, scheduler, new SpeechPhonemizers()),
-                new DrawHandler(models, scheduler),
+                new DrawHandler(models, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler)]),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

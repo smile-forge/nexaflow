@@ -84,8 +84,18 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// conversation has read, and appends.
 /// </summary>
 /// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
-public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int MaxNewTokens,
-                              RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null) : HostRequest(RequestId);
+public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
+                              RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true,
+                              TokenSampling? Sampling = null) : HostRequest(RequestId);
+
+/// <summary>
+/// How a reply chooses each token from the model's scores, as the model's makers recommend for it: the
+/// <paramref name="TopK"/> likeliest, of those the fewest whose chances make up <paramref name="TopP"/>, a token already
+/// written made less likely by <paramref name="PresencePenalty"/>, and one drawn from what is left at
+/// <paramref name="Temperature"/>. A request without one takes the likeliest each time. A <paramref name="Seed"/> makes
+/// the draws the same each time — for tests; without one they differ.
+/// </summary>
+public sealed record TokenSampling(float Temperature, int TopK, float TopP, float PresencePenalty = 0, uint? Seed = null);
 
 public sealed record TextDelta(long RequestId, string Text) : HostReply(RequestId);
 
@@ -102,6 +112,8 @@ public enum StopReason
     ContextFull,
     /// <summary>The model called tools, and waits for what came of them.</summary>
     ToolCalls,
+    /// <summary>The model was going in circles — the same stretch of tokens over and over, back to back — and was stopped.</summary>
+    Circling,
 }
 
 /// <param name="PromptTokens">The whole conversation, as the model has now read it.</param>

@@ -4,6 +4,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
 using Nexaflow.IO.Common.Audio;
+using System.Text.Json;
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -23,25 +24,34 @@ internal sealed partial class WhisperTranscriber : IHostModel
     private const int CutSearchSamples = 8 * Rate;
     private const int CutWindowSamples = Rate / 10;
 
+    /// <summary>The smallest vocabulary of a multilingual Whisper — Whisper's own test: an English-only model's is one
+    /// token shorter, and it takes no language or task in its prompt.</summary>
+    internal const int MultilingualVocabulary = 51865;
+
     private readonly Config _config;
     private readonly MultiModalProcessor _processor;
     private readonly SemaphoreSlim _processing = new(1, 1);
+    private readonly bool _multilingual;
 
-    public WhisperTranscriber(ModelSpec spec, Config config, Model model)
+    public WhisperTranscriber(ModelSpec spec, Config config, Model model, bool multilingual)
     {
-        Spec       = spec;
-        _config    = config;
-        Model      = model;
-        _processor = new MultiModalProcessor(model);
+        Spec          = spec;
+        _config       = config;
+        Model         = model;
+        _multilingual = multilingual;
+        _processor    = new MultiModalProcessor(model);
     }
 
     public ModelSpec Spec { get; }
     public Model Model { get; }
 
-    /// <summary>The decoder's start: the language and task forced, or only the start token, to let it detect the language.</summary>
-    internal static string Prompt(string? language) => language is { Length: 2 }
-        ? $"<|startoftranscript|><|{language.ToLowerInvariant()}|><|transcribe|><|notimestamps|>"
-        : "<|startoftranscript|>";
+    /// <summary>The decoder's start. A multilingual model has the language and task forced, or only the start token, to let
+    /// it detect the language; an English-only one knows neither, and is told only to leave out timestamps.</summary>
+    internal static string Prompt(string? language, bool multilingual) => !multilingual
+        ? "<|startoftranscript|><|notimestamps|>"
+        : language is { Length: 2 }
+            ? $"<|startoftranscript|><|{language.ToLowerInvariant()}|><|transcribe|><|notimestamps|>"
+            : "<|startoftranscript|>";
 
     [GeneratedRegex(@"<\|[^|>]*\|>")]
     private static partial Regex SpecialToken();
@@ -64,7 +74,7 @@ internal sealed partial class WhisperTranscriber : IHostModel
         using var audios = Audios.Load(WavAudio.Write(Pcm16.FromSamples(audio.Span), Rate));
         NamedTensors inputs;
         await _processing.WaitAsync(ct);
-        try { inputs = _processor.ProcessAudios(Prompt(language), audios); }
+        try { inputs = _processor.ProcessAudios(Prompt(language, _multilingual), audios); }
         finally { _processing.Release(); }
 
         using (inputs)
@@ -84,8 +94,8 @@ internal sealed partial class WhisperTranscriber : IHostModel
         }
     }
 
-    private static async ValueTask<IDisposable?> Step(GpuScheduler? gpu, RequestPriority priority, CancellationToken ct)
-        => gpu is null ? null : await gpu.NextAsync(priority, ct);
+    private async ValueTask<IDisposable?> Step(GpuScheduler? gpu, RequestPriority priority, CancellationToken ct)
+        => gpu is null ? null : await gpu.NextAsync(priority, Spec.Device, ct);
 
     /// <summary>Where a long utterance is cut: pieces of at most 28 s, each ending at the quietest 100 ms of its last 8 s.</summary>
     internal static IEnumerable<(int Start, int Length)> Pieces(float[] audio)
@@ -130,7 +140,7 @@ internal sealed class WhisperTranscriberRunner : IModelRunner
     public IHostModel Load(ModelSpec spec)
     {
         var (config, model) = GenAiConfigFile.Open(spec);
-        var whisper = new WhisperTranscriber(spec, config, model);
+        var whisper = new WhisperTranscriber(spec, config, model, VocabularyOf(spec.Folder) >= WhisperTranscriber.MultilingualVocabulary);
         try
         {
             whisper.TranscribeAsync(new float[ListenSession.SampleRate], "en", gpu: null, RequestPriority.Background, CancellationToken.None)
@@ -142,5 +152,12 @@ internal sealed class WhisperTranscriberRunner : IModelRunner
             whisper.Dispose();
             throw;
         }
+    }
+
+    /// <summary>The model's vocabulary size, as its genai_config.json gives it.</summary>
+    private static int VocabularyOf(string folder)
+    {
+        using var json = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(folder, "genai_config.json")));
+        return json.RootElement.GetProperty("model").GetProperty("vocab_size").GetInt32();
     }
 }

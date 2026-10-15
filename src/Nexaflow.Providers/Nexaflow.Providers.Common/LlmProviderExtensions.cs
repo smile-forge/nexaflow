@@ -27,4 +27,20 @@ public static class LlmProviderExtensions
 
         return text.Length == 0 ? null : new LlmResponse(text.ToString());
     }
+
+    /// <summary>The whole reply, the model asked to answer without reasoning first or not, as <paramref name="thinking"/>
+    /// says; null when it wrote nothing.</summary>
+    public static async Task<LlmResponse?> CompleteAsync(
+        this ILlmProvider         provider,
+        IReadOnlyList<LlmMessage> messages,
+        LlmUrgency                urgency,
+        LlmThinking               thinking,
+        CancellationToken         ct = default)
+    {
+        var text = new StringBuilder();
+        await foreach (var e in provider.StreamAsync(messages, [], urgency, thinking, ct))
+            if (e is LlmTextDelta delta) text.Append(delta.Text);
+
+        return text.Length == 0 ? null : new LlmResponse(text.ToString());
+    }
 }

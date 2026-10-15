@@ -27,36 +27,26 @@ public sealed class AiConfig : IProviderConfig
     /// </summary>
     public Dictionary<string, AbilityChain> Assignments { get; set; } = [];
 
+    /// <summary>Whether the Local column has been turned on for this grid — once, the first time a workspace with it loads, so a
+    /// job the user later takes it out of stays out.</summary>
+    public bool LocalSeeded { get; set; }
+
     /// <summary>Every column some ability's chain names — the ones a workspace needs providers for.</summary>
     public IReadOnlySet<string> AssignedColumnIds()
         => Assignments.Values.SelectMany(c => c.ColumnIds).ToHashSet();
 
-    /// <summary>The Whisper model Speech In starts on.</summary>
-    public const string DefaultSpeechModel = "base.en";
-
     /// <summary>
     /// Gives Speech In its starting chain when this grid has never had that row — a grid saved before abilities of other
-    /// kinds existed, or a new workspace: Whisper, on this machine, so dictation works without a key or a subscription.
-    /// A chain the user has emptied is a chain, and is left alone. Returns whether anything was added.
+    /// kinds existed, or a new workspace: the Local column, whose speech model the workspace settles on when it loads
+    /// (<see cref="LocalColumns.Settle"/>), so the mic works without a key or a subscription. A chain the user has emptied
+    /// is a chain, and is left alone. Returns whether anything was added.
     /// </summary>
-    public bool AddDefaultSpeechIn(string whisperModel)
+    public bool AddDefaultSpeechIn()
     {
         var key = nameof(AiAbility.SpeechIn);
         if (Assignments.ContainsKey(key)) return false;
 
-        var column = Columns.FirstOrDefault(c => c.Kind == ModelKind.SpeechToText && c.ProviderName == "Whisper" && c.Model == whisperModel);
-        if (column is null)
-        {
-            column = new ProviderModelPair
-            {
-                ProviderName     = "Whisper",
-                Model            = whisperModel,
-                Kind             = ModelKind.SpeechToText,
-                AssemblyFileName = "Nexaflow.Providers.Whisper.dll",
-            };
-            Columns.Add(column);
-        }
-        Assignments[key] = AbilityChain.Of(column.Id);
+        Assignments[key] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.SpeechToText));
         return true;
     }
 }

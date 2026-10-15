@@ -53,8 +53,17 @@ public sealed class ModelAssetStore : IModelAssetStore
     public async Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
         => (await EnsureAllAsync([asset], progress, ct))[0];
 
-    public async Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
-                                                            CancellationToken ct = default)
+    /// <summary>
+    /// Makes every one of <paramref name="assets"/> here — adopted, resumed or downloaded, then verified — and returns their
+    /// paths. It runs on the thread pool whoever asks: a download is minutes of reading, writing and hashing in small pieces,
+    /// and asked from the UI thread every piece would otherwise continue there. <paramref name="progress"/> is told on the
+    /// thread the work is on; whoever shows it moves it to the UI.
+    /// </summary>
+    public Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
+                                                      CancellationToken ct = default)
+        => Task.Run(() => FetchMissingAsync(assets, progress, ct), ct);
+
+    private async Task<IReadOnlyList<string>> FetchMissingAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress, CancellationToken ct)
     {
         var missing = assets.Where(a => Locate(a) is null).Distinct().ToList();
         var loose   = missing.Where(a => a.Archive is null).ToList();

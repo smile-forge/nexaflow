@@ -460,14 +460,14 @@
                         Content="{Binding RootPaneNode}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
-             OVERLAY — AI RESPONSE (modal over the page only)
-             Dimmed backdrop spans rows 0–3 (drag bar, ribbon/tabs, content,
-             splitter) so the page can't be clicked, but deliberately leaves
-             row 4 (the AI input bar) live so the user can cancel the action.
+             REPLY CARD — the whole of the AI bar's reply, just above the bar
+             Shown on hover over the reply, pinned by a click on it; it blocks
+             nothing beside it.
              ═══════════════════════════════════════════════════════════ -->
-        <ctrl:AiResponseOverlay Grid.Row="0" Grid.RowSpan="4"
-                                Panel.ZIndex="100"
-                                DataContext="{Binding Ai}"/>
+        <ctrl:AiReplyCard x:Name="ReplyCardView" Grid.Row="0" Grid.RowSpan="4"
+                          Panel.ZIndex="100" DataContext="{Binding Ai}"
+                          HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                          Margin="54,80,12,6" MaxWidth="960"/>
 
         <!-- Voice mode: what a spoken reply holds that speech cannot carry — a diagram, a table, code — shown over the
              page, which stays usable beneath, until Escape or the end of the conversation puts it away. -->
@@ -509,9 +509,9 @@
                 BorderBrush="{StaticResource AiBar.Border}"
                 BorderThickness="0,1,0,0">
             <Grid x:Name="AiBarGrid" Margin="12,5,12,5">
-                <!-- Two lines: the AI's above — its status dot and one line of what it is saying or doing — and the user's below,
-                     taller — the mic, the box, and Send. The right column stacks the page-context toggle (Queue while a run is in
-                     flight) over Send. -->
+                <!-- Two lines: the AI's above — its status dot, one line of what it is saying or doing, and at its end the workspace's
+                     background tasks while it has any — and the user's below, taller — the mic, the box, and Send. The right column
+                     stacks the page-context toggle (Queue while a run is in flight) over Send. -->
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="30"/>     <!-- status dot / mic                -->
                     <ColumnDefinition Width="*"/>      <!-- the AI's line / the user's box  -->
@@ -531,10 +531,11 @@
                                 Width="0" Height="0"
                                 HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-                <!-- The AI's field: its status dot and, in voice mode, one line beside it in the same field — what it is saying or
-                     doing, and an action it is about to do with the buttons that decide it (red while held). Out of voice mode it is
-                     the field around the dot alone; voice mode grows it right across the top (MainWindow.LayOutForVoice). Told from
-                     the user's field by the colour of its text and border alone. -->
+                <!-- The AI's field: its status dot and, while it has something to say, one line beside it in the same field. In voice
+                     mode, what it is saying or doing, and an action it is about to do with the buttons that decide it (red while held).
+                     Answering a typed request, what it is doing, an approval with Allow and Deny, or the reply — the whole of it in the
+                     reply card. With nothing to say it is the field around the dot alone; with a line it grows right
+                     across the top (MainWindow.LayOutAiLine). Told from the user's field by the colour of its text and border alone. -->
                 <Border x:Name="AiField" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,4" Padding="3,2,3,2"
                         HorizontalAlignment="Left" Width="30"
                         CornerRadius="8" BorderThickness="1" Background="{StaticResource AiBar.InputBg}">
@@ -552,19 +553,62 @@
                         </Style>
                     </Border.Style>
                     <DockPanel>
+                        <!-- Along the line's foot: how much of the model's context the conversation fills — a hairline as long as the
+                             share used, amber once the conversation is nearly due to be condensed. -->
+                        <Grid DockPanel.Dock="Bottom" Height="1.5" Margin="6,2,6,0" ToolTip="{Binding AiContextUse.Text}"
+                              Visibility="{Binding AiContextUse, Converter={StaticResource NullToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding AiContextUse.Used}"/>
+                                <ColumnDefinition Width="{Binding AiContextUse.Left}"/>
+                            </Grid.ColumnDefinitions>
+                            <Rectangle Grid.Column="0">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AiContextUse.IsNearlyFull}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource WarningBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <Rectangle Grid.Column="1" Fill="{StaticResource BorderBrush}" Opacity="0.5"/>
+                        </Grid>
                         <ctrl:AiStatusDot DockPanel.Dock="Left"
                                           IsBusy="{Binding AiIsBusy}"
                                           HandlerSymbol="{Binding AiHandlerSymbol}"
                                           IsListening="{Binding AiIsListening}"
                                           Width="22" Height="22"/>
+                        <!-- At the line's right end: the workspace's background tasks — work its assistant left running after replying — while it
+                             has any; it opens their list. -->
+                        <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="AiBar_BackgroundTasks"
+                                Command="{Binding WorkspaceTasks.ToggleCommand}" ToolTip="{loc:Str Shell.BackgroundTasks.Header}"
+                                Visibility="{Binding WorkspaceTasks.Any, Converter={StaticResource BoolVis}}"
+                                VerticalAlignment="Center" Margin="8,0,2,0" Cursor="Hand" AutomationProperties.Name="{Binding WorkspaceTasks.Label}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="pill" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource AccentBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="8,1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="⟳" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+                                            <TextBlock Text="{Binding WorkspaceTasks.Label}" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="pill" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Visibility="{Binding Voice.IsConfirming, Converter={StaticResource BoolVis}}">
                                 <Button AutomationProperties.AutomationId="AiBar_VoiceStop"
-                                        Content="{Binding Voice.Confirmation.StopLabel}" Command="{Binding Voice.StopActionCommand}"
-                                        Padding="10,0" Margin="6,0,0,0" FontSize="12" Foreground="{StaticResource OnAccentBrush}">
+                                        Content="{Binding Voice.Confirmation.StopLabel}" Command="{Binding Voice.StopActionCommand}" Margin="6,0,0,0">
                                     <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryAction}">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Voice.Confirmation.IsHeld}" Value="True">
                                                     <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
@@ -575,7 +619,7 @@
                                 </Button>
                                 <Button AutomationProperties.AutomationId="AiBar_VoiceProceed"
                                         Content="{Binding Voice.Confirmation.ProceedLabel}" Command="{Binding Voice.ProceedCommand}"
-                                        Padding="10,0" Margin="6,0,0,0" FontSize="12"
+                                        Style="{StaticResource SecondaryAction}" Margin="6,0,0,0"
                                         Visibility="{Binding Voice.Confirmation.IsHeld, Converter={StaticResource InvBoolVis}}"/>
                             </StackPanel>
                             <Button AutomationProperties.AutomationId="AiBar_VoiceOpenConversation"
@@ -584,7 +628,44 @@
                                     FontSize="11" Padding="8,0" Margin="6,0,0,0" Background="Transparent" BorderThickness="0"
                                     Foreground="{StaticResource AccentBrush}" Cursor="Hand"/>
                         </StackPanel>
-                        <!-- The reply so far on one line: as it outgrows the line, its newest words stay in view and its start fades. -->
+                        <!-- Answering a typed request: Allow and Deny for an approval; More and close for a reply. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                                    Visibility="{Binding Ai.InBar, Converter={StaticResource BoolVis}}">
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding Ai.AiOverlayIsApproval, Converter={StaticResource BoolVis}}">
+                                <Button AutomationProperties.AutomationId="AiBar_Allow" Content="{loc:Str Shell.AiResponse.Accept}"
+                                        Command="{Binding Ai.AcceptToolBatchCommand}" Style="{StaticResource PrimaryAction}" Margin="6,0,0,0"/>
+                                <Button AutomationProperties.AutomationId="AiBar_Deny" Content="{loc:Str Shell.AiResponse.Deny}"
+                                        Command="{Binding Ai.DenyToolBatchCommand}" Style="{StaticResource SecondaryAction}" Margin="6,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding Ai.AiOverlayIsMessage, Converter={StaticResource BoolVis}}">
+                                <Button AutomationProperties.AutomationId="AiBar_ContinueAsConversation" Content="{loc:Str Shell.AiResponse.ContinueAsConversation}"
+                                        Command="{Binding Ai.ContinueAsConversationCommand}"
+                                        FontSize="11" Padding="8,0" Margin="6,0,0,0" Background="Transparent" BorderThickness="0"
+                                        Foreground="{StaticResource AccentBrush}" Cursor="Hand"/>
+                                <Button AutomationProperties.AutomationId="AiBar_ReplyDismiss" ToolTip="{loc:Str Shell.AiResponse.Dismiss}"
+                                        Command="{Binding Ai.CloseAiResponseOverlayCommand}" Style="{StaticResource IconButton}" Margin="2,0,0,0">
+                                    <TextBlock Text="✕" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+<!-- The reply so far on one line: as it outgrows the line, its newest words stay in view and its start fades. The
+     spoken conversation's, and a typed request's answer in the bar, each shown while it is the one talking. -->
+<Grid>
+<vcc:TailClip Margin="8,0" VerticalAlignment="Center" Visibility="{Binding Ai.BarShowsWork, Converter={StaticResource BoolVis}}">
+    <TextBlock Text="{Binding Ai.BarLine}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"/>
+</vcc:TailClip>
+<!-- What was said, from its start: hovering shows the whole of it in the reply card, a click pins the card open. -->
+<Button x:Name="AiReplyLine" AutomationProperties.AutomationId="AiBar_Reply" AutomationProperties.Name="{Binding Ai.BarLine}"
+        Command="{Binding Ai.Card.TogglePinCommand}" Cursor="Hand" Margin="8,0" VerticalAlignment="Center"
+        Visibility="{Binding Ai.BarShowsSaid, Converter={StaticResource BoolVis}}"
+        MouseEnter="AiReply_MouseEnter" MouseLeave="AiReply_MouseLeave">
+    <Button.Template>
+        <ControlTemplate TargetType="Button">
+            <TextBlock Text="{Binding Ai.BarLine}" FontSize="13" TextTrimming="CharacterEllipsis" Background="Transparent"
+                       Foreground="{StaticResource TextBrush}"/>
+        </ControlTemplate>
+    </Button.Template>
+</Button>
                         <vcc:TailClip Margin="8,0" VerticalAlignment="Center">
 <TextBlock AutomationProperties.AutomationId="AiBar_VoiceReply" FontSize="13">
                             <TextBlock.Style>
@@ -606,7 +687,8 @@
                             </TextBlock.Style>
                         </TextBlock>
                         </vcc:TailClip>
-                    </DockPanel>
+</Grid>
+</DockPanel>
                 </Border>
 
                 <!-- Top right: the page-context toggle — Queue in its place while a run is in flight (the toggle is locked then). -->
@@ -817,6 +899,53 @@
             </Grid>
         </Border>
         </vcc:ThemedRegion>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — BACKGROUND TASKS (the AI bar's pill opens it)
+             ═══════════════════════════════════════════════════════════ -->
+        <!-- Each job the workspace's assistant left running: what it is doing, for how long, and Stop. Clicking off closes it. -->
+        <Border Grid.Row="0" Grid.RowSpan="5"
+                Visibility="{Binding WorkspaceTasks.IsOpen, Converter={StaticResource BoolVis}}"
+                Background="Transparent" Panel.ZIndex="49"
+                MouseDown="BackgroundTasksScrim_MouseDown"/>
+        <Border Grid.Row="0" Grid.RowSpan="4"
+                Visibility="{Binding WorkspaceTasks.IsOpen, Converter={StaticResource BoolVis}}"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,12,6" Width="460"
+                Style="{StaticResource PopupBorder}"
+                Padding="12" Panel.ZIndex="50">
+            <StackPanel>
+                <TextBlock Text="{loc:Str Shell.BackgroundTasks.Header}" Foreground="{StaticResource TextBrush}"
+                           FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <ItemsControl ItemsSource="{Binding WorkspaceTasks.Running}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type m:BackgroundTask}">
+                            <Border Padding="8" CornerRadius="6" Margin="0,2" Background="{StaticResource Surface2Brush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextBrush}"
+                                                   FontSize="12" FontWeight="Medium" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElapsedText}" Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2" AutomationProperties.AutomationId="AiBar_BackgroundTaskStop"
+                                            Content="{loc:Str Shell.BackgroundTasks.Stop}" Command="{Binding StopCommand}"
+                                            Style="{StaticResource TopBarAction}" Padding="10,4" VerticalAlignment="Center"
+                                            Foreground="{StaticResource DangerBrush}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — NOTIFICATIONS PANEL

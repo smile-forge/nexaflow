@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -36,6 +37,11 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     [ObservableProperty] private string _aiToolApprovalSummary = string.Empty;
     [ObservableProperty] private string _aiProgressText        = string.Empty;
 
+    /// <summary>How much of the model's context this handler's conversation fills, as its last step said; null until one has.</summary>
+    [ObservableProperty] private ContextUse? _contextUse;
+
+    public virtual void ReportContextUse(int tokens, int window) => ContextUse = new(tokens, window);
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsMessage))]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsApproval))]
@@ -60,6 +66,9 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
 
     /// <summary>Files the agent's tools touched this run; carried into a "Continue as Conversation".</summary>
     public IReadOnlyList<string> AgentContextPaths { get; set; } = [];
+
+    /// <summary>Whether the approval asked for is of a plan, which wants room to show its diagram and steps.</summary>
+    protected bool ApprovalIsPlan { get; private set; }
 
     // ── Placement (subclass shows/hides its own surface) ──────────────────
     protected abstract void Open();
@@ -115,6 +124,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
             ? $"{AiResponseAiName} would like to run the following:"
             : explanationMarkdown;
         AiToolApprovalSummary = BuildBatchSummary(batch);
+        ApprovalIsPlan        = false;
         return ShowApprovalAndWait(ct);
     }
 
@@ -126,6 +136,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
         AiToolApprovalSummary = $"Approve plan: {plan.Title}";
+        ApprovalIsPlan        = true;
         return ShowApprovalAndWait(ct);
     }
 
@@ -138,6 +149,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         var to = string.Join(", ", destinations);
         AiResponseText        = Str.Format("Shell.AiResponse.ContextRelease.Explanation", to);
         AiToolApprovalSummary = Str.Format("Shell.AiResponse.ContextRelease.Question", to);
+        ApprovalIsPlan        = false;
         return ShowApprovalAndWait(ct);
     }
 
@@ -183,14 +195,21 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         tcs?.TrySetResult(false);
     }
 
+    /// <summary>The requests and replies a "Continue as Conversation" opens with, oldest first: by default the one shown.</summary>
+    protected virtual IReadOnlyList<(string Request, string Reply)> ExchangesToContinue()
+        => string.IsNullOrEmpty(AiResponsePrompt) ? [] : [(AiResponsePrompt, AiResponseText)];
+
+    /// <summary>The files a "Continue as Conversation" attaches: by default those the shown reply's run touched.</summary>
+    protected virtual IReadOnlyList<string> ContextPathsToContinue() => AgentContextPaths;
+
     [RelayCommand]
     private async Task ContinueAsConversation()
     {
-        var prompt   = AiResponsePrompt;
-        var response = AiResponseText;
+        var exchanges = ExchangesToContinue();
+        var paths     = ContextPathsToContinue();
         Close();
 
-        if (string.IsNullOrEmpty(prompt)) return;
+        if (exchanges.Count == 0) return;
 
         var record = new ConversationRecord
         {
@@ -198,10 +217,13 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
             StartedAt = DateTime.Now,
             Messages  =
             [
-                new ConversationMessage { Text = prompt,   IsUser = true,  Timestamp = DateTime.Now },
-                new ConversationMessage { Text = response, IsUser = false, Timestamp = DateTime.Now },
+                .. exchanges.SelectMany(e => new[]
+                {
+                    new ConversationMessage { Text = e.Request, IsUser = true,  Timestamp = DateTime.Now },
+                    new ConversationMessage { Text = e.Reply,   IsUser = false, Timestamp = DateTime.Now },
+                })
             ],
-            Attachments = [.. AgentContextPaths]
+            Attachments = [.. paths]
         };
         record.DeriveTitle();
 
@@ -238,14 +260,13 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
     }
 
+    /// <summary>The question an approval asks, in the words a voice conversation says the actions: "Draw a high-quality
+    /// picture?"; a tool that does not say how it is announced is named by its name.</summary>
     private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
     {
-        if (batch.Count == 1)
-            return $"Run {batch[0].Tool}?";
-        var grouped = batch
-            .GroupBy(c => c.Tool)
-            .Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
-        return "Run " + string.Join(", ", grouped) + "?";
+        var calls = Voice.AnnouncedActions.Of(batch).Calls;
+        var asked = string.Join(Str.Get("Shell.Voice.And"), calls.Select(c => $"{c.Action} {c.Target}"));
+        return Str.Format("Shell.AiResponse.ApproveFormat", asked.Length == 0 ? asked : char.ToUpper(asked[0], CultureInfo.CurrentCulture) + asked[1..]);
     }
 
     private static string BuildPlanMarkdown(ClientPlan plan)

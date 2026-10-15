@@ -83,6 +83,8 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
               ]
             }
             """);
+        // Speech In as an earlier version left it: whisper.cpp's large-v3-turbo, which hears words but not when a turn is
+        // over. The workspace settles it onto Nexaflow's own speech model as it loads, so the mic holds a conversation.
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
         Directory.CreateDirectory(abilities);
         File.WriteAllText(Path.Combine(abilities, $"config_{version}.json"), """
@@ -91,7 +93,7 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
               "FriendlyName": "AI",
               "Columns": [
                 { "Id": "chat",   "ProviderName": "Nexaflow", "Model": "gemma-4-e4b-it",         "Kind": "Language",     "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" },
-                { "Id": "listen", "ProviderName": "Nexaflow", "Model": "nemotron-whisper-turbo", "Kind": "SpeechToText", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" },
+                { "Id": "local-speech-to-text", "ProviderName": "Whisper", "Model": "large-v3-turbo", "Kind": "SpeechToText", "AssemblyFileName": "Nexaflow.Providers.Whisper.dll" },
                 { "Id": "speak",  "ProviderName": "Nexaflow", "Model": "kokoro-82m",             "Kind": "TextToSpeech", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
               "Assignments": {
@@ -100,9 +102,10 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
                 "ProblemSolving":   [ "chat" ],
                 "Analysis":         [ "chat" ],
                 "ImageRecognition": [ "chat" ],
-                "SpeechIn":         [ "listen" ],
+                "SpeechIn":         [ "local-speech-to-text" ],
                 "SpeechOut":        [ "speak" ]
-              }
+              },
+              "LocalSeeded": true
             }
             """);
     }
