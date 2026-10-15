@@ -244,19 +244,20 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// at markup has one question to ask however it came to be showing.
     /// </summary>
     private void Sourced(LayoutBuilder into, ContentPart part, double x, double room) =>
-        Set(into, part.Part(Roles.Body), part, Face.Plain with { Mono = true, Scale = 0.96 }, x, room, LayoutText.SourceKind, Style.Text);
+        Set(into, part.Part(Roles.Body) is { } body ? (body, body.Text) : null, part, Face.Plain with { Mono = true, Scale = 0.96 }, x, room,
+            LayoutText.SourceKind, Style.Text);
 
     /// <summary>
-    /// The characters a piece of the tree holds, set as they are and standing for it a character at a time — or, where it holds
-    /// none, a blank line standing for <paramref name="holder"/>. Returns how tall it is.
+    /// Characters set as they are and standing for where they were written a character at a time — or, where there are none, a
+    /// blank line standing for <paramref name="holder"/>. Returns how tall it is.
     /// </summary>
-    private double Set(LayoutBuilder into, ContentPart? written, ContentPart holder, Face face, double x, double room, string kind, Brush ink)
+    private double Set(LayoutBuilder into, (ISourcePart Part, string Says)? written, ContentPart holder, Face face, double x, double room, string kind, Brush ink)
     {
-        var says = written?.Text ?? string.Empty;
+        var says = written?.Says ?? string.Empty;
         var glyphs = Glyphs(says.Length == 0 ? " " : says, face);
         glyphs.MaxTextWidth = Math.Max(1, room);
 
-        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left, written ?? holder, kind,
+        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left, written?.Part ?? holder, kind,
                          maps: says.Length > 0, ink: ink);
 
         _y += glyphs.Height;
@@ -265,13 +266,28 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What a block held as written holds: its body's characters, less the line break closing them, which is a piece of its own
-    /// (<see cref="Nexaflow.Markdown.Prose.MarkdownClosingLines"/>) — or null for a block with nothing in it.
+    /// What a block held as written holds, as the runs of characters drawn and the source each stands for: its body's characters,
+    /// less the line break closing them, which is a piece of its own (<see cref="Nexaflow.Markdown.Prose.MarkdownClosingLines"/>) —
+    /// one run where the body is one, and a line each where a container's marks stand between its lines, which are not drawn. None
+    /// for a block with nothing in it.
     /// </summary>
-    private static ContentPart? Held(ContentPart part) =>
-        part.Part(Roles.Body) is not { } body ? null
-        : body.Children.Count == 0 ? body
-        : body.Children.FirstOrDefault(child => child.Role != Roles.Trivia);
+    private static List<(ISourcePart Part, string Says)> Held(ContentPart part)
+    {
+        if (part.Part(Roles.Body) is not { } body) return [];
+
+        // What is written in another language is its body's own characters: the line break closing them is the closing fence's line.
+        if (body.Children.Count == 0) return [Shown(body, body.Kind == Kinds.Nested ? ContentNested.Own(body.Node) : body.Text)];
+
+        var runs = new List<(ISourcePart Part, string Says)>();
+
+        foreach (var child in body.Children)
+            if (child.Role != Roles.Trivia && !child.Derived) runs.Add(Shown(child, child.Text.TrimEnd('\r', '\n')));
+
+        return runs;
+
+        // The characters drawn, so a caret after the last of them stays on its line rather than past the break closing it.
+        static (ISourcePart, string) Shown(ContentPart held, string text) => (text.Length == held.Length ? held : new PartSlice(held, 0, text.Length), text);
+    }
 
     /// <summary>How big each rank of heading is set, against the reader's text size.</summary>
     private static readonly double[] Ranks = [1.9, 1.55, 1.3, 1.15, 1.0, 0.92];
@@ -612,8 +628,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>
     /// Source held as written, set in a monospaced face on a panel of its own — a fence in a language nothing draws,
-    /// indented code, raw markup, the front matter a document says about itself: its characters, as the block holds them. A
-    /// block with nothing in it — a fence or a formula with nothing between its marks — is its marks, each where it stands.
+    /// indented code, raw markup, the front matter a document says about itself: its characters, as the block holds them, a line
+    /// under the last where it holds them a line at a time. A block with nothing in it — a fence or a formula with nothing between
+    /// its marks — is its marks, each where it stands.
     /// </summary>
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
@@ -621,50 +638,50 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var pad = Style.TextSize * 0.55;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
 
-        // What is written in another language is its body's own characters: the line break closing them is the closing fence's line.
-        var text = held is null ? null : held.Kind == Kinds.Nested ? ContentNested.Own(held.Node) : held.Text;
-        var glyphs = text is null ? null : Glyphs(text.Length == 0 ? " " : text, face);
-        if (glyphs is not null) glyphs.MaxTextWidth = Math.Max(1, room - pad * 2);
+        var glyphs = new FormattedText[held.Count];
+        for (var at = 0; at < held.Count; at++)
+        {
+            glyphs[at] = Glyphs(held[at].Says.Length == 0 ? " " : held[at].Says, face);
+            glyphs[at].MaxTextWidth = Math.Max(1, room - pad * 2);
+        }
 
-        var marks = held is null ? Marks(part) : [];
+        var marks = held.Count == 0 ? Marks(part) : [];
         var line = Glyphs(" ", face).Height;
-        var height = (glyphs?.Height ?? (marks.Count(Ends) + 1) * line) + pad * 2;
+        var height = (held.Count > 0 ? glyphs.Sum(set => set.Height) : (marks.Count(Ends) + 1) * line) + pad * 2;
         var top = _y;
 
         into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.CodeBg));
         into.Close();
 
-        if (glyphs is not null)
-            LayoutText.Words(into, glyphs, new Point(x + pad, top + pad), Math.Max(1, room - pad * 2),
-                             TextAlignment.Left, Shown(held!, text!), MarkdownPieces.Verbatim, maps: text!.Length > 0, ink: Style.Text);
-        else
+        var (across, down) = (x + pad, top + pad);
+
+        for (var at = 0; at < held.Count; at++)
         {
-            // Each mark where it was written: a line break starts the next line, and the rest are set one after another.
-            var (across, down) = (x + pad, top + pad);
+            LayoutText.Words(into, glyphs[at], new Point(across, down), Math.Max(1, room - pad * 2),
+                             TextAlignment.Left, held[at].Part, MarkdownPieces.Verbatim, maps: held[at].Says.Length > 0, ink: Style.Text);
+            down += glyphs[at].Height;
+        }
 
-            foreach (var mark in marks)
+        // Each mark where it was written: a line break starts the next line, and the rest are set one after another.
+        foreach (var mark in marks)
+        {
+            if (Ends(mark))
             {
-                if (Ends(mark))
-                {
-                    (across, down) = (x + pad, down + line);
-                    continue;
-                }
-
-                var set = Glyphs(mark.Text, face);
-                LayoutText.Words(into, set, new Point(across, down), set.Width + 1, TextAlignment.Left, mark, MarkdownPieces.Verbatim,
-                                 maps: true, ink: Style.Text);
-                across += set.Width;
+                (across, down) = (x + pad, down + line);
+                continue;
             }
+
+            var set = Glyphs(mark.Text, face);
+            LayoutText.Words(into, set, new Point(across, down), set.Width + 1, TextAlignment.Left, mark, MarkdownPieces.Verbatim,
+                             maps: true, ink: Style.Text);
+            across += set.Width;
         }
 
         _y = top + height;
         Reached(x + room);
 
         static bool Ends(ContentPart mark) => mark.Text.Trim('\r', '\n').Length == 0;
-
-        // The characters drawn, so a caret after the last of them stays on its line rather than past the break closing it.
-        static ISourcePart Shown(ContentPart held, string text) => text.Length == held.Length ? held : new PartSlice(held, 0, text.Length);
     }
 
     /// <summary>The pieces a block is written with, in order — the ones standing for characters.</summary>
@@ -694,8 +711,15 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// Source shown quietly, with nothing drawn round it: what a block of raw HTML gets. It is not code and
     /// it is not prose, and the panel a code block sits in would claim it was one.
     /// </summary>
-    private void Muted(LayoutBuilder into, ContentPart part, double x, double room) =>
-        Set(into, Held(part), part, Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted }, x, room, MarkdownPieces.Verbatim, Style.TextMuted);
+    private void Muted(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted };
+        var held = Held(part);
+
+        if (held.Count == 0) Set(into, null, part, face, x, room, MarkdownPieces.Verbatim, Style.TextMuted);
+
+        foreach (var run in held) Set(into, run, part, face, x, room, MarkdownPieces.Verbatim, Style.TextMuted);
+    }
 
     /// <summary>What a term is explained by, set in from the term so the two read as a pair.</summary>
     private void Described(LayoutBuilder into, ContentPart part, double x, double room)

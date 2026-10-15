@@ -63,7 +63,6 @@ internal sealed class RtfTableBuild
                 if (across > 1 || down > 1)
                     inside.Add(ContentNode.Holding(MarkdownKinds.Spans, Roles.Derived, new MarkdownSpans(across, down)));
 
-                inside.Add(ContentNode.Holding(MarkdownKinds.Blocks, Roles.Derived, true));
 
                 parts.Add(ContentNode.Branch(MarkdownKinds.Cell, inside, Roles.Cell, body.Offset));
             }

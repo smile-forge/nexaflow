@@ -1,0 +1,227 @@
+{
+  "branch": "claude/markdown-parser-markdig-eval-a82f99",
+  "nodes": {
+    "markdown-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Rewrite"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/markdown-reader-plan.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownScanner.cs",
+          "class": "MarkdownScanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlockRules.cs",
+          "class": "MarkdownBlockRules"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs",
+          "class": "MarkdownTokenizer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownDelimiters.cs",
+          "class": "MarkdownDelimiters"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownTranspileTests.cs",
+            "class": "MarkdownTranspileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/Differential/MarkdownDifferentialTests.cs",
+            "class": "MarkdownDifferentialTests"
+          }
+        ]
+      }
+    },
+    "reference-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithTargets.cs",
+          "class": "WithTargets"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithReferences.cs",
+          "class": "WithReferences"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
+          "class": "LinkTargets"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownDelimiters.cs",
+          "class": "MarkdownDelimiters"
+        }
+      ]
+    },
+    "abbreviations": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithReferences.cs",
+          "class": "WithReferences",
+          "method": "Spelled"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithReferences.cs",
+          "class": "WithReferences",
+          "method": "Abbreviated"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "Says"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithTargets.cs",
+          "class": "WithTargets",
+          "method": "Defined"
+        }
+      ]
+    },
+    "markdown-maths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs",
+          "class": "MarkdownTokenizer",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
+          "class": "ContentEngine",
+          "method": "Nested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexBuilder.cs",
+          "class": "LatexBuilder",
+          "method": "Build"
+        }
+      ]
+    },
+    "markdown-styling": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Calls"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Numbered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownGroups.cs",
+          "class": "MarkdownGroups"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Figured"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs",
+          "class": "MarkdownTokenizer",
+          "method": "Escaped"
+        }
+      ]
+    },
+    "md-task-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownList.cs",
+          "class": "MarkdownList",
+          "method": "Task"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "WriteOver"
+        }
+      ]
+    },
+    "grid-tables": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTableRules.cs",
+          "class": "GridTableRule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTable.cs",
+          "class": "MarkdownTable"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownGridTableTests.cs",
+            "class": "MarkdownGridTableTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 9,
+  "touched_nodes": [
+    "abbreviations",
+    "grid-tables",
+    "markdown-maths",
+    "markdown-styling",
+    "markdown-text",
+    "md-task-toggle",
+    "reference-links"
+  ]
+}

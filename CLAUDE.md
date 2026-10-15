@@ -234,8 +234,9 @@ building; `test --failed` reruns exactly what failed. UI journey suites are name
 - **Every button carries an `AutomationProperties.AutomationId`** (`NXUI001`), **and every id is named by a journey**
   (`AutomationIdJourneyCoverageTests`, a ratchet over `automation-ids-without-a-journey.txt` that can only shrink). Ids
   only resolve reliably on `Control`s, not `Border`s or panels. → [testing.md](docs/testing.md#automation-ids-nxui001--automationidjourneycoveragetests)
-- **Third-party source deps are git submodules under `external/`** from the smile-forge fork, consumed by
-  `ProjectReference` — never `PackageReference`, never vendored (native grammars compile via an MSBuild target
+- **Third-party dependencies are NuGet packages** wherever the published package will do. One that has to be built
+  from source — the package is stale, broken, or lacks what we need — is a git submodule under `external/` from the
+  smile-forge fork, consumed by `ProjectReference`, never vendored (native grammars compile via an MSBuild target
   instead). Read [externals.md](docs/externals.md) before touching one; use `git -C external/<name> …`.
 - Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, never
   `Features.Common`.

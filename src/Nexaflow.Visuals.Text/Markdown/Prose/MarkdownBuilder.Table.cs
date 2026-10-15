@@ -128,9 +128,8 @@ public sealed partial class MarkdownBuilder
     private static MarkdownSpans? Spans(ContentPart cell) =>
         cell.Children.Select(child => child.Node.Held as MarkdownSpans).FirstOrDefault(spans => spans is not null);
 
-    /// <summary>Whether what is in a cell is blocks rather than a run of words.</summary>
-    private static bool Blocked(ContentPart cell) =>
-        cell.Children.Any(child => child.Node.Held is bool held && held);
+    /// <summary>Whether what is in a cell is blocks rather than a run of words — which its body says, a run of words being words.</summary>
+    private static bool Blocked(ContentPart cell) => Body(cell) is { Kind: not Kinds.Words };
 
     /// <summary>What is written in a cell, read as whichever of the two things it is.</summary>
     private void Inside(LayoutBuilder into, ContentPart cell, double room, Face? face = null)

@@ -166,8 +166,8 @@ public class MarkdownViewModelEditingTests
 
     /// <summary>
     /// Real markdown files on Windows use \r\n line endings. The view-model normalises
-    /// to \n on load so the editor never sees embedded carriage returns (which Markdig
-    /// would otherwise carry into LiteralInlines and WPF would render as artifacts).
+    /// to \n on load so the editor never sees embedded carriage returns (which the reading
+    /// would otherwise carry into the words and WPF would render as artifacts).
     /// </summary>
     [TestMethod]
     public void CrLfFile_LoadsWithLfLineEndings()

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A document written out in a format: one writer per format, each spelling the format-neutral document a laid page is
+    walked into (Nexaflow.Markdown's Export). WPF-free, and where a format's own package is taken when that format arrives
+    — OpenXML for Word — so Nexaflow.Markdown keeps depending on nothing.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -204,7 +204,7 @@ public class RtfParserTests
         var cells = table.Children.Single().Children.Where(part => part.Kind == MarkdownKinds.Cell).ToList();
 
         CollectionAssert.AreEqual(new[] { "A", "B" }, cells.Select(Drawn).ToArray());
-        Assert.IsTrue(cells.All(cell => cell.Children.Any(part => part.Held is true)));
+        Assert.IsTrue(cells.All(cell => cell.SelfAndDescendants().Any(part => part.Kind == MarkdownKinds.Paragraph)));
         Assert.AreEqual("After", Drawn(Paragraphs(tree).Single()));
     }
 

@@ -327,6 +327,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         if (ContentNested.Language(holder) is not { } named || holder.Part(Roles.Body) is not { } body
             || ContentLanguages.For(named) is not { } language) return null;
 
+        // The language is handed its own characters — the lines written in it, without what a quote or a list put in front of each.
         var text = ContentNested.Own(body.Node);
 
         try
@@ -335,19 +336,33 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
             if (Opened(holder) is { } view) style = style with { Expansion = view };
 
+            // What is shown as written is where it is among the characters the language was handed, which a container's marks
+            // between its lines are not among.
             var showing = Showing(named, style, writing,
-                                  shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End) ? zone : null,
+                                  shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
+                                      ? new RawZone(body.Start + ContentNested.OwnAt(body, zone.Start), body.Start + ContentNested.OwnAt(body, zone.End))
+                                      : null,
                                   body.Start);
 
-            var reading = ContentReading.Of(Staged(read, showing), body.Start, text);
+            // And what it read is given those marks back where they stand, so every part names its characters in the document.
+            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, Stretch(body, text));
             return new ContentInset(Builder(language, reading, showing).Lay(room));
         }
         catch (Exception error)
         {
-            return new ContentInset(Unreadable(text, body.Start, $"This could not be read: {error.Message}",
+            var written = Stretch(body, text);
+
+            return new ContentInset(Unreadable(written, body.Start, $"This could not be read: {error.Message}",
                                                style, !(language.Writable && writing), room));
         }
     }
+
+    /// <summary>
+    /// The stretch of the document a body's own characters stand in — <paramref name="own"/> itself, where the body is one run of
+    /// them, and otherwise with a container's marks between its lines.
+    /// </summary>
+    private static string Stretch(ContentPart body, string own) =>
+        body.Children.Count == 0 ? own : body.Node.Print()[..ContentNested.Own(body).Length];
 }
 
 /// <summary>

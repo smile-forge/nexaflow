@@ -67,9 +67,6 @@ public static class MarkdownKinds
     /// <summary>What a term is explained by — the <c>:</c> line under it.</summary>
     public const string Described = "described";
 
-    /// <summary>A note written at the foot and pointed at from the text.</summary>
-    public const string Footnote = "footnote";
-
     /// <summary>The YAML between two fences at the top: what a document says about itself.</summary>
     public const string FrontMatter = "frontmatter";
 
@@ -184,8 +181,13 @@ public static class MarkdownKinds
     /// <summary>How many columns or rows a cell was written to cover.</summary>
     public const string Spans = "spans";
 
-    /// <summary>That what is written in a cell is blocks rather than a run of words.</summary>
-    public const string Blocks = "blocks";
+    /// <summary>
+    /// A list whose items are set apart by blank lines, or one of which holds two blocks a blank line apart — loose, in
+    /// CommonMark's word, so each item's paragraphs are paragraphs rather than run into the item. Derived, because it is said
+    /// by the lines between the items rather than by any of them, and hung on a list only where it is so.
+    /// </summary>
+    public const string Loose = "loose";
+
 
     /// <summary>
     /// The name a heading answers to when a link points at it. Derived: nobody writes it, the reader works
@@ -195,6 +197,12 @@ public static class MarkdownKinds
 
     /// <summary>How deep a heading is, one to six — as many hashes as open it, or which character underlines it.</summary>
     public const string Rank = "rank";
+
+    /// <summary>
+    /// The list a run of words was matched from, kept where a link in it waits on a name the document may define — so the run
+    /// can be matched again, from the same list, once the names are known (<see cref="MarkdownDelimiters"/>).
+    /// </summary>
+    public const string Delimiters = "delimiters";
 
     /// <summary>
     /// A block somebody is changing the markup of, as the characters it is written with — its body — and the line break closing

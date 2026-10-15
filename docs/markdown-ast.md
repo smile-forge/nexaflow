@@ -241,6 +241,13 @@ which belongs to the line the closing delimiter stands on and is not the other l
 what was read in one, and the parts of a tree that are its own language's (`OwnParts` — what a builder reports trouble
 from, since a nested language answers for its own).
 
+**What a body holds need not be one stretch of the document.** A fence written in a quote has the quote's `>` in front of
+every line, and one in a list item the item's indentation: those marks are the container's, held in the body as trivia
+between the lines that are the language's own. The language is handed its own characters (`ContentNested.Own`) and nothing
+else, and what it read is given the marks back where they stand (`ContentNested.Spliced`) — a piece standing over one cut
+round it — so every part of it still names the characters it was written as. A place in the document is a place among the
+language's own characters, and back, by `OwnAt` and `DocumentAt`.
+
 **R14 — A builder knows nothing about what it nests.** Meeting a piece in another language it calls
 `Nested(part, room, style)` — the one thing a builder may ask the engine for. The engine works that piece's AST over
 with its own language's stages, lays it out with its own language's builder, at the room and in the style the asking
@@ -492,14 +499,69 @@ is written in where nothing names a language.
 ### Markdown
 
 **A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in two passes: where each
-block starts and which it is, and which language every fence and formula is written in (Markdig decides the boundaries
-and nothing else); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
+block starts and which it is, and which language every fence and formula is written in — CommonMark's block algorithm
+with every extension the reading enables (`MarkdownScanner`); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
 (`MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body), with every piece
 finished as it is read: what pieces side by side make together (`MarkdownGroups` — a definition list's pairs, an
 alert's marker, the display formula a paragraph of nothing but `$$ … $$` is) and the line ending closing a block's last
 line (`MarkdownClosingLines`). A kind nothing reads is shown exactly as typed. A reader also records what the
-characters do not say — a column's alignment, the squares a cell covers, which alphabet a list counts in — as derived
-parts.
+characters do not say — a column's alignment, the squares a cell covers, which alphabet a list counts in and whether it
+is loose — as derived parts.
+
+A block's reading is a function of its characters and what stands in front of its first line, and nothing else
+(`RereadingTests`): `MarkdownBlocks` keeps each block's reading by `(lead, written)`, so a keystroke reads one block and
+moves the rest along (`FurtherOn`). Nothing document-wide is resolved by the parser — what a name means is the stages'
+(`WithTargets`, `WithReferences`). `Checked` is the last guard: a reading that does not print back as what it was read from
+is shown as written, and the corpus tests fail on every one.
+
+**A block's lines inside its containers (`MarkdownLines`).** A block's content is a list of line ranges in the document,
+each with what its containers put in front of it — a quote's `>`, an item's indentation — **recorded, not stripped**. What
+a reader reads is the ranges; what falls between them is trivia, at the offsets it already has. A tab only partly taken by
+a container stays the block's, as CommonMark's virtual columns say, so its character is never split. Code is held the same
+way: a fence's or indented code's body is its lines, the marks in front of each and the code's own indentation trivia
+between them — so a fence written in a quote is handed to its language as the lines written in it (§6).
+
+**Blocks (`MarkdownScanner`).** CommonMark's block algorithm: one pass over lines with a stack of open blocks. Each line
+first continues the open containers it can, then tries every block start, then goes to the innermost open leaf or lazily
+continues a paragraph. A block, once closed, is never opened again. **Each block kind is a rule in a table**
+(`MarkdownBlockRules`) — how it starts, how it continues, what closing it does — so an extension is a rule added to the
+table. Closing is where a paragraph can turn out to be something else: a setext heading, link definitions, a pipe table's
+head, a definition list's term. Reading inside a container is the same scan, started inside it: the readers are handed the
+block and its lead, and the scan opens the containers the lead names and reads on from there. Because a closed block is
+final, `Windowed` stops at the first line past its soft length where a top-level block starts with nothing else open.
+
+| Rule | Kind | Specification |
+|---|---|---|
+| quote, list, item, heading (ATX, setext), fence, indented code, HTML (7 kinds), rule, paragraph, link definition | block | CommonMark |
+| front matter (first line only) | block | Markdig's YAML specification |
+| `$$` block | block (a fence whose language is implied) | Markdig's maths specification |
+| alert (`> [!NOTE]`) | quote variant | Markdig's alert specification |
+| pipe table, grid table | block | Markdig's table specifications |
+| definition list, figure, footer | block | Markdig's definition-list and figure/footer specifications |
+| task box, lettered and roman lists | item facts | Markdig's task-list and list-extra specifications |
+
+**Words (`MarkdownTokenizer`, `MarkdownDelimiters`).** CommonMark's inline algorithm, one pass left to right over a leaf's
+lines, each from past what its containers put at its head, so the marks between two lines are trivia and the words read as
+they would standing alone. The tokens are what the characters at one place say, whichever way the matching goes: code
+spans by backtick run, autolinks and bare addresses, raw HTML, entities (HTML's named references, `MarkdownEntities`),
+escapes, breaks; runs of `*` `_`, the extras `~` `^` `=` `+` and the citation's `""`, each with what it can open and close;
+brackets; `$…$`. Which characters start something is one table (`MarkdownTokenizer.Starts`), and it is also what a change
+written into prose is escaped by (`MarkdownParser.Rewrite`), so what goes in behind a backslash is what would be read as
+markup. The matching is CommonMark's — a stack of runs and one of brackets, a `]` closed by an inline destination or a
+reference label, emphasis matched inside a link as it is made and over the whole run at its end — with the extensions'
+counts for the extras. A label's name, destination and title are spelled as a definition spells them
+(`MarkdownLinkSyntax`), and a label is compared case-folded as Unicode folds it (`MarkdownLabels`).
+
+**Links are made in two places, from one list.** `[words](where)`, an address in angle brackets and one written bare are
+links whatever the document defines, and the reader makes them as it reads. `[words][name]`, `[name][]` and `[name]` wait
+on a definition that can be written anywhere in the document, which a block read alone cannot see: a run holding such a
+bracket keeps the list it was matched from — its tokens, its runs, its brackets and the names they wait on — as a derived
+part (`MarkdownKinds.Delimiters`), and reads as CommonMark reads it where nothing is defined. `WithReferences` matches that
+same list again with the document's labels known: a bracket whose label is defined makes its link, carrying its
+definition's address and title, the brackets before it can no longer open one, and the delimiters are matched again round
+the links made. One implementation (`MarkdownDelimiters`) is what the reader and the stage both run, so a link by name is
+read exactly as CommonMark reads it — `*[a*][ref]` included. A run with no list, or whose labels nothing defines, is left
+as the reader handed it.
 
 **A fence is a delimiter, another language, and a delimiter**, and so is a formula: `$$ … $$` is the same shape with the
 language implied, and `$x$` is that shape small, framed by words instead of by lines.
@@ -520,6 +582,21 @@ inline one that could not be set is shown as written, dollars and all, with the 
 **Words are gathered into runs, broken into lines, and joined back up**, so `a **bold** word` comes out as three pieces
 rather than eleven. **A picture is one mark** in a piece standing for the characters it was written as, fitted down to
 600 either way and never up; one nothing was found for draws its alt text.
+
+**Writing a document out in another format walks its layout, not its reading.** The reading is what a document *means*;
+the layout tree is what it *looks like*, and the two are not one to one: stages and builders add what nobody wrote — an
+alert's colour and the word it calls itself, a list's numbers as drawn, a box ticked — and content in another language is
+whatever that language drew. So the walk (`LayoutExport`, in `Visuals.Text`, since laying out is WPF) lays a document out
+read-only and walks it into a format-neutral document (`ExportDocument`, in `Nexaflow.Markdown/Export`): what each piece
+*is* comes from the part it was laid from — a heading's rank and anchor, a list's counting and looseness, a cell's
+alignment and span, a link's address — and what it *looks like* from the pieces laid from it. Content in another language
+is its source and, where the occasion keeps pictures, the picture its piece paints (`LayoutPictures`, the painting *Save
+as a picture* uses), so a SMILES structure in a cell is that cell's picture. A writer per format spells it
+(`Nexaflow.IO.Documents`: `TextDocumentWriter`, `HtmlDocumentWriter`) and takes what it can use: HTML for a page that runs
+scripts writes a Mermaid diagram as its source for mermaid.js and a formula for a typesetter, and otherwise the picture or
+the code; Word, when it is wanted, knows no diagrams and takes pictures. Copying writes the stretch copied this way with
+no pictures, so a diagram goes as its code; the published site writes every help page this way. The help's search text
+and its list of sections are a question about words, not looks, and read the reading (`MarkdownParser.Worked`).
 
 **Finding a place asks the source**, where the words are whole: a search reads the source and `LayoutQuery.RangeRects`
 turns its offsets into places on the page, through every nested language, since each is laid at the offset its body
@@ -659,6 +736,15 @@ because of how it is measured: every page is also scored against a *different* t
 share most of their ink by being music; ours is given the reference's width and drawn at the staff size measured off
 the reference's own empty stave; both are cropped to their ink; detail is compared at the scale where two engravers
 still agree; and results are bucketed by how much music there is, because short pages all look alike.
+
+Markdown is held to the specifications it reads — CommonMark's and each extension's, copied in as test data
+(`Tests.Markdown/Prose/Corpus/Specs`) — through the HTML it is written out as: every example is laid out, walked and
+written, and compared with the HTML its specification gives after the normalising CommonMark's own test runner does
+(`MarkdownHtmlSpecTests`). What is written otherwise is in a ledger beside the test, each under why — a ratchet that only
+shrinks. Over the corpus — the specifications' examples, the samples, the help pages and the docs, and every block of those
+stopped part-way, which is what an editor holds all day — every reading prints back as it was written with every piece
+saying where it came from, nothing is shown as written for want of a reading, and a document read a stretch at a time says
+what it says read whole (`MarkdownCorpusTests`).
 
 Refactoring guards are opt-in and run beside any change to how content is reached: `LayoutSnapshotTests`
 (`NEXAFLOW_LAYOUT_SNAPSHOTS`) holds every piece of every sample to a recorded layout, and `DiagramSnapshotTests`

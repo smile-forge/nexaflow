@@ -38,7 +38,7 @@ public readonly record struct ContentLink(ContentPart Part, string Language, str
         if (ContentNested.Language(block) is not { Length: > 0 } language) return null;
         if (block.Part(Roles.Body) is not { Length: > 0 } source) return null;
 
-        return new ContentLink(block, language, source.Text, source.Start);
+        return new ContentLink(block, language, ContentNested.Own(source.Node), source.Start);
     }
 
     /// <summary>Whether a run of characters opens a block of another language — the cheap question, asked while reading.</summary>

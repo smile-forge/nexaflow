@@ -1,7 +1,3 @@
-using Markdig;
-using Markdig.Extensions.TaskLists;
-using Markdig.Syntax;
-
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Prose;
@@ -26,54 +22,74 @@ public static class MarkdownList
     /// <param name="at">Where <paramref name="source"/>'s first character stands in the document holding it.</param>
     /// <param name="lead">
     /// What stands in front of <paramref name="source"/> on the line it starts on. A list written inside an item starts part-way
-    /// along its line and its later items carry that indentation, so it is read as it reads inside the item — see <see cref="Cut"/>.
+    /// along its line and its later items carry that indentation, so it is read as it reads inside the item — see
+    /// <see cref="MarkdownLines"/>.
     /// </param>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, int at = 0, string? lead = null)
+    public static ContentNode Read(string? source, int at = 0, string? lead = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body, at);
 
-        var read = new Cut(text, at, lead);
+        var read = new Cut(text, at);
         var parts = new List<ContentNode>();
+        var scanned = MarkdownScanner.Scan(MarkdownLines.Of(text, lead), document: false);
 
-        MarkdownNumbering? counting = null;
-
-        try
-        {
-            var document = Markdig.Markdown.Parse(read.Contained, pipeline ?? MarkdownParser.Pipeline);
-
-            counting = Counting(document);
-            Items(document, parts, read);
-        }
-        catch
-        {
-            parts.Add(read.Unaccounted());
-        }
-
+        var counting = Counting(scanned);
+        Items(scanned, parts, read);
         read.Gap(parts, read.Length);
-
-        if (counting is not null)
-            parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+        Facts(scanned, counting, parts);
 
         return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body, at);
     }
 
     /// <summary>
-    /// Every item, in the order they were written, wherever in the reading they turn up.
-    ///
-    /// <para>
-    /// Walked rather than taken off the top, because a list's own source is not always a list on its own: one
-    /// written inside a quote carries the quote's <c>&gt;</c> at the head of every line but the first, and read
-    /// back by itself that is one item followed by a quotation. The items are all still there and still in
-    /// order, so they are gathered wherever they are found — and an item is never walked into, which is what
-    /// keeps a list written inside an item inside that item.
-    /// </para>
+    /// A list the scan found, read where it stands up to <paramref name="to"/> — a list written in a grid table's cell, whose lines
+    /// are slices of the table's — as the items its own source is read into.
     /// </summary>
-    private static void Items(ContainerBlock blocks, List<ContentNode> parts, Cut read)
+    internal static ContentNode Read(ScannedBlock list, Cut read, int to)
     {
-        foreach (var block in blocks)
-            if (block is ListItemBlock item) One(item, parts, read);
-            else if (block is ContainerBlock inner) Items(inner, parts, read);
+        var stands = read.Here;
+        int? at = read.Stretches(read.At, to).Skip(1).Any() ? null : stands;
+        var parts = new List<ContentNode>();
+
+        var counting = Counting(list);
+        Items(list, parts, read);
+        read.Gap(parts, to);
+        Facts(list, counting, parts);
+
+        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Body, at);
+    }
+
+    /// <summary>
+    /// Every item, in the order they were written, wherever in the reading they turn up — and an item is never walked into,
+    /// which is what keeps a list written inside an item inside that item.
+    /// </summary>
+    private static void Items(ScannedBlock blocks, List<ContentNode> parts, Cut read)
+    {
+        foreach (var block in blocks.Children)
+            if (block is ScannedItem item) One(item, parts, read);
+            else if (block.Children.Count > 0) Items(block, parts, read);
+    }
+
+    /// <summary>What the scan knows of the list that none of its characters say: how it counts, and whether it is loose.</summary>
+    private static void Facts(ScannedBlock blocks, MarkdownNumbering? counting, List<ContentNode> parts)
+    {
+        if (counting is not null) parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
+        if (Listed(blocks) is { Loose: true }) parts.Add(ContentNode.Holding(MarkdownKinds.Loose, Roles.Derived, true));
+    }
+
+    /// <summary>The list the scan found, wherever in the reading it turns up.</summary>
+    private static ScannedList? Listed(ScannedBlock blocks)
+    {
+        if (blocks is ScannedList itself) return itself;
+
+        foreach (var block in blocks.Children)
+        {
+            if (block is ScannedList list) return list;
+            if (block.Children.Count > 0 && Listed(block) is { } found) return found;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -82,84 +98,88 @@ public static class MarkdownList
     /// <para>
     /// Nobody can read it off the markers afterwards: <c>i.</c> is the roman numeral one in a list that
     /// started <c>i. ii. iii.</c> and the ninth letter in one that started <c>a. b. c.</c>, and which it is
-    /// depends on what was written above it rather than on the characters. So the reader is asked while it
+    /// depends on what was written above it rather than on the characters. So the scan is asked while it
     /// still knows, and the answer is hung on the list as the derived fact it is.
     /// </para>
     /// </summary>
-    private static MarkdownNumbering? Counting(ContainerBlock blocks)
+    private static MarkdownNumbering? Counting(ScannedBlock blocks)
     {
-        foreach (var block in blocks)
-        {
-            if (block is ListBlock list)
-                return list.IsOrdered ? new MarkdownNumbering(list.BulletType, Started(list.OrderedStart)) : null;
-
-            if (block is ContainerBlock inner && Counting(inner) is { } found) return found;
-        }
-
-        return null;
+        return Listed(blocks) is { Marker.Ordered: true } list ? new MarkdownNumbering(list.Marker.Bullet, Started(list.Marker)) : null;
     }
 
     /// <summary>
-    /// What the first item is numbered. The reader hands back what was written there, which for a lettered
-    /// or roman list is a letter — so it is counted back to a number, and anything that will not count is a
-    /// list starting at one.
+    /// What the first item is numbered: its number, its letter's place in the alphabet, or its roman numeral's value — and
+    /// anything that will not count is a list starting at one.
     /// </summary>
-    private static int Started(string? written)
+    private static int Started(ScannedMarker marker)
     {
-        var said = written?.Trim();
+        var said = marker.Number;
 
-        if (string.IsNullOrEmpty(said)) return 1;
-        if (int.TryParse(said, out var number)) return Math.Max(number, 1);
+        switch (marker.Bullet)
+        {
+            case '1':
+                return int.TryParse(said, out var number) ? number : 1;
 
-        var letter = char.ToLowerInvariant(said[0]);
+            case 'i' or 'I':
+            {
+                var value = 0;
+                var largest = 0;
 
-        return said.Length == 1 && letter >= 'a' && letter <= 'z' ? letter - 'a' + 1 : 1;
+                for (var at = said.Length - 1; at >= 0; at--)
+                {
+                    var digit = char.ToLowerInvariant(said[at]) switch { 'i' => 1, 'v' => 5, 'x' => 10, _ => 0 };
+                    value += digit < largest ? -digit : digit;
+                    largest = Math.Max(largest, digit);
+                }
+
+                return Math.Max(value, 1);
+            }
+
+            default:
+                return said.Length == 1 && char.IsAsciiLetter(said[0]) ? char.ToLowerInvariant(said[0]) - 'a' + 1 : 1;
+        }
     }
 
     /// <summary>One item: its marker, the box it can be ticked by, and the blocks written inside it.</summary>
-    private static void One(ListItemBlock item, List<ContentNode> parts, Cut read)
+    private static void One(ScannedItem item, List<ContentNode> parts, Cut read)
     {
-        var from = read.Starts(item);
-        var to = read.Closes(item, from);
+        var from = Math.Clamp(item.Start, read.At, read.Length);
+        var to = read.Closing(item.End, from);
         if (to == from) return;
 
         read.Gap(parts, from);
 
         var inside = new List<ContentNode>();
 
+        // The box belongs to the item rather than to the paragraph its characters sit in: read on its own, [x] done is a
+        // bracket and a word, because a tick is only a tick at the head of an item. The marks are kept rather than the
+        // answer they amount to: what is drawn is a box, what is there is three characters, and ticking one writes over them.
+        if (item.Box is { } box && box >= read.At && box + 3 <= to)
+        {
+            read.Gap(inside, box);
+            inside.Add(Task(read, box + 3, item.Done));
+        }
+
         // The marker falls in front of whatever comes first inside the item, so it arrives as the trivia it is.
-        Ticked(item, inside, read);
-        MarkdownParser.Split(item, inside, read);
+        MarkdownParser.Split(item.Children, inside, read);
         read.Gap(inside, to);
 
         parts.Add(ContentNode.Branch(MarkdownKinds.Item, inside));
     }
 
     /// <summary>
-    /// The box an item can be ticked by, where somebody wrote one.
-    ///
-    /// <para>
-    /// It belongs to the item rather than to the paragraph its characters sit in, and that is not a nicety:
-    /// read on its own, <c>[x] done</c> is a bracket and a word, because a tick is only a tick at the head of
-    /// an item. So it is taken here, where that is known, and what is left is an ordinary paragraph.
-    /// </para>
-    /// <para>
-    /// The marks are kept rather than the answer they amount to. What is drawn is a box; what is there is three
-    /// characters, and ticking one writes over them.
-    /// </para>
+    /// A task's box, <c>[x]</c>: its brackets, and between them the mark saying whether it is done — the one character a
+    /// press on the box rewrites, so what a press means is settled here rather than by anything reading the brackets again.
     /// </summary>
-    private static void Ticked(ListItemBlock item, List<ContentNode> parts, Cut read)
+    private static ContentNode Task(Cut read, int end, bool done)
     {
-        if (item.Count == 0 || item[0] is not LeafBlock { Inline: not null } leaf) return;
-        if (leaf.Inline.FirstChild is not TaskList tick) return;
+        var mark = done ? MarkdownRoles.Done : MarkdownRoles.Todo;
+        var at = read.At;
 
-        var from = read.Starts(tick);
-        var to = read.Ends(tick);
-        if (to <= from) return;
+        if (end - at != 3) return ContentNode.Branch(MarkdownKinds.Task, [read.Take(end, mark, Kinds.Token)]);
 
-        read.Gap(parts, from);
-
-        parts.Add(MarkdownInline.Task(read, to, tick.Checked));
+        return ContentNode.Branch(MarkdownKinds.Task,
+            [read.Take(at + 1, Roles.Open, Kinds.Token), read.Take(at + 2, mark, Kinds.Token), read.Take(end, Roles.Close, Kinds.Token)]);
     }
 }
 
@@ -173,6 +193,6 @@ public static class MarkdownList
 /// roman numeral or the ninth letter depending on what stands above it.
 /// </para>
 /// </summary>
-/// <param name="Bullet">The character the reader took the marker's alphabet from — <c>1</c>, <c>a</c>, <c>A</c>, <c>i</c> or <c>I</c>.</param>
+/// <param name="Bullet">The alphabet the markers are drawn from — <c>1</c>, <c>a</c>, <c>A</c>, <c>i</c> or <c>I</c>.</param>
 /// <param name="Start">What the first item is numbered.</param>
 public sealed record MarkdownNumbering(char Bullet, int Start);

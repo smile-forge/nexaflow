@@ -289,7 +289,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             {
                 foreach (var root in TreeRoots)
                     RefreshExpandedNode(root);
-                _ = RefreshEntriesAsync();
+                _ = RefreshEntriesAsync(inPlace: true);
                 SelectAndExpandPath(CurrentPath);
             }
             // Clear selection after a refresh so the action strip re-evaluates
@@ -703,7 +703,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     // clicks always settle on the last-clicked folder and stale enumerations are
     // abandoned. Folders at or below StreamThreshold are sorted and shown in one shot;
     // larger folders stream in ChunkSize-sized batches (unsorted, filesystem order) so
-    // the first page appears immediately and scrolling stays smooth.
+    // the first page appears immediately and scrolling stays smooth. Every batch reaches
+    // the list as one notification, never one per entry.
     [ObservableProperty] private bool _isLoadingEntries;
 
     private CancellationTokenSource? _loadCts;
@@ -1210,7 +1211,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             _isThisPcMode = false;
                 CurrentPath   = path;
                 ResetSortAndFilter();
-                _ = RefreshEntriesAsync();
+                _ = RefreshEntriesAsync(inPlace: false);
                 SelectAndExpandPath(path);  // sync tree
                 FireNavigationChanged(path); // sync breadcrumb
         }
@@ -1748,8 +1749,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     }
 
     /// <summary>One unit of work handed from the background enumerator to the UI consumer.
-    /// <paramref name="Replace"/> = commit the whole sorted set at once (single Reset);
-    /// otherwise the items are appended (streaming a large folder).</summary>
+    /// <paramref name="Replace"/> = the batch replaces whatever the list holds — the whole sorted set of a
+    /// small folder, or the first chunk of a streamed one; otherwise its items are appended after the
+    /// chunks already shown. Either way the list hears of it as one Reset.</summary>
     private readonly record struct LoadBatch(
         IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files);
 
@@ -1761,8 +1763,20 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// thread, every <c>await</c> here resumes on this VM's own UI context — no Dispatcher
     /// or Application reference needed, and the consumer naturally runs at Normal priority.
     /// The bounded channel gives backpressure so the producer can't outrun the UI.
+    /// <para>
+    /// Every batch is committed with one notification. One <c>Add</c> per entry, arriving straight after
+    /// the list was cleared and before it had been laid out again, left a scrolled list's virtualizing
+    /// panel working from the offset it had before the clear: it kept hundreds of rows realized and
+    /// arranged them with blank bands between, until the tab was closed.
+    /// </para>
+    /// <para>
+    /// <paramref name="inPlace"/> is a reload of the folder already listed — after a delete, a paste, a
+    /// refresh. Its rows stay until the first batch replaces them, so the list keeps the reader's place
+    /// rather than emptying and starting again from the top. A navigation empties the list at once: the
+    /// old folder's rows must not stand in for the new one's while it is read.
+    /// </para>
     /// </summary>
-    private async Task RefreshEntriesAsync()
+    private async Task RefreshEntriesAsync(bool inPlace)
     {
         using var _t = Timing.Measure($"Folder.RefreshEntriesAsync {CurrentPath} (total, UI thread)");
         var path = CurrentPath;
@@ -1784,9 +1798,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
 
-        Entries.Clear();
+        if (!inPlace)
+        {
+            Entries.Clear();
+            UpdateEntryCountLabel(0, 0, 0);
+        }
         _resortPending = false;
-        UpdateEntryCountLabel(0, 0, 0);
         IsLoadingEntries = true;
 
         var channel = Channel.CreateBounded<LoadBatch>(new BoundedChannelOptions(1)
@@ -1800,9 +1817,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         using var scope = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var producer = Task.Run(() => ProduceEntriesAsync(path, channel.Writer, scope.Token), scope.Token);
 
+        var batches = 0;
         try
         {
-            var batches = 0;
             await foreach (var batch in channel.Reader.ReadAllAsync(ct))
             {
                 if (CurrentPath != path) break; // superseded mid-stream
@@ -1814,7 +1831,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     if (batch.Replace)
                         Entries.ReplaceAll(batch.Items);
                     else
-                        foreach (var e in batch.Items) Entries.Add(e);
+                        Entries.AddRange(batch.Items);
                     UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
                 }
             }
@@ -1830,6 +1847,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             // Only finish if we're still the current load; a newer load owns the UI now.
             if (!ct.IsCancellationRequested && CurrentPath == path)
             {
+                // Nothing arrived: the folder could not be read (gone, access denied). The rows an in-place
+                // reload kept were waiting to be replaced, and there is nothing to replace them with.
+                if (batches == 0)
+                {
+                    Entries.Clear();
+                    UpdateEntryCountLabel(0, 0, 0);
+                }
                 IsLoadingEntries = false;
                 if (_resortPending)
                 {
@@ -1843,8 +1867,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// <summary>
     /// Background enumeration. Buffers entries; if the buffer crosses
     /// <see cref="StreamThreshold"/> it streams chunks (filesystem order, unsorted) so the
-    /// first page shows while the rest loads. Smaller folders are sorted and sent as a
-    /// single replace batch. Uses <see cref="DirectoryInfo.EnumerateFileSystemInfos()"/> so
+    /// first page shows while the rest loads; the first chunk replaces what the list holds and
+    /// the rest append. Smaller folders are sorted and sent as a single replace batch. Uses <see cref="DirectoryInfo.EnumerateFileSystemInfos()"/> so
     /// name, size, timestamps and attributes come from one enumeration pass — no second
     /// stat per entry.
     /// </summary>
@@ -1897,7 +1921,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                         if (buffer.Count > StreamThreshold)
                         {
                             streaming = true;
-                            await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+                            await writer.WriteAsync(new(buffer.ToArray(), Replace: true, folders, files), ct);
                             buffer.Clear();
                         }
                     }

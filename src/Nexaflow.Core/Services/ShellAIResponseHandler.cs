@@ -95,7 +95,7 @@ public partial class ShellAIResponseHandler : AiResponseHandlerBase
     ContextUse = null;   // the next request starts a conversation of its own
     }
 
-    private static string Line(string markdown) => MarkdownClipboard.ToPlainText(markdown).ReplaceLineEndings(" ").Trim();
+    private static string Line(string markdown) => MarkdownProse.RunTogether(markdown);
 
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {

@@ -1,18 +1,20 @@
 using System.Text;
-using Markdig.Extensions.Mathematics;
-using Markdig.Extensions.Yaml;
-using Markdig.Syntax;
-using Markdig.Syntax.Inlines;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Core.Help;
 
 /// <summary>
-/// A help page as the text a reader sees: one line per rendered paragraph, heading, table cell and code line — the
-/// units the open page's highlight matches a query against — so the Nth match the search index finds is, as near as
-/// the renderer allows, the Nth one the page highlights. What renders as a picture (diagrams, formulas, scores,
-/// images) and what never renders (link targets, HTML, front matter) is left out.
+/// A help page as the text a reader sees: one line per paragraph, heading, table cell and code line — the units the open
+/// page's highlight matches a query against — so the Nth match the search index finds is, as near as the renderer allows, the
+/// Nth one the page highlights. What renders as a picture (diagrams, formulas, scores, images) and what never renders (link
+/// targets, HTML, front matter) is left out.
+///
+/// <para>
+/// Read off the reading, not the layout: a search finds words, which the reading holds as they are shown, and a page is
+/// indexed off the window's thread, where nothing can be laid out.
+/// </para>
 /// </summary>
 internal static class HelpPlainText
 {
@@ -23,32 +25,34 @@ internal static class HelpPlainText
     public static string Extract(string? markdown)
     {
         var sb = new StringBuilder();
-        foreach (var block in Markdig.Markdown.Parse(markdown ?? "", MarkdownParser.Pipeline))
-            Append(block, sb);
+        Blocks(ContentPart.Of(MarkdownParser.Worked(markdown ?? "")), sb);
         return sb.ToString();
     }
 
-    private static void Append(Block block, StringBuilder sb)
+    private static void Blocks(ContentPart holder, StringBuilder sb)
     {
-        switch (block)
+        foreach (var part in holder.Children)
         {
-            case YamlFrontMatterBlock:
-            case HtmlBlock:
-            case MathBlock:
-                return;
-            case FencedCodeBlock fenced when IsTypeset(fenced.Info):
-                return;
-            case CodeBlock code:
-                for (var i = 0; i < code.Lines.Count; i++)
-                    Line(sb, code.Lines.Lines[i].ToString());
-                return;
-            case LeafBlock { Inline: { } inline }:
-                Line(sb, InlineText(inline));
-                return;
-            case ContainerBlock container:
-                foreach (var child in container)
-                    Append(child, sb);
-                return;
+            if (part.Derived || part.Role == Roles.Trivia) continue;
+
+            switch (part.Kind)
+            {
+                case MarkdownKinds.FrontMatter or MarkdownKinds.Html or MarkdownKinds.Reference or MarkdownKinds.Task or MarkdownKinds.Marker:
+                    continue;
+
+                // Code renders as the characters it is — unless its language draws a picture of what it says.
+                case MarkdownKinds.Code:
+                    Line(sb, Written(part));
+                    continue;
+
+                case Kinds.Block:
+                    if (!IsTypeset((part.Node as BlockNode)?.Language)) Line(sb, Written(part));
+                    continue;
+            }
+
+            // A block of words is a line of them; anything else is the blocks it holds.
+            if (part.Part(Roles.Body) is { Kind: Kinds.Words } words) Line(sb, MarkdownProse.Words(words));
+            else Blocks(part.Part(Roles.Body) ?? part, sb);
         }
     }
 
@@ -62,33 +66,22 @@ internal static class HelpPlainText
            && (ContentLanguages.For(info) is { } language && !language.Editing.ShowsWhatWasWritten
                || TypesetFences.Contains(info.Trim().Split(' ')[0]));
 
+    /// <summary>What a block holds as written: its lines, without what a container put in front of each.</summary>
+    private static string Written(ContentPart block)
+    {
+        if (block.Part(Roles.Body) is not { } body) return string.Empty;
+
+        var sb = new StringBuilder();
+        foreach (var leaf in body.Node.Leaves())
+            if (leaf.Role != Roles.Trivia) sb.Append(leaf.Text);
+
+        return sb.ToString();
+    }
+
     private static void Line(StringBuilder sb, string text)
     {
         foreach (var line in text.Split('\n'))
             if (line.Trim() is { Length: > 0 } trimmed)
                 sb.Append(trimmed).Append('\n');
-    }
-
-    private static string InlineText(ContainerInline root)
-    {
-        var sb = new StringBuilder();
-        Walk(root);
-        return sb.ToString();
-
-        void Walk(Inline inline)
-        {
-            switch (inline)
-            {
-                case LiteralInline literal:            sb.Append(literal.Content.ToString()); break;
-                case CodeInline code:                  sb.Append(code.Content); break;
-                case LineBreakInline lineBreak:        sb.Append(lineBreak.IsHard ? '\n' : ' '); break;
-                case HtmlEntityInline entity:          sb.Append(entity.Transcoded.ToString()); break;
-                case LinkInline { IsImage: true }:     break;                       // a picture, not text
-                case AutolinkInline autolink:          sb.Append(autolink.Url); break;   // its URL is its label
-                case MathInline:                       break;                       // typeset, not text
-                case HtmlInline:                       break;
-                case ContainerInline container:        foreach (var child in container) Walk(child); break;
-            }
-        }
     }
 }

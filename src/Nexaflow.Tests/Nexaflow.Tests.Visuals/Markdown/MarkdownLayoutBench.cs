@@ -40,7 +40,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 /// <para>
 /// Per document it times <b>open</b> — a document laid for the first time — and <b>edit</b>, the same document laid again
 /// after one character is typed in the middle of it, which is what a keystroke costs and what reusing unchanged layout
-/// can win back. Then each step on its own: Markdig finding the blocks, each stage the document is read by, the builder
+/// can win back. Then each step on its own: the reading of its blocks and words, each stage the document is read by, the builder
 /// (and within it, what the nested languages cost and what is markdown's own), and painting what was laid. Across the
 /// corpus it totals every nested language, every stage of each language's own pipeline, and every kind of block.
 /// </para>
