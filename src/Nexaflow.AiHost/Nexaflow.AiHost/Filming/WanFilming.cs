@@ -96,8 +96,8 @@ internal sealed class WanFilming(ModelRegistry models, GpuScheduler gpu) : IFilm
                         ct.ThrowIfCancellationRequested();
                         flow = denoiser.Flow(latents, shape, WanSampler.Timesteps(shape.Frames, timestep, firstFrame is not null), text, lastCall: last);
                     }
-                    double? next = last ? null : WanSampler.DistilledSigma(model.Timesteps[step + 1]);
-                    latents = WanSampler.DistilledStep(latents, flow, WanSampler.DistilledSigma(timestep), next, last ? [] : noise.Draw(shape.Values));
+                    double? next = last ? null : WanSampler.DistilledSigma(model.Timesteps[step + 1], model.Shift);
+                    latents = WanSampler.DistilledStep(latents, flow, WanSampler.DistilledSigma(timestep, model.Shift), next, last ? [] : noise.Draw(shape.Values));
                     await report.Stepped(step + 1, steps);
                 }
             }

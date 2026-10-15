@@ -61,11 +61,14 @@ public class WanSamplerTests
         }
     }
 
+    /// <summary>The shift FastWan2.2-TI2V-5B was distilled with, which its catalog entry gives.</summary>
+    private const float FastWanShift = 8f;
+
     [TestMethod]
     public void ADistilledTimestep_StandsForTheNoiseLevelFastVideoReadsItAs()
     {
         foreach (var entry in Reference()["distilled"]!.AsArray())
-            Assert.AreEqual(entry!["sigma"]!.GetValue<double>(), WanSampler.DistilledSigma(entry["timestep"]!.GetValue<int>()), 1e-9,
+            Assert.AreEqual(entry!["sigma"]!.GetValue<double>(), WanSampler.DistilledSigma(entry["timestep"]!.GetValue<int>(), FastWanShift), 1e-9,
                             $"timestep {entry["timestep"]}");
     }
 

@@ -31,9 +31,6 @@ internal static class WanSampler
     /// <summary>Frames per latent frame, after the first, which is one picture.</summary>
     public const int FramesPerLatent = 4;
 
-    /// <summary>The noise levels a distilled model's timesteps are read against: the shift it was trained with over 1000.</summary>
-    public const double DistilledShift = 8.0;
-
     /// <summary>Whether a clip of this size can be made: whole latent cells cut into the denoiser's 2×2 patches, and one
     /// frame and then whole latent frames.</summary>
     public static bool Films(int width, int height, int frames)
@@ -79,12 +76,12 @@ internal static class WanSampler
 
     /// <summary>
     /// The noise level a distilled model's timestep stands for: of the 1000 levels <c>s = i/1000</c>, shifted by
-    /// <see cref="DistilledShift"/>, the one whose timestep is nearest — as FastVideo reads its distilled steps.
+    /// <paramref name="shift"/> — the shift it was trained with — the one whose timestep is nearest, as FastVideo reads its
+    /// distilled steps.
     /// </summary>
-    public static double DistilledSigma(int timestep)
+    public static double DistilledSigma(int timestep, float shift)
     {
-        // FastVideo's table is made and shifted in float32, then read in float64.
-        const float shift = (float)DistilledShift;
+    // FastVideo's table is made and shifted in float32, then read in float64.
         double best = 1, distance = double.MaxValue;
         for (int i = 1; i <= 1000; i++)
         {

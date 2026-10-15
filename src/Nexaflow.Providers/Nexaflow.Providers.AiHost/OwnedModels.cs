@@ -267,8 +267,8 @@ internal static class OwnedModels
         }
         if (OwnedFilming.Shapes.Any(shape => !sizes.ContainsKey(shape)))
             throw new InvalidDataException($"Owned model '{modelId}' does not say what size it films each shape at.");
-    return new OwnedFilming(method, f.Steps, f.Shift, f.Guidance, [.. timesteps], f.NegativePrompt ?? "", f.FramesPerSecond, [.. seconds.Order()], sizes,
-                                f.StartsFromPictures);
+        return new OwnedFilming(method, f.Steps, f.Shift, f.Guidance, [.. timesteps], f.NegativePrompt ?? "", f.FramesPerSecond,
+                                [.. seconds.Order()], sizes, f.StartsFromPictures);
     }
 
     /// <exception cref="InvalidDataException">It says nothing of how the model chooses when it reasons, or gives a temperature,

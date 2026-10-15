@@ -116,6 +116,45 @@ public class OwnedModelsTests
         CollectionAssert.Contains(full.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/hidream-o1-image/denoiser-fp16/tokenizer.json");
     }
 
+    [TestMethod]
+    public void TheShippedVideoModels_AreFastWanFirst_FromADescription_ThenWan22_FromAPictureToo()
+    {
+        var videos = OwnedModels.OfKind(ModelKind.VideoGeneration).Select(m => m.Id).ToList();
+        var fast   = OwnedModels.All.Single(m => m.Id == "fastwan2.2-ti2v-5b");
+        var full   = OwnedModels.All.Single(m => m.Id == "wan2.2-ti2v-5b");
+
+        Assert.IsTrue(videos.IndexOf(fast.Id) < videos.IndexOf(full.Id), "FastWan is offered first, the default");
+        Assert.AreEqual(ModelTier.Standard, fast.Catalog.Tier);
+        Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
+        Assert.AreEqual((FilmingMethod.WanDistilled, 3, 8f, 0f, false),
+                        (fast.Filming!.Method, fast.Filming.Steps, fast.Filming.Shift, fast.Filming.Guidance, fast.Filming.StartsFromPictures),
+                        "distilled from text alone, at the shift it was trained with, unguided");
+        CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, fast.Filming.Timesteps.ToArray());
+        Assert.AreEqual((FilmingMethod.Wan, 50, 5f, 5f, true),
+                        (full.Filming!.Method, full.Filming.Steps, full.Filming.Shift, full.Filming.Guidance, full.Filming.StartsFromPictures));
+        StringAssert.StartsWith(full.Filming.NegativePrompt, "色调艳丽", "it steers from Wan's own negative prompt");
+
+        foreach (var model in new[] { fast, full })
+        {
+            Assert.AreEqual(121, model.Filming!.Frames(model.Filming.Seconds.Single()), "five seconds at 24 frames a second");
+            Assert.AreEqual((1280, 704), model.Filming.Sizes[MediaShape.Landscape]);
+            Assert.AreEqual((704, 1280), model.Filming.Sizes[MediaShape.Portrait]);
+            Assert.IsFalse(model.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+            Assert.IsTrue(model.Parts.Max(p => p.MemoryBytes) < 24L << 30, "its largest part, the decoder, fits a 24 GB card");
+            Assert.IsTrue(model.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386")),
+                          "every file pinned to the published revision");
+        }
+        CollectionAssert.AreEquivalent(new[] { "wan-prompt-encoder", "wan-denoiser", "wan-decoder" },
+                                       fast.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        CollectionAssert.AreEquivalent(new[] { "wan-prompt-encoder", "wan-denoiser", "wan-decoder", "wan-frame-encoder" },
+                                       full.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+
+        var shared = fast.Catalog.Files.Select(f => f.RelativePath).Intersect(full.Catalog.Files.Select(f => f.RelativePath)).ToArray();
+        CollectionAssert.Contains(shared, "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model", "the host reads the prompt with it");
+        CollectionAssert.Contains(shared, "models/wan2.2-ti2v-5b/decoder/caches.json", "the host shapes the decoder's cache by it");
+        Assert.IsFalse(shared.Any(p => p.Contains("/denoiser")), "only the denoiser is each build's own; everything else is downloaded once");
+    }
+
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";

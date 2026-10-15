@@ -61,7 +61,7 @@ public class VideoModelTests
         if (!distilled)
             parts[FilmingParts.FrameEncoder] = new($"{id}/frameEncoder", "wan-frame-encoder", Path.Combine(_root, "frame-encoder"), "frame-encoder.onnx", null, 3L << 30, 0, Device: 0);
         return distilled
-            ? new FilmingModel(FilmingMethod.WanDistilled, parts, 3, 5f, 0f, [1000, 757, 522], "")
+            ? new FilmingModel(FilmingMethod.WanDistilled, parts, 3, 8f, 0f, [1000, 757, 522], "")
             : new FilmingModel(FilmingMethod.Wan, parts, 50, 5f, 5f, [], "色调艳丽，过曝，静态，细节模糊不清");
     }
 
