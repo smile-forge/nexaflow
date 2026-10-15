@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.AiHost;
@@ -90,6 +92,8 @@ public sealed class PictureTools : IPictureTools, ILocalTool
     }
 
     public bool Restores(int width, int height, int scale) => RestorePicture.Restores(width, height, scale);
+
+    public string ModelsVersion => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join(",", OwnFiles.Select(f => f.Sha256))))) [..16];
 
     public async Task<PictureRestoration> RestoreAsync(PictureRestoreRequest request, IProgress<double>? progress, CancellationToken ct)
     {

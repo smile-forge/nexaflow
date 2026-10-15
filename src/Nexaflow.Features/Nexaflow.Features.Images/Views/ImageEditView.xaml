@@ -165,6 +165,20 @@
                                     <TextBlock Text="{loc:Str Images.Edit.Adjust.Reset}" FontSize="11"/>
                                 </Button>
                             </StackPanel>
+                            <!-- AI enhance: the photo restored by the picture tools before the sliders apply. -->
+                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,6,0,6">
+                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
+                                          Content="{loc:Str Images.Edit.Restore.Enhance}" ToolTip="{loc:Str Images.Edit.Restore.EnhanceTip}"
+                                          AutomationProperties.AutomationId="Image_EditAiEnhance"/>
+                                <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
+                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Restore.Strength}"/>
+                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
+                                                            Value="{Binding Editor.EnhanceStrength, Mode=TwoWay}"
+                                                            AutomationProperties.AutomationId="Image_EditAiStrength"/>
+                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}" Margin="0,8,0,0"
+                                              Content="{loc:Str Images.Edit.Restore.Faces}" AutomationProperties.AutomationId="Image_EditAiFaces"/>
+                                </StackPanel>
+                            </StackPanel>
                             <StackPanel>
                                 <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Exposure}"/>
                                 <views:AdjustmentSlider Minimum="-3" Maximum="3" SmallChange="0.05" LargeChange="0.5" Value="{Binding Editor.Exposure, Mode=TwoWay}"
@@ -300,6 +314,26 @@
                                 </StackPanel>
                                 <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.LockAspect, Mode=TwoWay}" Margin="0,8,0,0"
                                           Content="{loc:Str Images.Edit.Resize.Lock}" AutomationProperties.AutomationId="Image_EditResizeLock"/>
+                            </StackPanel>
+
+                            <!-- AI upscale: the photo restored larger by the picture tools, before the size above applies. -->
+                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,14,0,0">
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Restore.Upscale}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleOff, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="Image_EditUpscaleOff">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.UpscaleOff}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleTwice, Mode=TwoWay}"
+                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.Twice}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleFourTimes, Mode=TwoWay}"
+                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.FourTimes}" FontSize="11"/>
+                                    </RadioButton>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Edit.Restore.UpscaleNote}"/>
                             </StackPanel>
 
                             <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" FontSize="12" Text="{Binding Editor.OutputSizeText}"/>

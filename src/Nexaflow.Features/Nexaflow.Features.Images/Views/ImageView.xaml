@@ -478,6 +478,20 @@
                     Visibility="{Binding ShowsSessionOnlyNotice, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{Binding SessionOnlyNotice}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
             </Border>
+            <!-- The photo's AI enhance: being made, waiting on the picture tools, or why it shows as it was. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Restorer.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Restorer.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Restorer.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_RestoreAction" AutomationProperties.Name="{Binding Restorer.ActionLabel}">
+                            <TextBlock Text="{Binding Restorer.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
         </StackPanel>
 
         <!-- ══ Content: exactly one sub-view is shown ══ -->

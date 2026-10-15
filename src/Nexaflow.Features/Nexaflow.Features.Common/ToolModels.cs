@@ -59,6 +59,9 @@ public interface IPictureTools : IToolModels
     /// a scale whose result would be too large to hold is not.</summary>
     bool Restores(int width, int height, int scale);
 
+    /// <summary>Names the models: a picture restored by others is not the same restoration, so whatever keeps one keys it by this.</summary>
+    string ModelsVersion { get; }
+
     /// <summary>Restores a picture, reporting how far it has got from 0 to 1.</summary>
     /// <exception cref="InvalidOperationException">The tools are not ready here, the picture is too large for the scale,
     /// or it could not be restored.</exception>

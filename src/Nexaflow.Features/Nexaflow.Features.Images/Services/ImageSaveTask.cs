@@ -14,8 +14,9 @@ namespace Nexaflow.Features.Images.Services;
 /// metadata, and writes it — over the original atomically when it replaces a file, so a failure part-way leaves the
 /// original whole. A failure is kept in <see cref="Failure"/> for the caller to report, rather than thrown.
 /// </summary>
+/// <param name="restored">The photo's restoration, for a recipe that restores it.</param>
 public sealed class ImageSaveTask(ImageEditingServices services, string sourcePath, ImageRecipe recipe,
-                                  ImageContainer target, string destination, bool replace) : IBackgroundTask
+                                  ImageContainer target, string destination, bool replace, string? restored = null) : IBackgroundTask
 {
     public string Destination { get; } = destination;
 
@@ -28,7 +29,7 @@ public sealed class ImageSaveTask(ImageEditingServices services, string sourcePa
     {
         try
         {
-            var bytes = services.Exporter.Export(sourcePath, recipe, target, ct);
+            var bytes = services.Exporter.Export(sourcePath, recipe, target, ct, restored);
             ct.ThrowIfCancellationRequested();
             if (replace) ImageExporter.ReplaceFile(Destination, bytes);
             else File.WriteAllBytes(Destination, bytes);

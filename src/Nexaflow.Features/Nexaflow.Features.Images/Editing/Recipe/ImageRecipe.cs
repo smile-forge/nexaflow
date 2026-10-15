@@ -15,8 +15,10 @@ namespace Nexaflow.Features.Images.Editing.Recipe;
 /// </remarks>
 public sealed record ImageRecipe
 {
-    /// <summary>The format version this build writes. A recipe from a newer build is left alone, never rewritten.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
+    /// rewritten. Version 2 added <see cref="Restore"/>; a recipe without one is still written as version 1, so a build
+    /// from before reads it.</summary>
+    public const int CurrentVersion = 2;
 
     public static ImageRecipe Identity { get; } = new();
 
@@ -44,14 +46,21 @@ public sealed record ImageRecipe
 
     public RecipeExport Export { get; init; } = RecipeExport.Default;
 
+    /// <summary>The picture restored by the picture tools before anything else is done to it; null leaves it as it is.</summary>
+    public RecipeRestore? Restore { get; init; }
+
+    /// <summary>The version a file of this recipe is written as: the oldest that holds everything in it.</summary>
+    [JsonIgnore]
+    public int WrittenVersion => Restore is null ? 1 : CurrentVersion;
+
     /// <summary>True when applying the recipe changes nothing — such a recipe is not worth a file.</summary>
     [JsonIgnore]
     public bool IsIdentity =>
-        Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Export == RecipeExport.Default;
+        Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Restore is null && Export == RecipeExport.Default;
 
     /// <summary>True when the pixels differ from the source — what the export settings alone never do.</summary>
     [JsonIgnore]
-    public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null;
+    public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null || Restore is not null;
 
     public bool Equals(ImageRecipe? other) =>
         other is not null
@@ -61,9 +70,10 @@ public sealed record ImageRecipe
         && Adjustments == other.Adjustments
         && Markup.AsSpan().SequenceEqual(other.Markup.AsSpan())
         && Resize == other.Resize
+        && Restore == other.Restore
         && Export == other.Export;
 
-    public override int GetHashCode() => HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Export);
+    public override int GetHashCode() => HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export);
 }
 
 /// <summary>Where the image goes on the way out: straighten, crop, quarter turns and flips.</summary>
@@ -183,6 +193,28 @@ public sealed record RecipeResize
     public int Width { get; init; }
     public int Height { get; init; }
     public bool LockAspect { get; init; } = true;
+}
+
+/// <summary>
+/// The picture restored by the picture tools before any other edit: made <see cref="Scale"/> times its size by Real-ESRGAN,
+/// or kept at its size and cleaned of softness, noise and JPEG blocks, its faces remade where <see cref="Faces"/> — then
+/// laid over the picture as it was at <see cref="Strength"/>. The restored picture is the same picture larger: every other
+/// section still speaks of the source's pixels, so a crop or a note made before stays where it was.
+/// </summary>
+public sealed record RecipeRestore
+{
+    /// <summary>The sizes a picture is restored at: kept at its size, twice, four times.</summary>
+    public static IReadOnlyList<int> Scales { get; } = [1, 2, 4];
+
+    public int Scale { get; init; } = 1;
+
+    /// <summary>How much of the restored picture shows, 0…1, over the picture as it was.</summary>
+    public double Strength { get; init; } = 1;
+
+    public bool Faces { get; init; } = true;
+
+    /// <summary>The same restored picture as <paramref name="other"/>, whatever strength each lays it at.</summary>
+    public bool MakesSameAs(RecipeRestore? other) => other is not null && Scale == other.Scale && Faces == other.Faces;
 }
 
 /// <summary>What a save writes besides the pixels.</summary>

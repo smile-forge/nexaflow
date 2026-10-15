@@ -480,9 +480,14 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     // ── Construction ──────────────────────────────────────────────────────
 
+    /// <summary>What gives the photo on screen the restoration its recipe asks for, and says what it is doing.</summary>
+    public PhotoRestorer Restorer { get; }
+
     /// <param name="ai">The workspace's AI, through which the user makes a video from the picture on screen; none, none made.</param>
+    /// <param name="pictures">The picture tools, where the app has them: what restores a photo whose recipe asks for it.</param>
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
-                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null)
+                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null,
+                          IPictureTools? pictures = null)
     {
         _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
         _shell       = shell;
@@ -491,13 +496,18 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         TotalImages  = _paths.Count;
 
         _sessions = new ImageSessionCache(_editing);
-        _display  = new ImageDisplay(_editing, action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action), _cts.Token);
+        Func<Action, Task> runOnUi = action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action);
+        _display  = new ImageDisplay(_editing, runOnUi, _cts.Token);
         _display.ImageChanged += image => CurrentImage = image;
         _display.Presented    += canvas => Canvas = canvas;
         _display.Decoded      += OnDecoded;
         _display.DecodeFailed += session => { if (ReferenceEquals(CurrentSession, session)) LoadFailed = true; };
 
-        Editor = new ImageEditorViewModel(this, shell, _editing);
+        Restorer = new PhotoRestorer(_editing, pictures, runOnUi);
+        Restorer.Restored += RequestRender;
+        _display.RestoredDecodeFailed += session => Restorer.Lost(session);
+
+        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
             EncodeCurrentPng);
@@ -624,6 +634,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         LoadFailed = false;
         Canvas = null;
         Editor.OnSessionChanged();
+        Restorer.Follow(session);
 
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
@@ -641,6 +652,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _sidecarWatch = null;
         _display.Show(null);
         CurrentSession = null;
+        Restorer.Follow(null);
     }
     session.Dispose();
     }
@@ -671,6 +683,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         OnPropertyChanged(nameof(ShowsSessionOnlyNotice));
         UndoEditCommand.NotifyCanExecuteChanged();
         RedoEditCommand.NotifyCanExecuteChanged();
+        Restorer.Follow(CurrentSession);
         Editor.OnRecipeChanged();
         RequestRender();
 

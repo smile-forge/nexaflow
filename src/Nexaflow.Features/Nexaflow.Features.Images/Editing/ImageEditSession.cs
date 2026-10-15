@@ -26,6 +26,8 @@ public sealed class ImageEditSession : IDisposable
     private readonly ImageEditingServices _services;
     private readonly Lock _renderGate = new();
     private DecodedImage? _proxy;
+    private DecodedImage? _restoredProxy;
+    private string? _restoredPath;
     private RenderPipeline? _pipeline;
     private bool _disposed;
 
@@ -63,6 +65,55 @@ public sealed class ImageEditSession : IDisposable
         get { lock (_renderGate) return _proxy; }
     }
 
+    /// <summary>The restoration the recipe asks for, once it is made: the file it is kept in; null while there is none.</summary>
+    public string? RestoredPath
+    {
+        get { lock (_renderGate) return _restoredPath; }
+    }
+
+    /// <summary>The restoration decoded, once there is one.</summary>
+    public DecodedImage? RestoredProxy
+    {
+        get { lock (_renderGate) return _restoredProxy; }
+    }
+
+    /// <summary>
+    /// The restoration to show from now on — its file, or null for none — a different one dropping the decoded one, which
+    /// the display decodes again from the new file.
+    /// </summary>
+    public void UseRestored(string? path)
+    {
+        lock (_renderGate)
+        {
+            if (string.Equals(path, _restoredPath, StringComparison.OrdinalIgnoreCase)) return;
+            _restoredPath = path;
+            _pipeline?.Dispose();
+            _pipeline = null;
+            _restoredProxy?.Dispose();
+            _restoredProxy = null;
+        }
+    }
+
+    /// <summary>
+    /// Takes the restoration decoded from <paramref name="path"/>, replacing a smaller one; one that is no longer the
+    /// restoration shown — or arrives after disposal — is disposed at once. The caller hands ownership over.
+    /// </summary>
+    public void AttachRestored(DecodedImage restored, string path)
+    {
+        lock (_renderGate)
+        {
+            if (_disposed || !string.Equals(path, _restoredPath, StringComparison.OrdinalIgnoreCase))
+            {
+                restored.Dispose();
+                return;
+            }
+            _pipeline?.Dispose();
+            _pipeline = null;
+            _restoredProxy?.Dispose();
+            _restoredProxy = restored;
+        }
+    }
+
     /// <summary>Raised on the UI thread whenever the recipe changes, by an edit, an undo or a reload.</summary>
     public event Action? RecipeChanged;
 
@@ -95,7 +146,7 @@ public sealed class ImageEditSession : IDisposable
         lock (_renderGate)
         {
             if (_disposed || _proxy is null) return false;
-            _pipeline ??= _services.Pipeline(_proxy);
+            _pipeline ??= _services.Pipeline(_proxy, restored: _restoredProxy);
             consume(_pipeline.Render(recipe, request));
             return true;
         }
@@ -110,7 +161,7 @@ public sealed class ImageEditSession : IDisposable
         lock (_renderGate)
         {
             if (_disposed || _proxy is null) return null;
-            using var pipeline = _services.Pipeline(_proxy, cache: false);
+            using var pipeline = _services.Pipeline(_proxy, cache: false, _restoredProxy);
             using var picture = pipeline.Render(recipe, request);
             return SKImage.FromBitmap(SKBitmap.FromImage(picture));
         }
@@ -197,6 +248,8 @@ public sealed class ImageEditSession : IDisposable
             _disposed = true;
             _pipeline?.Dispose();
             _pipeline = null;
+            _restoredProxy?.Dispose();
+            _restoredProxy = null;
             _proxy?.Dispose();
             _proxy = null;
         }

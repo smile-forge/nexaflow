@@ -30,6 +30,21 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     private const string StaleRecipe =
         """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""";
 
+    /// <summary>
+    /// An AI folder of its own, empty: the picture tools are never here, so AI enhance always offers them for download —
+    /// the same banner on every machine, whatever this one has downloaded. A journey downloads nothing.
+    /// </summary>
+    private readonly string _aiDir = Directory.CreateTempSubdirectory("nexaflow-edit-ai-").FullName;
+
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
+        new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
+
+    [TestCleanup]
+    public void RemoveAiDir()
+    {
+        try { Directory.Delete(_aiDir, recursive: true); } catch { }
+    }
+
     [TestMethod]
     [CoversNode("images-ui")]
     public void Image_Edit_ControlsRespondInOnePass()
@@ -86,6 +101,15 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
                 Check($"{slider} moves", () => MoveSlider(slider));
             CheckInvoke("Reset adjustments", "Image_EditResetAdjust");
 
+            // AI enhance: its strength and faces show with it, and the banner offers the picture tools, which are not here.
+            Check("AI enhance turns on, its strength and faces with it",
+                  () => SetToggle("Image_EditAiEnhance", true) && WaitForFs(() => Exists("Image_EditAiStrength"), 3));
+            Check("AI strength moves", () => MoveSlider("Image_EditAiStrength"));
+            Check("Repair faces toggles", () => SetToggle("Image_EditAiFaces", false) && SetToggle("Image_EditAiFaces", true));
+            Check("The banner offers the picture tools to download", () => WaitForFs(() => WaitForId("Image_RestoreAction", 1)?.IsEnabled == true, 5));
+            Check("AI enhance off, and the banner goes with it",
+                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3));
+
             // Markup: a text annotation typed, an arrow drawn, selected and deleted
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
             CheckPresent("Ink colour picker", "Image_EditInk_Hex");
@@ -114,6 +138,11 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
+            Check("AI upscale twice, which turns AI enhance on", () => SelectRadio("Image_EditUpscaleTwice") && WaitForFs(() => Exists("Image_RestoreAction"), 5));
+            Check("AI upscale four times", () => SelectRadio("Image_EditUpscaleFourTimes"));
+            Check("AI upscale off", () => SelectRadio("Image_EditUpscaleOff"));
+            Check("AI enhance off again, from Adjust", () => SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false)
+                                                            && WaitForGone("Image_RestoreAction", 3) && SelectRadio("Image_EditToolResize"));
 
             // Export options
             Check("Export panel", () => SelectRadio("Image_EditToolExport"));

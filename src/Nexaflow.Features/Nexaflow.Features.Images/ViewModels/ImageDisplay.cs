@@ -41,6 +41,11 @@ public sealed class ImageDisplay : IDisposable
     private CancellationTokenSource? _decodeCts;
     private int _decodingEdge;
 
+    // The restoration being decoded: its file, and the long edge asked of it.
+    private CancellationTokenSource? _restoredCts;
+    private string? _restoredFile;
+    private int _restoredEdge;
+
     // The surface the photo is shown on, in device-independent pixels, its pixel density, and the edit canvas's zoom.
     private double _viewportWidth = 1600, _viewportHeight = 1000, _pixelsPerDip = 1, _editZoom = 1;
 
@@ -66,12 +71,18 @@ public sealed class ImageDisplay : IDisposable
     /// <summary>The photo could not be decoded. On the UI thread.</summary>
     public event Action<ImageEditSession>? DecodeFailed;
 
+    /// <summary>The photo's restoration could not be decoded — its kept file gone, say. On the UI thread.</summary>
+    public event Action<ImageEditSession>? RestoredDecodeFailed;
+
     /// <summary>The photo to show from now on; a different one — or the same one still without pixels — starts its decodes afresh and, until it has pixels, shows nothing.</summary>
     public void Show(ImageEditSession? session)
     {
         if (ReferenceEquals(session, _session) && session?.Proxy is not null) return;
         _decodeCts?.Cancel();
         _decodingEdge = 0;
+        _restoredCts?.Cancel();
+        _restoredFile = null;
+        _restoredEdge = 0;
         _session = session;
         if (session?.Proxy is null) _presenter.Clear();
     }
@@ -136,6 +147,7 @@ public sealed class ImageDisplay : IDisposable
 
         var sourceToCanvas = CropGeometry.SourceToCanvas(recipe, source, frame, renderScale, out _);
         EnsureSharpEnough(session, proxy, CropGeometry.SourcePixelsPerCanvasPixel(sourceToCanvas));
+        if (recipe.Restore is { } restore && session.RestoredPath is { } restoredFile) EnsureRestoredDecoded(session, restoredFile, proxy, restore.Scale);
 
         var straightenedToLayout = CropGeometry.FrameToCanvas(recipe, source, frame, layoutScale, out var layout);
         var canvas = new EditCanvas(recipe, frame, source, layoutScale, layout, straightenedToLayout,
@@ -192,11 +204,52 @@ public sealed class ImageDisplay : IDisposable
         }, cts.Token);
     }
 
+    /// <summary>
+    /// Decodes the restoration off the UI thread at the sharpness the photo's own decode has, <paramref name="scale"/> times
+    /// larger — or whole, once the photo is decoded whole — once per file and size asked for.
+    /// </summary>
+    private void EnsureRestoredDecoded(ImageEditSession session, string file, DecodedImage proxy, int scale)
+    {
+        int edge = proxy.IsFullResolution ? int.MaxValue : Math.Max(proxy.Pixels.Width, proxy.Pixels.Height) * scale;
+        if (string.Equals(file, _restoredFile, StringComparison.OrdinalIgnoreCase) && _restoredEdge >= edge) return;
+        _restoredFile = file;
+        _restoredEdge = edge;
+        _restoredCts?.Cancel();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+        _restoredCts = cts;
+        var sourceSize = proxy.SourceSize;
+
+        _ = Task.Run(() =>
+        {
+            DecodedImage restored;
+            try
+            {
+                restored = _editing.DecodeRestored(file, sourceSize, edge == int.MaxValue ? null : edge);
+            }
+            catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+            {
+                if (!cts.IsCancellationRequested)
+                    _ = _runOnUi(() =>
+                    {
+                        if (!ReferenceEquals(_session, session)) return;
+                        _restoredFile = null;
+                        RestoredDecodeFailed?.Invoke(session);
+                    });
+                return;
+            }
+            if (cts.IsCancellationRequested) { restored.Dispose(); return; }
+
+            session.AttachRestored(restored, file);
+            _ = _runOnUi(() => { if (ReferenceEquals(_session, session)) Decoded?.Invoke(session); });
+        }, cts.Token);
+    }
+
     private static int RoundUpToStep(double edge) => (int)Math.Ceiling(edge / DecodeStep) * DecodeStep;
 
     public void Dispose()
     {
         _decodeCts?.Cancel();
+        _restoredCts?.Cancel();
         _presenter.Dispose();
     }
 }

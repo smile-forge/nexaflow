@@ -2,7 +2,9 @@ using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Metadata;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.Restoring;
 using Nexaflow.IO.Common;
+using SkiaSharp;
 using System.IO;
 
 namespace Nexaflow.Features.Images.Editing;
@@ -16,8 +18,10 @@ public sealed class ImageEditingServices : IDisposable
 {
     public ImageEditingServices() : this(new ImageRecipeStore()) { }
 
-    public ImageEditingServices(ImageRecipeStore recipes)
+    /// <param name="restored">Where restorations are kept; the app's cache when not given.</param>
+    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null)
     {
+    Restored = restored ?? new RestoredPictures();
         var jpeg = new JpegMetadata();
         var png  = new PngMetadata();
         var webp = new WebpMetadata();
@@ -39,6 +43,9 @@ public sealed class ImageEditingServices : IDisposable
     public ImageRecipeStore Recipes { get; }
     public ImageExporter Exporter { get; }
 
+    /// <summary>The restorations the picture tools made, kept on disk.</summary>
+    public RestoredPictures Restored { get; }
+
     /// <summary>True when <paramref name="path"/> is a file on disk — one a sidecar can sit beside and a save can replace.</summary>
     public static bool IsFileBacked(string path) => File.Exists(path);
 
@@ -55,8 +62,20 @@ public sealed class ImageEditingServices : IDisposable
     /// <summary>Decodes the picture at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given.</summary>
     public DecodedImage Decode(string path, int? maxLongEdge) => Decoders.Decode(ReadSource(path), maxLongEdge);
 
-    /// <summary>A preview pipeline over <paramref name="source"/>.</summary>
-    public RenderPipeline Pipeline(DecodedImage source, bool cache = true) => new(source, Adjustments, Markup, cache);
+    /// <summary>A pipeline over <paramref name="source"/> — and its restoration, where the recipe restores it.</summary>
+    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null) => new(source, Adjustments, Markup, cache, restored);
+
+    /// <summary>
+    /// The restoration kept at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given, as the
+    /// same picture larger: upright already, its pixels read against the photo's own <paramref name="sourceSize"/>.
+    /// </summary>
+    public DecodedImage DecodeRestored(string path, SKSize sourceSize, int? maxLongEdge)
+    {
+        var decoded = Decoders.Decode(File.ReadAllBytes(path), maxLongEdge);
+        return new DecodedImage(decoded.Pixels, SKEncodedOrigin.TopLeft,
+                                new SKSizeI((int)Math.Round(sourceSize.Width), (int)Math.Round(sourceSize.Height)),
+                                decoded.Container, isAnimated: false, isHighBitDepth: false);
+    }
 
     public void Dispose()
     {

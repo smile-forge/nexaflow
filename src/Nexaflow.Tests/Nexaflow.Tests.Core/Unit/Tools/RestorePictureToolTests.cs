@@ -128,6 +128,7 @@ public class RestorePictureToolTests
         public event EventHandler? Changed { add { } remove { } }
         public void Download() { }
         public bool Restores(int width, int height, int scale) => Takes;
+        public string ModelsVersion => "enlarger";
 
         public Task<PictureRestoration> RestoreAsync(PictureRestoreRequest request, IProgress<double>? progress, CancellationToken ct)
         {

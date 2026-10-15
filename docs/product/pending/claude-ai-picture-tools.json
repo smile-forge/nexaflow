@@ -98,14 +98,47 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
           "class": "LocalToolViewModel"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools"
+          ]
+        }
+      ]
+    },
+    "images-edit-restore": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoRestorer.cs",
+          "class": "PhotoRestorer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Restoring/RestoredPictures.cs",
+          "class": "RestoredPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeRestore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "AiEnhance"
         }
       ]
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 3,
   "touched_nodes": [
     "ai-tools",
+    "images-edit-restore",
     "picture-tools"
   ]
 }

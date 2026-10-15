@@ -39,6 +39,8 @@ public partial class ImageEditorViewModel : ObservableObject
     private readonly IShellServices? _shell;
     private readonly ImageEditingServices _services;
 
+    private readonly PhotoRestorer _restorer;
+
     private CropRect? _straightenBase;
     private bool _straightenGesture;
 
@@ -59,11 +61,18 @@ public partial class ImageEditorViewModel : ObservableObject
     private SKPoint _markupFrom;
     private bool _moving;
 
-    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services)
+    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer)
     {
-        _viewer   = viewer;
-        _shell    = shell;
-        _services = services;
+    _viewer   = viewer;
+    _shell    = shell;
+    _services = services;
+    _restorer = restorer;
+    // A restoration arriving lets the photo be saved.
+    restorer.Restored += () =>
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+        SaveCopyCommand.NotifyCanExecuteChanged();
+    };
     }
 
     private ImageEditSession? Session => _viewer.CurrentSession;
@@ -290,6 +299,62 @@ public partial class ImageEditorViewModel : ObservableObject
     public double Tint        { get => Recipe.Adjustments.Tint;        set => Adjust(a => a with { Tint        = Math.Round(value) }); }
 
     private void Adjust(Func<RecipeAdjustments, RecipeAdjustments> change) => Commit(r => r with { Adjustments = change(r.Adjustments) });
+
+    // ── AI enhance and upscale ───────────────────────────────────────────
+
+    /// <summary>This machine can restore pictures: the AI controls show only then.</summary>
+    public bool CanRestore => _restorer.Available;
+
+    /// <summary>The photo restored by the picture tools — cleaned of softness, noise and JPEG blocks — before every other edit.</summary>
+    public bool AiEnhance
+    {
+        get => Recipe.Restore is not null;
+        set => Commit(r => r with { Restore = value ? r.Restore ?? new RecipeRestore() : null });
+    }
+
+    /// <summary>How much of the restoration shows over the photo as it was, 0–100.</summary>
+    public double EnhanceStrength
+    {
+        get => (Recipe.Restore?.Strength ?? 1) * 100;
+        set => Restore(x => x with { Strength = Math.Clamp(Math.Round(value) / 100, 0, 1) });
+    }
+
+    /// <summary>The faces in the photo remade as it is restored.</summary>
+    public bool RepairFaces
+    {
+        get => Recipe.Restore?.Faces ?? true;
+        set => Restore(x => x with { Faces = value });
+    }
+
+    /// <summary>AI upscale off: the restoration, if any, keeps the photo's size.</summary>
+    public bool UpscaleOff
+    {
+        get => (Recipe.Restore?.Scale ?? 1) == 1;
+        set { if (value && Recipe.Restore is { Scale: > 1 }) Restore(x => x with { Scale = 1 }); }
+    }
+
+    /// <summary>AI upscale to twice the size — restoring the photo if it was not.</summary>
+    public bool UpscaleTwice
+    {
+        get => Recipe.Restore?.Scale == 2;
+        set { if (value) Restore(x => x with { Scale = 2 }); }
+    }
+
+    /// <summary>AI upscale to four times the size.</summary>
+    public bool UpscaleFourTimes
+    {
+        get => Recipe.Restore?.Scale == 4;
+        set { if (value) Restore(x => x with { Scale = 4 }); }
+    }
+
+    /// <summary>Twice the size is offered where the photo restores at it; a very large one does not.</summary>
+    public bool UpscaleTwiceOffered => Offered(2);
+
+    public bool UpscaleFourTimesOffered => Offered(4);
+
+    private bool Offered(int scale) => Source is { } s && _restorer.Restores((int)Math.Round(s.Width), (int)Math.Round(s.Height), scale);
+
+    private void Restore(Func<RecipeRestore, RecipeRestore> change) => Commit(r => r with { Restore = change(r.Restore ?? new RecipeRestore()) });
 
     /// <summary>Reads the picture as cropped — its tone and colour untouched — and sets the sliders from it.</summary>
     [RelayCommand]
@@ -722,8 +787,9 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCopyCommand))]
     private bool _isSaving;
 
-    private bool CanSave() => !IsSaving && CanSaveInPlace;
-    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null;
+    /// <summary>The photo can be written: not saving already, and its restoration — where its recipe asks for one — made.</summary>
+    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending;
+    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending;
 
     /// <summary>Bakes the edits into the original after a confirmation; the recipe is then spent.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -734,7 +800,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (!await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
             return;
 
-        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, replace: true), success =>
+        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, replace: true, session.RestoredPath), success =>
         {
             if (!success) return;
             session.Baked();
@@ -765,7 +831,7 @@ public partial class ImageEditorViewModel : ObservableObject
         }
 
         var recipe = session.Recipe;
-        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, replace: File.Exists(destination)), success =>
+        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, replace: File.Exists(destination), session.RestoredPath), success =>
         {
             if (success) _shell.ShowNotification(Str.Format("Images.Edit.Save.CopyDoneFormat", Path.GetFileName(destination)));
         });
