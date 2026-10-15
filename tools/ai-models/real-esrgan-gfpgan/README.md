@@ -76,13 +76,9 @@ through it with the inverse warp — scaled to the upscaled picture, moved by ha
 
 The graphs are conversions of their makers' weights, under their makers' licences; the recipe here is Apache-2.0.
 
-| Model | Code and weights | Trained on |
-|---|---|---|
-| Real-ESRGAN x4plus, x2plus | BSD-3-Clause | DIV2K, Flickr2K, OST |
-| GFPGAN v1.4 | Apache-2.0 (the clean architecture: no NVIDIA StyleGAN2 CUDA ops) | FFHQ (CC BY-NC-SA 4.0) |
-| RetinaFace (facexlib) | MIT | WIDER FACE (research use) |
-| ParseNet (facexlib) | MIT | CelebAMask-HQ (non-commercial research) |
-
-GFPGAN, RetinaFace and ParseNet were trained on datasets released for non-commercial or research use. Their weights
-are published under the licences above; whether a dataset's terms reach the weights trained on it is unsettled, and is
-yours to weigh for your own use.
+| Model | Code and weights |
+|---|---|
+| Real-ESRGAN x4plus, x2plus | BSD-3-Clause |
+| GFPGAN v1.4 | Apache-2.0 (the clean architecture: no NVIDIA StyleGAN2 CUDA ops) |
+| RetinaFace (facexlib) | MIT |
+| ParseNet (facexlib) | MIT |
