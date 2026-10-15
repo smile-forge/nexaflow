@@ -76,13 +76,4 @@ public class TabularJourneyTests : UiJourneyTestBase
     /// <summary>Opens the Template This popup, which is its own window, and waits for its Save.</summary>
     private bool OpenTemplatePopup() =>
         PressNth("Tabular_TemplateThis", 0) && WaitFor(() => FindInAppWindows("Tabular_TemplateSave"), 5) is not null;
-
-    /// <summary>Types into a text box in the popup — <see cref="UiJourneyTestBase.TypeInto"/> searches the main window only.</summary>
-    private bool TypeInPopup(string automationId, string text)
-    {
-        var box = FindInAppWindows(automationId);
-        if (box is null) return false;
-        box.AsTextBox().Text = text;
-        return WaitForFs(() => box.AsTextBox().Text == text, 2);
-    }
 }

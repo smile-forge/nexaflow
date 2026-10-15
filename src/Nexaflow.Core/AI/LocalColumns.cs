@@ -3,7 +3,7 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Core.AI;
 
 /// <summary>A job the models on this machine do for a workspace, each with one model chosen for it.</summary>
-public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, VideoGeneration }
+public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, VideoGeneration, HighQualityVideoGeneration }
 
 /// <summary>
 /// The ability grid's Local column: the models that run on this machine — Nexaflow's own, and whisper.cpp's for dictation
@@ -41,7 +41,8 @@ public static class LocalColumns
         LocalSlot.TextToSpeech               => "text-to-speech",
         LocalSlot.ImageGeneration            => "image-generation",
         LocalSlot.HighQualityImageGeneration => "high-quality-image-generation",
-        _                                    => "video-generation",
+        LocalSlot.VideoGeneration            => "video-generation",
+        _                                    => "high-quality-video-generation",
     };
 
     /// <summary>Whether <paramref name="columnId"/> is a Local column's.</summary>
@@ -55,10 +56,11 @@ public static class LocalColumns
         AiAbility.ImageGeneration            => LocalSlot.ImageGeneration,
         AiAbility.HighQualityImageGeneration => LocalSlot.HighQualityImageGeneration,
         AiAbility.VideoGeneration            => LocalSlot.VideoGeneration,
+        AiAbility.HighQualityVideoGeneration => LocalSlot.HighQualityVideoGeneration,
         _                                    => LocalSlot.Language,
     };
 
-    /// <summary>The job a model of <paramref name="kind"/> does first — a picture model's is the standard one.</summary>
+    /// <summary>The job a model of <paramref name="kind"/> does first — a picture or video model's is the standard one.</summary>
     public static LocalSlot SlotOf(ModelKind kind) => kind switch
     {
         ModelKind.SpeechToText    => LocalSlot.SpeechToText,
@@ -74,13 +76,14 @@ public static class LocalColumns
         LocalSlot.SpeechToText                                             => ModelKind.SpeechToText,
         LocalSlot.TextToSpeech                                             => ModelKind.TextToSpeech,
         LocalSlot.ImageGeneration or LocalSlot.HighQualityImageGeneration => ModelKind.ImageGeneration,
-        LocalSlot.VideoGeneration                                          => ModelKind.VideoGeneration,
+        LocalSlot.VideoGeneration or LocalSlot.HighQualityVideoGeneration => ModelKind.VideoGeneration,
         _                                                                  => ModelKind.Language,
     };
 
-    /// <summary>Which models a job is made for: high-quality pictures want the models built for quality, every other job the
-    /// everyday ones.</summary>
-    public static ModelTier TierOf(LocalSlot slot) => slot == LocalSlot.HighQualityImageGeneration ? ModelTier.HighQuality : ModelTier.Standard;
+    /// <summary>Which models a job is made for: high-quality pictures and video want the models built for quality, every
+    /// other job the everyday ones.</summary>
+    public static ModelTier TierOf(LocalSlot slot)
+        => slot is LocalSlot.HighQualityImageGeneration or LocalSlot.HighQualityVideoGeneration ? ModelTier.HighQuality : ModelTier.Standard;
 
     /// <summary>The abilities <paramref name="slot"/>'s model serves.</summary>
     public static IReadOnlyList<AiAbility> AbilitiesOf(LocalSlot slot) => [.. Enum.GetValues<AiAbility>().Where(a => SlotOf(a) == slot)];

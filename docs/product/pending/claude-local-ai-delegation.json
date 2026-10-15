@@ -376,8 +376,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
-          "class": "HiDreamUniPc"
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowUniPc.cs",
+          "class": "FlowUniPc"
         },
         {
           "type": "code",
@@ -565,10 +565,90 @@
           }
         ]
       }
+    },
+    "owned-video": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedVideoGenerationProvider.cs",
+          "class": "OwnedVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/FilmHandler.cs",
+          "class": "FilmHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanFilming.cs",
+          "class": "WanFilming"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanSampler.cs",
+          "class": "WanSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanPromptEncoder.cs",
+          "class": "WanPromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanDenoiser.cs",
+          "class": "WanDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanDecoder.cs",
+          "class": "WanDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Filming/WanFrameEncoder.cs",
+          "class": "WanFrameEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowUniPc.cs",
+          "class": "FlowUniPc"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Video/Mp4Encoder.cs",
+          "class": "Mp4Encoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureDecoder.cs",
+          "class": "PictureDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/VideoMessages.cs",
+          "class": "FilmingMethod"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/wan2.2-ti2v-5b/README.md",
+          "title_path": [
+            "Wan2.2-TI2V-5B and FastWan2.2-TI2V-5B for ONNX Runtime"
+          ]
+        }
+      ]
+    },
+    "images-make-video": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/MakeVideoViewModel.cs",
+          "class": "MakeVideoViewModel"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 25,
+  "changed_sets": 27,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
@@ -582,8 +662,10 @@
     "aibar-tool-approval",
     "aibar-voice-config",
     "aichat",
+    "images-make-video",
     "owned-images",
     "owned-speech",
+    "owned-video",
     "voice-input",
     "voice-session"
   ]

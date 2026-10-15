@@ -71,6 +71,7 @@
   "SystemInfo.LocalAi.Checking.Speaking": "Vérification — énoncé d'une phrase…",
   "SystemInfo.LocalAi.Checking.Hearing": "Vérification — réécoute…",
   "SystemInfo.LocalAi.Checking.Drawing": "Vérification — dessin d'une image…",
+  "SystemInfo.LocalAi.Checking.Filming": "Vérification — création d'une vidéo…",
   "SystemInfo.LocalAi.Check.Passed": "Réussie — le rapport est ouvert dans un onglet",
   "SystemInfo.LocalAi.Check.NotPassed": "Échouée — le rapport, ouvert dans un onglet, en donne la raison",
   "SystemInfo.LocalAi.Gpu": "GPU {0}, {1}",

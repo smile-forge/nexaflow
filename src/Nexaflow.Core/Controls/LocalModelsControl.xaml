@@ -9,6 +9,7 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
         <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+        <cv:NullToVisibilityConverter x:Key="NullHidden"/>
 
         <!-- A model the machine cannot run is listed, greyed, never chosen. -->
         <Style x:Key="ChoiceItem" TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboBoxItem}">
@@ -75,6 +76,9 @@
                                               ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}"
                                               Visibility="{Binding CanChoose, Converter={StaticResource BoolVis}}"
                                               HorizontalAlignment="Left" MinWidth="380"/>
+                                    <TextBlock Text="{Binding Remark}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Visibility="{Binding Remark, Converter={StaticResource NullHidden}}"/>
                                     <TextBlock Text="{Binding Note}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Visibility="{Binding CanChoose, Converter={StaticResource InverseBoolVis}}"/>

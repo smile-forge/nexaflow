@@ -40,6 +40,8 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Draw), "draw")]
 [JsonDerivedType(typeof(Drawn), "drawn")]
 [JsonDerivedType(typeof(MadeWay), "made-way")]
+[JsonDerivedType(typeof(Film), "film")]
+[JsonDerivedType(typeof(Filmed), "filmed")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

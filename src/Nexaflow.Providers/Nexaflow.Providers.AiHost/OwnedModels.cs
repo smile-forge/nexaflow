@@ -38,14 +38,17 @@ internal static class OwnedRoles
     public const string PromptEncoder = DrawingParts.PromptEncoder;
     public const string Denoiser      = DrawingParts.Denoiser;
     public const string Decoder       = DrawingParts.Decoder;
+    public const string FrameEncoder  = FilmingParts.FrameEncoder;
 
-    /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes.</summary>
-    public static IReadOnlyList<string> Of(ModelKind kind, OwnedSampler? sampler = null) => kind switch
+    /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
+    /// video model's, the parts the method it films with takes.</summary>
+    public static IReadOnlyList<string> Of(ModelKind kind, OwnedSampler? sampler = null, OwnedFilming? filming = null) => kind switch
     {
         ModelKind.Language        => [Chat],
         ModelKind.SpeechToText    => [VoiceActivity, Recognizer, Transcriber, TurnDetector],
         ModelKind.TextToSpeech    => [Synthesizer],
         ModelKind.ImageGeneration => DrawingParts.Of((sampler ?? throw new ArgumentNullException(nameof(sampler), "an image model's parts are its drawing method's")).Method),
+        ModelKind.VideoGeneration => FilmingParts.Of((filming ?? throw new ArgumentNullException(nameof(filming), "a video model's parts are its filming method's")).Method),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned model is of this kind"),
     };
 
@@ -57,14 +60,18 @@ internal static class OwnedRoles
 /// <summary>
 /// A model Nexaflow runs itself: its catalog entry — every file any machine might need — its parts, and, for a model
 /// that speaks, its voices. A part built for one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is
-/// fetched and run only on that runtime. A model that draws says how it samples; a language model, how it chooses its
-/// tokens (<see cref="OwnedTokenSampling"/>).
+/// fetched and run only on that runtime. A model that draws says how it samples, and one that films how it does; a
+/// language model, how it chooses its tokens (<see cref="OwnedTokenSampling"/>).
 /// </summary>
 internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
                                   bool Images, bool Audio, bool ToolCalls = false, OwnedSampler? Sampler = null,
-                                  OwnedTokenSampling? TokenSampling = null)
+                                  OwnedTokenSampling? TokenSampling = null, OwnedFilming? Filming = null)
 {
     public string Id => Catalog.Id;
+
+    /// <summary>Whether its parts load when it is asked for and only for their stage — a picture's or a clip's — rather
+    /// than stay resident beside the language and speech models.</summary>
+    public bool LoadsOnDemand => Kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration;
 
     /// <summary>Whether it has a build for <paramref name="executionProvider"/> — an image model is built for CUDA only.</summary>
     public bool RunsOn(string executionProvider) => PartsFor(executionProvider).Count > 0;
@@ -99,6 +106,25 @@ internal sealed record OwnedVoice(string Language, string Part, string File, str
 internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes);
 
 /// <summary>
+/// How a model that films samples: the method it films with, its number of denoising steps, the shift of the noise
+/// levels they run through, how far each step steers away from the negative prompt (0 for a model that does not), the
+/// timesteps a distilled model steps through (empty for one whose steps follow from the others), its makers' negative
+/// prompt, the frame rate it makes clips at, the lengths it makes them in, the size it films each shape at — the sizes it
+/// was trained on — and whether it carries a picture on into a clip: a model distilled from text alone cuts away from
+/// one. A video model makes no square clips.
+/// </summary>
+internal sealed record OwnedFilming(FilmingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyList<int> Timesteps,
+                                   string NegativePrompt, int FramesPerSecond, IReadOnlyList<int> Seconds,
+                                   IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes, bool StartsFromPictures)
+{
+    /// <summary>The shapes a clip is made in.</summary>
+    public static readonly IReadOnlyList<MediaShape> Shapes = [MediaShape.Landscape, MediaShape.Portrait];
+
+    /// <summary>How many frames a clip <paramref name="seconds"/> long is: the first, then a second's worth for each second.</summary>
+    public int Frames(int seconds) => seconds * FramesPerSecond + 1;
+}
+
+/// <summary>
 /// How a language model chooses its tokens, as its makers recommend — in its GGUF's <c>general.sampling</c> keys or its
 /// model card: <see cref="Thinking"/> when it reasons first, <see cref="Answering"/> when it answers straight away, the
 /// same unless its makers say otherwise. A model whose makers recommend nothing takes the likeliest token each time.
@@ -129,7 +155,9 @@ internal static class OwnedModels
 
     private sealed record Manifest(List<Entry>? Models);
     private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices, Sampler? Sampler,
-                                Choosing? TokenSampling);
+                                Choosing? TokenSampling, Filming? Filming);
+    private sealed record Filming(FilmingMethod? Method, int Steps, float Shift, float Guidance, List<int>? Timesteps, string? NegativePrompt,
+                                  int FramesPerSecond, List<int>? Seconds, Dictionary<string, int[]>? Sizes, bool StartsFromPictures);
     private sealed record Choosing(Choice? Thinking, Choice? Answering);
     private sealed record Choice(float Temperature, int TopK, float TopP, float PresencePenalty);
     private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes);
@@ -173,14 +201,17 @@ internal static class OwnedModels
             if (e.TokenSampling is not null && kind != ModelKind.Language)
                 throw new InvalidDataException($"Owned model '{e.Id}' chooses tokens but writes none.");
             var choosing = e.TokenSampling is { } c ? ToTokenSampling(e.Id, c) : null;
-            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing);
+            var filming = e.Filming is { } f ? ToFilming(e.Id, f) : null;
+            if ((kind == ModelKind.VideoGeneration) != (filming is not null))
+                throw new InvalidDataException($"Owned model '{e.Id}' says how it films, or films without saying how.");
+            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing, filming);
             if (!owned.RunsOn(Cuda) && !owned.RunsOn(Cpu)) throw new InvalidDataException($"Owned model '{e.Id}' runs on no runtime.");
             foreach (var runtime in new[] { Cuda, Cpu })
             {
                 var onRuntime = owned.PartsFor(runtime);
                 if (onRuntime.Count == 0) continue;   // not built for this runtime
                 var roles = onRuntime.Select(p => p.Role).ToList();
-                var needed = OwnedRoles.Of(kind, sampler);
+                var needed = OwnedRoles.Of(kind, sampler, filming);
                 bool complete = needed.All(roles.Contains) && roles.All(needed.Contains)
                              && roles.Where(r => !OwnedRoles.Repeats(r)).GroupBy(r => r).All(g => g.Count() == 1)
                              && onRuntime.GroupBy(p => p.Name).All(g => g.Count() == 1);
@@ -214,6 +245,32 @@ internal static class OwnedModels
         return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes);
     }
 
+    /// <exception cref="InvalidDataException">It does not say how it films, how many steps and how far shifted — a distilled
+    /// model, through which timesteps, one a step; a guided one, from which negative prompt — at what frame rate, in which
+    /// lengths, or a size for each shape a clip is made in.</exception>
+    private static OwnedFilming ToFilming(string modelId, Filming f)
+    {
+        if (f is not { Method: { } method, Steps: > 0, Shift: > 0, Guidance: >= 0, FramesPerSecond: > 0, Seconds: { Count: > 0 } seconds }
+            || seconds.Any(s => s <= 0))
+            throw new InvalidDataException($"Owned model '{modelId}' films without saying how it samples, at what rate or for how long.");
+        var timesteps = f.Timesteps ?? [];
+        if (method == FilmingMethod.WanDistilled && (timesteps.Count != f.Steps || timesteps.Any(t => t is <= 0 or > 1000) || f.Guidance != 0))
+            throw new InvalidDataException($"Owned model '{modelId}' is distilled, so it steps through a timestep a step and is not guided.");
+        if (method == FilmingMethod.Wan && (timesteps.Count > 0 || f.Guidance <= 0 || string.IsNullOrWhiteSpace(f.NegativePrompt)))
+            throw new InvalidDataException($"Owned model '{modelId}' is guided, so it steers away from a negative prompt and its steps follow from their number.");
+        var sizes = new Dictionary<MediaShape, (int Width, int Height)>();
+        foreach (var (name, size) in f.Sizes ?? [])
+        {
+            if (!Enum.TryParse<MediaShape>(name, ignoreCase: true, out var shape) || !OwnedFilming.Shapes.Contains(shape) || size is not [> 0, > 0])
+                throw new InvalidDataException($"Owned model '{modelId}' gives '{name}' a size that is not a clip shape's width and height.");
+            sizes[shape] = (size[0], size[1]);
+        }
+        if (OwnedFilming.Shapes.Any(shape => !sizes.ContainsKey(shape)))
+            throw new InvalidDataException($"Owned model '{modelId}' does not say what size it films each shape at.");
+    return new OwnedFilming(method, f.Steps, f.Shift, f.Guidance, [.. timesteps], f.NegativePrompt ?? "", f.FramesPerSecond, [.. seconds.Order()], sizes,
+                                f.StartsFromPictures);
+    }
+
     /// <exception cref="InvalidDataException">It says nothing of how the model chooses when it reasons, or gives a temperature,
     /// top-k or top-p no sampler takes.</exception>
     private static OwnedTokenSampling ToTokenSampling(string modelId, Choosing c)
@@ -239,8 +296,8 @@ internal static class OwnedModels
             throw new InvalidDataException($"Owned model '{modelId}' has a part for '{p.ExecutionProvider}', a runtime the host does not have.");
         if (kind == ModelKind.Language && (p.MemoryBytes <= 0 || p.BytesPerToken <= 0 || p.ContextTokens < ShortestContext))
             throw new InvalidDataException($"Owned model '{modelId}' does not say how much it and each token of its context hold, or how long a conversation it is given.");
-        // A picture's parts load on demand against the GPU budget, so what each holds at its peak must be known.
-        if (kind == ModelKind.ImageGeneration && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
+        // A picture's and a clip's parts load on demand against the GPU budget, so what each holds at its peak must be known.
+        if (kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
             throw new InvalidDataException($"Owned model '{modelId}' does not say how much its {p.Role} holds.");
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                              p.Name ?? p.Role, p.Projector, p.BytesPerToken);

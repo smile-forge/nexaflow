@@ -50,7 +50,7 @@ internal sealed class HiDreamDenoiser(ModelSpec spec, InferenceSession session, 
         long[] cacheShape = [Layers, KeyHeads, prompt.Cached, HeadWidth];
         using var keys = Tensor(prompt.Keys, cacheShape);
         using var values = Tensor(prompt.Values, cacheShape);
-        using var run = lastStep ? ImageSessions.Releasing(Spec) : new RunOptions();
+        using var run = lastStep ? GraphSessions.Releasing(Spec) : new RunOptions();
         using var outputs = session.Run(run, Inputs, [ids, image, positions, step, keys, values], session.OutputNames);
         if (!prompt.IsRead)
             prompt.Keep(outputs[1].GetTensorDataAsSpan<Float16>().ToArray(), outputs[2].GetTensorDataAsSpan<Float16>().ToArray(), unread.Length);
@@ -102,7 +102,7 @@ internal sealed class HiDreamDenoiserRunner : IModelRunner
     {
         string tokenizerPath = Path.Combine(spec.Folder, "tokenizer.json");
         if (!File.Exists(tokenizerPath)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id} has no tokenizer.json in {spec.Folder}.");
-        var denoiser = new HiDreamDenoiser(spec, ImageSessions.Open(spec), QwenTokenizer.FromJson(File.ReadAllText(tokenizerPath)));
+        var denoiser = new HiDreamDenoiser(spec, GraphSessions.Open(spec), QwenTokenizer.FromJson(File.ReadAllText(tokenizerPath)));
         try
         {
             // One call at the square size, so CUDA tunes its kernels at load rather than on somebody's first picture.

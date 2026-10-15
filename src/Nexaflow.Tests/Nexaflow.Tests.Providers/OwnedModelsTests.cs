@@ -197,6 +197,65 @@ public class OwnedModelsTests
         CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
     }
 
+    private const string Clip = """
+        { "role": "promptEncoder", "runner": "wan-prompt-encoder", "folder": "models/w/p", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "denoiser", "runner": "wan-denoiser", "folder": "models/w/d", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "decoder", "runner": "wan-decoder", "folder": "models/w/v", "memoryBytes": 1, "executionProvider": "cuda" }
+        """;
+
+    private const string ClipFrame = """{ "role": "frameEncoder", "runner": "wan-frame-encoder", "folder": "models/w/f", "memoryBytes": 1, "executionProvider": "cuda" }""";
+
+    private static string ClipFiles(bool frame) => string.Join(", ", new[] { "p", "d", "v" }.Concat(frame ? ["f"] : []).Select(f => File($"models/w/{f}/g.onnx")));
+
+    private const string ClipSizes = """{ "landscape": [1280, 704], "portrait": [704, 1280] }""";
+
+    [TestMethod]
+    public void AVideoModel_SaysHowItFilms_ADistilledOneByItsTimesteps_AGuidedOneFromItsMakersNegativePrompt()
+    {
+        var json = $$"""
+            { "models": [
+              { "id": "fast", "kind": "videoGeneration",
+                "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522],
+                             "framesPerSecond": 24, "seconds": [5], "sizes": {{ClipSizes}} },
+                "parts": [ {{Clip}} ], "files": [ {{ClipFiles(frame: false)}} ] },
+              { "id": "full", "kind": "videoGeneration", "tier": "highQuality",
+                "filming": { "method": "wan", "steps": 50, "shift": 5, "guidance": 5, "negativePrompt": "静态",
+                             "framesPerSecond": 24, "seconds": [5], "sizes": {{ClipSizes}}, "startsFromPictures": true },
+                "parts": [ {{Clip}}, {{ClipFrame}} ], "files": [ {{ClipFiles(frame: true)}} ] } ] }
+            """;
+
+        var models = OwnedModels.Read(Encoding.UTF8.GetBytes(json));
+        var fast = models.Single(m => m.Id == "fast").Filming!;
+        var full = models.Single(m => m.Id == "full");
+
+        Assert.AreEqual((FilmingMethod.WanDistilled, 0f, false), (fast.Method, fast.Guidance, fast.StartsFromPictures), "distilled from text, it takes no picture");
+        CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, fast.Timesteps.ToArray());
+        Assert.AreEqual(121, fast.Frames(5), "the first frame, then 24 a second");
+        Assert.AreEqual((1280, 704), fast.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual((FilmingMethod.Wan, 50, 5f, "静态", true), (full.Filming!.Method, full.Filming.Steps, full.Filming.Guidance, full.Filming.NegativePrompt, full.Filming.StartsFromPictures));
+        Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
+        CollectionAssert.AreEquivalent(FilmingParts.Of(FilmingMethod.Wan).ToArray(), full.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
+        Assert.IsTrue(full.LoadsOnDemand, "a clip's parts load for it, as a picture's do");
+    }
+
+    [TestMethod]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "parts": [CLIP], "files": [FILES] }""", DisplayName = "a video model that does not say how it films")]
+    [DataRow("""{ "id": "w", "kind": "imageGeneration", "sampler": SAMPLER, "filming": DISTILLED, "parts": [CLIP], "files": [FILES] }""", DisplayName = "an image model that films")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a distilled model a timestep short")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 5, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a distilled model that is guided")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wan", "steps": 50, "shift": 5, "guidance": 5, "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP, FRAME], "files": [FILES, FRAMEFILE] }""", DisplayName = "a guided model with no negative prompt")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": { "square": [704, 704], "landscape": [1280, 704], "portrait": [704, 1280] } }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a square clip")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "no length")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": DISTILLED, "parts": [CLIP, FRAME], "files": [FILES, FRAMEFILE] }""", DisplayName = "a distilled model with a frame encoder it does not use")]
+    public void AVideoModelThatDoesNotSayHowItFilms_OrFilmsInAWayItCannot_IsRefused(string model)
+    {
+        const string distilled = """{ "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }""";
+        var json = $$"""{ "models": [ {{model.Replace("DISTILLED", distilled).Replace("SIZES", ClipSizes).Replace("CLIP", Clip).Replace("FRAMEFILE", File("models/w/f/g.onnx"))
+                                           .Replace("FRAME", ClipFrame).Replace("FILES", ClipFiles(frame: false)).Replace("SAMPLER", Sampler)}} ] }""";
+
+        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+    }
+
     [TestMethod]
     public void AVoiceModel_MayHaveASynthesizerForEachSetOfVoices_EachVoiceNamingItsPartAndLexicon()
     {

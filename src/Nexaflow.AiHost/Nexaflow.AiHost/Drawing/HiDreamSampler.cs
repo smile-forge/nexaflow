@@ -1,10 +1,12 @@
+using Nexaflow.AiHost.Sampling;
+
 namespace Nexaflow.AiHost.Drawing;
 
 /// <summary>
 /// Everything HiDream-O1's sampling does around its denoiser, in plain arithmetic. HiDream draws in pixels, not latents:
 /// the picture is cut into 32×32 patches of three channels, each one token, and the model predicts the clean picture
 /// from a noisy one. A step asks it twice — with the prompt and with an empty one — and steers away from the second by
-/// the guidance scale; the steps run through HiDream's multistep UniPC sampler (<see cref="HiDreamUniPc"/>). The
+/// the guidance scale; the steps run through UniPC at HiDream's noise levels (<see cref="FlowUniPc.ShiftedTwice"/>). The
 /// layouts are the ones the build recipe traced the denoiser with (tools/ai-models/hidream-o1).
 /// </summary>
 internal static class HiDreamSampler
@@ -114,154 +116,5 @@ internal static class HiDreamSampler
                         }
             }
         return rgb;
-    }
-}
-
-/// <summary>
-/// HiDream-O1's sampler: UniPC for flow matching (predicting the clean picture, B(h) = eʰ − 1, second order, dropping
-/// to first on the last step), each step's prediction corrected once the next model output is in. Its noise levels are
-/// shifted twice, as HiDream's own scheduler does — once when it is made and again when its steps are set — and the
-/// model is shown each level as a whole timestep out of 1000.
-/// </summary>
-internal sealed class HiDreamUniPc
-{
-    private const int Order = 2;
-    private const int TrainSteps = 1000;
-
-    private readonly float[] _sigmas;
-
-    /// <summary>The last <see cref="Order"/> predictions of the clean picture, newest last.</summary>
-    private readonly float[]?[] _outputs = new float[]?[Order];
-
-    private float[]? _lastSample;
-    private int _lowerOrders;
-    private int _thisOrder;
-    private int _step;
-
-    public HiDreamUniPc(int steps, double shift)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(steps, 1);
-        // As made: 1000 levels 1 − linspace(1, 1/1000)[::-1], shifted; the first and last bound the steps.
-        double Shifted(double s) => shift * s / (1 + (shift - 1) * s);
-        float sigmaMax = (float)Shifted(1.0 - 1.0 / TrainSteps);
-        float sigmaMin = 0f;
-
-        // As set: linspace(max, min, steps + 1) without its last, shifted again, then 0.
-        _sigmas = new float[steps + 1];
-        Timesteps = new int[steps];
-        for (int i = 0; i < steps; i++)
-        {
-            double s = sigmaMax + (sigmaMin - (double)sigmaMax) * i / steps;
-            double shifted = Shifted(s);
-            _sigmas[i] = (float)shifted;
-            Timesteps[i] = (int)(shifted * TrainSteps);
-        }
-        _sigmas[steps] = 0f;
-    }
-
-    /// <summary>Each step's timestep, as the model is shown it.</summary>
-    public int[] Timesteps { get; }
-
-    /// <summary>The noise level before each step and after the last.</summary>
-    public IReadOnlyList<float> Sigmas => _sigmas;
-
-    /// <summary>One step: <paramref name="modelOutput"/> is the guided, negated velocity at <paramref name="sample"/>.</summary>
-    public float[] Step(ReadOnlySpan<float> modelOutput, float[] sample)
-    {
-        if (_step >= Timesteps.Length) throw new InvalidOperationException("The sampler has taken every step.");
-
-        // The prediction of the clean picture: sample − σ · output.
-        float sigma = _sigmas[_step];
-        var converted = new float[sample.Length];
-        for (int i = 0; i < converted.Length; i++) converted[i] = sample[i] - sigma * modelOutput[i];
-
-        if (_step > 0 && _lastSample is not null) sample = Corrected(converted, _lastSample, _thisOrder);
-
-        for (int i = 0; i < Order - 1; i++) _outputs[i] = _outputs[i + 1];
-        _outputs[Order - 1] = converted;
-
-        // Second order, first on the last step and until two outputs are in.
-        _thisOrder = Math.Min(Math.Min(Order, Timesteps.Length - _step), _lowerOrders + 1);
-        _lastSample = sample;
-        var next = Predicted(sample, _thisOrder);
-        if (_lowerOrders < Order) _lowerOrders++;
-        _step++;
-        return next;
-    }
-
-    /// <summary>log α − log σ at a noise level, α = 1 − σ: +∞ at σ = 0.</summary>
-    private static double Lambda(double sigma) => Math.Log(1 - sigma) - Math.Log(sigma);
-
-    /// <summary>UniP: from <paramref name="x"/> at this step's level to the next's.</summary>
-    private float[] Predicted(float[] x, int order)
-    {
-        var m0 = _outputs[Order - 1]!;
-        double sigmaT = _sigmas[_step + 1], sigmaS0 = _sigmas[_step];
-        double alphaT = 1 - sigmaT;
-        double h = Lambda(sigmaT) - Lambda(sigmaS0);
-        double hh = -h, hPhi1 = Math.Exp(hh) - 1, bH = hPhi1;
-
-        float[]? d1 = null;
-        if (order == 2)
-        {
-            var m1 = _outputs[Order - 2]!;
-            double rk = (Lambda(_sigmas[_step - 1]) - Lambda(sigmaS0)) / h;
-            d1 = new float[x.Length];
-            for (int i = 0; i < d1.Length; i++) d1[i] = (float)((m1[i] - m0[i]) / rk);
-        }
-
-        // x_t = σt/σs0 · x − αt (eʰʰ − 1) m0 − αt B(h) · ½ D1, the last term only at second order.
-        float a = (float)(sigmaT / sigmaS0), b = (float)(alphaT * hPhi1), c = (float)(alphaT * bH * 0.5);
-        var next = new float[x.Length];
-        for (int i = 0; i < next.Length; i++)
-            next[i] = a * x[i] - b * m0[i] - (d1 is null ? 0f : c * d1[i]);
-        return next;
-    }
-
-    /// <summary>UniC: the sample this step began from, corrected now that the model's output there is known.</summary>
-    private float[] Corrected(float[] modelT, float[] last, int order)
-    {
-        var m0 = _outputs[Order - 1]!;
-        double sigmaT = _sigmas[_step], sigmaS0 = _sigmas[_step - 1];
-        double alphaT = 1 - sigmaT;
-        double h = Lambda(sigmaT) - Lambda(sigmaS0);
-        double hh = -h, hPhi1 = Math.Exp(hh) - 1, bH = hPhi1;
-
-        double rk = 0;
-        float[]? d1 = null;
-        if (order == 2)
-        {
-            var m1 = _outputs[Order - 2]!;
-            rk = (Lambda(_sigmas[_step - 2]) - Lambda(sigmaS0)) / h;
-            d1 = new float[last.Length];
-            for (int i = 0; i < d1.Length; i++) d1[i] = (float)((m1[i] - m0[i]) / rk);
-        }
-
-        // The weights: ½ at first order; at second, R ρ = b with R = [[1, 1], [rk, 1]].
-        double rhoD1, rhoT;
-        if (order == 1)
-        {
-            rhoD1 = 0;
-            rhoT = 0.5;
-        }
-        else
-        {
-            double hPhiK = hPhi1 / hh - 1, b1 = hPhiK / bH;
-            hPhiK = hPhiK / hh - 1.0 / 2;
-            double b2 = hPhiK * 2 / bH;
-            // [[1, 1], [rk, 1]] · (ρ1, ρt) = (b1, b2)
-            double det = 1 - rk;
-            rhoD1 = (b1 - b2) / det;
-            rhoT = (b2 - rk * b1) / det;
-        }
-
-        float a = (float)(sigmaT / sigmaS0), b = (float)(alphaT * hPhi1), c = (float)(alphaT * bH);
-        var corrected = new float[last.Length];
-        for (int i = 0; i < corrected.Length; i++)
-        {
-            double residual = (d1 is null ? 0 : rhoD1 * d1[i]) + rhoT * (modelT[i] - m0[i]);
-            corrected[i] = (float)(a * last[i] - b * m0[i] - c * residual);
-        }
-        return corrected;
     }
 }

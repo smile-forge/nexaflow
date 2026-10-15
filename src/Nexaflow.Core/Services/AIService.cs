@@ -13,6 +13,7 @@ using System.Diagnostics;
 using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.IO.Common.Hardware;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Core.Services;
 
@@ -57,6 +58,38 @@ public sealed class AIService : IAIService
 
     /// <summary>The Video Generation chain's first model that can make a clip now, or null.</summary>
     public IVideoGenerationProvider? VideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.VideoGeneration).FirstOrDefault();
+
+    public IVideoGenerationProvider? HighQualityVideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.HighQualityVideoGeneration).FirstOrDefault();
+
+    public IReadOnlyList<int> PictureClipLengths
+        => Generation.GenerateVideoTool.ForPictures(VideoGenerator, HighQualityVideoGenerator)?.Lengths ?? [];
+
+    public void MakeClipFromPicture(ClipFromPicture clip)
+    {
+        if (Generation.GenerateVideoTool.ForPictures(VideoGenerator, HighQualityVideoGenerator) is null)
+            throw new InvalidOperationException("This workspace has no model that makes a clip from a picture.");
+        if (_workspace.ShellServices is not { } shell || _jobs is not { } jobs)
+            throw new InvalidOperationException("This workspace runs no background jobs.");
+
+        // The picture waits in a file of its own until the job has read it, and goes with the job.
+        var picture = Path.Combine(Path.GetTempPath(), "Nexaflow", "clip-pictures", $"{Guid.NewGuid():N}.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(picture)!);
+        File.WriteAllBytes(picture, clip.Png);
+
+        // The call generate_video would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
+        var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell));
+        var arguments = new JsonObject
+        {
+            ["prompt"]      = clip.Description,
+            ["seconds"]     = clip.Seconds,
+            ["shape"]       = clip.Portrait ? "portrait" : "landscape",
+            ["first_frame"] = picture,
+        };
+        jobs.Start(tool, arguments, origin: null).Ended.ContinueWith(_ =>
+        {
+            try { File.Delete(picture); } catch (IOException) { /* the temp folder's own clean-up has it */ }
+        }, TaskScheduler.Default);
+    }
 
     /// <summary>
     /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens that hears when a turn
@@ -161,7 +194,7 @@ public sealed class AIService : IAIService
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
         if (_workspace.ShellServices is { } shell)
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          Generation.GeneratedFiles.For(shell)).Tools);
+                                                          HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.

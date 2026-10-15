@@ -12,7 +12,7 @@ internal sealed class ZImageDecoder(ModelSpec spec, InferenceSession session) : 
     public float[] Decode(float[] latents, int latentHeight, int latentWidth)
     {
         using var input = OrtValue.CreateTensorValueFromMemory(latents, [1, ZImageSampler.Channels, latentHeight, latentWidth]);
-        using var run = ImageSessions.Releasing(Spec);
+        using var run = GraphSessions.Releasing(Spec);
         using var outputs = session.Run(run, ["latents"], [input], session.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
@@ -26,7 +26,7 @@ internal sealed class ZImageDecoderRunner : IModelRunner
 
     public IHostModel Load(ModelSpec spec)
     {
-        var decoder = new ZImageDecoder(spec, ImageSessions.Open(spec));
+        var decoder = new ZImageDecoder(spec, GraphSessions.Open(spec));
         try
         {
             decoder.Decode(new float[ZImageSampler.Channels * 32 * 32], 32, 32);   // tune the kernels at load

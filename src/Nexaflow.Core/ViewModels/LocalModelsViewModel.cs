@@ -73,6 +73,7 @@ public sealed partial class LocalJobViewModel : ObservableObject
         _downloads = downloads;
         _committed = committed;
         Label      = Str.Get($"Shell.Config.Local.Job.{slot}");
+        Remark     = Str.Source?.Find($"Shell.Config.Local.Job.{slot}.Remark");
 
         foreach (var option in shelf.OptionsFor(slot)) Choices.Add(new LocalChoiceViewModel(option, shelf));
 
@@ -85,6 +86,10 @@ public sealed partial class LocalJobViewModel : ObservableObject
     public LocalSlot Slot { get; }
 
     public string Label { get; }
+
+    /// <summary>What the job is worth knowing of, beside the models it could have — the fast video job makes clips from a
+    /// description alone — or null; each job's own, in the string table.</summary>
+    public string? Remark { get; }
 
     public ObservableCollection<LocalChoiceViewModel> Choices { get; } = [];
 

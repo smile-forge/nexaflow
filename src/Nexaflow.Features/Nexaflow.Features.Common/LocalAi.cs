@@ -29,7 +29,7 @@ public sealed record LocalAiModel(string Name, int? Device, long Bytes, int Cont
 public sealed record LocalAiCheck(string ReportPath, bool Passed);
 
 /// <summary>What a check of the machine is doing.</summary>
-public enum LocalAiCheckStage { Describing, Loading, Replying, Speaking, Hearing, Drawing }
+public enum LocalAiCheckStage { Describing, Loading, Replying, Speaking, Hearing, Drawing, Filming }
 
 /// <param name="Model">The model it is loading, for <see cref="LocalAiCheckStage.Loading"/>.</param>
 public sealed record LocalAiCheckProgress(LocalAiCheckStage Stage, string? Model = null);

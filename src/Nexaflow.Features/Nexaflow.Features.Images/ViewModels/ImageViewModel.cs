@@ -128,6 +128,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The tools of edit mode, over the same photo.</summary>
     public ImageEditorViewModel Editor { get; }
 
+    /// <summary>Making a video from the picture on screen, where the workspace can.</summary>
+    public MakeVideoViewModel MakeVideo { get; }
+
     // ── View state ────────────────────────────────────────────────────────
 
     /// <summary>When true the image is scaled to fit the viewer; when false it is shown at 100%.</summary>
@@ -477,8 +480,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     // ── Construction ──────────────────────────────────────────────────────
 
+    /// <param name="ai">The workspace's AI, through which the user makes a video from the picture on screen; none, none made.</param>
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
-                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null)
+                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null)
     {
         _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
         _shell       = shell;
@@ -494,6 +498,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.DecodeFailed += session => { if (ReferenceEquals(CurrentSession, session)) LoadFailed = true; };
 
         Editor = new ImageEditorViewModel(this, shell, _editing);
+        MakeVideo = new MakeVideoViewModel(ai,
+            () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
+            EncodeCurrentPng);
 
         for (int i = 0; i < paths.Count; i++)
         {
