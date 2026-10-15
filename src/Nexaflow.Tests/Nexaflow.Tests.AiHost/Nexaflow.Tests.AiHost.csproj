@@ -48,6 +48,8 @@
     <EmbeddedResource Include="Jinja\*.json" LogicalName="%(Filename)%(Extension)" />
     <!-- What HiDream-O1's own sampler does, for the host's port to match (tools/ai-models/hidream-o1/unipc_reference.py). -->
     <EmbeddedResource Include="Drawing\*.json" LogicalName="%(Filename)%(Extension)" />
+    <!-- What Wan2.2’s own sampling and text handling do, for the host’s port to match (tools/ai-models/wan2.2-ti2v-5b/wan_reference.py). -->
+    <EmbeddedResource Include="Filming\*.json" LogicalName="%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

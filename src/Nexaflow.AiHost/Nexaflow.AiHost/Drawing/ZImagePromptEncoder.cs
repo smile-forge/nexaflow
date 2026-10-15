@@ -28,7 +28,7 @@ internal sealed class ZImagePromptEncoder(ModelSpec spec, InferenceSession sessi
     public (float[] Caption, int Rows, int Width) Encode(long[] ids)
     {
         using var input = OrtValue.CreateTensorValueFromMemory(ids, [1, ids.Length]);
-        using var run = ImageSessions.Releasing(Spec);
+        using var run = GraphSessions.Releasing(Spec);
         using var outputs = session.Run(run, ["input_ids"], [input], session.OutputNames);
         var shape = outputs[0].GetTensorTypeAndShape().Shape;
         return (outputs[0].GetTensorDataAsSpan<float>().ToArray(), (int)shape[1], (int)shape[2]);
@@ -46,7 +46,7 @@ internal sealed class ZImagePromptEncoderRunner : IModelRunner
         string tokenizerPath = Path.Combine(spec.Folder, "tokenizer.json");
         if (!File.Exists(tokenizerPath)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id} has no tokenizer.json in {spec.Folder}.");
         var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(tokenizerPath));
-        var encoder = new ZImagePromptEncoder(spec, ImageSessions.Open(spec), tokenizer);
+        var encoder = new ZImagePromptEncoder(spec, GraphSessions.Open(spec), tokenizer);
         try
         {
             encoder.Encode(encoder.Tokenize("warm up"));   // CUDA tunes its kernels here, not on somebody's first picture

@@ -1181,6 +1181,209 @@
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
         }
       ]
+    },
+    {
+      "id": "fastwan2.2-ti2v-5b",
+      "displayName": "Wan2.2 FastWan",
+      "kind": "videoGeneration",
+      "filming": { "method": "wanDistilled", "steps": 3, "shift": 8.0, "guidance": 0,
+                   "timesteps": [1000, 757, 522],
+                   "framesPerSecond": 24, "seconds": [5], "sizes": { "landscape": [1280, 704], "portrait": [704, 1280] },
+                   "startsFromPictures": false },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "wan-prompt-encoder",
+          "folder": "models/wan2.2-ti2v-5b/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 8724152320,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "wan-denoiser",
+          "folder": "models/wan2.2-ti2v-5b/denoiser-fast",
+          "file": "denoiser.onnx",
+          "memoryBytes": 16575889408,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "wan-decoder",
+          "folder": "models/wan2.2-ti2v-5b/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 22347251712,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/caches.json",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/caches.json",
+          "size": 2301,
+          "sha256": "902948e9880c1239ed963a139a84be3f78c6b46e4d32f41e3843a68970eeacd4"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx",
+          "size": 1138787,
+          "sha256": "ff228a04bfb85f626c0b18f9f0d1e99b1b0055f0a5a4851e1d6d69aa0b3aaf37"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx.data",
+          "size": 1085014016,
+          "sha256": "16ba4444fa9fd0109d5e42017b075f286a496e2a4bac6eb65bb0f85d1bed68ff"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder.onnx",
+          "size": 26424224,
+          "sha256": "1536eafb887f15cc5b2fcf47f88efec853221819a1f6b6d211d504dc4855db4a"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser-fast/denoiser.onnx",
+          "size": 3440714,
+          "sha256": "1de38583e60dc2db7c60db438d1641d064bb301a4254d7eb9060c69bf82640dd"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser-fast/denoiser.onnx.data",
+          "size": 10137370624,
+          "sha256": "8eb5754dc27a5bce4e88967c20c8cad7b5c19e65df9fe99ddb21ecc17f3026b3"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx",
+          "size": 2551732,
+          "sha256": "06af16bb8f0f206c4ab41a6a3fe610de6ebdeccf38e768ba79cedf70a99f97cc"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 7310524416,
+          "sha256": "442c58ed9cc49e6c6f6233199fc33161af506f1508e9d6c401fe18468d117002"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/spiece.model",
+          "size": 4548313,
+          "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
+        }
+      ]
+    },
+    {
+      "id": "wan2.2-ti2v-5b",
+      "displayName": "Wan2.2",
+      "kind": "videoGeneration",
+      "tier": "highQuality",
+      "filming": { "method": "wan", "steps": 50, "shift": 5.0, "guidance": 5.0,
+                   "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+                   "framesPerSecond": 24, "seconds": [5], "sizes": { "landscape": [1280, 704], "portrait": [704, 1280] },
+                   "startsFromPictures": true },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "wan-prompt-encoder",
+          "folder": "models/wan2.2-ti2v-5b/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 8724152320,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "wan-denoiser",
+          "folder": "models/wan2.2-ti2v-5b/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 16575889408,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "wan-decoder",
+          "folder": "models/wan2.2-ti2v-5b/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 22347251712,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "frameEncoder",
+          "runner": "wan-frame-encoder",
+          "folder": "models/wan2.2-ti2v-5b/frame-encoder",
+          "file": "frame-encoder.onnx",
+          "memoryBytes": 1946157056,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/caches.json",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/caches.json",
+          "size": 2301,
+          "sha256": "902948e9880c1239ed963a139a84be3f78c6b46e4d32f41e3843a68970eeacd4"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx",
+          "size": 1138787,
+          "sha256": "ff228a04bfb85f626c0b18f9f0d1e99b1b0055f0a5a4851e1d6d69aa0b3aaf37"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx.data",
+          "size": 1085014016,
+          "sha256": "16ba4444fa9fd0109d5e42017b075f286a496e2a4bac6eb65bb0f85d1bed68ff"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder.onnx",
+          "size": 26424224,
+          "sha256": "1536eafb887f15cc5b2fcf47f88efec853221819a1f6b6d211d504dc4855db4a"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser/denoiser.onnx",
+          "size": 3440714,
+          "sha256": "972db4b3605ac46caf2ece25603dda78547b811b0cf54a072233c6d373afb4c8"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser/denoiser.onnx.data",
+          "size": 10137370624,
+          "sha256": "de3e39d3131fc7102427a8bf59d3c68610aeebfc99d9e1bbcc0468fa060993f9"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/frame-encoder/frame-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/frame-encoder/frame-encoder.onnx",
+          "size": 832797,
+          "sha256": "a886e76dfc48fa6f6ff24220811d77a3ce313cbc14310664f2450b4de9db9eee"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/frame-encoder/frame-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/frame-encoder/frame-encoder.onnx.data",
+          "size": 297107456,
+          "sha256": "ca1bab78499be8b0ae89f892e3cec9a6f1cfebc715422bb72db03a0468cc7d99"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx",
+          "size": 2551732,
+          "sha256": "06af16bb8f0f206c4ab41a6a3fe610de6ebdeccf38e768ba79cedf70a99f97cc"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 7310524416,
+          "sha256": "442c58ed9cc49e6c6f6233199fc33161af506f1508e9d6c401fe18468d117002"
+        },
+        {
+          "path": "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/spiece.model",
+          "size": 4548313,
+          "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
+        }
+      ]
     }
   ]
 }

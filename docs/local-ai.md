@@ -10,8 +10,10 @@ CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, 
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
 small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
-makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and pictures
-on this machine with Z-Image Turbo, and at high quality with HiDream-O1; music on this machine is still to come. This
+makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and on this
+machine pictures with Z-Image Turbo, and at high quality with HiDream-O1, and clips with Wan2.2-TI2V-5B — distilled to
+three steps (FastWan) for clips from a description, and its fifty guided steps for clips from a picture; music on this
+machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
 
 The test beds behind every number here live outside the repository, in `D:\codedev\nexaflow-ai-testbed` (its
@@ -25,7 +27,7 @@ The test beds behind every number here live outside the repository, in `D:\coded
 2. **A local LLM** for machines with a capable GPU — for users with no subscription, who want nothing to leave the
    machine, or who want the cheap, frequent calls kept off the API bill. Weaker than a frontier model; far better
    than nothing.
-3. **Generation as agent tools**: images, speech, sounds and music; video if it ever becomes practical.
+3. **Generation as agent tools**: images, speech, video clips, sounds and music.
 
 All three run on engines in Nexaflow's own process, and **Nexaflow owns everything around them**: **llama.cpp** for
 language models — Gemma 4 and Qwen 3.5 to 3.8, with the pictures and recordings they take in — and **ONNX Runtime**
@@ -45,6 +47,7 @@ and audio generators; our own catalog, downloads, runtime provisioning, chat tem
 | GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
 | Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
+| Video model | **Wan2.2-TI2V-5B** (Apache-2.0) makes clips on this machine, in two builds sharing every part but the denoiser: **FastWan2.2-TI2V-5B** (Hao AI Lab, Apache-2.0), distilled to three steps, makes a five-second 720p clip in seconds and is the fast video job's; the full model's fifty guided steps are the high-quality job's, and make the clips that start from a picture — FastWan, distilled from text alone, cuts away from one. Wan2.2 is the newest Wan with open weights; Wan2.1's 1.3B model makes 480p clips from text alone (below). |
 | Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
 | Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
 | Tool calls | **Each model's own protocol**: tools are declared to Claude, OpenAI, Gemini and Ollama as their APIs take them, and to an owned model as its chat template does (Gemma 4's `<|tool_call>` syntax and Qwen's `<function=…>` tags, read from their tokens); planning and filling in the input box are tools too. Only a model with no tool calling of its own (Aria) is taught a fenced `client_tool` block. A call that cannot be read is written again in a context of its own and takes the attempt's place (below). |
@@ -269,7 +272,7 @@ arguments did not read, the arguments as written (`Unread`). Beside it, in `Prov
 | text to speech | streaming: text segments in, audio chunks out; cancel; how much was spoken |
 | image generation | job: prompt (+ pictures to work from, a mask) in, one picture out; progress on the activity |
 | audio generation | job: prompt in, audio file out, progress (sound effects, music) — arrives with music |
-| video generation | job: prompt (+ a first frame) in, one clip out; progress on the activity; cloud only |
+| video generation | job: prompt (+ a first frame, where the model carries one on) in, one clip out; progress on the activity |
 
 Every capability has owned and bridged implementations — OpenAI and Gemini serve speech, pictures and video — so a
 bridged workspace gets voice and generation without a GPU, and an owned one gets them on the machine. A provider
@@ -388,11 +391,12 @@ maps roles to models:
   and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
   about.
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
-  **media capabilities** — Speech In, Speech Out, Image Generation and Video Generation, each taking only models of
-  its kind; an Audio Generation row arrives with its contract.
+  **media capabilities** — Speech In, Speech Out, Image Generation and Image Generation (HQ), Video Generation and
+  Video Generation (HQ), each taking only models of its kind; an Audio Generation row arrives with its contract.
 - **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own, one
   chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
-  high-quality pictures, video — on the workspace's Local page (`LocalColumns`, `LocalModelShelf`). Each job's model is
+  high-quality pictures, fast video, high-quality video — on the workspace's Local page (`LocalColumns`,
+  `LocalModelShelf`), where a job can carry a remark from the string table (fast video's: from a description only). Each job's model is
   saved as a column under a reserved id, so a chain names it like any other. The column is on wherever the machine runs
   a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
   every row of the job uses it. Each time a workspace loads, a job on a model it no longer offers here moves to its first
@@ -642,7 +646,8 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 ## Generation tools
 
 Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
-and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on Video Generation. It saves the
+and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation and Video
+Generation (HQ) rows. It saves the
 result where the model asked — else under Pictures, Music or Videos, in a `Nexaflow` folder — never over a file already
 there, and opens it as a double-click would, in Nexaflow's own image, audio or video viewer. The model is told where it
 went, the conversation carries the file, and a picture made while the model waits goes back as a `ContextImage`, so the
@@ -672,7 +677,11 @@ model sees what it drew; the existing loop, approvals and context handling apply
 - **Speech is read a sentence at a time**, cut by the voice conversation's segmenter, into one WAV.
 - **A clip costs minutes and money**, so `generate_video` is approved before it runs and announced in a voice
   conversation, at the length it will run — the one the model has nearest to the length asked for. A first frame is
-  cut and scaled to the exact size a model starts from (Sora's 720p); Veo takes any.
+  cut and scaled to the exact size a model starts from (Sora's 720p, Wan2.2's own size); Veo takes any.
+- **Two video rows, chosen by the clip.** A clip from a description is made on the Video Generation row, one from a
+  picture on Video Generation (HQ) — where a model distilled from text alone, like FastWan, would cut away from the
+  picture within a second, the full model carries it on. Each falls back on the other row where its own has no model;
+  `first_frame` is offered only where some model carries a picture on (`IVideoGenerationProvider.StartsFromImages`).
 
 | | Cloud | On this machine | Status |
 |---|---|---|---|
@@ -680,7 +689,7 @@ model sees what it drew; the existing loop, approvals and context handling apply
 | Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
-| Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.1-1.3B only, minutes per clip | cloud built; cloud only |
+| Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.2-TI2V-5B — FastWan's three steps from a description, the full model's fifty from a description or a picture — our ONNX builds, sampled by the host | built |
 
 ### Drawing on this machine
 
@@ -730,13 +739,52 @@ whole Qwen3-VL language model reading the prompt, a timestep token and one token
   both are offered and the Local page lets the user choose, the 8-bit build first.
 - **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
   prompt and without and steering by 5, its noise levels shifted twice and shown to the model as whole timesteps, as
-  HiDream's scheduler does (`HiDreamUniPc`, held to HiDream's own by `HiDreamSamplerTests`).
+  HiDream's scheduler does (`FlowUniPc.ShiftedTwice`, held to HiDream's own by `HiDreamSamplerTests`).
 
 It draws only at the sizes it was trained on, all about 4–5 megapixels — 2048×2048, 2560×1440, 1440×2560 for the three
 shapes — in 35 s on an RTX PRO 6000 (PyTorch: 95 s); twelve prompts drawn with either build and with
 HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
 entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
 with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.
+
+### Making clips on this machine
+
+Wan2.2-TI2V-5B (Apache-2.0) makes clips here — Wan2.2 is the newest Wan with open weights; 2.5 and later are served
+only. In PyTorch bf16 on an RTX PRO 6000 a five-second 720p clip (121 frames at 24 fps) takes 340 s of denoising — fifty
+steps, each asking the model with the prompt and with Wan's negative prompt — and FastWan2.2-TI2V-5B (Hao AI Lab,
+Apache-2.0), its transformer distilled to three unguided steps, takes 8.5 s; on four prompts FastWan's clips followed
+them as well or better, more saturated. FastWan was distilled from text alone: from a picture it holds the picture as
+the first frame, then cuts to another scene, where the full model carries it on. So both ship, sharing every part but the
+denoiser, as five ONNX graphs Nexaflow builds and publishes (`tools/ai-models/wan2.2-ti2v-5b`,
+huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx), sampled by the host in C# (`WanFilming`, `WanSampler`):
+
+- **The prompt encoder runs fp32 on 8-bit weights.** UMT5-XXL's feed-forward outputs reach 1.6×10⁵, past fp16's range;
+  it reads one prompt a clip, so fp32 costs nothing, and its rows agree with UMT5 in fp32 to a cosine of 0.998 — where
+  the bf16 encoder the published pipelines run agrees to 0.82 on one prompt. The prompt is cleaned as Wan's pipeline
+  cleans it — ftfy's fixes that apply to text arriving as Unicode, HTML unescaped — and tokenised by UMT5's own
+  SentencePiece model through Microsoft.ML.Tokenizers, held to Python's ids by `VideoModelTests`.
+- **The denoiser is fp16**, its activations never past 900, with the modulation, norms and rotary positions fp32 as
+  diffusers keeps them, and a timestep per latent frame — a picture to start from is the first latent frame at timestep
+  0 — so the modulation is made once a frame, not once for each of a clip's 27,280 tokens.
+- **The decoder keeps its cache outside.** Wan's VAE decodes a latent frame at a time, each causal convolution keeping
+  the last two frames it saw; the graphs take and give that cache, 3 GB at 720p, which the host keeps on the GPU in two
+  sets of buffers of its own, each call reading one and writing the other (`WanDecoding`) — left to the session, every
+  call's new cache landed in a fresh block of its arena and the decoder grew to 30 GB. Its norms accumulate in fp32
+  without a full fp32 copy, and its 2× upsampling is a repeat rather than a gather over int64 indices; decoded, a clip
+  is 60 dB from diffusers' fp32 VAE.
+- **No memory pattern.** Each request's sizes are its own, so ONNX Runtime's planned pattern was never reused and held
+  10.8 GB of scratch where 5.5 GB serves (`GraphSessions`).
+- **The clip is written as it is decoded**, as H.264 in an MP4 through Windows' own encoder (`Mp4Encoder`, Media
+  Foundation, on the GPU's video encoder where there is one) — never held whole as pictures.
+
+FastWan makes a five-second clip in 7–8 s of denoising and 10 s of decoding; the full model's fifty guided steps take
+235–240 s. Against the PyTorch pipelines from the same prompts and noise the builds' clips are 14.9–26.1 dB PSNR apart
+(FastWan's median 17.9 dB, the full model's 19.6 dB, its clip from a picture 26.1 dB) — the same clips, fine detail
+drifting over the steps, where unrelated clips are 5–9.5 dB apart — and the full build is as close to the model in fp32
+(14.2 dB) as its own bf16 pipeline is. Loaded part by part — the prompt encoder
+8.1 GB, the denoiser 15.4 GB, the decoder 20.8 GB, the frame encoder 1.8 GB at their peaks — a clip needs room for the
+decoder, a 24 GB card. On a smaller card neither row is offered, and a workspace makes clips with a cloud provider's
+model. Built for CUDA only.
 
 ## Models
 
@@ -808,7 +856,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
-| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row. To come: the audio generation contract with music (ACE-Step) | medium per tool |
+| 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row; clips on this machine with Wan2.2-TI2V-5B — FastWan for clips from a description, the full model, in a high-quality video row, for clips from a picture. To come: the audio generation contract with music (ACE-Step) | medium per tool |
 | 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill. To come: OCR, then a web agent on Fara 1.5, each a sub-agent with what it may touch set by what it does | medium |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.

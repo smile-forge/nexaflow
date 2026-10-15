@@ -336,6 +336,63 @@
                             <TextBlock Text="{loc:Str Images.Toolbar.Edit}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <!-- Make a video from this picture: shown where the workspace has a model that carries a picture on -->
+                    <Grid Margin="0,0,8,0" Visibility="{Binding MakeVideo.CanMake, Converter={StaticResource BoolToVis}}">
+                        <Button x:Name="MakeVideoButton" Command="{Binding MakeVideo.OpenCommand}" ToolTip="{loc:Str Images.Toolbar.VideoTip}"
+                                Style="{StaticResource ToolbarButtonStyle}" AutomationProperties.AutomationId="Image_MakeVideo">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🎬" FontSize="12" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Str Images.Toolbar.Video}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Popup IsOpen="{Binding MakeVideo.IsOpen, Mode=TwoWay}" StaysOpen="False"
+                               PlacementTarget="{Binding ElementName=MakeVideoButton}" Placement="Bottom"
+                               AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Margin="0,6,0,0" Padding="14,12" Width="340"
+                                    DataContext="{Binding MakeVideo}">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:Str Images.MakeVideo.Heading}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                                    <TextBlock Text="{loc:Str Images.MakeVideo.WhatHappens}" FontSize="11" Margin="0,10,0,4" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                                             AcceptsReturn="True" TextWrapping="Wrap" Height="64" VerticalScrollBarVisibility="Auto"
+                                             AutomationProperties.AutomationId="Image_MakeVideoDescription"
+                                             AutomationProperties.Name="{loc:Str Images.MakeVideo.WhatHappens}"/>
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{loc:Str Images.MakeVideo.Length}" FontSize="11" Margin="0,0,0,4" Foreground="{StaticResource TextMutedBrush}"/>
+                                            <ComboBox ItemsSource="{Binding Lengths}" SelectedItem="{Binding Length, Mode=TwoWay}" DisplayMemberPath="Label"
+                                                      Style="{StaticResource DarkComboBox}" MinWidth="110"
+                                                      AutomationProperties.AutomationId="Image_MakeVideoLength"
+                                                      AutomationProperties.Name="{loc:Str Images.MakeVideo.Length}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                                            <TextBlock Text="{loc:Str Images.MakeVideo.Shape}" FontSize="11" Margin="0,0,0,4" Foreground="{StaticResource TextMutedBrush}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="{loc:Str Images.MakeVideo.Landscape}" IsChecked="{Binding Landscape, Mode=TwoWay}"
+                                                             GroupName="MakeVideoShape" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                                             AutomationProperties.AutomationId="Image_MakeVideoLandscape"/>
+                                                <RadioButton Content="{loc:Str Images.MakeVideo.Portrait}" IsChecked="{Binding Portrait, Mode=TwoWay}"
+                                                             GroupName="MakeVideoShape" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                             AutomationProperties.AutomationId="Image_MakeVideoPortrait"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{loc:Str Images.MakeVideo.Note}" FontSize="11" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                        <Button Content="{loc:Str Images.MakeVideo.Cancel}" Command="{Binding CancelCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                                AutomationProperties.AutomationId="Image_MakeVideoCancel"/>
+                                        <Button Content="{loc:Str Images.MakeVideo.Make}" Command="{Binding MakeCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="8,0,0,0"
+                                                AutomationProperties.AutomationId="Image_MakeVideoStart"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="{loc:Str Images.Toolbar.AutoTip}" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
                                   AutomationProperties.AutomationId="Image_AutoAdvance">
                         <StackPanel Orientation="Horizontal">

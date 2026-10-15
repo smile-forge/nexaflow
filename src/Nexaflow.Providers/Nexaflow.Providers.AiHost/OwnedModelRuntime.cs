@@ -65,7 +65,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     {
         var gpus = ModelPlacement.Expected(hardware);
         var needs = NeedsOf(model);
-        if (model.Kind == ModelKind.ImageGeneration)
+        if (model.LoadsOnDemand)
         {
             var none = ModelPlacement.Plan(gpus, []);
             return needs.All(n => ModelPlacement.PlaceOnDemand(none, n) is not null);
@@ -225,7 +225,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         return model.PartNamed(partName, ExecutionProvider).ContextTokens;
     }
 
-    /// <summary>Where a part loaded on demand — a picture's — runs beside the models held now.</summary>
+    /// <summary>Where a part loaded on demand — a picture's or a clip's — runs beside the models held now.</summary>
     /// <exception cref="LlmProviderException">No GPU here has room for it, and it has no CPU build.</exception>
     public async Task<ModelSpec> PlacedOnDemandAsync(OwnedModel model, string partName, CancellationToken ct)
     {

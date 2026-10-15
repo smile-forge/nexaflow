@@ -12,8 +12,8 @@ namespace Nexaflow.Core.Services.LocalAi;
 
 /// <summary>
 /// Checks the machine against a workspace's models of Nexaflow's own: each loaded where the setup places it and set its
-/// work once — a reply, a sentence spoken and heard back, a picture drawn — while what the host holds on each GPU is
-/// sampled, and one report written, in Markdown, with the picture beside it.
+/// work once — a reply, a sentence spoken and heard back, a picture drawn, a clip made — while what the host holds on
+/// each GPU is sampled, and one report written, in Markdown, with the picture and the clip beside it.
 /// </summary>
 internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedModelInUse> models, string reportsFolder)
 {
@@ -23,6 +23,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
     private const string Question  = "Describe a lighthouse at dusk in three sentences.";
     private const string Sentence  = "Nexaflow is checking that this machine can speak and listen.";
     private const string Picture   = "A lighthouse at dusk, waves breaking on the rocks below, oil painting";
+    private const string Clip      = "Waves break on the rocks below a lighthouse at dusk as its beam sweeps the sea";
 
     /// <summary>What one step of the check came to.</summary>
     private sealed record Step(string Name, bool Passed, string Detail);
@@ -74,6 +75,11 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
             {
                 progress.Report(new LocalAiCheckProgress(LocalAiCheckStage.Drawing));
                 steps.Add(await DrawAsync(painter, Path.Combine(reportsFolder, name + ".png"), ct));
+            }
+            if (Serving<IVideoGenerationProvider>(ModelKind.VideoGeneration) is { } filmer)
+            {
+                progress.Report(new LocalAiCheckProgress(LocalAiCheckStage.Filming));
+                steps.Add(await FilmAsync(filmer, Path.Combine(reportsFolder, name + ".mp4"), ct));
             }
         }
         finally
@@ -208,6 +214,19 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         }
         catch (LlmProviderException ex) { return new Step("Picture", false, ex.Message); }
         return new Step("Picture", true, $"drawn in {Seconds(watch.Elapsed)} — ![the picture]({Path.GetFileName(path)})");
+    }
+
+    /// <summary>A clip at the shortest length the model makes, saved beside the report and linked from it.</summary>
+    private static async Task<Step> FilmAsync(IVideoGenerationProvider filmer, string path, CancellationToken ct)
+    {
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            var made = await filmer.GenerateVideoAsync(new VideoGenerationRequest(Clip, MediaShape.Landscape, filmer.Lengths[0]), ct);
+            await File.WriteAllBytesAsync(path, made.Media.Bytes, ct);
+        }
+        catch (LlmProviderException ex) { return new Step("Clip", false, ex.Message); }
+        return new Step("Clip", true, $"made in {Seconds(watch.Elapsed)} — [the clip]({Path.GetFileName(path)})");
     }
 
     /// <summary>Reads what the host holds on each GPU until <paramref name="ct"/> ends, keeping the most.</summary>

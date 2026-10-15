@@ -97,9 +97,18 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
 
     public bool IsHere(LocalRuntime runtime) => runtime.Files.All(f => store.Locate(f) is not null);
 
-    /// <summary>Removes the files of <paramref name="files"/> that are here.</summary>
-    public async Task RemoveAsync(IEnumerable<ModelAsset> files, CancellationToken ct = default)
+    /// <summary>
+    /// Removes the files of <paramref name="files"/> that are here, but those another model here lists too: two builds of
+    /// one model can share every part but one, and removing one leaves the other whole. A model counts as here when a file
+    /// of its own outside <paramref name="files"/> is.
+    /// </summary>
+    public async Task RemoveAsync(IReadOnlyList<ModelAsset> files, CancellationToken ct = default)
     {
-        foreach (var file in files) await store.RemoveAsync(file, ct);
+        var removing = files.Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal);
+        var kept = All.Select(o => o.Model.Files)
+                      .Where(own => own.Any(f => !removing.Contains(f.RelativePath) && store.Locate(f) is not null))
+                      .SelectMany(own => own.Select(f => f.RelativePath))
+                      .ToHashSet(StringComparer.Ordinal);
+        foreach (var file in files.Where(f => !kept.Contains(f.RelativePath))) await store.RemoveAsync(file, ct);
     }
 }

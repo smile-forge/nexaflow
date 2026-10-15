@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Sampling;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -23,7 +24,7 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
         int? device = model.Parts[DrawingParts.Denoiser].Device;
         int rows = request.Height / HiDreamSampler.Patch, cols = request.Width / HiDreamSampler.Patch;
         var positions = HiDreamSampler.ImagePositions(rows, cols);
-        var sampler   = new HiDreamUniPc(model.Steps, model.Shift);
+        var sampler   = FlowUniPc.ShiftedTwice(model.Steps, model.Shift);
         var sample    = HiDreamSampler.Noise(request.Seed, rows * cols);
 
         using var lease = await models.AcquireAsync(model.Parts[DrawingParts.Denoiser], resident: false, stage, ct, room);

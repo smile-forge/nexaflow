@@ -17,6 +17,7 @@ public enum AiAbility
     ImageGeneration,
     HighQualityImageGeneration,
     VideoGeneration,
+    HighQualityVideoGeneration,
 }
 
 internal static class AiAbilityNames
@@ -33,6 +34,7 @@ internal static class AiAbilityNames
         AiAbility.ImageGeneration            => "Image Generation",
         AiAbility.HighQualityImageGeneration => "Image Generation (HQ)",
         AiAbility.VideoGeneration            => "Video Generation",
+        AiAbility.HighQualityVideoGeneration => "Video Generation (HQ)",
         _                                    => a.ToString()
     };
 
@@ -42,7 +44,7 @@ internal static class AiAbilityNames
         AiAbility.SpeechIn        => ModelKind.SpeechToText,
         AiAbility.SpeechOut       => ModelKind.TextToSpeech,
         AiAbility.ImageGeneration or AiAbility.HighQualityImageGeneration => ModelKind.ImageGeneration,
-        AiAbility.VideoGeneration => ModelKind.VideoGeneration,
+        AiAbility.VideoGeneration or AiAbility.HighQualityVideoGeneration => ModelKind.VideoGeneration,
         _                         => ModelKind.Language,
     };
 }

@@ -73,6 +73,7 @@
   "SystemInfo.LocalAi.Checking.Speaking": "Checking — speaking a sentence…",
   "SystemInfo.LocalAi.Checking.Hearing": "Checking — hearing it back…",
   "SystemInfo.LocalAi.Checking.Drawing": "Checking — drawing a picture…",
+  "SystemInfo.LocalAi.Checking.Filming": "Checking — making a clip…",
   "SystemInfo.LocalAi.Check.Passed": "Passed — the report is open in a tab",
   "SystemInfo.LocalAi.Check.NotPassed": "Not passed — the report, open in a tab, says why",
   "SystemInfo.LocalAi.Gpu": "{0} GPU, {1}",

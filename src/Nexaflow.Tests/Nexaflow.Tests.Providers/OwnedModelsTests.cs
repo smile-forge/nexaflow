@@ -116,6 +116,45 @@ public class OwnedModelsTests
         CollectionAssert.Contains(full.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/hidream-o1-image/denoiser-fp16/tokenizer.json");
     }
 
+    [TestMethod]
+    public void TheShippedVideoModels_AreFastWanFirst_FromADescription_ThenWan22_FromAPictureToo()
+    {
+        var videos = OwnedModels.OfKind(ModelKind.VideoGeneration).Select(m => m.Id).ToList();
+        var fast   = OwnedModels.All.Single(m => m.Id == "fastwan2.2-ti2v-5b");
+        var full   = OwnedModels.All.Single(m => m.Id == "wan2.2-ti2v-5b");
+
+        Assert.IsTrue(videos.IndexOf(fast.Id) < videos.IndexOf(full.Id), "FastWan is offered first, the default");
+        Assert.AreEqual(ModelTier.Standard, fast.Catalog.Tier);
+        Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
+        Assert.AreEqual((FilmingMethod.WanDistilled, 3, 8f, 0f, false),
+                        (fast.Filming!.Method, fast.Filming.Steps, fast.Filming.Shift, fast.Filming.Guidance, fast.Filming.StartsFromPictures),
+                        "distilled from text alone, at the shift it was trained with, unguided");
+        CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, fast.Filming.Timesteps.ToArray());
+        Assert.AreEqual((FilmingMethod.Wan, 50, 5f, 5f, true),
+                        (full.Filming!.Method, full.Filming.Steps, full.Filming.Shift, full.Filming.Guidance, full.Filming.StartsFromPictures));
+        StringAssert.StartsWith(full.Filming.NegativePrompt, "色调艳丽", "it steers from Wan's own negative prompt");
+
+        foreach (var model in new[] { fast, full })
+        {
+            Assert.AreEqual(121, model.Filming!.Frames(model.Filming.Seconds.Single()), "five seconds at 24 frames a second");
+            Assert.AreEqual((1280, 704), model.Filming.Sizes[MediaShape.Landscape]);
+            Assert.AreEqual((704, 1280), model.Filming.Sizes[MediaShape.Portrait]);
+            Assert.IsFalse(model.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+            Assert.IsTrue(model.Parts.Max(p => p.MemoryBytes) < 24L << 30, "its largest part, the decoder, fits a 24 GB card");
+            Assert.IsTrue(model.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386")),
+                          "every file pinned to the published revision");
+        }
+        CollectionAssert.AreEquivalent(new[] { "wan-prompt-encoder", "wan-denoiser", "wan-decoder" },
+                                       fast.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        CollectionAssert.AreEquivalent(new[] { "wan-prompt-encoder", "wan-denoiser", "wan-decoder", "wan-frame-encoder" },
+                                       full.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+
+        var shared = fast.Catalog.Files.Select(f => f.RelativePath).Intersect(full.Catalog.Files.Select(f => f.RelativePath)).ToArray();
+        CollectionAssert.Contains(shared, "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model", "the host reads the prompt with it");
+        CollectionAssert.Contains(shared, "models/wan2.2-ti2v-5b/decoder/caches.json", "the host shapes the decoder's cache by it");
+        Assert.IsFalse(shared.Any(p => p.Contains("/denoiser")), "only the denoiser is each build's own; everything else is downloaded once");
+    }
+
     private const string Hash = "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
 
     private static string File(string path) => $$"""{ "path": "{{path}}", "url": "https://h/w", "size": 1, "sha256": "{{Hash}}" }""";
@@ -195,6 +234,65 @@ public class OwnedModelsTests
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (model.Sampler!.Method, model.Sampler.Steps, model.Sampler.Shift, model.Sampler.Guidance));
         Assert.AreEqual((2560, 1440), model.Sampler.Sizes[MediaShape.Landscape]);
         CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
+    }
+
+    private const string Clip = """
+        { "role": "promptEncoder", "runner": "wan-prompt-encoder", "folder": "models/w/p", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "denoiser", "runner": "wan-denoiser", "folder": "models/w/d", "memoryBytes": 1, "executionProvider": "cuda" },
+        { "role": "decoder", "runner": "wan-decoder", "folder": "models/w/v", "memoryBytes": 1, "executionProvider": "cuda" }
+        """;
+
+    private const string ClipFrame = """{ "role": "frameEncoder", "runner": "wan-frame-encoder", "folder": "models/w/f", "memoryBytes": 1, "executionProvider": "cuda" }""";
+
+    private static string ClipFiles(bool frame) => string.Join(", ", new[] { "p", "d", "v" }.Concat(frame ? ["f"] : []).Select(f => File($"models/w/{f}/g.onnx")));
+
+    private const string ClipSizes = """{ "landscape": [1280, 704], "portrait": [704, 1280] }""";
+
+    [TestMethod]
+    public void AVideoModel_SaysHowItFilms_ADistilledOneByItsTimesteps_AGuidedOneFromItsMakersNegativePrompt()
+    {
+        var json = $$"""
+            { "models": [
+              { "id": "fast", "kind": "videoGeneration",
+                "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522],
+                             "framesPerSecond": 24, "seconds": [5], "sizes": {{ClipSizes}} },
+                "parts": [ {{Clip}} ], "files": [ {{ClipFiles(frame: false)}} ] },
+              { "id": "full", "kind": "videoGeneration", "tier": "highQuality",
+                "filming": { "method": "wan", "steps": 50, "shift": 5, "guidance": 5, "negativePrompt": "静态",
+                             "framesPerSecond": 24, "seconds": [5], "sizes": {{ClipSizes}}, "startsFromPictures": true },
+                "parts": [ {{Clip}}, {{ClipFrame}} ], "files": [ {{ClipFiles(frame: true)}} ] } ] }
+            """;
+
+        var models = OwnedModels.Read(Encoding.UTF8.GetBytes(json));
+        var fast = models.Single(m => m.Id == "fast").Filming!;
+        var full = models.Single(m => m.Id == "full");
+
+        Assert.AreEqual((FilmingMethod.WanDistilled, 0f, false), (fast.Method, fast.Guidance, fast.StartsFromPictures), "distilled from text, it takes no picture");
+        CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, fast.Timesteps.ToArray());
+        Assert.AreEqual(121, fast.Frames(5), "the first frame, then 24 a second");
+        Assert.AreEqual((1280, 704), fast.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual((FilmingMethod.Wan, 50, 5f, "静态", true), (full.Filming!.Method, full.Filming.Steps, full.Filming.Guidance, full.Filming.NegativePrompt, full.Filming.StartsFromPictures));
+        Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
+        CollectionAssert.AreEquivalent(FilmingParts.Of(FilmingMethod.Wan).ToArray(), full.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
+        Assert.IsTrue(full.LoadsOnDemand, "a clip's parts load for it, as a picture's do");
+    }
+
+    [TestMethod]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "parts": [CLIP], "files": [FILES] }""", DisplayName = "a video model that does not say how it films")]
+    [DataRow("""{ "id": "w", "kind": "imageGeneration", "sampler": SAMPLER, "filming": DISTILLED, "parts": [CLIP], "files": [FILES] }""", DisplayName = "an image model that films")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a distilled model a timestep short")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 5, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a distilled model that is guided")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wan", "steps": 50, "shift": 5, "guidance": 5, "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }, "parts": [CLIP, FRAME], "files": [FILES, FRAMEFILE] }""", DisplayName = "a guided model with no negative prompt")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": { "square": [704, 704], "landscape": [1280, 704], "portrait": [704, 1280] } }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "a square clip")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": { "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "sizes": SIZES }, "parts": [CLIP], "files": [FILES] }""", DisplayName = "no length")]
+    [DataRow("""{ "id": "w", "kind": "videoGeneration", "filming": DISTILLED, "parts": [CLIP, FRAME], "files": [FILES, FRAMEFILE] }""", DisplayName = "a distilled model with a frame encoder it does not use")]
+    public void AVideoModelThatDoesNotSayHowItFilms_OrFilmsInAWayItCannot_IsRefused(string model)
+    {
+        const string distilled = """{ "method": "wanDistilled", "steps": 3, "shift": 5, "guidance": 0, "timesteps": [1000, 757, 522], "framesPerSecond": 24, "seconds": [5], "sizes": SIZES }""";
+        var json = $$"""{ "models": [ {{model.Replace("DISTILLED", distilled).Replace("SIZES", ClipSizes).Replace("CLIP", Clip).Replace("FRAMEFILE", File("models/w/f/g.onnx"))
+                                           .Replace("FRAME", ClipFrame).Replace("FILES", ClipFiles(frame: false)).Replace("SAMPLER", Sampler)}} ] }""";
+
+        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
     }
 
     [TestMethod]

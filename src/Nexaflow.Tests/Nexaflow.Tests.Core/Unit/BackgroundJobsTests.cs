@@ -170,6 +170,61 @@ public class BackgroundJobsTests
         StringAssert.StartsWith(user.Ended.Single(), "No picture was made.");
     });
 
+    /// <summary>A video model that makes clips from a picture, holding each until it is stopped.</summary>
+    private sealed class Filming : IVideoGenerationProvider
+    {
+        public readonly TaskCompletionSource<VideoGenerationRequest> Asked = new();
+        public string Name => "Filming";
+        public DataResidency Residency => DataResidency.StaysOnMachine;
+        public IReadOnlyList<int> Lengths => [5];
+        public bool StartsFromImages => true;
+        public (int Width, int Height)? FirstFrameSize(MediaShape shape) => null;
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public async Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default)
+        {
+            Asked.SetResult(request);
+            await Task.Delay(Timeout.Infinite, ct);
+            throw new OperationCanceledException(ct);
+        }
+    }
+
+    [TestMethod]
+    public void AClipTheUserAsksForFromAPicture_RunsAsTheWorkspacesJob_WithNothingAskedAndNoRunToTell() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var told    = new List<NotificationItem>();
+        var (svc, ws) = Assistant(tasks, told, new Model("unused"));
+        var filming = new Filming();
+        svc.Register("v1", filming);
+        var config = new AiConfig { Columns = [new ProviderModelPair { Id = "v1", ProviderName = "Filming", Model = "f", Kind = ModelKind.VideoGeneration }] };
+        config.Assignments["HighQualityVideoGeneration"] = AbilityChain.Of("v1");
+        svc.LoadAbilityConfig(config);
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+        CollectionAssert.AreEqual(new[] { 5 }, svc.PictureClipLengths.ToArray(), "the lengths of the model that carries a picture on");
+        svc.MakeClipFromPicture(new ClipFromPicture(png, "The fox sits down.", 5, Portrait: true));
+        var asked = await filming.Asked.Task;
+
+        Assert.AreEqual(("The fox sits down.", MediaShape.Portrait, 5), (asked.Prompt, asked.Shape, asked.Seconds));
+        CollectionAssert.AreEqual(png, asked.FirstFrame!.Bytes, "the picture as the user saw it");
+        var job = tasks.Tasks.Single(t => t.Workspace == ws);
+        Assert.IsTrue(job.CanStop, "listed with the workspace's jobs, and stoppable there");
+
+        job.StopCommand.Execute(null);
+        await Until(() => job.Status != TaskStatus.Running);
+        Assert.AreEqual(TaskStatus.Stopped, job.Status);
+    });
+
+    [TestMethod]
+    public void WhereNoModelMakesAClipFromAPicture_NoneIsOffered_OrMade()
+    {
+        var (svc, _) = Assistant(new BackgroundActivityManager(), [], new Model("unused"));
+
+        Assert.AreEqual(0, svc.PictureClipLengths.Count);
+        Assert.ThrowsExactly<InvalidOperationException>(() => svc.MakeClipFromPicture(new ClipFromPicture([1], "Waves.", 5, Portrait: false)));
+    }
+
     [TestMethod]
     public void AWorkspacesJobs_StopWithIt_AndAWindowListsOnlyItsOwn() => OnUi(async () =>
     {

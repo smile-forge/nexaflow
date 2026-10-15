@@ -347,4 +347,13 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         Wait.UntilInputIsProcessed();
         return WaitForFs(() => radio.IsSelected.Value, 3);
     }
+
+    /// <summary>Types into a text box in a popup — <see cref="TypeInto"/> searches the main window only.</summary>
+    protected bool TypeInPopup(string automationId, string text)
+    {
+        var box = FindInAppWindows(automationId);
+        if (box is null) return false;
+        box.AsTextBox().Text = text;
+        return WaitForFs(() => box.AsTextBox().Text == text, 2);
+    }
 }

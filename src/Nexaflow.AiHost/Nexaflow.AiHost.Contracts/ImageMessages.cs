@@ -45,6 +45,6 @@ public sealed record Draw(long RequestId, DrawingModel Model, string Prompt, int
 /// <summary>The picture, as a PNG.</summary>
 public sealed record Drawn(long RequestId, byte[] Png) : HostReply(RequestId);
 
-/// <summary>Resident models that made way on their GPU for this picture — unloaded until the last picture is done, when
-/// they load again. Until then a request for one waits.</summary>
+/// <summary>Resident models that made way on their GPU for this picture or clip — unloaded until the last one is done,
+/// when they load again. Until then a request for one waits.</summary>
 public sealed record MadeWay(long RequestId, IReadOnlyList<string> Models) : HostReply(RequestId);

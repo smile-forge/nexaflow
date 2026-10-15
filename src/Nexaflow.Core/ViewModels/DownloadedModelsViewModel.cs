@@ -13,7 +13,8 @@ namespace Nexaflow.Core.ViewModels;
 /// <summary>
 /// The models on this machine's disk, and the runtimes they share: each with its size and the workspaces that use it, and
 /// Delete for one no workspace uses — a model in use stays, naming who uses it, since removing it would leave their jobs
-/// with nothing to run.
+/// with nothing to run. Two builds of one model can share files: each shows them in its size, the total counts them
+/// once, and deleting one keeps what the other still needs.
 /// </summary>
 public sealed partial class DownloadedModelsViewModel : ObservableObject
 {
@@ -35,6 +36,9 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
     /// <summary>What they take on disk together.</summary>
     [ObservableProperty] private string _total = string.Empty;
 
+    /// <summary>The bytes they take on disk together, each file once.</summary>
+    [ObservableProperty] private long _totalBytes;
+
     [ObservableProperty] private bool _isEmpty;
 
     /// <summary>Lists what is on disk again, and who uses each.</summary>
@@ -45,25 +49,38 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
         var usedBy     = options.ToDictionary(o => o, o => workspaces.Where(w => Uses(w.Config, o)).Select(w => w.Workspace).ToList());
 
         Models.Clear();
+        var counted = new HashSet<string>(StringComparer.Ordinal);   // a file two builds share takes its room once
+        var onDisk  = options.ToDictionary(o => o, o => o.Model.Files.Where(f => _shelf.Store.Locate(f) is not null)
+                                                                     .Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal));
         long total = 0;
         foreach (var option in options)
         {
             var here = Here(option.Model.Files);
-            if (here == 0) continue;
-            total += here;
+            if (here == 0 || Covered(option, onDisk)) continue;
+            total += Here(option.Model.Files.Where(f => counted.Add(f.RelativePath)));
             Models.Add(new DownloadedModelViewModel(this, option.Model.DisplayName, KindOf(option.Kind), here, usedBy[option], option.Model.Files));
         }
         foreach (var runtime in _shelf.Runtimes)
         {
             var here = Here(runtime.Files);
             if (here == 0) continue;
-            total += here;
+            total += Here(runtime.Files.Where(f => counted.Add(f.RelativePath)));
             var users = options.Where(o => o.Runtime?.Id == runtime.Id).SelectMany(o => usedBy[o]).Distinct().ToList();
             Models.Add(new DownloadedModelViewModel(this, runtime.DisplayName, Str.Get("Shell.Config.Downloaded.Runtime"), here, users, runtime.Files));
         }
+        TotalBytes = total;
         Total   = Str.Format("Shell.Config.Downloaded.TotalFormat", SizeFormatter.FormatBytes(total));
         IsEmpty = Models.Count == 0;
     }
+
+    /// <summary>
+    /// Whether all of <paramref name="option"/>'s files here are another model's that is here beyond them — a build whose own
+    /// files are gone, the parts it shared with another build staying for that one. It is not listed: nothing of its own is
+    /// left to delete.
+    /// </summary>
+    private static bool Covered(LocalModelOption option, IReadOnlyDictionary<LocalModelOption, HashSet<string>> onDisk)
+        => onDisk.Any(other => !ReferenceEquals(other.Key, option) && other.Value.Except(onDisk[option]).Any()
+                               && onDisk[option].All(path => other.Key.Model.Files.Any(f => f.RelativePath == path)));
 
     internal Task RemoveAsync(IReadOnlyList<ModelAsset> files) => _shelf.RemoveAsync(files);
 

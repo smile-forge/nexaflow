@@ -305,7 +305,16 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
     They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
     trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
     results. Unset, each is **inconclusive**. How the build compares with PyTorch is
-    `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+        `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+    - **`VideoModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host filming with Wan2.2-TI2V's real
+      graphs: `NEXAFLOW_TEST_VIDEO` names a folder holding the published build (`prompt-encoder\`, `denoiser\`,
+      `denoiser-fast\`, `decoder\`, `frame-encoder\`) and `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack. They assert a clip's
+      shape — FastWan's three steps and the full model's fifty, each latent frame decoded, an H.264 MP4 of the size and
+      length asked for (read by `Mp4Reader`), a clip from a picture, a stop between steps, a length the model does not make
+      refused — and the prompt tokenised as UMT5's tokenizer reads it; the clips are attached to the run's results to
+      watch. Unset, each is **inconclusive**. How the build compares with PyTorch is
+      `tools/ai-models/wan2.2-ti2v-5b/check_wan.py`; the sampler and the prompt's cleaning are held to Wan's own by
+      `WanSamplerTests`.
 - **`OllamaToolCallTests`** *(`Tests.Providers`)* — native tool calling against the Ollama server on this machine:
   `NEXAFLOW_TEST_OLLAMA_MODEL` names a pulled model whose capabilities include tools (it must call the tool offered,
   then answer what came of it), `NEXAFLOW_TEST_OLLAMA_PLAIN_MODEL` one without (it must not be offered them natively).

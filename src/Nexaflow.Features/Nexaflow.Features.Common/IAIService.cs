@@ -153,5 +153,25 @@ namespace Nexaflow.Features.Common
         /// Loads a previously-saved conversation artifact's JSON, or null if absent/unreadable.
         /// </summary>
         Task<string?> LoadConversationArtifactAsync(string conversationId, string name);
+
+        /// <summary>
+        /// The lengths, in seconds and shortest first, the workspace makes a clip from a picture in now — by the model
+        /// <c>generate_video</c> would use for one; empty where none of its video models carries a picture on.
+        /// </summary>
+        IReadOnlyList<int> PictureClipLengths { get; }
+
+        /// <summary>
+        /// Makes a clip from a picture as the user set it, the way the assistant's own slow calls run: one of the workspace's
+        /// background jobs — listed with the others and stoppable there, the clip saved under Videos and opened when made,
+        /// the user told when it ends. Returns once it has started; nothing is asked first, the user having asked.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The workspace has no model that makes a clip from a picture.</exception>
+        void MakeClipFromPicture(ClipFromPicture clip);
     }
+
+    /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>
+    /// <param name="Png">The picture, edits and all, as a PNG.</param>
+    /// <param name="Seconds">One of <see cref="IAIService.PictureClipLengths"/>.</param>
+    /// <param name="Portrait">Taller than wide; otherwise wider than tall.</param>
+    public sealed record ClipFromPicture(byte[] Png, string Description, int Seconds, bool Portrait);
 }

@@ -14,6 +14,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 using Str = Nexaflow.Visuals.Common.Localization.Str;
 
+
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
@@ -42,6 +43,9 @@ public class LocalModelsTests
         ["models/big.gguf"]   = Bytes(7_000, 7),
         ["models/z.onnx"]     = Bytes(5_000, 9),
         ["runtime/cuda.dll"]  = Bytes(3_000, 11),
+        ["models/clip/encoder.onnx"] = Bytes(6_000, 19),
+        ["models/clip/fast.onnx"]    = Bytes(1_000, 21),
+        ["models/clip/full.onnx"]    = Bytes(1_000, 23),
     };
 
     private static CatalogModel Model(string id, string path) => new(id, id.ToUpperInvariant(), [Asset(path, Served[path])]);
@@ -55,6 +59,12 @@ public class LocalModelsTests
     private static readonly CatalogModel Big   = Model("big", "models/big.gguf");
     private static readonly CatalogModel Z     = Model("z", "models/z.onnx");
     private static readonly LocalRuntime Cuda  = new("cuda", "CUDA runtime", [Asset("runtime/cuda.dll", Served["runtime/cuda.dll"])]);
+
+    /// <summary>Two builds of one video model, sharing every file but their denoisers.</summary>
+    private static readonly CatalogModel FastClip = new("fast", "FAST", [Asset("models/clip/encoder.onnx", Served["models/clip/encoder.onnx"]),
+                                                                         Asset("models/clip/fast.onnx", Served["models/clip/fast.onnx"])]);
+    private static readonly CatalogModel FullClip = new("full", "FULL", [Asset("models/clip/encoder.onnx", Served["models/clip/encoder.onnx"]),
+                                                                         Asset("models/clip/full.onnx", Served["models/clip/full.onnx"])]);
 
     private sealed class Gemma(bool runs = true) : ILlmProvider, ILocalModelCatalog
     {
@@ -81,6 +91,20 @@ public class LocalModelsTests
         public bool Masks => false;
         public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["z"]);
+    }
+
+    private sealed class Clips : IVideoGenerationProvider, ILocalModelCatalog
+    {
+        public string Name => "Nexaflow";
+        public DataResidency Residency => DataResidency.StaysOnMachine;
+        public ModelHarness Harness => ModelHarness.Owned;
+        public IReadOnlyList<CatalogModel> Catalog => [FastClip, FullClip];
+        public IReadOnlyList<UnrunnableModel> Unrunnable => [];
+        public IReadOnlyList<int> Lengths => [5];
+        public bool StartsFromImages => true;
+        public (int Width, int Height)? FirstFrameSize(MediaShape shape) => (1280, 704);
+        public Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["fast", "full"]);
     }
 
     /// <summary>Nexaflow's own speech models, which hold a conversation.</summary>
@@ -496,6 +520,28 @@ public class LocalModelsTests
         Assert.IsNull(_store.Locate(E4b.Files[0]));
         CollectionAssert.AreEquivalent(new[] { "SMALL", "CUDA runtime" }, page.Models.Select(m => m.Name).ToArray());
         Assert.IsTrue(page.Models.Single(m => m.Name == "CUDA runtime").DeleteCommand.CanExecute(null), "no model in use needs it");
+    }
+
+    [TestMethod]
+    public async Task TwoBuildsSharingFiles_TakeTheirRoomOnce_AndDeletingOneKeepsWhatTheOtherNeeds()
+    {
+        await _store.EnsureAllAsync([.. FastClip.Files, .. FullClip.Files]);
+        var providers = new ProviderSet([new Clips()], new Dictionary<string, IAiProvider>(), [],
+                                        new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll" }, []);
+        var page = new DownloadedModelsViewModel(new LocalModelShelf(providers, _store), () => []);
+
+        Assert.AreEqual(6_000 + 1_000 + 1_000, page.TotalBytes, "the encoder they share is counted once");
+
+        await page.Models.Single(m => m.Name == "FAST").DeleteCommand.ExecuteAsync(null);
+
+        Assert.IsNull(_store.Locate(FastClip.Files[1]), "its own denoiser goes");
+        Assert.IsNotNull(_store.Locate(FastClip.Files[0]), "the encoder stays: the full build still needs it");
+        CollectionAssert.AreEqual(new[] { "FULL" }, page.Models.Select(m => m.Name).ToArray());
+
+        await page.Models.Single(m => m.Name == "FULL").DeleteCommand.ExecuteAsync(null);
+
+        Assert.IsNull(_store.Locate(FullClip.Files[0]), "the last build to go takes what they shared");
+        Assert.IsTrue(page.IsEmpty);
     }
 
     [TestMethod]

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Drawing;
+using Nexaflow.AiHost.Sampling;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -27,7 +28,7 @@ public class HiDreamSamplerTests
     {
         var reference = Reference();
 
-        var sampler = new HiDreamUniPc(50, 3.0);
+        var sampler = FlowUniPc.ShiftedTwice(50, 3.0);
 
         CollectionAssert.AreEqual(reference["timesteps"]!.AsArray().Select(t => t!.GetValue<int>()).ToArray(), sampler.Timesteps,
                                   "the model is shown each level as a whole timestep, the level shifted twice");
@@ -44,7 +45,7 @@ public class HiDreamSamplerTests
         var sample = Floats(reference["start"]);
         var cond = Floats(reference["cond_bias"]);
         var uncond = Floats(reference["uncond_bias"]);
-        var sampler = new HiDreamUniPc(50, 3.0);
+        var sampler = FlowUniPc.ShiftedTwice(50, 3.0);
         var checkpoints = reference["trace"]!.AsArray().ToDictionary(t => t!["step"]!.GetValue<int>(), t => Floats(t!["sample"]));
 
         // The made-up model the reference was recorded with: predictions that move with the sample and the step.

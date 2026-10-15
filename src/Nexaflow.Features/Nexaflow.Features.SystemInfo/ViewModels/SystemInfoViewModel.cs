@@ -102,6 +102,7 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
         LocalAiCheckStage.Speaking => Str.Get("SystemInfo.LocalAi.Checking.Speaking"),
         LocalAiCheckStage.Hearing  => Str.Get("SystemInfo.LocalAi.Checking.Hearing"),
         LocalAiCheckStage.Drawing  => Str.Get("SystemInfo.LocalAi.Checking.Drawing"),
+        LocalAiCheckStage.Filming  => Str.Get("SystemInfo.LocalAi.Checking.Filming"),
         _                          => Str.Get("SystemInfo.LocalAi.Checking.Describing"),
     };
 

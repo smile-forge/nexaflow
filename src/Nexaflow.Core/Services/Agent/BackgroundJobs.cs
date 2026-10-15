@@ -52,7 +52,8 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
     internal IReadOnlyList<IClientTool> Tools => Jobs.Count == 0 ? [] : [new GetBackgroundTasksTool(this), new StopBackgroundTaskTool(this)];
 
     /// <summary>Sets the call going as a job, and says so: the result the run hands the model, and the job's end.</summary>
-    internal (ToolResult Result, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler origin)
+    /// <param name="origin">The run that set it going, told when it ends; null for a job the user set going themselves.</param>
+    internal (ToolResult Result, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler? origin)
     {
         var told = tool.Announce(arguments);
         Job job;
@@ -71,7 +72,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
         "get_background_tasks says.";
 
     /// <summary>The job to its end, and the telling of how it ended. Never throws.</summary>
-    private async Task RunAsync(Job job, IClientTool tool, JsonObject arguments, ToolCallAnnouncement? told, IAIResponseHandler origin)
+    private async Task RunAsync(Job job, IClientTool tool, JsonObject arguments, ToolCallAnnouncement? told, IAIResponseHandler? origin)
     {
         var task = job.Task;
         BackgroundActivityManager.Within(task);
@@ -95,7 +96,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
         {
             var stopped = Str.Get("Shell.BackgroundTasks.Stopped");
             tasks.EndJob(task, TaskStatus.Stopped, stopped);
-            origin.BackgroundJobEnded($"{unmade} {stopped}");
+            origin?.BackgroundJobEnded($"{unmade} {stopped}");
             return;
         }
 
@@ -107,7 +108,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
             Body     = result.ModelText,
             Severity = result.IsError ? MessageSeverity.Error : MessageSeverity.Info,
         });
-        origin.BackgroundJobEnded($"{title} {result.ModelText}");
+        origin?.BackgroundJobEnded($"{title} {result.ModelText}");
     }
 
     /// <summary>
