@@ -44,6 +44,25 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private ConversationAnalysis? _resumeAnalysis;
     private int _analyzedMessageCount;
 
+    /// <summary>
+    /// This session's conversation, its older part condensed into notes once replaying it outgrew its room
+    /// (<see cref="CondenseIfOutgrownAsync"/>); null until then. Earlier sessions' turns stay with the analysis made when
+    /// they closed — these notes are this session's alone, and go with it: the analysis made at close covers everything.
+    /// </summary>
+    private string? _sessionNotes;
+
+    /// <summary>How many of the conversation's messages <see cref="_sessionNotes"/> stand in for, from its start.</summary>
+    private int _condensedThrough;
+
+    /// <summary>Condensing is under way: the next request waits for it rather than replaying what is being condensed.</summary>
+    private bool _condensing;
+
+    /// <summary>The share of the model's context this session's replayed messages may fill before their older part is condensed.</summary>
+    private const double ReplayRoom = 0.5;
+
+    /// <summary>The share the newest of them, kept word for word, may fill once the rest is condensed.</summary>
+    private const double KeptWhole = 0.25;
+
     /// <summary>Message-count cap used as history fallback when the model's context window is unknown.</summary>
     private const int FallbackHistoryMessages = 12;
 
@@ -208,6 +227,8 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
         Conversation = rec;
         Title        = rec.Title;
+        _sessionNotes     = null;   // a session's notes are its own: a conversation loaded starts without them
+        _condensedThrough = 0;
         Messages.Clear();
         Timeline.Clear();
         foreach (var m in rec.Messages.OrderBy(m => m.Timestamp))
@@ -486,7 +507,49 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _currentToolBatch = null;
         if (users.Count > 0) await PersistExchangeAsync(users, assistant);
         await KeepEndedMeanwhileAsync();
+        await CondenseIfOutgrownAsync();
     });
+
+    /// <summary>
+    /// Once this session's messages — those after any earlier sessions' analysis and any notes already made — no longer fit
+    /// <see cref="ReplayRoom"/> of the model's context, the older of them are condensed into notes, from a request on the
+    /// newest kept word for word; the notes so far are carried into the new ones. Nothing is dropped unread.
+    /// </summary>
+    private async Task CondenseIfOutgrownAsync()
+    {
+        if (Conversation is not { } conversation || ContextWindow is not int window || window <= 0 || _condensing) return;
+        var messages = conversation.Messages;
+        int from = Math.Max(Math.Min(_analyzedMessageCount, messages.Count), _condensedThrough);
+        if (messages.Skip(from).Sum(m => EstTokens(m.Text)) <= window * ReplayRoom) return;
+
+        int keep = messages.Count;
+        long kept = 0;
+        for (int i = messages.Count - 1; i > from; i--)
+        {
+            kept += EstTokens(messages[i].Text);
+            if (kept > window * KeptWhole && keep < messages.Count) break;
+            if (messages[i].IsUser) keep = i;
+        }
+        if (keep >= messages.Count) return;
+
+        _condensing = true;
+        OnPropertyChanged(nameof(IsContextReady));
+        try
+        {
+            var older = messages.Skip(from).Take(keep - from).Select(m => (m.IsUser ? "User" : "Assistant", m.Text)).ToList();
+            if (await _aiService.CondenseConversationAsync(older, _sessionNotes) is { } notes)
+            {
+                _sessionNotes     = notes;
+                _condensedThrough = keep;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { /* the newest-first fit below still bounds what is replayed */ }
+        finally
+        {
+            _condensing = false;
+            OnPropertyChanged(nameof(IsContextReady));
+        }
+    }
 
     /// <summary>Cancel / error / prefill: drop the unfinished turn's items (it isn't persisted).</summary>
     public void Abort() => OnUi(async () =>
@@ -612,6 +675,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         {
             _analyzedMessageCount = 0;
             _resumeAnalysis       = null;
+        }
+        // So do this session's notes: a rewind into what they cover leaves them speaking of messages gone.
+        if (_condensedThrough > Conversation.Messages.Count)
+        {
+            _condensedThrough = 0;
+            _sessionNotes     = null;
         }
 
         RebuildTimeline();
@@ -1005,17 +1074,18 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     // ── IPageViewModel ────────────────────────────────────────────────────
 
     /// <summary>Ready only when every pinned context item is ready — a page still gathering its data
-    /// (e.g. SystemInfo's background scan) holds the whole conversation's send. Re-evaluated whenever a
-    /// pinned page changes (risk subscription) or the set of items changes.</summary>
+    /// (e.g. SystemInfo's background scan) holds the whole conversation's send — and this session's older
+    /// messages are not being condensed (<see cref="CondenseIfOutgrownAsync"/>). Re-evaluated whenever a
+    /// pinned page changes (risk subscription), the set of items changes, or condensing starts or ends.</summary>
     public bool IsContextReady =>
-        ContextItems.All(c => (c.Page.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
+        !_condensing && ContextItems.All(c => (c.Page.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
 
     /// <summary>
     /// Combined context handed to the AI on every call: pinned context items, attachments, then
-    /// conversation history. History is budgeted to 75% of the model's context window (older
-    /// messages dropped once that's exceeded). When the conversation was resumed with a prior
-    /// analysis, that analysis is included in place of the messages it already covers, and only
-    /// later messages are replayed. With an unknown context window, the last
+    /// conversation history. When the conversation was resumed with a prior analysis, that analysis
+    /// is included in place of the messages it already covers; this session's older messages, once
+    /// condensed (<see cref="CondenseIfOutgrownAsync"/>), are included as their notes; and only later
+    /// messages are replayed, budgeted to 75% of the model's context window as a last bound. With an unknown context window, the last
     /// <see cref="FallbackHistoryMessages"/> messages are used.
     /// </summary>
     public string GetContext()
@@ -1076,13 +1146,22 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             startIndex = Math.Min(_analyzedMessageCount, messages.Count);
         }
 
+        if (_sessionNotes is not null)
+        {
+            sb.AppendLine("---");
+            sb.AppendLine("[Earlier in this session, condensed]");
+            sb.AppendLine(_sessionNotes);
+            remaining -= EstTokens(_sessionNotes);
+            startIndex = Math.Max(startIndex, Math.Min(_condensedThrough, messages.Count));
+        }
+
         sb.AppendLine("---");
         sb.AppendLine("[Conversation]");
 
         var pool = messages.Skip(startIndex).ToList();
         if (pool.Count == 0)
         {
-            sb.AppendLine(_resumeAnalysis is not null ? "(no messages since analysis)" : "(empty)");
+            sb.AppendLine(_resumeAnalysis is not null || _sessionNotes is not null ? "(no messages since)" : "(empty)");
             return sb.ToString();
         }
 

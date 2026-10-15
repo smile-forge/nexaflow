@@ -64,6 +64,10 @@ public interface IAIResponseHandler
     /// <summary>Renders the model's final answer (and, for a conversation, persists the exchange).</summary>
     void ShowFinal(string finalMarkdown);
 
+    /// <summary>How much of the model's context the conversation fills after a step: <paramref name="tokens"/> of its
+    /// <paramref name="window"/>. Told after each step whose model says; a handler that does not show it ignores it.</summary>
+    void ReportContextUse(int tokens, int window) { }
+
     /// <summary>Aborts the in-flight response UI (cancel / error / prefill): clears the placeholder.</summary>
     void Abort();
 

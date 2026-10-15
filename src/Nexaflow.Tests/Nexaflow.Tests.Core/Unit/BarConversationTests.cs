@@ -71,4 +71,19 @@ public class BarConversationTests
         CollectionAssert.AreEqual(new[] { ("One.", "1."), ("Two.", "2.") }, bar.Exchanges.ToArray());
         Assert.AreEqual(2, bar.Paths.Count);
     }
+
+    [TestMethod]
+    public void AConversationCondensedForARun_IsKeptCondensed_WithWhatTheRunAddedAfterIt()
+    {
+        var bar = new BarConversation();
+        bar.Run(Style, Now).Ran!([User("one"), Assistant("first")]);
+        bar.Run(Style, Now).Ran!([User("two"), Assistant("second")]);
+
+        var run = bar.Run(Style, Now);
+        run.HistoryCondensed!([User("Notes: one and two.\n\ntwo"), Assistant("second")]);
+        run.Ran!([User("three"), Assistant("third")]);
+
+        CollectionAssert.AreEqual(new[] { "Notes: one and two.\n\ntwo", "second", "three", "third" },
+                                  bar.Run(Style, Now).History.Select(m => m.Text).ToArray());
+    }
 }

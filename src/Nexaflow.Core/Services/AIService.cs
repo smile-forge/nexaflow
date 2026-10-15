@@ -133,6 +133,10 @@ public sealed class AIService : IAIService
         return (suits ?? ReferenceEquals(models[0], local)) ? new(local, HandOverTo: larger) : new(larger, Reader: local);
     }
 
+    /// <summary>Whether a spoken request needs thought before its answer, as the Disambiguation model judges it.</summary>
+    public Task<bool> NeedsThoughtAsync(string request, IReadOnlyList<LlmMessage> history, CancellationToken ct)
+        => RequestTriage.NeedsThoughtAsync(GetProvider(AiAbility.Disambiguation), request, history, ct);
+
     /// <summary>
     /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
     /// app ships) and the page's own, when <paramref name="includeContext"/>; nothing when not.
@@ -437,6 +441,120 @@ public sealed class AIService : IAIService
         return response?.RawText;
     }
 
+    /// <summary>When the conversation a run continues has grown past this share of the model's context, its older part is
+    /// condensed before the run: the page, the tools and the reply need the rest.</summary>
+    internal const double CondenseAt = 0.5;
+
+    /// <summary>How much of the model's context the newest of the conversation, kept word for word, may fill once the rest is
+    /// condensed.</summary>
+    internal const double KeptWhole = 0.25;
+
+    /// <summary>The most of one message condensing reads: enough to know what it held — a long tool result is mostly detail.</summary>
+    private const int CondensedMessageChars = 4000;
+
+    /// <summary>Where condensed notes stand in the conversation, before the request they precede.</summary>
+    internal const string CondensedLead = "Notes on our conversation before this, condensed to make room:";
+
+    private const string Condensing =
+        "You condense a conversation between a user and an assistant into notes the assistant carries on from, in place of the " +
+        "conversation itself. Keep what the user asked for and decided, the facts, names and numbers that came up, what was " +
+        "acted on — files, pages, settings — and what was done to it, and anything left open or promised. Leave out pleasantries " +
+        "and anything later superseded. Write plain notes, as short as they can be without losing any of that.";
+
+    public async Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default)
+    {
+        if (messages.Count == 0) return earlier;
+        if ((GetProvider(AiAbility.Analysis) ?? GetProvider(AiAbility.Conversation)) is not { } model) return null;
+
+        // A part at a time, each half of what the model reads, the notes so far carried into the next.
+        int window = await ContextOfAsync(model, ct) ?? OwnedFallbackContext;
+        int partChars = Math.Max(CondensedMessageChars * 2, window / 2 * RequestTriage.CharsPerToken);
+        var notes = earlier;
+        var part = new StringBuilder();
+        foreach (var (speaker, text) in messages)
+        {
+            var said = text.Length <= CondensedMessageChars ? text : text[..CondensedMessageChars] + " …";
+            var line = $"{speaker}: {said}\n\n";
+            if (part.Length > 0 && part.Length + line.Length > partChars)
+            {
+                if ((notes = await FoldAsync(notes, part.ToString())) is null) return null;
+                part.Clear();
+            }
+            part.Append(line);
+        }
+        return part.Length > 0 ? await FoldAsync(notes, part.ToString()) : notes;
+
+        async Task<string?> FoldAsync(string? sofar, string stretch)
+        {
+            var asked = sofar is null
+                ? $"The conversation:\n\n{stretch}Write the notes."
+                : $"Notes on the conversation so far:\n{sofar}\n\nIt continues:\n\n{stretch}Write the notes again, covering all of it.";
+            try
+            {
+                var response = await model.CompleteAsync([new(LlmRole.System, Condensing), new(LlmRole.User, asked)],
+                                                         LlmUrgency.Interactive, LlmThinking.Off, ct);
+                return response?.RawText.Trim() is { Length: > 0 } written ? written : null;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (LlmProviderException) { return null; }
+        }
+    }
+
+    /// <summary>What a model reads, in tokens, as it says; null when it does not.</summary>
+    private static async Task<int?> ContextOfAsync(ILlmProvider model, CancellationToken ct)
+    {
+        try { return (await model.GetModelInfoAsync(ct))?.ContextWindowTokens is > 0 and var tokens ? tokens : null; }
+        catch (OperationCanceledException) { throw; }
+        catch { return null; }
+    }
+
+    /// <summary>What a model that does not say how much it reads is taken to read, when condensing for it.</summary>
+    private const int OwnedFallbackContext = 8192;
+
+    /// <summary>
+    /// The run's conversation, its older part condensed into notes when it has grown past <see cref="CondenseAt"/> of what
+    /// <paramref name="model"/> reads: the newest of it is kept word for word, from a request on — a call never parted from
+    /// what came of it — and the notes stand before that request. The caller is told the conversation as condensed, to keep
+    /// in place of its own. One that fits, or a model that does not say what it reads, is left as it is.
+    /// </summary>
+    private async Task<AgentRunOptions> CondensedAsync(ILlmProvider model, AgentRunOptions options, string input, CancellationToken ct)
+    {
+        var history = options.History;
+        if (history.Count < 2 || await ContextOfAsync(model, ct) is not { } window) return options;
+        if (TokensOf(history) + input.Length / RequestTriage.CharsPerToken <= window * CondenseAt) return options;
+
+        int keep = history.Count;
+        long kept = 0;
+        for (int i = history.Count - 1; i > 0; i--)
+        {
+            kept += TokensOf([history[i]]);
+            if (kept > window * KeptWhole && keep < history.Count) break;
+            if (history[i].Role == LlmRole.User) keep = i;
+        }
+        if (keep >= history.Count) return options;   // no request after the first to keep from: nothing older to condense
+
+        var older = history.Take(keep).Select(m => (Speaker(m), Said(m))).ToList();
+        if (await CondenseConversationAsync(older, null, ct) is not { } notes) return options;
+
+        IReadOnlyList<LlmMessage> condensed = [history[keep] with { Text = $"{CondensedLead}\n{notes}\n\n{history[keep].Text}" }, .. history.Skip(keep + 1)];
+        options.HistoryCondensed?.Invoke(condensed);
+        return options with { History = condensed };
+
+        static long TokensOf(IEnumerable<LlmMessage> messages) => messages.Sum(m => (long)Said(m).Length) / RequestTriage.CharsPerToken;
+
+        static string Speaker(LlmMessage m) => m.Role switch
+        {
+            LlmRole.User      => "User",
+            LlmRole.Assistant => "Assistant",
+            LlmRole.Tool      => "What came of the call",
+            _                 => "Note",
+        };
+
+        static string Said(LlmMessage m) => m.ToolCalls is { Count: > 0 } calls
+            ? $"{m.Text} [called {string.Join(", ", calls.Select(c => $"{c.Name} {c.Arguments.ToJsonString()}"))}]".Trim()
+            : m.Text;
+    }
+
     public async Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
         // Falling back to Analysis rather than returning null keeps the Solver working out of the
@@ -480,6 +598,8 @@ public sealed class AIService : IAIService
         try { route = await RouteAsync(AiAbility.Conversation, input, options.History, ct); }
         catch (OperationCanceledException) { return null; }
         if (route is null) return null;
+        try { options = await CondensedAsync(route.Model, options, input, ct); }
+        catch (OperationCanceledException) { return null; }
         var ran = new List<LlmMessage>();
         try
         {
@@ -522,6 +642,20 @@ public sealed class AIService : IAIService
     /// <summary>A run that stopped short of an answer: <paramref name="Message"/> for the user, <paramref name="Why"/> for a model
     /// that takes it over.</summary>
     private sealed record StepsStuck(string Message, string Why);
+
+    /// <summary>Why a step that ended with nothing to say did not answer, as the user and a model taking over are told.</summary>
+    private static StepsStuck Unanswered(LlmReplyEnd? reason) => reason switch
+    {
+        LlmReplyEnd.ContextFull => new("This conversation has filled the model's memory before I could answer. Start a new one, or " +
+                                       "ask again more briefly. _(stopped: context full)_",
+                                       "the conversation filled its context before it answered"),
+        LlmReplyEnd.LengthLimit => new("I ran out of room to answer that before I finished thinking it through. _(stopped: reply too long)_",
+                                       "its reply reached the most it may be before it answered"),
+        LlmReplyEnd.Circling    => new("I went round in circles on that and stopped myself. Could you ask it another way? _(stopped: going in circles)_",
+                                       "it went round in circles, thinking the same thing over and over, before it answered"),
+        _                       => new("I didn't come up with an answer to that. Could you ask it another way? _(stopped: no answer)_",
+                                       "it ended its reply without answering"),
+    };
 
     /// <summary>
     /// The loop on one model: its steps until it answers, is stopped, or gets stuck. <paramref name="handOver"/> is what the
@@ -568,6 +702,7 @@ public sealed class AIService : IAIService
         messages.Add(new(LlmRole.User, handOver ?? input));
 
         var transcript = RunTranscript.Begin(input);   // off unless NEXAFLOW_AI_TRANSCRIPTS names a folder
+        var window     = await ContextOfAsync(provider, ct);   // what the model reads, for how full each step leaves it
         var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)
         AgentStep? awaiting = null;   // a step said whose calls are not yet answered
 
@@ -581,8 +716,9 @@ public sealed class AIService : IAIService
                 var exposed = await chooser.ChooseAsync(ct);
                 messages[0] = new(LlmRole.System, BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle));
 
-                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, ct);
+                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, options.Thinking, ct);
                 transcript?.Step(messages, exposed, taken.Written);
+                if (taken.Ended?.ContextTokens is { } used && window is { } read) approval.ReportContextUse(used, read);
 
                 // A call the model meant but wrote so it cannot run is written again in a context of its own, and takes the
                 // attempt's place: the conversation goes on as if it had been written so, rather than holding the attempt and its
@@ -640,6 +776,14 @@ public sealed class AIService : IAIService
                     }
 
                     var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : taken.Written;
+
+                    // A reply with nothing in it has not answered — it ran out of room, its length gone on reasoning, or the
+                    // model gave up — and is never shown as an answer: the run is stuck, and is handed over or says why.
+                    if (string.IsNullOrWhiteSpace(final))
+                    {
+                        approval.EndReplyDraft(keep: false);
+                        return new(null, artifacts, Unanswered(taken.Ended?.Reason));
+                    }
                     messages.Add(new(LlmRole.Assistant, final));
                     approval.ShowFinal(final);
                     return new(AiResponse.AsMessage(final, artifacts), artifacts);

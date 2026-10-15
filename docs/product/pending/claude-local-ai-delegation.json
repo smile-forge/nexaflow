@@ -28,6 +28,18 @@
             "status": "done",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/RequestRoutingTests.cs",
             "class": "RequestRoutingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/RequestRoutingTests.cs",
+            "class": "RequestRoutingTests",
+            "method": "AConversationOutgrowingTheModel_HasItsOlderPartCondensedBeforeTheRun_AndTheCallerKeepsItSo"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/RequestRoutingTests.cs",
+            "class": "RequestRoutingTests",
+            "method": "AReplyThatRanOutOfRoomBeforeAnswering_IsHandedToTheLargerModel"
           }
         ]
       }
@@ -476,11 +488,36 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Voice/VoiceSessionTests.cs",
             "class": "VoiceSessionTests",
             "method": "WhileTheModelThatAnswersMakesWayForAPicture_ListeningIsPaused_AndTakenUpAgainWhenItIsBack"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Voice/VoiceSessionTests.cs",
+            "class": "VoiceSessionTests",
+            "method": "ATurnThatNeedsThought_IsToldSoAtOnce_AndReasonedOver"
           }
         ]
       }
     },
     "ai-host": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/CircleWatch.cs",
+          "class": "CircleWatch"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -493,13 +530,34 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/GpuSchedulerTests.cs",
             "class": "GpuSchedulerTests",
             "method": "AJobPastItsFirstMoments_RunsAlongside_TakingNoTurn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/CircleWatchTests.cs",
+            "class": "CircleWatchTests"
+          }
+        ]
+      }
+    },
+    "aichat": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/AIChat/ConversationViewJourneyTests.cs",
+            "class": "ConversationViewJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationCondensingTests.cs",
+            "class": "ConversationCondensingTests"
           }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 23,
+  "changed_sets": 25,
   "touched_nodes": [
     "agent-reading-delegate",
     "agent-routing",
@@ -512,6 +570,7 @@
     "aibar-response-overlay",
     "aibar-tool-approval",
     "aibar-voice-config",
+    "aichat",
     "owned-images",
     "owned-speech",
     "voice-input",

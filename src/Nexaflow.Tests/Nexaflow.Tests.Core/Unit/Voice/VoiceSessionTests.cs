@@ -651,4 +651,31 @@ public class VoiceSessionTests
             return rig.Session.State == VoiceState.Paused;
         }, "the conversation to pause once the reply is heard");
     }
+
+    [TestMethod]
+    public async Task AQuickTurn_IsAnsweredStraightAway_WithoutReasoning()
+    {
+        await using var rig = await new Rig(Answer("Hello there.")).StartAsync();
+
+        rig.Ears.Hear(new TranscriptFinal("Hello."));
+    await Until(() => rig.Agent.Count == 1, "the turn to be taken");
+        await rig.PlayOutAsync();
+
+        CollectionAssert.AreEqual(new[] { LlmThinking.Off }, rig.Agent.Thinking);
+        CollectionAssert.DoesNotContain(rig.Voice.Texts, Str.Get("Shell.Voice.LetMeThink"));
+    }
+
+    [TestMethod]
+    public async Task ATurnThatNeedsThought_IsToldSoAtOnce_AndReasonedOver()
+    {
+        await using var rig = await new Rig(Answer("It tracks a lot, and the tests are thin.")).StartAsync();
+        rig.Agent.NeedsThought = _ => true;
+
+        rig.Ears.Hear(new TranscriptFinal("What do you think of this product?"));
+    await Until(() => rig.Agent.Count == 1, "the turn to be taken");
+        await rig.PlayOutAsync();
+
+        CollectionAssert.AreEqual(new[] { LlmThinking.Allowed }, rig.Agent.Thinking);
+        Assert.AreEqual(Str.Get("Shell.Voice.LetMeThink"), rig.Voice.Texts[0], "something is said at once, while it thinks");
+    }
 }

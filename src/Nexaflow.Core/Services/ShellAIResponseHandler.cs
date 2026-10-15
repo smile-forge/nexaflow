@@ -92,6 +92,7 @@ public partial class ShellAIResponseHandler : AiResponseHandlerBase
         Card.Close();
         Card.HasContent = false;
     Conversation.End();
+    ContextUse = null;   // the next request starts a conversation of its own
     }
 
     private static string Line(string markdown) => MarkdownClipboard.ToPlainText(markdown).ReplaceLineEndings(" ").Trim();

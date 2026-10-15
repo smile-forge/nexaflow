@@ -144,8 +144,8 @@ public class OwnedLlmProviderTests
         Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
         Assert.IsNotNull(host.Environment.RuntimePack, "the host runs from the pack");
         var load = (LoadModel)host.Requests.Single();
-        Assert.AreEqual((0, 32768), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with the context the catalog gives it where there is room");
-        Assert.AreEqual(5905580032L + 17920L * 32768, load.Model.MemoryBytes, "what it holds there, context and all");
+        Assert.AreEqual((0, 131072), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
+        Assert.AreEqual(5905580032L + 17920L * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
     }
 
     [TestMethod]

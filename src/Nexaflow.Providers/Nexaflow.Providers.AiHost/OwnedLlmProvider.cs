@@ -17,9 +17,6 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 {
     public const string ProviderName = "Nexaflow";
 
-    /// <summary>The longest a reply may run before it is cut off.</summary>
-    internal const int MaxReplyTokens = 4096;
-
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
 
@@ -88,6 +85,12 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// template, and its calls come back as it makes them.</summary>
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
                                                         CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, LlmThinking.Allowed, ct);
+
+    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says. A reply may be as long as
+    /// the model's context leaves room for; it ends with why it ended, and how full the context now is.</summary>
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        LlmThinking thinking, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{ProviderName} has no model to answer with.");
         var request = Turns(messages, _model);
@@ -96,13 +99,13 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             : null;
         var priority = urgency == LlmUrgency.Background ? RequestPriority.Background : RequestPriority.Interactive;
         return LlmStreamRunner.RunAsync(_runtime.Activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
-            token => Events(_model, request, offered, priority, token), ct);
+            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, token), ct);
     }
 
     /// <summary>The reply as the host writes it. A host lost before a word of it — it crashed, and the next request
     /// starts another — is asked once more; after a word, the reader has seen part of a reply and it is not.</summary>
     private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
-                                                          RequestPriority priority, [EnumeratorCancellation] CancellationToken ct)
+                                                          RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
     {
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
@@ -110,7 +113,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxReplyTokens, priority, tools), OwnedModelRuntime.StallLimit, ct)
+            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {
@@ -131,6 +134,16 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
                 {
                     written = true;
                     yield return new LlmToolCallRequested(LlmToolCall.Read(made.Call.Id, made.Call.Name, made.Call.Arguments));
+                }
+                else if (replies.Current is GenerationEnded ended)
+                {
+                    yield return new LlmReplyEnded(ended.Reason switch
+                    {
+                        StopReason.MaxTokens   => LlmReplyEnd.LengthLimit,
+                        StopReason.ContextFull => LlmReplyEnd.ContextFull,
+                        StopReason.Circling    => LlmReplyEnd.Circling,
+                        _                      => LlmReplyEnd.Finished,
+                    }, ended.PromptTokens + ended.GeneratedTokens);
                 }
             }
         }

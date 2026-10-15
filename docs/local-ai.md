@@ -317,8 +317,9 @@ The host owns:
 
 The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
 reports. Language models are placed first, then the rest from the largest down, each on the GPU it fills most nearly —
-so a GPU stays as whole as it can for a picture. A language model gets its catalog's context (32k for most) where there
-is room and a shorter one where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
+so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
+read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
+where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
 its CPU build, and one with no CPU build is left out. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
@@ -416,6 +417,28 @@ to the owned model, which is where API cost actually goes.
 A Conversation, Problem Solving or Analysis row holding both a model on this machine and one elsewhere is not a fallback
 chain: each request goes to the model that suits it (`RequestTriage`). A row of one kind — only models here, or only
 models elsewhere — always uses its first available model.
+
+**How long a reply may be, and how it ends.** A reply has no fixed limit: it may be as long as the model's context leaves
+room for, its reasoning included. What stops one that has stopped going anywhere is the host's `CircleWatch`: the same
+stretch of tokens back to back, round three times and filling 256 tokens, ends the reply as going in circles. Reasoning
+is not shown, so the host reports it every 64 tokens and the app's watchdog hears the reply is alive. Every reply ends
+with why (`LlmReplyEnded`) and how much of the context the conversation now fills. A step with nothing in it is never
+taken for an answer: the run is stuck, handed to the larger model where the row has one, and otherwise says why — it
+went in circles, or filled the context. The AI bar draws how full the context is as a hairline along the foot of its
+line, amber from 80%.
+
+**Thinking, per request.** Reasoning makes a smaller model's answers worth having, and costs time before the first word.
+A voice turn is weighed first by the Disambiguation model, without reasoning of its own (`RequestTriage.NeedsThoughtAsync`):
+a greeting, a plain fact or a short command is answered at once, without reasoning; an opinion, anything over several
+steps, code or maths is told "Let me think about that." straight away and reasoned over. Typed requests always reason.
+Every judgement — routing, weighing, a spoken yes or no — is asked without reasoning.
+
+**Long conversations are condensed, not cut.** When the conversation a run continues outgrows half the model's context,
+its older part is condensed by the Analysis model into notes (`IAIService.CondenseConversationAsync`, a part at a time
+where it is longer than the model reads at once); the newest quarter is kept word for word, the notes before it, and the
+AI bar's and the voice conversation's history keep the condensed form. The Conversation page keeps two histories apart:
+earlier sessions are the analysis made when they closed, and this session's older messages, once they outgrow half the
+context, become notes of their own — the next request waiting for them.
 
 - **The Disambiguation model judges**, in one word, from the request and the reply it follows — never the page's
   contents. Everyday work (a short answer; a few steps with files, folders, pages and apps; short writing; summarising

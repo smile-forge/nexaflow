@@ -49,6 +49,8 @@
   "Shell.Voice.Done": "C'est fait.",
   "Shell.Voice.NothingChanged": "Rien n'a été modifié.",
   "Shell.Voice.CarriesOn": "C'est lancé. Ça continue en arrière-plan.",
+  "Shell.Voice.LetMeThink": "Laissez-moi réfléchir.",
+  "Shell.AiBar.ContextFormat": "{0} jetons sur les {1} du contexte du modèle ({2} %)",
   "Shell.Voice.AbortStoppedFormat": "J'annule : {0}. {1}",
   "Shell.Voice.AbortUnclearFormat": "J'annule : {0}. Désolé, je n'ai pas bien compris.",
   "Shell.Voice.Abort": "Abandonner",

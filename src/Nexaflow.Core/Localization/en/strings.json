@@ -56,6 +56,8 @@
   "Shell.Voice.Done": "Done.",
   "Shell.Voice.NothingChanged": "Nothing was changed.",
   "Shell.Voice.CarriesOn": "Started. It carries on in the background.",
+  "Shell.Voice.LetMeThink": "Let me think about that.",
+  "Shell.AiBar.ContextFormat": "{0} of {1} tokens of the model's context ({2}%)",
   "Shell.Voice.AbortStoppedFormat": "Aborting {0}. {1}",
   "Shell.Voice.AbortUnclearFormat": "Aborting {0}. Sorry, I didn't quite catch that.",
   "Shell.Voice.Abort": "Abort",

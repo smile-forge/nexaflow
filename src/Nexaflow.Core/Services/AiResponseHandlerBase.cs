@@ -37,6 +37,11 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     [ObservableProperty] private string _aiToolApprovalSummary = string.Empty;
     [ObservableProperty] private string _aiProgressText        = string.Empty;
 
+    /// <summary>How much of the model's context this handler's conversation fills, as its last step said; null until one has.</summary>
+    [ObservableProperty] private ContextUse? _contextUse;
+
+    public virtual void ReportContextUse(int tokens, int window) => ContextUse = new(tokens, window);
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsMessage))]
     [NotifyPropertyChangedFor(nameof(AiOverlayIsApproval))]

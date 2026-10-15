@@ -44,10 +44,17 @@ public enum AnswerIntent
 /// the reply is written to.</summary>
 public interface IVoiceAgent
 {
-    /// <summary>Runs one turn. <paramref name="ran"/> is told, once the run ends however it ends, the messages it added
-    /// to the conversation — what the conversation remembers of the turn.</summary>
+    /// <summary>Runs one turn, the model reasoning first or not as <paramref name="thinking"/> says. <paramref name="ran"/>
+    /// is told, once the run ends however it ends, the messages it added to the conversation — what the conversation
+    /// remembers of the turn.</summary>
+    /// <param name="condensed">Told, before the run, the conversation with its older part condensed to make room — to
+    /// keep in place of <paramref name="history"/>.</param>
     Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                  IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct);
+                  IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, Action<IReadOnlyList<LlmMessage>> condensed,
+                  LlmThinking thinking, CancellationToken ct);
+
+    /// <summary>Whether what the user said needs thought before it is answered, or is answered at once.</summary>
+    Task<bool> NeedsThoughtAsync(string userText, IReadOnlyList<LlmMessage> history, CancellationToken ct);
 
     /// <summary>What words said over an announced action mean for it, when they are not a plain yes or no.</summary>
     Task<AnswerIntent> JudgeAnswerAsync(string announcement, string said, CancellationToken ct);
@@ -444,6 +451,12 @@ public sealed class VoiceSession : IAsyncDisposable
     /// </summary>
     private void Remember(VoiceReply reply, string? heard = null)
     {
+        // A conversation condensed for the run is the one the run continued: what it added follows it.
+        if (reply.Condensed is { } condensed)
+        {
+            _history.Clear();
+            _history.AddRange(condensed);
+        }
         var said = heard is null ? reply.Written : heard + " —";
         if (reply.Ran is not { Count: > 0 } ran)
         {

@@ -14,6 +14,12 @@ namespace Nexaflow.AiHost.Generation;
 /// </summary>
 internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Generate>
 {
+    /// <summary>The progress stage a reply in its reasoning reports, with how many tokens it has thought so far.</summary>
+    public const string Thinking = "thinking";
+
+    /// <summary>Reasoning reports itself every this many tokens — a few times a second.</summary>
+    private const int ThinkingReport = 64;
+
     protected override async Task HandleAsync(Generate request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         using var lease = await models.AcquireAsync(request.Model, resident: false,
@@ -25,9 +31,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         bool kept = false;
         try
         {
-            string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools);
+            string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
             int read;
-            if (conversation is not null && Delta(model, conversation, request.Turns, request.Tools) is { } delta)
+            if (conversation is not null && Delta(model, conversation, request.Turns, request.Tools, request.Thinks) is { } delta)
             {
                 read = await ReadAsync(model, conversation, delta, ChatPrompt.Media(model, request.Turns.Skip(conversation.Read.Count)),
                                        request.Priority, ct);
@@ -57,9 +63,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <summary>What extends the conversation's context to <paramref name="turns"/> — see <see cref="ConversationMatch.Delta"/>.</summary>
-    private static string? Delta(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools)
+    private static string? Delta(ChatModel model, LiveConversation conversation, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools, bool thinks)
         => ConversationMatch.Delta(conversation.Read, conversation.Prompt, conversation.StoppedAt, turns,
-                                   (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, tools));
+                                   (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, tools, thinks));
 
     /// <summary>Reads <paramref name="text"/> into the conversation — its text in slices, each medium whole, a step
     /// each — and chooses the first token of the reply with the last. Returns the tokens read.</summary>
@@ -127,7 +133,8 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
         var calls = new List<ChatToolCall>();
         var written = new StringBuilder();
-        int prompt = conversation.Tokens, generated = 0;
+        int prompt = conversation.Tokens, generated = 0, thought = 0;
+        var circles = new CircleWatch();
 
         Outcome Stop(StopReason reason, bool continuable, int token)
             => new(reason, written.ToString(), calls, generated, prompt, continuable, model.Model.TokenText(token));
@@ -138,10 +145,13 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             generated++;
             if (model.Model.EndsTurn(token))
                 return Stop(calls.Count > 0 ? StopReason.ToolCalls : StopReason.EndOfTurn, continuable: true, token);
+            if (circles.Take(token)) return Stop(StopReason.Circling, continuable: false, token);
 
             if (model.Thinking is { } span && (reasoning || token == span.Open))
             {
                 reasoning = token != span.Close;
+                // Reasoning is not shown, so it is told as it goes: the app hears the reply is alive, however long it thinks.
+                if (++thought % ThinkingReport == 0) await reply(new Progress(request.RequestId, Thinking, thought, 0));
             }
             else
             {
@@ -163,7 +173,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                 }
             }
 
-            if (generated >= request.MaxNewTokens) return Stop(StopReason.MaxTokens, continuable: false, token);
+            if (request.MaxNewTokens is { } most && generated >= most) return Stop(StopReason.MaxTokens, continuable: false, token);
             if (conversation.Tokens + 1 >= model.Context.Tokens) return Stop(StopReason.ContextFull, continuable: false, token);
             using (await gpu.NextAsync(request.Priority, model.Spec.Device, ct))
             {

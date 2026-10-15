@@ -16,7 +16,7 @@
               "projector": "gemma-4-E4B-it-mmproj.gguf",
               "memoryBytes": 5905580032,
               "bytesPerToken": 17920,
-              "contextTokens": 32768
+              "contextTokens": 131072
             }
           ],
           "files": [
@@ -50,7 +50,7 @@
           "projector": "mmproj-F16.gguf",
           "memoryBytes": 8321499136,
           "bytesPerToken": 30720,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -84,7 +84,7 @@
           "projector": "mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
           "memoryBytes": 8589934592,
           "bytesPerToken": 34816,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -145,7 +145,7 @@
           "projector": "gemma-4-26B-it-mmproj.gguf",
           "memoryBytes": 18790481920,
           "bytesPerToken": 25600,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -179,7 +179,7 @@
           "projector": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
           "memoryBytes": 23085449216,
           "bytesPerToken": 22528,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -213,7 +213,7 @@
           "projector": "mmproj-Qwen3.8-27B-Q8_0.gguf",
           "memoryBytes": 22011707392,
           "bytesPerToken": 63488,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [
@@ -247,7 +247,7 @@
           "projector": "gemma-4-31B-it-mmproj.gguf",
           "memoryBytes": 27111981056,
           "bytesPerToken": 96768,
-          "contextTokens": 32768
+          "contextTokens": 262144
         }
       ],
       "files": [

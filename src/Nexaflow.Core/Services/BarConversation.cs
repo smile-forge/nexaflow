@@ -6,7 +6,7 @@ namespace Nexaflow.Core.Services;
 /// The conversation held in the AI bar: each request typed into it continues the last, the model given everything the
 /// earlier runs added — what was said, what was called and what came of it — until the reply is dismissed or continued as a
 /// conversation, which ends it. A run that ended without a reply adds nothing, and nor does one still running when its
-/// conversation ended.
+/// conversation ended. A conversation grown too long for the model has its older part condensed, and keeps it so.
 /// </summary>
 public sealed class BarConversation
 {
@@ -32,6 +32,7 @@ public sealed class BarConversation
             History    = [.. _thread],
             ReplyStyle = replyStyle,
             Ran        = ran => keep(() => Keep(generation, ran)),
+            HistoryCondensed = condensed => keep(() => Condensed(generation, condensed)),
         };
     }
 
@@ -55,5 +56,13 @@ public sealed class BarConversation
         if (generation != _generation) return;
         if (ran is [.., { Role: LlmRole.Assistant, ToolCalls: null or [] } last] && last.Text.Trim().Length > 0)
             _thread.AddRange(ran);
+    }
+
+    /// <summary>The conversation, its older part condensed to make room: it takes the place of the thread.</summary>
+    private void Condensed(int generation, IReadOnlyList<LlmMessage> condensed)
+    {
+        if (generation != _generation) return;
+        _thread.Clear();
+        _thread.AddRange(condensed);
     }
 }

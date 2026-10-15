@@ -553,6 +553,28 @@
                         </Style>
                     </Border.Style>
                     <DockPanel>
+                        <!-- Along the line's foot: how much of the model's context the conversation fills — a hairline as long as the
+                             share used, amber once the conversation is nearly due to be condensed. -->
+                        <Grid DockPanel.Dock="Bottom" Height="1.5" Margin="6,2,6,0" ToolTip="{Binding AiContextUse.Text}"
+                              Visibility="{Binding AiContextUse, Converter={StaticResource NullToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding AiContextUse.Used}"/>
+                                <ColumnDefinition Width="{Binding AiContextUse.Left}"/>
+                            </Grid.ColumnDefinitions>
+                            <Rectangle Grid.Column="0">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AiContextUse.IsNearlyFull}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource WarningBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <Rectangle Grid.Column="1" Fill="{StaticResource BorderBrush}" Opacity="0.5"/>
+                        </Grid>
                         <ctrl:AiStatusDot DockPanel.Dock="Left"
                                           IsBusy="{Binding AiIsBusy}"
                                           HandlerSymbol="{Binding AiHandlerSymbol}"

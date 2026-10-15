@@ -269,6 +269,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         OnPropertyChanged(nameof(ShowsAiLine));
     }
 
+    /// <summary>How much of the model's context the conversation in the AI bar fills — the voice conversation's while one is
+    /// held, else the typed one's while its reply is in the bar; null when there is none, or no model has said.</summary>
+    public ContextUse? AiContextUse => Voice.IsActive ? Voice.ContextUse : Ai.InBar ? Ai.ContextUse : null;
+
     /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
     [ObservableProperty] private bool    _includeContext = true;
 
@@ -675,10 +679,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         Ai.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellAIResponseHandler.InBar)) RecheckAiLine();
+            if (e.PropertyName is nameof(ShellAIResponseHandler.InBar) or nameof(ShellAIResponseHandler.ContextUse))
+                OnPropertyChanged(nameof(AiContextUse));
         };
         Voice.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) RecheckAiLine();
+            if (e.PropertyName is nameof(VoiceConversationViewModel.IsActive) or nameof(VoiceConversationViewModel.ContextUse))
+                OnPropertyChanged(nameof(AiContextUse));
         };
         Ai.Card.PropertyChanged += (_, e) =>
         {

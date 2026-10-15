@@ -31,13 +31,14 @@ internal sealed class FencedToolProtocol : ToolProtocol
             .ToString();
 
     public override async Task<AgentStep> StepAsync(ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IReadOnlyList<IClientTool> tools,
-                                                    IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, CancellationToken ct)
+                                                    IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, LlmThinking thinking,
+                                                    CancellationToken ct)
     {
-        var (raw, _) = await StreamAsync(provider.StreamAsync(messages, ct), handler);
+        var (raw, _, ended) = await StreamAsync(provider.StreamAsync(messages, [], LlmUrgency.Interactive, thinking, ct), handler);
         var turn = ClientBlockParser.Parse(raw, toolNames);
         var calls = turn.ToolCalls.Select((c, i) => new LlmToolCall($"call-{i}", c.Tool, c.Arguments)).ToList();
         var plan = turn.Plan is null ? null : new LlmToolCall("plan", "client_plan", []);
-        return new AgentStep(raw, turn, calls, plan);
+        return new AgentStep(raw, turn, calls, plan, ended);
     }
 
     public override LlmMessage Said(AgentStep step) => new(LlmRole.Assistant, step.Written);

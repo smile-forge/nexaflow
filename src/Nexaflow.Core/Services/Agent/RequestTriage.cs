@@ -4,10 +4,13 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Core.Services.Agent;
 
 /// <summary>
-/// Where a request goes when its row holds both a model on this machine and one elsewhere: the machine's own takes the
+/// How a request is weighed before it is answered. Where a request goes when its row holds both a model on this machine
+/// and one elsewhere: the machine's own takes the
 /// everyday work it does well, at no cost, and the larger model the rest. A request too long for the machine's model to
 /// read goes to the larger one unasked. The rest are judged by the Disambiguation model from the request alone, and the
-/// reply it follows — never the page's contents, so judging sends nothing anywhere a request would not.
+/// reply it follows — never the page's contents, so judging sends nothing anywhere a request would not. And whether a
+/// spoken request needs thought before its answer (<see cref="NeedsThoughtAsync"/>). Every judgement is asked without the
+/// judge's own reasoning: one word, at once.
 /// </summary>
 internal static class RequestTriage
 {
@@ -32,6 +35,15 @@ internal static class RequestTriage
         "planning, writing or changing code, long or careful writing, analysing long or technical material, maths, and anything " +
         "ambiguous or where a mistake would be costly.\n\n";
 
+    private const string Weighing =
+        "You decide whether what a user says to a voice assistant needs careful thought before it is answered. Reply with one word: quick or think.";
+
+    private const string Answers =
+        "quick: answered at once — a greeting or small talk, a plain fact, a short command (open, find, rename, play), a yes or no, " +
+        "a simple question about what is on screen.\n" +
+        "think: needs reasoning first — an opinion, assessment or recommendation, anything over several steps, comparing or " +
+        "planning, explaining something involved, code, maths, or anything where a careless answer would mislead.\n\n";
+
     /// <summary>
     /// Whether <paramref name="local"/> should take <paramref name="request"/>: it fits, and <paramref name="judge"/> finds
     /// it light work. Without a judge, nothing is decided here and the row's order stands — null. An answer the judge
@@ -49,13 +61,38 @@ internal static class RequestTriage
         asked.Append("The request: \"").Append(Clip(request)).Append("\"\n\nWhich assistant should take it?");
 
         string said;
-        try { said = (await judge.CompleteAsync([new(LlmRole.System, Judging), new(LlmRole.User, asked.ToString())], ct))?.RawText ?? ""; }
+        try { said = (await judge.CompleteAsync([new(LlmRole.System, Judging), new(LlmRole.User, asked.ToString())], LlmUrgency.Interactive, LlmThinking.Off, ct))?.RawText ?? ""; }
         catch (OperationCanceledException) { throw; }
         catch { return false; }   // a judge that cannot answer leaves the request to the larger model
 
         var small = said.IndexOf("small", StringComparison.OrdinalIgnoreCase);
         var large = said.IndexOf("large", StringComparison.OrdinalIgnoreCase);
         return small >= 0 && (large < 0 || small < large);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="request"/> needs thought before it is answered — an opinion, a judgement, anything over
+    /// several steps — or is answered as quickly as it is asked: a greeting, a plain fact, a short command. Judged by
+    /// <paramref name="judge"/> without reasoning of its own; without a judge, or with no clear answer, it is given thought:
+    /// a slower answer costs seconds, a thoughtless one its worth.
+    /// </summary>
+    public static async Task<bool> NeedsThoughtAsync(ILlmProvider? judge, string request, IReadOnlyList<LlmMessage> history, CancellationToken ct)
+    {
+        if (judge is null) return true;
+
+        var asked = new StringBuilder(Answers);
+        if (history.LastOrDefault(m => m.Role == LlmRole.Assistant) is { Text.Length: > 0 } before)
+            asked.Append("The assistant had just said: \"").Append(Clip(before.Text)).Append("\"\n");
+        asked.Append("The user now says: \"").Append(Clip(request)).Append("\"\n\nQuick or think?");
+
+        string said;
+        try { said = (await judge.CompleteAsync([new(LlmRole.System, Weighing), new(LlmRole.User, asked.ToString())], LlmUrgency.Interactive, LlmThinking.Off, ct))?.RawText ?? ""; }
+        catch (OperationCanceledException) { throw; }
+        catch { return true; }
+
+        var quick = said.IndexOf("quick", StringComparison.OrdinalIgnoreCase);
+        var think = said.IndexOf("think", StringComparison.OrdinalIgnoreCase);
+        return !(quick >= 0 && (think < 0 || quick < think));
     }
 
     /// <summary>Whether the request and the conversation before it fit in what <paramref name="local"/> can read, with room

@@ -24,8 +24,13 @@ public class RequestRoutingTests
     {
         private readonly Queue<string> _replies = new(replies);
 
+        public const string OutOfRoom = "(out of room)";
+
         /// <summary>Which model this one, judging, sends a request to.</summary>
         public string Judgement { get; init; } = "large";
+
+        /// <summary>Whether this one, judging, finds a spoken request needs thought: "quick" or "think".</summary>
+        public string Weighing { get; init; } = "think";
 
         /// <summary>How much it reads, in tokens; null when it does not say.</summary>
         public int? Context { get; init; }
@@ -35,6 +40,12 @@ public class RequestRoutingTests
 
         public int Judged { get; private set; }
 
+        /// <summary>Every request to condense a conversation it was given, in order.</summary>
+        public List<string> Condensings { get; } = [];
+
+        /// <summary>How much of its context each reply says the conversation fills; null for a model that does not say.</summary>
+        public int? Fills { get; init; }
+
         public string Name => name;
         public DataResidency Residency => residency;
         public bool IsAvailable => true;
@@ -43,9 +54,11 @@ public class RequestRoutingTests
         {
             var last = messages.Last(m => m.Role == LlmRole.User).Text;
             if (last.Contains("Which assistant should take it?")) { Judged++; return Said(Judgement); }
+            if (last.Contains("Quick or think?")) { Judged++; return Said(Weighing); }
+            if (last.Contains("Write the notes")) { Condensings.Add(last); return Said($"NOTES {Condensings.Count}: the user asked about foxes."); }
             if (last.Contains("Most relevant tool numbers")) return Said("1,2,3,4");
             Asked.Add([.. messages]);
-            return Said(_replies.Count > 0 ? _replies.Dequeue() : "done");
+            return Said(_replies.Count > 0 ? _replies.Dequeue() : "done", Fills);
         }
 
         public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
@@ -54,10 +67,18 @@ public class RequestRoutingTests
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(["m"]);
 
-        private static async IAsyncEnumerable<LlmStreamEvent> Said(string text)
+        /// <summary>The line, said; <see cref="OutOfRoom"/> is a reply whose whole length went on reasoning — nothing written,
+        /// and the reply ended for being too long.</summary>
+        private static async IAsyncEnumerable<LlmStreamEvent> Said(string text, int? fills = null)
         {
             await Task.Yield();
+            if (text == OutOfRoom)
+            {
+                yield return new LlmReplyEnded(LlmReplyEnd.LengthLimit, fills);
+                yield break;
+            }
             yield return new LlmTextDelta(text);
+            yield return new LlmReplyEnded(LlmReplyEnd.Finished, fills);
         }
     }
 
@@ -70,6 +91,8 @@ public class RequestRoutingTests
         public Task<bool> RequestToolBatchApprovalAsync(string explanation, IReadOnlyList<ToolCall> batch, CancellationToken ct) => Task.FromResult(true);
         public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct) => Task.FromResult(true);
         public void ShowFinal(string finalMarkdown) => Final = finalMarkdown;
+        public (int Tokens, int Window)? ContextUse;
+        public void ReportContextUse(int tokens, int window) => ContextUse = (tokens, window);
         public void Abort() { }
     }
 
@@ -216,5 +239,122 @@ public class RequestRoutingTests
 
         StringAssert.Contains(cloud.Asked.Single()[0].Text, "ask_local_model");
         Assert.IsFalse(alone.Asked.Single()[0].Text.Contains("ask_local_model"));
+    }
+
+    [TestMethod]
+    public async Task AReplyThatRanOutOfRoomBeforeAnswering_IsHandedToTheLargerModel()
+    {
+        var cloud = new Model("Claude", DataResidency.LeavesMachine, "from the cloud");
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, Model.OutOfRoom) { Judgement = "small" };
+        var user  = new User();
+
+        var reply = await Service([cloud, local], judge: local).RunAgentAsync(new Page(), "What do you think of this page?", true, user);
+
+        Assert.AreEqual("from the cloud", reply!.Text, "a reply with nothing in it is not an answer");
+        Assert.IsTrue(user.Progress.Any(p => p.Contains("Claude")), "handed over, and the user told");
+        StringAssert.Contains(cloud.Asked.Single().Last().Text, "reached the most it may be", "the larger model is told why");
+    }
+
+    [TestMethod]
+    public async Task AReplyThatRanOutOfRoomBeforeAnswering_WithNoneLargerToHandTo_SaysSo_RatherThanSayingNothing()
+    {
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, Model.OutOfRoom);
+        var user  = new User();
+
+        var reply = await Service([local], judge: null).RunAgentAsync(new Page(), "What do you think of this page?", true, user);
+
+        StringAssert.Contains(reply!.Text, "(stopped: reply too long)");
+        Assert.AreEqual(reply.Text, user.Final, "said to the user, not an empty answer");
+    }
+
+    [TestMethod]
+    [DataRow("quick", false)]
+    [DataRow("think", true)]
+    [DataRow("Quick: it is a greeting", false)]
+    [DataRow("not sure", true)]
+    public async Task WhetherASpokenRequestNeedsThought_IsTheJudgesWord_ThoughtWhenItIsUnclear(string said, bool needs)
+    {
+        var judge = new Model("Nexaflow", DataResidency.StaysOnMachine) { Weighing = said };
+
+        Assert.AreEqual(needs, await Service([judge], judge).NeedsThoughtAsync("What do you think of it?", [], default));
+        Assert.IsTrue(await Service([judge], judge: null).NeedsThoughtAsync("Hello.", [], default), "with no judge, thought");
+    }
+
+    private static List<LlmMessage> Exchanges(int count) =>
+    [
+        .. Enumerable.Range(0, count).SelectMany(i => new LlmMessage[]
+        {
+            new(LlmRole.User, $"question {i} " + new string('q', 300)),
+            new(LlmRole.Assistant, $"answer {i} " + new string('a', 300)),
+        }),
+    ];
+
+    [TestMethod]
+    public async Task AConversationOutgrowingTheModel_HasItsOlderPartCondensedBeforeTheRun_AndTheCallerKeepsItSo()
+    {
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, "the answer") { Context = 600 };
+        IReadOnlyList<LlmMessage>? condensed = null;
+        var options = new AgentRunOptions { History = Exchanges(6), HistoryCondensed = c => condensed = c };
+
+        var reply = await Service([local], judge: null).RunAgentAsync(new Page(), "And now?", true, new User(), options);
+
+        Assert.AreEqual("the answer", reply!.Text);
+        Assert.AreEqual(2, condensed!.Count, "the newest exchange is kept word for word");
+        StringAssert.StartsWith(condensed[0].Text, AIService.CondensedLead, "the notes stand before the request they precede");
+        StringAssert.Contains(condensed[0].Text, "NOTES 1");
+        StringAssert.Contains(condensed[0].Text, "question 5");
+        var read = local.Asked.Single();
+        Assert.IsFalse(read.Any(m => m.Text.Contains("question 0")), "the older part is read as notes, not again whole");
+        StringAssert.Contains(local.Condensings.Single(), "question 0", "the notes are made from it");
+    }
+
+    [TestMethod]
+    public async Task AConversationThatFits_IsLeftAsItIs()
+    {
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, "the answer") { Context = 100_000 };
+        IReadOnlyList<LlmMessage>? condensed = null;
+        var options = new AgentRunOptions { History = Exchanges(6), HistoryCondensed = c => condensed = c };
+
+        await Service([local], judge: null).RunAgentAsync(new Page(), "And now?", true, new User(), options);
+
+        Assert.IsNull(condensed);
+        Assert.AreEqual(0, local.Condensings.Count);
+    }
+
+    [TestMethod]
+    public async Task AStretchLongerThanTheModelReadsAtOnce_IsCondensedAPartAtATime_TheNotesCarriedOn()
+    {
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine) { Context = 200 };
+        var stretch = Enumerable.Range(0, 5).Select(i => ("User", $"part {i} " + new string('x', 3000))).ToList();
+
+        var notes = await Service([local], judge: null).CondenseConversationAsync(stretch, earlier: null);
+
+        Assert.AreEqual(3, local.Condensings.Count, "each part about half of what the model reads");
+        StringAssert.Contains(local.Condensings[1], "NOTES 1", "the notes so far go into the next part's");
+        Assert.AreEqual("NOTES 3: the user asked about foxes.", notes);
+    }
+
+    [TestMethod]
+    public async Task HowFullTheModelsContextIs_IsToldAfterEachStep_WhereTheModelSays()
+    {
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, "the answer") { Context = 262_144, Fills = 34_210 };
+        var user  = new User();
+
+        await Service([local], judge: null).RunAgentAsync(new Page(), "Hello.", true, user);
+
+        Assert.AreEqual((34_210, 262_144), user.ContextUse);
+    }
+
+    [TestMethod]
+    public void TheContextLine_IsAsLongAsTheShareUsed_AndWarnsWhenItIsNearlyFull()
+    {
+        var some = new ContextUse(34_210, 262_144);
+        Assert.AreEqual(0.13, some.Fill, 0.005);
+        Assert.IsFalse(some.IsNearlyFull);
+        Assert.AreEqual(some.Fill, some.Used.Value, 1e-9);
+        Assert.AreEqual(1 - some.Fill, some.Left.Value, 1e-9);
+
+        Assert.IsTrue(new ContextUse(220_000, 262_144).IsNearlyFull, "the conversation will soon be condensed");
+        Assert.AreEqual(1, new ContextUse(300_000, 262_144).Fill, "never past full");
     }
 }

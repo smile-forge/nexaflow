@@ -84,8 +84,8 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// conversation has read, and appends.
 /// </summary>
 /// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
-public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int MaxNewTokens,
-                              RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null) : HostRequest(RequestId);
+public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
+                              RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true) : HostRequest(RequestId);
 
 public sealed record TextDelta(long RequestId, string Text) : HostReply(RequestId);
 
@@ -102,6 +102,8 @@ public enum StopReason
     ContextFull,
     /// <summary>The model called tools, and waits for what came of them.</summary>
     ToolCalls,
+    /// <summary>The model was going in circles — the same stretch of tokens over and over, back to back — and was stopped.</summary>
+    Circling,
 }
 
 /// <param name="PromptTokens">The whole conversation, as the model has now read it.</param>

@@ -76,6 +76,11 @@ internal sealed class VoiceReply : IAIResponseHandler
     /// before then, or for a run that kept nothing.</summary>
     public IReadOnlyList<LlmMessage>? Ran => Volatile.Read(ref _ran);
 
+    private IReadOnlyList<LlmMessage>? _condensed;
+
+    /// <summary>The conversation this reply continued, its older part condensed to make room; null when it fitted as it was.</summary>
+    public IReadOnlyList<LlmMessage>? Condensed => Volatile.Read(ref _condensed);
+
     /// <summary>Written, and every word of it synthesised and queued.</summary>
     public bool Complete => _written && _synthesised;
 
@@ -90,7 +95,17 @@ internal sealed class VoiceReply : IAIResponseHandler
         var history = _session.History.ToList();
         _writing  = Task.Run(async () =>
         {
-            try { await _session.Parts.Agent.RunAsync(UserText, history, _session.SessionTools, this, ran => Volatile.Write(ref _ran, ran), _writingStop.Token); }
+            try
+            {
+                // What needs thought is said to at once — "Let me think about that." — and the model reasons before it
+                // answers; anything else is answered straight away, without reasoning, as quickly as it was asked.
+                var agent = _session.Parts.Agent;
+                bool think = await agent.NeedsThoughtAsync(UserText, history, _writingStop.Token);
+                if (think) _session.PostFromReply(async () => await SayAsync(Str.Get("Shell.Voice.LetMeThink")));
+                await agent.RunAsync(UserText, history, _session.SessionTools, this, ran => Volatile.Write(ref _ran, ran),
+                                     condensed => Volatile.Write(ref _condensed, condensed),
+                                     think ? LlmThinking.Allowed : LlmThinking.Off, _writingStop.Token);
+            }
             catch (OperationCanceledException) when (_writingStop.IsCancellationRequested) { }
             finally { _session.PostFromReply(OnWrittenAsync); }
         });
@@ -294,6 +309,8 @@ internal sealed class VoiceReply : IAIResponseHandler
     public void BeginResponse(string userText) { }
 
     public void ReportProgress(string message) => _shown.ReportProgress(message);
+
+    public void ReportContextUse(int tokens, int window) => _shown.ReportContextUse(tokens, window);
 
     public void ShowReplyDraft(string draftMarkdown)
     {

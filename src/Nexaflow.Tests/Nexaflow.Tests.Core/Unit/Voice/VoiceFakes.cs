@@ -214,9 +214,11 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
     public readonly List<(string Text, IReadOnlyList<LlmMessage> History)> Turns = [];
 
     public async Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-                               IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, CancellationToken ct)
+                               IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, Action<IReadOnlyList<LlmMessage>> condensed,
+                                                          LlmThinking thinking, CancellationToken ct)
     {
         lock (Turns) Turns.Add((userText, history));
+        lock (Thinking) Thinking.Add(thinking);
         try { await script(userText, sessionTools, handler, ct); }
         finally { if (Runs?.Invoke(userText) is { } run) ran(run); }
     }
@@ -235,6 +237,15 @@ internal sealed class FakeAgent(Func<string, IReadOnlyList<IClientTool>, IAIResp
         lock (Judged) Judged.Add(said);
         return Task.FromResult(Judge(said));
     }
+
+    /// <summary>Whether each turn needs thought, as the judge would say; quick unless set.</summary>
+    public Func<string, bool> NeedsThought { get; set; } = _ => false;
+
+    /// <summary>How each turn was run: reasoning first, or not.</summary>
+    public readonly List<LlmThinking> Thinking = [];
+
+    public Task<bool> NeedsThoughtAsync(string userText, IReadOnlyList<LlmMessage> history, CancellationToken ct)
+        => Task.FromResult(NeedsThought(userText));
 
     public bool IsAway { get; private set; }
 
