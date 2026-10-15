@@ -3,7 +3,9 @@ What a port of SAM 3.1's still-picture paths is held to: the makers' own paths, 
 
   reference.json   for each picture, each click case's points, labels, IoUs and object score, and each phrase's
                    scores and boxes (x0 y0 x1 y1, picture pixels); the tokens of each of PHRASES
-  <picture>-click-<case>.png, <picture>-find-<case>-<n>.png   each mask at the picture's size, 1-bit
+  <picture>.rgba   each picture as a port is handed it: interleaved 8-bit RGBA
+  <picture>-click-<case>.mask, <picture>-find-<case>-<n>.mask   each mask at the picture's size, a byte a pixel: 255 in,
+                   0 out
 
 usage: sam_reference.py <checkpoint> <pictures folder> <reference folder>
 """
@@ -17,7 +19,7 @@ from sam_graphs import CASES, PHRASES, Sam
 
 
 def save_mask(mask, path: Path):
-    Image.fromarray(np.asarray(mask, bool)).convert("1").save(path, optimize=True)
+    path.write_bytes((np.asarray(mask, bool).astype(np.uint8) * 255).tobytes())
 
 
 def main():
@@ -29,11 +31,13 @@ def main():
         picture = Image.open(pictures / name).convert("RGB")
         w, h = picture.size
         stem = Path(name).stem
-        entry = {"width": w, "height": h, "clicks": [], "finds": []}
+        # the picture as a port is handed it: interleaved 8-bit RGBA, nothing else
+        (out / f"{stem}.rgba").write_bytes(picture.convert("RGBA").tobytes())
+        entry = {"width": w, "height": h, "pixels": f"{stem}.rgba", "clicks": [], "finds": []}
         features = sam.click_features(picture)
         for case, points, labels in click_cases:
             mask, ious, obj = sam.click(features, points, labels, w, h)
-            file = f"{stem}-click-{case}.png"
+            file = f"{stem}-click-{case}.mask"
             save_mask((mask > 0).cpu().numpy(), out / file)
             entry["clicks"].append({"case": case, "points": points, "labels": labels, "ious": ious.cpu().tolist(),
                                     "object": obj, "mask": file})
@@ -41,7 +45,7 @@ def main():
             scores, xyxy, masks = sam.find(picture, phrase, boxes, labels)
             files = []
             for i, m in enumerate(masks.cpu().numpy()):
-                files.append(f"{stem}-find-{case}-{i}.png")
+                files.append(f"{stem}-find-{case}-{i}.mask")
                 save_mask(m, out / files[-1])
             entry["finds"].append({"case": case, "phrase": phrase, "boxes": boxes, "labels": labels,
                                    "tokens": sam.tokens(phrase)[0].tolist(), "scores": scores.cpu().tolist(),

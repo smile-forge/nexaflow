@@ -132,13 +132,59 @@
           "method": "AiEnhance"
         }
       ]
+    },
+    "picture-selection": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/sam3.1/README.md",
+          "title_path": [
+            "SAM 3.1 for ONNX Runtime"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/SelectionMessages.cs",
+          "class": "SelectInPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/SelectHandler.cs",
+          "class": "SelectHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/PictureSelecting.cs",
+          "class": "PictureSelecting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/SelectingModels.cs",
+          "class": "SelectingModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/ClipTokenizer.cs",
+          "class": "ClipTokenizer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Selecting/PictureSelectionTests.cs",
+            "class": "PictureSelectionTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 5,
   "touched_nodes": [
     "ai-tools",
     "images-edit-restore",
+    "picture-selection",
     "picture-tools"
   ]
 }

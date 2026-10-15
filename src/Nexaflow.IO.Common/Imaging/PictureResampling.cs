@@ -231,4 +231,147 @@ public static class PictureResampling
     }
 
     private static byte Saturate(float v) => v <= 0 ? (byte)0 : v >= 255 ? (byte)255 : (byte)MathF.Round(v, MidpointRounding.ToEven);
+
+    /// <summary>
+    /// Resizes interleaved 8-bit <paramref name="channels"/>-channel pixels as PIL's <c>Image.resize(…, BILINEAR)</c> does:
+    /// each output pixel a triangle-weighted average of the source pixels about where its centre falls, the triangle widened
+    /// by the reduction so a large picture is averaged rather than sampled; the weights in PIL's 22-bit fixed point, across
+    /// first then down, each pass rounded to 8 bits.
+    /// </summary>
+    public static byte[] ResizeBilinearAsPil(ReadOnlySpan<byte> pixels, int width, int height, int channels, int newWidth, int newHeight)
+    {
+        if (pixels.Length != width * height * channels) throw new ArgumentException("The pixels are not the size given.", nameof(pixels));
+        if (newWidth <= 0 || newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth), "A picture has a size.");
+        if (newWidth == width && newHeight == height) return pixels.ToArray();
+
+        var across = PilTaps(width, newWidth);
+        var down = PilTaps(height, newHeight);
+        var source = pixels.ToArray();
+
+        // Across, over only the source rows the downward pass reads.
+        int firstRow = down.Start[0], lastRow = down.Start[newHeight - 1] + down.Count[newHeight - 1];
+        byte[] rows = source;
+        if (newWidth != width)
+        {
+            int rowCount = lastRow - firstRow;
+            rows = new byte[rowCount * newWidth * channels];
+            Parallel.For(0, rowCount, y =>
+            {
+                int row = (y + firstRow) * width * channels, outRow = y * newWidth * channels;
+                for (int x = 0; x < newWidth; x++)
+                {
+                    int start = across.Start[x], count = across.Count[x], taps = x * across.Size;
+                    for (int c = 0; c < channels; c++)
+                    {
+                        int sum = PilHalf;
+                        for (int k = 0; k < count; k++) sum += source[row + (start + k) * channels + c] * across.Weight[taps + k];
+                        rows[outRow + x * channels + c] = PilClip(sum);
+                    }
+                }
+            });
+        }
+        else firstRow = 0;
+        if (newHeight == height) return rows;
+
+        int stride = newWidth * channels;
+        var result = new byte[newHeight * stride];
+        Parallel.For(0, newHeight, y =>
+        {
+            int start = down.Start[y] - firstRow, count = down.Count[y], taps = y * down.Size;
+            for (int i = 0; i < stride; i++)
+            {
+                int sum = PilHalf;
+                for (int k = 0; k < count; k++) sum += rows[(start + k) * stride + i] * down.Weight[taps + k];
+                result[y * stride + i] = PilClip(sum);
+            }
+        });
+        return result;
+    }
+
+    /// <summary>PIL's fixed point for 8-bit pictures: weights carry 22 fractional bits, a sum starts at a half.</summary>
+    private const int PilPrecisionBits = 32 - 8 - 2;
+
+    private const int PilHalf = 1 << (PilPrecisionBits - 1);
+
+    private static byte PilClip(int sum) => sum <= 0 ? (byte)0 : sum >= 255 << PilPrecisionBits ? (byte)255 : (byte)(sum >> PilPrecisionBits);
+
+    /// <summary>PIL's <c>precompute_coeffs</c> for its bilinear filter: for each output position, the first source position
+    /// it reads, how many it reads, and their weights, normalised to 1 and then put in fixed point.</summary>
+    private static (int[] Start, int[] Count, int[] Weight, int Size) PilTaps(int size, int newSize)
+    {
+        double scale = (double)size / newSize;
+        double filterScale = Math.Max(scale, 1.0);
+        double support = filterScale;   // the bilinear filter's support is 1, widened by the reduction
+        int taps = (int)Math.Ceiling(support) * 2 + 1;
+        var start = new int[newSize];
+        var count = new int[newSize];
+        var weight = new int[newSize * taps];
+        var w = new double[taps];
+        for (int d = 0; d < newSize; d++)
+        {
+            double centre = (d + 0.5) * scale;
+            int min = Math.Max(0, (int)(centre - support + 0.5));
+            int max = Math.Min(size, (int)(centre + support + 0.5)) - min;
+            double total = 0;
+            for (int k = 0; k < max; k++)
+            {
+                double x = Math.Abs((k + min - centre + 0.5) / filterScale);
+                w[k] = x < 1 ? 1 - x : 0;
+                total += w[k];
+            }
+            for (int k = 0; k < max; k++)
+            {
+                double normalised = total != 0 ? w[k] / total : w[k];
+                weight[d * taps + k] = normalised < 0 ? (int)(-0.5 + normalised * (1 << PilPrecisionBits))
+                                                      : (int)(0.5 + normalised * (1 << PilPrecisionBits));
+            }
+            start[d] = min;
+            count[d] = max;
+        }
+        return (start, count, weight, taps);
+    }
+
+    /// <summary>
+    /// Resizes a plane of floats as PyTorch's <c>interpolate(mode="bilinear", align_corners=False)</c> does, up or down
+    /// alike: each output value from the four source values about where its centre falls, nothing averaged when it shrinks.
+    /// </summary>
+    public static float[] ResizePlaneBilinear(ReadOnlySpan<float> plane, int width, int height, int newWidth, int newHeight)
+    {
+        if (plane.Length != width * height) throw new ArgumentException("The plane is not the size given.", nameof(plane));
+        if (newWidth <= 0 || newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth), "A plane has a size.");
+        if (newWidth == width && newHeight == height) return plane.ToArray();
+
+        var across = TorchTaps(width, newWidth);
+        var down = TorchTaps(height, newHeight);
+        var source = plane.ToArray();
+        var result = new float[newWidth * newHeight];
+        Parallel.For(0, newHeight, y =>
+        {
+            var (y0, y1, h0, h1) = down[y];
+            int row0 = y0 * width, row1 = y1 * width, outRow = y * newWidth;
+            for (int x = 0; x < newWidth; x++)
+            {
+                var (x0, x1, w0, w1) = across[x];
+                result[outRow + x] = h0 * (w0 * source[row0 + x0] + w1 * source[row0 + x1]) + h1 * (w0 * source[row1 + x0] + w1 * source[row1 + x1]);
+            }
+        });
+        return result;
+    }
+
+    /// <summary>PyTorch's source index for each output position — <c>scale × (d + 0.5) − 0.5</c>, not below 0, in single
+    /// precision — as the two neighbours it falls between and their weights.</summary>
+    private static (int Low, int High, float LowWeight, float HighWeight)[] TorchTaps(int size, int newSize)
+    {
+        var taps = new (int, int, float, float)[newSize];
+        float scale = (float)size / newSize;
+        for (int d = 0; d < newSize; d++)
+        {
+            float s = Math.Max(scale * (d + 0.5f) - 0.5f, 0f);
+            int low = (int)s;
+            int high = low < size - 1 ? low + 1 : low;
+            float lambda = Math.Clamp(s - low, 0f, 1f);
+            taps[d] = (low, high, 1f - lambda, lambda);
+        }
+        return taps;
+    }
 }

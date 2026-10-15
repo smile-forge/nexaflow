@@ -8,6 +8,7 @@ using Nexaflow.AiHost.Speech;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.AiHost.Filming;
 using Nexaflow.AiHost.Restoring;
+using Nexaflow.AiHost.Selecting;
 
 namespace Nexaflow.AiHost;
 
@@ -56,6 +57,7 @@ internal static class HostProgram
                 new DrawHandler(models, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler)]),
                 new FilmHandler(models, [new WanFilming(models, scheduler)]),
                 new RestoreHandler(models, scheduler),
+                new SelectHandler(models, scheduler),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

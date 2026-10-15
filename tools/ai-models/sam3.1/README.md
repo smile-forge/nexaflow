@@ -19,7 +19,7 @@ Meta's [SAM 3.1](https://github.com/facebookresearch/sam3) as ONNX graphs for ON
 picture picked out by a click — more clicks to add to it or take from it, or a box drawn round it — or everything a
 phrase names ("wheel", "child in a red vest"), optionally with example boxes of what is and is not meant. Built for
 [Nexaflow](https://github.com/smile-forge/nexaflow), whose AI host runs them from C# to select and cut things out of
-pictures and paused video; usable by anything that runs ONNX Runtime 1.31 or later (opset 23).
+pictures and paused video; usable by anything that runs ONNX Runtime 1.30 or later (opset 23).
 
 | Folder | What | Precision | Size |
 |---|---|---|---|
