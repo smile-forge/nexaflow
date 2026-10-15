@@ -197,12 +197,44 @@
           }
         ]
       }
+    },
+    "images-edit-cutout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureCutter.cs",
+          "class": "PictureCutter"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/EditOverlay.cs",
+          "class": "EditOverlay"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 8,
   "touched_nodes": [
     "ai-tools",
+    "images-edit-cutout",
     "images-edit-restore",
     "picture-selection",
     "picture-tools"

@@ -93,23 +93,9 @@ public sealed class RestoredPictures(string folder, long budgetBytes)
     /// <summary>The photo at full size, upright, as raw unpremultiplied RGBA in its own colour space — what the tools read.</summary>
     private static (int Width, int Height, SKColorSpace Space) WriteUpright(ImageEditingServices services, string photo, string into)
     {
-        using var decoded = services.Decode(photo, maxLongEdge: null);
-        int width = (int)Math.Round(decoded.SourceSize.Width), height = (int)Math.Round(decoded.SourceSize.Height);
-        var space = decoded.ColorSpace;
-        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, space));
-        using (var canvas = new SKCanvas(bitmap))
-        {
-            canvas.Clear(SKColors.Transparent);
-            canvas.Concat(decoded.PixelsToSource);
-            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
-            canvas.DrawImage(decoded.Pixels, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest), paint);
-        }
-        using var unpremul = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space));
-        using var image = SKImage.FromBitmap(bitmap);
-        if (!image.ReadPixels(unpremul.Info, unpremul.GetPixels(), unpremul.RowBytes, 0, 0))
-            throw new InvalidOperationException("The photo could not be read out for the picture tools.");
-        File.WriteAllBytes(into, unpremul.Bytes);
-        return (width, height, space);
+        var upright = services.ReadUpright(photo);
+        File.WriteAllBytes(into, upright.Rgba);
+        return (upright.Width, upright.Height, upright.Space);
     }
 
     /// <summary>The tools' raw RGBA kept as PNG, its colour space embedded; fast compression, since it is a cache.</summary>

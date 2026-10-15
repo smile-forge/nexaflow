@@ -61,9 +61,13 @@ public partial class ImageEditorViewModel : ObservableObject
     private SKPoint _markupFrom;
     private bool _moving;
 
-    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer)
+    /// <summary>The cut-out tool: a thing in the photo picked out and copied or saved cut out of its background.</summary>
+    public PictureCutter Cutter { get; }
+
+    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, PictureCutter cutter)
     {
     _viewer   = viewer;
+    Cutter    = cutter;
     _shell    = shell;
     _services = services;
     _restorer = restorer;
@@ -85,6 +89,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsCropTool))]
     [NotifyPropertyChangedFor(nameof(IsAdjustTool))]
     [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
+    [NotifyPropertyChangedFor(nameof(IsCutOutTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
     [NotifyPropertyChangedFor(nameof(IsExportTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
@@ -93,6 +98,7 @@ public partial class ImageEditorViewModel : ObservableObject
     public bool IsCropTool   => Tool == EditTool.Crop;
     public bool IsAdjustTool => Tool == EditTool.Adjust;
     public bool IsMarkupTool => Tool == EditTool.Markup;
+    public bool IsCutOutTool => Tool == EditTool.CutOut;
     public bool IsResizeTool => Tool == EditTool.Resize;
     public bool IsExportTool => Tool == EditTool.Export;
 
@@ -123,8 +129,10 @@ public partial class ImageEditorViewModel : ObservableObject
         if (editing)
         {
             _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
+            Cutter.Follow(Session?.Path);
             return;
         }
+        Cutter.Close();   // the photo read for picking is let go with the editor
         CancelOpenGestures();
         ShowOriginal = false;
         IsLevelTool  = false;
@@ -135,7 +143,8 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         CancelOpenGestures();
         SelectedId = null;
-        _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
+    _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
+        if (_viewer.IsEditing) Cutter.Follow(Session?.Path);
         OnRecipeChanged();
     }
 

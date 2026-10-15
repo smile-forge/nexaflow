@@ -62,6 +62,28 @@ public sealed class ImageEditingServices : IDisposable
     /// <summary>Decodes the picture at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given.</summary>
     public DecodedImage Decode(string path, int? maxLongEdge) => Decoders.Decode(ReadSource(path), maxLongEdge);
 
+    /// <summary>The photo at its full size as it stands — its stored pixels turned as its orientation says — as interleaved
+    /// 8-bit straight-alpha RGBA, with its colour space: what a picture tool is handed.</summary>
+    public UprightPixels ReadUpright(string photo)
+    {
+        using var decoded = Decode(photo, maxLongEdge: null);
+        int width = (int)Math.Round(decoded.SourceSize.Width), height = (int)Math.Round(decoded.SourceSize.Height);
+        var space = decoded.ColorSpace;
+        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, space));
+        using (var canvas = new SKCanvas(bitmap))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.Concat(decoded.PixelsToSource);
+            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(decoded.Pixels, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest), paint);
+        }
+        using var unpremul = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space));
+        using var image = SKImage.FromBitmap(bitmap);
+        if (!image.ReadPixels(unpremul.Info, unpremul.GetPixels(), unpremul.RowBytes, 0, 0))
+            throw new InvalidOperationException("The photo could not be read out for a picture tool.");
+        return new UprightPixels(unpremul.Bytes, width, height, space);
+    }
+
     /// <summary>A pipeline over <paramref name="source"/> — and its restoration, where the recipe restores it.</summary>
     public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null) => new(source, Adjustments, Markup, cache, restored);
 
@@ -84,3 +106,6 @@ public sealed class ImageEditingServices : IDisposable
         Adjustments.Dispose();
     }
 }
+
+/// <summary>A photo as it stands, at full size: interleaved 8-bit straight-alpha RGBA, row by row, and its colour space.</summary>
+public sealed record UprightPixels(byte[] Rgba, int Width, int Height, SKColorSpace Space);

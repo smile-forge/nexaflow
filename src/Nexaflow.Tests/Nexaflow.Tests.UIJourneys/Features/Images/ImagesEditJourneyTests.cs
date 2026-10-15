@@ -144,6 +144,17 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             Check("AI enhance off again, from Adjust", () => SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false)
                                                             && WaitForGone("Image_RestoreAction", 3) && SelectRadio("Image_EditToolResize"));
 
+            // Cut out: picture selection is never here (the AI folder is the journey's own), so the tool offers it; its other
+            // controls stand ready for when it is.
+            Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
+            Check("A click on the photo asks for picture selection", () => ClickCanvas() && WaitForFs(() => WaitForId("Image_CutOutAction", 1)?.IsEnabled == true, 5));
+            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_CutOutPhrase", "mug")
+                                                              && WaitForFs(() => WaitForId("Image_CutOutFind", 1)?.IsEnabled == true, 3));
+            CheckInvoke("Find, which waits for picture selection", "Image_CutOutFind");
+            CheckPresent("Copy the cut-out", "Image_CutOutCopy");
+            CheckPresent("Save the cut-out", "Image_CutOutSave");
+            CheckInvoke("Clear what is picked", "Image_CutOutClear");
+
             // Export options
             Check("Export panel", () => SelectRadio("Image_EditToolExport"));
             Check("Strip metadata toggles", () => SetToggle("Image_EditStripMetadata", true) && SetToggle("Image_EditStripMetadata", false));

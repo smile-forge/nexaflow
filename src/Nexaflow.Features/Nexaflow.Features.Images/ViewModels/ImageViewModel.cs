@@ -483,11 +483,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>What gives the photo on screen the restoration its recipe asks for, and says what it is doing.</summary>
     public PhotoRestorer Restorer { get; }
 
+    /// <summary>What picks things out of the photo for the editor's cut-out tool.</summary>
+    public PictureCutter Cutter { get; }
+
     /// <param name="ai">The workspace's AI, through which the user makes a video from the picture on screen; none, none made.</param>
     /// <param name="pictures">The picture tools, where the app has them: what restores a photo whose recipe asks for it.</param>
+    /// <param name="selection">Picture selection, where the app has it: what the editor's cut-out tool picks things out with.</param>
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
                           ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null,
-                          IPictureTools? pictures = null)
+                          IPictureTools? pictures = null, IPictureSelection? selection = null)
     {
         _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
         _shell       = shell;
@@ -507,7 +511,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Restorer.Restored += RequestRender;
         _display.RestoredDecodeFailed += session => Restorer.Lost(session);
 
-        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer);
+        Cutter = new PictureCutter(_editing, selection, shell, runOnUi);
+        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Cutter);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
             EncodeCurrentPng);
@@ -653,6 +658,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.Show(null);
         CurrentSession = null;
         Restorer.Follow(null);
+        Cutter.Close();
     }
     session.Dispose();
     }
@@ -894,6 +900,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     public void Dispose()
     {
         _autoTimer.Stop();
+        Cutter.Close();
         _thumbRefresh.Stop();
         _cts.Cancel();
         _sidecarWatch?.Dispose();

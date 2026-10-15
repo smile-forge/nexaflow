@@ -57,6 +57,11 @@
                             <TextBlock Text="{loc:Str Images.Edit.Tool.Markup}" FontSize="11"/>
                         </RadioButton>
                         <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.CutOutTip}" AutomationProperties.AutomationId="Image_EditToolCutOut"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=CutOut}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.CutOut}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
                                      ToolTip="{loc:Str Images.Edit.Tool.ResizeTip}" AutomationProperties.AutomationId="Image_EditToolResize"
                                      IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Resize}">
                             <TextBlock Text="{loc:Str Images.Edit.Tool.Resize}" FontSize="11"/>
@@ -341,6 +346,51 @@
                                     Command="{Binding Editor.ResetResizeCommand}" AutomationProperties.AutomationId="Image_EditResetResize">
                                 <TextBlock Text="{loc:Str Images.Edit.Resize.Reset}" FontSize="11"/>
                             </Button>
+                        </StackPanel>
+
+                        <!-- ── Cut out ── -->
+                        <StackPanel Visibility="{Binding Editor.IsCutOutTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Phrase}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         VerticalContentAlignment="Center" Padding="4,3"
+                                         Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.AutomationId="Image_CutOutPhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                                <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
+                                        AutomationProperties.AutomationId="Image_CutOutFind">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
+                                </Button>
+                            </Grid>
+                            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,10,0,0" Text="{Binding Editor.Cutter.Notice}"/>
+                            <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                    Command="{Binding Editor.Cutter.ActCommand}"
+                                    Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.AutomationId="Image_CutOutAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
+                                <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
+                            </Button>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.CopyCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.SaveCutOutCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.SaveTip}" AutomationProperties.AutomationId="Image_CutOutSave">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.ClearCommand}"
+                                        AutomationProperties.AutomationId="Image_CutOutClear">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
+                                </Button>
+                            </WrapPanel>
                         </StackPanel>
 
                         <!-- ── Export ── -->

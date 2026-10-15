@@ -19,17 +19,20 @@ public sealed class ImageTabRegistration : IPageRegistration
     private readonly IShellServices _shell;
     private readonly IAIService _ai;
     private readonly IPictureTools? _pictures;
+    private readonly IPictureSelection? _selection;
 
     /// <summary>The editing engine every Images tab of this workspace shares: codecs, renderer and the recipe store.</summary>
     private readonly ImageEditingServices _editing = new();
 
     /// <param name="ai">The workspace's AI, which makes a video from the picture on screen where it has a model for it.</param>
     /// <param name="pictures">The picture tools, which restore a photo — AI enhance and upscale — where the app has them.</param>
-    public ImageTabRegistration(IShellServices shell, IAIService ai, IPictureTools? pictures = null)
+    /// <param name="selection">Picture selection, which picks things out of a photo — the editor's cut-out — where the app has it.</param>
+    public ImageTabRegistration(IShellServices shell, IAIService ai, IPictureTools? pictures = null, IPictureSelection? selection = null)
     {
-        _shell    = shell;
-        _ai       = ai;
-        _pictures = pictures;
+        _shell     = shell;
+        _ai        = ai;
+        _pictures  = pictures;
+        _selection = selection;
     }
 
     public static string StaticPageKind => "Images";
@@ -64,7 +67,7 @@ public sealed class ImageTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "🖼",
-            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures))
+            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection))
         };
 
         // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".

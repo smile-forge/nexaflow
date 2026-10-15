@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Nexaflow.Core.Services.Generation;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core.Services.Tools;
@@ -95,7 +96,8 @@ internal sealed class CutOutTool(IPictureSelection selection, GeneratedFiles fil
             return ToolResult.Error("could not cut it out", ex.Message);
         }
 
-        var (cut, cutWidth, cutHeight) = CutOut(rgba, width, height, masks);
+        if (PictureCutOut.Of(rgba, width, height, [.. masks.Select(m => m.Pixels)]) is not var (cut, cutWidth, cutHeight))
+            return ToolResult.Ok("found nothing to keep", "What was found has no pixels in this picture; nothing was saved.");
         var asked = ToolArgs.Str(arguments, "path");
         var encoded = await Task.Run(() => PictureFiles.Encode(cut, cutWidth, cutHeight, ".png"), ct);
         var beside = Path.GetDirectoryName(path)! + Path.DirectorySeparatorChar;
@@ -104,35 +106,6 @@ internal sealed class CutOutTool(IPictureSelection selection, GeneratedFiles fil
         return ToolResult.Ok($"cut out of {Path.GetFileName(path)}",
                              $"Cut out {(masks.Count == 1 ? "1 thing" : $"{masks.Count} things")} ({said}); saved to {saved} ({cutWidth}x{cutHeight}) and opened it.")
                with { Attachments = [saved] };
-    }
-
-    /// <summary>The picture where any of <paramref name="masks"/> picks it, transparent elsewhere, cropped to what is kept.</summary>
-    internal static (byte[] Rgba, int Width, int Height) CutOut(byte[] rgba, int width, int height, IReadOnlyList<PictureMask> masks)
-    {
-        var keep = new bool[width * height];
-        int left = width, top = height, right = -1, bottom = -1;
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-            {
-                int i = y * width + x;
-                if (!masks.Any(m => m.Pixels[i] != 0)) continue;
-                keep[i] = true;
-                left = Math.Min(left, x);
-                right = Math.Max(right, x);
-                top = Math.Min(top, y);
-                bottom = Math.Max(bottom, y);
-            }
-        if (right < 0) return ([0, 0, 0, 0], 1, 1);
-        int w = right - left + 1, h = bottom - top + 1;
-        var cut = new byte[w * h * 4];
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-            {
-                int from = (y + top) * width + x + left, to = (y * w + x) * 4;
-                if (!keep[from]) continue;
-                rgba.AsSpan(from * 4, 4).CopyTo(cut.AsSpan(to, 4));
-            }
-        return (cut, w, h);
     }
 
     private static PictureBox? Box(string text)
