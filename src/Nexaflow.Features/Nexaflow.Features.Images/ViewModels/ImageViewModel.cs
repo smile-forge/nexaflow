@@ -549,7 +549,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (_thumbsRequested || _shell is null || Thumbnails.Count == 0) return;
         _thumbsRequested = true;
-        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing), ct: _cts.Token);
+        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing, Restorer.KeptFor), ct: _cts.Token);
     }
 
     /// <summary>The current photo's thumbnail, redrawn with its edits — once the grids have thumbnails to show.</summary>

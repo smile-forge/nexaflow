@@ -10,6 +10,7 @@ using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Features.Images.Services;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -204,6 +205,27 @@ public class ImageRestoreTests
         Assert.AreEqual(1, tools.Restorations.Count);
         Assert.AreEqual(first, _restored.Find(_photo, restore, tools.ModelsVersion));
         Assert.IsNull(_restored.Find(_photo, restore with { Faces = false }, tools.ModelsVersion), "a different restoration is made afresh");
+    }
+
+    [TestMethod]
+    public async Task AnEnhancedPhotosThumbnail_IsDrawnFromItsKeptRestoration()
+    {
+        var tools = new Opposites();
+        var store = new ImageRecipeStore(TimeSpan.FromHours(1));
+        var services = new ImageEditingServices(store, _restored);
+        var restore = new RecipeRestore();
+        store.SaveDebounced(_photo, ImageRecipe.Identity with { Restore = restore });
+        store.Flush(_photo);
+        await _restored.MakeAsync(services, _photo, restore, tools, null, CancellationToken.None);
+        var item = new ImageThumbItem { FilePath = _photo, FileName = Path.GetFileName(_photo) };
+
+        await new ThumbnailLoadTask([item], 32, Shell(), services, (photo, r) => _restored.Find(photo, r, tools.ModelsVersion)).RunAsync(CancellationToken.None);
+        Until(() => item.Thumbnail is not null);
+
+        var thumb = new System.Windows.Media.Imaging.FormatConvertedBitmap(item.Thumbnail!, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        var pixel = new byte[4];
+        thumb.CopyPixels(new System.Windows.Int32Rect(thumb.PixelWidth / 2, thumb.PixelHeight / 2, 1, 1), pixel, 4, 0);
+        AssertNear(Opposite, new SKColor(pixel[2], pixel[1], pixel[0]), because: "the thumbnail shows the photo as enhanced");
     }
 
     [TestMethod]

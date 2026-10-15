@@ -44,6 +44,11 @@ public sealed partial class PhotoRestorer : ObservableObject
     /// <summary>Whether a <paramref name="width"/> × <paramref name="height"/> photo restores at <paramref name="scale"/> here.</summary>
     public bool Restores(int width, int height, int scale) => Available && _tools!.Restores(width, height, scale);
 
+    /// <summary>The restoration of <paramref name="photo"/> by <paramref name="restore"/> kept on disk, where the tools are
+    /// here to name their models; null otherwise — what a thumbnail of an enhanced photo is drawn from.</summary>
+    public string? KeptFor(string photo, RecipeRestore restore)
+        => _tools is { State: ToolModelsState.Ready } ? _services.Restored.Find(photo, restore, _tools.ModelsVersion) : null;
+
     /// <summary>The photo's recipe restores it and its restoration is not here yet: it cannot be saved until it is.</summary>
     public bool IsPending => _session?.Recipe.Restore is not null && _session.RestoredPath is null;
 

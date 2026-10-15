@@ -40,13 +40,18 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
     private readonly int _size;
     private readonly IShellServices _shell;
     private readonly ImageEditingServices _editing;
+    private readonly Func<string, RecipeRestore, string?>? _restored;
 
-    public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell, ImageEditingServices editing)
+    /// <param name="restored">Finds the restoration kept for a photo whose recipe restores it; without it, or where none is
+    /// kept, an enhanced photo's thumbnail shows it unrestored.</param>
+    public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell, ImageEditingServices editing,
+                             Func<string, RecipeRestore, string?>? restored = null)
     {
-        _items   = items;
-        _size    = size;
-        _shell   = shell;
-        _editing = editing;
+    _items    = items;
+    _size     = size;
+    _shell    = shell;
+    _editing  = editing;
+    _restored = restored;
     }
 
     public string Description => Str.Format("Images.Status.LoadingThumbnailsFormat", _items.Count);
@@ -84,7 +89,10 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
             using var decoded = _editing.Decode(path, _size * EditedDecodeFactor);
             var output = CropGeometry.OutputSize(recipe, decoded.SourceSize);
             double scale = Math.Min(1, (double)_size / Math.Max(output.Width, output.Height));
-            using var pipeline = _editing.Pipeline(decoded, cache: false);
+            using var restored = recipe.Restore is { } restore && _restored?.Invoke(path, restore) is { } kept
+                ? _editing.DecodeRestored(kept, decoded.SourceSize, _size * EditedDecodeFactor * restore.Scale)
+                : null;
+            using var pipeline = _editing.Pipeline(decoded, cache: false, restored);
             return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
         }
         catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException)
