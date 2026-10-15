@@ -113,6 +113,8 @@
   "Shell.Config.Local.ToolsIntro": "Des outils qui s'exécutent sur cet ordinateur, pour vous comme pour l'assistant. Tous les espaces de travail les partagent.",
   "Shell.Tools.Picture.Name": "Outils d'image",
   "Shell.Tools.Picture.About": "Agrandissez les images, retirez-en le flou, le bruit et les blocs JPEG, et réparez les visages qu'elles contiennent — dans l'éditeur d'images ou en le demandant à l'assistant. Real-ESRGAN et GFPGAN.",
+  "Shell.Tools.Selection.Name": "Sélection dans les images",
+  "Shell.Tools.Selection.About": "Sélectionnez des éléments dans les images — en cliquant dessus, en les entourant d'un cadre ou en les nommant — et détourez-les de leur arrière-plan, dans la visionneuse et l'éditeur d'images ou en le demandant à l'assistant. SAM 3.1.",
   "Shell.Config.Downloaded.Title": "Modèles téléchargés",
   "Shell.Config.Downloaded.Heading": "Modèles téléchargés",
   "Shell.Config.Downloaded.Intro": "Les modèles, outils et moteurs présents sur le disque de cet ordinateur. Celui qu'aucun espace de travail n'utilise peut être supprimé pour libérer sa place.",

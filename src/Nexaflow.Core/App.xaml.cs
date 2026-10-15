@@ -270,10 +270,12 @@ public partial class App : Application
         var hostSetup = new HostModelSetup(aiHost);
         var hardware = ComputeHardware.Probe();
         var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
+        var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets,
             aiHost, hostSetup, hardware,
-            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools);
+            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools, pictureSelection);
         FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
+        FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a

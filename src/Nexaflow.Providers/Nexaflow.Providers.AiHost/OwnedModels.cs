@@ -44,6 +44,11 @@ internal static class OwnedRoles
     public const string FaceDetector  = RestoringParts.FaceDetector;
     public const string FaceRestorer  = RestoringParts.FaceRestorer;
     public const string FaceParser    = RestoringParts.FaceParser;
+    public const string ImageEncoder    = SelectingParts.ImageEncoder;
+    public const string ClickDecoder    = SelectingParts.ClickDecoder;
+    public const string TextEncoder     = SelectingParts.TextEncoder;
+    public const string ExemplarEncoder = SelectingParts.ExemplarEncoder;
+    public const string Finder          = SelectingParts.Finder;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -61,6 +66,7 @@ internal static class OwnedRoles
     public static IReadOnlyList<string> Of(OwnedToolKind kind) => kind switch
     {
         OwnedToolKind.PictureRestoration => [UpscalerX2, UpscalerX4, FaceDetector, FaceRestorer, FaceParser],
+        OwnedToolKind.PictureSelection   => [ImageEncoder, ClickDecoder, TextEncoder, ExemplarEncoder, Finder],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
     };
 
@@ -108,6 +114,9 @@ internal enum OwnedToolKind
 {
     /// <summary>Restores a picture: Real-ESRGAN's upscalers, and GFPGAN with the detector and parser it remakes faces with.</summary>
     PictureRestoration,
+
+    /// <summary>Picks things out of a picture: SAM 3.1's picture encoder, click decoder, text encoder, exemplar encoder and finder.</summary>
+    PictureSelection,
 }
 
 /// <summary>

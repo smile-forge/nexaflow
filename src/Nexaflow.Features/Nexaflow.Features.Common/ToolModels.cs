@@ -67,3 +67,54 @@ public interface IPictureTools : IToolModels
     /// or it could not be restored.</exception>
     Task<PictureRestoration> RestoreAsync(PictureRestoreRequest request, IProgress<double>? progress, CancellationToken ct);
 }
+
+/// <summary>A click on a picture, in its pixels: on the thing meant (<see cref="Include"/>) or off it.</summary>
+public sealed record PicturePoint(double X, double Y, bool Include);
+
+/// <summary>A box on a picture, in its pixels.</summary>
+public sealed record PictureBox(double Left, double Top, double Right, double Bottom);
+
+/// <summary>An example box for a phrase: something <see cref="Like"/> what is meant, or something it does not mean.</summary>
+public sealed record PictureExample(PictureBox Box, bool Like);
+
+/// <summary>A mask: <see cref="Width"/> × <see cref="Height"/> bytes, row by row, 255 over what is picked and 0
+/// elsewhere. <see cref="Bounds"/> is the box round it in the picture's pixels; null where nothing is picked.</summary>
+public sealed record PictureMask(byte[] Pixels, int Width, int Height, PictureBox? Bounds);
+
+/// <summary>Something a phrase found: how surely, from 0.5 to 1, the box round it in the picture's pixels, and its mask.</summary>
+public sealed record PictureFind(double Score, PictureBox Box, PictureMask Mask);
+
+/// <summary>
+/// Things picked out of pictures by a neural network Nexaflow runs on this machine: by clicks on a thing and off it, a
+/// box drawn round it, or everything a phrase names ("wheel", "child in a red vest"), helped by example boxes.
+/// </summary>
+public interface IPictureSelection : IToolModels
+{
+    /// <summary>
+    /// Opens a selection on a picture — interleaved 8-bit RGBA, row by row — and returns once it is read, after which
+    /// each click, box and phrase is answered from that reading. Hold it for as long as you select from that picture, and
+    /// dispose it when the page closes or moves to another picture.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture could not be read.</exception>
+    Task<IPictureSelectionSession> OpenAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+}
+
+/// <summary>A selection on one picture (<see cref="IPictureSelection.OpenAsync"/>).</summary>
+public interface IPictureSelectionSession : IAsyncDisposable
+{
+    /// <summary>The picture's size, in pixels.</summary>
+    int Width { get; }
+
+    int Height { get; }
+
+    /// <summary>The one thing clicks on it and off it, or a box round it, or both, mean — its mask at
+    /// <paramref name="maskWidth"/> × <paramref name="maskHeight"/>: the picture's own size for a cut-out, smaller for
+    /// showing it.</summary>
+    /// <exception cref="InvalidOperationException">The selection has ended, or it could not be made.</exception>
+    Task<PictureMask> SelectAsync(IReadOnlyList<PicturePoint> points, PictureBox? box, int maskWidth, int maskHeight, CancellationToken ct);
+
+    /// <summary>Everything a phrase names, helped by <paramref name="examples"/> — with no phrase, everything like the
+    /// examples — surest first, each with its mask at <paramref name="maskWidth"/> × <paramref name="maskHeight"/>.</summary>
+    /// <exception cref="InvalidOperationException">The selection has ended, or it could not be made.</exception>
+    Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct);
+}
