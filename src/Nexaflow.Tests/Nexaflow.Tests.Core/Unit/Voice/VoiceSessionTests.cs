@@ -50,6 +50,17 @@ public class VoiceSessionTests
             return this;
         }
 
+        /// <summary>
+        /// Waits until the voice has been given <paramref name="sentences"/> sentences and the speaker holds all of their audio.
+        /// The audio reaches the speaker on the session's own pump, after the voice is given the text — so a test that plays into a
+        /// later sentence waits for this, not for the text alone.
+        /// </summary>
+        public Task SaidAndQueuedAsync(int sentences) => Until(() =>
+        {
+            var said = Voice.Texts;
+            return said.Length == sentences && Speaker.QueuedSamples >= said.Sum(text => (long)text.Length * FakeSpeaker.SamplesPerChar);
+        }, $"{sentences} sentence(s) to be said and their audio queued");
+
         /// <summary>Plays whatever is queued until the turn is over — the voice may still be queueing when it is called.</summary>
         public Task PlayOutAsync() => Until(() =>
         {
@@ -141,8 +152,7 @@ public class VoiceSessionTests
 
         await Until(() => rig.Session.State == VoiceState.Speaking, "speech");
         CollectionAssert.AreEqual(new[] { "It is three o'clock." }, rig.Voice.Texts);
-        rig.Speaker.Play();
-        await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
+        await rig.PlayOutAsync();
 
         CollectionAssert.AreEqual(new[] { "What time is it?", "It is three o'clock." }, rig.Session.History.Select(m => m.Text).ToArray());
     }
@@ -175,7 +185,7 @@ public class VoiceSessionTests
     {
         await using var rig = await new Rig(Answer("First comes this sentence. Then comes a second one. And a third.")).StartAsync();
         rig.Ears.Hear(new TranscriptFinal("Tell me three things."));
-        await Until(() => rig.Voice.Texts.Length == 3, "the reply to be synthesised");
+        await rig.SaidAndQueuedAsync(3);
 
         rig.Speaker.Play("First comes this sentence.".Length * FakeSpeaker.SamplesPerChar + 1);   // into the second sentence
         rig.Ears.Hear(new SpeechActivity(true));
@@ -215,8 +225,7 @@ public class VoiceSessionTests
 
         rig.Ears.Hear(new TranscriptFinal("Delete old."));
         await Until(() => rig.Session.State == VoiceState.Speaking, "speech");
-        rig.Speaker.Play();
-        await Until(() => rig.Session.State == VoiceState.Listening, "the reply to finish");
+        await rig.PlayOutAsync();
 
         CollectionAssert.AreEqual(new[] { LlmRole.User, LlmRole.Assistant, LlmRole.Tool, LlmRole.Assistant }, rig.Session.History.Select(m => m.Role).ToArray());
         Assert.AreEqual("c1", rig.Session.History[1].ToolCalls!.Single().Id);
@@ -230,7 +239,7 @@ public class VoiceSessionTests
         await using var rig = await new Rig(Answer("I deleted old. It is in the Recycle Bin.")).StartAsync();
         rig.Agent.Runs = asked => RanADeletion(asked, "I deleted old. It is in the Recycle Bin.");
         rig.Ears.Hear(new TranscriptFinal("Delete old."));
-        await Until(() => rig.Voice.Texts.Length == 2, "the reply to be synthesised");
+        await rig.SaidAndQueuedAsync(2);
 
         rig.Speaker.Play("I deleted old.".Length * FakeSpeaker.SamplesPerChar + 1);
         rig.Ears.Hear(new SpeechActivity(true));
@@ -280,7 +289,7 @@ public class VoiceSessionTests
         await using var rig = await new Rig(Delete(p => proceeded = p)).StartAsync();
 
         rig.Ears.Hear(new TranscriptFinal("Delete the selected file."));
-        await Until(() => rig.Confirmations.Showing, "the announcement");
+        await Until(() => rig.Confirmations.Showing && rig.Voice.Texts.Length > 0, "the announcement");
         CollectionAssert.AreEqual(new[] { Announcement }, rig.Voice.Texts, "fixed words, not the model's");
         var shown = rig.Confirmations.Shown.Single();
         Assert.AreEqual((Announcement, "Delete", Str.Get("Shell.Voice.Stop")), (shown.Text, shown.ProceedLabel, shown.StopLabel));
@@ -552,9 +561,12 @@ public class VoiceSessionTests
         rig.Ears.Hear(new TranscriptFinal("That's all, thanks."));
         await Until(() => rig.Voice.Texts.Contains("Goodbye!"));
         Assert.AreNotEqual(VoiceState.Ended, rig.Session.State, $"not before it is said (ended: {rig.EndedBecause})");
-        rig.Speaker.Play();
         // The state turns to Ended before the closing is done and Ended is raised: the event is what is waited on.
-        await Until(() => rig.Session.State == VoiceState.Ended && rig.EndedBecause != "still going", "the end");
+        await Until(() =>
+        {
+            rig.Speaker.Play();
+            return rig.Session.State == VoiceState.Ended && rig.EndedBecause != "still going";
+        }, "the end");
 
         Assert.IsNull(rig.EndedBecause);
         Assert.IsTrue(rig.Microphone.Disposed);
