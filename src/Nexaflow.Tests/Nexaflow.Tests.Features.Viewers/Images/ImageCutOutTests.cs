@@ -221,6 +221,20 @@ public class ImageCutOutTests
         StringAssert.Contains(result.ModelText, "Settings > Local > Tools");
     }
 
+    [TestMethod]
+    [DataRow("cutout", EditTool.CutOut)]
+    [DataRow("CutOut", EditTool.CutOut)]
+    [DataRow("crop", EditTool.Crop)]
+    public void ATabAskedToOpenOnATool_OpensTheEditorThere(string asked, EditTool tool)
+        => Assert.AreEqual(tool, Nexaflow.Features.Images.ImageTabRegistration.ParseTool(asked));
+
+    [TestMethod]
+    public void ATabAskedForNoTool_OrOneThatIsNot_OpensTheEditorAsItWould()
+    {
+        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool(null));
+        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool("lasso"));
+    }
+
     /// <summary>Picture selection that picks the patch from (4, 2) to (12, 10) of the photo, but for its top-left
     /// pixel, wherever it is asked; a phrase finds it twice.</summary>
     private sealed class Patch : IPictureSelection, IPictureSelectionSession

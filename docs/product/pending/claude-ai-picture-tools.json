@@ -240,16 +240,35 @@
           }
         ]
       }
+    },
+    "video-cutout-frame": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs",
+          "class": "VideoViewModel",
+          "method": "CutOutFrame"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Localization/en/help/Video.md",
+          "title_path": [
+            "Video player",
+            "Cutting something out of a frame"
+          ]
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 9,
+  "changed_sets": 10,
   "touched_nodes": [
     "ai-tools",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
     "images-edit-restore",
     "picture-selection",
-    "picture-tools"
+    "picture-tools",
+    "video-cutout-frame"
   ]
 }

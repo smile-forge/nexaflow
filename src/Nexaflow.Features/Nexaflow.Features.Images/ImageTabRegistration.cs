@@ -48,6 +48,9 @@ public sealed class ImageTabRegistration : IPageRegistration
         _         => ImageViewMode.Carousel,
     };
 
+    /// <summary>Maps a "tool" page param to the editor's tool it opens on — "cutout" for Cut out; none, the editor's own.</summary>
+    public static EditTool? ParseTool(string? tool) => Enum.TryParse<EditTool>(tool, ignoreCase: true, out var parsed) ? parsed : null;
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var paths = pageParams?.GetValueOrDefault("paths")?
@@ -67,7 +70,12 @@ public sealed class ImageTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "🖼",
-            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection))
+            ContentFactory = () =>
+            {
+                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection);
+                if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) viewer.Editor.Tool = tool;
+                return new ImageView(viewer);
+            }
         };
 
         // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".
