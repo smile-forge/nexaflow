@@ -166,6 +166,16 @@
           "type": "code",
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/ClipTokenizer.cs",
           "class": "ClipTokenizer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/CutOutTool.cs",
+          "class": "CutOutTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureSelection.cs",
+          "class": "PictureSelection"
         }
       ],
       "concerns": {

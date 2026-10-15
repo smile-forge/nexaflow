@@ -193,13 +193,18 @@ public sealed class AIService : IAIService
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
         if (_workspace.ShellServices is { } shell)
+        {
+            var made = Generation.GeneratedFiles.For(shell);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
+                                                          HighQualityVideoGenerator, made).Tools);
 
-                                                          // The tools Nexaflow runs on this machine, whatever model the workspace converses with — offered wherever the machine can
-                                                          // run them, so a request for one that is not downloaded yet is answered with where to get it.
-                                                          if (_workspace.ShellServices is { } toolShell && ProviderManager.Instance.Service<IPictureTools>() is { State: not ToolModelsState.Unavailable } pictures)
-                                                              tools.Add(new Tools.RestorePictureTool(pictures, Generation.GeneratedFiles.For(toolShell)));
+            // The tools Nexaflow runs on this machine, whatever model the workspace converses with — offered wherever the
+            // machine can run them, so a request for one that is not downloaded yet is answered with where to get it.
+            if (ProviderManager.Instance.Service<IPictureTools>() is { State: not ToolModelsState.Unavailable } pictures)
+                tools.Add(new Tools.RestorePictureTool(pictures, made));
+            if (ProviderManager.Instance.Service<IPictureSelection>() is { State: not ToolModelsState.Unavailable } selection)
+                tools.Add(new Tools.CutOutTool(selection, made));
+        }
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
