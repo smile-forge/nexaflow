@@ -113,7 +113,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks), OwnedModelRuntime.StallLimit, ct)
+            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {
@@ -148,6 +148,23 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             }
         }
     }
+
+    /// <summary>Names a seed every reply's draws start from: the same requests in the same order on a fresh host then draw the
+    /// same replies — for tests of the model's own behaviour. Unset, every reply draws afresh.</summary>
+    internal const string SeedVariable = "NEXAFLOW_AI_SEED";
+
+    /// <summary>How the model chooses its tokens for a request that reasons first or not, as its makers recommend; null —
+    /// the likeliest each time — for a model whose makers recommend nothing, or under <see cref="GreedyVariable"/>.</summary>
+    internal static TokenSampling? SamplingOf(OwnedModel model, bool thinks)
+    {
+        if (Environment.GetEnvironmentVariable(GreedyVariable) is { Length: > 0 }) return null;
+        if (model.TokenSampling?.For(thinks) is not { } sampling) return null;
+        return uint.TryParse(Environment.GetEnvironmentVariable(SeedVariable), out var seed) ? sampling with { Seed = seed } : sampling;
+    }
+
+    /// <summary>Set, every reply takes the likeliest token each time — for tests of the app's own paths through a real model,
+    /// which want the same replies run after run whatever came before them.</summary>
+    internal const string GreedyVariable = "NEXAFLOW_AI_GREEDY";
 
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
     /// them; any other attachment is named in the text, as for any provider that cannot read it. A turn's tool calls, and

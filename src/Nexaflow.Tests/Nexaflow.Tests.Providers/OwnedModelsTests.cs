@@ -149,6 +149,10 @@ public class OwnedModelsTests
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "voices/x.bin" }], "files": [IN] }""", DisplayName = "a voice not among its files")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "fr", "part": "synthesizer", "file": "w.bin", "lexicon": "fr.tsv.gz" }], "files": [IN] }""", DisplayName = "a lexicon not among its files")]
     [DataRow("""{ "id": "m", "kind": "textToSpeech", "parts": [{ "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }, { "role": "synthesizer", "runner": "kokoro", "folder": "models/m" }], "voices": [{ "language": "en", "part": "synthesizer", "file": "w.bin" }], "files": [IN] }""", DisplayName = "two synthesizers of one name")]
+    [DataRow("""{ "id": "m", "kind": "language", "tokenSampling": { "answering": { "temperature": 1, "topK": 20, "topP": 0.95 } }, "parts": [CHAT], "files": [IN] }""", DisplayName = "token sampling with nothing for reasoning")]
+    [DataRow("""{ "id": "m", "kind": "language", "tokenSampling": { "thinking": { "temperature": 0, "topK": 20, "topP": 0.95 } }, "parts": [CHAT], "files": [IN] }""", DisplayName = "a temperature no sampler takes")]
+    [DataRow("""{ "id": "m", "kind": "language", "tokenSampling": { "thinking": { "temperature": 1, "topK": 20, "topP": 1.5 } }, "parts": [CHAT], "files": [IN] }""", DisplayName = "a top-p past 1")]
+    [DataRow("""{ "id": "m", "kind": "imageGeneration", "sampler": SAMPLER, "tokenSampling": { "thinking": { "temperature": 1, "topK": 20, "topP": 0.95 } }, "parts": [IMAGE], "files": [IN, IN2, IN3] }""", DisplayName = "token sampling for a model that writes none")]
     public void AModelThatDoesNotSayWhatItIsOrHowItRuns_OrStraysFromItsFolders_IsRefused(string model)
     {
         var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IMAGE", Image).Replace("SAMPLER", Sampler).Replace("IN2", File("models/d/w.bin")).Replace("IN3", File("models/v/w.bin"))
@@ -212,5 +216,22 @@ public class OwnedModelsTests
         Assert.AreEqual(("german", "lexicons/de.tsv.gz"), (german.Part, german.Lexicon));
         Assert.AreEqual("models/de", model.PartNamed("german", OwnedModels.Cuda).Folder);
         Assert.AreEqual("synthesizer", model.PartNamed("synthesizer", OwnedModels.Cpu).Name, "a part's name is its role unless it is given one");
+    }
+
+    [TestMethod]
+    public void EachLanguageModel_ChoosesItsTokensAsItsMakersRecommend_ForReasoningAndForAnsweringStraightAway()
+    {
+        TokenSampling? Of(string id, bool thinks) => OwnedModels.All.Single(m => m.Id == id).TokenSampling?.For(thinks);
+
+        foreach (var gemma in new[] { "gemma-4-e4b-it", "gemma-4-26b-a4b-it", "gemma-4-31b-it" })
+        {
+            Assert.AreEqual(new TokenSampling(1.0f, 64, 0.95f), Of(gemma, thinks: true), gemma);
+            Assert.AreEqual(Of(gemma, thinks: true), Of(gemma, thinks: false), "Google recommends the one way");
+        }
+        Assert.AreEqual(new TokenSampling(1.0f, 20, 0.95f, 1.5f), Of("qwen-3.5-9b", thinks: true));
+        Assert.AreEqual(new TokenSampling(0.7f, 20, 0.8f, 1.5f), Of("qwen-3.5-9b", thinks: false), "Qwen's non-thinking settings");
+        Assert.AreEqual(new TokenSampling(1.0f, 20, 0.95f), Of("qwen-3.8-27b", thinks: true));
+        Assert.AreEqual(new TokenSampling(0.6f, 20, 0.95f), Of("mimo-v2.6-9b", thinks: false));
+        Assert.IsNull(Of("phi-4", thinks: true), "its makers recommend nothing: the likeliest token each time");
     }
 }

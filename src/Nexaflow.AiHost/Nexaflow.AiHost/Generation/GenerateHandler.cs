@@ -29,12 +29,14 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
         bool kept = false;
+        using var sampler = new LlamaSampler(request.Sampling, model.Context.Tokens);   // as the model's makers recommend
         try
         {
             string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
             int read;
             if (conversation is not null && Delta(model, conversation, request.Turns, request.Tools, request.Thinks) is { } delta)
             {
+                conversation.Sampler = sampler;
                 read = await ReadAsync(model, conversation, delta, ChatPrompt.Media(model, request.Turns.Skip(conversation.Read.Count)),
                                        request.Priority, ct);
             }
@@ -42,6 +44,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             {
                 conversation?.Dispose();
                 conversation = model.Conversations.Start();
+                conversation.Sampler = sampler;
                 read = await ReadAsync(model, conversation, prompt, ChatPrompt.Media(model, request.Turns), request.Priority, ct);
             }
             conversation.Prompted(prompt);
@@ -57,6 +60,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         }
         finally
         {
+            if (conversation is not null) conversation.Sampler = null;   // the sampler goes with the request
             // Failed, cancelled or cut short part-way: its context is not one anybody will continue.
             if (!kept) conversation?.Dispose();
         }

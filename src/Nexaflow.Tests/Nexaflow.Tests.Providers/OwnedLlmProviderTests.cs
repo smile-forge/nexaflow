@@ -238,4 +238,30 @@ public class OwnedLlmProviderTests
         Assert.IsFalse(provider.IsMakingWay);
         Assert.AreEqual(4, changes, "each change is told, so the conversation can pause and take up listening again");
     }
+
+    [TestMethod]
+    public void AReply_IsSampledForWhetherItReasons_AndASeedMakesItRepeatable()
+    {
+        var qwen = OwnedModels.All.Single(m => m.Id == "qwen-3.5-9b");
+        var before = Environment.GetEnvironmentVariable(OwnedLlmProvider.SeedVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, null);
+            Assert.AreEqual(0.7f, OwnedLlmProvider.SamplingOf(qwen, thinks: false)!.Temperature);
+            Assert.AreEqual(1.0f, OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Temperature);
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Seed, "a different draw each time");
+
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, "7");
+            Assert.AreEqual(7u, OwnedLlmProvider.SamplingOf(qwen, thinks: true)!.Seed);
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(OwnedModels.All.Single(m => m.Id == "phi-4"), thinks: true));
+
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.GreedyVariable, "1");
+            Assert.IsNull(OwnedLlmProvider.SamplingOf(qwen, thinks: true), "tests of the app's own paths take the likeliest token");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.SeedVariable, before);
+            Environment.SetEnvironmentVariable(OwnedLlmProvider.GreedyVariable, null);
+        }
+    }
 }

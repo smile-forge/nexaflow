@@ -5,8 +5,9 @@ namespace Nexaflow.AiHost.Llama;
 /// <summary>
 /// One KV cache for a model's open conversations, each a sequence of its own in one unified cache: the cache is
 /// allocated once, as long as the model's context, and conversations share it. Reading appends a sequence's tokens at
-/// its next positions; sampling is greedy, from the logits the last read left — so a read and the sample after it
-/// happen together, before another conversation's read can replace them. Every call takes the context's lock: llama.cpp
+/// its next positions; the next token is chosen by the reader's sampler — the likeliest, when it gives none — from the
+/// logits the last read left, so a read and the sample after it happen together, before another conversation's read can
+/// replace them. Every call takes the context's lock: llama.cpp
 /// serves one caller at a time.
 /// </summary>
 internal sealed unsafe class LlamaContext : IDisposable
@@ -50,7 +51,7 @@ internal sealed unsafe class LlamaContext : IDisposable
     /// <summary>Reads <paramref name="tokens"/> into a sequence from <paramref name="position"/>, at most
     /// <see cref="Batch"/> of them; with <paramref name="sample"/>, the next token is chosen from the last one's
     /// logits and returned.</summary>
-    public int? Read(int sequence, int position, ReadOnlySpan<int> tokens, bool sample)
+    public int? Read(int sequence, int position, ReadOnlySpan<int> tokens, bool sample, LlamaSampler? sampler = null)
     {
         if (tokens.Length is 0 or > Batch) throw new ArgumentOutOfRangeException(nameof(tokens), tokens.Length, $"1 to {Batch} tokens per read.");
         lock (_gate)
@@ -66,18 +67,18 @@ internal sealed unsafe class LlamaContext : IDisposable
                 batch.Logits[i] = (sbyte)(sample && i == tokens.Length - 1 ? 1 : 0);
             }
             Check(LlamaNative.Decode(Handle, batch));
-            return sample ? LlamaNative.SamplerSample(_sampler, Handle, -1) : null;
+            return sample ? LlamaNative.SamplerSample(sampler?.Handle ?? _sampler, Handle, -1) : null;
         }
     }
 
     /// <summary>Runs <paramref name="read"/> — a read llama.cpp's own helpers make, such as an image's — under the
     /// context's lock, then samples the next token when asked.</summary>
-    public int? Read(Func<IntPtr, int> read, bool sample)
+    public int? Read(Func<IntPtr, int> read, bool sample, LlamaSampler? sampler = null)
     {
         lock (_gate)
         {
             Check(read(Handle));
-            return sample ? LlamaNative.SamplerSample(_sampler, Handle, -1) : null;
+            return sample ? LlamaNative.SamplerSample(sampler?.Handle ?? _sampler, Handle, -1) : null;
         }
     }
 

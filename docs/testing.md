@@ -281,7 +281,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
   parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
   the assembly it happens to sit in would pass over the other one and read green while testing nothing.
 - **`TestCategory("OwnedModel")`** *(`Tests.Core/AiPaths`, and `OwnedModelTests` in `Tests.AiHost`)* — the agent loop
-  and the AI host on a real model, Gemma 4 E4B, where a machine has it. `NEXAFLOW_TEST_GEMMA` names a folder holding
+  and the AI host on a real model, Gemma 4 E4B, where a machine has it. The AI-path suite checks the app's own paths, so
+  it runs the model greedy (`NEXAFLOW_AI_GREEDY`) and each run gives the same replies as the last; `OwnedModelTests`
+  checks the model's sampling itself, drawing on fresh hosts so a seed repeats. `NEXAFLOW_TEST_GEMMA` names a folder holding
   its files as its catalog lays them out (its GGUF and its projector), and
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack to run it on; without the first they are **inconclusive**, which is what
   they are in CI. One host and one loaded model serve a run, so the classes do not parallelise. They assert what the

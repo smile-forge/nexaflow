@@ -516,6 +516,11 @@
           "type": "code",
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/CircleWatch.cs",
           "class": "CircleWatch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler"
         }
       ],
       "concerns": {
@@ -535,6 +540,12 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/CircleWatchTests.cs",
             "class": "CircleWatchTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/OwnedModelTests.cs",
+            "class": "OwnedModelTests",
+            "method": "AReplySampledAsGoogleRecommends_DiffersBySeed_AndOneSeedOnAFreshHostDrawsTheSame"
           }
         ]
       }

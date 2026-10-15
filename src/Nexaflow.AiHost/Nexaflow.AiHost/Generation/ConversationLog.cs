@@ -146,13 +146,16 @@ internal sealed class LiveConversation : IDisposable
     /// <summary>The text of the token the last reply stopped on, which the next read begins with.</summary>
     public string StoppedAt { get; private set; } = "";
 
+    /// <summary>How the request answering in it chooses its tokens; null — the likeliest each time — between requests.</summary>
+    public LlamaSampler? Sampler { get; set; }
+
     public bool IsContinuedBy(IReadOnlyList<ChatTurn> turns) => ConversationMatch.Continues(Read, turns);
 
     /// <summary>Reads text tokens — at most <see cref="LlamaContext.Batch"/> — choosing the next token after the
     /// last when <paramref name="sample"/>.</summary>
     public void ReadTokens(ReadOnlySpan<int> tokens, bool sample)
     {
-        var next = _context.Read(Sequence, Positions, tokens, sample);
+        var next = _context.Read(Sequence, Positions, tokens, sample, Sampler);
         Tokens += tokens.Length;
         Positions += tokens.Length;
         if (next is { } chosen) Next = chosen;
@@ -161,7 +164,7 @@ internal sealed class LiveConversation : IDisposable
     /// <summary>Reads a medium through the model's projector.</summary>
     public void ReadMedium(MediaProjector projector, PromptPiece piece, bool sample)
     {
-        Positions = projector.Read(_context, piece, Sequence, Positions, sample, out var next);
+        Positions = projector.Read(_context, piece, Sequence, Positions, sample, out var next, Sampler);
         Tokens += piece.TokenCount;
         if (next is { } chosen) Next = chosen;
     }

@@ -427,6 +427,17 @@ taken for an answer: the run is stuck, handed to the larger model where the row 
 went in circles, or filled the context. The AI bar draws how full the context is as a hairline along the foot of its
 line, amber from 80%.
 
+**Each model chooses its tokens as its makers recommend** (`TokenSampling`, built per request into llama.cpp's sampler
+chain by `LlamaSampler`). The catalog carries each language model's settings, from its GGUF's `general.sampling` keys or
+its model card, for reasoning and for answering straight away: Gemma 4 at temperature 1.0, top-k 64, top-p 0.95 either
+way; Qwen 3.5–3.8 at 1.0 / top-k 20 / top-p 0.95 reasoning and 0.7 / 20 / 0.8 answering, with the presence penalty their
+cards give; MiMo at 0.6 / 20 / 0.95; Phi-4, whose makers recommend nothing, the likeliest token each time. Taking the
+likeliest token each time sent Gemma 4 26B's reasoning round the same thought on an opinion question every time; sampled,
+it answered five times in five, after 1.6–3.2k tokens of thought. `NEXAFLOW_AI_SEED` makes a fresh host draw the same
+replies for the same requests in the same order — what other conversations hold in its cache moves the arithmetic
+slightly, so not one request against the next — and `NEXAFLOW_AI_GREEDY` takes the likeliest token, for tests of the
+app's own paths through a real model.
+
 **Thinking, per request.** Reasoning makes a smaller model's answers worth having, and costs time before the first word.
 A voice turn is weighed first by the Disambiguation model, without reasoning of its own (`RequestTriage.NeedsThoughtAsync`):
 a greeting, a plain fact or a short command is answered at once, without reasoning; an opinion, anything over several

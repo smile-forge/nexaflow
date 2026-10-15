@@ -244,6 +244,41 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Llama, EntryPoint = "llama_sampler_sample")]
     public static partial int SamplerSample(IntPtr sampler, IntPtr context, int index);
 
+    /// <summary>llama.cpp's <c>llama_sampler_chain_params</c>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SamplerChainParams
+    {
+        public byte NoPerf;
+    }
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_chain_default_params")]
+    public static partial SamplerChainParams SamplerChainDefaults();
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_chain_init")]
+    public static partial IntPtr SamplerChain(SamplerChainParams parameters);
+
+    /// <summary>Adds <paramref name="sampler"/> to the end of <paramref name="chain"/>, which owns it from then on.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_chain_add")]
+    public static partial void SamplerChainAdd(IntPtr chain, IntPtr sampler);
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_init_top_k")]
+    public static partial IntPtr SamplerTopK(int k);
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_init_top_p")]
+    public static partial IntPtr SamplerTopP(float p, nuint minKeep);
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_init_temp")]
+    public static partial IntPtr SamplerTemperature(float temperature);
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_init_dist")]
+    public static partial IntPtr SamplerDistribution(uint seed);
+
+    [LibraryImport(Llama, EntryPoint = "llama_sampler_init_penalties")]
+    public static partial IntPtr SamplerPenalties(int lastN, float repeat, float frequency, float presence);
+
+    /// <summary>The seed llama.cpp takes to mean "a different one each time".</summary>
+    public const uint DefaultSeed = 0xFFFFFFFF;
+
     [LibraryImport(Llama, EntryPoint = "llama_sampler_free")]
     public static partial void SamplerFree(IntPtr sampler);
 }
