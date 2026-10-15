@@ -39,6 +39,11 @@ internal static class OwnedRoles
     public const string Denoiser      = DrawingParts.Denoiser;
     public const string Decoder       = DrawingParts.Decoder;
     public const string FrameEncoder  = FilmingParts.FrameEncoder;
+    public const string UpscalerX2    = RestoringParts.UpscalerX2;
+    public const string UpscalerX4    = RestoringParts.UpscalerX4;
+    public const string FaceDetector  = RestoringParts.FaceDetector;
+    public const string FaceRestorer  = RestoringParts.FaceRestorer;
+    public const string FaceParser    = RestoringParts.FaceParser;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -52,26 +57,30 @@ internal static class OwnedRoles
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned model is of this kind"),
     };
 
+    /// <summary>The parts a tool of each kind is made of.</summary>
+    public static IReadOnlyList<string> Of(OwnedToolKind kind) => kind switch
+    {
+        OwnedToolKind.PictureRestoration => [UpscalerX2, UpscalerX4, FaceDetector, FaceRestorer, FaceParser],
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
+    };
+
     /// <summary>Whether a model may have several parts in <paramref name="role"/>, each named: a voice model's
     /// synthesizers — the German voice is a fine-tune of its own.</summary>
     public static bool Repeats(string role) => role == Synthesizer;
 }
 
 /// <summary>
-/// A model Nexaflow runs itself: its catalog entry — every file any machine might need — its parts, and, for a model
-/// that speaks, its voices. A part built for one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is
-/// fetched and run only on that runtime. A model that draws says how it samples, and one that films how it does; a
-/// language model, how it chooses its tokens (<see cref="OwnedTokenSampling"/>).
+/// An entry of the owned catalog — what Nexaflow runs in its AI host: a model a provider serves, or the models a tool
+/// works with. Its catalog entry lists every file any machine might need; its parts are what the host loads, a part built
+/// for one runtime fetched and run only on that runtime.
 /// </summary>
-internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
-                                  bool Images, bool Audio, bool ToolCalls = false, OwnedSampler? Sampler = null,
-                                  OwnedTokenSampling? TokenSampling = null, OwnedFilming? Filming = null)
+internal abstract record OwnedEntry(CatalogModel Catalog, IReadOnlyList<OwnedPart> Parts)
 {
     public string Id => Catalog.Id;
 
-    /// <summary>Whether its parts load when it is asked for and only for their stage — a picture's or a clip's — rather
-    /// than stay resident beside the language and speech models.</summary>
-    public bool LoadsOnDemand => Kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration;
+    /// <summary>Whether its parts load when they are asked for and only for their stage — a picture's, a clip's, a
+    /// tool's — rather than stay resident beside the language and speech models.</summary>
+    public abstract bool LoadsOnDemand { get; }
 
     /// <summary>Whether it has a build for <paramref name="executionProvider"/> — an image model is built for CUDA only.</summary>
     public bool RunsOn(string executionProvider) => PartsFor(executionProvider).Count > 0;
@@ -92,6 +101,36 @@ internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnl
         var folders = PartsFor(executionProvider).Select(p => p.Folder + "/").ToList();
         return Catalog with { Files = [.. Catalog.Files.Where(f => folders.Any(folder => f.RelativePath.StartsWith(folder, StringComparison.Ordinal)))] };
     }
+}
+
+/// <summary>What a tool of the owned catalog does; the parts it has follow from it (<see cref="OwnedRoles.Of(OwnedToolKind)"/>).</summary>
+internal enum OwnedToolKind
+{
+    /// <summary>Restores a picture: Real-ESRGAN's upscalers, and GFPGAN with the detector and parser it remakes faces with.</summary>
+    PictureRestoration,
+}
+
+/// <summary>
+/// The models a tool works with, run in the host like an owned model's but serving no provider: a tool is used by a person
+/// or by an assistant, local or in the cloud, and nothing in the cloud stands in for it. Its parts load on demand.
+/// </summary>
+internal sealed record OwnedTool(CatalogModel Catalog, OwnedToolKind Kind, IReadOnlyList<OwnedPart> Parts) : OwnedEntry(Catalog, Parts)
+{
+    public override bool LoadsOnDemand => true;
+}
+
+/// <summary>
+/// A model Nexaflow runs itself: its catalog entry — every file any machine might need — its parts, and, for a model
+/// that speaks, its voices. A part built for one runtime (Whisper's fp16 build for CUDA, its int8 build for the CPU) is
+/// fetched and run only on that runtime. A model that draws says how it samples, and one that films how it does; a
+/// language model, how it chooses its tokens (<see cref="OwnedTokenSampling"/>).
+/// </summary>
+internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnlyList<OwnedPart> Parts, IReadOnlyList<OwnedVoice> Voices,
+                                  bool Images, bool Audio, bool ToolCalls = false, OwnedSampler? Sampler = null,
+                                  OwnedTokenSampling? TokenSampling = null, OwnedFilming? Filming = null) : OwnedEntry(Catalog, Parts)
+{
+    /// <summary>A picture's and a clip's parts load for their stage alone.</summary>
+    public override bool LoadsOnDemand => Kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration;
 }
 
 /// <summary>A voice of a model that speaks: the language it reads, the part that speaks it, its file in that part's
@@ -153,7 +192,8 @@ internal static class OwnedModels
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    private sealed record Manifest(List<Entry>? Models);
+    private sealed record Manifest(List<Entry>? Models, List<ToolEntry>? Tools);
+    private sealed record ToolEntry(string? Id, OwnedToolKind? Kind, List<Part>? Parts);
     private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices, Sampler? Sampler,
                                 Choosing? TokenSampling, Filming? Filming);
     private sealed record Filming(FilmingMethod? Method, int Steps, float Shift, float Guidance, List<int>? Timesteps, string? NegativePrompt,
@@ -165,18 +205,21 @@ internal static class OwnedModels
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken);
 
-    public static IReadOnlyList<OwnedModel> All { get; } = Read();
+    public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
+
+    /// <summary>The tools' entries: the models each tool works with.</summary>
+    public static IReadOnlyList<OwnedTool> Tools { get; } = ReadTools(Embedded());
 
     /// <summary>The models of <paramref name="kind"/>.</summary>
     public static IEnumerable<OwnedModel> OfKind(ModelKind kind) => All.Where(m => m.Kind == kind);
 
-    private static IReadOnlyList<OwnedModel> Read()
+    private static byte[] Embedded()
     {
         using var stream = typeof(OwnedModels).Assembly.GetManifestResourceStream("owned-models.json")
                            ?? throw new InvalidOperationException("The owned-model catalog is missing from its assembly.");
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
-        return Read(copy.ToArray());
+        return copy.ToArray();
     }
 
     /// <exception cref="InvalidDataException">A model does not say what it is or how its parts run, lacks a part its
@@ -190,7 +233,8 @@ internal static class OwnedModels
             if (e.Id is null || !catalog.TryGetValue(e.Id, out var model)) throw new InvalidDataException("An owned model has no id.");
             if (e.Kind is not { } kind) throw new InvalidDataException($"Owned model '{e.Id}' does not say what kind of model it is.");
 
-            var parts  = (e.Parts ?? []).Select(p => ToPart(e.Id, kind, p)).ToList();
+            bool onDemand = kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration;
+            var parts  = (e.Parts ?? []).Select(p => ToPart("Owned model", e.Id, p, language: kind == ModelKind.Language, onDemand)).ToList();
             var voices = (e.Voices ?? []).Select(v => ToVoice(e.Id, model, parts, v)).ToList();
             if (kind == ModelKind.TextToSpeech && voices.Count == 0) throw new InvalidDataException($"Owned model '{e.Id}' speaks with no voice.");
             var sampler = e.Sampler is { } s ? ToSampler(e.Id, s) : null;
@@ -205,26 +249,49 @@ internal static class OwnedModels
             if ((kind == ModelKind.VideoGeneration) != (filming is not null))
                 throw new InvalidDataException($"Owned model '{e.Id}' says how it films, or films without saying how.");
             var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing, filming);
-            if (!owned.RunsOn(Cuda) && !owned.RunsOn(Cpu)) throw new InvalidDataException($"Owned model '{e.Id}' runs on no runtime.");
-            foreach (var runtime in new[] { Cuda, Cpu })
-            {
-                var onRuntime = owned.PartsFor(runtime);
-                if (onRuntime.Count == 0) continue;   // not built for this runtime
-                var roles = onRuntime.Select(p => p.Role).ToList();
-                var needed = OwnedRoles.Of(kind, sampler, filming);
-                bool complete = needed.All(roles.Contains) && roles.All(needed.Contains)
-                             && roles.Where(r => !OwnedRoles.Repeats(r)).GroupBy(r => r).All(g => g.Count() == 1)
-                             && onRuntime.GroupBy(p => p.Name).All(g => g.Count() == 1);
-                if (!complete)
-                    throw new InvalidDataException($"Owned model '{e.Id}' needs one part each of {string.Join(", ", needed)} on {runtime}, where it runs — several synthesizers each named — and has {string.Join(", ", onRuntime.Select(p => p.Name))}.");
-            }
-            var folders = parts.Select(p => p.Folder + "/").Distinct().ToList();
-            if (model.Files.Any(f => !folders.Any(folder => f.RelativePath.StartsWith(folder, StringComparison.Ordinal))))
-                throw new InvalidDataException($"Owned model '{e.Id}' has files outside its parts' folders.");
-            if (parts.Any(p => !model.Files.Any(f => f.RelativePath.StartsWith(p.Folder + "/", StringComparison.Ordinal))))
-                throw new InvalidDataException($"Owned model '{e.Id}' has a part with no files.");
+            Check("Owned model", owned, OwnedRoles.Of(kind, sampler, filming));
             return owned;
         })];
+    }
+
+    /// <exception cref="InvalidDataException">A tool does not say what it does or how its parts run, lacks a part its kind
+    /// needs on a runtime, or has a file outside its parts' folders.</exception>
+    internal static IReadOnlyList<OwnedTool> ReadTools(byte[] json)
+    {
+        var catalog = ModelCatalog.ReadTools(new MemoryStream(json)).ToDictionary(m => m.Id);
+        var entries = JsonSerializer.Deserialize<Manifest>(json, Options)?.Tools ?? [];
+        return [.. entries.Select(e =>
+        {
+            if (e.Id is null || !catalog.TryGetValue(e.Id, out var tool)) throw new InvalidDataException("An owned tool has no id.");
+            if (e.Kind is not { } kind) throw new InvalidDataException($"Owned tool '{e.Id}' does not say what it does.");
+            var owned = new OwnedTool(tool, kind, [.. (e.Parts ?? []).Select(p => ToPart("Owned tool", e.Id, p, language: false, onDemand: true))]);
+            Check("Owned tool", owned, OwnedRoles.Of(kind));
+            return owned;
+        })];
+    }
+
+    /// <summary>That <paramref name="entry"/> runs somewhere, with one part of each of <paramref name="needed"/> on each
+    /// runtime it is built for — several synthesizers each named — and that its files and its parts' folders match.</summary>
+    /// <exception cref="InvalidDataException">They do not.</exception>
+    private static void Check(string what, OwnedEntry entry, IReadOnlyList<string> needed)
+    {
+        if (!entry.RunsOn(Cuda) && !entry.RunsOn(Cpu)) throw new InvalidDataException($"{what} '{entry.Id}' runs on no runtime.");
+        foreach (var runtime in new[] { Cuda, Cpu })
+        {
+            var onRuntime = entry.PartsFor(runtime);
+            if (onRuntime.Count == 0) continue;   // not built for this runtime
+            var roles = onRuntime.Select(p => p.Role).ToList();
+            bool complete = needed.All(roles.Contains) && roles.All(needed.Contains)
+                         && roles.Where(r => !OwnedRoles.Repeats(r)).GroupBy(r => r).All(g => g.Count() == 1)
+                         && onRuntime.GroupBy(p => p.Name).All(g => g.Count() == 1);
+            if (!complete)
+                throw new InvalidDataException($"{what} '{entry.Id}' needs one part each of {string.Join(", ", needed)} on {runtime}, where it runs — several synthesizers each named — and has {string.Join(", ", onRuntime.Select(p => p.Name))}.");
+        }
+        var folders = entry.Parts.Select(p => p.Folder + "/").Distinct().ToList();
+        if (entry.Catalog.Files.Any(f => !folders.Any(folder => f.RelativePath.StartsWith(folder, StringComparison.Ordinal))))
+            throw new InvalidDataException($"{what} '{entry.Id}' has files outside its parts' folders.");
+        if (entry.Parts.Any(p => !entry.Catalog.Files.Any(f => f.RelativePath.StartsWith(p.Folder + "/", StringComparison.Ordinal))))
+            throw new InvalidDataException($"{what} '{entry.Id}' has a part with no files.");
     }
 
     /// <exception cref="InvalidDataException">The sampler does not say how it draws, how many steps and how far shifted, or
@@ -288,17 +355,19 @@ internal static class OwnedModels
         }
     }
 
-    private static OwnedPart ToPart(string modelId, ModelKind kind, Part p)
+    /// <param name="language">A language model's part: what it and each token of its context hold must be known.</param>
+    /// <param name="onDemand">A part loaded on demand against the GPU budget — a picture's, a clip's, a tool's — so what it
+    /// holds at its peak must be known.</param>
+    private static OwnedPart ToPart(string what, string id, Part p, bool language, bool onDemand)
     {
         if (string.IsNullOrWhiteSpace(p.Role) || string.IsNullOrWhiteSpace(p.Runner) || string.IsNullOrWhiteSpace(p.Folder))
-            throw new InvalidDataException($"A part of owned model '{modelId}' does not say what it is, what runs it or where it is.");
+            throw new InvalidDataException($"A part of {what.ToLowerInvariant()} '{id}' does not say what it is, what runs it or where it is.");
         if (p.ExecutionProvider is not (null or Cuda or Cpu))
-            throw new InvalidDataException($"Owned model '{modelId}' has a part for '{p.ExecutionProvider}', a runtime the host does not have.");
-        if (kind == ModelKind.Language && (p.MemoryBytes <= 0 || p.BytesPerToken <= 0 || p.ContextTokens < ShortestContext))
-            throw new InvalidDataException($"Owned model '{modelId}' does not say how much it and each token of its context hold, or how long a conversation it is given.");
-        // A picture's and a clip's parts load on demand against the GPU budget, so what each holds at its peak must be known.
-        if (kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
-            throw new InvalidDataException($"Owned model '{modelId}' does not say how much its {p.Role} holds.");
+            throw new InvalidDataException($"{what} '{id}' has a part for '{p.ExecutionProvider}', a runtime the host does not have.");
+        if (language && (p.MemoryBytes <= 0 || p.BytesPerToken <= 0 || p.ContextTokens < ShortestContext))
+            throw new InvalidDataException($"{what} '{id}' does not say how much it and each token of its context hold, or how long a conversation it is given.");
+        if (onDemand && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
+            throw new InvalidDataException($"{what} '{id}' does not say how much its {p.Role} holds.");
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                              p.Name ?? p.Role, p.Projector, p.BytesPerToken);
     }

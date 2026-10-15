@@ -1385,5 +1385,81 @@
         }
       ]
     }
+  ],
+  "tools": [
+    {
+      "id": "real-esrgan-gfpgan",
+      "displayName": "Real-ESRGAN and GFPGAN",
+      "kind": "pictureRestoration",
+      "parts": [
+        {
+          "role": "upscalerX2",
+          "runner": "esrgan-upscaler",
+          "folder": "tools/real-esrgan-gfpgan/upscaler-x2",
+          "file": "upscaler-x2.onnx",
+          "memoryBytes": 2214592512
+        },
+        {
+          "role": "upscalerX4",
+          "runner": "esrgan-upscaler",
+          "folder": "tools/real-esrgan-gfpgan/upscaler-x4",
+          "file": "upscaler-x4.onnx",
+          "memoryBytes": 3154116608
+        },
+        {
+          "role": "faceDetector",
+          "runner": "retinaface-detector",
+          "folder": "tools/real-esrgan-gfpgan/face-detector",
+          "file": "face-detector.onnx",
+          "memoryBytes": 1577058304
+        },
+        {
+          "role": "faceRestorer",
+          "runner": "gfpgan-restorer",
+          "folder": "tools/real-esrgan-gfpgan/face-restorer",
+          "file": "face-restorer.onnx",
+          "memoryBytes": 1476395008
+        },
+        {
+          "role": "faceParser",
+          "runner": "face-parser",
+          "folder": "tools/real-esrgan-gfpgan/face-parser",
+          "file": "face-parser.onnx",
+          "memoryBytes": 1593835520
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/real-esrgan-gfpgan/upscaler-x2/upscaler-x2.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/upscaler-x2/upscaler-x2.onnx",
+          "size": 69215782,
+          "sha256": "2a90c901938e84d81554b9a436740fee71f5374f9883f49589d23fd51643486e"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/upscaler-x4/upscaler-x4.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/upscaler-x4/upscaler-x4.onnx",
+          "size": 69179144,
+          "sha256": "dc7d65199ac5e2182d4bd0c121d8d7c9b0a3e734fa51ae246c96a7a006077e32"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-detector/face-detector.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-detector/face-detector.onnx",
+          "size": 109545483,
+          "sha256": "f3649c471f5b2d6851c0b0463c3cbbeda5881363e6905fd7094ee71845c99d3d"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-restorer/face-restorer.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-restorer/face-restorer.onnx",
+          "size": 341136033,
+          "sha256": "7a9701ddfdc728de5a7533e51279eb9a42ab75136a0b2c29ff36f8bede5eda9a"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-parser/face-parser.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-parser/face-parser.onnx",
+          "size": 85490061,
+          "sha256": "4c077ff4bda61f4cdef6dde85e3ba9608257cf2fca4158a07b2f6433bb943dd7"
+        }
+      ]
+    }
   ]
 }

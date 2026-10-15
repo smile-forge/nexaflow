@@ -30,6 +30,8 @@ using Nexaflow.Core.Localization;
 using Nexaflow.AiHost.Client;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.Core.Services.Tools;
+using Nexaflow.Providers.AiHost;
 
 namespace Nexaflow.Core;
 
@@ -264,9 +266,14 @@ public partial class App : Application
         var aiHost = StartAiHost();
         var assets = new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
                                          downloadsAllowed: !UiTest);
+        // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
+        var hostSetup = new HostModelSetup(aiHost);
+        var hardware = ComputeHardware.Probe();
+        var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets,
-            aiHost, new HostModelSetup(aiHost), ComputeHardware.Probe(),
-            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel));
+            aiHost, hostSetup, hardware,
+            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools);
+        FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a

@@ -196,6 +196,11 @@ public sealed class AIService : IAIService
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
                                                           HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
 
+                                                          // The tools Nexaflow runs on this machine, whatever model the workspace converses with — offered wherever the machine can
+                                                          // run them, so a request for one that is not downloaded yet is answered with where to get it.
+                                                          if (_workspace.ShellServices is { } toolShell && ProviderManager.Instance.Service<IPictureTools>() is { State: not ToolModelsState.Unavailable } pictures)
+                                                              tools.Add(new Tools.RestorePictureTool(pictures, Generation.GeneratedFiles.For(toolShell)));
+
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
         // No language pack means no help to offer — which is the case in a unit test of this loop, and the

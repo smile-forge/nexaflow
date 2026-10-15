@@ -77,6 +77,9 @@ public sealed class ProviderManager
     /// <summary>An app-wide service given to <see cref="Initialize"/>, or null.</summary>
     public T? Service<T>() where T : class => _services.OfType<T>().FirstOrDefault();
 
+    /// <summary>Every app-wide service of <typeparamref name="T"/> — each tool on this machine, say.</summary>
+    public IReadOnlyList<T> Services<T>() where T : class => [.. _services.OfType<T>()];
+
     /// <summary>Whether the loaded provider assembly <paramref name="assemblyFileName"/> defines no config — its providers
     /// need nothing set to be used. False for an assembly not loaded.</summary>
     public bool TakesNoConfig(string assemblyFileName)

@@ -42,6 +42,8 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(MadeWay), "made-way")]
 [JsonDerivedType(typeof(Film), "film")]
 [JsonDerivedType(typeof(Filmed), "filmed")]
+[JsonDerivedType(typeof(RestorePicture), "restore-picture")]
+[JsonDerivedType(typeof(PictureRestored), "picture-restored")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

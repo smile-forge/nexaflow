@@ -1,0 +1,111 @@
+{
+  "branch": "claude/ai-picture-tools",
+  "nodes": {
+    "picture-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureTools.cs",
+          "class": "PictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/RestorePictureTool.cs",
+          "class": "RestorePictureTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureFiles.cs",
+          "class": "PictureFiles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureTools.cs",
+          "class": "OwnedPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/PictureMessages.cs",
+          "class": "RestorePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoreHandler.cs",
+          "class": "RestoreHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/PictureUpscaling.cs",
+          "class": "PictureUpscaling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "FaceAlignment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "RetinaFaceDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoringModels.cs",
+          "class": "RestoringModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureResampling.cs",
+          "class": "PictureResampling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/Affine2D.cs",
+          "class": "Affine2D"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/real-esrgan-gfpgan/README.md",
+          "title_path": [
+            "Real-ESRGAN, GFPGAN, RetinaFace and ParseNet for ONNX Runtime"
+          ]
+        }
+      ]
+    },
+    "ai-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IToolModels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ILocalTool.cs",
+          "class": "ILocalTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalToolViewModel"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "ai-tools",
+    "picture-tools"
+  ]
+}

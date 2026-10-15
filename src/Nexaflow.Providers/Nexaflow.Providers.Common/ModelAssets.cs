@@ -116,7 +116,7 @@ public static class ModelCatalog
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    private sealed record Manifest(List<ManifestModel>? Models);
+    private sealed record Manifest(List<ManifestModel>? Models, List<ManifestModel>? Tools);
     private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files, ModelTier? Tier);
     private sealed record ManifestFile(string? Path, string? Url, long Size, string? Sha256, ManifestArchive? Archive);
     private sealed record ManifestArchive(string? Entry, long Size, string? Sha256);
@@ -129,6 +129,20 @@ public static class ModelCatalog
         catch (JsonException ex) { throw new InvalidDataException($"The model catalog does not read: {ex.Message}", ex); }
 
         return [.. (manifest?.Models ?? []).Select(ToModel)];
+    }
+
+    /// <summary>
+    /// The manifest's tools: the models a tool works with, in the same shape as its models — fetched and kept as they are, but
+    /// serving no provider (<c>"tools": [ … ]</c> beside <c>"models"</c>).
+    /// </summary>
+    /// <exception cref="InvalidDataException">The manifest is malformed, or a tool or file lacks what it must say.</exception>
+    public static IReadOnlyList<CatalogModel> ReadTools(Stream json)
+    {
+        Manifest? manifest;
+        try { manifest = JsonSerializer.Deserialize<Manifest>(json, Options); }
+        catch (JsonException ex) { throw new InvalidDataException($"The model catalog does not read: {ex.Message}", ex); }
+
+        return [.. (manifest?.Tools ?? []).Select(ToModel)];
     }
 
     private static CatalogModel ToModel(ManifestModel m)

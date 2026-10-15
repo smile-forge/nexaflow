@@ -13,6 +13,9 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 using Str = Nexaflow.Visuals.Common.Localization.Str;
+using Nexaflow.Core.Services.Tools;
+using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Formatting;
 
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -46,6 +49,7 @@ public class LocalModelsTests
         ["models/clip/encoder.onnx"] = Bytes(6_000, 19),
         ["models/clip/fast.onnx"]    = Bytes(1_000, 21),
         ["models/clip/full.onnx"]    = Bytes(1_000, 23),
+        ["tools/picture/upscaler.onnx"] = Bytes(2_000, 25),
     };
 
     private static CatalogModel Model(string id, string path) => new(id, id.ToUpperInvariant(), [Asset(path, Served[path])]);
@@ -59,6 +63,9 @@ public class LocalModelsTests
     private static readonly CatalogModel Big   = Model("big", "models/big.gguf");
     private static readonly CatalogModel Z     = Model("z", "models/z.onnx");
     private static readonly LocalRuntime Cuda  = new("cuda", "CUDA runtime", [Asset("runtime/cuda.dll", Served["runtime/cuda.dll"])]);
+
+    /// <summary>A tool's models: one file.</summary>
+    private static readonly CatalogModel Upscaler = Model("upscaler", "tools/picture/upscaler.onnx");
 
     /// <summary>Two builds of one video model, sharing every file but their denoisers.</summary>
     private static readonly CatalogModel FastClip = new("fast", "FAST", [Asset("models/clip/encoder.onnx", Served["models/clip/encoder.onnx"]),
@@ -203,7 +210,7 @@ public class LocalModelsTests
 
     private LocalModelDownloads Downloads() => new(_store, activities: null, (_, slot, column) => _used.Add((slot, column.Model)));
 
-    private LocalModelsViewModel Page(Setup setup) => new(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++);
+    private LocalModelsViewModel Page(Setup setup, params ILocalTool[] tools) => new(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, tools);
 
     private static AiAbilityCellViewModel LocalCell(AiAbilityGridViewModel grid, AiAbility ability)
         => grid.Rows.Single(r => r.Ability == ability).Cells.Single(c => c.Column.IsLocal);
@@ -507,7 +514,7 @@ public class LocalModelsTests
     {
         await _store.EnsureAllAsync([Small.Files[0], E4b.Files[0], Cuda.Files[0]]);
         var setup = Open();
-        var page  = new DownloadedModelsViewModel(setup.Shelf, () => [("Writing", setup.Config)]);
+        var page  = new DownloadedModelsViewModel(setup.Shelf, () => [("Writing", setup.Config)], []);
 
         CollectionAssert.AreEquivalent(new[] { "SMALL", "E4B", "CUDA runtime" }, page.Models.Select(m => m.Name).ToArray());
         var small = page.Models.Single(m => m.Name == "SMALL");
@@ -528,7 +535,7 @@ public class LocalModelsTests
         await _store.EnsureAllAsync([.. FastClip.Files, .. FullClip.Files]);
         var providers = new ProviderSet([new Clips()], new Dictionary<string, IAiProvider>(), [],
                                         new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll" }, []);
-        var page = new DownloadedModelsViewModel(new LocalModelShelf(providers, _store), () => []);
+        var page = new DownloadedModelsViewModel(new LocalModelShelf(providers, _store), () => [], []);
 
         Assert.AreEqual(6_000 + 1_000 + 1_000, page.TotalBytes, "the encoder they share is counted once");
 
@@ -549,10 +556,76 @@ public class LocalModelsTests
     {
         var cpp = CppLarge;
         await _store.EnsureAllAsync([.. cpp.Files]);
-        var page = new DownloadedModelsViewModel(Open().Shelf, () => []);
+        var page = new DownloadedModelsViewModel(Open().Shelf, () => [], []);
 
         var listed = page.Models.Single(m => m.Name == "LARGE-V3-TURBO");
         Assert.IsTrue(listed.DeleteCommand.CanExecute(null));
+    }
+
+    // ── Tools ─────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void ATool_IsOfferedBesideTheJobs_DownloadingWhatItLacks_AndIsHereOnceItCame() => OnUi(async () =>
+    {
+        var tool = new FakeTool(_store, Upscaler);
+        var row  = Page(Open(), tool).Tools.Single();
+
+        Assert.AreEqual("UPSCALER", row.Name);
+        Assert.AreEqual(Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(2_000)), row.DownloadLabel, "what the one file it lacks takes");
+        Assert.IsTrue(row.DownloadCommand.CanExecute(null));
+
+        row.DownloadCommand.Execute(null);
+        await tool.Fetching;
+        row.Refresh();
+
+        Assert.AreEqual(1, tool.Downloads);
+        Assert.IsNotNull(_store.Locate(Upscaler.Files[0]));
+        Assert.IsFalse(row.DownloadCommand.CanExecute(null), "nothing left to fetch");
+        Assert.AreEqual(Str.Get("Shell.Config.Local.Here"), row.Status);
+    });
+
+    [TestMethod]
+    public async Task AToolOnDisk_IsListedWithTheModels_AndCanGo_UsedByNoWorkspace()
+    {
+        await _store.EnsureAllAsync([.. Upscaler.Files]);
+        var tool = new FakeTool(_store, Upscaler);
+        var page = new DownloadedModelsViewModel(Open().Shelf, () => [], [tool]);
+
+        var listed = page.Models.Single(m => m.Name == "UPSCALER");
+        Assert.IsFalse(listed.InUse, "a tool belongs to no workspace");
+        await listed.DeleteCommand.ExecuteAsync(null);
+
+        Assert.IsNull(_store.Locate(Upscaler.Files[0]));
+        Assert.AreEqual(ToolModelsState.NotDownloaded, tool.State, "it downloads again when next asked for");
+        Assert.IsFalse(page.Models.Any(m => m.Name == "UPSCALER"));
+    }
+
+    /// <summary>A tool whose models are files in the store, fetched when asked.</summary>
+    private sealed class FakeTool(ModelAssetStore store, CatalogModel models) : ILocalTool
+    {
+        private Task? _fetching;
+
+        public string Name => models.DisplayName;
+        public string About => "Restores pictures.";
+        public IReadOnlyList<ModelAsset> OwnFiles => models.Files;
+        public int Downloads { get; private set; }
+        public Task Fetching => _fetching ?? Task.CompletedTask;
+
+        public ToolModelsState State
+            => models.Files.All(f => store.Locate(f) is not null) ? ToolModelsState.Ready
+             : _fetching is { IsCompleted: false } ? ToolModelsState.Downloading
+             : ToolModelsState.NotDownloaded;
+
+        public long DownloadBytes => models.Files.Where(f => store.Locate(f) is null).Sum(f => f.Size);
+        public int DownloadPercent => 0;
+        public event EventHandler? Changed;
+
+        public void Download()
+        {
+            Downloads++;
+            _fetching = store.EnsureAllAsync(models.Files);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Runs <paramref name="body"/> on a thread with a dispatcher of its own, as the page runs on the UI thread.</summary>
