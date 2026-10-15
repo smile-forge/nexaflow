@@ -185,12 +185,22 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Selecting/PictureSelectionTests.cs",
             "class": "PictureSelectionTests"
           }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Picture selection"
+            ]
+          }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 5,
+  "changed_sets": 6,
   "touched_nodes": [
     "ai-tools",
     "images-edit-restore",
