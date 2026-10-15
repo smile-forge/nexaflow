@@ -191,6 +191,36 @@ public class ImageCutOutTests
         Assert.AreEqual(2, selection.Opened, "a selection that failed is opened afresh");
     }
 
+    [TestMethod]
+    public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing()
+    {
+        var selection = new Patch();
+        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel,
+                                    new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))), selection: selection);
+        Until(() => vm.CurrentSession is not null);
+        var tool = vm.GetClientTools().Single(t => t.Name == "select_in_picture");
+
+        var result = await tool.InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+
+        Assert.IsTrue(result.Success, result.ModelText);
+        StringAssert.Contains(result.ModelText, "Picked out 2 \"mug\"");
+        StringAssert.Contains(result.ModelText, "4,2,12,10");
+        Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsCutOutTool), "the editor opens on Cut out");
+        Assert.AreEqual("mug", _ui.Invoke(() => vm.Cutter.Found));
+    }
+
+    [TestMethod]
+    public async Task TheAssistant_IsToldWhereToGetPictureSelection_WhereItIsNotHere()
+    {
+        var vm = Editing(new Patch { State = ToolModelsState.NotDownloaded });
+
+        var result = await vm.GetClientTools().Single(t => t.Name == "select_in_picture")
+                             .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.ModelText, "Settings > Local > Tools");
+    }
+
     /// <summary>Picture selection that picks the patch from (4, 2) to (12, 10) of the photo, but for its top-left
     /// pixel, wherever it is asked; a phrase finds it twice.</summary>
     private sealed class Patch : IPictureSelection, IPictureSelectionSession

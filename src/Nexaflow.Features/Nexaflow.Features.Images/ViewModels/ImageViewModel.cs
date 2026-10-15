@@ -14,6 +14,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -815,6 +816,16 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             [],
             ToolSafety.SafeOperation,
             async (_, _) => await StepAsync(forward: false)),
+
+        // ── Selection: things picked out of the picture on screen, shown in the editor's Cut out ──
+        new DelegateClientTool(
+            "select_in_picture",
+            "Pick out everything 'what' names in the picture on screen — \"the mug\", \"woman with red hair\" — and show it selected "
+          + "in the image editor's Cut out tool, where the user can copy it or save it without its background. Says how many it "
+          + "found, how surely and where, in the picture's pixels. To cut something out into a file instead, use cut_out.",
+            [new ClientToolParameter("what", "What to pick out, in a few words: a noun phrase like \"dog\" or \"red car\".")],
+            ToolSafety.SafeOperation,
+            async (args, _) => await SelectNamedAsync(ToolArgs.Str(args, "what"))),
     ];
 
     /// <summary>Shared body for next_image / previous_image: steps the viewer and reports the new position.
@@ -834,6 +845,37 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         return ToolResult.Ok(
             $"showing {CurrentIndex + 1} of {TotalImages}",
             $"Now showing '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).");
+    }
+
+    /// <summary>The assistant's select_in_picture: the editor opened on the Cut out tool, and everything <paramref name="what"/>
+    /// names picked out there.</summary>
+    private async Task<ToolResult> SelectNamedAsync(string? what)
+    {
+        if (string.IsNullOrWhiteSpace(what)) return ToolResult.Error("nothing named", "Say what to pick out as 'what'.");
+        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection.");
+        if (!Cutter.CanPick)
+            return ToolResult.Error("picture selection not downloaded",
+                "Picture selection is not on this machine yet: the user can download it in Settings > Local > Tools, or from the image editor's Cut out.");
+
+        Task<IReadOnlyList<PictureFind>>? finding = null;
+        void Start()
+        {
+            EnterEditMode();
+            if (!IsEditing) return;
+            Editor.Tool = EditTool.CutOut;
+            finding = Cutter.FindNamedAsync(what.Trim());
+        }
+        if (_shell is not null) await _shell.RunOnUiAsync(Start);
+        else Start();
+        if (finding is null) return ToolResult.Error("no picture", "No picture is open to pick from.");
+
+        var finds = await finding;
+        if (Cutter.Failed) return ToolResult.Error("could not pick it out", Cutter.Notice);
+        if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\".");
+        var where = string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
+            $"{f.Score:P0} sure at {f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}")));
+        return ToolResult.Ok($"picked out {finds.Count} × {what}",
+            $"Picked out {finds.Count} \"{what}\" in '{CurrentFileName}' ({where}); they show selected in the editor's Cut out tool, where the user can copy or save them.");
     }
 
     /// <summary>Format + pixel size + byte size of the current image, best-effort (any part may be unknown).</summary>

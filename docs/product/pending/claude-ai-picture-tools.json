@@ -228,12 +228,25 @@
           }
         ]
       }
+    },
+    "images-ai-act-select-in-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 9,
   "touched_nodes": [
     "ai-tools",
+    "images-ai-act-select-in-picture",
     "images-edit-cutout",
     "images-edit-restore",
     "picture-selection",

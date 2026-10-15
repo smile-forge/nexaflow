@@ -72,4 +72,5 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 
 - Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin and removes it from every view; the selection moves to what is left.
 - The assistant can look at the picture you are on, as edited, and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.
+- Ask the assistant to pick something out — "select the dog", "find the woman with red hair" — and it opens the editor's Cut out with every one it found picked, ready to copy or save. It can also cut something out of a picture file into a new PNG beside it without opening it.
 - In a conversation, this tab's context chip previews every image it holds.

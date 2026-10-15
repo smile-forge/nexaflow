@@ -51,7 +51,7 @@ public class ImagesAiTests
 
             var tools = vm.GetClientTools();
             CollectionAssert.AreEquivalent(
-                new[] { "capture_image", "get_image_info", "next_image", "previous_image" },
+                new[] { "capture_image", "get_image_info", "next_image", "previous_image", "select_in_picture" },
                 tools.Select(t => t.Name).ToArray(),
                 "the Images AI act tool surface changed — update the tree's images-ai-act leaves to match");
 

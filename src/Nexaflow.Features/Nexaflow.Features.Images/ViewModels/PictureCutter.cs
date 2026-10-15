@@ -34,6 +34,7 @@ public sealed partial class PictureCutter : ObservableObject
     private string? _photo;
     private Task<Opened>? _opened;
     private CancellationTokenSource? _asking;
+    private IReadOnlyList<PictureFind> _finds = [];
 
     private sealed record Opened(IPictureSelectionSession Session, UprightPixels Photo);
 
@@ -51,6 +52,9 @@ public sealed partial class PictureCutter : ObservableObject
 
     /// <summary>Whether this machine can pick things out of pictures at all — what the editor's tool shows for.</summary>
     public bool Available => _selection is { State: not ToolModelsState.Unavailable };
+
+    /// <summary>Picture selection is here, ready to pick with.</summary>
+    public bool CanPick => _selection is { State: ToolModelsState.Ready };
 
     /// <summary>The clicks so far, in the photo's pixels as it stands.</summary>
     public IReadOnlyList<CutPoint> Points => _points;
@@ -155,6 +159,16 @@ public sealed partial class PictureCutter : ObservableObject
 
     private bool CanFind() => Phrase.Trim().Length > 0;
 
+    /// <summary>Picks out everything <paramref name="phrase"/> names, as Find does, and gives what was found: none where
+    /// nothing is, or where the pick could not be made — <see cref="Notice"/> then says why.</summary>
+    public async Task<IReadOnlyList<PictureFind>> FindNamedAsync(string phrase)
+    {
+        Phrase = phrase;
+        ClearPicks();
+        await PickAsync(phrase.Trim());
+        return _finds;
+    }
+
     [RelayCommand]
     private void Clear()
     {
@@ -179,7 +193,8 @@ public sealed partial class PictureCutter : ObservableObject
     {
         _points.Clear();
         Box = null;
-        Found = null;
+    Found = null;
+        _finds = [];
         Shown = null;
         Failed = false;
         OnPropertyChanged(nameof(Points));
@@ -212,7 +227,8 @@ public sealed partial class PictureCutter : ObservableObject
                 var finds = await opened.Session.FindAsync(phrase, [], width, height, asking.Token);
                 mask = Union(finds, width, height);
                 if (asking.IsCancellationRequested) return;
-                Found = phrase;
+    Found = phrase;
+                _finds = finds;
                 Notice = finds.Count == 0 ? Str.Format("Images.CutOut.NothingFound", phrase) : Str.Format("Images.CutOut.FoundFormat", finds.Count, phrase);
             }
             else
