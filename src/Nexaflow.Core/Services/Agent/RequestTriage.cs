@@ -36,13 +36,15 @@ internal static class RequestTriage
         "ambiguous or where a mistake would be costly.\n\n";
 
     private const string Weighing =
-        "You decide whether what a user says to a voice assistant needs careful thought before it is answered. Reply with one word: quick or think.";
+        "You decide whether what a user says to a voice assistant needs careful thought before it is answered. The assistant " +
+        "does what it is asked through its tools, so thought is only for what it must work out itself. Reply with one word: quick or think.";
 
     private const string Answers =
-        "quick: answered at once — a greeting or small talk, a plain fact, a short command (open, find, rename, play), a yes or no, " +
-        "a simple question about what is on screen.\n" +
-        "think: needs reasoning first — an opinion, assessment or recommendation, anything over several steps, comparing or " +
-        "planning, explaining something involved, code, maths, or anything where a careless answer would mislead.\n\n";
+        "quick: answered at once — a greeting or small talk, a plain fact, a yes or no, a simple question about what is on " +
+        "screen, or something to do or make that the assistant's tools do (open, find, rename, play, set, create, draw or make " +
+        "a picture or video), however much it describes what is wanted.\n" +
+        "think: the reply itself needs reasoning first — an opinion, assessment or recommendation, a plan over several steps, " +
+        "comparing, explaining something involved, writing code, maths, or anything where a careless answer would mislead.\n\n";
 
     /// <summary>
     /// Whether <paramref name="local"/> should take <paramref name="request"/>: it fits, and <paramref name="judge"/> finds
@@ -72,7 +74,8 @@ internal static class RequestTriage
 
     /// <summary>
     /// Whether <paramref name="request"/> needs thought before it is answered — an opinion, a judgement, anything over
-    /// several steps — or is answered as quickly as it is asked: a greeting, a plain fact, a short command. Judged by
+    /// several steps — or is answered as quickly as it is asked: a greeting, a plain fact, something a tool does however
+    /// richly it is described (a picture to draw is the drawing model's work, not the reply's). Judged by
     /// <paramref name="judge"/> without reasoning of its own; without a judge, or with no clear answer, it is given thought:
     /// a slower answer costs seconds, a thoughtless one its worth.
     /// </summary>

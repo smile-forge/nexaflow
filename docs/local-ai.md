@@ -440,8 +440,9 @@ app's own paths through a real model.
 
 **Thinking, per request.** Reasoning makes a smaller model's answers worth having, and costs time before the first word.
 A voice turn is weighed first by the Disambiguation model, without reasoning of its own (`RequestTriage.NeedsThoughtAsync`):
-a greeting, a plain fact or a short command is answered at once, without reasoning; an opinion, anything over several
-steps, code or maths is told "Let me think about that." straight away and reasoned over. Typed requests always reason.
+a greeting, a plain fact, or something a tool does — however richly it is described, as a picture to draw usually is —
+is answered at once, without reasoning; an opinion, a plan over several steps, code or maths is told "Let me think
+about that." straight away and reasoned over. Typed requests always reason.
 Every judgement — routing, weighing, a spoken yes or no — is asked without reasoning.
 
 **Long conversations are condensed, not cut.** When the conversation a run continues outgrows half the model's context,

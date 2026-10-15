@@ -40,6 +40,27 @@ public class OwnedModelDelegationTests
         ["Go through this year's contracts, work out which ones renew automatically in the next quarter, and draft a negotiation plan for each."],
     ];
 
+    /// <summary>Voice turns answered at once: whatever is asked for done by a tool, however much it describes, and the plain
+    /// exchanges of conversation.</summary>
+    public static IEnumerable<object[]> Quick =>
+    [
+        ["Hello there."],
+        ["Open my Downloads folder."],
+        ["Draw a picture of a red fox curled up asleep in a snowy pine forest at sunset, soft light through the trees, in the style of a watercolour."],
+        ["Can you make me an image of an old stone lighthouse on a cliff in a storm, with huge waves crashing against the rocks below?"],
+        ["Play some relaxing piano music."],
+        ["What's the capital of Australia?"],
+    ];
+
+    /// <summary>Voice turns whose answer is worth reasoning over first.</summary>
+    public static IEnumerable<object[]> Thoughtful =>
+    [
+        ["What do you think of this product page? Is it convincing?"],
+        ["Should I use PostgreSQL or SQLite for a desktop app that syncs its data to the cloud?"],
+        ["Explain why the sky is blue but sunsets are red."],
+        ["Plan me a three-day trip to Kyoto in autumn."],
+    ];
+
     [TestMethod]
     [DynamicData(nameof(Light))]
     [Timeout(300_000, CooperativeCancellation = true)]
@@ -60,6 +81,28 @@ public class OwnedModelDelegationTests
         using var cts = new CancellationTokenSource(Limit);
 
         Assert.AreEqual(false, await RequestTriage.SuitsAsync(model, model, request, [], cts.Token));
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(Quick))]
+    [Timeout(300_000, CooperativeCancellation = true)]
+    public async Task AQuickTurn_TheJudgeLetsAnswerAtOnce(string request)
+    {
+        var model = await OwnedModelHarness.ModelAsync();
+        using var cts = new CancellationTokenSource(Limit);
+
+        Assert.IsFalse(await RequestTriage.NeedsThoughtAsync(model, request, [], cts.Token));
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(Thoughtful))]
+    [Timeout(300_000, CooperativeCancellation = true)]
+    public async Task ATurnWorthThinkingOver_TheJudgeGivesThought(string request)
+    {
+        var model = await OwnedModelHarness.ModelAsync();
+        using var cts = new CancellationTokenSource(Limit);
+
+        Assert.IsTrue(await RequestTriage.NeedsThoughtAsync(model, request, [], cts.Token));
     }
 
     [TestMethod]
