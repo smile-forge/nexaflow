@@ -305,16 +305,331 @@
           }
         ]
       }
+    },
+    "page-reading": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/unlimited-ocr/README.md",
+          "title_path": [
+            "Unlimited-OCR for llama.cpp, with a text finder"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ReadingMessages.cs",
+          "class": "FindTextInPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ModelMessages.cs",
+          "class": "ReplyDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "LiveConversation",
+          "method": "KeepWritten"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler",
+          "method": "Banned"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/FindTextHandler.cs",
+          "class": "FindTextHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/TextFinding.cs",
+          "class": "TextFinding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPageReading.cs",
+          "class": "OwnedPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ReadPageFileTool.cs",
+          "class": "ReadPageFileTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "PageReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "DiagramDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageMarkdown.cs",
+          "class": "PageMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReadingPanel.cs",
+          "class": "PageReadingPanel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
+            "class": "RepeatBanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
+            "class": "OwnedPageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
+            "class": "PageMarkdownTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
+            "class": "PageReadingPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
+            "class": "RepeatBanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
+            "class": "OwnedPageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
+            "class": "PageMarkdownTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
+            "class": "PageReadingPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
+            "class": "RepeatBanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
+            "class": "OwnedPageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
+            "class": "PageMarkdownTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
+            "class": "PageReadingPanelTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Page reading"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Page reading"
+            ]
+          }
+        ]
+      }
+    },
+    "images-read-page": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ReadPageViewModel.cs",
+          "class": "ReadPageViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReadingPanelView.xaml.cs",
+          "class": "PageReadingPanelView"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Reading a page"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesJourneyTests.cs",
+            "class": "ImagesJourneyTests",
+            "method": "Image_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "images-ai-act-read-page": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "ReadPageToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesAiTests.cs",
+            "class": "ImagesAiTests",
+            "method": "ReadPage_WherePageReadingCannotRun_SaysSo"
+          }
+        ]
+      }
+    },
+    "pdf-scan-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfScans.cs",
+          "class": "PdfScans"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfScansTests.cs",
+            "class": "PdfScansTests"
+          }
+        ]
+      }
+    },
+    "pdf-panel-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ReadScans"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
+          "title_path": [
+            "PDF reader",
+            "Scanned pages"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "AScannedDocument_OffersItsScansForReading_WherePageReadingRuns"
+          }
+        ]
+      }
+    },
+    "pdf-ai-act-read-scans": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ReadScansToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "ReadScans_ReadsThemWithPageReading_AndReadTextThenIncludesTheirText"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 25,
   "touched_nodes": [
     "ai-tools",
+    "images-ai-act-read-page",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
     "images-edit-remove-background",
     "images-edit-restore",
+    "images-read-page",
+    "page-reading",
+    "pdf-ai-act-read-scans",
+    "pdf-panel-text",
+    "pdf-scan-reading",
     "picture-selection",
     "picture-tools",
     "video-cutout-frame"

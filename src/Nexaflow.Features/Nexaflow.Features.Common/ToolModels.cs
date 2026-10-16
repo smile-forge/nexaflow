@@ -118,3 +118,56 @@ public interface IPictureSelectionSession : IAsyncDisposable
     /// <exception cref="InvalidOperationException">The selection has ended, or it could not be made.</exception>
     Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct);
 }
+
+/// <summary>What a block of a page is, as the page reader marks it.</summary>
+public enum PageBlockKind
+{
+    /// <summary>A heading, its level unsaid.</summary>
+    Title,
+
+    /// <summary>Prose, its maths in LaTeX between <c>\(</c> and <c>\)</c>.</summary>
+    Text,
+
+    /// <summary>A formula set apart: LaTeX between <c>\[</c> and <c>\]</c>.</summary>
+    Equation,
+
+    /// <summary>A table, as HTML.</summary>
+    Table,
+
+    /// <summary>A figure — a picture, a chart, a diagram — whose place on the page is all that is read of it.</summary>
+    Figure,
+
+    /// <summary>A figure's or a table's caption.</summary>
+    Caption,
+
+    /// <summary>A note at the foot of the page.</summary>
+    Footnote,
+
+    /// <summary>What runs along the top or the foot of every page — a running head, a page number — rather than in its text.</summary>
+    Margin,
+}
+
+/// <summary>One block of a page: what it is, where it stands in fractions of the page's width and height, and what it
+/// says (<see cref="PageBlockKind"/>); nothing for a figure.</summary>
+public sealed record PageBlock(PageBlockKind Kind, double Left, double Top, double Right, double Bottom, string Content);
+
+/// <summary>Where a picture holds writing — each region of text, in its pixels — and whether it is a page of writing
+/// rather than a few words on a sign or a label: what <see cref="IPageReading.ReadPageAsync"/> reads.</summary>
+public sealed record TextOnPicture(IReadOnlyList<PictureBox> Regions, bool IsPage);
+
+/// <summary>
+/// Pages of writing read by neural networks Nexaflow runs on this machine: whether, and where, a picture holds writing, in
+/// tens of milliseconds on the CPU; and a page — prose, columns, tables, formulas, figures — read into its blocks in
+/// reading order, its columns read one after another, its maths as LaTeX and its tables as HTML.
+/// </summary>
+public interface IPageReading : IToolModels
+{
+    /// <summary>Where a picture — interleaved 8-bit RGBA, row by row — holds writing, and whether it is a page.</summary>
+    /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture could not be read.</exception>
+    Task<TextOnPicture> FindTextAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+
+    /// <summary>Reads the page in <paramref name="picture"/> — a PNG or JPEG file, at the resolution it was scanned or
+    /// photographed at — into its blocks in reading order, each reported to <paramref name="read"/> as it is read.</summary>
+    /// <exception cref="InvalidOperationException">The tool is not ready here, or the page could not be read.</exception>
+    Task<IReadOnlyList<PageBlock>> ReadPageAsync(string picture, IProgress<PageBlock>? read, CancellationToken ct);
+}

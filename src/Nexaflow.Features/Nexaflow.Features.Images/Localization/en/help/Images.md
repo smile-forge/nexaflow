@@ -71,9 +71,18 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after you edited it, the viewer asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.
 
+## Reading a page
+
+- A picture of a page of writing — a scan, a photographed page, a form, a receipt — can be read into Markdown. **Read page** sits at the top right whenever the picture is one; until page reading is on this PC every picture offers it, with the download. [Show me](locate:Image_ReadPage)
+- The text opens beside the picture and fills in as it is read: columns as one text, headings, formulas as LaTeX, tables, and the page's figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one, which you can edit. [Show me](locate:Image_ReadPage,PageReading_Text)
+- It reads the picture as you see it, edits and all, at its full size: crop to the page or straighten it first and it reads better. The text is kept, so the same picture opens on it again at once.
+- **Copy** the text, or **Save as Markdown** — the figures go in a folder beside the file. [Show me](locate:Image_ReadPage,PageReading_Copy,PageReading_Save)
+- Page reading runs on this PC. The first time it is a download of about 4 GB, offered beside the picture.
+
 ## Deleting and the assistant
 
 - Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin and removes it from every view; the selection moves to what is left.
 - The assistant can look at the picture you are on, as edited, and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.
 - Ask the assistant to pick something out — "select the dog", "find the woman with red hair" — and it opens the editor's Cut out with every one it found picked, ready to copy or save. It can also cut something out of a picture file into a new PNG beside it without opening it.
+- Ask the assistant to read a page — "what does this letter say", "type up this receipt" — and it reads the picture with page reading, its text opening beside it. It can read a picture file of a page without opening it, too.
 - In a conversation, this tab's context chip previews every image it holds.

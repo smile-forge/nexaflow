@@ -7,6 +7,7 @@ using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Pages;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -81,6 +82,18 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     [ObservableProperty] private bool _hasProperties;
     [ObservableProperty] private bool _hasContents;
 
+    /// <summary>The document's scanned pages, by number: no text on them, one picture over each.</summary>
+    private IReadOnlyList<int> _scans = [];
+
+    /// <summary>The document has scanned pages, and this machine can read them — the Text tab shows.</summary>
+    [ObservableProperty] private bool _hasScans;
+
+    /// <summary>How many of the document's pages are scans, for the Text tab.</summary>
+    [ObservableProperty] private string _scansSummary = string.Empty;
+
+    /// <summary>The scanned pages' text, read into Markdown.</summary>
+    public PageReadingPanel Reading { get; }
+
     /// <summary>
     /// The contents row the user last picked. Kept so the panel keeps showing where they are in the document
     /// instead of losing the place the moment the click finishes — a table of contents that forgets what you
@@ -125,12 +138,15 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>Set by the view: captures what the renderer is currently showing, as a PNG.</summary>
     public Func<CancellationToken, Task<byte[]?>>? CapturePageAsync { get; set; }
 
-    public PdfViewModel(string path, IShellServices shell, PdfConfig config)
+    /// <param name="reading">Page reading, which reads the document's scanned pages into Markdown, where the app has it.</param>
+    /// <param name="ai">The workspace's AI, whose image model draws the scanned pages' diagrams again.</param>
+    public PdfViewModel(string path, IShellServices shell, PdfConfig config, IPageReading? reading = null, IAIService? ai = null)
     {
         _path    = path;
         _shell   = shell;
         _config  = config;
         FileName = Path.GetFileName(path);
+        Reading  = new PageReadingPanel(reading, ai, shell);
 
         // A PDF inside an archive is virtual and the renderer can't load it; materialise a real copy and
         // remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
@@ -201,6 +217,46 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         PanelStatus       = string.Empty;
         IsMetadataLoading = false;
         OnPropertyChanged(nameof(ContentsEmptyMessage));
+        await FindScansAsync();
+    }
+
+    /// <summary>Finds the document's scanned pages, once its metadata is shown: a page at a time, so a long document's
+    /// search waits behind whatever else reads it.</summary>
+    private async Task FindScansAsync()
+    {
+        if (!Reading.Available) return;
+        try
+        {
+            _scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, _cts.Token), _cts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { return; }   // a document whose pages will not parse has no scans to offer
+        if (_disposed || _scans.Count == 0) return;
+        ScansSummary = Str.Format("Pdf.Text.Scans", _scans.Count, _info?.PageCount ?? _scans.Count);
+        HasScans = true;
+    }
+
+    /// <summary>Reads the scanned pages into Markdown — or shows their text read before — in the Text tab.</summary>
+    [RelayCommand]
+    private void ReadScans()
+    {
+        if (_scans.Count == 0) return;
+        var file = new FileInfo(_path);
+        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}";
+        var scans = _scans;
+        Reading.Open(key, Path.GetFileNameWithoutExtension(_path), ct => WithDocumentAsync(doc =>
+        {
+            var pictures = new List<string>();
+            foreach (int number in scans)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (PdfScans.Picture(doc, number) is not { } picture) continue;
+                string file = Path.Combine(Path.GetTempPath(), $"nexaflow-scan-{Guid.NewGuid():N}{(picture[0] == 0xFF ? ".jpg" : ".png")}");
+                File.WriteAllBytes(file, picture);
+                pictures.Add(file);
+            }
+            return (IReadOnlyList<string>)pictures;
+        }, ct));
     }
 
     /// <summary>
@@ -469,6 +525,16 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             parallelizable: false),
 
         new DelegateClientTool(
+            "pdf_read_scans",
+            "Read the document's scanned pages — pages that are pictures, with no text in them — with page reading on "
+            + "this machine, and return their text as Markdown, page by page: columns as one text, formulas as LaTeX, "
+            + "tables. A few seconds a page; once read, pdf_read_text and pdf_find_text include their text too.",
+            [],
+            ToolSafety.SafeOperation,
+            ReadScansToolAsync,
+            parallelizable: false),
+
+        new DelegateClientTool(
             "pdf_list_images",
             "List the images embedded in the document — page, position on the page, pixel size, format, byte "
             + "size, and whether it repeats an earlier one. Returns no image data, so it's the cheap way to "
@@ -594,8 +660,16 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         {
             lastRead = page.PageNumber;
             sb.AppendLine($"--- page {page.PageNumber} ---");
-            if (string.IsNullOrWhiteSpace(page.Text))
-                sb.AppendLine("(no text on this page — it may be a scan; try pdf_page_image)");
+            if (string.IsNullOrWhiteSpace(page.Text) && ScanText(page.PageNumber) is { } read)
+            {
+                anyText = true;
+                sb.AppendLine("(a scan: its text as page reading read it)");
+                sb.AppendLine(read.Trim());
+            }
+            else if (string.IsNullOrWhiteSpace(page.Text))
+                sb.AppendLine(_scans.Contains(page.PageNumber) && Reading.Available
+                    ? "(no text on this page — it is a scan; read it with pdf_read_scans, or look at it with pdf_page_image)"
+                    : "(no text on this page — it may be a scan; try pdf_page_image)");
             else
             {
                 anyText = true;
@@ -625,6 +699,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
         var hits = await WithDocumentAsync(doc => FindHits(doc, query, maxHits, ct), ct);
         if (hits is null) return Unreadable();
+        hits = [.. hits, .. ScanHits(query, maxHits - hits.Count)];
 
         if (hits.Count == 0)
             return ToolResult.Ok($"No match for \"{query}\".",
@@ -637,6 +712,49 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (hits.Count >= maxHits) sb.AppendLine($"[Stopped after {maxHits} hits; there may be more.]");
 
         return ToolResult.Ok($"Found \"{query}\" in {FileName}.", sb.ToString());
+    }
+
+    /// <summary>A scanned page's text as page reading read it; null for a page not read, or not a scan.</summary>
+    private string? ScanText(int page)
+    {
+            if (Reading.PageTexts is not { } texts) return null;
+            for (int at = 0; at < _scans.Count && at < texts.Count; at++)
+                if (_scans[at] == page) return texts[at];
+            return null;
+        }
+
+    /// <summary>Where <paramref name="query"/> stands in the scanned pages' read text, each with a little around it.</summary>
+    private IEnumerable<(int Page, string Snippet)> ScanHits(string query, int most)
+    {
+        foreach (int page in _scans)
+        {
+            if (most <= 0 || ScanText(page) is not { } text) continue;
+            for (int at = text.IndexOf(query, StringComparison.OrdinalIgnoreCase); at >= 0 && most > 0;
+                 at = text.IndexOf(query, at + query.Length, StringComparison.OrdinalIgnoreCase), most--)
+            {
+                int from = Math.Max(0, at - 40), to = Math.Min(text.Length, at + query.Length + 40);
+                yield return (page, text[from..to].ReplaceLineEndings(" "));
+            }
+        }
+    }
+
+    /// <summary>Reads the scanned pages with page reading — or finds them read before — and gives their text, page by page.</summary>
+    private async Task<ToolResult> ReadScansToolAsync(JsonObject args, CancellationToken ct)
+    {
+        if (_scans.Count == 0) return ToolResult.Ok($"{FileName} has no scanned pages.", "Every page has text of its own: read it with pdf_read_text.");
+        if (!Reading.Available) return ToolResult.Error("Page reading cannot run on this machine.");
+        await _shell.RunOnUiAsync(() => { if (Reading.PageTexts is null && !Reading.IsReading) ReadScans(); });
+        await Reading.Done.WaitAsync(ct);
+        if (Reading.PageTexts is not { } texts)
+            return ToolResult.Error(Reading.Status ?? "The scanned pages could not be read.");
+
+        var sb = new StringBuilder();
+        for (int i = 0; i < _scans.Count && i < texts.Count; i++)
+        {
+            sb.AppendLine($"--- page {_scans[i]} ---");
+            sb.AppendLine(texts[i].Trim().Length > 0 ? texts[i].Trim() : "(nothing read)");
+        }
+        return ToolResult.Ok($"Read {_scans.Count} scanned page(s) of {FileName}.", sb.ToString());
     }
 
     /// <summary>Page-by-page scan with a small window of context around each hit.</summary>

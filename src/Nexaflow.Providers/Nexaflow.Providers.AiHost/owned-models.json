@@ -1552,6 +1552,61 @@
           "sha256": "bec48f70bd37bf8280a9d1ebf01642d26086f6122ba735baa08fe03c5a6e7448"
         }
       ]
+    },
+    {
+      "id": "unlimited-ocr",
+      "displayName": "Unlimited-OCR",
+      "kind": "pageReading",
+      "parts": [
+        {
+          "role": "reader",
+          "runner": "llama-chat",
+          "folder": "tools/unlimited-ocr/reader",
+          "file": "unlimited-ocr-q8_0.gguf",
+          "projector": "unlimited-ocr-mmproj-f16.gguf",
+          "memoryBytes": 7516192768,
+          "contextTokens": 8192
+        },
+        {
+          "role": "textFinder",
+          "runner": "text-finder",
+          "folder": "tools/unlimited-ocr/text-finder",
+          "file": "pp-ocrv5-mobile-det.onnx",
+          "runsOnCpu": true
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/unlimited-ocr/reader/unlimited-ocr-q8_0.gguf",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/reader/unlimited-ocr-q8_0.gguf",
+          "size": 3126140448,
+          "sha256": "260b32988bd2846a685df25cb19954039e16eca0e2aad74e878fd17c7710ccac"
+        },
+        {
+          "path": "tools/unlimited-ocr/reader/unlimited-ocr-mmproj-f16.gguf",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/reader/unlimited-ocr-mmproj-f16.gguf",
+          "size": 825245888,
+          "sha256": "67714d47e38aca9c48618fe7f3513c2cf05fbf464ec258a6ec4efd2f138f2b16"
+        },
+        {
+          "path": "tools/unlimited-ocr/reader/LICENSE",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/LICENSE",
+          "size": 1061,
+          "sha256": "d985048c6d69429d685fdbe7557340aa0897c0fd8dc038299b148b9c75dc3383"
+        },
+        {
+          "path": "tools/unlimited-ocr/text-finder/pp-ocrv5-mobile-det.onnx",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/text-finder/pp-ocrv5-mobile-det.onnx",
+          "size": 4819576,
+          "sha256": "0c5eeee2f49f63ef01626bf3cd149bab5d2e51b820a096abf916ff11771d51e5"
+        },
+        {
+          "path": "tools/unlimited-ocr/text-finder/LICENSE-PaddleOCR",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/LICENSE-PaddleOCR",
+          "size": 11376,
+          "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+        }
+      ]
     }
   ]
 }

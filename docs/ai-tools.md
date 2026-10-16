@@ -6,8 +6,8 @@ provider: nothing in the cloud stands in for it, a workspace's ability grid neve
 Its models are fetched once, app-wide, when a person asks, and run in the AI host on the same plan of its GPUs as the
 owned models.
 
-Two are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — and picture selection, SAM 3.1
-(`sam3.1`).
+Three are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
+(`sam3.1`), and page reading, Unlimited-OCR with PP-OCRv5's text detector (`unlimited-ocr`).
 
 ## How a tool fits
 
@@ -103,12 +103,69 @@ photo whose format holds no transparency is saved only as a copy.
 **For the assistant.** `cut_out` cuts what a phrase names, or what a box holds, out of a picture file into a new PNG
 beside it — transparent around it, cropped to it — and opens it; the original is never touched.
 
+## Page reading
+
+**What it does.** Whether, and where, a picture holds writing — PP-OCRv5's mobile text detector, tens of milliseconds
+on four CPU threads, so a page can ask it of every picture it shows — and a page read into one Markdown document by
+Baidu's Unlimited-OCR: its columns as one text, headings at levels from their numbering, maths as LaTeX, tables, its
+figures cut out of it, and a diagram drawn again as Mermaid by the workspace's image model.
+
+**The models.** `tools/ai-models/unlimited-ocr` converts the makers' weights with llama.cpp's own converter at the
+release the host runs (b11606), quantises the language model to 8-bit — 4-bit read nothing of a page of a few lines —
+and sets the makers' chat template after the start token their code puts first; the detector goes to ONNX through
+paddle2onnx and is held to Paddle's predictor to 1e-4. The reference is the makers' transformers code and Paddle's
+predictor on pages of the Unlimited-OCR paper, the paper set in small print on one page, and in two scanned columns.
+
+**On llama.cpp.** The reader is a language model with a projector, run as any other through `Generate`, with what its
+makers decode it with in `ReplyDecoding`:
+
+- **Reference sliding-window attention.** Each token was trained to see the whole page and only the last 128 tokens
+  written before it; llama.cpp lets it see all it wrote, which reads a short page the same and loses its place past
+  about 1,500 tokens. `LiveConversation.KeepWritten` forgets each written token's KV cell as it leaves the window,
+  positions kept, so a page of 3,100 tokens reads as the makers' code reads it. Its cache holds the page and 128
+  tokens, so 8,192 cells serve any page; the reply stops when its positions reach what the model was trained to read.
+- **The repeat ban.** No 35-token run written again within 128 (`RepeatBan`), struck from the logits before each choice
+  (`LlamaSampler.Banned`).
+- **Its marks kept.** Each block opens with special tokens naming its kind and box, sent as text
+  (`WritesControlTokens`).
+
+The detector is a request of its own, `FindTextInPicture`, on the CPU — its catalog part says `runsOnCpu` — prepared and
+read into regions as PaddleOCR does (`TextFinding`). `PageReadingTests` holds the host to the reference: the same
+blocks and kinds, boxes within 15 thousandths, the text within 2 % — the 8-bit build's distance from the makers' bf16 —
+and the regions over 0.7 found.
+
+A small picture of a few large lines — a note, one line of a bill — reads nothing on llama.cpp, at any precision and
+on the CPU too, where the makers' code reads it: llama.cpp's preparation of the picture, not Nexaflow's. The same lines
+on a page read; the viewer offers Read page only for a page.
+
+**Memory.** The reader peaks at 6.8 GB with 8,192 cells, the vision encoder's work on the page's tiles the most of it
+(32 tiles no more than 24); the download is 4 GB. A dense page takes 2–5 s on a GPU, about 30 s on a 32-thread CPU.
+
+**For features.** `IPageReading` finds text (`TextOnPicture`: its regions, and whether they make a page —
+`PageReading.IsPage`, 15 regions over 3 % of the picture) and reads a page into `PageBlock`s as it goes (`PageMarks`).
+`Visuals.Text`'s `PageReader` reads pages into Markdown (`PageMarkdown`), cuts the figures (`PageFigures`) and asks
+`IAIService.AskAboutPictureAsync` for each as Mermaid, kept only when `MermaidDiagrams.Troubles` finds nothing wrong
+(`DiagramDrawing`). `PageReadingPanel` and its view are the text beside what shows the pages: the reading kept in the
+temp folder by what was read and the models, its download offered, copy and save as Markdown with the figures beside it.
+
+**In the image viewer.** `ReadPageViewModel` looks at each picture shown at up to 1,280 pixels and offers Read page for
+a page; it reads the picture as shown, edits and all, at full size (`ImageExporter`). `read_page` reads it for the
+assistant.
+
+**In the PDF reader.** `PdfScans` finds the scanned pages — no text, one picture over each — and their pictures, JPEG as
+stored or decoded to PNG, turned as the page is shown; the Text tab reads them. `pdf_read_scans` reads them for the
+assistant, and `pdf_read_text` and `pdf_find_text` include their text once read.
+
+**For the assistant.** `read_page_file` reads a picture file of a page and returns its text; saved as Markdown when
+asked, its figures beside it.
+
 ## Adding a tool
 
 1. A recipe under `tools/ai-models/<tool>/`: fetch the makers' code and weights pinned, build each graph and hold it to its
    original, run the makers' own pipeline on their own samples into a reference set; publish to smile-forge.
 2. A kind in `OwnedToolKind`, its roles in `OwnedRoles.Of(OwnedToolKind)`, and its entry in the catalog's `tools` section,
-   each part's `memoryBytes` its measured peak and every file in one of its parts' folders.
+   each part's `memoryBytes` its measured peak — or, for a part so small a GPU would only keep it waiting, `runsOnCpu` —
+   and every file in one of its parts' folders.
 3. The host's request family and runners, registered in `HostMessages`, `ModelRunners.Default` and `HostProgram`; a GPU
    test held to the reference set.
 4. Its front in `Providers.AiHost`, deriving `OwnedToolFront`; its contract in `Features.Common`, extending

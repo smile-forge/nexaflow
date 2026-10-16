@@ -115,6 +115,8 @@
   "Shell.Tools.Picture.About": "Agrandissez les images, retirez-en le flou, le bruit et les blocs JPEG, et réparez les visages qu'elles contiennent — dans l'éditeur d'images ou en le demandant à l'assistant. Real-ESRGAN et GFPGAN.",
   "Shell.Tools.Selection.Name": "Sélection dans les images",
   "Shell.Tools.Selection.About": "Sélectionnez des éléments dans les images — en cliquant dessus, en les entourant d'un cadre ou en les nommant — et détourez-les de leur arrière-plan, dans la visionneuse et l'éditeur d'images ou en le demandant à l'assistant. SAM 3.1.",
+  "Shell.Tools.Reading.Name": "Lecture de pages",
+  "Shell.Tools.Reading.About": "Lisez des pages écrites — numérisations, pages photographiées, PDF numérisés — en Markdown : les colonnes en un seul texte, les formules en LaTeX, les tableaux et les figures, dans les visionneuses d'images et de PDF ou en le demandant à l'assistant. Unlimited-OCR et PP-OCRv5.",
   "Shell.Config.Downloaded.Title": "Modèles téléchargés",
   "Shell.Config.Downloaded.Heading": "Modèles téléchargés",
   "Shell.Config.Downloaded.Intro": "Les modèles, outils et moteurs présents sur le disque de cet ordinateur. Celui qu'aucun espace de travail n'utilise peut être supprimé pour libérer sa place.",

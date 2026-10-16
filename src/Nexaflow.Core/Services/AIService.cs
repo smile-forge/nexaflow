@@ -203,7 +203,9 @@ public sealed class AIService : IAIService
             if (ProviderManager.Instance.Service<IPictureTools>() is { State: not ToolModelsState.Unavailable } pictures)
                 tools.Add(new Tools.RestorePictureTool(pictures, made));
             if (ProviderManager.Instance.Service<IPictureSelection>() is { State: not ToolModelsState.Unavailable } selection)
-                tools.Add(new Tools.CutOutTool(selection, made));
+                    tools.Add(new Tools.CutOutTool(selection, made));
+                if (ProviderManager.Instance.Service<IPageReading>() is { State: not ToolModelsState.Unavailable } reading)
+                    tools.Add(new Tools.ReadPageFileTool(reading, this));
         }
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
@@ -481,6 +483,17 @@ public sealed class AIService : IAIService
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
             [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
+        return response?.RawText;
+    }
+
+    public async Task<string?> AskAboutPictureAsync(string instruction, ContextImage picture, CancellationToken ct = default)
+    {
+        if (Candidates<ILlmProvider>(AiAbility.ImageRecognition).FirstOrDefault(m => m.SupportsImages) is not { } model) return null;
+
+        // Nobody is watching: on a GPU shared with a reply, it waits its turn behind each token.
+        var response = await model.CompleteAsync(
+            [new(LlmRole.User, instruction) { Attachments = [new LlmAttachment(picture.Label ?? "picture", picture.MimeType, picture.Bytes)] }],
+            LlmUrgency.Background, ct);
         return response?.RawText;
     }
 

@@ -8,9 +8,10 @@ namespace Nexaflow.Features.Pdf;
 
 /// <summary>
 /// Registers the PDF reader page. Takes the document's path, and optionally the page to open at, so a
-/// deep link from elsewhere ("see page 42 of the spec") lands where it means to.
+/// deep link from elsewhere ("see page 42 of the spec") lands where it means to. Page reading, where the app has it,
+/// reads a document's scanned pages into Markdown; the workspace's AI draws their diagrams again.
 /// </summary>
-public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config) : IPageRegistration
+public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, IAIService ai, IPageReading? reading = null) : IPageRegistration
 {
     public static string StaticPageKind => "Pdf";
     public string PageKind => StaticPageKind;
@@ -34,7 +35,7 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config) :
 
         page.ContentFactory = () =>
         {
-            var vm   = new PdfViewModel(path, shell, config);
+            var vm   = new PdfViewModel(path, shell, config, reading, ai);
             var view = new PdfView(vm, shell);
 
             if (pageParams?.GetValueOrDefault("page") is { } raw && int.TryParse(raw, out var at))

@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
+             xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
@@ -393,6 +394,15 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <!-- Read the picture as a page of writing: shown where it is a page, or before page reading is here to tell -->
+                    <Button Command="{Binding ReadPage.ReadCommand}" ToolTip="{loc:Str Images.Toolbar.ReadPageTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
+                            Visibility="{Binding ReadPage.CanRead, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_ReadPage">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="¶" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Toolbar.ReadPage}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="{loc:Str Images.Toolbar.AutoTip}" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
                                   AutomationProperties.AutomationId="Image_AutoAdvance">
                         <StackPanel Orientation="Horizontal">
@@ -508,8 +518,12 @@
             </Border>
         </StackPanel>
 
-        <!-- ══ Content: exactly one sub-view is shown ══ -->
+        <!-- ══ Content: exactly one sub-view is shown, and beside it the page's text when it is read ══ -->
         <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
             <!-- ── Carousel ── -->
             <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
@@ -698,6 +712,10 @@
 
             <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
             <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- ── The page's text, read from the picture ── -->
+            <pages:PageReadingPanelView Grid.Column="1" Width="460" DataContext="{Binding ReadPage.Panel}"
+                                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
         </Grid>
     </Grid>
 </UserControl>

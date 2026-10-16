@@ -28,6 +28,12 @@ Shows a PDF's pages, and lists what the document records about itself.
 - If the reader turns out to ignore page jumps, the rows stop offering one.
 - Most PDFs carry no bookmarks. Where there is no outline the tab says so.
 
+## Scanned pages
+- [The Text tab](locate:Pdf_Tab_Text,Pdf_ReadScans) shows when pages of the document are scans — pictures, with no text in them to search or copy — and this PC can run page reading.
+- **Read the scanned pages** reads them into Markdown on this PC, filling in as each page is read: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one.
+- Copy the text, or save it as Markdown with its figures in a folder beside it. It is kept, so the document opens on it again at once.
+- The first time, page reading is a download of about 4 GB, offered in the tab.
+
 ## The panel
 - [Hide the panel](locate:Pdf_TogglePanel) and the document takes the whole tab.
 - [Drag the divider](locate:Pdf_Splitter) to set its width; it comes back that wide next time you show it.
@@ -39,6 +45,7 @@ Shows a PDF's pages, and lists what the document records about itself.
 - It can find a phrase across the whole document and report the pages it appears on with a snippet of each, and can jump by the contents list straight to a section.
 - It can list what images a page holds — pixel size, format, whether an image repeats one seen earlier — and then fetch only the one worth looking at.
 - It can read a scanned page as a picture at its own resolution, and photograph any page as it is rendered.
+- It can read the scanned pages into text with page reading; from then on it reads and searches them like any other page.
 - It can move your reader to a page, and says so if the reader refuses to move.
 - All of it is read-only and none of it stops to ask permission. Two documents open at once stay two separate documents.
 

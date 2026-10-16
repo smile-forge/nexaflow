@@ -133,6 +133,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>Making a video from the picture on screen, where the workspace can.</summary>
     public MakeVideoViewModel MakeVideo { get; }
 
+    /// <summary>The picture on screen read as a page of writing, its text beside it.</summary>
+    public ReadPageViewModel ReadPage { get; }
+
     // ── View state ────────────────────────────────────────────────────────
 
     /// <summary>When true the image is scaled to fit the viewer; when false it is shown at 100%.</summary>
@@ -496,7 +499,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <param name="selection">Picture selection, where the app has it: what the editor's cut-out tool picks things out with.</param>
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
                           ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null,
-                          IPictureTools? pictures = null, IPictureSelection? selection = null)
+                          IPictureTools? pictures = null, IPictureSelection? selection = null, IPageReading? reading = null)
     {
         _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
         _shell       = shell;
@@ -524,7 +527,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
-            EncodeCurrentPng);
+                EncodeCurrentPng);
+            ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools);
 
         for (int i = 0; i < paths.Count; i++)
         {
@@ -656,6 +660,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Editor.OnSessionChanged();
         Restorer.Follow(session);
         Remover.Follow(session);
+        ReadPage.Follow(session);
 
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
@@ -675,6 +680,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         CurrentSession = null;
         Restorer.Follow(null);
         Remover.Follow(null);
+        ReadPage.Follow(null);
         Cutter.Close();
     }
     session.Dispose();
@@ -843,7 +849,30 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             [new ClientToolParameter("what", "What to pick out, in a few words: a noun phrase like \"dog\" or \"red car\".")],
             ToolSafety.SafeOperation,
             async (args, _) => await SelectNamedAsync(ToolArgs.Str(args, "what"))),
+
+        // ── Page reading: the picture on screen read as a page of writing, its text beside it ──
+        new DelegateClientTool(
+            "read_page",
+            "Read the picture on screen as a page of writing — a scan, a photographed page, a form, a receipt — with page "
+          + "reading on this machine, and return its text as Markdown: columns as one text, formulas as LaTeX, tables. The "
+          + "text opens beside the picture too. A few seconds; the picture's own text, never a description of it.",
+            [],
+            ToolSafety.SafeOperation,
+            async (_, ct) => await ReadPageToolAsync(ct)),
     ];
+
+    /// <summary>The picture on screen read as a page — or found read before — for the assistant.</summary>
+    private async Task<ToolResult> ReadPageToolAsync(CancellationToken ct)
+    {
+        if (ReadPage.Panel is not { Available: true } panel) return ToolResult.Error("Page reading cannot run on this machine.");
+        if (CurrentSession is null) return ToolResult.Error("No image is loaded.");
+        if (_shell is null) ReadPage.ReadCommand.Execute(null);
+        else await _shell.RunOnUiAsync(() => ReadPage.ReadCommand.Execute(null));
+        await panel.Done.WaitAsync(ct);
+        return panel.PageTexts is null
+            ? ToolResult.Error(panel.Status ?? "The page could not be read.")
+            : ToolResult.Ok($"Read '{CurrentFileName}' as a page.", panel.Markdown.Trim().Length > 0 ? panel.Markdown : "(no text was read from it)");
+    }
 
     /// <summary>Shared body for next_image / previous_image: steps the viewer and reports the new position.
     /// Stepping mutates UI-bound state (the session, the dot/thumbnail strips, command CanExecute) via

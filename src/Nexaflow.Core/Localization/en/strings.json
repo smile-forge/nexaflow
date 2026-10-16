@@ -142,6 +142,8 @@
   "Shell.Tools.Picture.About": "Upscale pictures, clean up softness, noise and JPEG blocks, and repair the faces in them — in the image editor, or when you ask the assistant. Real-ESRGAN and GFPGAN.",
   "Shell.Tools.Selection.Name": "Picture selection",
   "Shell.Tools.Selection.About": "Pick things out of pictures — click them, draw a box round them, or name them — and cut them out of their background, in the image viewer and editor or when you ask the assistant. SAM 3.1.",
+  "Shell.Tools.Reading.Name": "Page reading",
+  "Shell.Tools.Reading.About": "Read pages of writing — scans, photographed pages, scanned PDFs — into Markdown: columns as one text, formulas as LaTeX, tables, and figures, in the image and PDF viewers or when you ask the assistant. Unlimited-OCR and PP-OCRv5.",
   "Shell.Config.Downloaded.Title": "Downloaded models",
   "Shell.Config.Downloaded.Heading": "Downloaded models",
   "Shell.Config.Downloaded.Intro": "The models, tools and runtimes on this machine's disk. One that no workspace uses can be deleted to free its space.",

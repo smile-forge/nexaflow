@@ -22,9 +22,10 @@ namespace Nexaflow.Providers.AiHost;
 /// <param name="ExecutionProvider">The one runtime it is built for (<c>cuda</c> or <c>cpu</c>), or null for either.</param>
 /// <param name="Name">What it is called in its model: its role, unless the model has several parts in that role.</param>
 /// <param name="Projector">A language model's multimodal projector, in its folder: what it sees and hears through.</param>
+
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
-                                                                  long BytesPerToken = 0);
+                                 long BytesPerToken = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -49,6 +50,8 @@ internal static class OwnedRoles
     public const string TextEncoder     = SelectingParts.TextEncoder;
     public const string ExemplarEncoder = SelectingParts.ExemplarEncoder;
     public const string Finder          = SelectingParts.Finder;
+    public const string Reader          = ReadingParts.Reader;
+    public const string TextFinder      = ReadingParts.TextFinder;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -67,6 +70,7 @@ internal static class OwnedRoles
     {
         OwnedToolKind.PictureRestoration => [UpscalerX2, UpscalerX4, FaceDetector, FaceRestorer, FaceParser],
         OwnedToolKind.PictureSelection   => [ImageEncoder, ClickDecoder, TextEncoder, ExemplarEncoder, Finder],
+        OwnedToolKind.PageReading        => [Reader, TextFinder],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
     };
 
@@ -117,6 +121,9 @@ internal enum OwnedToolKind
 
     /// <summary>Picks things out of a picture: SAM 3.1's picture encoder, click decoder, text encoder, exemplar encoder and finder.</summary>
     PictureSelection,
+
+    /// <summary>Reads pages of writing: Unlimited-OCR, and PP-OCRv5's text detector, which finds where a picture holds writing.</summary>
+    PageReading,
 }
 
 /// <summary>
@@ -212,7 +219,8 @@ internal static class OwnedModels
     private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                               Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken);
+                               Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
+                                                              bool RunsOnCpu);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
@@ -366,7 +374,8 @@ internal static class OwnedModels
 
     /// <param name="language">A language model's part: what it and each token of its context hold must be known.</param>
     /// <param name="onDemand">A part loaded on demand against the GPU budget — a picture's, a clip's, a tool's — so what it
-    /// holds at its peak must be known.</param>
+    /// holds at its peak must be known, unless it says it runs on the CPU on every machine: a part so small a GPU would only
+    /// keep it waiting.</param>
     private static OwnedPart ToPart(string what, string id, Part p, bool language, bool onDemand)
     {
         if (string.IsNullOrWhiteSpace(p.Role) || string.IsNullOrWhiteSpace(p.Runner) || string.IsNullOrWhiteSpace(p.Folder))
@@ -375,8 +384,11 @@ internal static class OwnedModels
             throw new InvalidDataException($"{what} '{id}' has a part for '{p.ExecutionProvider}', a runtime the host does not have.");
         if (language && (p.MemoryBytes <= 0 || p.BytesPerToken <= 0 || p.ContextTokens < ShortestContext))
             throw new InvalidDataException($"{what} '{id}' does not say how much it and each token of its context hold, or how long a conversation it is given.");
-        if (onDemand && p.ExecutionProvider != Cpu && p.MemoryBytes <= 0)
+        if (p.RunsOnCpu && (p.MemoryBytes != 0 || p.ExecutionProvider is not null))
+            throw new InvalidDataException($"{what} '{id}' runs its {p.Role} on the CPU everywhere, so it holds no GPU memory and has no build for one runtime.");
+        if (onDemand && p.ExecutionProvider != Cpu && !p.RunsOnCpu && p.MemoryBytes <= 0)
             throw new InvalidDataException($"{what} '{id}' does not say how much its {p.Role} holds.");
+
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                              p.Name ?? p.Role, p.Projector, p.BytesPerToken);
     }

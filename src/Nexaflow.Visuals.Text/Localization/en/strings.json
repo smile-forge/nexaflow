@@ -1,0 +1,17 @@
+{
+  "Text.PageReading.Heading": "Page text",
+  "Text.PageReading.Copy": "Copy",
+  "Text.PageReading.CopyTip": "Copy the text as Markdown",
+  "Text.PageReading.Save": "Save as Markdown",
+  "Text.PageReading.SaveTip": "Save the text as a Markdown file, its figures in a folder beside it",
+  "Text.PageReading.SaveFailed": "The text could not be saved: {0}",
+  "Text.PageReading.CloseTip": "Close the page text",
+  "Text.PageReading.Download": "Download",
+  "Text.PageReading.NeedsTool": "Reading pages needs page reading, a download of {0}.",
+  "Text.PageReading.Downloading": "Downloading page reading… {0}%",
+  "Text.PageReading.Unavailable": "This machine can't run page reading.",
+  "Text.PageReading.Preparing": "Getting the pages ready…",
+  "Text.PageReading.Reading": "Reading page {0} of {1}…",
+  "Text.PageReading.Nothing": "No text was read from the page.",
+  "Text.PageReading.Failed": "The page could not be read: {0}"
+}

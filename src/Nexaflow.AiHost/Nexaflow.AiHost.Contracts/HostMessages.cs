@@ -50,6 +50,8 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(PointsSelected), "points-selected")]
 [JsonDerivedType(typeof(SelectByPhrase), "select-by-phrase")]
 [JsonDerivedType(typeof(PhraseFound), "phrase-found")]
+[JsonDerivedType(typeof(FindTextInPicture), "find-text-in-picture")]
+[JsonDerivedType(typeof(TextFoundInPicture), "text-found-in-picture")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

@@ -53,7 +53,7 @@ public class PdfViewModelAiTests
             CollectionAssert.AreEquivalent(
                 new[]
                 {
-                    "pdf_get_info", "pdf_outline", "pdf_read_text", "pdf_find_text",
+                    "pdf_get_info", "pdf_outline", "pdf_read_text", "pdf_find_text", "pdf_read_scans",
                     "pdf_list_images", "pdf_get_image", "pdf_page_image", "pdf_view_page",
                 },
                 names);
@@ -61,6 +61,84 @@ public class PdfViewModelAiTests
             // Reading a document the user already opened changes nothing, so nothing here should stop to ask
             // permission — a confirmation prompt per page would make reading a report unusable.
             Assert.IsTrue(vm.GetClientTools().All(t => t.Safety == ToolSafety.SafeOperation));
+        }
+        finally { vm.Dispose(); }
+    }
+
+    private static IPageReading Reading(ToolModelsState state)
+    {
+        var reading = Substitute.For<IPageReading>();
+        reading.State.Returns(state);
+        reading.ModelsVersion.Returns("test-" + Guid.NewGuid().ToString("N"));
+        reading.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>())
+               .Returns(Task.FromResult<IReadOnlyList<PageBlock>>([new PageBlock(PageBlockKind.Text, 0, 0, 1, 1, "The peregrine nests on cliffs.")]));
+        return reading;
+    }
+
+    private static IShellServices RunningShell()
+    {
+        var shell = Substitute.For<IShellServices>();
+        shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => { call.Arg<Action>()(); return Task.CompletedTask; });
+        return shell;
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-panel-text")]
+    public void AScannedDocument_OffersItsScansForReading_WherePageReadingRuns()
+    {
+        var offered = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
+        var none = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig());
+        try
+        {
+            offered.LoadAsync().GetAwaiter().GetResult();
+            none.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.IsTrue(offered.HasScans);
+            Assert.IsFalse(string.IsNullOrEmpty(offered.ScansSummary));
+            Assert.IsFalse(none.HasScans, "no page reading here: nothing to offer");
+        }
+        finally
+        {
+            offered.Dispose();
+            none.Dispose();
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-read-scans")]
+    public async Task ReadScans_ReadsThemWithPageReading_AndReadTextThenIncludesTheirText()
+    {
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        try
+        {
+            await vm.LoadAsync();
+
+            var scans = await Invoke(vm, "pdf_read_scans");
+            var text = await Invoke(vm, "pdf_read_text", new JsonObject { ["page_from"] = 1 });
+            var found = await Invoke(vm, "pdf_find_text", new JsonObject { ["query"] = "peregrine" });
+
+            Assert.IsFalse(scans.IsError, scans.ModelText);
+            StringAssert.Contains(scans.ModelText, "--- page 1 ---");
+            StringAssert.Contains(scans.ModelText, "The peregrine nests on cliffs.");
+            StringAssert.Contains(text.ModelText, "The peregrine nests on cliffs.");
+            StringAssert.Contains(found.ModelText, "p.1:");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-read-scans")]
+    public async Task ReadScans_OnADocumentWithNone_SaysSo()
+    {
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        try
+        {
+            await vm.LoadAsync();
+
+            var result = await Invoke(vm, "pdf_read_scans");
+
+            Assert.IsFalse(result.IsError);
+            StringAssert.Contains(result.Summary, "no scanned pages");
         }
         finally { vm.Dispose(); }
     }

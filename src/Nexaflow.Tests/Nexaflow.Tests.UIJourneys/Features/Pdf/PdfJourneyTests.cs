@@ -164,6 +164,16 @@ public class PdfJourneyTests : UiJourneyTestBase
                   () => WaitForId("PdfView", 6) is not null && !App.HasExited);
         }
 
+        // ── A scanned document: its Text tab, where this machine can read pages ─────────
+        Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
+        if (WaitForId("Pdf_Tab_Text", 10) is { } textTab)
+        {
+            textTab.Click();
+            Wait.UntilInputIsProcessed();
+            CheckDoes("Read the scanned pages", "Pdf_ReadScans", () => WaitForId("PageReading_Text", 5) is not null);
+            CheckDoes("Close the scanned pages' text", "PageReading_Close", () => WaitForId("Pdf_ReadScans", 3) is not null);
+        }
+
         // ── A corrupt document: the panel still opens, and says why it is empty ─────────
         // The bar the ViewerMap entry sets: corrupt.pdf must reach a PdfView, because a document PdfPig can't
         // parse is a normal state of this panel, not an exception path that takes the tab down.

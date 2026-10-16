@@ -9,6 +9,7 @@ using Nexaflow.IO.Common.Hardware;
 using Nexaflow.AiHost.Filming;
 using Nexaflow.AiHost.Restoring;
 using Nexaflow.AiHost.Selecting;
+using Nexaflow.AiHost.Reading;
 
 namespace Nexaflow.AiHost;
 
@@ -58,6 +59,7 @@ internal static class HostProgram
                 new FilmHandler(models, [new WanFilming(models, scheduler)]),
                 new RestoreHandler(models, scheduler),
                 new SelectHandler(models, scheduler),
+                new FindTextHandler(models),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");
