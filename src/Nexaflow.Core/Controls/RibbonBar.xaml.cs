@@ -511,7 +511,6 @@ public partial class RibbonBar : UserControl
         if (ItemsSource is null || ItemsSource.Count == 0) return;
 
         EditBtn.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        OverflowBtn.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double available = ActualWidth - EditBtn.DesiredSize.Width;
         if (available <= 0) return;
 
@@ -532,7 +531,9 @@ public partial class RibbonBar : UserControl
             return;
         }
 
+        // Measured once visible: a collapsed button measures as nothing, which would leave it no room.
         OverflowBtn.Visibility = Visibility.Visible;
+        OverflowBtn.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double usable = available - OverflowBtn.DesiredSize.Width;
         double used   = 0;
         _overflowItems.Clear();
