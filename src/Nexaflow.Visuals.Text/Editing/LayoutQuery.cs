@@ -194,22 +194,14 @@ public static class LayoutQuery
         return default;
     }
 
-    /// <summary>A rectangle in a piece's own frame, moved to where that piece sits on the page.</summary>
-    private static Rect Shift(Rect rect, Vector by) =>
-        rect.IsEmpty ? rect : new Rect(rect.X + by.X, rect.Y + by.Y, rect.Width, rect.Height);
-
     /// <summary>
-    /// A point of the content as a whole, in one piece's own frame: past its anchor, and back through however it is turned.
+    /// A point of the content as a whole, in one piece's own frame: past its anchor, and back through however it — and whatever
+    /// holds it — is turned or scaled.
     /// </summary>
-    private static Point Local(Piece piece, Point point)
-    {
-        var at = new Point(point.X - piece.Anchor.X, point.Y - piece.Anchor.Y);
-        return piece.Turned?.Inverse is { } back ? back.Transform(at) : at;
-    }
+    private static Point Local(Piece piece, Point point) => piece.Frame.Back(point);
 
-    /// <summary>A rectangle of a piece's own frame, where it is drawn: turned as the piece is, then past its anchor.</summary>
-    private static Rect Page(Piece piece, Rect rect) =>
-        Shift(piece.Turned is { } turn && !rect.IsEmpty ? turn.TransformBounds(rect) : rect, piece.Anchor);
+    /// <summary>A rectangle of a piece's own frame, where it is drawn: turned and scaled as the piece and what holds it are, then past its anchor.</summary>
+    private static Rect Page(Piece piece, Rect rect) => piece.Frame.Out(rect);
 
     /// <summary>
     /// One step from here along an axis — the next thing to select when a selection grows that way, or
@@ -341,7 +333,7 @@ public static class LayoutQuery
             // costs nothing to measure while the shape has to be flattened first — which is the whole cost of this
             // scan. So a piece whose box is already further off than the best so far is skipped by arithmetic, and
             // once anything has been landed on squarely nothing else is flattened at all.
-            var around = piece.Region is { } shape ? Rect.Offset(shape.Bounds, piece.Anchor) : where;
+            var around = piece.Region is { } shape ? piece.Frame.Out(shape.Bounds) : where;
             var floor = DistanceTo(around, point);
             if (floor > bestDistance) continue;
 
@@ -731,7 +723,7 @@ public static class LayoutQuery
         // jumping in front of it. A run offers the place between its letters under the column.
         return line
             .SelectMany(piece => piece is { Words: { Maps: true } words, Part: { } part }
-                ? new[] { (Offset: part.Start + words.IndexAt(column - piece.Anchor.X),
+                ? new[] { (Offset: part.Start + words.IndexAt(Local(piece, new Point(column, piece.Bounds.Top)).X),
                            X: Math.Clamp(column, piece.Bounds.Left, piece.Bounds.Right)) }
                 : new[] { (Offset: piece.Sits().Start, X: piece.Bounds.X), (Offset: piece.Sits().End, X: piece.Bounds.Right) })
             .OrderBy(place => Math.Abs(place.X - column))
@@ -801,19 +793,7 @@ public static class LayoutQuery
     /// nearly all of them. What a press is tested against, and what a wash is drawn over: the box round a diagonal
     /// arrow is mostly not the arrow.
     /// </summary>
-    public static Geometry? OnPage(this Piece piece)
-    {
-        if (piece.Region is not { } region) return null;
-
-        var anchor = piece.Anchor;
-        if (anchor.X == 0 && anchor.Y == 0) return region;
-
-        // Grouped rather than given a transform of its own, so a transform the shape already carries still applies.
-        var placed = new GeometryGroup { Transform = new TranslateTransform(anchor.X, anchor.Y) };
-        placed.Children.Add(region);
-        placed.Freeze();
-        return placed;
-    }
+    public static Geometry? OnPage(this Piece piece) => piece.Region is { } region ? piece.Frame.Out(region) : null;
 
     /// <summary>
     /// Whether <paramref name="at"/> is in <paramref name="piece"/> rather than merely nearest it.
@@ -834,8 +814,10 @@ public static class LayoutQuery
     /// </summary>
     private static double DistanceTo(Piece piece, Point point)
     {
-        var region = piece.Region!;
-        var local = point - piece.Anchor;
+        // On the page, so a shape inside something drawn smaller is as far off as it looks rather than as it was laid out. A shape
+        // only moved there is asked in its own frame, which costs nothing to put it in.
+        var frame = piece.Frame;
+        var (region, local) = frame.Shaped is null ? (piece.Region!, point - frame.Anchor) : (frame.Out(piece.Region!), point);
         if (region.FillContains(local)) return 0;
 
         var nearest = double.MaxValue;

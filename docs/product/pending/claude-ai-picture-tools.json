@@ -680,12 +680,103 @@
           }
         ]
       }
+    },
+    "layout-frames": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutFrame.cs",
+          "class": "LayoutFrame"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutPaint.cs",
+          "class": "LayoutPaint",
+          "method": "Applied"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutTree.cs",
+          "class": "LayoutTree",
+          "method": "FrameOf"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/LayoutFrameTests.cs",
+            "class": "LayoutFrameTests"
+          }
+        ]
+      }
+    },
+    "mermaid-fit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "Reduced"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "LaidNarrower"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/mermaid-diagrams.md",
+          "title_path": [
+            "Mermaid diagrams on the shared layout tree"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderContract.cs",
+            "class": "MermaidBuilderContract",
+            "method": "EveryBlockIsNoWiderThanTheRoomItIsGiven"
+          }
+        ]
+      }
+    },
+    "executable-dependency-viewport": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs",
+          "class": "PanZoomSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml.cs",
+          "class": "ExecutableView",
+          "method": "Laid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "UnlimitedWidth"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 29,
+  "changed_sets": 34,
   "touched_nodes": [
     "ai-tools",
+    "executable-dependency-viewport",
     "images-ai-act-read-page",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
@@ -693,8 +784,10 @@
     "images-edit-restore",
     "images-header",
     "images-read-page",
+    "layout-frames",
     "markdown-package",
     "markdown-save-as",
+    "mermaid-fit",
     "owned-images",
     "page-reading",
     "pdf-ai-act-read-scans",

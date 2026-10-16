@@ -92,7 +92,7 @@ public sealed partial class ContentEngine
     /// <summary>Says how much room the content has, and lays it out again where that is not what it was laid for.</summary>
     internal void Fit(double room)
     {
-        if (Math.Abs(room - _laidFor) <= 0.5 && _laid.Tree.Count > 0) return;
+        if ((room == _laidFor || Math.Abs(room - _laidFor) <= 0.5) && _laid.Tree.Count > 0) return;
 
         _laidFor = room;
         Relay();

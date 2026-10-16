@@ -171,15 +171,36 @@ public sealed class LayoutTree
         _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);
 
     /// <summary>
-    /// Where a piece's frame begins in the content as a whole — its anchor with every parent's added.
-    /// What a painter pushes, and what its marks and children are measured from.
+    /// Where a piece's frame begins in the content as a whole — its anchor with every parent's added, and carried through
+    /// whatever turns or scales what holds it. What a painter pushes, and where its box is measured from.
     /// </summary>
-    internal Vector AnchorOf(int at)
+    internal Vector AnchorOf(int at) => (Vector)PlacingOf(at).Out(default(Point));
+
+    /// <summary>
+    /// The frame a piece's box is measured in, on the page: its parent's own frame, moved to the piece's anchor — before anything
+    /// the piece applies of its own.
+    /// </summary>
+    internal LayoutFrame PlacingOf(int at)
     {
+        // Nearly always nothing above it turns or scales it, and then it is the anchors added up — the climb it always was.
         var anchor = _pieces[at].Offset;
-        for (var up = _pieces[at].Parent; up >= 0; up = _pieces[up].Parent) anchor += _pieces[up].Offset;
-        return anchor;
+        var applied = false;
+
+        for (var up = _pieces[at].Parent; up >= 0; up = _pieces[up].Parent)
+        {
+            anchor += _pieces[up].Offset;
+            applied |= _paints[up] is { Applies: true };
+        }
+
+        return applied ? FrameOf(_pieces[at].Parent).Placing(_pieces[at].Offset) : new LayoutFrame(anchor, null);
     }
+
+    /// <summary>
+    /// The frame a piece's marks, words, shape and children are measured in, on the page: where its box is measured, with
+    /// whatever it turns or scales applied inside that (see <see cref="LayoutPaint.Applied"/>). The same as
+    /// <see cref="PlacingOf"/> for nearly every piece, which is drawn in no frame of its own.
+    /// </summary>
+    internal LayoutFrame FrameOf(int at) => PlacingOf(at).Inside(_paints[at]?.Applied);
 
     /// <summary>
     /// How many pieces hold this one. What settles a tie between two pieces that both answer a question —
@@ -196,31 +217,35 @@ public sealed class LayoutTree
     /// Where a piece sits in the content as a whole. Worked out rather than stored, which is what keeps a
     /// subtree meaningful wherever it's put down — a short climb up an array (a page is about ten deep).
     /// Anything asking about many pieces at once should use <see cref="Within"/> instead, which carries the
-    /// anchor down for free.
+    /// frame down for free.
     /// </summary>
     internal Rect WhereIs(int at)
     {
         var box = _pieces[at].Box;
-        if (box.IsEmpty) return box;
-
-        var anchor = AnchorOf(at);
-        return new Rect(box.X + anchor.X, box.Y + anchor.Y, box.Width, box.Height);
+        return box.IsEmpty ? box : PlacingOf(at).Out(box);
     }
 
     /// <summary>
     /// Every piece of a subtree, with where each one sits — the walk to use when the question is about
-    /// more than one piece, since the anchor comes down with it rather than being climbed to each time.
-    /// Pre-order means a piece is always reached after the one holding it, so the running anchor is only
+    /// more than one piece, since the frame comes down with it rather than being climbed to each time.
+    /// Pre-order means a piece is always reached after the one holding it, so the running frame is only
     /// pushed and popped, never searched for or climbed.
     /// </summary>
     internal IEnumerable<(int At, Rect Where)> Within(int from)
     {
         if (from < 0 || from >= _pieces.Length) yield break;
 
-        // The frame each piece is measured from, and where the subtree using it ends. The first is the
-        // parent of `from`, which is wherever `from` is anchored less its own offset.
-        var frames = new (int End, Vector Anchor)[16];
-        frames[0] = (from + _pieces[from].Extent, AnchorOf(from) - _pieces[from].Offset);
+        // The frame each piece is measured in, and where the subtree using it ends: an anchor, and — only inside something
+        // turned or scaled — which of the matrices carried down with it applies, so the walk over everything else is the
+        // addition it always was. The first frame is the parent's own, which is the page itself above the root.
+        var frames = new (int End, Vector Anchor, int Shaped)[16];
+        List<Matrix>? shapes = null;
+
+        var up = _pieces[from].Parent;
+        var start = up < 0 ? default : FrameOf(up);
+        if (start.Shaped is { } first) (shapes = []).Add(first);
+
+        frames[0] = (from + _pieces[from].Extent, start.Anchor, shapes is null ? -1 : 0);
         var top = 0;
 
         for (var at = from; at < frames[0].End; at++)
@@ -228,17 +253,36 @@ public sealed class LayoutTree
             while (frames[top].End <= at) top--;
 
             var piece = _pieces[at];
-            var anchor = frames[top].Anchor + piece.Offset;
+            var shaped = frames[top].Shaped;
             var box = piece.Box;
+            Vector anchor;
+            Rect where;
 
-            yield return (at, box.IsEmpty
-                ? box
-                : new Rect(box.X + anchor.X, box.Y + anchor.Y, box.Width, box.Height));
+            if (shaped < 0)
+            {
+                anchor = frames[top].Anchor + piece.Offset;
+                where = box.IsEmpty ? box : new Rect(box.X + anchor.X, box.Y + anchor.Y, box.Width, box.Height);
+            }
+            else
+            {
+                var placing = new LayoutFrame(frames[top].Anchor, shapes![shaped]).Placing(piece.Offset);
+                anchor = placing.Anchor;
+                where = placing.Out(box);
+            }
+
+            yield return (at, where);
 
             if (piece.Extent <= 1) continue;
 
+            if (_paints[at] is { Applies: true } paint)
+            {
+                var applied = paint.Applied!.Value;
+                (shapes ??= []).Add(shaped < 0 ? applied : applied * shapes[shaped]);
+                shaped = shapes.Count - 1;
+            }
+
             if (++top >= frames.Length) Array.Resize(ref frames, frames.Length * 2);
-            frames[top] = (at + piece.Extent, anchor);
+            frames[top] = (at + piece.Extent, anchor, shaped);
         }
     }
 

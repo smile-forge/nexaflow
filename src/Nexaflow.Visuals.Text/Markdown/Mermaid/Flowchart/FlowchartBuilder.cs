@@ -91,7 +91,8 @@ internal partial class FlowchartBuilder : MermaidBuilder
 
         Links(build, routes, diagram.Config);
 
-        return room.Size;
+        // Wrapped to the room already where it is in parts nothing joins; one part wider than the room is drawn smaller.
+        return Reduced(room.Size);
     }
 
     // ── Laying it out ───────────────────────────────────────────────────────
@@ -191,7 +192,7 @@ internal partial class FlowchartBuilder : MermaidBuilder
                                       laning is { } lanes
                                           ? new DiagramLanes([.. plan.Lanes.Select(lane => lane.Band)], across: !lanes.Sideways)
                                           : null,
-                                      ports: true);
+                                      ports: true, room: Space);
 
         return plan;
     }
