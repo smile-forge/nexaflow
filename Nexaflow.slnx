@@ -305,6 +305,9 @@
   <Project Path="src/Nexaflow.IO.Network/Nexaflow.IO.Network.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.IO.Usb/Nexaflow.IO.Usb.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
     <Platform Project="x64" />
   </Project>

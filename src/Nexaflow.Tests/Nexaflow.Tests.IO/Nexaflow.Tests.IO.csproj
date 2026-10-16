@@ -51,6 +51,7 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Protocol\Nexaflow.IO.Protocol.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
 
     <!-- Shared, git-ignored sample-file dataset (TestSampleData / ISampleSet), and the [CoversNode] /
          [NoCoverage] attributes every test class declares its coverage with. -->

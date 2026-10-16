@@ -1,0 +1,220 @@
+{
+  "branch": "claude/usb-probe-spike-c78504",
+  "nodes": {
+    "io-usb": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/adr/ADR-001-usb-raw-access.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Windows/WindowsUsbInventory.cs",
+          "class": "WindowsUsbInventory"
+        }
+      ]
+    },
+    "io-usb-descriptors": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Descriptors/UsbDescriptorParser.cs",
+          "class": "UsbDescriptorParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbDescriptorParserTests.cs",
+            "class": "UsbDescriptorParserTests"
+          }
+        ]
+      }
+    },
+    "io-usb-names": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Naming/UsbIdsDatabase.cs",
+          "class": "UsbIdsDatabase"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbIdsDatabaseTests.cs",
+            "class": "UsbIdsDatabaseTests"
+          }
+        ]
+      }
+    },
+    "io-usb-inventory": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Windows/WindowsUsbInventory.cs",
+          "class": "WindowsUsbInventory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Inventory/UsbFunctionLayout.cs",
+          "class": "UsbFunctionLayout"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbFunctionLayoutTests.cs",
+            "class": "UsbFunctionLayoutTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/WindowsUsbInventoryTests.cs",
+            "class": "WindowsUsbInventoryTests"
+          }
+        ]
+      }
+    },
+    "io-usb-changes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Inventory/UsbInventoryDiff.cs",
+          "class": "UsbInventoryDiff"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Windows/UsbPnpWatcher.cs",
+          "class": "UsbPnpWatcher"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbInventoryDiffTests.cs",
+            "class": "UsbInventoryDiffTests"
+          }
+        ]
+      }
+    },
+    "io-usb-report": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Reports/UsbDeviceReport.cs",
+          "class": "UsbDeviceReports"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Reports/UsbCapabilitySummary.cs",
+          "class": "UsbCapabilitySummary"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbDeviceReportTests.cs",
+            "class": "UsbDeviceReportTests"
+          }
+        ]
+      }
+    },
+    "io-usb-takeover": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Elevation/Nexaflow.PrivilegeBridge/Operations/UsbBindingOperations.cs",
+          "class": "UsbBindingOperation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Binding/IUsbDeviceBroker.cs",
+          "class": "IUsbDeviceBroker"
+        }
+      ]
+    },
+    "io-usb-takeover-policy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Binding/UsbBindingPolicy.cs",
+          "class": "UsbBindingPolicy"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbBindingPolicyTests.cs",
+            "class": "UsbBindingPolicyTests"
+          }
+        ]
+      }
+    },
+    "io-usb-ledger": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Binding/UsbBindingLedger.cs",
+          "class": "UsbBindingLedger"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbBindingLedgerTests.cs",
+            "class": "UsbBindingLedgerTests"
+          }
+        ]
+      }
+    },
+    "io-usb-broker": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Binding/BridgeUsbDeviceBroker.cs",
+          "class": "BridgeUsbDeviceBroker"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/BridgeUsbDeviceBrokerTests.cs",
+            "class": "BridgeUsbDeviceBrokerTests"
+          }
+        ]
+      }
+    },
+    "io-usb-binder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Windows/InboxWinUsbBinder.cs",
+          "class": "InboxWinUsbBinder"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 19,
+  "touched_nodes": [
+    "io-usb",
+    "io-usb-binder",
+    "io-usb-broker",
+    "io-usb-changes",
+    "io-usb-descriptors",
+    "io-usb-inventory",
+    "io-usb-ledger",
+    "io-usb-names",
+    "io-usb-report",
+    "io-usb-takeover",
+    "io-usb-takeover-policy"
+  ]
+}

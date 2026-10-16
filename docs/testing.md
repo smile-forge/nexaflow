@@ -610,6 +610,11 @@ least able to fail for a reason that is not about its subject.
   and the protocol graphs authored against it (`Protocol/Definitions/*.json`), both copied to the output
   by the csproj. See [dynamic-protocol.md](dynamic-protocol.md) → *Reading the tests*.
 - **`Network/`** — the device graph's identity lattice and the send guard.
+- **`Usb/`** — descriptor parsing against bytes captured from real devices (`UsbFixtures`), usb.ids naming, the
+  function and mode rules, the change diff, the device report, and the take-over gate: policy, ledger, and the
+  broker's requests asserted against a fake bridge. `WindowsUsbInventoryTests` reads this machine's real USB tree —
+  read-only and unprivileged — and is inconclusive where there is none. The binder itself changes drivers and is
+  exercised by `spikes/UsbDriverBinding`, never by a test.
 
 ### Providers (`Nexaflow.Tests.Providers`)
 

@@ -597,7 +597,13 @@ never see it.
 **To add an elevated operation:** define the DTO in `Elevation.Contracts`, implement an
 `IElevatedOperation` in the bridge, call it via `RunElevatedAsync`. **Never** `Process.Start` with
 `runas` from a feature (a CLAUDE.md hard rule). Consumers today: Processes (kill/priority), SystemInfo
-(services + machine env vars), WindowsRegistry (elevation-gated writes).
+(services + machine env vars), WindowsRegistry (elevation-gated writes), and USB driver take-over
+(`usb.bind` / `usb.restore` / `usb.restoreAll`).
+
+An operation may carry its logic in an IO leaf the bridge references rather than in the bridge itself: the USB
+operations are thin adapters over `Nexaflow.IO.Usb`'s `InboxWinUsbBinder`, so the take-over policy the client
+checks before prompting is the same code the bridge enforces. Such a leaf must stay free of WPF and of anything
+that would widen what the elevated process loads.
 
 ---
 

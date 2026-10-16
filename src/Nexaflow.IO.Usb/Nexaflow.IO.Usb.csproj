@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    WPF-free USB device layer (docs/usb-probe-spec.md, docs/adr/ADR-001-usb-raw-access.md): descriptor parsing,
+    the unprivileged inventory and hot-plug, usb.ids names, the device report, and driver take-over. The take-over's
+    elevated half runs inside Nexaflow.PrivilegeBridge, which references this; nothing here elevates.
+
+    Descriptors/, Naming/, Inventory/ (the model), Reports/ and Binding/ (records, ledger, policy, broker) hold no
+    Windows types, so they carry over to a libusb backend elsewhere; Windows/ is the only platform code.
+
+    net10.0-windows with UseWPF off, as IO.Network: P/Invoke, and Elevation.Contracts is net10.0-windows.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The vendor/product/class name database, from the external/usbids submodule (docs/externals.md). -->
+    <EmbeddedResource Include="..\..\external\usbids\usb.ids" LogicalName="Nexaflow.IO.Usb.usb.ids" Link="Naming\usb.ids" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
+  </ItemGroup>
+
+</Project>
