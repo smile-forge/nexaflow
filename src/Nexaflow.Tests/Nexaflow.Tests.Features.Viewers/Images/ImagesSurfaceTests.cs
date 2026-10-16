@@ -33,22 +33,11 @@ public class ImagesSurfaceTests
     // ── Heading ───────────────────────────────────────────────────────────────
 
     [TestMethod]
-    [CoversNode("images-header")]
-    public void Heading_NamesTheFile_InTheImageLedViews_AndCountsInTheGrids()
+    [CoversNode("images-ai-preview")]
+    public void TheCount_ReadsNaturally_AtOneAndAtMany()
     {
-        var vm = Make("a.png", "b.png", "c.png");
-
-        Assert.AreEqual("a.png", vm.HeaderText, "the carousel is showing one named file");
-
-        vm.ViewMode = ImageViewMode.Explore;
-        Assert.AreEqual("a.png", vm.HeaderText, "explore also features one image at a time");
-
-        vm.ViewMode = ImageViewMode.Album;
-        Assert.AreEqual(Str.Format("Images.Header.ImageCountManyFormat", 3), vm.HeaderText, "a grid is about the set, not one file");
-
-        var single = Make("only.png");
-        single.ViewMode = ImageViewMode.Album;
-        Assert.AreEqual(Str.Get("Images.Header.ImageCountOne"), single.HeaderText, "and it reads naturally at one");
+        Assert.AreEqual(Str.Format("Images.Header.ImageCountManyFormat", 3), Make("a.png", "b.png", "c.png").ImageCountText);
+        Assert.AreEqual(Str.Get("Images.Header.ImageCountOne"), Make("only.png").ImageCountText);
     }
 
     // ── Thumbnail selection ───────────────────────────────────────────────────

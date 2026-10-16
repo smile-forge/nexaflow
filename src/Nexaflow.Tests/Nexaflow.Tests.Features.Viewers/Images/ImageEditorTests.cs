@@ -501,6 +501,24 @@ public class ImageEditorTests
         Assert.AreEqual(32, decoded.Height);
     }
 
+    [TestMethod]
+    [CoversNode("images-header")]
+    public void AnEditedPhoto_IsMarkedSo_WhereItIsShownAlone()
+    {
+        var vm = Editing();
+        Assert.IsFalse(vm.ShowsEditedMark, "nothing edited yet");
+
+        vm.RotateRightCommand.Execute(null);
+        Settle(vm);
+        Assert.IsTrue(vm.ShowsEditedMark, "edited, in the editor");
+
+        vm.ViewMode = ImageViewMode.Carousel;
+        Assert.IsTrue(vm.ShowsEditedMark, "and shown on its own");
+
+        vm.ViewMode = ImageViewMode.Album;
+        Assert.IsFalse(vm.ShowsEditedMark, "a grid of pictures is about none of them");
+    }
+
     // ── Opening, from the file browser ──────────────────────────────────────
 
     [TestMethod]

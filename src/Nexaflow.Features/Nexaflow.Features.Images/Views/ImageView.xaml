@@ -315,16 +315,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Heading, and a mark when the shown photo carries edits -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding HeaderText}" Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
-                    <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="8" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
-                            ToolTip="{loc:Str Images.Edit.EditedTip}"
-                            Visibility="{Binding ShowsEditedMark, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
-                    </Border>
-                </StackPanel>
+                <!-- A mark when the shown photo carries edits; its name is the tab's and the breadcrumb's -->
+                <Border Padding="6,1" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
+                        ToolTip="{loc:Str Images.Edit.EditedTip}"
+                        Visibility="{Binding ShowsEditedMark, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
+                </Border>
 
                 <!-- Browsing: edit, then the playback controls -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"

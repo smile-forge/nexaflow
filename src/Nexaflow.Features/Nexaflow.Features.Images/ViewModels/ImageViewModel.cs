@@ -61,12 +61,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [ObservableProperty] private int _currentIndex;
     [ObservableProperty] private BitmapSource? _currentImage;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HeaderText))]
-    private string _currentFileName = string.Empty;
+    [ObservableProperty] private string _currentFileName = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HeaderText))]
     [NotifyPropertyChangedFor(nameof(ImageCountText))]
     private int _totalImages;
 
@@ -103,7 +100,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(IsCollage))]
     [NotifyPropertyChangedFor(nameof(IsEditing))]
     [NotifyPropertyChangedFor(nameof(IsBrowsing))]
-    [NotifyPropertyChangedFor(nameof(HeaderText))]
     [NotifyPropertyChangedFor(nameof(ShowsSubViewSelector))]
     [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
     [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
@@ -118,12 +114,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>Any view but the editor — where the browsing controls (sub-views, slideshow, full screen) belong.</summary>
     public bool IsBrowsing => !IsEditing;
 
-    /// <summary>Toolbar heading: the current file when an image is featured, else the image count.</summary>
-    public string HeaderText => (IsCarousel || IsExplore || IsEditing)
-        ? CurrentFileName
-        : ImageCountText;
-
-    /// <summary>"1 image" / "N images": the grid views' heading, and the context preview's caption.</summary>
+    /// <summary>"1 image" / "N images": the context preview's caption.</summary>
     public string ImageCountText => TotalImages == 1
         ? Str.Get("Images.Header.ImageCountOne")
         : Str.Format("Images.Header.ImageCountManyFormat", TotalImages);

@@ -668,10 +668,22 @@
           "class": "FlowUniPc"
         }
       ]
+    },
+    "images-header": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditorTests.cs",
+            "class": "ImageEditorTests",
+            "method": "AnEditedPhoto_IsMarkedSo_WhereItIsShownAlone"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 28,
+  "changed_sets": 29,
   "touched_nodes": [
     "ai-tools",
     "images-ai-act-read-page",
@@ -679,6 +691,7 @@
     "images-edit-cutout",
     "images-edit-remove-background",
     "images-edit-restore",
+    "images-header",
     "images-read-page",
     "markdown-package",
     "markdown-save-as",
