@@ -41,7 +41,7 @@ public interface IToolModels
     /// <summary>How far a download has got, 0 to 100, while <see cref="State"/> is <see cref="ToolModelsState.Downloading"/>.</summary>
     int DownloadPercent { get; }
 
-    /// <summary>Raised, on any thread, when <see cref="State"/>, <see cref="DownloadBytes"/> or <see cref="DownloadPercent"/> changes.</summary>
+    /// <summary>Raised, on any thread, when <see cref="State"/>, <see cref="DownloadBytes"/>, <see cref="DownloadPercent"/> or <see cref="DownloadFailure"/> changes.</summary>
     event EventHandler? Changed;
 
     /// <summary>Starts fetching the models, shown with the app's other work in the background; nothing if they are here
@@ -50,6 +50,10 @@ public interface IToolModels
 
     /// <summary>Names the models: what one set made is not what another makes, so whatever keeps a result keys it by this.</summary>
     string ModelsVersion { get; }
+
+    /// <summary>Why the last download stopped short of everything, while <see cref="State"/> is
+    /// <see cref="ToolModelsState.NotDownloaded"/> — offered again with it; null when none has.</summary>
+    string? DownloadFailure { get; }
 }
 
 /// <summary>

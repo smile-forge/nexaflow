@@ -19,8 +19,10 @@ public abstract class LocalToolModels : ILocalTool
     private readonly IModelAssetStore _store;
     private readonly IBackgroundActivityManager? _activities;
     private readonly Lock _gate = new();
-    private Task? _download;
+    private bool _downloading;
     private int _percent;
+
+    private string? _failure;
 
     protected LocalToolModels(OwnedToolFront front, IModelAssetStore store, IBackgroundActivityManager? activities)
     {
@@ -37,7 +39,7 @@ public abstract class LocalToolModels : ILocalTool
     public ToolModelsState State
         => !_front.RunsHere ? ToolModelsState.Unavailable
          : _front.IsReady ? ToolModelsState.Ready
-         : _download is { IsCompleted: false } ? ToolModelsState.Downloading
+         : _downloading ? ToolModelsState.Downloading
          : ToolModelsState.NotDownloaded;
 
     /// <summary>Every file the tool needs here: its models, and the CUDA pack where it suits the machine.</summary>
@@ -48,6 +50,8 @@ public abstract class LocalToolModels : ILocalTool
     public long DownloadBytes => Files.Where(f => _store.Locate(f) is null).Sum(f => f.Size);
 
     public int DownloadPercent => _percent;
+
+    public string? DownloadFailure => _failure;
 
     public event EventHandler? Changed;
 
@@ -60,15 +64,18 @@ public abstract class LocalToolModels : ILocalTool
         {
             if (State is not ToolModelsState.NotDownloaded) return;
             _percent = 0;
-            _download = FetchAsync();
+            _failure = null;
+            _downloading = true;
         }
+        _ = FetchAsync();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task FetchAsync()
     {
-        await Task.Yield();   // the caller has the task before anything reports
+        await Task.Yield();   // the caller has said it is coming before anything reports
         var activity = _activities?.StartActivity(Str.Format("Shell.Config.Local.DownloadingFormat", Name, 0));
+        string? failure = null;
         try
         {
             await _store.EnsureAllAsync([.. Files.Where(f => _store.Locate(f) is null)], new Inline<AssetProgress>(p =>
@@ -83,10 +90,17 @@ public abstract class LocalToolModels : ILocalTool
         }
         catch (Exception ex)
         {
-            activity?.Fail(ex.Message);   // the tool stays to be downloaded; the person can ask again
+            failure = ex.Message;
+            activity?.Fail(ex.Message);   // the tool stays to be downloaded, with why; the person can ask again
         }
         finally
         {
+            // Over before it is said to be: whatever reads the state on hearing of it reads where the download ended.
+            lock (_gate)
+            {
+                _downloading = false;
+                _failure = failure;
+            }
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }

@@ -286,6 +286,7 @@ public sealed partial class LocalToolViewModel : ObservableObject
             ToolModelsState.Unavailable => Str.Get("Shell.Config.Local.NoBuild"),
             ToolModelsState.Downloading => Str.Format("Shell.Config.Local.DownloadingFormat", _tool.Name, _tool.DownloadPercent),
             ToolModelsState.Ready       => Str.Get("Shell.Config.Local.Here"),
+            _ when _tool.DownloadFailure is { } why => Str.Format("Shell.Config.Local.FailedFormat", _tool.Name, why),
             _                           => string.Empty,
         };
     }

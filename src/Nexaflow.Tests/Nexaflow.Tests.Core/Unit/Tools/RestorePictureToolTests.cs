@@ -125,6 +125,8 @@ public class RestorePictureToolTests
         public PictureRestoreRequest? Asked { get; private set; }
         public long DownloadBytes => 0;
         public int DownloadPercent => 0;
+
+        public string? DownloadFailure => null;
         public event EventHandler? Changed { add { } remove { } }
         public void Download() { }
         public bool Restores(int width, int height, int scale) => Takes;

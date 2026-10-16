@@ -110,7 +110,7 @@ public class PageReadingTests
     [TestMethod]
     public async Task EachSamplePage_ReadsAsTheMakersReadIt()
     {
-        foreach (var page in Directory.GetFiles(Path.Combine(_reference, "pages"), "*.png").Order())
+        foreach (var page in SamplePages())
         {
             string name = Path.GetFileNameWithoutExtension(page);
             var (text, ended) = await ReadAsync(page);
@@ -152,6 +152,13 @@ public class PageReadingTests
     {
         if (_client is null) Assert.Inconclusive("NEXAFLOW_TEST_PAGE_READING and NEXAFLOW_TEST_PAGE_READING_REFERENCE name no page reading on this machine.");
         return Directory.GetFiles(Path.Combine(_reference, "text-finder"), "*.json").Select(Path.GetFileNameWithoutExtension).Order()!;
+    }
+
+    private static IEnumerable<string> SamplePages()
+    {
+        if (_client is null || _reader is null)
+            Assert.Inconclusive("NEXAFLOW_TEST_PAGE_READING and NEXAFLOW_TEST_PAGE_READING_REFERENCE name no page reading on this machine.");
+        return Directory.GetFiles(Path.Combine(_reference, "pages"), "*.png").Order();
     }
 
     /// <summary>The detector's own maps read into the regions PaddleOCR's box-at-a-time post-processing reads, in whatever

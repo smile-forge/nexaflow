@@ -244,7 +244,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         var file = new FileInfo(_path);
         string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}";
         var scans = _scans;
-        Reading.Open(key, Path.GetFileNameWithoutExtension(_path), ct => WithDocumentAsync(doc =>
+        Reading.Open(key, _path, async ct => await WithDocumentAsync(doc =>
         {
             var pictures = new List<string>();
             foreach (int number in scans)
@@ -256,7 +256,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 pictures.Add(file);
             }
             return (IReadOnlyList<string>)pictures;
-        }, ct));
+        }, ct) ?? []);   // a document that no longer opens has no pages to read
     }
 
     /// <summary>

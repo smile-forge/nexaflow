@@ -744,6 +744,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (!ReferenceEquals(CurrentSession, session)) return;
         Editor.OnSessionChanged();
+        ReadPage.PictureDecoded(session);
         RequestRender();
     }
 

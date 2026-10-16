@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -31,7 +32,7 @@ public sealed partial class PageReadingPanel : ObservableObject
     private readonly IShellServices _shell;
     private Func<CancellationToken, Task<IReadOnlyList<string>>>? _pages;
     private string _key = "";
-    private string _name = "";
+    private string _source = "";
     private CancellationTokenSource? _cts;
 
     private TaskCompletionSource _done = Finished();
@@ -100,16 +101,17 @@ public sealed partial class PageReadingPanel : ObservableObject
 
     /// <summary>
     /// Opens the panel on pages: <paramref name="key"/> names them — the same key, the same text, so a reading kept from
-    /// before is shown — <paramref name="name"/> is what a save offers to call them, and <paramref name="pages"/> gives
-    /// their pictures as files, PNG or JPEG, when they are read; the panel deletes them once it has.
+    /// before is shown — <paramref name="source"/> is the file they are read from, which a save is named after and offered
+    /// beside, and <paramref name="pages"/> gives their pictures as files, PNG or JPEG, when they are read; the panel deletes
+    /// them once it has.
     /// </summary>
-    public void Open(string key, string name, Func<CancellationToken, Task<IReadOnlyList<string>>> pages)
+    public void Open(string key, string source, Func<CancellationToken, Task<IReadOnlyList<string>>> pages)
     {
         Stop();
         _done.TrySetResult();
         _done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _key = key;
-        _name = name;
+        _source = source;
         _pages = pages;
         Markdown = "";
         PageTexts = null;
@@ -146,6 +148,7 @@ public sealed partial class PageReadingPanel : ObservableObject
             CanDownload = _reading.State == ToolModelsState.NotDownloaded;
             Status = _reading.State == ToolModelsState.Downloading
                 ? Str.Format("Text.PageReading.Downloading", _reading.DownloadPercent)
+                : _reading.DownloadFailure is { } failure ? Str.Format("Text.PageReading.DownloadStopped", failure)
                 : Str.Format("Text.PageReading.NeedsTool", SizeFormatter.FormatBytes(_reading.DownloadBytes));
             _done.TrySetResult();
             return;
@@ -170,7 +173,9 @@ public sealed partial class PageReadingPanel : ObservableObject
             {
                 if (cts.IsCancellationRequested) return;
                 Markdown = so.Markdown;
-                Status = Str.Format("Text.PageReading.Reading", so.Page, so.Pages);
+                Status = so.DrawingFigure is { } figure
+                    ? Str.Format("Text.PageReading.Drawing", figure)
+                    : Str.Format("Text.PageReading.Reading", so.Page, so.Pages);
             }));
             var reader = new PageReader(_reading!, _ai);
             var read = await Task.Run(() => reader.ReadAsync(pages, Path.Combine(folder, Figures), Figures, shown, cts.Token), cts.Token);
@@ -231,17 +236,18 @@ public sealed partial class PageReadingPanel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync()
     {
-        if (await _shell.PickSaveFileAsync(_name + ".md", [".md"]) is not { } target) return;
+        string? beside = Path.GetDirectoryName(_source) is { Length: > 0 } folder ? folder : null;
+        if (await _shell.PickSaveFileAsync(Path.GetFileNameWithoutExtension(_source) + ".md", [".md"], beside) is not { } target) return;
         try
         {
+            // Only the figures the text shows: one drawn again as a diagram is kept with the reading, not saved with it.
+            var linked = FigureLinks().Matches(Markdown).Select(m => m.Groups["file"].Value).Distinct().ToList();
             string figures = Path.GetFileNameWithoutExtension(target) + ".figures";
-            string from = Path.Combine(Folder!, Figures);
-            bool any = Directory.Exists(from) && Directory.EnumerateFiles(from).Any();
-            await File.WriteAllTextAsync(target, any ? Markdown.Replace("](" + Figures + "/", "](" + figures + "/") : Markdown);
-            if (!any) return;
+            await File.WriteAllTextAsync(target, linked.Count > 0 ? Markdown.Replace("](" + Figures + "/", "](" + figures + "/") : Markdown);
+            if (linked.Count == 0) return;
             string into = Path.Combine(Path.GetDirectoryName(target)!, figures);
             Directory.CreateDirectory(into);
-            foreach (var file in Directory.EnumerateFiles(from)) File.Copy(file, Path.Combine(into, Path.GetFileName(file)), overwrite: true);
+            foreach (var file in linked) File.Copy(Path.Combine(Folder!, Figures, file), Path.Combine(into, file), overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -260,4 +266,8 @@ public sealed partial class PageReadingPanel : ObservableObject
     {
         public void Report(PagesSoFar value) => show(value);
     }
+
+    /// <summary>A link to one of the reading's figures, by its file's name.</summary>
+    [GeneratedRegex(@"\]\(page\.figures/(?<file>[^/)\s]+)\)")]
+    private static partial Regex FigureLinks();
 }

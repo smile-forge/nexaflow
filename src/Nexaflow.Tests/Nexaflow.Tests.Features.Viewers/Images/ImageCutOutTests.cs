@@ -431,6 +431,8 @@ public class ImageCutOutTests
         public string ModelsVersion => "patch-1";
         public long DownloadBytes => 1 << 30;
         public int DownloadPercent => 0;
+
+        public string? DownloadFailure { get; init; }
         public event EventHandler? Changed { add { } remove { } }
         public void Download() => Downloading = true;
         public int Width { get; private set; }

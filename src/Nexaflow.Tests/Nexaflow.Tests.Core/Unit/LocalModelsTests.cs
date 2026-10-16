@@ -619,6 +619,8 @@ public class LocalModelsTests
         public long DownloadBytes => models.Files.Where(f => store.Locate(f) is null).Sum(f => f.Size);
         public int DownloadPercent => 0;
 
+        public string? DownloadFailure { get; set; }
+
         public string ModelsVersion => "fake-1";
         public event EventHandler? Changed;
 

@@ -9,7 +9,6 @@
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
-             PreviewMouseWheel="OnPreviewMouseWheel"
              Background="{StaticResource BgBrush}"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
@@ -526,7 +525,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ── Carousel ── -->
-            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
+            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}" PreviewMouseWheel="OnPreviewMouseWheel">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>

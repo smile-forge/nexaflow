@@ -7,8 +7,9 @@ using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Pages;
 
-/// <summary>How far a reading has got: the page it is on, of how many, and the document so far.</summary>
-public sealed record PagesSoFar(int Page, int Pages, string Markdown);
+/// <summary>How far a reading has got: the page it is on, of how many, the document so far, and the figure the
+/// workspace's image model is drawing again as a diagram, while it is.</summary>
+public sealed record PagesSoFar(int Page, int Pages, string Markdown, int? DrawingFigure = null);
 
 /// <summary>Pages read: the one document they make, and each page's text on its own, its figures left out.</summary>
 public sealed record PagesRead(string Markdown, IReadOnlyList<string> Pages);
@@ -57,9 +58,16 @@ public sealed class PageReader(IPageReading reading, IAIService? ai)
                 if (cut[f] is not { } png) continue;
                 string name = $"figure-{++figureCount}.png";
                 await File.WriteAllBytesAsync(Path.Combine(figures, name), png, ct);
-                drawn[(p, figureBlocks[f].at)] = ai is not null && await DiagramDrawing.DrawAsync(ai, png, ct) is { } diagram
-                    ? "```mermaid\n" + diagram + "\n```"
-                    : $"![figure {figureCount}]({figuresLink}/{name})";
+                var at = (p, figureBlocks[f].at);
+                drawn[at] = $"![figure {figureCount}]({figuresLink}/{name})";
+                if (ai is null)
+                {
+                    written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown()));
+                    continue;
+                }
+                // The picture shows while the image model draws it again; a diagram drawn cleanly takes its place.
+                written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown(), figureCount));
+                if (await DiagramDrawing.DrawAsync(ai, png, ct) is { } diagram) drawn[at] = "```mermaid\n" + diagram + "\n```";
                 written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown()));
             }
         }

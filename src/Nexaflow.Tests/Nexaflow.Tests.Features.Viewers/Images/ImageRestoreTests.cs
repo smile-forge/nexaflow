@@ -166,6 +166,19 @@ public class ImageRestoreTests
     }
 
     [TestMethod]
+    public void ToolsThatDidNotDownload_SayWhy_AndAreOfferedAgain()
+    {
+        var tools = new Opposites { State = ToolModelsState.NotDownloaded, DownloadFailure = "the network went" };
+        var vm = Editing(tools);
+
+        vm.Editor.AiEnhance = true;
+        Until(() => vm.Restorer.HasNotice);
+
+        Assert.AreEqual(Str.Format("Images.Restore.DownloadStopped", "the network went"), vm.Restorer.Notice);
+        Assert.IsTrue(vm.Restorer.CanDownload);
+    }
+
+    [TestMethod]
     public void ARestorationThatFails_SaysSo_AndIsTriedAgainWhenAsked()
     {
         var tools = new Opposites { Fails = true };
@@ -251,6 +264,8 @@ public class ImageRestoreTests
         public List<PictureRestoreRequest> Restorations { get; } = [];
         public long DownloadBytes => State == ToolModelsState.Ready ? 0 : 643L << 20;
         public int DownloadPercent => 0;
+
+        public string? DownloadFailure { get; set; }
         public string ModelsVersion => "opposites";
         public event EventHandler? Changed;
 

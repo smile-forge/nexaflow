@@ -63,6 +63,13 @@ public sealed partial class ReadPageViewModel : ObservableObject
         Look(session);
     }
 
+    /// <summary>The picture on screen has been decoded: what was looked at before it came had nothing to show, so it is
+    /// looked at now.</summary>
+    public void PictureDecoded(ImageEditSession session)
+    {
+        if (ReferenceEquals(session, _session)) Look(session);
+    }
+
     private void Look(ImageEditSession? session)
     {
         _looking?.Cancel();
@@ -112,7 +119,7 @@ public sealed partial class ReadPageViewModel : ObservableObject
         if (Panel is null || _session is not { } session) return;
         string path = session.Path;
         var recipe = session.Recipe;
-        Panel.Open(Key(path, recipe), Path.GetFileNameWithoutExtension(path), ct => Task.Run(() => Page(path, recipe, ct), ct));
+        Panel.Open(Key(path, recipe), path, ct => Task.Run(() => Page(path, recipe, ct), ct));
     }
 
     /// <summary>The page as shown, edits and all, at full size, in a PNG file of its own.</summary>

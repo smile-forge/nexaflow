@@ -299,6 +299,7 @@ public sealed partial class PictureCutter : ObservableObject
         Notice = _selection?.State switch
         {
             null or ToolModelsState.Unavailable => Str.Get("Images.CutOut.Unavailable"),
+            ToolModelsState.NotDownloaded when _selection!.DownloadFailure is { } failure => Str.Format("Images.CutOut.DownloadStopped", failure),
             ToolModelsState.NotDownloaded => Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_selection!.DownloadBytes)),
             ToolModelsState.Downloading => Str.Format("Images.CutOut.Downloading", _selection!.DownloadPercent),
             _ when Shown?.Bounds is not null => Notice,

@@ -117,9 +117,9 @@ public partial class ImageView : UserControl, IPageView
 
     private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // Only the carousel steps on the wheel (and not while zoomed to actual size — then the
-        // ScrollViewer pans). Album scrolls its grid, Explore scrolls its strip / steps on the image
-        // side, Collage zooms — each handled by its own element, so leave those wheel events alone.
+        // The carousel's own surface steps on the wheel (not while zoomed to actual size — then the ScrollViewer pans),
+        // so what stands beside it, the page's text, scrolls. Album scrolls its grid, Explore scrolls its strip / steps
+        // on the image side, Collage zooms — each handled by its own element.
         if (!ViewModel.IsCarousel || !ViewModel.FitToWindow) return;
         if (e.Delta > 0) ViewModel.StepPrevious(); else ViewModel.StepNext();
         e.Handled = true;

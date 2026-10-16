@@ -150,6 +150,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
             CanDownload = _tools.State == ToolModelsState.NotDownloaded;
             Unshown(session, _tools.State == ToolModelsState.Downloading
                 ? Str.Format(_texts + "Downloading", _tools.DownloadPercent)
+                : _tools.DownloadFailure is { } failure ? Str.Format(_texts + "DownloadStopped", failure)
                 : Str.Format(_texts + "NeedsTool", SizeFormatter.FormatBytes(_tools.DownloadBytes)));
             return;
         }

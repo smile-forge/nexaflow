@@ -83,6 +83,11 @@ public class PageMarkdownTests
                            Write([Block(PageBlockKind.Table, "<table><tr><td>Item</td><td>Qty</td></tr><tr><td>Bolt</td><td>3</td></tr></table>")]));
 
     [TestMethod]
+    public void MathsInATable_IsBetweenDollars()
+        => Assert.AreEqual("|  | $d_k$ |\n| --- | --- |\n| base | 64 |",
+                           Write([Block(PageBlockKind.Table, "<table><tr><td></td><td>\\(d_k\\)</td></tr><tr><td>base</td><td>64</td></tr></table>")]));
+
+    [TestMethod]
     public void Footnotes_AreGatheredAtTheEnd_AndThePagesEdgesLeftOut()
     {
         var markdown = Write(

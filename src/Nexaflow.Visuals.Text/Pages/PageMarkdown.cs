@@ -140,7 +140,9 @@ public static partial class PageMarkdown
         return tex.Trim();
     }
 
-    private static string Table(string html) => HtmlToMarkdown.Convert(html).Trim();
+    /// <summary>A table as a Markdown table, the maths in its cells between dollars as in a sentence.</summary>
+    private static string Table(string html)
+        => HtmlToMarkdown.Convert(InlineMaths().Replace(html, maths => "$" + maths.Groups["tex"].Value.Trim() + "$")).Trim();
 
     /// <summary>A heading's level from its numbering — 1, A, 3.2, A.1 — or null when it has none.</summary>
     internal static int? Level(string heading)
