@@ -25,7 +25,7 @@
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
-    <!-- Scanned pages read into Markdown, in the panel page reading shares with the image viewer. -->
+    <!-- Scanned pages converted to Markdown, the conversion page reading shares with the image viewer. -->
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <!-- The reader renders the document with the same chrome-free browser host the Web tab uses. -->
     <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />

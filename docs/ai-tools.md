@@ -136,7 +136,7 @@ and the regions over 0.7 found.
 
 A small picture of a few large lines — a note, one line of a bill — reads nothing on llama.cpp, at any precision and
 on the CPU too, where the makers' code reads it: llama.cpp's preparation of the picture, not Nexaflow's. The same lines
-on a page read; the viewer offers Read page only for a page.
+on a page read; the viewer offers Convert to Markdown only for a page.
 
 **Memory.** The reader peaks at 6.8 GB with 8,192 cells, the vision encoder's work on the page's tiles the most of it
 (32 tiles no more than 24); the download is 4 GB. A dense page takes 2–5 s on a GPU, about 30 s on a 32-thread CPU.
@@ -145,16 +145,20 @@ on a page read; the viewer offers Read page only for a page.
 `PageReading.IsPage`, 15 regions over 3 % of the picture) and reads a page into `PageBlock`s as it goes (`PageMarks`).
 `Visuals.Text`'s `PageReader` reads pages into Markdown (`PageMarkdown`), cuts the figures (`PageFigures`) and asks
 `IAIService.AskAboutPictureAsync` for each as Mermaid, kept only when `MermaidDiagrams.Troubles` finds nothing wrong
-(`DiagramDrawing`). `PageReadingPanel` and its view are the text beside what shows the pages: the reading kept in the
-temp folder by what was read and the models, its download offered, copy and save as Markdown with the figures beside it.
+(`DiagramDrawing`). `PageConversion` converts a feature's pages (`PageSource`): the reading kept in the temp folder by
+what was read and the models, a draft written from it — `<source>.md`, only the figures its text shows in
+`<source>.figures` — and opened in the Markdown editor in the right-hand pane (`IShellServices.OpenTab`, `inRightPane`)
+with a `draft` param, so its first save asks where, a Markdown Package by default; `OriginBreadcrumbs` leads it back to
+its source. `PageConversionBar` says how far it has got, offers the download and stops it; what was asked waits for the
+download and goes on when it arrives.
 
-**In the image viewer.** `ReadPageViewModel` looks at each picture shown at up to 1,280 pixels and offers Read page for
-a page; it reads the picture as shown, edits and all, at full size (`ImageExporter`). `read_page` reads it for the
-assistant.
+**In the image viewer.** `ReadPageViewModel` looks at each picture once it is decoded, at up to 1,280 pixels, and offers
+Convert to Markdown for a page; it reads the picture as shown, edits and all, at full size (`ImageExporter`). `read_page`
+reads it for the assistant.
 
 **In the PDF reader.** `PdfScans` finds the scanned pages — no text, one picture over each — and their pictures, JPEG as
-stored or decoded to PNG, turned as the page is shown; the Text tab reads them. `pdf_read_scans` reads them for the
-assistant, and `pdf_read_text` and `pdf_find_text` include their text once read.
+stored or decoded to PNG, turned as the page is shown; a notice above the document says so and converts them.
+`pdf_read_scans` reads them for the assistant, and `pdf_read_text` and `pdf_find_text` include their text once read.
 
 **For the assistant.** `read_page_file` reads a picture file of a page and returns its text; saved as Markdown when
 asked, its figures beside it.

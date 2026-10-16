@@ -52,8 +52,8 @@
   "Images.Toolbar.Edit": "Modifier",
   "Images.Toolbar.Video": "Vidéo",
   "Images.Toolbar.VideoTip": "Faire une courte vidéo qui part de cette image",
-  "Images.Toolbar.ReadPage": "Lire la page",
-  "Images.Toolbar.ReadPageTip": "Lire cette page écrite en Markdown : ses colonnes en un seul texte, ses formules en LaTeX, ses tableaux et ses figures",
+  "Images.Toolbar.ConvertToMarkdown": "Convertir en Markdown",
+  "Images.Toolbar.ConvertToMarkdownTip": "Lire cette page écrite dans un document Markdown, ouvert dans le volet de droite : ses colonnes en un seul texte, ses formules en LaTeX, ses tableaux et ses figures",
 
   "Images.MakeVideo.Heading": "Faire une vidéo à partir de cette image",
   "Images.MakeVideo.WhatHappens": "Ce qui se passe",

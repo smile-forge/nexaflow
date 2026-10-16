@@ -13,11 +13,11 @@ using SkiaSharp;
 namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>
-/// The picture on screen read as a page of writing (<see cref="IPageReading"/>). Page reading's text finder looks at each
-/// picture as it is shown; where it is a page — prose, a form, a receipt, a scan — the toolbar offers Read page, which
-/// opens its text in Markdown beside the picture (<see cref="PageReadingPanel"/>), read from the picture as it is shown,
-/// edits and all, at its full size. Until page reading is here nothing can tell a page, so every picture offers it, and the
-/// panel offers the download.
+/// The picture on screen converted to Markdown as a page of writing (<see cref="IPageReading"/>). Page reading's text finder
+/// looks at each picture once it is there to look at; where it is a page — prose, a form, a receipt, a scan — the toolbar
+/// offers Convert to Markdown, which reads it as it is shown, edits and all, at its full size, and opens the Markdown in the
+/// Markdown editor in the right-hand pane (<see cref="PageConversion"/>). Until page reading is here nothing can tell a
+/// page, so every picture offers it, and the conversion offers the download.
 /// </summary>
 public sealed partial class ReadPageViewModel : ObservableObject
 {
@@ -28,38 +28,41 @@ public sealed partial class ReadPageViewModel : ObservableObject
     private readonly ImageEditingServices _editing;
     private readonly Func<Action, Task> _runOnUi;
     private readonly Func<string, ImageRecipe, MadeByTools> _made;
+    private readonly Func<IPageView?> _host;
     private ImageEditSession? _session;
     private CancellationTokenSource? _looking;
 
     /// <param name="made">What the picture tools made of a photo for a recipe — what the page is rendered with.</param>
+    /// <param name="host">The tab showing the picture, beside which the Markdown opens.</param>
     public ReadPageViewModel(IPageReading? reading, IAIService? ai, IShellServices? shell, ImageEditingServices editing,
-                             Func<Action, Task> runOnUi, Func<string, ImageRecipe, MadeByTools> made)
+                             Func<Action, Task> runOnUi, Func<string, ImageRecipe, MadeByTools> made, Func<IPageView?> host)
     {
         _reading = reading;
         _editing = editing;
         _runOnUi = runOnUi;
         _made = made;
-        Panel = shell is null ? null : new PageReadingPanel(reading, ai, shell);
+        _host = host;
+        Conversion = shell is null ? null : new PageConversion(reading, ai, shell);
         if (reading is not null) reading.Changed += (_, _) => _ = runOnUi(() => Look(_session));
     }
 
-    /// <summary>The page's text beside the picture; none where there is no shell to save it through.</summary>
-    public PageReadingPanel? Panel { get; }
+    /// <summary>The picture's conversion to Markdown; none where there is no shell to open it through.</summary>
+    public PageConversion? Conversion { get; }
 
     /// <summary>The picture on screen is a page of writing, as far as the text finder can tell.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRead))]
     private bool _isPage;
 
-    /// <summary>Read page shows: page reading runs here and the picture is a page — or page reading is not here yet, so
-    /// nothing can tell.</summary>
-    public bool CanRead => Panel is { Available: true } panel && _session is not null && (!panel.Ready || IsPage);
+    /// <summary>Convert to Markdown shows: page reading runs here and the picture is a page — or page reading is not here
+    /// yet, so nothing can tell.</summary>
+    public bool CanRead => Conversion is { Available: true } conversion && _session is not null && (!conversion.Ready || IsPage);
 
-    /// <summary>The picture now on screen: looked at for writing, and the panel closed on the one before.</summary>
+    /// <summary>The picture now on screen: looked at for writing, and what was said about the one before forgotten.</summary>
     public void Follow(ImageEditSession? session)
     {
         if (ReferenceEquals(session, _session)) return;
-        Panel?.CloseCommand.Execute(null);
+        Conversion?.Forget();
         Look(session);
     }
 
@@ -112,14 +115,24 @@ public sealed partial class ReadPageViewModel : ObservableObject
         return picture.ReadPixels(bitmap.PeekPixels()) ? (bitmap.Bytes, picture.Width, picture.Height) : null;
     }
 
-    /// <summary>Opens the picture's text beside it: kept from before for the same picture and edits, else read now.</summary>
+    /// <summary>Converts the picture to Markdown and opens it in the right-hand pane: kept from before for the same picture
+    /// and edits, else read now.</summary>
     [RelayCommand]
-    private void Read()
+    private Task Convert() => Conversion is not null && Source() is { } source ? Conversion.ConvertAsync(source, _host()) : Task.CompletedTask;
+
+    /// <summary>The picture read as a page — kept from before, or read now — or null where it cannot be read now; for the
+    /// assistant, which is handed its text. Called on the UI thread.</summary>
+    public Task<PagesRead?> ReadAsync(CancellationToken ct)
+        => Conversion is not null && Source() is { } source ? Conversion.ReadAsync(source, ct) : Task.FromResult<PagesRead?>(null);
+
+    /// <summary>The picture on screen as pages to read: named by the file and its edits, rendered as shown when read.</summary>
+    private PageSource? Source()
     {
-        if (Panel is null || _session is not { } session) return;
+        if (_session is not { } session) return null;
         string path = session.Path;
         var recipe = session.Recipe;
-        Panel.Open(Key(path, recipe), path, ct => Task.Run(() => Page(path, recipe, ct), ct));
+        return new PageSource(Key(path, recipe), path, ct => Task.Run(() => Page(path, recipe, ct), ct),
+                              ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = path });
     }
 
     /// <summary>The page as shown, edits and all, at full size, in a PNG file of its own.</summary>

@@ -393,13 +393,13 @@
                             </Border>
                         </Popup>
                     </Grid>
-                    <!-- Read the picture as a page of writing: shown where it is a page, or before page reading is here to tell -->
-                    <Button Command="{Binding ReadPage.ReadCommand}" ToolTip="{loc:Str Images.Toolbar.ReadPageTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
+                    <!-- Convert the picture, as a page of writing, to Markdown: shown where it is a page, or before page reading is here to tell -->
+                    <Button Command="{Binding ReadPage.ConvertCommand}" ToolTip="{loc:Str Images.Toolbar.ConvertToMarkdownTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
                             Visibility="{Binding ReadPage.CanRead, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_ReadPage">
+                            AutomationProperties.AutomationId="Image_ConvertToMarkdown">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="¶" FontSize="12" VerticalAlignment="Center"/>
-                            <TextBlock Text="{loc:Str Images.Toolbar.ReadPage}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Toolbar.ConvertToMarkdown}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                     <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="{loc:Str Images.Toolbar.AutoTip}" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
@@ -515,14 +515,12 @@
                     <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
+            <!-- Converting the page to Markdown: how far it has got, its download, or why it could not -->
+            <pages:PageConversionBar DataContext="{Binding ReadPage.Conversion}"/>
         </StackPanel>
 
-        <!-- ══ Content: exactly one sub-view is shown, and beside it the page's text when it is read ══ -->
+        <!-- ══ Content: exactly one sub-view is shown ══ -->
         <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
 
             <!-- ── Carousel ── -->
             <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}" PreviewMouseWheel="OnPreviewMouseWheel">
@@ -712,9 +710,6 @@
             <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
             <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"/>
 
-            <!-- ── The page's text, read from the picture ── -->
-            <pages:PageReadingPanelView Grid.Column="1" Width="460" DataContext="{Binding ReadPage.Panel}"
-                                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
         </Grid>
     </Grid>
 </UserControl>

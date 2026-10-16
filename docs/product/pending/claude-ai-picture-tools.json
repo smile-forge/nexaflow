@@ -389,8 +389,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReadingPanel.cs",
-          "class": "PageReadingPanel"
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversion.cs",
+          "class": "PageConversion"
         }
       ],
       "concerns": {
@@ -417,69 +417,11 @@
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
-            "class": "PageReadingPanelTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
-            "class": "PageReadingTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
-            "class": "RepeatBanTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
-            "class": "OwnedPageReadingTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
-            "class": "PageMarkdownTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
-            "class": "PageReadingPanelTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
-            "class": "PageReadingTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
-            "class": "RepeatBanTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
-            "class": "OwnedPageReadingTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
-            "class": "PageMarkdownTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageReadingPanelTests.cs",
-            "class": "PageReadingPanelTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageConversionTests.cs",
+            "class": "PageConversionTests"
           }
         ],
         "docs": [
-          {
-            "type": "markdown",
-            "doc": "docs/ai-tools.md",
-            "title_path": [
-              "AI tools",
-              "Page reading"
-            ]
-          },
           {
             "type": "markdown",
             "doc": "docs/ai-tools.md",
@@ -500,15 +442,15 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReadingPanelView.xaml.cs",
-          "class": "PageReadingPanelView"
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversionBar.xaml.cs",
+          "class": "PageConversionBar"
         },
         {
           "type": "markdown",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
           "title_path": [
             "Images",
-            "Reading a page"
+            "Converting a page to Markdown"
           ]
         }
       ],
@@ -564,18 +506,18 @@
     "pdf-panel-text": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
-          "class": "PdfViewModel",
-          "method": "ReadScans"
-        },
-        {
           "type": "markdown",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
           "title_path": [
             "PDF reader",
             "Scanned pages"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ConvertScans"
         }
       ],
       "concerns": {
@@ -614,10 +556,122 @@
           }
         ]
       }
+    },
+    "markdown-package": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPackage.cs",
+          "class": "MarkdownPackage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packaging/MarkdownAttachments.cs",
+          "class": "MarkdownAttachments"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/Markdown.md",
+          "title_path": [
+            "Markdown",
+            "Viewing \u0026 authoring"
+          ]
+        }
+      ]
+    },
+    "markdown-save-as": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "SaveAs"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/Markdown.md",
+          "title_path": [
+            "Markdown",
+            "Viewing \u0026 authoring"
+          ]
+        }
+      ]
+    },
+    "owned-images": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DrawHandler.cs",
+          "class": "DrawHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageSampler.cs",
+          "class": "ZImageSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImagePromptEncoder.cs",
+          "class": "ZImagePromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDenoiser.cs",
+          "class": "ZImageDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDecoder.cs",
+          "class": "ZImageDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PngEncoder.cs",
+          "class": "PngEncoder"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/z-image-turbo/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDrawing.cs",
+          "class": "HiDreamDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
+          "class": "HiDreamSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDenoiser.cs",
+          "class": "HiDreamDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDrawing.cs",
+          "class": "ZImageDrawing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/hidream-o1/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowUniPc.cs",
+          "class": "FlowUniPc"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 25,
+  "changed_sets": 28,
   "touched_nodes": [
     "ai-tools",
     "images-ai-act-read-page",
@@ -626,6 +680,9 @@
     "images-edit-remove-background",
     "images-edit-restore",
     "images-read-page",
+    "markdown-package",
+    "markdown-save-as",
+    "owned-images",
     "page-reading",
     "pdf-ai-act-read-scans",
     "pdf-panel-text",

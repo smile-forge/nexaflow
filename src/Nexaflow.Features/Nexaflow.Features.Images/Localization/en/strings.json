@@ -35,8 +35,8 @@
   "Images.Toolbar.EditTip": "Edit this image (E) — edits are kept beside it and shown whenever it is viewed; the file changes only when you save",
   "Images.Toolbar.Video": "Video",
   "Images.Toolbar.VideoTip": "Make a short video that starts from this picture",
-  "Images.Toolbar.ReadPage": "Read page",
-  "Images.Toolbar.ReadPageTip": "Read this page of writing into Markdown: its columns as one text, its formulas as LaTeX, its tables and figures",
+  "Images.Toolbar.ConvertToMarkdown": "Convert to Markdown",
+  "Images.Toolbar.ConvertToMarkdownTip": "Read this page of writing into a Markdown document, opened in the right-hand pane: its columns as one text, its formulas as LaTeX, its tables and figures",
 
   "Images.MakeVideo.Heading": "Make a video from this picture",
   "Images.MakeVideo.WhatHappens": "What happens",

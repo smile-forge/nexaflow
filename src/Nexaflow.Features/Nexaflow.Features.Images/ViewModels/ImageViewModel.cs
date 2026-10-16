@@ -11,6 +11,7 @@ using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Pages;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -528,7 +529,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
                 EncodeCurrentPng);
-            ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools);
+            ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools, () => Host);
 
         for (int i = 0; i < paths.Count; i++)
         {
@@ -851,28 +852,29 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             ToolSafety.SafeOperation,
             async (args, _) => await SelectNamedAsync(ToolArgs.Str(args, "what"))),
 
-        // ── Page reading: the picture on screen read as a page of writing, its text beside it ──
+        // ── Page reading: the picture on screen read as a page of writing ──
         new DelegateClientTool(
             "read_page",
             "Read the picture on screen as a page of writing — a scan, a photographed page, a form, a receipt — with page "
-          + "reading on this machine, and return its text as Markdown: columns as one text, formulas as LaTeX, tables. The "
-          + "text opens beside the picture too. A few seconds; the picture's own text, never a description of it.",
+          + "reading on this machine, and return its text as Markdown: columns as one text, formulas as LaTeX, tables. A few "
+          + "seconds; the picture's own text, never a description of it.",
             [],
             ToolSafety.SafeOperation,
             async (_, ct) => await ReadPageToolAsync(ct)),
     ];
 
+    /// <summary>The tab showing the pictures, set by its view: what opens beside it opens in its window.</summary>
+    public IPageView? Host { get; set; }
+
     /// <summary>The picture on screen read as a page — or found read before — for the assistant.</summary>
     private async Task<ToolResult> ReadPageToolAsync(CancellationToken ct)
     {
-        if (ReadPage.Panel is not { Available: true } panel) return ToolResult.Error("Page reading cannot run on this machine.");
+        if (ReadPage.Conversion is not { Available: true } conversion) return ToolResult.Error("Page reading cannot run on this machine.");
         if (CurrentSession is null) return ToolResult.Error("No image is loaded.");
-        if (_shell is null) ReadPage.ReadCommand.Execute(null);
-        else await _shell.RunOnUiAsync(() => ReadPage.ReadCommand.Execute(null));
-        await panel.Done.WaitAsync(ct);
-        return panel.PageTexts is null
-            ? ToolResult.Error(panel.Status ?? "The page could not be read.")
-            : ToolResult.Ok($"Read '{CurrentFileName}' as a page.", panel.Markdown.Trim().Length > 0 ? panel.Markdown : "(no text was read from it)");
+        var read = _shell is null ? await ReadPage.ReadAsync(ct) : await _shell.RunOnUiAsync(() => ReadPage.ReadAsync(ct));
+        return read is null
+            ? ToolResult.Error(conversion.Status ?? "The page could not be read.")
+            : ToolResult.Ok($"Read '{CurrentFileName}' as a page.", read.Markdown.Trim().Length > 0 ? read.Markdown : "(no text was read from it)");
     }
 
     /// <summary>Shared body for next_image / previous_image: steps the viewer and reports the new position.

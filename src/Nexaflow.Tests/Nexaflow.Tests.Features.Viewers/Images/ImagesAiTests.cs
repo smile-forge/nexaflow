@@ -9,6 +9,7 @@ using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Images.Views;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Pages;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -28,6 +29,7 @@ public class ImagesAiTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        shell.RunOnUiAsync(Arg.Any<Func<Task<PagesRead?>>>()).Returns(ci => ci.Arg<Func<Task<PagesRead?>>>()());
         return shell;
     }
 

@@ -29,10 +29,10 @@ Shows a PDF's pages, and lists what the document records about itself.
 - Most PDFs carry no bookmarks. Where there is no outline the tab says so.
 
 ## Scanned pages
-- [The Text tab](locate:Pdf_Tab_Text,Pdf_ReadScans) shows when pages of the document are scans — pictures, with no text in them to search or copy — and this PC can run page reading.
-- **Read the scanned pages** reads them into Markdown on this PC, filling in as each page is read: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one.
-- Copy the text, or save it as Markdown with its figures in a folder beside it. It is kept, so the document opens on it again at once.
-- The first time, page reading is a download of about 4 GB, offered in the tab.
+- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and this PC can run page reading. ✕ puts it away for the document.
+- **Convert to Markdown** reads them on this PC, saying how far it has got, and opens the Markdown in the Markdown editor in the right-hand pane: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one. [Show me](locate:Pdf_ConvertScans)
+- The reading is kept, so converting the document again opens at once. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
+- The first time, page reading is a download of about 4 GB, offered above the document.
 
 ## The panel
 - [Hide the panel](locate:Pdf_TogglePanel) and the document takes the whole tab.

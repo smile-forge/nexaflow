@@ -164,14 +164,17 @@ public class PdfJourneyTests : UiJourneyTestBase
                   () => WaitForId("PdfView", 6) is not null && !App.HasExited);
         }
 
-        // ── A scanned document: its Text tab, where this machine can read pages ─────────
+        // ── A scanned document: the notice above it, where this machine can read pages ─────────
         Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
-        if (WaitForId("Pdf_Tab_Text", 10) is { } textTab)
+        if (WaitForId("Pdf_ConvertScans", 10) is not null)
         {
-            textTab.Click();
-            Wait.UntilInputIsProcessed();
-            CheckDoes("Read the scanned pages", "Pdf_ReadScans", () => WaitForId("PageReading_Text", 5) is not null);
-            CheckDoes("Close the scanned pages' text", "PageReading_Close", () => WaitForId("Pdf_ReadScans", 3) is not null);
+            // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
+            CheckDoes("Convert the scanned pages to Markdown", "Pdf_ConvertScans",
+                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+            if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
+            if (WaitForId("PageConversion_Stop", 1) is not null)
+                CheckDoes("Stop reading the scanned pages", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
+            CheckDoes("Hide the scans notice", "Pdf_ScansNoticeDismiss", () => WaitForGone("Pdf_ConvertScans", 3));
         }
 
         // ── A corrupt document: the panel still opens, and says why it is empty ─────────

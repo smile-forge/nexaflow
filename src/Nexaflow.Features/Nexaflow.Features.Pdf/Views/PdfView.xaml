@@ -150,7 +150,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="PanelColumn" Width="300" MinWidth="220"/>
             <ColumnDefinition x:Name="SplitterColumn" Width="4"/>
-            <ColumnDefinition Width="*" MinWidth="320"/>
+            <ColumnDefinition x:Name="ReaderColumn" Width="*" MinWidth="320"/>
         </Grid.ColumnDefinitions>
 
         <!-- ══ Document panel ══════════════════════════════════════════════ -->
@@ -299,21 +299,6 @@
                         </Grid>
                     </TabItem>
 
-                    <!-- The scanned pages' text: what they are, then their text read into Markdown. -->
-                    <TabItem Header="{loc:Str Pdf.Tab.Text}" AutomationProperties.AutomationId="Pdf_Tab_Text"
-                             Visibility="{Binding HasScans, Converter={StaticResource BoolToVis}}">
-                        <Grid>
-                            <StackPanel Margin="12,12,12,0" Visibility="{Binding Reading.IsOpen, Converter={StaticResource InvBoolVis}}">
-                                <TextBlock Text="{Binding ScansSummary}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextBrush}"/>
-                                <Button Command="{Binding ReadScansCommand}" Style="{StaticResource RowButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                        AutomationProperties.AutomationId="Pdf_ReadScans">
-                                    <TextBlock Text="{loc:Str Pdf.Text.Read}"/>
-                                </Button>
-                            </StackPanel>
-                            <pages:PageReadingPanelView DataContext="{Binding Reading}"
-                                                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"/>
-                        </Grid>
-                    </TabItem>
                 </TabControl>
             </Grid>
         </Border>
@@ -332,6 +317,7 @@
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="36"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -378,15 +364,36 @@
                 </Grid>
             </Border>
 
+            <!-- Scanned pages: that their text can't be searched or copied, and converting them to Markdown; then how
+                 the conversion is getting on. In a row of their own, above the browser host's HWND. -->
+            <StackPanel Grid.Row="1">
+                <Border Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                        Padding="12,6" Visibility="{Binding ShowsScansNotice, Converter={StaticResource BoolToVis}}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Command="{Binding DismissScansNoticeCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                                ToolTip="{loc:Str Pdf.Scans.DismissTip}" AutomationProperties.Name="{loc:Str Pdf.Scans.DismissTip}"
+                                AutomationProperties.AutomationId="Pdf_ScansNoticeDismiss">
+                            <TextBlock Text="✕" FontSize="11"/>
+                        </Button>
+                        <Button DockPanel.Dock="Right" Command="{Binding ConvertScansCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
+                                ToolTip="{loc:Str Pdf.Scans.ConvertTip}" AutomationProperties.AutomationId="Pdf_ConvertScans">
+                            <TextBlock Text="{loc:Str Pdf.Scans.Convert}"/>
+                        </Button>
+                        <TextBlock Text="{Binding ScansSummary}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    </DockPanel>
+                </Border>
+                <pages:PageConversionBar DataContext="{Binding Conversion}"/>
+            </StackPanel>
+
             <!-- The shared chrome-free browser host. Collapses while a shell overlay covers the page: its
                  native HWND draws above all WPF content, so the overlay would otherwise be hidden behind it.
                  The right margin keeps that HWND clear of the window's WindowChrome resize border. -->
             <vw:WebSurface x:Name="Surface"
-                           Grid.Row="1"
+                           Grid.Row="2"
                            Margin="0,0,8,0"
                            Visibility="{Binding SurfaceVisible, Converter={StaticResource BoolToVis}}"/>
 
-            <Border Grid.Row="1"
+            <Border Grid.Row="2"
                     AutomationProperties.AutomationId="Pdf_FallbackPanel"
                     Background="{DynamicResource BgBrush}"
                     Panel.ZIndex="20"

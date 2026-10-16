@@ -8,6 +8,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Pdf;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Pages;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Pdf;
@@ -79,11 +80,12 @@ public class PdfViewModelAiTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => { call.Arg<Action>()(); return Task.CompletedTask; });
+        shell.RunOnUiAsync(Arg.Any<Func<Task<PagesRead?>>>()).Returns(call => call.Arg<Func<Task<PagesRead?>>>()());
         return shell;
     }
 
     [TestMethod]
-    [CoversNode("pdf-panel-text")]
+    [CoversNode("pdf-scans-notice")]
     public void AScannedDocument_OffersItsScansForReading_WherePageReadingRuns()
     {
         var offered = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
@@ -122,6 +124,36 @@ public class PdfViewModelAiTests
             StringAssert.Contains(scans.ModelText, "The peregrine nests on cliffs.");
             StringAssert.Contains(text.ModelText, "The peregrine nests on cliffs.");
             StringAssert.Contains(found.ModelText, "p.1:");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-scan-reading")]
+    public async Task AScannedDocument_SaysSoAboveIt_UntilTheReaderPutsTheNoticeAway()
+    {
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        try
+        {
+            await vm.LoadAsync();
+
+            Assert.IsTrue(vm.ShowsScansNotice, "a document of scans says so above it");
+            StringAssert.Contains(vm.ScansSummary, "1");
+            vm.DismissScansNoticeCommand.Execute(null);
+            Assert.IsFalse(vm.ShowsScansNotice);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-scan-reading")]
+    public async Task ADocumentWithText_HasNoScansNotice()
+    {
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        try
+        {
+            await vm.LoadAsync();
+            Assert.IsFalse(vm.ShowsScansNotice);
         }
         finally { vm.Dispose(); }
     }

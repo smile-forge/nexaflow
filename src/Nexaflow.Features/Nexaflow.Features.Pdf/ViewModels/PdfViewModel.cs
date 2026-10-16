@@ -85,14 +85,27 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>The document's scanned pages, by number: no text on them, one picture over each.</summary>
     private IReadOnlyList<int> _scans = [];
 
-    /// <summary>The document has scanned pages, and this machine can read them — the Text tab shows.</summary>
-    [ObservableProperty] private bool _hasScans;
+    /// <summary>The document has scanned pages, and this machine can read them — the notice above it says so.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsScansNotice))]
+    private bool _hasScans;
 
-    /// <summary>How many of the document's pages are scans, for the Text tab.</summary>
+    /// <summary>The reader has put the scans notice away for this document.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsScansNotice))]
+    private bool _scansNoticeDismissed;
+
+    /// <summary>The notice above the document that its scanned pages have no text, and can be converted to Markdown.</summary>
+    public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed;
+
+    /// <summary>The tab showing the document, set by its view: what opens beside it opens in its window.</summary>
+    public IPageView? Host { get; set; }
+
+    /// <summary>How many of the document's pages are scans, for the notice above it.</summary>
     [ObservableProperty] private string _scansSummary = string.Empty;
 
-    /// <summary>The scanned pages' text, read into Markdown.</summary>
-    public PageReadingPanel Reading { get; }
+    /// <summary>The scanned pages converted to Markdown, opened in the right-hand pane; their text for the assistant too.</summary>
+    public PageConversion Conversion { get; }
 
     /// <summary>
     /// The contents row the user last picked. Kept so the panel keeps showing where they are in the document
@@ -146,7 +159,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _shell   = shell;
         _config  = config;
         FileName = Path.GetFileName(path);
-        Reading  = new PageReadingPanel(reading, ai, shell);
+        Conversion = new PageConversion(reading, ai, shell);
 
         // A PDF inside an archive is virtual and the renderer can't load it; materialise a real copy and
         // remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
@@ -224,7 +237,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// search waits behind whatever else reads it.</summary>
     private async Task FindScansAsync()
     {
-        if (!Reading.Available) return;
+        if (!Conversion.Available) return;
         try
         {
             _scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, _cts.Token), _cts.Token);
@@ -232,19 +245,24 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         catch (OperationCanceledException) { return; }
         catch { return; }   // a document whose pages will not parse has no scans to offer
         if (_disposed || _scans.Count == 0) return;
-        ScansSummary = Str.Format("Pdf.Text.Scans", _scans.Count, _info?.PageCount ?? _scans.Count);
+        ScansSummary = Str.Format("Pdf.Scans.Notice", _scans.Count, _info?.PageCount ?? _scans.Count);
         HasScans = true;
     }
 
-    /// <summary>Reads the scanned pages into Markdown — or shows their text read before — in the Text tab.</summary>
+    /// <summary>Converts the scanned pages to Markdown — read now, or found read before — and opens it in the right-hand pane.</summary>
     [RelayCommand]
-    private void ReadScans()
+    private Task ConvertScans() => _scans.Count == 0 ? Task.CompletedTask : Conversion.ConvertAsync(Scanned(), Host);
+
+    [RelayCommand]
+    private void DismissScansNotice() => ScansNoticeDismissed = true;
+
+    /// <summary>The scanned pages as pages to read: named by the file as it is now, their pictures taken out when read.</summary>
+    private PageSource Scanned()
     {
-        if (_scans.Count == 0) return;
         var file = new FileInfo(_path);
         string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}";
         var scans = _scans;
-        Reading.Open(key, _path, async ct => await WithDocumentAsync(doc =>
+        return new PageSource(key, _path, async ct => await WithDocumentAsync(doc =>
         {
             var pictures = new List<string>();
             foreach (int number in scans)
@@ -256,7 +274,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 pictures.Add(file);
             }
             return (IReadOnlyList<string>)pictures;
-        }, ct) ?? []);   // a document that no longer opens has no pages to read
+        }, ct) ?? [],   // a document that no longer opens has no pages to read
+        PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
     }
 
     /// <summary>
@@ -667,7 +686,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 sb.AppendLine(read.Trim());
             }
             else if (string.IsNullOrWhiteSpace(page.Text))
-                sb.AppendLine(_scans.Contains(page.PageNumber) && Reading.Available
+                sb.AppendLine(_scans.Contains(page.PageNumber) && Conversion.Available
                     ? "(no text on this page — it is a scan; read it with pdf_read_scans, or look at it with pdf_page_image)"
                     : "(no text on this page — it may be a scan; try pdf_page_image)");
             else
@@ -717,7 +736,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>A scanned page's text as page reading read it; null for a page not read, or not a scan.</summary>
     private string? ScanText(int page)
     {
-            if (Reading.PageTexts is not { } texts) return null;
+            if (Conversion.PageTexts is not { } texts) return null;
             for (int at = 0; at < _scans.Count && at < texts.Count; at++)
                 if (_scans[at] == page) return texts[at];
             return null;
@@ -742,11 +761,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private async Task<ToolResult> ReadScansToolAsync(JsonObject args, CancellationToken ct)
     {
         if (_scans.Count == 0) return ToolResult.Ok($"{FileName} has no scanned pages.", "Every page has text of its own: read it with pdf_read_text.");
-        if (!Reading.Available) return ToolResult.Error("Page reading cannot run on this machine.");
-        await _shell.RunOnUiAsync(() => { if (Reading.PageTexts is null && !Reading.IsReading) ReadScans(); });
-        await Reading.Done.WaitAsync(ct);
-        if (Reading.PageTexts is not { } texts)
-            return ToolResult.Error(Reading.Status ?? "The scanned pages could not be read.");
+        if (!Conversion.Available) return ToolResult.Error("Page reading cannot run on this machine.");
+        if (await _shell.RunOnUiAsync(() => Conversion.ReadAsync(Scanned(), ct)) is not { Pages: var texts })
+            return ToolResult.Error(Conversion.Status ?? "The scanned pages could not be read.");
 
         var sb = new StringBuilder();
         for (int i = 0; i < _scans.Count && i < texts.Count; i++)

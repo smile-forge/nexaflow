@@ -21,6 +21,8 @@
     "Shell.Picker.Name": "Name",
     "Shell.Picker.SaveWhere": "Choose where to keep this file",
     "Shell.Picker.SaveWhereFormat": "Choose where to keep this {0} file",
+    "Shell.Picker.SaveType": "Save as type",
+    "Shell.Picker.TypeFormat": "{0} (*{1})",
     "Shell.Picker.PickAFolder": "Pick a folder to save into, and give the file a name.",
     "Shell.Picker.WritingFormat": "Writing {0}",
     "Shell.Picker.FreeFormat": "{0} free on {1}",

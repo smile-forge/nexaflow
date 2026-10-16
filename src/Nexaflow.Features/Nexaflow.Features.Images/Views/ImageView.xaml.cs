@@ -24,6 +24,7 @@ public partial class ImageView : UserControl, IPageView
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
+        viewModel.Host = this;   // what opens beside the pictures — their Markdown — opens in this tab's window
 
         ConfigureCollageSurface();
 

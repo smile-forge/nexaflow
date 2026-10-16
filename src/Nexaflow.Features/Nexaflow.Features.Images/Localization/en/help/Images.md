@@ -71,13 +71,13 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after you edited it, the viewer asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.
 
-## Reading a page
+## Converting a page to Markdown
 
-- A picture of a page of writing — a scan, a photographed page, a form, a receipt — can be read into Markdown. **Read page** sits at the top right whenever the picture is one; until page reading is on this PC every picture offers it, with the download. [Show me](locate:Image_ReadPage)
-- The text opens beside the picture and fills in as it is read: columns as one text, headings, formulas as LaTeX, tables, and the page's figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one, which you can edit. [Show me](locate:Image_ReadPage,PageReading_Text)
-- It reads the picture as you see it, edits and all, at its full size: crop to the page or straighten it first and it reads better. The text is kept, so the same picture opens on it again at once.
-- **Copy** the text, or **Save as Markdown** — the figures go in a folder beside the file. [Show me](locate:Image_ReadPage,PageReading_Copy,PageReading_Save)
-- Page reading runs on this PC. The first time it is a download of about 4 GB, offered beside the picture.
+- A picture of a page of writing — a scan, a photographed page, a form, a receipt — can be converted to Markdown. **Convert to Markdown** sits at the top right whenever the picture is one; until page reading is on this PC every picture offers it, with the download. [Show me](locate:Image_ConvertToMarkdown)
+- A line above the picture says how far the reading has got, and **Stop** stops it. Once it is read, the Markdown opens in the Markdown editor in the right-hand pane: columns as one text, headings, formulas as LaTeX, tables, and the page's figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one.
+- It reads the picture as you see it, edits and all, at its full size: crop to the page or straighten it first and it reads better. The reading is kept, so converting the same picture again opens at once.
+- The Markdown is a draft to edit as you like. Its first save asks where to keep it — a Markdown Package, with its figures inside it, unless you pick a Markdown file.
+- Page reading runs on this PC. The first time it is a download of about 4 GB, offered above the picture. [Show me](locate:Image_ConvertToMarkdown,PageConversion_Download)
 
 ## Deleting and the assistant
 
