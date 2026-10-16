@@ -248,15 +248,19 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ctl:RibbonItemButton">
                     <Grid Background="Transparent">
-                        <Path x:Name="frame"
-                              Data="{TemplateBinding FrameGeometry}"
-                              Fill="{TemplateBinding Background}"
-                              Stroke="{TemplateBinding BorderBrush}"
-                              StrokeThickness="{TemplateBinding FrameStroke}"/>
-                        <Path x:Name="tint"
-                              Data="{TemplateBinding FrameGeometry}"
-                              Fill="{StaticResource Ribbon.HoverOverlay}"
-                              Visibility="Collapsed"/>
+                        <!-- The frame is drawn to the size the button was given, so it must not ask for one: inside a Canvas it
+                             measures as nothing, and a frame built for the full-height size cannot hold a compact button there. -->
+                        <Canvas>
+                            <Path x:Name="frame"
+                                  Data="{TemplateBinding FrameGeometry}"
+                                  Fill="{TemplateBinding Background}"
+                                  Stroke="{TemplateBinding BorderBrush}"
+                                  StrokeThickness="{TemplateBinding FrameStroke}"/>
+                            <Path x:Name="tint"
+                                  Data="{TemplateBinding FrameGeometry}"
+                                  Fill="{StaticResource Ribbon.HoverOverlay}"
+                                  Visibility="Collapsed"/>
+                        </Canvas>
                         <StackPanel x:Name="content" Margin="0,6,0,2"
                                     HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Grid x:Name="iconHost" HorizontalAlignment="Center">
