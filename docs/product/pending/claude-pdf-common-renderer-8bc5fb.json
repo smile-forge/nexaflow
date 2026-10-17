@@ -49,6 +49,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
             "class": "PdfPageReadingTests",
             "method": "ThePaintingOrder_SurvivesIntoTheLayoutTree"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AnImagesOwnSoftMask_TakesThePlaceOfTheGraphicsStatesMask"
           }
         ]
       }
@@ -265,6 +271,18 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
             "class": "PdfPageReadingTests",
             "method": "TheBlendModes_FollowThePdfFormulas"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ABlend_SeesWhatThePageHasPainted_AndNotItsPaper"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "BlendsOverBlends_AreEachCompositedOnce"
           }
         ]
       }

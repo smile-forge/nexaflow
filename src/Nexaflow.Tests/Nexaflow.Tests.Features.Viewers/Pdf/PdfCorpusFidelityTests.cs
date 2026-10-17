@@ -51,7 +51,9 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// sweep. <c>NEXAFLOW_PDF_FIDELITY_DPI</c> sets the resolution (150 when unset); <c>NEXAFLOW_PDF_CORPUS_LIMIT</c> takes
 /// only that many files. A run resumes what the same build began at the same resolution: documents it measured are
 /// skipped, so stopping it costs nothing done. What another build measured is put aside under <c>runs\</c>, and Windows'
-/// renders are kept for every run. It fails only when our reading or drawing of a page throws.
+/// renders are kept for every run. <c>NEXAFLOW_PDF_FIDELITY_PAGES=review</c> draws again only the pages the last run's
+/// review showed, and reviews every one of them beside what it measured before — what a fix did to the pages it was for.
+/// It fails only when our reading or drawing of a page throws.
 /// </para>
 /// </summary>
 [TestClass]
@@ -101,7 +103,18 @@ public class PdfCorpusFidelityTests
         if (int.TryParse(Environment.GetEnvironmentVariable("NEXAFLOW_PDF_CORPUS_LIMIT"), out var limit) && limit > 0)
             files = files.Take(limit).ToList();
 
-        var run = new Run(corpus, work, dpi);
+        var run = new Run(corpus, work, dpi, revisit: Environment.GetEnvironmentVariable("NEXAFLOW_PDF_FIDELITY_PAGES") == "review");
+        if (run.Revisiting is { } revisiting)
+        {
+            if (revisiting.Count == 0)
+            {
+                Assert.Inconclusive($"NEXAFLOW_PDF_FIDELITY_PAGES=review revisits the pages the last run's review showed, and {work} has no run with any.");
+                return;
+            }
+
+            files = files.Where(f => revisiting.ContainsKey(run.Relative(f))).ToList();
+        }
+
         var todo = files.Where(f => !run.Done.Contains(run.Relative(f)))
             // The largest documents first, so the run does not end on one long document while every other core is idle.
             .OrderByDescending(static f => new FileInfo(f).Length).ToList();
@@ -128,18 +141,34 @@ public class PdfCorpusFidelityTests
         private readonly double _dpi;
         private readonly object _writing = new();
 
-        public Run(string corpus, string work, double dpi)
+        public Run(string corpus, string work, double dpi, bool revisit)
         {
             _corpus = corpus;
             _work = work;
             _dpi = dpi;
 
-            // Rows measure one build's drawing at one resolution, so a run resumes only what that build at that resolution
-            // began; what any other left is put aside.
             var pages = Path.Combine(work, "pages.csv");
             var stamp = Path.Combine(work, "run.txt");
-            var build = $"{typeof(PdfPageLayout).Assembly.ManifestModule.ModuleVersionId} {dpi.ToString(CultureInfo.InvariantCulture)} dpi";
-            if (File.Exists(pages) && (!File.Exists(stamp) || File.ReadAllText(stamp).Trim() != build)) PutAside();
+
+            // A revisit is a run of its own over the pages the last run reviewed, those pages' measures kept to set beside the
+            // new ones: read before that run is put aside, and stamped apart so a whole run never resumes from it.
+            if (revisit)
+            {
+                Revisiting = [];
+                if (File.Exists(pages))
+                    foreach (var row in ReviewedBy(pages))
+                    {
+                        if (!Revisiting.TryGetValue(row.File, out var numbers)) Revisiting[row.File] = numbers = [];
+                        numbers.Add(row.Page);
+                        _before[(row.File, row.Page)] = row.Off!.Value;
+                    }
+            }
+
+            // Rows measure one build's drawing at one resolution, so a run resumes only what that build at that resolution
+            // began; what any other left is put aside.
+            var build = $"{typeof(PdfPageLayout).Assembly.ManifestModule.ModuleVersionId} {dpi.ToString(CultureInfo.InvariantCulture)} dpi"
+                        + (revisit ? " review" : "");
+            if (File.Exists(pages) && (revisit || !File.Exists(stamp) || File.ReadAllText(stamp).Trim() != build)) PutAside();
             File.WriteAllText(stamp, build);
 
             if (!File.Exists(pages)) File.WriteAllText(pages, Header + "\n");
@@ -147,6 +176,17 @@ public class PdfCorpusFidelityTests
             var done = Path.Combine(work, "done.txt");
             Done = File.Exists(done) ? File.ReadAllLines(done).ToHashSet(StringComparer.OrdinalIgnoreCase) : [];
         }
+
+        /// <summary>The pages a revisit draws again, by document, or null for a run over every page.</summary>
+        public Dictionary<string, HashSet<int>>? Revisiting { get; }
+
+        /// <summary>What the run before a revisit measured of the pages it draws again: their share of off pixels.</summary>
+        private readonly Dictionary<(string File, int Page), double> _before = new();
+
+        /// <summary>The pages a run's review shows: those with enough off pixels, worst first, as many as it holds.</summary>
+        private static IEnumerable<Parsed> ReviewedBy(string pages) =>
+            File.ReadLines(pages).Skip(1).Select(RowOf).Where(static r => r is { Off: >= ReviewShare }).Select(static r => r!)
+                .OrderByDescending(static r => r.Off).Take(Reviewed);
 
         /// <summary>Moves another run's rows, review and trees under <c>runs\</c>; Windows' renders stay, the same for every run.</summary>
         private void PutAside()
@@ -190,8 +230,10 @@ public class PdfCorpusFidelityTests
                 var document = scope.Pages.ReadDocument(CancellationToken.None);
                 windows = Windows(file);
 
+                var chosen = Revisiting?[relative];
                 for (var index = 0; index < document.Pages.Count; index++)
-                    rows.Add(Page(relative, scope, document.Pages[index], index, windows, trees));
+                    if (chosen is null || chosen.Contains(document.Pages[index].Number))
+                        rows.Add(Page(relative, scope, document.Pages[index], index, windows, trees));
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -251,7 +293,8 @@ public class PdfCorpusFidelityTests
             if (reference is null) return Row(relative, number, size, null, oursMs, windowsMs, page.Unsupported.Count, $"windows: {why}");
 
             var measure = Measures.Of(ours, reference);
-            if (measure.Off >= ReviewShare) KeepForReview(relative, number, ours, reference);
+            // A revisited page is reviewed whatever it now measures: how far it came is the point.
+            if (measure.Off >= ReviewShare || Revisiting is not null) KeepForReview(relative, number, ours, reference);
 
             return Row(relative, number, size, measure, oursMs, windowsMs, page.Unsupported.Count,
                 page.Unsupported.Count == 0 ? "ok" : "ok " + string.Join(';', page.Unsupported.Select(static u => u.Kind).Distinct()));
@@ -459,6 +502,16 @@ public class PdfCorpusFidelityTests
                              .SelectMany(static r => r.Status[3..].Split(';').Select(k => (k, r))).GroupBy(static x => x.k))
                     text.AppendLine($"  {kind.Key,-20} {kind.Count(),8}  {Percent(Percentile(kind.Select(static x => x.r.Off!.Value).Order().ToList(), 0.5))}");
 
+                if (Revisiting is not null)
+                {
+                    var changes = measured.Select(Change).Where(static c => c is not null).Select(static c => c!.Value).ToList();
+                    text.AppendLine();
+                    text.AppendLine($"Against the run before, by share of off pixels ({changes.Count} pages measured both times)");
+                    text.AppendLine($"  better by more than 0.5 points: {changes.Count(static c => c > 0.005),6}");
+                    text.AppendLine($"  within 0.5 points:              {changes.Count(static c => Math.Abs(c) <= 0.005),6}");
+                    text.AppendLine($"  worse by more than 0.5 points:  {changes.Count(static c => c < -0.005),6}");
+                }
+
                 text.AppendLine();
                 text.AppendLine("Worst 50 pages");
                 foreach (var row in measured.OrderByDescending(static r => r.Off).Take(50))
@@ -475,16 +528,26 @@ public class PdfCorpusFidelityTests
 
         private void WriteReview(List<Parsed> measured)
         {
+            var revisit = Revisiting is not null;
+            var shown = revisit
+                ? measured.OrderByDescending(r => Change(r) ?? 0).ThenByDescending(static r => r.Off).ToList()
+                : measured.Where(static r => r.Off >= ReviewShare).OrderByDescending(static r => r.Off).Take(Reviewed).ToList();
+
             var html = new StringBuilder();
             html.AppendLine("<!doctype html><meta charset=utf-8><title>PDF fidelity review</title>");
-            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{width:460px;background:#fff;box-shadow:0 0 4px #222}</style>");
-            html.AppendLine($"<h2>Worst {Reviewed} pages by off pixels — Windows · ours · difference (red off, orange past near)</h2><table>");
-            foreach (var row in measured.Where(static r => r.Off >= ReviewShare).OrderByDescending(static r => r.Off).Take(Reviewed))
+            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{width:460px;background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}</style>");
+            html.AppendLine(revisit
+                ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first — Windows · ours · difference (red off, orange past near)</h2><table>"
+                : $"<h2>Worst {Reviewed} pages by off pixels — Windows · ours · difference (red off, orange past near)</h2><table>");
+            foreach (var row in shown)
             {
                 var windows = Path.Combine("..", "reference", row.File, $"p{row.Page}.png").Replace('\\', '/');
                 var ours = Path.Combine(row.File, $"p{row.Page}-ours.png").Replace('\\', '/');
                 var diff = Path.Combine(row.File, $"p{row.Page}-diff.png").Replace('\\', '/');
-                html.AppendLine($"<tr><td>{Percent(row.Off!.Value)} off<br>{WebUtility.HtmlEncode(row.File)} p{row.Page}<br>{WebUtility.HtmlEncode(row.Status)}</td>"
+                var was = _before.TryGetValue((row.File, row.Page), out var before)
+                    ? $"<br><span class={(row.Off < before ? "better" : row.Off > before ? "worse" : "same")}>was {Percent(before)}</span>"
+                    : "";
+                html.AppendLine($"<tr><td>{Percent(row.Off!.Value)} off{was}<br>{WebUtility.HtmlEncode(row.File)} p{row.Page}<br>{WebUtility.HtmlEncode(row.Status)}</td>"
                                 + $"<td><img loading=lazy src=\"{windows}\"></td><td><img loading=lazy src=\"{ours}\"></td><td><img loading=lazy src=\"{diff}\"></td></tr>");
             }
 
@@ -492,6 +555,10 @@ public class PdfCorpusFidelityTests
             Directory.CreateDirectory(Path.Combine(_work, "review"));
             File.WriteAllText(Path.Combine(_work, "review", "index.html"), html.ToString());
         }
+
+        /// <summary>How much a revisited page's share of off pixels fell since the run before, or null where it was not measured then.</summary>
+        private double? Change(Parsed row) =>
+            row.Off is { } now && _before.TryGetValue((row.File, row.Page), out var before) ? before - now : null;
 
         private static double Percentile(List<double> sorted, double p) =>
             sorted.Count == 0 ? double.NaN : sorted[(int)Math.Min(sorted.Count - 1, p * sorted.Count)];

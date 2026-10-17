@@ -283,6 +283,50 @@ public class PdfPageReadingTests
 
     [TestMethod]
     [CoversNode("pdf-blend")]
+    public void ABlend_SeesWhatThePageHasPainted_AndNotItsPaper()
+    {
+        // The page is a group of its own, laid on its paper only once it is whole: Color keeps the lightness of what is
+        // beneath, so over the white the left half paints it stays white, and over bare paper the fill is its own colour.
+        var page = Read("1 g 0 0 100 200 re f /C gs 0.2 0.1 0.3 rg 0 0 200 200 re f",
+            resources: "/ExtGState << /C << /BM /Color >> >>");
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.AreEqual(Colors.White, Pixel(picture, 50, 100), "over painted white, Color keeps white's lightness");
+
+        var bare = Pixel(picture, 150, 100);
+        Assert.AreEqual(51, bare.R, 3, "over the paper, nothing lies beneath the blend");
+        Assert.AreEqual(26, bare.G, 3);
+        Assert.AreEqual(77, bare.B, 3);
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AnImagesOwnSoftMask_TakesThePlaceOfTheGraphicsStatesMask()
+    {
+        // The graphics state's soft mask is a group that paints nothing, so it hides whatever it masks; the image carries a
+        // soft mask of its own, wholly opaque, which masks it instead. A path painted under the same state stays hidden.
+        var page = Read("/M gs q 200 0 0 200 0 0 cm /Im Do Q 0 0 1 rg 0 0 50 50 re f",
+            resources: "/XObject << /Im 5 0 R >> /ExtGState << /M << /SMask << /Type /Mask /S /Luminosity /G 7 0 R >> >> >>",
+            extra:
+            [
+                (5, Stream("/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 6 0 R",
+                    "FF0000FF0000FF0000FF0000>")),
+                (6, Stream("/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8",
+                    "FFFFFFFF>")),
+                (7, "<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Group << /S /Transparency /CS /DeviceGray >> /Length 0 >>\nstream\n\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.AreEqual(Colors.Red, Pixel(picture, 100, 100), "the image is masked by its own soft mask alone");
+        Assert.AreEqual(Colors.Red, Pixel(picture, 25, 175), "the path under the state's mask is hidden");
+    }
+
+    /// <summary>An image stream whose samples are written as hex, so the document stays text.</summary>
+    private static string Stream(string dictionary, string hex) =>
+        $"<< {dictionary} /Filter /ASCIIHexDecode /Length {hex.Length} >>\nstream\n{hex}\nendstream";
+
+    [TestMethod]
+    [CoversNode("pdf-blend")]
     public void TheBlendModes_FollowThePdfFormulas()
     {
         Span<double> into = stackalloc double[3];

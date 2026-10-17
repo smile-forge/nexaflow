@@ -204,6 +204,30 @@ public class LayoutPaintTests
                         "and a piece its clip cuts away entirely is never the nearest");
     }
 
+    [TestMethod]
+    public void APictureDrawnSmallerAveragesThePixelsEachPixelShownCovers() => UiThread.Run(() =>
+    {
+        // A board of single black and white pixels, 64 across, drawn 25 across: each pixel shown covers about six and a half
+        // of the board's, half of them black, so every one is grey. Sampled between neighbours instead, a pixel that lands
+        // squarely on one of the board's comes out black or white, and the board aliases into speckle.
+        const int Side = 64;
+        var squares = new byte[Side * Side];
+        for (var y = 0; y < Side; y++)
+            for (var x = 0; x < Side; x++)
+                squares[(y * Side) + x] = (byte)((x + y) % 2 == 0 ? 0 : 255);
+        var board = Frozen(BitmapSource.Create(Side, Side, 96, 96, PixelFormats.Gray8, null, squares, Side));
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        build.Draw(new PictureMark(board, new Rect(10, 5, 25, 25)));
+        build.Close();
+        var picture = Read(Painted(build.Seal(), Brushes.White));
+
+        for (var y = 7; y < 28; y++)
+            for (var x = 12; x < 33; x++)
+                Assert.AreEqual(128, picture.At(x, y).R, 40, $"({x}, {y}) is the board's average, not one of its squares");
+    });
+
     /// <summary>
     /// A bar 100 wide, cut by the frame holding it to the 40 from 10 to 50 on the page; beside it at 130, an uncut box; and
     /// at 200, a box its own clip cuts away entirely.
