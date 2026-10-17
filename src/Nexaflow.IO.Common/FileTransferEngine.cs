@@ -1,5 +1,8 @@
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 
 namespace Nexaflow.IO.Common;
 
@@ -149,6 +152,10 @@ public static class FileTransferEngine
     /// exercised without filling a disk. Null in every real run.</summary>
     internal static Func<string, long?>? FreeSpaceProbe;
 
+    /// <summary>Test seam: called with each verified copy's partial file after it is written and before it is read back,
+    /// so a test can change what landed and see the read-back catch it. Null in production.</summary>
+    internal static Action<string>? AfterWriteProbe;
+
     /// <summary>Free bytes on the volume holding <paramref name="path"/>, or null when it cannot be
     /// determined (a UNC share, a removed drive). Unknown means "go ahead" — a mid-flight disk-full
     /// still parks the run, so a failed check costs a retry rather than a wrong refusal.</summary>
@@ -196,6 +203,9 @@ public static class FileTransferEngine
         private readonly List<string> _renamed               = [];
         private readonly List<string> _partials              = [];
 
+        private readonly List<VerifiedFile> _verified = [];
+        private bool _verifying;
+
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private TimeSpan? _lastReportAt;
 
@@ -235,7 +245,10 @@ public static class FileTransferEngine
                 Failures:             _failures,
                 SkippedReparsePoints: _skippedReparsePoints,
                 RenamedDestinations:  _renamed,
-                PartialDestinations:  _partials);
+                    PartialDestinations:  _partials)
+                {
+                    Verified = _verified,
+                };
         }
 
         // ── Move ──────────────────────────────────────────────────────────────
@@ -408,9 +421,10 @@ public static class FileTransferEngine
                 if (Stopping) return false;
                 if (!await EnsureSpaceAsync(destination, length, source)) return false;
 
+                string? sourceHash;
                 try
                 {
-                    await CopyBytesAsync(source, partial);
+                    sourceHash = await CopyBytesAsync(source, partial);
                 }
                 catch (Exception ex) when (IsDiskFull(ex))
                 {
@@ -442,8 +456,26 @@ public static class FileTransferEngine
                         return false;
                     }
 
+                    if (sourceHash is not null)
+                    {
+                        AfterWriteProbe?.Invoke(partial);
+                        string landed = await ReadBackAsync(partial);
+                        if (!string.Equals(landed, sourceHash, StringComparison.Ordinal))
+                        {
+                            TryDelete(partial);
+                            Fail("verify", source, 0, $"\"{Name(source)}\" read back different from what was written, so the copy was removed.");
+                            return false;
+                        }
+                    }
+
                     CopyFileMetadata(source, partial);
                     File.Move(LongPath.Prefix(partial), LongPath.Prefix(destination), overwrite: true);
+                    if (sourceHash is not null) _verified.Add(new VerifiedFile(destination, actual, sourceHash));
+                }
+                catch (OperationCanceledException)
+                {
+                    TryDelete(partial);
+                    return false;
                 }
                 catch (Exception ex)
                 {
@@ -465,14 +497,15 @@ public static class FileTransferEngine
         }
 
         /// <summary>
-        /// Streams one file, returning the bytes written. A failed attempt rewinds the running total
-        /// before it propagates, so retrying the file cannot count its bytes twice.
+        /// Streams one file, returning the source's SHA-256 when the run verifies (null otherwise). A failed attempt rewinds
+        /// the running total before it propagates, so retrying the file cannot count its bytes twice. A verified copy is
+        /// flushed through to the media before it is read back.
         /// </summary>
-        private async Task<long> CopyBytesAsync(string source, string partial)
+        private async Task<string?> CopyBytesAsync(string source, string partial)
         {
-            long written = 0;
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             long before = _bytesDone;
+            using var hash = request.Verify ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
 
             try
             {
@@ -492,9 +525,15 @@ public static class FileTransferEngine
                     if (read == 0) break;
 
                     await to.WriteAsync(buffer.AsMemory(0, read), ct);
-                    written    += read;
+                    hash?.AppendData(buffer, 0, read);
                     _bytesDone += read;
                     Report(TransferPhase.Running);
+                }
+
+                if (hash is not null)
+                {
+                    await to.FlushAsync(ct);
+                    to.Flush(flushToDisk: true);
                 }
             }
             catch
@@ -507,7 +546,54 @@ public static class FileTransferEngine
                 ArrayPool<byte>.Shared.Return(buffer);
             }
 
-            return written;
+            return hash is null ? null : Convert.ToHexString(hash.GetHashAndReset());
+        }
+
+        /// <summary>
+        /// The SHA-256 of what is actually on the media at <paramref name="path"/>. Opened unbuffered, so the read goes to
+        /// the device rather than to the cache the write just filled; that needs sector-aligned reads into aligned memory,
+        /// which a pinned buffer sliced to a 4 KiB boundary gives. A volume that refuses unbuffered reads is read normally.
+        /// </summary>
+        private async Task<string> ReadBackAsync(string path)
+        {
+            const FileOptions NoBuffering = (FileOptions)0x20000000;
+            const int Alignment = 4096;
+
+            _verifying = true;
+            Report(TransferPhase.Running, force: true);
+            try
+            {
+                SafeFileHandle handle;
+                try { handle = File.OpenHandle(LongPath.Prefix(path), FileMode.Open, FileAccess.Read, FileShare.Read, NoBuffering | FileOptions.Asynchronous); }
+                catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+                {
+                    handle = File.OpenHandle(LongPath.Prefix(path), FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.Asynchronous);
+                }
+
+                using (handle)
+                {
+                    var pinned = GC.AllocateUninitializedArray<byte>(BufferSize + Alignment, pinned: true);
+                    long address = Marshal.UnsafeAddrOfPinnedArrayElement(pinned, 0).ToInt64();
+                    int offset = (int)((Alignment - address % Alignment) % Alignment);
+                    var window = pinned.AsMemory(offset, BufferSize);
+
+                    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                    for (long at = 0; ; )
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        int read = await RandomAccess.ReadAsync(handle, window, at, ct);
+                        if (read == 0) break;
+                        hash.AppendData(window.Span[..read]);
+                        at += read;
+                        if (read < BufferSize) break;
+                    }
+                    return Convert.ToHexString(hash.GetHashAndReset());
+                }
+            }
+            finally
+            {
+                _verifying = false;
+            }
         }
 
         // ── Delete ────────────────────────────────────────────────────────────
@@ -744,7 +830,7 @@ public static class FileTransferEngine
             progress.Report(new TransferProgress(
                 phase, _bytesDone, total, _itemsDone, ItemsTotal,
                 _currentItem is null ? null : Name(_currentItem),
-                (long)Math.Max(0, perSecond), left, paused));
+                (long)Math.Max(0, perSecond), left, paused, _verifying));
         }
     }
 }

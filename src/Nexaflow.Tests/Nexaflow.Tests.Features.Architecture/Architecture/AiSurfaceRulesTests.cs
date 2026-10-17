@@ -41,7 +41,7 @@ public class AiSurfaceRulesTests
     /// <summary>
     /// Pages with a security context that show nothing from the disk, so put no file or folder in front of the assistant
     /// (<see cref="IPageViewModel.GetContextGrant"/> left at none): processes, services, the environment, the registry,
-    /// the scratchpad, the solver, a web page and the installed apps. Every other page with a scope says what of the disk
+    /// the scratchpad, the solver, a web page, the installed apps, a serial port and the USB tree. Every other page with a scope says what of the disk
     /// it shows — a page that leaves it out would let no tool reach its own file, or, worse, be forgotten when it should.
     /// </summary>
     private static readonly HashSet<string> ShowsNothingFromDisk = new(StringComparer.Ordinal)
@@ -55,6 +55,8 @@ public class AiSurfaceRulesTests
         "Nexaflow.Features.Solver.ViewModels.SolverViewModel",
         "Nexaflow.Features.Web.ViewModels.HtmlViewModel",
         "Nexaflow.Features.WindowsApps.ViewModels.WindowsAppsViewModel",
+        "Nexaflow.Features.Serial.ViewModels.SerialViewModel",
+        "Nexaflow.Features.UsbProbe.ViewModels.UsbProbeViewModel",
     };
 
     private static List<string> ScopedPagesWithoutAGrant()

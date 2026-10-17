@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The device page's audio tools (Phase 2, H2 and H3), as a subfeature plugin: found by its [Subfeature("usbprobe", ...)]
+    attribute, so the device page references none of it. The tool is a headless view-model; WPF is on only for the
+    DataTemplate that draws it, which the page merges from this assembly.
+
+    Endpoints, test signals, playback and metering come from Nexaflow.IO.Common's own WASAPI code, matched to the device's
+    functions by the devnode behind each endpoint. It references no feature.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+{
+  "StorageTools.Title": "Mass storage",
+  "StorageTools.Description": "The device's volumes in a file browser, and copies to and from them — every copy read back from the media and checked by SHA-256.",
+  "StorageTools.Status.NotRead": "Open to read its volumes",
+  "StorageTools.Note.NoDisk": "Windows has not made a disk of this function yet.",
+  "StorageTools.Note.NoVolume": "The disk has no volume Windows could mount — no media, or a file system Windows does not read."
+}

@@ -97,6 +97,13 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Solver\Nexaflow.Features.Solver.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe\Nexaflow.Features.UsbProbe.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe.StorageTools\Nexaflow.Features.UsbProbe.StorageTools.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe.AudioTools\Nexaflow.Features.UsbProbe.AudioTools.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe.HidTools\Nexaflow.Features.UsbProbe.HidTools.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe.SerialLink\Nexaflow.Features.UsbProbe.SerialLink.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.UsbProbe.PortableTools\Nexaflow.Features.UsbProbe.PortableTools.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Serial\Nexaflow.Features.Serial.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />

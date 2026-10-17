@@ -12,6 +12,8 @@ Three are .NET libraries wired in with `ProjectReference` (never `PackageReferen
 (**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
 `.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
 below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
+**usbids** is the one that is data rather than code — no project at all, a single file embedded as a resource
+(its table is below).
 **Never vendor/copy this source into the tree — submodules only.**
 
 **tree-sitter-dotnet-bindings is both kinds at once**, and worth understanding before touching it: its
@@ -100,6 +102,21 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Wired project(s) | `external/AngouriMath/Sources/AngouriMath/AngouriMath.csproj` — the C# kernel. Its two analyzer projects (`Sources/Analyzers/Analyzers`, `Sources/Analyzers/RuleRegistryGenerator`) come in as `OutputItemType="Analyzer"` references and **must be listed in `Nexaflow.slnx`** or VS restore fails with NU1105. |
 | Do **NOT** reference | `Sources/Tests`, `Sources/Samples`, `Sources/Terminal`, `Sources/Utils`, `Sources/Wrappers` (the F# and Jupyter wrappers). |
 | Notes | **Why a submodule rather than the NuGet package**: the Solver needs `MathS.Polynomials.Factor` (the `factor` chip) and `DerivationPath.OfSimplifying` (the local step-by-step chip), and *both landed after the 2.3.0 release* — 2.3.0 keeps polynomial factorisation `internal`, so from the package the capability is unreachable. So the pin is a commit on upstream `master`, not a tag, and we carry **no** patch. Keep it that way: if a future need does require one, it goes on an atomic `feat/*` branch merged into `nexaflow`, per recipe 2. Multi-targets `netstandard2.0;net8.0;net10.0` → consumers resolve `net10.0`. `Sources/Directory.Build.props` exists, so MSBuild's walk-up stops inside the submodule and this repo's `Platforms=x64` never leaks in — unlike tree-sitter-dotnet-bindings, this one needs no empty-props shim. Builds with `TreatWarningsAsErrors`; if a Roslyn bump ever breaks that, relax it on `nexaflow` as an integration-only commit. |
+
+…and the sixth, which carries no code at all:
+
+| | **usbids** |
+|---|---|
+| Submodule path | `external/usbids` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/usbids.git` |
+| `upstream` (original) | `https://github.com/usbids/usbids.git` — a mirror of linux-usb.org's `usb.ids` |
+| **Upstream default branch** | **`master`** |
+| Tracked integration branch | `nexaflow` |
+| In-flight feature branches | *(none — `nexaflow` is a plain `upstream/master` commit)* |
+| Nexaflow consumer project | `src/Nexaflow.IO.Usb/Nexaflow.IO.Usb.csproj` |
+| Wired project(s) | **None.** `usb.ids` is an `EmbeddedResource` (`LogicalName` `Nexaflow.IO.Usb.usb.ids`), read by `UsbIdsDatabase.LoadBundled`. At run time `UsbIdsStore` may replace it with a newer copy downloaded from linux-usb.org, so a stale submodule only means a stale first run. |
+| Do **NOT** reference | Nothing else in the repo is used. |
+| Notes | The vendor/product/class name database. A bump is recipe 6 — upstream commits a new `usb.ids` every few weeks — and needs no code change. The mirror's `LICENSE` file is GPL-3.0, while linux-usb.org offers `usb.ids` under GPL-2.0-or-later or BSD-3-Clause; which one Nexaflow ships it under is recorded in [ADR-001](adr/ADR-001-usb-raw-access.md). |
 
 To read the *current* pinned commits and tracked branch at any time:
 

@@ -26,6 +26,12 @@ public static class ElevatedOps
     public const string ProcessInspect      = "process.inspect";
     public const string DiskMount           = "disk.mount";
     public const string DiskUnmount         = "disk.unmount";
+    /// <summary>Install the inbox WinUSB driver on one USB function (Nexaflow.IO.Usb's InboxWinUsbBinder).</summary>
+    public const string UsbBind             = "usb.bind";
+    /// <summary>Put back the driver a <see cref="UsbBind"/> replaced, from the machine binding ledger.</summary>
+    public const string UsbRestore          = "usb.restore";
+    /// <summary>Restore every binding the ledger still holds.</summary>
+    public const string UsbRestoreAll       = "usb.restoreAll";
 }
 
 /// <summary>Well-known argument keys carried in <see cref="ElevatedOperation.Args"/>.</summary>
@@ -70,6 +76,16 @@ public static class ElevatedArgs
     public const string ImagePath       = "imagePath";
     /// <summary>Result key: the drive letter assigned by a mount (e.g. <c>"E:"</c>).</summary>
     public const string DriveLetter     = "driveLetter";
+
+    // ── USB driver take-over ─────────────────────────────────────────────────
+    /// <summary>The device instance id of the USB function (an <c>…&amp;MI_xx\…</c> devnode, or a non-composite device).</summary>
+    public const string UsbInstanceId   = "usbInstanceId";
+    /// <summary>The generic driver to install: a <c>GenericUsbDriverKind</c> name ("WinUsb").</summary>
+    public const string UsbDriverKind   = "usbDriverKind";
+    /// <summary>Result key: comma-separated ids of the ledger records the operation wrote.</summary>
+    public const string UsbBindingIds   = "usbBindingIds";
+    /// <summary>Result key, present when the bridge's take-over policy refused the target.</summary>
+    public const string UsbRefused      = "usbRefused";
 }
 
 /// <summary>Canonical startup-mode values exchanged over the wire (plural to avoid colliding with the

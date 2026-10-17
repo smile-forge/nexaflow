@@ -44,6 +44,8 @@
     <!-- The git-ignored sample dataset and the [CoversNode] attribute. Dependency-free by charter, which
          is why it is the only project reference here. -->
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+        <!-- The USB journeys read the machine's devices before launching anything, to know which one to drive. -->
+        <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
   </ItemGroup>
 
   <!-- No product reference, by design. A journey drives the built Nexaflow.exe and knows it only as a

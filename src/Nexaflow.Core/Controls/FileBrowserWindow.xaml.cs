@@ -20,11 +20,21 @@ namespace Nexaflow.Core.Controls;
 
 // ── Per-node view model ──────────────────────────────────────────────────────
 
-internal sealed class FileNodeViewModel : PickerNode<FileNodeViewModel>
+internal sealed partial class FileNodeViewModel : PickerNode<FileNodeViewModel>
 {
     private static readonly FileNodeViewModel Placeholder = new("", "", isDirectory: true, null);
 
     private readonly IReadOnlyList<string>? _extensions;  // null/empty = any file
+
+    /// <summary>Told when a file's tick changes; null unless the picker is choosing several files.</summary>
+    private readonly Action<FileNodeViewModel>? _ticked;
+
+    /// <summary>A file in a picker choosing several carries a tick.</summary>
+    public bool CanTick => _ticked is not null && !IsDirectory;
+
+    [ObservableProperty] private bool _isTicked;
+
+    partial void OnIsTickedChanged(bool value) => _ticked?.Invoke(this);
 
     public bool IsDirectory { get; }
 
@@ -33,12 +43,14 @@ internal sealed class FileNodeViewModel : PickerNode<FileNodeViewModel>
     private readonly string? _glyphOverride;
 
     public FileNodeViewModel(string fullPath, string displayName, bool isDirectory,
-                             IReadOnlyList<string>? extensions, string? glyph = null)
+                             IReadOnlyList<string>? extensions, string? glyph = null,
+                             Action<FileNodeViewModel>? ticked = null)
         : base(fullPath, displayName, isDirectory && fullPath.Length > 0 ? Placeholder : null)
     {
         IsDirectory    = isDirectory;
         _extensions    = extensions;
         _glyphOverride = glyph;
+        _ticked        = ticked;
     }
 
     private bool Matches(string file) =>
@@ -52,12 +64,12 @@ internal sealed class FileNodeViewModel : PickerNode<FileNodeViewModel>
                     .Order(StringComparer.OrdinalIgnoreCase)
                     .Select(dir => (Path: dir, Name: Path.GetFileName(dir)))
                     .Where(entry => !string.IsNullOrEmpty(entry.Name))
-                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: true, _extensions)),
+                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: true, _extensions, ticked: _ticked)),
         .. Directory.EnumerateFiles(path)
                     .Order(StringComparer.OrdinalIgnoreCase)
                     .Select(file => (Path: file, Name: Path.GetFileName(file)))
                     .Where(entry => !string.IsNullOrEmpty(entry.Name) && Matches(entry.Path))
-                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: false, _extensions)),
+                    .Select(entry => new FileNodeViewModel(entry.Path, entry.Name, isDirectory: false, _extensions, ticked: _ticked)),
     ];
 }
 
@@ -69,11 +81,12 @@ internal sealed class FileBrowserViewModel
 
     public FileBrowserViewModel(IReadOnlyList<string>? extensions,
                                 WorkspaceRuntime? workspace = null,
-                                IReadOnlyList<ThisPcPlace>? places = null)
+                                IReadOnlyList<ThisPcPlace>? places = null,
+                                Action<FileNodeViewModel>? ticked = null)
     {
         foreach (var place in places ?? PickerRoots.For(workspace))
             Roots.Add(new FileNodeViewModel(place.RealPath, place.Label, isDirectory: true, extensions,
-                                            PickerRoots.GlyphFor(place.Icon)));
+                                            PickerRoots.GlyphFor(place.Icon), ticked));
     }
 }
 
@@ -83,12 +96,21 @@ public partial class FileBrowserWindow : Window
 {
     public string? SelectedPath { get; private set; }
 
+    /// <summary>What an Open choosing several answers: the files ticked, in the order they were ticked, or else the
+    /// one file selected.</summary>
+    public IReadOnlyList<string> SelectedPaths =>
+        _ticked is { Count: > 0 } ticked ? [.. ticked.Select(node => node.FullPath)]
+        : SelectedPath is { } one ? [one] : [];
+
     private readonly IReadOnlyList<string>? _extensions;
 
-    /// <summary>What a save can be written as; the one chosen is <see cref="_chosen"/>. Empty for an open.</summary>
-    private IReadOnlyList<SaveFileType> _types = [];
+/// <summary>The files ticked, when choosing several; null when choosing one.</summary>
+private readonly List<FileNodeViewModel>? _ticked;
 
-    private int _chosen;
+/// <summary>What a save can be written as; the one chosen is <see cref="_chosen"/>. Empty for an open.</summary>
+private IReadOnlyList<SaveFileType> _types = [];
+
+private int _chosen;
 
     private bool    _saving;
     private long    _bytes;
@@ -96,15 +118,21 @@ public partial class FileBrowserWindow : Window
 
     public FileBrowserWindow() : this(null) { }
 
-    public FileBrowserWindow(IReadOnlyList<string>? extensions, WorkspaceRuntime? workspace = null)
+    public FileBrowserWindow(IReadOnlyList<string>? extensions, WorkspaceRuntime? workspace = null, bool several = false)
     {
         InitializeComponent();
         _extensions = extensions;
-        DataContext = new FileBrowserViewModel(extensions, workspace);
-        HeaderText.Text = extensions is { Count: > 0 }
-                              ? Str.Format("Shell.Picker.SelectFileOfFormat",
-                                           string.Join(", ", extensions.Select(ext => "*" + ext)))
-                              : Str.Get("Shell.Picker.SelectFile");
+    if (several)
+        {
+            _ticked = [];
+            ChoiceLabel.Text = Str.Get("Shell.Picker.FilesLabel");
+        }
+        DataContext = new FileBrowserViewModel(extensions, workspace, ticked: several ? OnTicked : null);
+        HeaderText.Text = several ? Str.Get("Shell.Picker.SelectFiles")
+                        : extensions is { Count: > 0 }
+                            ? Str.Format("Shell.Picker.SelectFileOfFormat",
+                                         string.Join(", ", extensions.Select(ext => "*" + ext)))
+                            : Str.Get("Shell.Picker.SelectFile");
     }
 
     /// <summary>Shows the file browser and returns the selected file path, or null if cancelled.</summary>
@@ -121,6 +149,53 @@ public partial class FileBrowserWindow : Window
         // The dialog draws first and opens onto the file after: reading the way there can take a moment.
         win.Loaded += async (_, _) => await win.NavigateToAsync(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
+    }
+
+    /// <summary>Shows the file browser choosing one or several files — a tick beside each — and returns them, or an
+    /// empty list if cancelled.</summary>
+    public static IReadOnlyList<string> ShowMany(string? initialPath = null,
+                                                 IReadOnlyList<string>? extensions = null,
+                                                 Window? owner = null,
+                                                 WorkspaceRuntime? workspace = null)
+    {
+        var win = new FileBrowserWindow(extensions, workspace, several: true)
+        {
+            Owner = owner ?? Application.Current.MainWindow
+        };
+        win.Loaded += async (_, _) => await win.NavigateToAsync(initialPath);
+        return win.ShowDialog() == true ? win.SelectedPaths : [];
+    }
+
+    /// <summary>A file ticked or unticked: the footer names the files ticked, and OK takes them.</summary>
+    private void OnTicked(FileNodeViewModel node)
+    {
+        if (_ticked is null) return;
+        if (node.IsTicked) { if (!_ticked.Contains(node)) _ticked.Add(node); }
+        else _ticked.Remove(node);
+        ShowChoice();
+    }
+
+    /// <summary>The footer and OK for an Open: the files ticked, or else the one file selected.</summary>
+    private void ShowChoice()
+    {
+        if (_ticked is { Count: > 0 } ticked)
+        {
+            SelectedPathText.Text = ticked.Count == 1
+                ? ticked[0].FullPath
+                : Str.Format("Shell.Picker.Ticked", ticked.Count, string.Join(", ", ticked.Select(node => node.DisplayName)));
+            OkBtn.IsEnabled = true;
+            return;
+        }
+        SelectedPathText.Text = SelectedPath ?? string.Empty;
+        OkBtn.IsEnabled = SelectedPath is not null;
+    }
+
+    /// <summary>Space ticks the file selected, when choosing several.</summary>
+    private void FileTree_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space || FileTree.SelectedItem is not FileNodeViewModel { CanTick: true } node) return;
+        node.IsTicked = !node.IsTicked;
+        e.Handled = true;
     }
 
     /// <summary>Shows the browser as a Save As dialog and returns the file to write, or null if cancelled.</summary>
@@ -351,7 +426,7 @@ public partial class FileBrowserWindow : Window
     {
         if (e.NewValue is not FileNodeViewModel { FullPath.Length: > 0 } node)
         {
-            if (!_saving) { SelectedPath = null; SelectedPathText.Text = string.Empty; OkBtn.IsEnabled = false; }
+            if (!_saving) { SelectedPath = null; ShowChoice(); }
             return;
         }
 
@@ -367,17 +442,8 @@ public partial class FileBrowserWindow : Window
         }
 
         // Open: only a file is an answer, never the folder holding it.
-        if (node.IsDirectory)
-        {
-            SelectedPath          = null;
-            SelectedPathText.Text = string.Empty;
-            OkBtn.IsEnabled       = false;
-            return;
-        }
-
-        SelectedPath          = node.FullPath;
-        SelectedPathText.Text = node.FullPath;
-        OkBtn.IsEnabled       = true;
+        SelectedPath = node.IsDirectory ? null : node.FullPath;
+        ShowChoice();
     }
 
     private void TreeViewItem_Expanded(object sender, RoutedEventArgs e)
@@ -397,6 +463,14 @@ public partial class FileBrowserWindow : Window
             NameBox.Text = Stem(node.DisplayName);
             NameBox.Focus();
             NameBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        // Choosing several, with some ticked already: a double-click ticks this one too rather than answering.
+        if (_ticked is { Count: > 0 } && node.CanTick)
+        {
+            node.IsTicked = !node.IsTicked;
             e.Handled = true;
             return;
         }

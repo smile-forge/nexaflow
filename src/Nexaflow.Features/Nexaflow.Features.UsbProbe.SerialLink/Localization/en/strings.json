@@ -1,0 +1,6 @@
+{
+  "SerialLink.Title": "Serial port",
+  "SerialLink.Description": "The COM port Windows made of this serial function, and its terminal.",
+  "SerialLink.Open": "Open serial terminal",
+  "SerialLink.OpenTip": "Open the Serial page on this port — it connects only when you ask it to"
+}

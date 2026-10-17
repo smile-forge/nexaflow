@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -18,6 +20,7 @@ public enum IconSet { Emoji, FluentRegular, FluentFilled }
 /// </para>
 /// </summary>
 [JsonConverter(typeof(IconRefJsonConverter))]
+[TypeConverter(typeof(IconRefTypeConverter))]
 public readonly record struct IconRef(IconSet Set, string Value)
 {
     public const string FluentPrefix = "fluent:";
@@ -56,4 +59,21 @@ public sealed class IconRefJsonConverter : JsonConverter<IconRef>
 
     public override void Write(Utf8JsonWriter writer, IconRef value, JsonSerializerOptions options)
         => writer.WriteStringValue(value.ToString());
+}
+
+/// <summary>Reads an <see cref="IconRef"/> from its string, so markup can name one as it is saved:
+/// <c>Icon="fluent:arrow_up"</c>.</summary>
+public sealed class IconRefTypeConverter : TypeConverter
+{
+    public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
+        => sourceType == typeof(string) || base.CanConvertFrom(context, sourceType);
+
+    public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+        => value is string text ? IconRef.Parse(text) : base.ConvertFrom(context, culture, value);
+
+    public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
+        => destinationType == typeof(string) || base.CanConvertTo(context, destinationType);
+
+    public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
+        => destinationType == typeof(string) && value is IconRef icon ? icon.ToString() : base.ConvertTo(context, culture, value, destinationType);
 }

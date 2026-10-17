@@ -1,0 +1,134 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:h="clr-namespace:Nexaflow.Features.UsbProbe.HidTools"
+                    xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+                    xmlns:b="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
+                    xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <!-- How the device page draws a HID tool: the collection, its layout, the input monitor, feature and output reports. -->
+
+    <!-- What the tile says can be selected and copied; its lists copy their selected rows. -->
+    <Style x:Key="HidTools.Muted" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    </Style>
+
+    <BooleanToVisibilityConverter x:Key="HidTools.BoolToVis" />
+    <conv:InverseBoolToVisibilityConverter x:Key="HidTools.InvBoolToVis" />
+    <conv:NullToVisibilityConverter x:Key="HidTools.NullToVis" />
+
+    <Style x:Key="HidTools.Heading" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Margin" Value="0,10,0,4" />
+    </Style>
+
+    <DataTemplate DataType="{x:Type h:HidTool}">
+        <StackPanel>
+            <ComboBox Style="{StaticResource DarkComboBox}" AutomationProperties.AutomationId="UsbHid_Collection"
+                      ItemsSource="{Binding Collections}" SelectedItem="{Binding Collection, Mode=TwoWay}" DisplayMemberPath="Title" />
+            <TextBox Style="{StaticResource HidTools.Muted}" Text="{Binding ReachNote, Mode=OneWay}" Margin="0,4,0,0"
+                     Visibility="{Binding ReachNote, Converter={StaticResource HidTools.NullToVis}}" />
+
+            <TextBlock Text="{loc:Str HidTools.Section.Layout}" Style="{StaticResource HidTools.Heading}" />
+            <ListView ItemsSource="{Binding Fields}" MaxHeight="220" AutomationProperties.AutomationId="UsbHid_Layout" b:ListCopy.Enabled="True"
+                      Background="{StaticResource Surface2Brush}" BorderThickness="0" ItemContainerStyle="{StaticResource FileListRowStyle}">
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Kind}" Width="70">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Kind}" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Report}" Width="60">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding ReportId}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Field}" Width="300">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Bits}" Width="70">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Bits}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Range}" Width="120">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Range}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <StackPanel Visibility="{Binding CanMonitor, Converter={StaticResource HidTools.BoolToVis}}">
+<DockPanel Margin="0,10,0,4">
+                <WrapPanel DockPanel.Dock="Right">
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_StartMonitor" Command="{Binding StartMonitorCommand}"
+                            IsEnabled="{Binding CanMonitor}" Visibility="{Binding IsMonitoring, Converter={StaticResource HidTools.InvBoolToVis}}">
+                        <TextBlock Text="{loc:Str HidTools.Button.Start}" />
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_StopMonitor" Command="{Binding StopMonitorCommand}"
+                            Visibility="{Binding IsMonitoring, Converter={StaticResource HidTools.BoolToVis}}">
+                        <TextBlock Text="{loc:Str HidTools.Button.Stop}" />
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_Clear" Command="{Binding ClearCommand}">
+                        <TextBlock Text="{loc:Str HidTools.Button.Clear}" />
+                    </Button>
+                </WrapPanel>
+                <TextBlock VerticalAlignment="Center">
+                    <Run Text="{loc:Str HidTools.Section.Input}" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                    <Run Text="{Binding ReportCount, Mode=OneWay}" Foreground="{StaticResource TextMutedBrush}" />
+                </TextBlock>
+            </DockPanel>
+            <ListView ItemsSource="{Binding Reports}" Height="180" AutomationProperties.AutomationId="UsbHid_Reports" b:ListCopy.Enabled="True"
+                      Background="{StaticResource Surface2Brush}" BorderThickness="0" ItemContainerStyle="{StaticResource FileListRowStyle}"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Time}" Width="90">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Time}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Report}" Width="50">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Id}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Bytes}" Width="220">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Hex}" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Hex}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="{loc:Str HidTools.Column.Decoded}" Width="360">
+                            <GridViewColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Values}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Values}" /></DataTemplate></GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            </StackPanel>
+
+            <!-- Feature reports: read freely; sending one asks first. -->
+            <StackPanel Visibility="{Binding HasFeatures, Converter={StaticResource HidTools.BoolToVis}}">
+                <TextBlock Text="{loc:Str HidTools.Section.Feature}" Style="{StaticResource HidTools.Heading}" />
+                <WrapPanel>
+                    <ComboBox Style="{StaticResource DarkComboBox}" Width="80" Margin="0,0,6,0" AutomationProperties.AutomationId="UsbHid_FeatureId"
+                              ItemsSource="{Binding FeatureIds}" SelectedItem="{Binding FeatureId, Mode=TwoWay}" ItemStringFormat="0x{0:X2}" />
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_ReadFeature" Command="{Binding ReadFeatureCommand}">
+                        <TextBlock Text="{loc:Str HidTools.Button.ReadFeature}" />
+                    </Button>
+                </WrapPanel>
+                <TextBox Text="{Binding FeatureResult, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Consolas"
+                         Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         Visibility="{Binding FeatureResult, Converter={StaticResource HidTools.NullToVis}}" />
+                <DockPanel Margin="0,6,0,0" Visibility="{Binding CanWrite, Converter={StaticResource HidTools.BoolToVis}}">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_SendFeature" Command="{Binding SendFeatureCommand}">
+                        <TextBlock Text="{loc:Str HidTools.Button.SendFeature}" />
+                    </Button>
+                    <TextBox Style="{StaticResource DarkTextBox}" Text="{Binding FeatureHex, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" Margin="0,0,6,0"
+                             AutomationProperties.AutomationId="UsbHid_FeatureHex" ToolTip="{loc:Str HidTools.HexTip}" />
+                </DockPanel>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding HasOutput, Converter={StaticResource HidTools.BoolToVis}}">
+                <TextBlock Text="{loc:Str HidTools.Section.Output}" Style="{StaticResource HidTools.Heading}" />
+                <DockPanel Visibility="{Binding CanWrite, Converter={StaticResource HidTools.BoolToVis}}">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbHid_SendOutput" Command="{Binding SendOutputCommand}">
+                        <TextBlock Text="{loc:Str HidTools.Button.SendOutput}" />
+                    </Button>
+                    <TextBox Style="{StaticResource DarkTextBox}" Text="{Binding OutputHex, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" Margin="0,0,6,0"
+                             AutomationProperties.AutomationId="UsbHid_OutputHex" ToolTip="{loc:Str HidTools.HexTip}" />
+                </DockPanel>
+            </StackPanel>
+            <TextBox Style="{StaticResource HidTools.Muted}" Text="{Binding SendResult, Mode=OneWay}" Margin="0,4,0,0"
+                     Visibility="{Binding SendResult, Converter={StaticResource HidTools.NullToVis}}" />
+        </StackPanel>
+    </DataTemplate>
+</ResourceDictionary>

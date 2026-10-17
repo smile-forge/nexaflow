@@ -15,3 +15,7 @@
 	path = external/AngouriMath
 	url = https://github.com/smile-forge/AngouriMath.git
 	branch = nexaflow
+[submodule "external/usbids"]
+	path = external/usbids
+	url = https://github.com/smile-forge/usbids.git
+	branch = nexaflow
