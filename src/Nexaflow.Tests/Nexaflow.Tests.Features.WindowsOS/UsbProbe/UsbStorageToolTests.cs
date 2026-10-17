@@ -297,4 +297,16 @@ public class UsbStorageToolTests
         Assert.AreEqual(1, (int?)volume["folderMounts"], "a folder it is mounted on is counted, not named");
         Assert.IsFalse(details.ToJsonString().Contains("STICK") || details.ToJsonString().Contains("stick"), "neither the label nor the folder's path");
     }
+
+    [TestMethod]
+    public async Task ItShowsItsVolumesWhole_AndNothingElseOfThisPc()
+    {
+        var tool = (UsbStorageTool)new UsbStorageToolProvider(new FolderStorage(_stick)).Offer(UsbProbeSamples.Stick(), _host).Single();
+        Assert.AreEqual(0, tool.ShownFolders.Count, "nothing is shown before the volumes are read");
+
+        await tool.ActivateAsync(CancellationToken.None);
+        await WaitFor(() => tool.ShownFolders.Count > 0);
+
+        CollectionAssert.AreEqual(new[] { _stick }, tool.ShownFolders.ToArray());
+    }
 }

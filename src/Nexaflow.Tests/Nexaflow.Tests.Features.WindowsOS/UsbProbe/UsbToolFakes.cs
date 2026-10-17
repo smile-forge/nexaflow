@@ -95,6 +95,12 @@ internal sealed class FakeDebugTool(string id, string? function, Func<UsbDebugMa
     public Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct) => answer(mask, ct);
 }
 
+/// <summary>A tool that shows folders of this PC whole, as a USB disk's does.</summary>
+internal sealed class FakeFolderTool(string id, string? function, params string[] folders) : FakeTool(id, function), IUsbToolShownFolders
+{
+    public IReadOnlyList<string> ShownFolders => folders;
+}
+
 /// <summary>A tool host for a tool tested on its own: confirms as told, picks what it is given, records the rest.</summary>
 internal sealed class RecordingHost : IUsbToolHost
 {

@@ -403,6 +403,11 @@
           "type": "code",
           "doc": "src/Nexaflow.IO.Usb/Tools/UsbFunctionClasses.cs",
           "class": "UsbClassGuidance"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Tools/IUsbToolShownFolders.cs",
+          "class": "IUsbToolShownFolders"
         }
       ],
       "concerns": {

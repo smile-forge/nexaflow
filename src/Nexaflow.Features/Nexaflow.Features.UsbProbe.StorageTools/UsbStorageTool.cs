@@ -18,12 +18,14 @@ namespace Nexaflow.Features.UsbProbe.StorageTools;
 /// <see cref="DiskStore"/>), with copies both ways — each read back past the cache and checked by SHA-256 — new
 /// folders, renames and deletes, every change asked for first.
 /// </summary>
-public sealed partial class UsbStorageTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
+public sealed partial class UsbStorageTool : ObservableObject, IUsbTool, IUsbToolDebugDetails, IUsbToolShownFolders
 {
     const int ListedEntries = 200;
 
     readonly UsbFunctionNode _function;
     readonly IUsbStorageLocator _locator;
+
+    readonly DiskStore _store;
     bool _read;
 
     public UsbStorageTool(UsbFunctionNode function, IUsbStorageLocator locator, IUsbToolHost host)
@@ -31,7 +33,8 @@ public sealed partial class UsbStorageTool : ObservableObject, IUsbTool, IUsbToo
         _function = function;
         _locator = locator;
         _status = Str.Get("StorageTools.Status.NotRead");
-        Browser = new StoreBrowser(new DiskStore(Str.Get("StorageTools.Title"), ReadVolumesAsync), new UsbToolStoreHost(this, host), IconRef.Fluent("usb_stick"));
+        _store = new DiskStore(Str.Get("StorageTools.Title"), ReadVolumesAsync);
+        Browser = new StoreBrowser(_store, new UsbToolStoreHost(this, host), IconRef.Fluent("usb_stick"));
         Browser.RootsRead += OnRootsRead;
         Browser.PropertyChanged += OnBrowserChanged;
     }
@@ -47,6 +50,9 @@ public sealed partial class UsbStorageTool : ObservableObject, IUsbTool, IUsbToo
 
     /// <summary>The device's volumes, browsed and changed.</summary>
     public StoreBrowser Browser { get; }
+
+    /// <summary>The volumes the browser shows, each a folder on this PC shown whole.</summary>
+    public IReadOnlyList<string> ShownFolders => [.. Browser.RootInfo.Select(root => _store.LocalPathOf(root.Id)).OfType<string>()];
 
     [ObservableProperty] private string _status;
 

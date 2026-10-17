@@ -2,6 +2,7 @@ using System.Text;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.UsbProbe.ClientTools;
+using Nexaflow.IO.Usb.Tools;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 
@@ -33,6 +34,10 @@ public sealed partial class UsbDeviceViewModel
 
     /// <summary>One machine, one USB tree: the device page is inside the same boundary as the USB page.</summary>
     public string? GetSecurityContext() => "usb";
+
+    /// <summary>What the device's live tools show of this PC's disk — a USB disk's volumes — and nothing else.</summary>
+    public ContextGrant GetContextGrant() =>
+        ContextGrant.OfFolders(Tiles.OfType<UsbToolTile>().Select(tile => tile.Tool).OfType<IUsbToolShownFolders>().SelectMany(tool => tool.ShownFolders));
 
     public string? GetAiSystemPromptGuidance() =>
         "This page is one USB device. Its live tools — a storage browser, an audio tester, a HID monitor and so on — each have " +

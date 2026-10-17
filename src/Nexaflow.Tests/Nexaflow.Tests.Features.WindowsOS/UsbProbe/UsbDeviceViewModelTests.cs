@@ -299,4 +299,13 @@ public class UsbDeviceViewModelTests
         Assert.IsFalse(vm.IsBusy);
         Assert.IsFalse(_made.Single().Disposed, "the page's own tool is still open");
     }
+
+    [TestMethod]
+    public async Task TheAssistant_ReachesTheFoldersItsToolsShow_AndNothingElse()
+    {
+        var disk = new FakeProvider("disk", (device, _) => [new FakeFolderTool("test.disk", device.Function(HidFunction)?.InstanceId, @"E:\")]);
+        var vm = await PageAsync("1-2.4", disk, HidTools());
+
+        Assert.AreEqual(ContextGrant.OfFolder(@"E:\"), vm.GetContextGrant(), "the disk's volume, and nothing for the tool that shows no folder");
+    }
 }
