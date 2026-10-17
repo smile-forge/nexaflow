@@ -72,6 +72,7 @@ internal sealed class IntegrityShellStub : IShellServices
     public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null) => throw new NotSupportedException();
     public Task<string?> PickFolderAsync(string? initialPath = null) => throw new NotSupportedException();
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions = null, string? initialPath = null, long bytes = 0) => throw new NotSupportedException();
+    public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types, string? initialPath = null, long bytes = 0) => throw new NotSupportedException();
     public void RequestRefresh() => throw new NotSupportedException();
     public void MoveFolderInBackground(string sourcePath, string destinationPath, string busyMessage, Action<bool>? onComplete = null) => throw new NotSupportedException();
     public event Action? FolderBusyChanged { add { } remove { } }

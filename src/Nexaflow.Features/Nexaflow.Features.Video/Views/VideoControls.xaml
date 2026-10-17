@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
@@ -186,6 +187,9 @@
                     <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleInfoPanelCommand}"
                             AutomationProperties.AutomationId="Video_InfoToggle"
                             Content="ⓘ" ToolTip="Codec / media info"/>
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding CutOutFrameCommand}"
+                            AutomationProperties.AutomationId="Video_CutOutFrame"
+                            Content="✂" ToolTip="{loc:Str Video.CutOutFrame}"/>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleFullScreenCommand}"
                             AutomationProperties.AutomationId="Video_Fullscreen"
                             Content="⛶" ToolTip="Fullscreen"/>

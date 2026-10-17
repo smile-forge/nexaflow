@@ -30,6 +30,26 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     private const string StaleRecipe =
         """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""";
 
+    /// <summary>The same, with the photo's background removed around whatever is called a mug: kept, it asks for picture
+    /// selection, which is never here.</summary>
+    private const string StaleCutOutRecipe =
+        """{ "version": 3, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 }, "cutOut": { "phrase": "mug" } }""";
+
+    /// <summary>
+    /// An AI folder of its own, empty: the picture tools are never here, so AI enhance always offers them for download —
+    /// the same banner on every machine, whatever this one has downloaded. A journey downloads nothing.
+    /// </summary>
+    private readonly string _aiDir = Directory.CreateTempSubdirectory("nexaflow-edit-ai-").FullName;
+
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
+        new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
+
+    [TestCleanup]
+    public void RemoveAiDir()
+    {
+        try { Directory.Delete(_aiDir, recursive: true); } catch { }
+    }
+
     [TestMethod]
     [CoversNode("images-ui")]
     public void Image_Edit_ControlsRespondInOnePass()
@@ -42,7 +62,8 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             File.Copy(TestSampleData.Path("images", OrientedPhotoSample.FileName), photo);
             var plain = Path.Combine(folder, "b_" + Path.GetFileName(TestSampleData.Files("images").First(f => f.EndsWith(".png"))));
             File.Copy(TestSampleData.Files("images").First(f => f.EndsWith(".png")), plain);
-            foreach (var p in new[] { photo, plain }) File.WriteAllText(p + ".nfedit", StaleRecipe);
+            File.WriteAllText(photo + ".nfedit", StaleCutOutRecipe);
+            File.WriteAllText(plain + ".nfedit", StaleRecipe);
 
             NavigateFileBrowserTo(folder);
             var slideshow = WaitForId("SlideshowFolderAction", 8);
@@ -52,6 +73,8 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
 
             // ── The photos changed since their recipes: keep one, discard the other ──
             CheckDoes("Keep the edits made against an earlier file", "Image_EditKeepChanged", () => WaitForFs(() => !Exists("Image_EditKeepChanged"), 3));
+            Check("The kept edits remove its background, and the banner offers picture selection",
+                  () => WaitForFs(() => WaitForId("Image_RemoveBackgroundAction", 1)?.IsEnabled == true, 5));
             CheckInvoke("Next photo", "Image_Next");
             CheckDoes("Discard the edits made against an earlier file", "Image_EditDiscardChanged", () => WaitForFs(() => !Exists("Image_EditDiscardChanged"), 3));
             CheckInvoke("Back to the first photo", "Image_Previous");
@@ -86,6 +109,15 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
                 Check($"{slider} moves", () => MoveSlider(slider));
             CheckInvoke("Reset adjustments", "Image_EditResetAdjust");
 
+            // AI enhance: its strength and faces show with it, and the banner offers the picture tools, which are not here.
+            Check("AI enhance turns on, its strength and faces with it",
+                  () => SetToggle("Image_EditAiEnhance", true) && WaitForFs(() => Exists("Image_EditAiStrength"), 3));
+            Check("AI strength moves", () => MoveSlider("Image_EditAiStrength"));
+            Check("Repair faces toggles", () => SetToggle("Image_EditAiFaces", false) && SetToggle("Image_EditAiFaces", true));
+            Check("The banner offers the picture tools to download", () => WaitForFs(() => WaitForId("Image_RestoreAction", 1)?.IsEnabled == true, 5));
+            Check("AI enhance off, and the banner goes with it",
+                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3));
+
             // Markup: a text annotation typed, an arrow drawn, selected and deleted
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
             CheckPresent("Ink colour picker", "Image_EditInk_Hex");
@@ -114,6 +146,47 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
+            Check("AI upscale twice, which turns AI enhance on", () => SelectRadio("Image_EditUpscaleTwice") && WaitForFs(() => Exists("Image_RestoreAction"), 5));
+            Check("AI upscale four times", () => SelectRadio("Image_EditUpscaleFourTimes"));
+            Check("AI upscale off", () => SelectRadio("Image_EditUpscaleOff"));
+            Check("AI enhance off again, from Adjust", () => SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false)
+                                                            && WaitForGone("Image_RestoreAction", 3) && SelectRadio("Image_EditToolResize"));
+
+            // Cut out: picture selection is never here (the AI folder is the journey's own), so the tool offers it; its other
+            // controls stand ready for when it is.
+            Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
+            Check("A click on the photo asks for picture selection", () => ClickCanvas() && WaitForFs(() => WaitForId("Image_CutOutAction", 1)?.IsEnabled == true, 5));
+            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_CutOutPhrase", "mug")
+                                                              && WaitForFs(() => WaitForId("Image_CutOutFind", 1)?.IsEnabled == true, 3));
+            CheckInvoke("Find, which waits for picture selection", "Image_CutOutFind");
+            CheckPresent("Copy the cut-out", "Image_CutOutCopy");
+            CheckPresent("Save the cut-out", "Image_CutOutSave");
+            CheckInvoke("Clear what is picked", "Image_CutOutClear");
+            CheckPresent("Remove background, ready for something picked", "Image_CutOutRemoveBackground");
+            CheckDoes("Keep background puts it back, and the banner goes", "Image_CutOutKeepBackground",
+                      () => WaitForGone("Image_RemoveBackgroundAction", 3));
+
+            // Erase: picking waits for picture selection and AI for picture erasing, neither of which the journey's AI folder
+            // has; content-aware fill needs nothing, so a brushed step erases at once.
+            Check("Erase panel", () => SelectRadio("Image_EditToolErase") && WaitForFs(() => Exists("Image_EraseMarkPick"), 3));
+            Check("Picking: a click on the photo asks for picture selection",
+                  () => SelectRadio("Image_EraseMarkPick") && ClickCanvas() && WaitForFs(() => WaitForId("Image_ErasePickAction", 1)?.IsEnabled == true, 5));
+            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_ErasePhrase", "mug")
+                                                              && WaitForFs(() => WaitForId("Image_EraseFind", 1)?.IsEnabled == true, 3));
+            CheckInvoke("Find, which waits for picture selection", "Image_EraseFind");
+            CheckInvoke("Clear what is marked", "Image_EraseClear");
+            Check("Brushing", () => SelectRadio("Image_EraseMarkBrush") && WaitForFs(() => Exists("Image_EraseBrushSize"), 3));
+            Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));
+            Check("Heal, which asks where to copy from", () => SelectRadio("Image_EraseFillHeal"));
+            Check("AI fill, a stroke brushed and erased: the banner offers picture erasing",
+                  () => SelectRadio("Image_EraseFillAi") && DragOnCanvas(-10, 0, 10, 0)
+                        && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
+                        && WaitForFs(() => WaitForId("Image_EraseAction", 1)?.IsEnabled == true, 5));
+            Check("Undo takes the step back, and the banner goes", () => PressNth("Image_EditUndo", 0) && WaitForGone("Image_EraseAction", 3));
+            Check("Content-aware fill, a stroke brushed and erased at once",
+                  () => SelectRadio("Image_EraseFillContentAware") && DragOnCanvas(-10, 4, 10, 4)
+                        && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
+                        && WaitForGone("Image_EraseAction", 5));
 
             // Export options
             Check("Export panel", () => SelectRadio("Image_EditToolExport"));

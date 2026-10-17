@@ -25,7 +25,7 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Folder containing (or to initialise) the .product/ directory.", Required: false),
+        new("path", "Folder containing (or to initialise) the .product/ directory.", Required: false, OnDisk: true),
         new("node", "Id of a node to focus on open (deep link from the Integrity page).", Required: false),
     ];
 

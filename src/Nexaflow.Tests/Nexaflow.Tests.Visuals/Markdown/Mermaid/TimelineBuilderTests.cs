@@ -44,6 +44,26 @@ public class TimelineBuilderTests : MermaidBuilderContract
         ("nothing to draw", "timeline"),
     ];
 
+    protected override bool FitsTheRoom => true;
+
+    [TestMethod]
+    public void PeriodsMoreThanTheRoomHoldsRunOnInRows_ASectionBandedInEachRowItReaches() => UiThread.Run(() =>
+    {
+        const string source = "timeline\n  section Early\n    2001 : one\n    2002 : two\n    2003 : three\n  section Late\n    2004 : four\n    2005 : five";
+
+        var wide = Lay(source, 4000);
+        Assert.AreEqual(1, Pieces(wide, TimelinePiece.Period).Select(period => System.Math.Round(period.Bounds.Top)).Distinct().Count(),
+                        "one row where there is room for it");
+
+        var laid = Lay(source, 500);
+        var rows = Pieces(laid, TimelinePiece.Period).GroupBy(period => System.Math.Round(period.Bounds.Top)).Select(row => row.Count()).ToList();
+
+        CollectionAssert.AreEqual(new[] { 2, 2, 1 }, rows, "as many to a row as the room holds, the rest running on under them");
+        Assert.AreEqual(4, Pieces(laid, TimelinePiece.Section).Count, "each section a band in each row it reaches, not one across the rows between");
+        Assert.AreEqual(0, Pieces(laid, MermaidPiece.Reduced).Count, "so nothing is drawn smaller");
+        Assert.IsTrue(laid.Size.Width <= 500.01, $"{laid.Size.Width} wide");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 

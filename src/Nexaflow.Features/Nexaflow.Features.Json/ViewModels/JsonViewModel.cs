@@ -1368,6 +1368,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The file this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // ── Read / explore (auto-run) — the data the model couldn't reach before ──

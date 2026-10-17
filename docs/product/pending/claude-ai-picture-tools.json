@@ -1,0 +1,1130 @@
+{
+  "branch": "claude/ai-picture-tools",
+  "nodes": {
+    "picture-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureTools.cs",
+          "class": "PictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureTools.cs",
+          "class": "OwnedPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/PictureMessages.cs",
+          "class": "RestorePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoreHandler.cs",
+          "class": "RestoreHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/PictureUpscaling.cs",
+          "class": "PictureUpscaling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "FaceAlignment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "RetinaFaceDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoringModels.cs",
+          "class": "RestoringModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureResampling.cs",
+          "class": "PictureResampling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/Affine2D.cs",
+          "class": "Affine2D"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/real-esrgan-gfpgan/README.md",
+          "title_path": [
+            "Real-ESRGAN, GFPGAN, RetinaFace and ParseNet for ONNX Runtime"
+          ]
+        }
+      ]
+    },
+    "ai-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IToolModels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ILocalTool.cs",
+          "class": "ILocalTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalToolViewModel"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools"
+          ]
+        }
+      ]
+    },
+    "images-edit-restore": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoRestorer.cs",
+          "class": "PhotoRestorer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Restoring/RestoredPictures.cs",
+          "class": "RestoredPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeRestore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "AiEnhance"
+        }
+      ]
+    },
+    "picture-selection": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/sam3.1/README.md",
+          "title_path": [
+            "SAM 3.1 for ONNX Runtime"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/SelectionMessages.cs",
+          "class": "SelectInPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/SelectHandler.cs",
+          "class": "SelectHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/PictureSelecting.cs",
+          "class": "PictureSelecting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/SelectingModels.cs",
+          "class": "SelectingModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/ClipTokenizer.cs",
+          "class": "ClipTokenizer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureSelection.cs",
+          "class": "PictureSelection"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Selecting/PictureSelectionTests.cs",
+            "class": "PictureSelectionTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Picture selection"
+            ]
+          }
+        ]
+      }
+    },
+    "images-edit-cutout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureCutter.cs",
+          "class": "PictureCutter"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/EditOverlay.cs",
+          "class": "EditOverlay"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests"
+          }
+        ]
+      }
+    },
+    "images-ai-act-select-in-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing"
+          }
+        ]
+      }
+    },
+    "video-cutout-frame": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs",
+          "class": "VideoViewModel",
+          "method": "CutOutFrame"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Localization/en/help/Video.md",
+          "title_path": [
+            "Video player",
+            "Cutting something out of a frame"
+          ]
+        }
+      ]
+    },
+    "images-edit-remove-background": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/BackgroundRemover.cs",
+          "class": "BackgroundRemover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/CuttingOut/CutOutMasks.cs",
+          "class": "CutOutMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeCutOut"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "RemoveBackground"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests"
+          }
+        ]
+      }
+    },
+    "page-reading": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/unlimited-ocr/README.md",
+          "title_path": [
+            "Unlimited-OCR for llama.cpp, with a text finder"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ReadingMessages.cs",
+          "class": "FindTextInPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ModelMessages.cs",
+          "class": "ReplyDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "LiveConversation",
+          "method": "KeepWritten"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler",
+          "method": "Banned"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/FindTextHandler.cs",
+          "class": "FindTextHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/TextFinding.cs",
+          "class": "TextFinding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPageReading.cs",
+          "class": "OwnedPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "PageReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "DiagramDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageMarkdown.cs",
+          "class": "PageMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversion.cs",
+          "class": "PageConversion"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
+            "class": "RepeatBanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
+            "class": "OwnedPageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
+            "class": "PageMarkdownTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageConversionTests.cs",
+            "class": "PageConversionTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Page reading"
+            ]
+          }
+        ]
+      }
+    },
+    "images-read-page": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ReadPageViewModel.cs",
+          "class": "ReadPageViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversionBar.xaml.cs",
+          "class": "PageConversionBar"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Converting a page to Markdown"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesJourneyTests.cs",
+            "class": "ImagesJourneyTests",
+            "method": "Image_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "images-ai-act-read-page": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "ReadPageToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesAiTests.cs",
+            "class": "ImagesAiTests",
+            "method": "ReadPage_WherePageReadingCannotRun_SaysSo"
+          }
+        ]
+      }
+    },
+    "pdf-scan-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfScans.cs",
+          "class": "PdfScans"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfScansTests.cs",
+            "class": "PdfScansTests"
+          }
+        ]
+      }
+    },
+    "pdf-panel-text": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
+          "title_path": [
+            "PDF reader",
+            "Scanned pages"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ConvertScans"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "AScannedDocument_OffersItsScansForReading_WherePageReadingRuns"
+          }
+        ]
+      }
+    },
+    "pdf-ai-act-read-scans": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ReadScansToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "ReadScans_ReadsThemWithPageReading_AndReadTextThenIncludesTheirText"
+          }
+        ]
+      }
+    },
+    "markdown-package": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPackage.cs",
+          "class": "MarkdownPackage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packaging/MarkdownAttachments.cs",
+          "class": "MarkdownAttachments"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/Markdown.md",
+          "title_path": [
+            "Markdown",
+            "Viewing \u0026 authoring"
+          ]
+        }
+      ]
+    },
+    "markdown-save-as": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "SaveAs"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/Markdown.md",
+          "title_path": [
+            "Markdown",
+            "Viewing \u0026 authoring"
+          ]
+        }
+      ]
+    },
+    "owned-images": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DrawHandler.cs",
+          "class": "DrawHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageSampler.cs",
+          "class": "ZImageSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImagePromptEncoder.cs",
+          "class": "ZImagePromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDenoiser.cs",
+          "class": "ZImageDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDecoder.cs",
+          "class": "ZImageDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PngEncoder.cs",
+          "class": "PngEncoder"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/z-image-turbo/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDrawing.cs",
+          "class": "HiDreamDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
+          "class": "HiDreamSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDenoiser.cs",
+          "class": "HiDreamDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDrawing.cs",
+          "class": "ZImageDrawing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/hidream-o1/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowUniPc.cs",
+          "class": "FlowUniPc"
+        }
+      ]
+    },
+    "images-header": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditorTests.cs",
+            "class": "ImageEditorTests",
+            "method": "AnEditedPhoto_IsMarkedSo_WhereItIsShownAlone"
+          }
+        ]
+      }
+    },
+    "layout-frames": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutFrame.cs",
+          "class": "LayoutFrame"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutPaint.cs",
+          "class": "LayoutPaint",
+          "method": "Applied"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutTree.cs",
+          "class": "LayoutTree",
+          "method": "FrameOf"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/LayoutFrameTests.cs",
+            "class": "LayoutFrameTests"
+          }
+        ]
+      }
+    },
+    "mermaid-fit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "Reduced"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "LaidNarrower"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/mermaid-diagrams.md",
+          "title_path": [
+            "Mermaid diagrams on the shared layout tree"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderContract.cs",
+            "class": "MermaidBuilderContract",
+            "method": "EveryBlockIsNoWiderThanTheRoomItIsGiven"
+          }
+        ]
+      }
+    },
+    "executable-dependency-viewport": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs",
+          "class": "PanZoomSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml.cs",
+          "class": "ExecutableView",
+          "method": "Laid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "UnlimitedWidth"
+        }
+      ]
+    },
+    "picture-erasing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ErasingMessages.cs",
+          "class": "ErasePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/EraseHandler.cs",
+          "class": "EraseHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/ErasingHandover.cs",
+          "class": "ErasingHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/PictureInpainter.cs",
+          "class": "PictureInpainter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/InpaintRegions.cs",
+          "class": "InpaintRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureErasing.cs",
+          "class": "OwnedPictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureErasing.cs",
+          "class": "PictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureErasing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/big-lama/README.md",
+          "title_path": [
+            "big-lama for ONNX Runtime"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingTests.cs",
+            "class": "PictureErasingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingHandoverTests.cs",
+            "class": "PictureErasingHandoverTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/InpaintRegionsTests.cs",
+            "class": "InpaintRegionsTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Picture erasing"
+            ]
+          }
+        ]
+      }
+    },
+    "images-edit-erase": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/ContentAwareFill.cs",
+          "class": "ContentAwareFill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/HealingBrush.cs",
+          "class": "HealingBrush"
+        },
+        {
+          "type": "node",
+          "target": "picture-erasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoEraser.cs",
+          "class": "PhotoEraser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/EraseMarking.cs",
+          "class": "EraseMarking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/ErasedPictures.cs",
+          "class": "ErasedPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/EraseMasks.cs",
+          "class": "EraseMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeErase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "Erase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/ContentAwareFillTests.cs",
+            "class": "ContentAwareFillTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/HealingBrushTests.cs",
+            "class": "HealingBrushTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+            "title_path": [
+              "Images",
+              "Editing"
+            ]
+          }
+        ]
+      }
+    },
+    "images-ai-act-cut-out": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_CutsOutWhatABoxHolds"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_CutsOutWhatItNames_IntoADraftOpenedInATabOfItsOwn_WritingNothingBesideThePicture"
+          }
+        ]
+      }
+    },
+    "images-ai-act-erase-in-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesWhatItNames_AsAStepOfTheEdits_FilledByAiWhereItIsHere"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesNothing_WhereNothingIsWhatItNames"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesABox_ContentAware_WherePictureErasingIsNotHere"
+          }
+        ]
+      }
+    },
+    "images-ai-act-restore-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_RestoresThePictureOnScreen_AsOneOfItsEdits"
+          }
+        ]
+      }
+    },
+    "ai-context-paths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/PathScope.cs",
+          "class": "PathScope"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ContextGrant.cs",
+          "class": "ContextGrant"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/IPageViewModel.cs",
+          "class": "IPageViewModel",
+          "method": "GetContextGrant"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/RunScope.cs",
+          "class": "RunScope"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellAi/OpenPageTool.cs",
+          "class": "OpenPageTool",
+          "method": "Refusal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/PageParameter.cs",
+          "class": "PageParameter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GeneratedFiles.cs",
+          "class": "GeneratedFiles",
+          "method": "Refusal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ClientTools/FsToolSupport.cs",
+          "class": "FsTool",
+          "method": "TryResolve"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/PathScopeTests.cs",
+            "class": "PathScopeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/OpenPageToolTests.cs",
+            "class": "OpenPageToolTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/AiSurfaceRulesTests.cs",
+            "class": "AiSurfaceRulesTests",
+            "method": "Pages_with_a_scope_say_what_of_the_disk_they_show"
+          }
+        ]
+      }
+    },
+    "made-file-drafts": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/DraftFile.cs",
+          "class": "DraftFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Drafts/DraftSaving.cs",
+          "class": "DraftSaving"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Drafts/DraftBanner.xaml.cs",
+          "class": "DraftBanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/DraftLocation.cs",
+          "class": "DraftLocation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ImageDraftHandler.cs",
+          "class": "ImageDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/AudioDraftHandler.cs",
+          "class": "AudioDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/VideoDraftHandler.cs",
+          "class": "VideoDraftHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/DraftSavingTests.cs",
+            "class": "DraftSavingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Drafts/DraftHandlerTests.cs",
+            "class": "DraftHandlerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesDraftJourneyTests.cs",
+            "class": "ImagesDraftJourneyTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 47,
+  "touched_nodes": [
+    "ai-context-paths",
+    "ai-tools",
+    "executable-dependency-viewport",
+    "images-ai-act-cut-out",
+    "images-ai-act-erase-in-picture",
+    "images-ai-act-read-page",
+    "images-ai-act-restore-picture",
+    "images-ai-act-select-in-picture",
+    "images-edit-cutout",
+    "images-edit-erase",
+    "images-edit-remove-background",
+    "images-edit-restore",
+    "images-header",
+    "images-read-page",
+    "layout-frames",
+    "made-file-drafts",
+    "markdown-package",
+    "markdown-save-as",
+    "mermaid-fit",
+    "owned-images",
+    "page-reading",
+    "pdf-ai-act-read-scans",
+    "pdf-panel-text",
+    "pdf-scan-reading",
+    "picture-erasing",
+    "picture-selection",
+    "picture-tools",
+    "video-cutout-frame"
+  ]
+}

@@ -12,5 +12,8 @@
   "Common.ColorPicker.HexTip": "#RRGGBB, or #AARRGGBB with transparency",
   "Common.ColorPicker.IsThemeDefault": "Theme default",
   "Common.ColorPicker.IsSwatch": "Theme swatch · {0}",
-  "Common.ColorPicker.IsCustom": "Custom colour"
+  "Common.ColorPicker.IsCustom": "Custom colour",
+  "Common.Draft.Notice": "Made for you and not saved yet: it is kept only until Windows clears its temporary files.",
+  "Common.Draft.SaveAs": "Save as…",
+  "Common.Draft.SaveAsTip": "Keep it where you choose"
 }

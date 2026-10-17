@@ -17,6 +17,7 @@ internal sealed unsafe class LlamaModel : IDisposable
         _model = model;
         Vocab = LlamaNative.ModelVocab(model);
         VocabSize = LlamaNative.VocabSize(Vocab);
+        TrainedContext = LlamaNative.ModelTrainedContext(model);
         byte* template = LlamaNative.ModelChatTemplate(model, null);
         ChatTemplate = template is null ? null : Marshal.PtrToStringUTF8((IntPtr)template);
         BosText = TokenText(LlamaNative.VocabBos(Vocab));
@@ -28,6 +29,9 @@ internal sealed unsafe class LlamaModel : IDisposable
     public IntPtr Vocab { get; }
 
     public int VocabSize { get; }
+
+    /// <summary>The positions the model was trained to read: past them its position encoding means nothing it learned.</summary>
+    public int TrainedContext { get; }
 
     /// <summary>The chat template the GGUF carries, or null when it carries none.</summary>
     public string? ChatTemplate { get; }
@@ -78,17 +82,17 @@ internal sealed unsafe class LlamaModel : IDisposable
     /// <summary>The one special token <paramref name="text"/> is, or null when the vocabulary has no such token.</summary>
     public int? SpecialToken(string text) => Tokenize(text) is [var token] && TokenText(token) == text ? token : null;
 
-    /// <summary>The bytes a token stands for in the reply — none for a control token.</summary>
-    public byte[] Piece(int token)
+    /// <summary>The bytes a token stands for in the reply — none for a control token, unless <paramref name="control"/>.</summary>
+    public byte[] Piece(int token, bool control = false)
     {
         Span<byte> buffer = stackalloc byte[128];
         fixed (byte* bytes = buffer)
         {
-            int count = LlamaNative.TokenToPiece(Vocab, token, bytes, buffer.Length, 0, special: false);
+            int count = LlamaNative.TokenToPiece(Vocab, token, bytes, buffer.Length, 0, special: control);
             if (count >= 0) return buffer[..count].ToArray();
             var larger = new byte[-count];
             fixed (byte* more = larger)
-                count = LlamaNative.TokenToPiece(Vocab, token, more, larger.Length, 0, special: false);
+                count = LlamaNative.TokenToPiece(Vocab, token, more, larger.Length, 0, special: control);
             return larger[..count];
         }
     }

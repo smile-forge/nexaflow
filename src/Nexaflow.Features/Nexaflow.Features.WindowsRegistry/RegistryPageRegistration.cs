@@ -12,6 +12,12 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
     public static string StaticPageKind => PageKind;
     string IPageRegistration.PageKind => PageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("hive", "The hive to browse: HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS or HKEY_CURRENT_CONFIG.", Required: false),
+        new("path", "A key under the hive to root the tree at, such as SOFTWARE\\Microsoft; with hive.", Required: false),
+    ];
+
     /// <summary>Standalone page — offer it to the AI "add context" menu.</summary>
     public bool CanBeContextItem => true;
 

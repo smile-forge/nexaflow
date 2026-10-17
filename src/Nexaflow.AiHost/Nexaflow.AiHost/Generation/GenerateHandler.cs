@@ -29,7 +29,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
         bool kept = false;
-        using var sampler = new LlamaSampler(request.Sampling, model.Context.Tokens);   // as the model's makers recommend
+        using var sampler = new LlamaSampler(request.Sampling, model.Context.Tokens, request.Decoding?.RepeatBan);   // as the model's makers recommend
         try
         {
             string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
@@ -48,9 +48,10 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                 read = await ReadAsync(model, conversation, prompt, ChatPrompt.Media(model, request.Turns), request.Priority, ct);
             }
             conversation.Prompted(prompt);
+            if (request.Decoding?.WrittenWindow is { } window) conversation.KeepWritten(window);
 
             var outcome = await GenerateAsync(model, conversation, request, model.Thinking?.Opens(prompt) == true, reply, ct);
-            if (outcome.Continuable)
+            if (outcome.Continuable && !conversation.Forgets)
             {
                 conversation.Answered(request.Turns, outcome.Text, outcome.Calls, outcome.StoppedAt);
                 model.Conversations.Keep(conversation);
@@ -133,7 +134,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     private async Task<Outcome> GenerateAsync(ChatModel model, LiveConversation conversation, Generate request, bool reasoning,
                                               Func<HostReply, Task> reply, CancellationToken ct)
     {
-        var text = new ReplyText(model.Model);
+        var text = new ReplyText(model.Model, request.Decoding?.WritesControlTokens == true);
         var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
         var calls = new List<ChatToolCall>();
         var written = new StringBuilder();
@@ -178,7 +179,10 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             }
 
             if (request.MaxNewTokens is { } most && generated >= most) return Stop(StopReason.MaxTokens, continuable: false, token);
-            if (conversation.Tokens + 1 >= model.Context.Tokens) return Stop(StopReason.ContextFull, continuable: false, token);
+            // Full when its cells fill the cache, or when its positions reach what the model was trained to read — which
+            // a reply written in a window, holding few cells, can come to first.
+            if (conversation.Tokens + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext)
+                return Stop(StopReason.ContextFull, continuable: false, token);
             using (await gpu.NextAsync(request.Priority, model.Spec.Device, ct))
             {
                 ct.ThrowIfCancellationRequested();

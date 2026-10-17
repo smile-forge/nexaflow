@@ -33,6 +33,13 @@ public sealed class FeatureManager
     // Per-assembly GLOBAL config instances — populated as assemblies activate (warm-up thread or UI thread).
     private readonly ConcurrentDictionary<Type, IFeatureConfig> _configs = new();
 
+    /// <summary>The app-wide tools features are given by their contract — <see cref="IPictureTools"/> and the like — each
+    /// provided once, at start; every workspace's features share them.</summary>
+    private readonly ConcurrentDictionary<Type, object> _tools = new();
+
+    /// <summary>Gives <paramref name="tool"/> to every feature whose constructor asks for <typeparamref name="T"/>.</summary>
+    public void ProvideTool<T>(T tool) where T : class => _tools[typeof(T)] = tool;
+
     /// <summary>
     /// Read-only view of the per-assembly global <see cref="IFeatureConfig"/> instances registered so far.
     /// Exposed for feature-scoped registries (e.g. <see cref="Services.FileSystemFeatureRegistry"/>) that
@@ -312,6 +319,10 @@ public sealed class FeatureManager
                         + "or after its last window closed");
                 args[i] = workspace.AiService;
             }
+            else if (_tools.TryGetValue(pt, out var tool))
+            {
+                args[i] = tool;
+            }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {
                 args[i] = BuildScopedConfigView(workspace);
@@ -357,7 +368,7 @@ public sealed class FeatureManager
             else
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
-                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime, "
+                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
                     + "IFeatureConfig, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
                     + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
                     + "carrying [Subfeature] implements that contract and shipped as a scanned "

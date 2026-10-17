@@ -22,6 +22,7 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
 {
     private readonly IShellServices _shell;
     private readonly EnvVarsCollector _collector;
+    private readonly IUserEnvVarWriter _userWriter;
     private CancellationTokenSource _cts = new();
     private EnvVarsBundle? _bundle;
     private bool _syncingEntries;
@@ -70,12 +71,13 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
 
     private string _contextText = "Environment variables: still gathering…";
 
-    public EnvironmentVariablesViewModel(IShellServices shell) : this(shell, new EnvVarsCollector()) { }
+    public EnvironmentVariablesViewModel(IShellServices shell) : this(shell, new EnvVarsCollector(), new UserEnvVarWriter()) { }
 
-    public EnvironmentVariablesViewModel(IShellServices shell, EnvVarsCollector collector)
+    public EnvironmentVariablesViewModel(IShellServices shell, EnvVarsCollector collector, IUserEnvVarWriter userWriter)
     {
         _shell = shell;
         _collector = collector;
+        _userWriter = userWriter;
         VariablesView = CollectionViewSource.GetDefaultView(Variables);
         VariablesView.Filter = MatchesFilter;
         Refresh();
@@ -269,11 +271,9 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
         return ok;
     }
 
-    // Environment.SetEnvironmentVariable for User/Machine writes the registry AND broadcasts
-    // WM_SETTINGCHANGE itself, so no manual notify is needed on the in-process (User) path.
     private bool TrySetUser(string name, string? value)
     {
-        try { Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.User); return true; }
+        try { _userWriter.Set(name, value); return true; }
         catch (Exception ex) { _shell.ShowError(Str.Format("SystemInfo.EnvVars.UpdateFailedFormat", name, ex.Message)); return false; }
     }
 

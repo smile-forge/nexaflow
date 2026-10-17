@@ -5,6 +5,7 @@ using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -129,9 +130,10 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         // The models on this machine: a page choosing one for each job, and one of what is on disk.
         if (_shelf is not null && _downloads is not null)
         {
-            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice);
+            var tools = ProviderManager.Instance.Services<ILocalTool>();
+            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice, tools);
             Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
-            Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids)),
+            Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
         }
         Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));

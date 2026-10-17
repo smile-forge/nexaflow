@@ -19,7 +19,7 @@ public sealed class ExecutableTabRegistration(IShellServices shell) : IPageRegis
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "The Windows binary to inspect (.exe, .dll, .sys, or any Portable Executable)."),
+        new("path", "The Windows binary to inspect (.exe, .dll, .sys, or any Portable Executable).", OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

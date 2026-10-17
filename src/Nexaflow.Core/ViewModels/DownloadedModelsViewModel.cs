@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.Core.Services.Tools;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -20,13 +21,19 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
 {
     private readonly LocalModelShelf _shelf;
     private readonly Func<IReadOnlyList<(string Workspace, AiConfig Config)>> _workspaces;
+
+    private readonly IReadOnlyList<ILocalTool> _tools;
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     /// <param name="workspaces">Every workspace's grid as saved, by name — who uses what.</param>
-    public DownloadedModelsViewModel(LocalModelShelf shelf, Func<IReadOnlyList<(string Workspace, AiConfig Config)>> workspaces)
+    /// <param name="tools">The tools with models of their own: each listed while its files are here, and deleted like a model
+    /// no workspace uses — a tool belongs to no workspace, and downloads again when next asked for.</param>
+    public DownloadedModelsViewModel(LocalModelShelf shelf, Func<IReadOnlyList<(string Workspace, AiConfig Config)>> workspaces,
+                                     IReadOnlyList<ILocalTool> tools)
     {
-        _shelf      = shelf;
-        _workspaces = workspaces;
+    _shelf      = shelf;
+    _workspaces = workspaces;
+    _tools      = tools;
         shelf.Store.Changed += (_, _) => _ui.InvokeAsync(Refresh);
         Refresh();
     }
@@ -59,6 +66,13 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
             if (here == 0 || Covered(option, onDisk)) continue;
             total += Here(option.Model.Files.Where(f => counted.Add(f.RelativePath)));
             Models.Add(new DownloadedModelViewModel(this, option.Model.DisplayName, KindOf(option.Kind), here, usedBy[option], option.Model.Files));
+        }
+        foreach (var tool in _tools)
+        {
+            var here = Here(tool.OwnFiles);
+            if (here == 0) continue;
+            total += Here(tool.OwnFiles.Where(f => counted.Add(f.RelativePath)));
+            Models.Add(new DownloadedModelViewModel(this, tool.Name, Str.Get("Shell.Config.Downloaded.Tool"), here, [], tool.OwnFiles));
         }
         foreach (var runtime in _shelf.Runtimes)
         {

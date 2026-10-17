@@ -38,6 +38,52 @@ public class AiSurfaceRulesTests
         "Nexaflow.Features.AIChat.ViewModels.ConversationViewModel",   // the hub itself; aggregates pinned tools
     };
 
+    /// <summary>
+    /// Pages with a security context that show nothing from the disk, so put no file or folder in front of the assistant
+    /// (<see cref="IPageViewModel.GetContextGrant"/> left at none): processes, services, the environment, the registry,
+    /// the scratchpad, the solver, a web page and the installed apps. Every other page with a scope says what of the disk
+    /// it shows — a page that leaves it out would let no tool reach its own file, or, worse, be forgotten when it should.
+    /// </summary>
+    private static readonly HashSet<string> ShowsNothingFromDisk = new(StringComparer.Ordinal)
+    {
+        "Nexaflow.Features.Processes.ViewModels.ProcessDetailViewModel",
+        "Nexaflow.Features.Processes.ViewModels.ProcessesViewModel",
+        "Nexaflow.Features.SystemInfo.ViewModels.EnvironmentVariablesViewModel",
+        "Nexaflow.Features.SystemInfo.ViewModels.ServicesViewModel",
+        "Nexaflow.Features.WindowsRegistry.ViewModels.RegistryViewModel",
+        "Nexaflow.Features.Scratchpad.ViewModels.ScratchpadViewModel",
+        "Nexaflow.Features.Solver.ViewModels.SolverViewModel",
+        "Nexaflow.Features.Web.ViewModels.HtmlViewModel",
+        "Nexaflow.Features.WindowsApps.ViewModels.WindowsAppsViewModel",
+    };
+
+    private static List<string> ScopedPagesWithoutAGrant()
+        => PageViewModels()
+            .Where(t => Provides(t, nameof(IPageViewModel.GetSecurityContext)) && !Provides(t, nameof(IPageViewModel.GetContextGrant)))
+            .Select(t => t.FullName!)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+    [TestMethod]
+    public void Pages_with_a_scope_say_what_of_the_disk_they_show()
+    {
+        var offenders = ScopedPagesWithoutAGrant().Where(n => !ShowsNothingFromDisk.Contains(n)).ToList();
+
+        Assert.AreEqual(0, offenders.Count,
+            "A page with a security context must say what of the disk it puts in front of the assistant — GetContextGrant: " +
+            "the files it shows, the folders it shows whole — or, if it shows nothing from the disk, be listed in " +
+            "ShowsNothingFromDisk. Missing: " + string.Join(", ", offenders));
+    }
+
+    [TestMethod]
+    public void ShowsNothingFromDisk_has_no_stale_entries()
+    {
+        var actual = ScopedPagesWithoutAGrant().ToHashSet(StringComparer.Ordinal);
+        var stale = ShowsNothingFromDisk.Where(n => !actual.Contains(n)).OrderBy(n => n, StringComparer.Ordinal).ToList();
+
+        Assert.AreEqual(0, stale.Count, "Remove entries whose page now grants, or was renamed or removed: " + string.Join(", ", stale));
+    }
+
     private static IEnumerable<Type> PageViewModels()
         => Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.Features.*.dll")
             .SelectMany(p => Assembly.Load(Path.GetFileNameWithoutExtension(p)).GetTypes())

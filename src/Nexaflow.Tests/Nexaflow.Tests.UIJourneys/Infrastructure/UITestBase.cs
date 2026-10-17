@@ -69,6 +69,9 @@ public abstract class UITestBase
     /// </summary>
     protected virtual string? LaunchTabKind => null;
 
+    /// <summary>The page parameters <see cref="LaunchTabKind"/> opens with, each passed as <c>--tabParam key=value</c>.</summary>
+    protected virtual IReadOnlyDictionary<string, string> LaunchTabParams => new Dictionary<string, string>();
+
     /// <summary>Environment the app is started with besides its isolated config dir — read after <see cref="SeedConfig"/>,
     /// so a seed can decide it (where the AI models are, say).</summary>
     protected virtual IReadOnlyDictionary<string, string> LaunchEnvironment { get; } = new Dictionary<string, string>();
@@ -129,6 +132,11 @@ public abstract class UITestBase
         {
             psi.ArgumentList.Add("--openTab");
             psi.ArgumentList.Add(kind);
+            foreach (var (name, value) in LaunchTabParams)
+            {
+                psi.ArgumentList.Add("--tabParam");
+                psi.ArgumentList.Add($"{name}={value}");
+            }
         }
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
         foreach (var (name, value) in LaunchEnvironment) psi.EnvironmentVariables[name] = value;

@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
 using Nexaflow.Core.Services.Agent;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.AiPaths;
@@ -120,7 +121,7 @@ public class OwnedModelDelegationTests
         await File.WriteAllTextAsync(path, text, cts.Token);
         var progress = new List<string>();
 
-        var result = await new ReadingTool(model, _ => null, progress.Add).InvokeAsync(
+        var result = await new ReadingTool(model, _ => null, progress.Add, new PathScope([path], [])).InvokeAsync(
             new JsonObject { ["task"] = "What is the new access code for the archive room?", ["files"] = new JsonArray(path) }, cts.Token);
 
         Assert.IsFalse(result.IsError, result.ModelText);

@@ -875,6 +875,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// different roots stay distinguishable (aspect-4 disambiguation).</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(SearchRoot) ? "search:this-pc" : SearchRoot;
 
+    /// <summary>The folder this tab searches, with everything under it; searching This PC, every drive.</summary>
+    public ContextGrant GetContextGrant()
+        => string.IsNullOrEmpty(SearchRoot) ? ContextGrant.OfFolders(DriveInfo.GetDrives().Select(d => d.RootDirectory.FullName)) : ContextGrant.OfFolder(SearchRoot);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(
@@ -906,13 +910,22 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             "indexing configuration and never changes it.",
             [new ClientToolParameter(
                 "path",
-                "Folder to explain. Defaults to the folder this search tab is scoped to.",
+                "Folder to explain, inside what this search tab covers. Defaults to the folder this search tab is scoped to.",
                 Required: false)],
             ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 var path = arguments["path"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(path)) path = SearchRoot;
+                else
+                {
+                    // A folder named is one this tab covers — its root and what is under it, or the drives it searches.
+                    var grant = GetContextGrant();
+                    if (new PathScope(grant.Files, grant.Folders).Resolve(path) is not { } inside)
+                        return Task.FromResult(ToolResult.Error("outside this search",
+                            $"'{path}' is outside what this search tab covers: name a folder inside it."));
+                    path = inside;
+                }
 
                 if (string.IsNullOrWhiteSpace(path))
                     return Task.FromResult(ToolResult.Error(

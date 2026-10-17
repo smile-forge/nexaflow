@@ -46,4 +46,5 @@ Plays audio files, shows the waveform and lyrics, and edits the track's tags.
 ## With the assistant
 
 - It cannot hear the audio, but it knows the track and artist, whether it is playing, how far in it is and where it sits in the queue.
+- Text the assistant reads aloud with nowhere asked to save it opens here as a draft, with a strip over it saying it is not saved yet: **Save as** keeps the recording where you choose, and the tab becomes that file.
 - Ask it to play, pause or stop, to seek to a time (*90* or *1:30*), or to skip forwards or back — for example "what's playing?" or "go to 2:10".

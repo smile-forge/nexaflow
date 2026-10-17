@@ -276,7 +276,8 @@ internal sealed class GitBuilder : MermaidBuilder
         Commits(build, graph, layout, shift);
         Branches(build, graph, layout, shift);
 
-        return room.Size;
+        // A branch is as long as its commits, so there is nothing to reshape: a graph wider than the room is drawn smaller.
+        return Reduced(room.Size);
     }
 
     // ── What is laid out before it is drawn ────────────────────────────────────

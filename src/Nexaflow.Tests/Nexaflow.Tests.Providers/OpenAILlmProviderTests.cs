@@ -8,11 +8,15 @@ namespace Nexaflow.Tests.Providers;
 [TestClass]
 public class OpenAILlmProviderTests
 {
-    // Discard port on loopback → connection refused immediately, so the catch-all returns [] fast.
+    private readonly DeadBackend _backend = new();
+
+    [TestCleanup]
+    public void StopBackend() => _backend.Dispose();
+
     // Typed as ILlmProvider so default-interface members (GetModelInfoAsync) resolve.
-    private static ILlmProvider Unreachable(string model = "")
+    private ILlmProvider Unreachable(string model = "")
         => new OpenAILlmProvider(new FakeActivityManager(),
-               new OpenAIConfig { ApiKey = "test", BaseUrl = "http://127.0.0.1:9/v1" },
+               new OpenAIConfig { ApiKey = "test", BaseUrl = _backend.Url + "/v1" },
                new ProviderModel(model));
 
     [TestMethod]

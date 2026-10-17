@@ -71,6 +71,12 @@ public class MarkdownJourneyTests : UiJourneyTestBase
         var save = CheckPresent("Save", "Markdown_Save");
         Check("Save is disabled while the document is clean", () => save is not null && !save.IsEnabled);
 
+        // Save as — offered whatever the document's state: the file picker, offering a Markdown Package or a Markdown file.
+        Check("Save as opens the in-app file picker", () =>
+            PressNth("Markdown_SaveAs", 0) && WaitFor(() => FindInAppWindows("FileBrowser_Cancel"), 10) is not null);
+        Check("The picker offers what to save it as", () => FindInAppWindows("FileBrowser_SaveType") is not null);
+        Check("Cancel closes the file picker", () => PressInDialog("FileBrowser_Cancel"));
+
         AssertJourney();
     }
 

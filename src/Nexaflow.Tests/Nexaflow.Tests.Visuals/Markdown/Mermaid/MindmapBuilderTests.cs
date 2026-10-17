@@ -39,6 +39,28 @@ public class MindmapBuilderTests : MermaidBuilderContract
         ("nothing to draw", "mindmap"),
     ];
 
+    protected override bool FitsTheRoom => true;
+
+    [TestMethod]
+    public void AMapWiderThanTheRoomSetsWhatItsNodesSayNarrower_BeforeItIsDrawnSmaller() => UiThread.Run(() =>
+    {
+        const string source = "mindmap\n  root((The middle))\n    A first branch with a good deal written on it\n      And a leaf hanging off it saying a good deal more\n"
+                              + "    A second branch with a good deal written on it\n      And a leaf hanging off that one saying more again";
+
+        var wide = Lay(source, 4000);
+        var room = wide.Size.Width * 0.8;
+        var narrower = Lay(source, room);
+        var narrowest = Lay(source, 240);
+
+        Assert.AreEqual(0, Pieces(narrower, MermaidPiece.Reduced).Count, "words set narrower are enough to fit it");
+        var (widest, narrowed) = (Pieces(wide, MindmapPiece.Node).Max(node => node.Bounds.Width), Pieces(narrower, MindmapPiece.Node).Max(node => node.Bounds.Width));
+        Assert.IsTrue(narrowed < widest, $"so what its nodes say is set narrower than where there is room: {narrowed} against {widest}");
+        Assert.IsTrue(narrower.Size.Width <= room + 0.01, $"{narrower.Size.Width} wide in {room}");
+
+        Assert.AreEqual(1, Pieces(narrowest, MermaidPiece.Reduced).Count, "and words can be set only so narrow, so past that it is drawn smaller");
+        Assert.IsTrue(narrowest.Size.Width <= 240.01, $"{narrowest.Size.Width} wide");
+    });
+
     private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 

@@ -1,0 +1,14 @@
+{
+  "Text.PageReading.Download": "Download",
+  "Text.PageReading.Stop": "Stop",
+  "Text.PageReading.StopTip": "Stop reading the pages",
+  "Text.PageReading.NeedsTool": "Reading pages needs page reading, a download of {0}.",
+  "Text.PageReading.Downloading": "Downloading page reading… {0}%",
+  "Text.PageReading.DownloadStopped": "Page reading didn't download: {0}",
+  "Text.PageReading.Unavailable": "This machine can't run page reading.",
+  "Text.PageReading.Preparing": "Getting the pages ready…",
+  "Text.PageReading.Reading": "Reading page {0} of {1}…",
+  "Text.PageReading.Drawing": "Drawing figure {0} again as a diagram…",
+  "Text.PageReading.Nothing": "No text was read from the page.",
+  "Text.PageReading.Failed": "The page could not be read: {0}"
+}

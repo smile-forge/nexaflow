@@ -10,6 +10,11 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
     public static string StaticPageKind => "Text";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the text file to open.", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;

@@ -1305,6 +1305,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     /// both are pinned into one conversation (so their identically-named tools don't collapse first-wins).</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(FilePath) ? null : FilePath;
 
+    /// <summary>The file this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     /// <summary>A compact, read-only preview for the conversation's context panel: the file name, a meta line,
     /// and a capped snippet of the resident text. Built fresh each time — it never re-hosts the live editor.</summary>
     public System.Windows.Controls.UserControl CreateContextPreview()

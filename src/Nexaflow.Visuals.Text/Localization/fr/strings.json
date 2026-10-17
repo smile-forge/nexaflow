@@ -1,0 +1,14 @@
+{
+  "Text.PageReading.Download": "Télécharger",
+  "Text.PageReading.Stop": "Arrêter",
+  "Text.PageReading.StopTip": "Arrêter la lecture des pages",
+  "Text.PageReading.NeedsTool": "La lecture des pages a besoin de la lecture de pages, un téléchargement de {0}.",
+  "Text.PageReading.Downloading": "Téléchargement de la lecture de pages… {0} %",
+  "Text.PageReading.DownloadStopped": "La lecture de pages ne s'est pas téléchargée : {0}",
+  "Text.PageReading.Unavailable": "Cette machine ne peut pas exécuter la lecture de pages.",
+  "Text.PageReading.Preparing": "Préparation des pages…",
+  "Text.PageReading.Drawing": "Nouveau tracé de la figure {0} en diagramme…",
+  "Text.PageReading.Reading": "Lecture de la page {0} sur {1}…",
+  "Text.PageReading.Nothing": "Aucun texte n'a été lu sur la page.",
+  "Text.PageReading.Failed": "La page n'a pas pu être lue : {0}"
+}

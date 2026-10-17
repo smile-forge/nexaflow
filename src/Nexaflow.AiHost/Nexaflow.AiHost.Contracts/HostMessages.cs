@@ -42,6 +42,18 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(MadeWay), "made-way")]
 [JsonDerivedType(typeof(Film), "film")]
 [JsonDerivedType(typeof(Filmed), "filmed")]
+[JsonDerivedType(typeof(RestorePicture), "restore-picture")]
+[JsonDerivedType(typeof(PictureRestored), "picture-restored")]
+[JsonDerivedType(typeof(SelectInPicture), "select-in-picture")]
+[JsonDerivedType(typeof(PictureEncoded), "picture-encoded")]
+[JsonDerivedType(typeof(SelectByPoints), "select-by-points")]
+[JsonDerivedType(typeof(PointsSelected), "points-selected")]
+[JsonDerivedType(typeof(SelectByPhrase), "select-by-phrase")]
+[JsonDerivedType(typeof(PhraseFound), "phrase-found")]
+[JsonDerivedType(typeof(FindTextInPicture), "find-text-in-picture")]
+[JsonDerivedType(typeof(TextFoundInPicture), "text-found-in-picture")]
+[JsonDerivedType(typeof(ErasePicture), "erase-picture")]
+[JsonDerivedType(typeof(PictureErased), "picture-erased")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>

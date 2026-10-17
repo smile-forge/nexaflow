@@ -88,6 +88,8 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         SelectSection(sections!, "Local", "LocalModels_Choice");
         Check("Each job this machine runs a model for has its list — speech to text among them, on Nexaflow's own Whisper",
               () => WaitForFs(() => CountOf("LocalModels_Choice") >= 2, 3));
+        Check("The tools are listed beneath the jobs — the picture tools offered for download where they are not here",
+              () => WaitForFs(() => Exists("LocalModels_Tool") && (WaitForId("LocalModels_ToolDownload", 1) is not { } download || download.IsEnabled), 3));
 
         SelectSection(sections!, "Downloaded models", "DownloadedModels_List");
         Check("What is on disk is listed", () => Exists("DownloadedModels_List"));

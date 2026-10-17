@@ -1,4 +1,6 @@
 {
   "Video.Config.Video": "Vidéo",
-  "Video.Config.Video.EnableHardwareDecoding": "Utiliser le décodage matériel (plus rapide ; à désactiver si la lecture est instable)"
+  "Video.Config.Video.EnableHardwareDecoding": "Utiliser le décodage matériel (plus rapide ; à désactiver si la lecture est instable)",
+    "Video.CutOutFrame": "Détourer un élément de cette image — l'ouvre dans le détourage de l'éditeur d'images",
+    "Video.CutOut.Failed": "Impossible d'extraire cette image de la vidéo."
 }

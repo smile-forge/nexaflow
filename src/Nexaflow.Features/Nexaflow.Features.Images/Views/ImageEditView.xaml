@@ -57,6 +57,16 @@
                             <TextBlock Text="{loc:Str Images.Edit.Tool.Markup}" FontSize="11"/>
                         </RadioButton>
                         <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.CutOutTip}" AutomationProperties.AutomationId="Image_EditToolCutOut"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=CutOut}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.CutOut}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.EraseTip}" AutomationProperties.AutomationId="Image_EditToolErase"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Erase}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Erase}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
                                      ToolTip="{loc:Str Images.Edit.Tool.ResizeTip}" AutomationProperties.AutomationId="Image_EditToolResize"
                                      IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Resize}">
                             <TextBlock Text="{loc:Str Images.Edit.Tool.Resize}" FontSize="11"/>
@@ -164,6 +174,20 @@
                                         AutomationProperties.AutomationId="Image_EditResetAdjust">
                                     <TextBlock Text="{loc:Str Images.Edit.Adjust.Reset}" FontSize="11"/>
                                 </Button>
+                            </StackPanel>
+                            <!-- AI enhance: the photo restored by the picture tools before the sliders apply. -->
+                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,6,0,6">
+                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
+                                          Content="{loc:Str Images.Edit.Restore.Enhance}" ToolTip="{loc:Str Images.Edit.Restore.EnhanceTip}"
+                                          AutomationProperties.AutomationId="Image_EditAiEnhance"/>
+                                <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
+                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Restore.Strength}"/>
+                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
+                                                            Value="{Binding Editor.EnhanceStrength, Mode=TwoWay}"
+                                                            AutomationProperties.AutomationId="Image_EditAiStrength"/>
+                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}" Margin="0,8,0,0"
+                                              Content="{loc:Str Images.Edit.Restore.Faces}" AutomationProperties.AutomationId="Image_EditAiFaces"/>
+                                </StackPanel>
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Adjust.Exposure}"/>
@@ -302,11 +326,173 @@
                                           Content="{loc:Str Images.Edit.Resize.Lock}" AutomationProperties.AutomationId="Image_EditResizeLock"/>
                             </StackPanel>
 
+                            <!-- AI upscale: the photo restored larger by the picture tools, before the size above applies. -->
+                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,14,0,0">
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Restore.Upscale}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleOff, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="Image_EditUpscaleOff">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.UpscaleOff}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleTwice, Mode=TwoWay}"
+                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.Twice}" FontSize="11"/>
+                                    </RadioButton>
+                                    <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleFourTimes, Mode=TwoWay}"
+                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes">
+                                        <TextBlock Text="{loc:Str Images.Edit.Restore.FourTimes}" FontSize="11"/>
+                                    </RadioButton>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Edit.Restore.UpscaleNote}"/>
+                            </StackPanel>
+
                             <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" FontSize="12" Text="{Binding Editor.OutputSizeText}"/>
                             <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,12,0,0"
                                     Command="{Binding Editor.ResetResizeCommand}" AutomationProperties.AutomationId="Image_EditResetResize">
                                 <TextBlock Text="{loc:Str Images.Edit.Resize.Reset}" FontSize="11"/>
                             </Button>
+                        </StackPanel>
+
+                        <!-- ── Cut out ── -->
+                        <StackPanel Visibility="{Binding Editor.IsCutOutTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Phrase}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         VerticalContentAlignment="Center" Padding="4,3"
+                                         Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.AutomationId="Image_CutOutPhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                                <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
+                                        AutomationProperties.AutomationId="Image_CutOutFind">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
+                                </Button>
+                            </Grid>
+                            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,10,0,0" Text="{Binding Editor.Cutter.Notice}"/>
+                            <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                    Command="{Binding Editor.Cutter.ActCommand}"
+                                    Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.AutomationId="Image_CutOutAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
+                                <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
+                            </Button>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.CopyCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.SaveCutOutCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.SaveTip}" AutomationProperties.AutomationId="Image_CutOutSave">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.Cutter.ClearCommand}"
+                                        AutomationProperties.AutomationId="Image_CutOutClear">
+                                    <TextBlock Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.RemoveBackgroundCommand}"
+                                        ToolTip="{loc:Str Images.CutOut.RemoveBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutRemoveBackground">
+                                    <TextBlock Text="{loc:Str Images.CutOut.RemoveBackground}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.KeepBackgroundCommand}"
+                                        Visibility="{Binding Editor.RemovesBackground, Converter={StaticResource BoolToVis}}"
+                                        ToolTip="{loc:Str Images.CutOut.KeepBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutKeepBackground">
+                                    <TextBlock Text="{loc:Str Images.CutOut.KeepBackground}" FontSize="11"/>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <!-- ── Erase ── -->
+                        <StackPanel Visibility="{Binding Editor.IsEraseTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
+                            <UniformGrid Rows="1">
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick"
+                                             ToolTip="{loc:Str Images.Erase.PickTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Pick}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush"
+                                             ToolTip="{loc:Str Images.Erase.BrushTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Brush}" FontSize="11"/>
+                                </RadioButton>
+                            </UniformGrid>
+
+                            <!-- Picking, as the cut-out tool picks: what is picked here is what it has picked. -->
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsPicking, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                             VerticalContentAlignment="Center" Padding="4,3"
+                                             Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.AutomationId="Image_ErasePhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
+                                            AutomationProperties.AutomationId="Image_EraseFind">
+                                        <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
+                                    </Button>
+                                </Grid>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding Editor.Cutter.Notice}"/>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                        Command="{Binding Editor.Cutter.ActCommand}"
+                                        Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
+                                        AutomationProperties.AutomationId="Image_ErasePickAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
+                                    <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Brushing: the brush's width in the photo's pixels. -->
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsBrushing, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Erase.BrushSize}"/>
+                                <Slider Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" Margin="0,4,0,0"
+                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}"
+                                        AutomationProperties.AutomationId="Image_EraseBrushSize" AutomationProperties.Name="{loc:Str Images.Erase.BrushSize}"/>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.BrushHint}"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Erase.Fill}"/>
+                            <UniformGrid Rows="1">
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillAi"
+                                             ToolTip="{loc:Str Images.Erase.AiTip}" IsEnabled="{Binding Editor.ErasesByAi}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Ai}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Ai}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillContentAware"
+                                             ToolTip="{loc:Str Images.Erase.ContentAwareTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=ContentAware}">
+                                    <TextBlock Text="{loc:Str Images.Erase.ContentAware}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillHeal"
+                                             ToolTip="{loc:Str Images.Erase.HealTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Heal}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Heal}" FontSize="11"/>
+                                </RadioButton>
+                            </UniformGrid>
+                            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.HealHint}"
+                                       Visibility="{Binding Editor.EraseMarks.NeedsHealSource, Converter={StaticResource BoolToVis}}"/>
+
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.EraseCommand}"
+                                        ToolTip="{loc:Str Images.Erase.ApplyTip}" AutomationProperties.AutomationId="Image_EraseApply">
+                                    <TextBlock Text="{loc:Str Images.Erase.Apply}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.ClearMarksCommand}"
+                                        ToolTip="{loc:Str Images.Erase.ClearTip}" AutomationProperties.AutomationId="Image_EraseClear">
+                                    <TextBlock Text="{loc:Str Images.Erase.Clear}" FontSize="11"/>
+                                </Button>
+                            </WrapPanel>
                         </StackPanel>
 
                         <!-- ── Export ── -->

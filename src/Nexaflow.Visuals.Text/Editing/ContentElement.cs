@@ -245,6 +245,14 @@ public class ContentElement : FrameworkElement
         init => _engine.IsReadOnly = value;
     }
 
+    /// <summary>
+    /// Whether content given no width at all is laid out with none to keep to — a diagram at its own size however wide it
+    /// comes to, and a paragraph on one line — rather than in the room a page of reading is set in. For a host that is the
+    /// whole of a canvas the reader pans and zooms, which fits what it is shown itself; anywhere else what is given no width is
+    /// still read as a page.
+    /// </summary>
+    public bool UnlimitedWidth { get; init; }
+
     /// <summary>Whether this element currently owns the caret.</summary>
     public bool HasCaret { get; private set; }
 
@@ -707,7 +715,9 @@ public class ContentElement : FrameworkElement
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var room = double.IsInfinity(availableSize.Width) || availableSize.Width <= 0 ? 680 : availableSize.Width;
+        var room = availableSize.Width is > 0 and < double.PositiveInfinity ? availableSize.Width
+                 : UnlimitedWidth && double.IsPositiveInfinity(availableSize.Width) ? double.PositiveInfinity
+                 : 680;
 
         _measuring = true;
         try { _engine.Fit(room); }

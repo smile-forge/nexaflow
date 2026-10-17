@@ -13,6 +13,9 @@ public sealed class SkiaImageEncoder(MetadataTransfer metadata) : IImageEncoder
 
     public bool CarriesMetadata(ImageContainer container) => metadata.CanWrite(container);
 
+    /// <summary>PNG and WebP keep an alpha channel; JPEG lays transparency on white.</summary>
+    public bool CarriesTransparency(ImageContainer container) => container is ImageContainer.Png or ImageContainer.Webp;
+
     public byte[] Encode(SKImage picture, ImageContainer container, EncodeOptions options, MetadataBlocks blocks)
     {
         byte[] encoded = container switch

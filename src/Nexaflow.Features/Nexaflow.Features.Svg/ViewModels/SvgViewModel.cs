@@ -141,6 +141,9 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The drawing this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public string? GetAiSystemPromptGuidance() =>
         "This is a static SVG (vector image) viewer. Use render_svg_image to see the artwork and get_svg_info " +
         "for its dimensions, viewBox and element count.";

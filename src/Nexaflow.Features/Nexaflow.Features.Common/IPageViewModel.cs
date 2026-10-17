@@ -54,6 +54,13 @@ public interface IPageViewModel
     string? GetSecurityContext() => null;
 
     /// <summary>
+    /// What of the disk this page puts in front of the assistant — the files it shows, and the folders it shows whole —
+    /// and so all that the assistant's tools may read or write by path while this page is its context. Kept to what the
+    /// user sees on it. Default: <see cref="ContextGrant.None"/>, a page that shows nothing from the disk.
+    /// </summary>
+    ContextGrant GetContextGrant() => ContextGrant.None;
+
+    /// <summary>
     /// How risky it is to let the AI act within this page's <see cref="GetSecurityContext"/> — surfaced
     /// as a warning badge when the page is pinned as AI context. Default:
     /// <see cref="ContextSecurityRisk.Low"/>. (Advisory only; the page enforces its own boundary.)

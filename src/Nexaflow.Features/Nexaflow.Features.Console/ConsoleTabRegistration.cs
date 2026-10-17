@@ -26,7 +26,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Working directory to start the terminal in.", Required: false),
+        new("path", "Working directory to start the terminal in.", Required: false, OnDisk: true),
         new("env",  "Name of a configured console environment to use.", Required: false),
     ];
 

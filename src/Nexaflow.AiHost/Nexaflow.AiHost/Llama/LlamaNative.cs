@@ -189,6 +189,9 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Llama, EntryPoint = "llama_model_get_vocab")]
     public static partial IntPtr ModelVocab(IntPtr model);
 
+    [LibraryImport(Llama, EntryPoint = "llama_model_n_ctx_train")]
+    public static partial int ModelTrainedContext(IntPtr model);
+
     [LibraryImport(Llama, EntryPoint = "llama_init_from_model")]
     public static partial IntPtr ContextInit(IntPtr model, ContextParams parameters);
 
@@ -243,6 +246,11 @@ internal static unsafe partial class LlamaNative
 
     [LibraryImport(Llama, EntryPoint = "llama_sampler_sample")]
     public static partial int SamplerSample(IntPtr sampler, IntPtr context, int index);
+
+    /// <summary>The scores the last read left for its <paramref name="index"/>-th output, -1 the last: one per token of
+    /// the vocabulary, written in place to steer the sample that follows.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_get_logits_ith")]
+    public static partial float* Logits(IntPtr context, int index);
 
     /// <summary>llama.cpp's <c>llama_sampler_chain_params</c>.</summary>
     [StructLayout(LayoutKind.Sequential)]

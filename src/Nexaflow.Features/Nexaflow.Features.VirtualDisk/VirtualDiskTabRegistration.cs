@@ -14,6 +14,11 @@ public sealed class VirtualDiskTabRegistration(IShellServices shell) : IPageRegi
     public static string StaticPageKind => "VirtualDisk";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the disk image to open (.iso, .vhd, .vhdx, .img, …).", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
