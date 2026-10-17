@@ -12,11 +12,58 @@
           }
         ]
       }
+    },
+    "layout-words-source-letters": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutText.cs",
+          "class": "LayoutText",
+          "method": "Lined"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/CharacterSetting.cs",
+          "class": "CharacterSetting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/SourceLettersTests.cs",
+            "class": "SourceLettersTests",
+            "method": "EveryLetterStandsWhereTheTypeEngineDrawsIt"
+          }
+        ]
+      }
+    },
+    "content-languages-lookup": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "For"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentLanguagesTests.cs",
+            "class": "ContentLanguagesTests",
+            "method": "ALanguageCanBeAddedWhileAnotherIsStillDecidingWhetherItReadsAWord"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 5,
   "touched_nodes": [
-    "latex-fonts-read-once"
+    "content-languages-lookup",
+    "latex-fonts-read-once",
+    "layout-words-source-letters"
   ]
 }
