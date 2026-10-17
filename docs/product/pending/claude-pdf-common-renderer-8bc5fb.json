@@ -39,6 +39,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfMiters.cs",
           "class": "PdfMiters"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfFaceKinds.cs",
+          "class": "PdfFaceKinds"
         }
       ],
       "concerns": {

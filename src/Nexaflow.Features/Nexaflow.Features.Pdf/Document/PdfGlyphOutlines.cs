@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Media;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.PdfFonts;
+using UglyToad.PdfPig.Tokenization.Scanner;
 
 namespace Nexaflow.Features.Pdf.Document;
 
@@ -15,7 +16,8 @@ namespace Nexaflow.Features.Pdf.Document;
 /// Glyph outlines for a document's fonts, in glyph space (one em to the unit, y up), read once per glyph.
 /// <para>
 /// An embedded font gives its own outlines. A font the document only names — the standard 14, or a font the writer
-/// chose not to embed — is stood in for by the closest installed font, each glyph stretched to the advance the
+/// chose not to embed — is stood in for by the installed family of its name, or failing that by installed faces of the
+/// kind it asks for (<see cref="PdfFaceKinds"/>: serif, sans or fixed pitch), each glyph stretched to the advance the
 /// document gives it so the line keeps the length it was set to.
 /// </para>
 /// </summary>
@@ -26,24 +28,25 @@ internal sealed partial class PdfGlyphOutlines
 
     private readonly ConditionalWeakTable<IFont, FontGlyphs> _fonts = new();
     private readonly ConcurrentDictionary<(string Family, bool Bold, bool Italic), GlyphTypeface?> _faces = new();
-    private readonly ConcurrentDictionary<(string Name, bool Bold, bool Italic), IReadOnlyList<GlyphTypeface>> _chains = new();
+    private readonly ConcurrentDictionary<(string Name, bool Bold, bool Italic, PdfFaceKind Kind), IReadOnlyList<GlyphTypeface>> _chains = new();
 
     /// <summary>
     /// The outline for <paramref name="code"/> in <paramref name="font"/>; empty for a glyph with no ink, and null
     /// when neither the font nor any stand-in has one.
     /// </summary>
     /// <param name="font">The font the glyph is set in.</param>
+    /// <param name="scanner">The document's objects, which the font's descriptor is read from when it needs a stand-in.</param>
     /// <param name="code">The character code the page used.</param>
     /// <param name="text">What the code means, for finding a stand-in's glyph.</param>
     /// <param name="advance">The advance the document gives the glyph, in ems.</param>
-    public PdfShape? Outline(IFont font, int code, string text, double advance)
+    public PdfShape? Outline(IFont font, IPdfTokenScanner scanner, int code, string text, double advance)
     {
         var glyphs = _fonts.GetValue(font, static _ => new FontGlyphs());
         lock (glyphs)
         {
             if (glyphs.Outlines.TryGetValue(code, out var known)) return known;
 
-            var outline = Embedded(font, code) ?? StandIn(font, code, text, advance);
+            var outline = Embedded(font, code) ?? StandIn(font, glyphs, scanner, code, text, advance);
             glyphs.Outlines[code] = outline;
             return outline;
         }
@@ -88,12 +91,12 @@ internal sealed partial class PdfGlyphOutlines
     /// The glyph drawn by installed fonts standing in for one the document does not carry: each letter from the first face
     /// in <see cref="StandInFaces"/> that has it, stretched to the advance the document gives it.
     /// </summary>
-    private PdfShape? StandIn(IFont font, int code, string text, double advance)
+    private PdfShape? StandIn(IFont font, FontGlyphs glyphs, IPdfTokenScanner scanner, int code, string text, double advance)
     {
         if (string.IsNullOrEmpty(text)) return null;
         if (string.IsNullOrWhiteSpace(text)) return PdfShape.Empty;
 
-        var faces = StandInFaces(font);
+        var faces = StandInFaces(font, glyphs.Kind ??= PdfFaceKinds.Of(font, scanner));
         if (faces.Count == 0) return null;
 
         var writer = new PdfShape.Writer();
@@ -141,20 +144,20 @@ internal sealed partial class PdfGlyphOutlines
 
     /// <summary>
     /// The faces that stand in for <paramref name="font"/>, nearest first: the installed family of its name, then families
-    /// covering the scripts a document most often names a font for without embedding it — Latin, symbols, and the CJK
-    /// faces in the serif or sans style its name suggests — so a letter missing from one is found in the next.
+    /// of the <paramref name="kind"/> it asks for covering the scripts a document most often names a font for without
+    /// embedding it — Latin, symbols, CJK — so a letter missing from one is found in the next.
     /// </summary>
-    private IReadOnlyList<GlyphTypeface> StandInFaces(IFont font)
+    private IReadOnlyList<GlyphTypeface> StandInFaces(IFont font, PdfFaceKind kind)
     {
         var details = font.Details;
         var bold = details?.IsBold ?? false;
         var italic = details?.IsItalic ?? false;
         var name = font.Name?.Data ?? details?.Name;
 
-        return _chains.GetOrAdd((name ?? string.Empty, bold, italic), key =>
+        return _chains.GetOrAdd((name ?? string.Empty, bold, italic, kind), key =>
         {
             var families = new List<string> { Family(key.Name) };
-            families.AddRange(SerifName().IsMatch(key.Name) ? SerifFallbacks : SansFallbacks);
+            families.AddRange(StandInFamilies(key.Kind));
 
             var faces = new List<GlyphTypeface>();
             foreach (var family in families)
@@ -164,6 +167,14 @@ internal sealed partial class PdfGlyphOutlines
         });
     }
 
+    /// <summary>The installed families that stand in, in turn, for a font of <paramref name="kind"/> whose own is not installed.</summary>
+    internal static IReadOnlyList<string> StandInFamilies(PdfFaceKind kind) => kind switch
+    {
+        PdfFaceKind.Serif => SerifFallbacks,
+        PdfFaceKind.Fixed => FixedFallbacks,
+        _ => SansFallbacks,
+    };
+
     /// <summary>Installed families that stand in, in turn, for a sans-serif font: Latin, then symbols, then CJK.</summary>
     private static readonly string[] SansFallbacks =
         [Fallback, "Segoe UI", "Segoe UI Symbol", "Yu Gothic", "MS Gothic", "Microsoft YaHei", "Malgun Gothic", "Nirmala UI"];
@@ -172,9 +183,9 @@ internal sealed partial class PdfGlyphOutlines
     private static readonly string[] SerifFallbacks =
         ["Times New Roman", "Segoe UI", "Segoe UI Symbol", "Yu Mincho", "MS Mincho", "SimSun", "Batang", "Nirmala UI"];
 
-    /// <summary>A font name that says serif — Latin or CJK: Times, Roman, Mincho, Song, Ming, Batang.</summary>
-    [GeneratedRegex("(?i)serif|times|roman|garamond|georgia|minion|mincho|song|ming|batang|myeongjo")]
-    private static partial Regex SerifName();
+    /// <summary>Installed families that stand in, in turn, for a fixed-pitch font.</summary>
+    private static readonly string[] FixedFallbacks =
+        ["Courier New", "Consolas", "Segoe UI Symbol", "MS Gothic", "SimSun", "Nirmala UI"];
 
     private static void Append(PdfShape.Writer writer, Geometry outline, Matrix through)
     {
@@ -287,5 +298,8 @@ internal sealed partial class PdfGlyphOutlines
     private sealed class FontGlyphs
     {
         public Dictionary<int, PdfShape?> Outlines { get; } = [];
+
+        /// <summary>The kind of face the font asks for, read once it first needs a stand-in.</summary>
+        public PdfFaceKind? Kind { get; set; }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -13,6 +14,7 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using UglyToad.PdfPig.Graphics.Core;
+using UglyToad.PdfPig.PdfFonts;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -127,6 +129,56 @@ public class PdfPageReadingTests
         Assert.IsTrue(runs[0].Glyphs.All(static g => g.Outline is { IsEmpty: false }),
             "a font the page only names is drawn in an installed face");
     }
+
+    /// <summary>
+    /// A font the page names but neither carries nor finds installed — a house face — is drawn in an installed face of the
+    /// kind its descriptor asks for: a serif as Times is, a fixed-pitch face as Courier is, anything else as Helvetica is.
+    /// The page gives its letters the widths those fonts' own metrics do, as a document set in them would.
+    /// </summary>
+    [TestMethod]
+    public void AFontFoundNowhere_IsDrawnInAFaceOfTheKindItsDescriptorAsksFor()
+    {
+        var kinds = new[]
+        {
+            (Flags: 34, Like: "Times-Roman", Widths: new[] { 722, 444, 778, 500, 500, 333, 500 }),
+            (Flags: 33, Like: "Courier", Widths: new[] { 600, 600, 600, 600, 600, 600, 600 }),
+            (Flags: 32, Like: "Helvetica", Widths: new[] { 722, 556, 833, 556, 556, 333, 556 }),
+        };
+        foreach (var (flags, like, widths) in kinds)
+            CollectionAssert.AreEqual(Shapes(Named(like, null, widths)), Shapes(Named("HouseFace", flags, widths)),
+                $"a house face of flags {flags} is drawn as {like} is");
+    }
+
+    [TestMethod]
+    public void AFontsKind_IsWhatItsDescriptorSays_OrItsName()
+    {
+        Assert.AreEqual(PdfFaceKind.Serif, PdfFaceKinds.Of(FontDescriptorFlags.Serif | FontDescriptorFlags.NonSymbolic, "Melior"));
+        Assert.AreEqual(PdfFaceKind.Fixed, PdfFaceKinds.Of(FontDescriptorFlags.FixedPitch | FontDescriptorFlags.Serif, "Melior"),
+            "a fixed-pitch serif is fixed pitch first");
+        Assert.AreEqual(PdfFaceKind.Sans, PdfFaceKinds.Of(FontDescriptorFlags.NonSymbolic, "Melior"));
+        Assert.AreEqual(PdfFaceKind.Serif, PdfFaceKinds.Of(null, "AGaramondPro-Regular"), "with no descriptor, its name says");
+        Assert.AreEqual(PdfFaceKind.Fixed, PdfFaceKinds.Of(FontDescriptorFlags.NonSymbolic, "SourceCodeMono"),
+            "a name saying fixed pitch is enough");
+    }
+
+    /// <summary>A page saying <c>Hamburg</c> in a Type 1 font of <paramref name="name"/> it does not carry, its letters as wide
+    /// as <paramref name="widths"/> say in turn, with a descriptor of <paramref name="flags"/> or none.</summary>
+    private static PdfPageNode Named(string name, int? flags, int[] widths)
+    {
+        const string word = "Hamburg";
+        var each = Enumerable.Range(32, 95).Select(code => word.IndexOf((char)code) is var at and >= 0 ? widths[at] : 500);
+        var descriptor = flags is null ? "" : " /FontDescriptor 11 0 R";
+        return Read($"BT /F 24 Tf 20 100 Td ({word}) Tj ET", resources: "/Font << /F 10 0 R >>",
+            extra: [(10, $"<< /Type /Font /Subtype /Type1 /BaseFont /{name} /FirstChar 32 /LastChar 126 /Widths [{string.Join(' ', each)}]{descriptor} >>"),
+                    (11, $"<< /Type /FontDescriptor /FontName /{name} /Flags {flags ?? 32} /FontBBox [0 -200 1000 900] /ItalicAngle 0 "
+                         + "/Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>")]);
+    }
+
+    /// <summary>Every glyph a page draws, as its outline's coordinates.</summary>
+    private static List<string> Shapes(PdfPageNode page) =>
+        [.. Runs(page.Content).SelectMany(static r => r.Glyphs).Select(static g => g.Outline is { } outline
+            ? string.Join(' ', outline.Coordinates.ToArray().Select(static c => c.ToString("0.###", CultureInfo.InvariantCulture)))
+            : "none")];
 
     [TestMethod]
     public void ATextRun_IsSelectableWhereItsGlyphsAre()

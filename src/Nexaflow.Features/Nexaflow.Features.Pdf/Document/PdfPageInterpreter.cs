@@ -712,7 +712,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
             return;
         }
 
-        var outline = _caches.Glyphs.Outline(font, code, unicode, characterBoundingBox.Width);
+        var outline = _caches.Glyphs.Outline(font, PdfScanner, code, unicode, characterBoundingBox.Width);
         if (outline is null && !string.IsNullOrWhiteSpace(unicode))
             Unsupported(PdfUnsupportedKind.MissingGlyph, Clean(font.Name?.Data));
 
