@@ -142,6 +142,38 @@ public class PageReadingTests
         Assert.IsTrue(text.Length < reference.Length * 1.02, $"read once: {text.Length} characters against the makers' {reference.Length}");
     }
 
+    /// <summary>Pages read three at once, as the app reads a document — a token of each in every step of the host — read
+    /// as each page does alone: the same kinds of block, the same text but for a character in a few hundred, and the boxes
+    /// to a few thousandths. The step's sums run in another order for three than for one, which can tip a box's edge or a
+    /// near tie the other way.</summary>
+    [TestMethod]
+    public async Task PagesReadTogether_ReadAsEachDoesAlone()
+    {
+        const int together = 3;
+        var pages = SamplePages().ToList();
+        var alone = new List<string>();
+        foreach (var page in pages) alone.Add((await ReadAsync(page)).Text);
+
+        var read = new string[pages.Count];
+        for (int at = 0; at < pages.Count; at += together)
+            await Task.WhenAll(Enumerable.Range(at, Math.Min(together, pages.Count - at)).Select(async i => read[i] = (await ReadAsync(pages[i])).Text));
+
+        for (int i = 0; i < pages.Count; i++)
+        {
+            string name = Path.GetFileNameWithoutExtension(pages[i]);
+            var ours = Blocks(read[i]);
+            var its = Blocks(alone[i]);
+            CollectionAssert.AreEquivalent(its.Select(b => b.Kind).Distinct().ToList(), ours.Select(b => b.Kind).Distinct().ToList(), $"{name}'s kinds of block");
+            string said = string.Join("\n", ours.Select(b => b.Content)), saidAlone = string.Join("\n", its.Select(b => b.Content));
+            double rate = ErrorRate(said, saidAlone);
+            Assert.IsTrue(rate < 0.01, $"{name} read together says what it says alone but for {rate:P2} of its characters, first at\n{Divergence(said, saidAlone)}");
+            if (ours.Count != its.Count) continue;
+            for (int b = 0; b < ours.Count; b++)
+                Assert.IsTrue(ours[b].Kind == its[b].Kind && ours[b].Box.Zip(its[b].Box).All(e => Math.Abs(e.First - e.Second) <= 15),
+                              $"{name}'s {ours[b].Kind} {b} stands at [{string.Join(", ", ours[b].Box)}] read together, at [{string.Join(", ", its[b].Box)}] alone");
+        }
+    }
+
     private sealed record FoundText(int PictureWidth, int PictureHeight, int Width, int Height, List<TextRegion> Regions);
 
     private static FoundText Found(string name)

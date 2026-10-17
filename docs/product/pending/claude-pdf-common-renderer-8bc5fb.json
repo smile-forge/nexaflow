@@ -455,11 +455,117 @@
           "method": "ConvertDocument"
         }
       ]
+    },
+    "ai-host": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/CircleWatch.cs",
+          "class": "CircleWatch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/TokenRounds.cs",
+          "class": "TokenRounds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaScores.cs",
+          "class": "LlamaScores"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ModelRegistryTests.cs",
+            "class": "ModelRegistryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/GpuSchedulerTests.cs",
+            "class": "GpuSchedulerTests",
+            "method": "AJobPastItsFirstMoments_RunsAlongside_TakingNoTurn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/CircleWatchTests.cs",
+            "class": "CircleWatchTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/OwnedModelTests.cs",
+            "class": "OwnedModelTests",
+            "method": "AReplySampledAsGoogleRecommends_DiffersBySeed_AndOneSeedOnAFreshHostDrawsTheSame"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/LlamaScoresTests.cs",
+            "class": "LlamaScoresTests"
+          }
+        ]
+      }
+    },
+    "page-reading": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RepeatBanTests.cs",
+            "class": "RepeatBanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPageReadingTests.cs",
+            "class": "OwnedPageReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageMarkdownTests.cs",
+            "class": "PageMarkdownTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageConversionTests.cs",
+            "class": "PageConversionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PageReadingTests.cs",
+            "class": "PageReadingTests",
+            "method": "PagesReadTogether_ReadAsEachDoesAlone"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 26,
+  "changed_sets": 29,
   "touched_nodes": [
+    "ai-host",
+    "page-reading",
     "paged-layout",
     "pdf-ai-act-view-page",
     "pdf-blend",

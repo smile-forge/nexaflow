@@ -17,6 +17,13 @@ public sealed class OwnedPageReading : OwnedToolFront
     /// <summary>What the reader is asked: its makers' instruction for a page read into blocks.</summary>
     public const string Instruction = "document parsing.";
 
+    /// <summary>
+    /// Pages read together, a token of each in every step of the host (its token rounds). The reader is small, so three
+    /// pages in step write about one and a half times as fast as one alone, and their pictures and written windows fill
+    /// under two thirds of its cache.
+    /// </summary>
+    public const int PagesAtOnce = 3;
+
     private static readonly ReplyDecoding Makers = new(WrittenWindow: 128, RepeatBan: new RepeatBan(35, 128), WritesControlTokens: true);
 
     public OwnedPageReading(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, ComputeHardwareReport hardware)

@@ -91,6 +91,53 @@ public class PageConversionTests
         Assert.IsFalse(File.Exists(made.Single()), "the page's picture goes once it is read");
     }
 
+    /// <summary>Pages read as many at once as page reading reads fastest — the later ones finishing first — are written in
+    /// page order, their figures numbered in it; the document reported so far never shows a page before those ahead of it,
+    /// and every page's picture goes once its figures are cut.</summary>
+    [TestMethod]
+    public async Task PagesReadAtOnce_AreWrittenInPageOrder_TheirFiguresNumberedSo()
+    {
+        const int pages = 7;
+        int begun = 0, reading = 0, most = 0;
+        var reader = Substitute.For<IPageReading>();
+        reader.PagesAtOnce.Returns(3);
+        reader.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            int page = Interlocked.Increment(ref begun);
+            int now = Interlocked.Increment(ref reading);
+            lock (reader) most = Math.Max(most, now);
+            IReadOnlyList<PageBlock> blocks = [new PageBlock(PageBlockKind.Text, 0.1, 0.1, 0.9, 0.2, $"Page {page}."),
+                                               new PageBlock(PageBlockKind.Figure, 0.1, 0.3, 0.5, 0.6, "")];
+            call.Arg<IProgress<PageBlock>?>()?.Report(blocks[0]);
+            await Task.Delay((pages - page) * 15);
+            call.Arg<IProgress<PageBlock>?>()?.Report(blocks[1]);
+            Interlocked.Decrement(ref reading);
+            return blocks;
+        });
+        var made = new List<string>();
+        var scan = Scan(made) with { Pages = pages };
+        var reports = new List<string>();
+
+        var read = await new PageReader(reader, null).ReadAsync(scan, Path.Combine(_dir, "figures"), "figures",
+                                                                new Collected(so => { lock (reports) reports.Add(so.Markdown); }), CancellationToken.None);
+
+        Assert.AreEqual(3, most, "three pages read at once");
+        Assert.AreEqual(string.Join("\n\n", Enumerable.Range(1, pages).Select(p => $"Page {p}.\n\n![figure {p}](figures/figure-{p}.png)")) + "\n", read.Markdown,
+                        "the pages in order, each page's figure numbered as it stands");
+        CollectionAssert.AreEqual(Enumerable.Range(1, pages).Select(p => $"Page {p}.\n").ToList(), read.Pages.ToList());
+        foreach (var so in reports)
+            for (int p = 2; p <= pages; p++)
+                if (so.Contains($"Page {p}.")) StringAssert.Contains(so, $"Page {p - 1}.", "no page shows before the one ahead of it");
+        Assert.AreEqual(pages, made.Count);
+        Assert.IsFalse(made.Any(File.Exists), "every picture goes once its page's figures are cut");
+    }
+
+    /// <summary>Each report as it is made, on the thread that makes it.</summary>
+    private sealed class Collected(Action<PagesSoFar> take) : IProgress<PagesSoFar>
+    {
+        public void Report(PagesSoFar value) => take(value);
+    }
+
     [TestMethod]
     public async Task AConversion_OpensADraftInTheRightPane_HoldingOnlyTheFiguresItsTextShows_LeadingBackToItsSource()
     {

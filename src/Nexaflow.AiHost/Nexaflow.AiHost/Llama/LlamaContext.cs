@@ -18,7 +18,7 @@ internal sealed unsafe class LlamaContext : IDisposable
     private readonly object _gate = new();
     private readonly IntPtr _memory;
     private IntPtr _context;
-    private IntPtr _sampler;
+    private readonly int _vocabulary;
     private LlamaNative.Batch _batch;
 
     public LlamaContext(LlamaModel model, int contextTokens, int sequences)
@@ -37,7 +37,7 @@ internal sealed unsafe class LlamaContext : IDisposable
         if (_context == IntPtr.Zero)
             throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not make a context of {contextTokens} tokens; see the host's log.");
         _memory = LlamaNative.ContextMemory(_context);
-        _sampler = LlamaNative.SamplerGreedy();
+        _vocabulary = model.VocabSize;
         _batch = LlamaNative.BatchInit(Batch, 0, 1);
         Tokens = (int)LlamaNative.ContextSize(_context);
         Sequences = sequences;
@@ -71,6 +71,29 @@ internal sealed unsafe class LlamaContext : IDisposable
         }
     }
 
+    /// <summary>Reads one token into each of several sequences in one call, each at the position given, and chooses each
+    /// sequence's next token from its own scores by its own sampler — the likeliest where it has none — into
+    /// <paramref name="chosen"/>, in the same order.</summary>
+    public void Step(ReadOnlySpan<SequenceToken> reads, ReadOnlySpan<LlamaSampler?> samplers, Span<int> chosen)
+    {
+        if (reads.Length is 0 or > Batch) throw new ArgumentOutOfRangeException(nameof(reads), reads.Length, $"1 to {Batch} sequences per step.");
+        lock (_gate)
+        {
+            var batch = _batch;
+            batch.TokenCount = reads.Length;
+            for (int i = 0; i < reads.Length; i++)
+            {
+                batch.Token[i] = reads[i].Token;
+                batch.Position[i] = reads[i].Position;
+                batch.SequenceIdCount[i] = 1;
+                batch.SequenceId[i][0] = reads[i].Sequence;
+                batch.Logits[i] = 1;
+            }
+    Check(LlamaNative.Decode(Handle, batch));
+    for (int i = 0; i < reads.Length; i++) chosen[i] = Sample(samplers[i], i);
+        }
+    }
+
     /// <summary>Runs <paramref name="read"/> — a read llama.cpp's own helpers make, such as an image's — under the
     /// context's lock, then samples the next token when asked.</summary>
     public int? Read(Func<IntPtr, int> read, bool sample, LlamaSampler? sampler = null)
@@ -90,8 +113,11 @@ internal sealed unsafe class LlamaContext : IDisposable
             if (_context != IntPtr.Zero) LlamaNative.MemoryRemove(_memory, sequence, from, to);
     }
 
-    /// <summary>The next token, from the last read's logits: by the reader's sampler, or the likeliest.</summary>
-    private int Sample(LlamaSampler? sampler) => sampler?.Sample(Handle) ?? LlamaNative.SamplerSample(_sampler, Handle, -1);
+    /// <summary>The next token, from the scores the last read left for its <paramref name="index"/>-th output — -1 the last:
+    /// by the reader's sampler, or the likeliest.</summary>
+    private int Sample(LlamaSampler? sampler, int index = -1)
+        => sampler?.Sample(Handle, index, _vocabulary)
+           ?? LlamaScores.Likeliest(new ReadOnlySpan<float>(LlamaNative.Logits(Handle, index), _vocabulary));
 
     private IntPtr Handle => _context != IntPtr.Zero ? _context : throw new ObjectDisposedException(nameof(LlamaContext));
 
@@ -116,10 +142,13 @@ internal sealed unsafe class LlamaContext : IDisposable
         {
             if (_context == IntPtr.Zero) return;
             LlamaNative.BatchFree(_batch);
-            LlamaNative.SamplerFree(_sampler);
+    
             LlamaNative.ContextFree(_context);
-            _sampler = IntPtr.Zero;
+    
             _context = IntPtr.Zero;
         }
     }
 }
+
+/// <summary>A token to read into a sequence at a position: one sequence's share of a <see cref="LlamaContext.Step"/>.</summary>
+internal readonly record struct SequenceToken(int Sequence, int Position, int Token);
