@@ -43,7 +43,7 @@ public class NotebookAiTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexanb_ai_" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexanb_ai_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _path = Path.Combine(_dir, "analysis.ipynb");
         File.WriteAllText(_path, Ipynb);

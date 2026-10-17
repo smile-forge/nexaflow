@@ -200,7 +200,7 @@ public class MarkdownImageTests
     /// <summary>A real pic.png in a throwaway folder, so the file route is live and a host answer has something to beat.</summary>
     private static void WithPngOnDisk(Action<string> body)
     {
-        var folder = Path.Combine(Path.GetTempPath(), "nf-md-pic-" + Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(TestTemp.Root, "nf-md-pic-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
 
         try

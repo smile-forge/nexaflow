@@ -39,7 +39,7 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     /// An AI folder of its own, empty: the picture tools are never here, so AI enhance always offers them for download —
     /// the same banner on every machine, whatever this one has downloaded. A journey downloads nothing.
     /// </summary>
-    private readonly string _aiDir = Directory.CreateTempSubdirectory("nexaflow-edit-ai-").FullName;
+    private readonly string _aiDir = TestTemp.CreateSubdirectory("nexaflow-edit-ai-").FullName;
 
     protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
         new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
@@ -54,7 +54,7 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     [CoversNode("images-ui")]
     public void Image_Edit_ControlsRespondInOnePass()
     {
-        var folder = Path.Combine(Path.GetTempPath(), "nexaflow_edit_journey_" + Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(TestTemp.Root, "nexaflow_edit_journey_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         try
         {

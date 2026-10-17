@@ -148,7 +148,7 @@ public class ImagesSurfaceTests
 
     private static string[] WriteImages(out string dir, int count)
     {
-        dir = Path.Combine(Path.GetTempPath(), "neximg_" + Guid.NewGuid().ToString("N"));
+        dir = Path.Combine(TestTemp.Root, "neximg_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var paths = new string[count];
         for (var i = 0; i < count; i++)
@@ -212,7 +212,7 @@ public class ImagesSurfaceTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        var missing = Path.Combine(Path.GetTempPath(), $"nexaflow_missing_{Guid.NewGuid():N}.png");
+        var missing = Path.Combine(TestTemp.Root, $"nexaflow_missing_{Guid.NewGuid():N}.png");
         var vm = Make(shell, missing);
 
         await vm.DeleteCommand.ExecuteAsync(0);

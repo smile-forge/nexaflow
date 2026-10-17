@@ -40,7 +40,7 @@ public class VirtualBackingActionTests
     public void Setup()
     {
         VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-backing-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-backing-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
 
         _zip = Path.Combine(_dir, "bundle.zip");

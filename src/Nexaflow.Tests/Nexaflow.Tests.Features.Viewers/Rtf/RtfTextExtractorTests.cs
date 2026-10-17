@@ -25,7 +25,7 @@ public class RtfTextExtractorTests
 
     private string Written(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf");
         File.WriteAllText(path, content, Encoding.Latin1);
         _paths.Add(path);
         return path;
@@ -62,7 +62,7 @@ public class RtfTextExtractorTests
     [TestMethod]
     public async Task AFileThatCannotBeRead_IsCouldNotTell()
     {
-        var missing = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf");
+        var missing = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf");
 
         Assert.IsNull(await _extractor.ExtractAsync(missing, long.MaxValue, CancellationToken.None));
     }

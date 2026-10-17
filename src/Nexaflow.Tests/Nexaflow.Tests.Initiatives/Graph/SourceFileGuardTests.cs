@@ -35,7 +35,7 @@ public class SourceFileGuardTests
 
     [TestInitialize]
     public void Setup() =>
-        _file = Path.Combine(Path.GetTempPath(), "nfi-guard-" + Guid.NewGuid().ToString("N")[..8] + ".cs");
+        _file = Path.Combine(TestTemp.Root, "nfi-guard-" + Guid.NewGuid().ToString("N")[..8] + ".cs");
 
     [TestCleanup]
     public void Cleanup()

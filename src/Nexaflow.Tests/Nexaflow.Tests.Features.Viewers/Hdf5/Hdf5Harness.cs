@@ -57,7 +57,7 @@ internal static class Hdf5Harness
     /// <summary>A file of one group with more members than a page of the tree holds.</summary>
     public static string WriteLargeGroup(int members)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexa-hdf5-large-{Guid.NewGuid():N}.h5");
+        var path = Path.Combine(TestTemp.Root, $"nexa-hdf5-large-{Guid.NewGuid():N}.h5");
         var group = new PureHDF.H5Group();
         for (int i = 0; i < members; i++) group[$"d{i:D4}"] = new PureHDF.H5Dataset(new[] { i });
         var file = new PureHDF.H5File { ["many"] = group };

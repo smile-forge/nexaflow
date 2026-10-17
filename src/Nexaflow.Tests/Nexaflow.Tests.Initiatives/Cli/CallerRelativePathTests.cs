@@ -48,7 +48,7 @@ public class CallerRelativePathTests
     [TestInitialize]
     public void Setup()
     {
-        _tmp = Directory.CreateTempSubdirectory("nexa-callerpath-").FullName;
+        _tmp = TestTemp.CreateSubdirectory("nexa-callerpath-").FullName;
         Directory.CreateDirectory(Caller);
         Directory.CreateDirectory(Product);
 
@@ -108,7 +108,7 @@ public class CallerRelativePathTests
     {
         var script = Script(Caller);
 
-        Assert.AreEqual(Clean, Serve(Path.GetTempPath(), "batch", script, Product));
+        Assert.AreEqual(Clean, Serve(TestTemp.Root, "batch", script, Product));
         Assert.AreEqual(Status.Done, StatusOnDisk);
     }
 
@@ -215,7 +215,7 @@ public class CallerRelativePathTests
         if (!OperatingSystem.IsWindows()) Assert.Inconclusive("drive paths are a Windows question");
         var script = Script(Caller);
 
-        Assert.AreEqual(Clean, Serve(Path.GetTempPath(), "batch", Msys(script), Product));
+        Assert.AreEqual(Clean, Serve(TestTemp.Root, "batch", Msys(script), Product));
         Assert.AreEqual(Status.Done, StatusOnDisk);
     }
 

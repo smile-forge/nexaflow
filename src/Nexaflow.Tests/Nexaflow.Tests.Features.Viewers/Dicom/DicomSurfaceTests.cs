@@ -33,7 +33,7 @@ public class DicomSurfaceTests
     [TestInitialize]
     public void Setup()
     {
-        _tmp = Path.Combine(Path.GetTempPath(), "nexa-dicom-surface-" + Guid.NewGuid().ToString("N"));
+        _tmp = Path.Combine(TestTemp.Root, "nexa-dicom-surface-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tmp);
     }
 

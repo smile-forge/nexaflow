@@ -9,7 +9,7 @@ public class HexBufferTests
 {
     private static string WriteTempFile(byte[] bytes)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"hexbuf_{Guid.NewGuid():N}.bin");
+        var path = Path.Combine(TestTemp.Root, $"hexbuf_{Guid.NewGuid():N}.bin");
         File.WriteAllBytes(path, bytes);
         return path;
     }
@@ -37,7 +37,7 @@ public class HexBufferTests
     [TestMethod]
     public void NonexistentPath_GivesEmptyBuffer()
     {
-        using var buf = new HexBuffer(Path.Combine(Path.GetTempPath(), $"nope_{Guid.NewGuid():N}.bin"));
+        using var buf = new HexBuffer(Path.Combine(TestTemp.Root, $"nope_{Guid.NewGuid():N}.bin"));
         Assert.AreEqual(0, buf.FileLength);
         Assert.AreEqual(0, buf.VirtualLength);
     }
@@ -344,7 +344,7 @@ public class HexBufferTests
     public void SaveAs_WritesToDifferentFile_AndKeepsOriginal()
     {
         var src  = WriteTempFile(new byte[] { 1, 2, 3 });
-        var dest = Path.Combine(Path.GetTempPath(), $"hexbuf_dest_{Guid.NewGuid():N}.bin");
+        var dest = Path.Combine(TestTemp.Root, $"hexbuf_dest_{Guid.NewGuid():N}.bin");
         try
         {
             using (var buf = new HexBuffer(src))

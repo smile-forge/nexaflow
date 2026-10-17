@@ -37,7 +37,7 @@ public class ScratchpadSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _root   = Path.Combine(Path.GetTempPath(), "nexa-padsearch-" + Guid.NewGuid().ToString("N"));
+        _root   = Path.Combine(TestTemp.Root, "nexa-padsearch-" + Guid.NewGuid().ToString("N"));
         _store  = new PostItStore(_root);
         _config = new ScratchpadConfig();
     }

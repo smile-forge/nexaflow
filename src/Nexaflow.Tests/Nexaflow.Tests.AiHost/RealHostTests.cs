@@ -13,7 +13,7 @@ public class RealHostTests
     private string _aiDir = null!;
 
     [TestInitialize]
-    public void Init() => _aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+    public void Init() => _aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
 
     [TestCleanup]
     public void Done()

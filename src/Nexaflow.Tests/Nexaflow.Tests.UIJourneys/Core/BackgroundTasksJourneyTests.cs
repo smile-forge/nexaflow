@@ -51,7 +51,7 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
             return;
         }
         _aiDir  = aiDir;
-        _folder = Directory.CreateTempSubdirectory("nexaflow-background-").FullName;
+        _folder = TestTemp.CreateSubdirectory("nexaflow-background-").FullName;
 
         var version = FileVersionInfo.GetVersionInfo(FindAppExe()).FileVersion ?? "1.0.0.0";
         var workspaces = Path.Combine(configDir, "workcontexts");

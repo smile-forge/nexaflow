@@ -26,7 +26,7 @@ public class MarkdownSaveAsTests
     {
         if (!VirtualFileSystem.Instance.CanCreate("a" + MarkdownPackage.Extension))
             VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
-        _dir = Directory.CreateTempSubdirectory("nexaflow-md-save-as-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-md-save-as-").FullName;
     }
 
     [TestCleanup]

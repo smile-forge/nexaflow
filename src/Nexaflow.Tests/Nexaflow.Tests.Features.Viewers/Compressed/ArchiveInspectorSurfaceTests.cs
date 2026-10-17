@@ -219,7 +219,7 @@ public class ArchiveInspectorSurfaceTests
             Vfs.RegisterHandler(new ZipArchiveHandler());
             // The inspector discovers its encryptor through the shell, so the overlay tests need one offered.
             Shell.DiscoverImplementations<IArchiveEncryptor>().Returns([typeof(SecureZipEncryptor)]);
-            Dir = Path.Combine(Path.GetTempPath(), "nexa-cinsp-" + Guid.NewGuid().ToString("N"));
+            Dir = Path.Combine(TestTemp.Root, "nexa-cinsp-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Dir);
             ZipPath = Path.Combine(Dir, "a.zip");
             using var zip = ZipFile.Open(ZipPath, ZipArchiveMode.Create);

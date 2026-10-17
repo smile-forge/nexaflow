@@ -23,7 +23,7 @@ public class SecretConfigTests
 
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-secret-tests", Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-secret-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

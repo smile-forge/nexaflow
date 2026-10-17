@@ -29,7 +29,7 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
 
     protected override async Task<ISearchable> CreateAsync()
     {
-        _path = Path.Combine(Path.GetTempPath(), "nexasearch_" + Guid.NewGuid().ToString("N") + ".txt");
+        _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(_path, Content);
 
         var vm = new TextViewModel(_path, Substitute.For<IShellServices>()) { IsMonitoring = false };
@@ -111,7 +111,7 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
 
     private async Task<TextViewModel> OpenAsync(string content)
     {
-        var p = Path.Combine(Path.GetTempPath(), "nexaneedle_" + Guid.NewGuid().ToString("N") + ".txt");
+        var p = Path.Combine(TestTemp.Root, "nexaneedle_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(p, content);
         _extra.Add(p);
         var vm = new TextViewModel(p, Substitute.For<IShellServices>()) { IsMonitoring = false };

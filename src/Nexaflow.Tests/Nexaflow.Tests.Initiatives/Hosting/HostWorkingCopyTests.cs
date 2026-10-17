@@ -27,7 +27,7 @@ public class HostWorkingCopyTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nfi-copy-" + Guid.NewGuid().ToString("N")[..8]);
+        _root = Path.Combine(TestTemp.Root, "nfi-copy-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_root);
         new ProductStore(_root).SaveTree(new Dictionary<string, ProductNode>
         {

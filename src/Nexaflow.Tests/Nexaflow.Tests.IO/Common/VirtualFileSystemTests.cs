@@ -59,7 +59,7 @@ public class VirtualFileSystemTests
     [TestMethod]
     public void WriteAllText_WithBomEncoding_EmitsPreamble()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-vfs-bom-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-vfs-bom-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {
@@ -155,7 +155,7 @@ public class VirtualFileSystemTests
         {
             Vfs = new VirtualFileSystem();
             Vfs.RegisterHandler(new FakeArchiveHandler());
-            _dir = Path.Combine(Path.GetTempPath(), "nexa-vfs-test-" + Guid.NewGuid().ToString("N"));
+            _dir = Path.Combine(TestTemp.Root, "nexa-vfs-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_dir);
             ContainerPath = Path.Combine(_dir, "sample.fake");
             File.WriteAllText(ContainerPath, "placeholder container bytes");

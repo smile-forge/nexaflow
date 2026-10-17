@@ -32,7 +32,7 @@ public class ImagesOpenActionTests
 
     private static string MakeFolder(params string[] names)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "neximgopen_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "neximgopen_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         foreach (var n in names) File.WriteAllText(Path.Combine(dir, n), "x");
         return dir;

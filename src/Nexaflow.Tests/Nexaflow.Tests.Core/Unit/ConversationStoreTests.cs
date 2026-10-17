@@ -14,7 +14,7 @@ public class ConversationStoreTests
     private string _dir = string.Empty;
 
     [TestInitialize]
-    public void Setup() => _dir = Path.Combine(Path.GetTempPath(), "nexaflow-convo-" + Guid.NewGuid().ToString("N"));
+    public void Setup() => _dir = Path.Combine(TestTemp.Root, "nexaflow-convo-" + Guid.NewGuid().ToString("N"));
 
     [TestCleanup]
     public void Teardown()

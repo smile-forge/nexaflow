@@ -94,7 +94,7 @@ public sealed class Hdf5ViewModelTests
     [CoversNode("hdf5-object-tree")]
     public async Task AFileThatIsNotHdf5_SaysWhy_InsteadOfATree()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexa-not-hdf5-{System.Guid.NewGuid():N}.h5");
+        var path = Path.Combine(TestTemp.Root, $"nexa-not-hdf5-{System.Guid.NewGuid():N}.h5");
         File.WriteAllText(path, "not an hdf5 file");
         try
         {

@@ -134,7 +134,7 @@ public class FeatureDiFailureTests
         var ws = new WorkspaceRuntime();
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
         Set(nameof(WorkspaceRuntime.AiService),
-            new AIService(ws, Path.Combine(Path.GetTempPath(), "nexa-di-conv")));
+            new AIService(ws, Path.Combine(TestTemp.Root, "nexa-di-conv")));
         return ws;
 
         void Set(string property, object value) =>

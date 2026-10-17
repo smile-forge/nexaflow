@@ -20,7 +20,7 @@ public class SnaplinkValidatorTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"snaplink_{Guid.NewGuid():N}");
+        _root = Path.Combine(TestTemp.Root, $"snaplink_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
     }
 
@@ -64,7 +64,7 @@ public class SnaplinkValidatorTests
         // The shape that matters: the tree lives in the product root (a main checkout) but the file only
         // exists in the caller's working tree (a linked worktree on a feature branch). Without the extra
         // root every snaplink to a not-yet-merged file reads as broken.
-        var worktree = Path.Combine(Path.GetTempPath(), $"snaplink_wt_{Guid.NewGuid():N}");
+        var worktree = Path.Combine(TestTemp.Root, $"snaplink_wt_{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(worktree, "src"));
         File.WriteAllText(Path.Combine(worktree, "src", "New.cs"), Csharp);
         try
@@ -83,7 +83,7 @@ public class SnaplinkValidatorTests
     public void AFileMissingFromEveryRoot_IsStillBroken()
     {
         var tree = TreeWith(new Snaplink { Type = "code", Doc = "src/Nowhere.cs" });
-        var report = SnaplinkValidator.Validate(tree, _root, [Path.GetTempPath()]);
+        var report = SnaplinkValidator.Validate(tree, _root, [TestTemp.Root]);
 
         Assert.AreEqual(1, report.IssueCount, "extra roots must not turn a genuinely dead link clean");
         StringAssert.Contains(report.Issues[0].Detail, "src/Nowhere.cs");
@@ -394,7 +394,7 @@ public class SnaplinkValidatorTests
     [TestMethod]
     public void CheckLink_ResolvesAgainstTheFileRootsItIsGiven()
     {
-        var worktree = Path.Combine(Path.GetTempPath(), $"snaplink_wt_{Guid.NewGuid():N}");
+        var worktree = Path.Combine(TestTemp.Root, $"snaplink_wt_{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(worktree, "src"));
         File.WriteAllText(Path.Combine(worktree, "src", "Widget.cs"), Csharp);
         try

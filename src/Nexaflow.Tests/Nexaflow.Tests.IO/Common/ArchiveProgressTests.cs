@@ -39,7 +39,7 @@ public class ArchiveProgressTests
 
     private string NewTempDir(string prefix)
     {
-        var dir = Path.Combine(Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N")[..8]);
+        var dir = Path.Combine(TestTemp.Root, prefix + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(dir);
         _temps.Add(dir);
         return dir;

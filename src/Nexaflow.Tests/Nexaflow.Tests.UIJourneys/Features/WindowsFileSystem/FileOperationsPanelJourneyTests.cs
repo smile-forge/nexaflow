@@ -41,7 +41,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         // NEXAFLOW_FILEOPS_ROOT puts the fixtures on a chosen disk. A slower one is the point when you
         // want the copies to overlap rather than finish before the panel has decided to appear.
         var root = Environment.GetEnvironmentVariable("NEXAFLOW_FILEOPS_ROOT") is { Length: > 0 } r
-            ? r : Path.GetTempPath();
+            ? r : TestTemp.Root;
         _root        = Path.Combine(root, "nexaflow-fileops-journey-" + Guid.NewGuid().ToString("N"));
         _source      = Path.Combine(_root, "source");
         _destination = Path.Combine(_root, "destination");
@@ -95,7 +95,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
         // A picture of the window mid-copy, so "the automation tree says it is there" can be checked
         // against what is actually on screen.
-        var shot = Path.Combine(Path.GetTempPath(), "nexaflow-fileops-panel.png");
+        var shot = Path.Combine(TestTemp.Root, "nexaflow-fileops-panel.png");
         try
         {
             MainWindow.Capture().Save(shot);
@@ -178,7 +178,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
             // One shot per paste. The middle one is the interesting state — the first copy still running
             // while the next is queued behind it, which is the shape of the drop that went wrong.
-            try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), $"nexaflow-fileops-three-{name}.png")); }
+            try { MainWindow.Capture().Save(Path.Combine(TestTemp.Root, $"nexaflow-fileops-three-{name}.png")); }
             catch { }
             }
 
@@ -280,7 +280,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
               () => bar is not null && tree is not null
                  && bar.BoundingRectangle.Bottom <= tree.BoundingRectangle.Top);
 
-        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-second-tab.png")); }
+        try { MainWindow.Capture().Save(Path.Combine(TestTemp.Root, "nexaflow-fileops-second-tab.png")); }
         catch { }
 
         Check("and the copy still lands",
@@ -332,7 +332,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         Check("a zip can be stopped like a copy",
               () => WaitForId("FileOps_CancelRow", 5) is not null);
 
-        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-zip.png")); }
+        try { MainWindow.Capture().Save(Path.Combine(TestTemp.Root, "nexaflow-fileops-zip.png")); }
         catch { }
 
         // The destination name is claimed the moment the action returns, so existence proves nothing —
@@ -389,7 +389,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         Check("an extraction can be stopped like a copy",
               () => WaitForId("FileOps_CancelRow", 5) is not null);
 
-        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-unzip.png")); }
+        try { MainWindow.Capture().Save(Path.Combine(TestTemp.Root, "nexaflow-fileops-unzip.png")); }
         catch { }
 
         // Into a sibling folder named after the archive, so 'bundle.zip' and 'bundle' sit side by side.

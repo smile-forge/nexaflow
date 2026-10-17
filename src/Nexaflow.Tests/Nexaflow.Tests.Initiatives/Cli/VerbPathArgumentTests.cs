@@ -25,7 +25,7 @@ public class VerbPathArgumentTests
     private static readonly VerbSpec Required =
         new("describe", 1, [], [], "describe <node-id> [<root>]");
 
-    private static string ADirectory => Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+    private static string ADirectory => TestTemp.Root.TrimEnd(Path.DirectorySeparatorChar);
 
     [TestMethod]
     public void ADirectoryBecomesTheRoot_WhenTheIdIsOptional()

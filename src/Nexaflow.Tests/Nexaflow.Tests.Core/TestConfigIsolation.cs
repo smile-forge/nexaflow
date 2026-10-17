@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Nexaflow.Core;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core;
 
@@ -16,19 +17,7 @@ namespace Nexaflow.Tests.Core;
 [TestClass]
 public static class TestConfigIsolation
 {
-    private static string _dir = string.Empty;
-
     [AssemblyInitialize]
     public static void Init(TestContext _)
-    {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaflow-tests-core-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_dir);
-        ConfigManager.Instance.Initialize(_dir);
-    }
-
-    [AssemblyCleanup]
-    public static void Cleanup()
-    {
-        try { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); } catch { }
-    }
+        => ConfigManager.Instance.Initialize(TestTemp.CreateSubdirectory("config-").FullName);
 }

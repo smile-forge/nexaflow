@@ -226,7 +226,7 @@ public sealed class PureHdfSourceTests
     [TestMethod]
     public void AnOpenSource_NeverStopsTheFileBeingReplaced()
     {
-        var copy = Path.Combine(Path.GetTempPath(), $"nexaflow-hdf5-{Guid.NewGuid():N}.h5");
+        var copy = Path.Combine(TestTemp.Root, $"nexaflow-hdf5-{Guid.NewGuid():N}.h5");
         File.Copy(TestSampleData.Path("hdf5", "experiment.h5"), copy);
         using var src = Hdf5Source.Open(copy);
         File.Delete(copy);

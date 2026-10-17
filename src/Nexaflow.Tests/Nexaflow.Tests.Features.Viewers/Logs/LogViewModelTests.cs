@@ -22,7 +22,7 @@ public class LogViewModelTests
 {
     private static string WriteTemp(string content, Encoding encoding)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"logvm_{Guid.NewGuid():N}.log");
+        var path = Path.Combine(TestTemp.Root, $"logvm_{Guid.NewGuid():N}.log");
         File.WriteAllText(path, content, encoding);
         return path;
     }

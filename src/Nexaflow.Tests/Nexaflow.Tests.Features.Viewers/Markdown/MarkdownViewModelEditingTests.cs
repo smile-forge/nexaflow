@@ -30,7 +30,7 @@ public class MarkdownViewModelEditingTests
 
     private MarkdownViewModel Make(string content)
     {
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
         return new MarkdownViewModel(path, Substitute.For<IShellServices>());
@@ -67,7 +67,7 @@ public class MarkdownViewModelEditingTests
     [TestMethod]
     public void MissingFile_LoadsEmpty_NotDirty()
     {
-        var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".md");
+        var path = Path.Combine(TestTemp.Root, Path.GetRandomFileName() + ".md");
         var vm   = new MarkdownViewModel(path, Substitute.For<IShellServices>());   // file does not exist
 
         Assert.AreEqual(string.Empty, vm.Markdown);
@@ -114,7 +114,7 @@ public class MarkdownViewModelEditingTests
     [TestMethod]
     public void Save_WritesEditedContent()
     {
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         _tempFiles.Add(path);
         File.WriteAllText(path, ThreeBlock);
         var vm = new MarkdownViewModel(path, Substitute.For<IShellServices>());

@@ -41,7 +41,7 @@ public class ProjectMigrationTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-mig-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-mig-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "legacy"));
         File.WriteAllText(Path.Combine(_root, "legacy", ".project"), LegacyJson);
     }

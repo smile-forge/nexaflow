@@ -13,7 +13,7 @@ public static class ViewersConfigIsolation
     [AssemblyInitialize]
     public static void Init(TestContext _)
     {
-        TestConfigRoot.Redirect("viewers");
+        TestConfigRoot.Redirect();
         Localization.EnglishStrings.Use();
     }
 

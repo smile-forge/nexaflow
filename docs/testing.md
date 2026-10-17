@@ -190,9 +190,9 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
-| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
+| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.AiHost` | `net10.0-windows`, MSTest exe | The AI host — its pipe protocol, the client's lifecycle and watchdogs against a host faked in-process, and the real `Nexaflow.AiHost.exe`, copied into `AiHost\` beside the tests as it sits beside the app | `AiHost.Contracts`, `AiHost.Client`, the host exe (`HelperFolder`), `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
+| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open), `ViewerMap`, and [`TestTemp`](#files-a-test-writes-testtemp) (where every test's files go). Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 **TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`** — where an
 integral's limits go, which face a letter comes from, how far a sized delimiter grows — measured on what the builder
@@ -268,6 +268,24 @@ are not using, and after the other suites (which build the fixtures they open):
 ```powershell
 src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
 ```
+
+### Files a test writes (`TestTemp`)
+
+A test never writes into the machine's `%TEMP%` itself. `TestTemp` (`Nexaflow.Tests.Fixtures`) gives each test host one
+folder, `%TEMP%\nexaflow-tests\<suite>-<pid>-<id>`, claimed on first use and deleted with everything in it when the host
+exits:
+
+| You want | Use |
+|---|---|
+| a folder that exists | `TestTemp.Root` |
+| a fresh, empty folder | `TestTemp.CreateSubdirectory("prefix-")` |
+| a fresh, empty file | `TestTemp.CreateFile(".ext")` |
+| a path to write yourself | `Path.Combine(TestTemp.Root, $"name-{Guid.NewGuid():N}.ext")` |
+
+Deleting what a test made is still worth doing for anything large, but forgetting costs nothing past the run. A host
+that dies without exiting cannot delete its folder; the next host to start does, because the lock file beside each
+folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails on `Path.GetTempPath()`,
+`Directory.CreateTempSubdirectory()` or `Path.GetTempFileName()` anywhere in test code.
 
 ### Categories
 

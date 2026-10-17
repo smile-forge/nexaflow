@@ -31,7 +31,7 @@ internal sealed class GraphFixture : IDisposable
 
     public GraphFixture()
     {
-        Root = Path.Combine(Path.GetTempPath(), "nexa-prodsearch-" + Guid.NewGuid().ToString("N"));
+        Root = Path.Combine(TestTemp.Root, "nexa-prodsearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(Root, "src"));
 
         // The seed sits in a NODE LABEL here…
@@ -200,7 +200,7 @@ public class ProductSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void WithNoGraphBuilt_SaysSo_RatherThanReportingNoMatches() => RunUnpumped(async () =>
     {
-        var bare = Path.Combine(Path.GetTempPath(), "nexa-nograph-" + Guid.NewGuid().ToString("N"));
+        var bare = Path.Combine(TestTemp.Root, "nexa-nograph-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bare);
         try
         {

@@ -27,7 +27,7 @@ public class NotebookSurfaceTests
 {
     private static string WriteNotebook(string json, out string dir)
     {
-        dir = Path.Combine(Path.GetTempPath(), "nexanb_" + Guid.NewGuid().ToString("N"));
+        dir = Path.Combine(TestTemp.Root, "nexanb_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, "book.ipynb");
         File.WriteAllText(path, json);

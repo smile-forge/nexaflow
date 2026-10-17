@@ -141,8 +141,8 @@ public class SearchSurfaceTests
         vm.SelectedEntry = new SearchResultEntry
         {
             FileName = "gone.txt",
-            FilePath = Path.Combine(Path.GetTempPath(), $"nexasearch_missing_{Guid.NewGuid():N}.txt"),
-            Directory = Path.GetTempPath(),
+            FilePath = Path.Combine(TestTemp.Root, $"nexasearch_missing_{Guid.NewGuid():N}.txt"),
+            Directory = TestTemp.Root,
         };
 
         vm.OpenFileCommand.Execute(null);

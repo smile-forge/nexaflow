@@ -20,7 +20,7 @@ public class CrashLogTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaflow-crashlog-tests", Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexaflow-crashlog-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

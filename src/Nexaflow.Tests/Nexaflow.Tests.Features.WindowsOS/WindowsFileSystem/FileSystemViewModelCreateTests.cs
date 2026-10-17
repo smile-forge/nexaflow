@@ -46,7 +46,7 @@ public class FileSystemViewModelCreateTests
 
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexavm_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexavm_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -104,7 +104,7 @@ public class NetworkJourneyTests : UiJourneyTestBase
     /// <summary>A picture of the window, somewhere a person can open it.</summary>
     private void Shoot(string name)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-network-journey");
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-network-journey");
         Directory.CreateDirectory(dir);
         Capture.Element(MainWindow).ToFile(Path.Combine(dir, $"{name}.png"));
         global::System.Console.WriteLine($"[shot] {Path.Combine(dir, name)}.png");

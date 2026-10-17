@@ -33,7 +33,7 @@ public class ProductToolParityTests
     [TestInitialize]
     public void CreateProduct()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-prodtools-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-prodtools-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
 
         var store = new ProductStore(_root);

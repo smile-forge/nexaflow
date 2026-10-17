@@ -24,7 +24,7 @@ public class OverlayTextFileTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), $"nexa-overlay-{Guid.NewGuid():N}");
+        _dir = Path.Combine(TestTemp.Root, $"nexa-overlay-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dir);
     }
 

@@ -26,7 +26,7 @@ public class ImageReadPageTests
     [TestInitialize]
     public void Make()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-read-page-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-read-page-").FullName;
         _picture = Path.Combine(_dir, "letter.png");
         using (var bitmap = Flat(48, 64, SKColors.White)) File.WriteAllBytes(_picture, EncodePng(bitmap));
         _ui = new ViewerUiThread();

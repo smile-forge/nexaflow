@@ -37,7 +37,7 @@ public class MarkdownViewModelTests
     /// <summary>The same document, with the shell it talks to in hand — for what the view-model asks of the host.</summary>
     private MarkdownViewModel Make(out IShellServices shell, string content = "# Title\n\nBody.\n")
     {
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
 
@@ -81,12 +81,12 @@ public class MarkdownViewModelTests
     [CoversNode("markdown-block-picture")]
     public async Task SavePicture_WritesThePngWhereTheReaderPicks_NamedForTheDocumentAndTheBlock()
     {
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         _tempFiles.Add(path);
         File.WriteAllText(path, "# Pets\n");
 
         var shell = Substitute.For<IShellServices>();
-        var chosen = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var chosen = Path.Combine(TestTemp.Root, Guid.NewGuid().ToString("N"));
         _tempFiles.Add(chosen + ".png");
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>())
              .Returns(chosen);
@@ -112,7 +112,7 @@ public class MarkdownViewModelTests
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>())
              .Returns((string?)null);
 
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         _tempFiles.Add(path);
 
         Assert.IsFalse(await new MarkdownViewModel(path, shell).SavePictureAsync([1, 2, 3], null));

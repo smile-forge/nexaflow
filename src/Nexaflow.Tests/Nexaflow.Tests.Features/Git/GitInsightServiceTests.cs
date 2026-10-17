@@ -17,7 +17,7 @@ public class GitInsightServiceTests
 
     private string InitRepo()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexagiti_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexagiti_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         Repository.Init(dir);
         _temp.Add(dir);

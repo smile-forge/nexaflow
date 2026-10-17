@@ -19,7 +19,7 @@ public class ProductToolsTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"pmtools_{Guid.NewGuid():N}");
+        _root = Path.Combine(TestTemp.Root, $"pmtools_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         var store = new ProductStore(_root);
         store.Initialize("Demo");

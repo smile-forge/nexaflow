@@ -15,7 +15,7 @@ public class SaveRoomTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-saveroom-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-saveroom-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
     }
 

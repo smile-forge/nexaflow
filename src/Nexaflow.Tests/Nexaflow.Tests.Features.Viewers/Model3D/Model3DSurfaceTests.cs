@@ -109,7 +109,7 @@ public class Model3DSurfaceTests
     [CoversNode("model3d-error-overlay")]
     public async Task AFileThatParsesButHoldsNoMesh_IsReportedRatherThanShownAsAnEmptyScene()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow_empty_{System.Guid.NewGuid():N}.obj");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow_empty_{System.Guid.NewGuid():N}.obj");
         File.WriteAllText(path, "# an OBJ with no faces at all\n");
         try
         {

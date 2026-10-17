@@ -36,7 +36,7 @@ public class FolderActionMatchingTests
 
     private static string MakeFolder(int images, int others)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-imgtest-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-imgtest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         for (int i = 0; i < images; i++) File.WriteAllText(Path.Combine(dir, $"img{i}.png"), "x");
         for (int i = 0; i < others; i++) File.WriteAllText(Path.Combine(dir, $"doc{i}.txt"), "x");
@@ -152,7 +152,7 @@ public class FolderActionMatchingTests
         // or archive) — else "As DICOM" (and every ContainsFileGlobs action) never appears inside a .zip/.iso.
         Nexaflow.IO.Common.VirtualFileSystem.Instance.RegisterHandler(new Nexaflow.Features.Compressed.Handlers.ZipArchiveHandler());
 
-        var tmp = Path.Combine(Path.GetTempPath(), "nexaflow-vfolder-" + Guid.NewGuid().ToString("N"));
+        var tmp = Path.Combine(TestTemp.Root, "nexaflow-vfolder-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
         try
         {

@@ -116,7 +116,7 @@ public class PdfTextExtractorTests
     public async Task MissingFile_ReturnsNull()
     {
         var text = await NewExtractor().ExtractAsync(
-            Path.Combine(Path.GetTempPath(), "nexa-no-such-" + Guid.NewGuid().ToString("N") + ".pdf"),
+            Path.Combine(TestTemp.Root, "nexa-no-such-" + Guid.NewGuid().ToString("N") + ".pdf"),
             Budget, default);
 
         Assert.IsNull(text);
@@ -133,7 +133,7 @@ public class PdfTextExtractorTests
         // Padded past %%EOF, which leaves the document perfectly valid (startxref still resolves). That's the
         // point: the very same file parses fine below, so a null above can only be the size ceiling talking
         // and not some incidental damage.
-        var padded = Path.Combine(Path.GetTempPath(), "nexapdfbig_" + Guid.NewGuid().ToString("N") + ".pdf");
+        var padded = Path.Combine(TestTemp.Root, "nexapdfbig_" + Guid.NewGuid().ToString("N") + ".pdf");
         try
         {
             File.WriteAllBytes(padded, [.. File.ReadAllBytes(Sample("text.pdf")), .. new byte[2 * 1024 * 1024]]);

@@ -44,7 +44,7 @@ public class ModelRegistryTests
     private static (ModelRegistry Registry, Runner Runner) Registry()
     {
         var runner = new Runner();
-        var log = new HostLog(Directory.CreateTempSubdirectory("nexaflow-registry-").FullName);
+        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-registry-").FullName);
         return (new ModelRegistry(new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log), runner);
     }
 

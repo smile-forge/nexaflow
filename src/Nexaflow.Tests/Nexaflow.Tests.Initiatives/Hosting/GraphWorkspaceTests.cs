@@ -31,7 +31,7 @@ public class GraphWorkspaceTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Directory.CreateTempSubdirectory("nexa-workspace-").FullName;
+        _root = TestTemp.CreateSubdirectory("nexa-workspace-").FullName;
         Directory.CreateDirectory(Path.Combine(_root, "src"));
         _store = new ProductStore(_root);
     }

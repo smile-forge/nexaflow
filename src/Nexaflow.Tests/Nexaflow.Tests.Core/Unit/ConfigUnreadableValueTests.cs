@@ -49,7 +49,7 @@ public class ConfigUnreadableValueTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaflow-unreadable-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexaflow-unreadable-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
 
         var now = DateTimeOffset.Now;   // one clock reading, so the log a test reads is the day it was written

@@ -19,7 +19,7 @@ public class SolutionReaderTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexasln_" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexasln_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _temp.Add(_dir);
     }

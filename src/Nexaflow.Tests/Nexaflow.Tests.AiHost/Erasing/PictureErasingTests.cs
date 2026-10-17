@@ -37,13 +37,13 @@ public class PictureErasingTests
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_LAMA_REFERENCE") is not { Length: > 0 } reference) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
 
-        var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
         _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
         {
             Environment = new AiHostEnvironment(pack),
         };
         (_graphs, _reference) = (graphs, reference);
-        _work = Directory.CreateTempSubdirectory("nexaflow-erasing-").FullName;
+        _work = TestTemp.CreateSubdirectory("nexaflow-erasing-").FullName;
     }
 
     [ClassCleanup]

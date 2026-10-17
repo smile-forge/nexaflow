@@ -46,7 +46,7 @@ public class JsonSearchableTests : SearchableContentConformanceTests
 
     private static string Write(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"jsonsearch_{Guid.NewGuid():N}.json");
+        var path = Path.Combine(TestTemp.Root, $"jsonsearch_{Guid.NewGuid():N}.json");
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         lock (s_temp) s_temp.Add(path);
         return path;

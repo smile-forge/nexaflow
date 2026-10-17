@@ -29,7 +29,7 @@ public class GenerationToolsTests
     [TestInitialize]
     public void Setup()
     {
-        _home = Path.Combine(Path.GetTempPath(), "nexaflow-generated-" + Guid.NewGuid().ToString("N"));
+        _home = Path.Combine(TestTemp.Root, "nexaflow-generated-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Context);
     }
 

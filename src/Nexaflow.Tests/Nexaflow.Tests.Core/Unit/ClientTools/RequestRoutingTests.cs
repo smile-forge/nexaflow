@@ -124,7 +124,7 @@ public class RequestRoutingTests
     private static AIService Service(Model[] conversation, Model? judge)
     {
         var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, Path.GetTempPath());
+        var svc = new AIService(ws, TestTemp.Root);
         Set(nameof(WorkspaceRuntime.AiService), svc);
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
 

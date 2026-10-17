@@ -148,7 +148,7 @@ internal static class EditingFixtures
 
     public static string TempDirectory()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexedit_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexedit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -41,7 +41,7 @@ public class ImageRestoreTests
     [TestInitialize]
     public void Make()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-restore-edit-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-restore-edit-").FullName;
         _photo = Path.Combine(_dir, "harbour.png");
         using (var bitmap = Flat(32, 24, Photo)) File.WriteAllBytes(_photo, EncodePng(bitmap));
         _restored = new RestoredPictures(Path.Combine(_dir, "restored"), RestoredPictures.DefaultBudget);

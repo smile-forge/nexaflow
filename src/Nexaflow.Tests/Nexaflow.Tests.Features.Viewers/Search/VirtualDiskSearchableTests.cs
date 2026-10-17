@@ -58,7 +58,7 @@ public class VirtualDiskSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-dsearch-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-dsearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _vhd = DiskSampleFactory.CreateFatVhd(_dir);
     }

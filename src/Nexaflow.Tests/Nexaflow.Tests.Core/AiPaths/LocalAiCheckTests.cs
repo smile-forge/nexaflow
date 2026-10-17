@@ -21,7 +21,7 @@ public class LocalAiCheckTests
     public async Task TheCheck_HasTheModelReply_MeasuresEachGpu_AndWritesItsReport()
     {
         var model = await OwnedModelHarness.ModelAsync();
-        var reports = Directory.CreateTempSubdirectory("nexaflow-check-").FullName;
+        var reports = TestTemp.CreateSubdirectory("nexaflow-check-").FullName;
         var used = new OwnedModelInUse("gemma-4-e4b-it", "Gemma 4 E4B", ModelKind.Language, model, (IHostModelCatalog)model);
         var stages = new List<LocalAiCheckStage>();
 

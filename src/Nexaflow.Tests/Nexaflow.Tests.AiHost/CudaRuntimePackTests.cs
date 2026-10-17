@@ -70,7 +70,7 @@ public class CudaRuntimePackTests
             Assert.Inconclusive("NEXAFLOW_TEST_RUNTIME_PACK names no CUDA pack on this machine.");
             return;
         }
-        var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
         await using var client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(HostFolder, "Nexaflow.AiHost.exe"), aiDir))
         {
             Environment = new AiHostEnvironment(pack),

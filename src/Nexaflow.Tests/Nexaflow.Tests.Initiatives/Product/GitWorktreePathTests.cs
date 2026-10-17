@@ -23,7 +23,7 @@ public class GitWorktreePathTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"wtpath_{Guid.NewGuid():N}");
+        _root = Path.Combine(TestTemp.Root, $"wtpath_{Guid.NewGuid():N}");
         _worktree = Path.Combine(_root, ".claude", "worktrees", "feature-x");
         Directory.CreateDirectory(Path.Combine(_worktree, "src"));
 
@@ -64,7 +64,7 @@ public class GitWorktreePathTests
     [TestMethod]
     public void Roots_IsEmpty_ForACheckoutWithNoWorktrees()
     {
-        var plain = Path.Combine(Path.GetTempPath(), $"wtplain_{Guid.NewGuid():N}");
+        var plain = Path.Combine(TestTemp.Root, $"wtplain_{Guid.NewGuid():N}");
         Directory.CreateDirectory(plain);
         try { Assert.AreEqual(0, GitWorktrees.Roots(plain).Count); }
         finally { Directory.Delete(plain, recursive: true); }
@@ -126,7 +126,7 @@ public class GitWorktreePathTests
     [TestMethod]
     public void NormalizeWorktreePaths_ChangesNothing_WhenThereAreNoWorktrees()
     {
-        var plain = Path.Combine(Path.GetTempPath(), $"wtplain_{Guid.NewGuid():N}");
+        var plain = Path.Combine(TestTemp.Root, $"wtplain_{Guid.NewGuid():N}");
         Directory.CreateDirectory(plain);
         try
         {

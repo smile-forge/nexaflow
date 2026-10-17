@@ -24,7 +24,7 @@ public class EditUndoTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Directory.CreateTempSubdirectory("nexa-undo-").FullName;
+        _root = TestTemp.CreateSubdirectory("nexa-undo-").FullName;
         new ProductStore(_root).Initialize("P");
     }
 

@@ -7,6 +7,7 @@ using DiscUtils.Iso9660;
 using DiscUtils.Partitions;
 using DiscUtils.Streams;
 using DiscUtils.Vhd;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.VirtualDisk;
 
@@ -64,7 +65,7 @@ internal static class DiskSampleFactory
 
         public Fixtures()
         {
-            Dir = Path.Combine(Path.GetTempPath(), "nexa-vdisk-test-" + Guid.NewGuid().ToString("N"));
+            Dir = Path.Combine(TestTemp.Root, "nexa-vdisk-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Dir);
             VhdPath = CreateFatVhd(Dir);
             IsoPath = CreateIso(Dir);

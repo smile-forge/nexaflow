@@ -20,7 +20,7 @@ public class ProductStoreTests
     [TestInitialize]
     public void Setup()
     {
-        _root  = Path.Combine(Path.GetTempPath(), $"product_{Guid.NewGuid():N}");
+        _root  = Path.Combine(TestTemp.Root, $"product_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         _store = new ProductStore(_root);
     }

@@ -25,7 +25,7 @@ public class RibbonLayoutServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaflow-ribbon-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexaflow-ribbon-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

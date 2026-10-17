@@ -189,7 +189,7 @@ public class EmailSurfaceTests
     [CoversNode("email-error")]
     public void AFileThatIsNotAMessageReportsWhy_RatherThanOpeningEmpty()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"notmail_{Guid.NewGuid():N}.eml");
+        var path = Path.Combine(TestTemp.Root, $"notmail_{Guid.NewGuid():N}.eml");
         File.WriteAllBytes(path, [0x00, 0x01, 0x02, 0x03]);
         try
         {
@@ -208,7 +208,7 @@ public class EmailSurfaceTests
     [CoversNode("email-error")]
     public void AMissingFileIsAnErrorOnThePage_NotAnException()
     {
-        var vm = new EmailViewModel(Path.Combine(Path.GetTempPath(), "no-such-message.eml"),
+        var vm = new EmailViewModel(Path.Combine(TestTemp.Root, "no-such-message.eml"),
                                     Substitute.For<IShellServices>());
 
         Assert.IsTrue(vm.HasError);

@@ -318,7 +318,7 @@ public class VirtualMountTests
 
     private static string NewTempDir(string prefix)
     {
-        var d = Path.Combine(Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N"));
+        var d = Path.Combine(TestTemp.Root, prefix + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }

@@ -220,7 +220,7 @@ public class AgentLoopTests
     private static AIService NewServiceOnAWiredRuntime()
     {
         var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, Path.GetTempPath());
+        var svc = new AIService(ws, TestTemp.Root);
         Set(nameof(WorkspaceRuntime.AiService), svc);
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
         return svc;

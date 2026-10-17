@@ -57,7 +57,7 @@ public class DroppedMediaTests
     [TestMethod]
     public void FileLinkMarkdown_File_UsesDocumentIconAndFileUri()
     {
-        var file = Path.Combine(Path.GetTempPath(), $"dm_{Guid.NewGuid():N}.txt");
+        var file = Path.Combine(TestTemp.Root, $"dm_{Guid.NewGuid():N}.txt");
         File.WriteAllText(file, "x");
         try
         {
@@ -72,7 +72,7 @@ public class DroppedMediaTests
     [TestMethod]
     public void FileLinkMarkdown_Directory_UsesFolderIcon()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"dmdir_{Guid.NewGuid():N}");
+        var dir = Path.Combine(TestTemp.Root, $"dmdir_{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         try
         {
@@ -84,9 +84,9 @@ public class DroppedMediaTests
     [TestMethod]
     public void CopyImageInto_CopiesUnderUniqueNamePreservingExtension()
     {
-        var src = Path.Combine(Path.GetTempPath(), $"src_{Guid.NewGuid():N}.png");
+        var src = Path.Combine(TestTemp.Root, $"src_{Guid.NewGuid():N}.png");
         File.WriteAllText(src, "fake-image-bytes");
-        var dir = Path.Combine(Path.GetTempPath(), $"att_{Guid.NewGuid():N}");
+        var dir = Path.Combine(TestTemp.Root, $"att_{Guid.NewGuid():N}");
         try
         {
             var name = DroppedMedia.CopyImageInto(src, dir);
@@ -106,6 +106,6 @@ public class DroppedMediaTests
     [TestMethod]
     public void CopyImageInto_MissingSource_ReturnsNull()
         => Assert.IsNull(DroppedMedia.CopyImageInto(
-            Path.Combine(Path.GetTempPath(), $"nope_{Guid.NewGuid():N}.png"),
-            Path.Combine(Path.GetTempPath(), $"att_{Guid.NewGuid():N}")));
+            Path.Combine(TestTemp.Root, $"nope_{Guid.NewGuid():N}.png"),
+            Path.Combine(TestTemp.Root, $"att_{Guid.NewGuid():N}")));
 }

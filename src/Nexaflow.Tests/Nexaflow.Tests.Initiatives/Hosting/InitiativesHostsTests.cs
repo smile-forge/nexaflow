@@ -23,7 +23,7 @@ public class InitiativesHostsTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nfi-hosts-" + Guid.NewGuid().ToString("N")[..8]);
+        _root = Path.Combine(TestTemp.Root, "nfi-hosts-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_root);
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features;
 
@@ -19,20 +20,9 @@ namespace Nexaflow.Tests.Features;
 /// </summary>
 public static class TestConfigRoot
 {
-    private static string _dir = string.Empty;
+    /// <summary>Points the config root at a fresh folder in this host's <see cref="TestTemp"/>, which goes with the host.</summary>
+    public static void Redirect()
+        => Environment.SetEnvironmentVariable("NEXAFLOW_CONFIG_DIR", TestTemp.CreateSubdirectory("config-").FullName);
 
-    /// <param name="suite">Names the temp directory, so a parallel run of two suites is still traceable
-    /// to the one that leaked if cleanup ever fails.</param>
-    public static void Redirect(string suite)
-    {
-        _dir = Path.Combine(Path.GetTempPath(), $"nexaflow-tests-{suite}-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_dir);
-        Environment.SetEnvironmentVariable("NEXAFLOW_CONFIG_DIR", _dir);
-    }
-
-    public static void Restore()
-    {
-        Environment.SetEnvironmentVariable("NEXAFLOW_CONFIG_DIR", null);
-        try { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); } catch { }
-    }
+    public static void Restore() => Environment.SetEnvironmentVariable("NEXAFLOW_CONFIG_DIR", null);
 }

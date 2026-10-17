@@ -178,7 +178,7 @@ public class OfficeTextExtractorTests
     [TestMethod]
     public async Task MissingFile_ReturnsNull()
     {
-        var path = Path.Combine(Path.GetTempPath(), "nexa-no-such-" + Guid.NewGuid().ToString("N") + ".docx");
+        var path = Path.Combine(TestTemp.Root, "nexa-no-such-" + Guid.NewGuid().ToString("N") + ".docx");
 
         Assert.IsNull(await NewExtractor().ExtractAsync(path, Budget, default));
     }

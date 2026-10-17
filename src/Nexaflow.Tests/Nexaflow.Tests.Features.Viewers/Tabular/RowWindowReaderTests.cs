@@ -18,7 +18,7 @@ public class RowWindowReaderTests
         var sb = new StringBuilder();
         if (header) sb.AppendLine("name,value");
         for (int i = 0; i < count; i++) sb.Append("name").Append(i).Append(',').Append(i).Append('\n');
-        var path = Path.Combine(Path.GetTempPath(), $"window-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(TestTemp.Root, $"window-{Guid.NewGuid():N}.csv");
         File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
         return path;
     }
