@@ -352,7 +352,7 @@ public class AudioSurfaceTests
     [CoversNode("audio-tag-io")]
     public void ReadingAFileThatIsNotAudioAtAll_IsSurvivable()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaudio_{Guid.NewGuid():N}.mp3");
+        var path = Path.Combine(TestTemp.Root, $"nexaudio_{Guid.NewGuid():N}.mp3");
         File.WriteAllText(path, "this is not an mp3");
         try
         {

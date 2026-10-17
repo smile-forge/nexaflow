@@ -32,7 +32,7 @@ public class SpeechModelTests
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SPEECH") is not { Length: > 0 } root) return;
 
         string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-        var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
         _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
         {
             Environment = new AiHostEnvironment(pack),

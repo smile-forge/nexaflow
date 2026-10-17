@@ -263,7 +263,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void NearestExistingAncestor_LeafGone_ReturnsDeepestExistingParent()
     {
-        var root     = Path.Combine(Path.GetTempPath(), "nexanav_" + Guid.NewGuid().ToString("N"));
+        var root     = Path.Combine(TestTemp.Root, "nexanav_" + Guid.NewGuid().ToString("N"));
         var existing = Path.Combine(root, "a", "b");
         Directory.CreateDirectory(existing);
         try
@@ -342,7 +342,7 @@ public class FileSystemViewModelTests
 
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexafs_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexafs_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

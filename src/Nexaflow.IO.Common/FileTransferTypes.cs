@@ -79,10 +79,17 @@ public sealed record TransferItem(string Source, string Destination)
 }
 
 /// <summary>A unit of work handed to <see cref="FileTransferEngine.RunAsync"/>.</summary>
+/// <param name="Verify">Read every copied file back from where it landed — past the cache, from the media — and
+/// compare its SHA-256 with the source's before it takes its real name. Slower by a read of everything copied; worth it
+/// onto a USB stick or a card, which can accept bytes and keep different ones.</param>
 public sealed record FileTransferRequest(
     TransferKind Kind,
     IReadOnlyList<TransferItem> Items,
-    ConflictPolicy Conflicts = ConflictPolicy.AutoRename);
+    ConflictPolicy Conflicts = ConflictPolicy.AutoRename,
+    bool Verify = false);
+
+/// <summary>A file a verified run read back and found identical to its source.</summary>
+public sealed record VerifiedFile(string Destination, long Bytes, string Sha256);
 
 /// <summary>What a walk of the sources found. <paramref name="Partial"/> is set when part of the tree
 /// could not be read, so the totals are a floor rather than a count.</summary>
@@ -102,7 +109,8 @@ public readonly record struct TransferProgress(
     string? CurrentItem,
     long BytesPerSecond,
     TimeSpan? Remaining,
-    PauseReason? Paused);
+    PauseReason? Paused,
+    bool Verifying = false);
 
 /// <summary>One thing that went wrong, named precisely. <paramref name="Win32Code"/> is the low word
 /// of the underlying HRESULT so a caller can turn it into its own prose — the engine deliberately
@@ -121,8 +129,12 @@ public sealed record TransferResult(
     int ItemsTransferred,
     IReadOnlyList<TransferItemFailure> Failures,
     IReadOnlyList<string> SkippedReparsePoints,
-    IReadOnlyList<string> RenamedDestinations,
-    IReadOnlyList<string> PartialDestinations);
+        IReadOnlyList<string> RenamedDestinations,
+        IReadOnlyList<string> PartialDestinations)
+    {
+        /// <summary>Every file a <see cref="FileTransferRequest.Verify"/> run read back and matched, with its hash.</summary>
+        public IReadOnlyList<VerifiedFile> Verified { get; init; } = [];
+    }
 
 /// <summary>
 /// How a run asks the caller what to do when it parks. A null prompt means "nobody is listening" —

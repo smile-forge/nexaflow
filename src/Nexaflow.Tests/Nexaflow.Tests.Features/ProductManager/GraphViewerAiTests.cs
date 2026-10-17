@@ -40,7 +40,7 @@ public class GraphViewerAiTests
     /// and a sub-product — using the same <see cref="ProductJson.Options"/> the real loader reads with.</summary>
     private static string WriteGraph(out string dir)
     {
-        dir = Path.Combine(Path.GetTempPath(), "nexagraph_ai_" + Guid.NewGuid().ToString("N"));
+        dir = Path.Combine(TestTemp.Root, "nexagraph_ai_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
 
         var graph = new KnowledgeGraph

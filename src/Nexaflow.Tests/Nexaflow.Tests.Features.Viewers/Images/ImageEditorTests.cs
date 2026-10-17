@@ -29,14 +29,14 @@ public class ImageEditorTests
 {
     private string _dir = string.Empty;
     private string _photo = string.Empty;
-    private UiThread _ui = null!;
+    private ViewerUiThread _ui = null!;
 
     [TestInitialize]
     public void CopyThePhoto()
     {
         _dir = TempDirectory();
         _photo = CopyOfSample(_dir, OrientedPhotoSample.FileName);
-        _ui = new UiThread();
+        _ui = new ViewerUiThread();
     }
 
     [TestCleanup]
@@ -44,44 +44,6 @@ public class ImageEditorTests
     {
         _ui.Dispose();
         try { Directory.Delete(_dir, recursive: true); } catch { }
-    }
-
-    /// <summary>
-    /// One thread standing in for the app's UI thread: whatever the viewer marshals runs there, in order, as it does on
-    /// the dispatcher — so the bitmaps it presents are made and written on one thread.
-    /// </summary>
-    private sealed class UiThread : IDisposable
-    {
-        private readonly System.Collections.Concurrent.BlockingCollection<Action> _work = new();
-        private readonly Thread _thread;
-
-        public UiThread()
-        {
-            _thread = new Thread(() => { foreach (var action in _work.GetConsumingEnumerable()) action(); }) { IsBackground = true };
-            _thread.SetApartmentState(ApartmentState.STA);
-            _thread.Start();
-        }
-
-        public Task Run(Action action)
-        {
-            if (Thread.CurrentThread == _thread) { action(); return Task.CompletedTask; }
-            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            _work.Add(() =>
-            {
-                try { action(); done.SetResult(); }
-                catch (Exception ex) { done.SetException(ex); }
-            });
-            return done.Task;
-        }
-
-        public T Invoke<T>(Func<T> read)
-        {
-            T value = default!;
-            Run(() => value = read()).GetAwaiter().GetResult();
-            return value;
-        }
-
-        public void Dispose() => _work.CompleteAdding();
     }
 
     /// <summary>A shell whose UI hops and background tasks run, the confirmations say yes, and the save picker returns <paramref name="saveAs"/>.</summary>
@@ -537,6 +499,24 @@ public class ImageEditorTests
         using var decoded = SKBitmap.Decode(png);
         Assert.AreEqual(64, decoded.Width, "the picture as edited: upright, then turned");
         Assert.AreEqual(32, decoded.Height);
+    }
+
+    [TestMethod]
+    [CoversNode("images-header")]
+    public void AnEditedPhoto_IsMarkedSo_WhereItIsShownAlone()
+    {
+        var vm = Editing();
+        Assert.IsFalse(vm.ShowsEditedMark, "nothing edited yet");
+
+        vm.RotateRightCommand.Execute(null);
+        Settle(vm);
+        Assert.IsTrue(vm.ShowsEditedMark, "edited, in the editor");
+
+        vm.ViewMode = ImageViewMode.Carousel;
+        Assert.IsTrue(vm.ShowsEditedMark, "and shown on its own");
+
+        vm.ViewMode = ImageViewMode.Album;
+        Assert.IsFalse(vm.ShowsEditedMark, "a grid of pictures is about none of them");
     }
 
     // ── Opening, from the file browser ──────────────────────────────────────

@@ -13,7 +13,7 @@ public class TemplateStoreTests
 {
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexats_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexats_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

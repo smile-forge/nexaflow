@@ -22,7 +22,7 @@ public sealed class Model3DTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Path to a 3D model file (.stl, .obj, .3ds, .ply, .gltf, .glb, .fbx, .3mf, .amf, .dae, …).", Required: true),
+        new("path", "Path to a 3D model file (.stl, .obj, .3ds, .ply, .gltf, .glb, .fbx, .3mf, .amf, .dae, …).", Required: true, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

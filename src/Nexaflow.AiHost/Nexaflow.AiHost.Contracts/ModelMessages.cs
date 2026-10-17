@@ -84,9 +84,10 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// conversation has read, and appends.
 /// </summary>
 /// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
+/// <param name="Decoding">How the model's makers have it write beyond choosing each token; none for most models.</param>
 public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
                               RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true,
-                              TokenSampling? Sampling = null) : HostRequest(RequestId);
+                              TokenSampling? Sampling = null, ReplyDecoding? Decoding = null) : HostRequest(RequestId);
 
 /// <summary>
 /// How a reply chooses each token from the model's scores, as the model's makers recommend for it: the
@@ -96,6 +97,20 @@ public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<Cha
 /// the draws the same each time — for tests; without one they differ.
 /// </summary>
 public sealed record TokenSampling(float Temperature, int TopK, float TopP, float PresencePenalty = 0, uint? Seed = null);
+
+/// <summary>
+/// How a model's makers have it write a reply, beyond how each token is chosen. <paramref name="WrittenWindow"/>: each
+/// token sees the whole prompt but only the last so many tokens written before it — the reference sliding-window
+/// attention Unlimited-OCR was trained with, which llama.cpp does not run itself, so the host forgets each written token
+/// as it leaves the window; a conversation written so is never continued. <paramref name="RepeatBan"/>: no run of tokens
+/// written again close after itself. <paramref name="WritesControlTokens"/>: the model's control tokens are part of what
+/// it says — Unlimited-OCR marks each block of a page with them — so they are sent as their text, not left out.
+/// </summary>
+public sealed record ReplyDecoding(int? WrittenWindow = null, RepeatBan? RepeatBan = null, bool WritesControlTokens = false);
+
+/// <summary>No token may complete a run of <paramref name="Run"/> tokens that already stands among the last
+/// <paramref name="Within"/> written — the makers' guard against a reader going round a passage again.</summary>
+public sealed record RepeatBan(int Run, int Within);
 
 public sealed record TextDelta(long RequestId, string Text) : HostReply(RequestId);
 

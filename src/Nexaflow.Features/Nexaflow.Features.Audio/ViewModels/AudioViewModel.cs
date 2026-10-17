@@ -15,6 +15,7 @@ using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Drafts;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -604,6 +605,9 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// distinguishable; null when the queue is empty (nothing to act on).</summary>
     public string? GetSecurityContext() => CurrentPath;
 
+    /// <summary>The tracks this tab plays — what the user has it hold.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFiles(_paths);
+
     public string? GetAiSystemPromptGuidance() =>
         "An audio player tab is open. Call read_now_playing to read the current track, play state, position and "
       + "queue, and control_playback / seek / next_track / previous_track to drive playback. listen_to_track hands "
@@ -854,4 +858,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         _config.Volume = Volume;
         try { _shell.SaveFeatureConfig(_config); } catch { /* best-effort persistence */ }
     }
+
+    /// <summary>The Save as of a recording made for the user and not saved yet — the tab's draft — or null for tracks opened where they live.</summary>
+    public DraftSaving? Draft { get; init; }
 }

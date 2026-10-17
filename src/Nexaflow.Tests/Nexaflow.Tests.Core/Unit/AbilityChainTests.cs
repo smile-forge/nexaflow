@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Core.Unit;
 [CoversNode("opt-ai-ability-grid")]
 public class AbilityChainTests
 {
-    private static string NewDir() => Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+    private static string NewDir() => Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
 
     [TestMethod]
     public void AChain_IsSavedAndReadBackInOrder()

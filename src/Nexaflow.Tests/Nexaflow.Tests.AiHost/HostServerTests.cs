@@ -91,7 +91,7 @@ public class HostServerTests
             hostEnd.ReadMode = PipeTransmissionMode.Message;
 
             var host = new HostChannel(hostEnd);
-            var log  = new HostLog(Path.Combine(Path.GetTempPath(), "nexaflow-tests", "aihost-logs"));
+            var log  = new HostLog(Path.Combine(TestTemp.Root, "nexaflow-tests", "aihost-logs"));
             var server = new HostServer(host, log, handlers);
             return new Pipes(app, host, log, Task.Run(server.RunAsync));
         }

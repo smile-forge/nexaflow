@@ -57,7 +57,7 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
             return;
         }
         _aiDir  = aiDir;
-        _folder = Directory.CreateTempSubdirectory("nexaflow-voice-").FullName;
+        _folder = TestTemp.CreateSubdirectory("nexaflow-voice-").FullName;
         File.WriteAllBytes(Path.Combine(_folder, FileName), [0x50, 0x4B, 0x05, 0x06, .. new byte[18]]);   // an empty zip
         Directory.CreateDirectory(Path.Combine(_folder, "old"));
 

@@ -39,7 +39,8 @@ public static class ImageRecipeJson
         Converters             = { new JsonStringEnumConverter() },
     };
 
-    public static string Serialize(ImageRecipe recipe) => JsonSerializer.Serialize(recipe, Options);
+    /// <summary>The recipe as its file holds it, written as the oldest version that holds everything in it.</summary>
+    public static string Serialize(ImageRecipe recipe) => JsonSerializer.Serialize(recipe with { Version = recipe.WrittenVersion }, Options);
 
     public static RecipeReadResult Deserialize(string json)
     {
@@ -50,10 +51,11 @@ public static class ImageRecipeJson
             int version = root["version"]?.GetValue<int>() ?? ImageRecipe.CurrentVersion;
             if (version > ImageRecipe.CurrentVersion) return new(RecipeReadStatus.Newer, null);
 
+            // Held as this build's version whatever version it was written as, so the same edits are always the same recipe.
             var recipe = root.Deserialize<ImageRecipe>(Options);
             return recipe is null
                 ? new(RecipeReadStatus.Unreadable, null)
-                : new(RecipeReadStatus.Read, recipe);
+                : new(RecipeReadStatus.Read, recipe with { Version = ImageRecipe.CurrentVersion });
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or NotSupportedException)
         {

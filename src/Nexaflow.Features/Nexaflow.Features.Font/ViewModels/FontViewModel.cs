@@ -234,6 +234,9 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
             ? "font-viewer (empty)"
             : "fonts: " + string.Join(" | ", Fonts.Select(f => f.SourcePath ?? f.DisplayName));
 
+    /// <summary>The font files this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFiles(Fonts.Select(f => f.SourcePath).OfType<string>());
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
         [new FontDetailsTool(this), new FontRenderTool(this)];
 

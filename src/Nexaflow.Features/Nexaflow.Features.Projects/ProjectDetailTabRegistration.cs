@@ -30,8 +30,8 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Absolute path of the project folder to open.", Required: false),
-        new("folder", "Project folder name under the active project directory (legacy alternative to path).", Required: false),
+        new("path", "Absolute path of the project folder to open.", Required: false, OnDisk: true),
+        new("folder", "Project folder name under the active project directory (legacy alternative to path).", Required: false, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

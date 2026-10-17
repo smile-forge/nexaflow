@@ -43,7 +43,7 @@ public class SearchJourneyTests : UiJourneyTestBase
     private const string AbsentTerm = "*.zqxwv8813";
 
     /// <summary>Small enough that a scan of it finishes; big enough to be a real walk.</summary>
-    private static readonly string ScanRoot = Path.GetTempPath();
+    private static readonly string ScanRoot = TestTemp.Root;
 
     /// <summary>Deep enough that a scan is still running when we go looking for the Stop button.</summary>
     private static readonly string BigRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);

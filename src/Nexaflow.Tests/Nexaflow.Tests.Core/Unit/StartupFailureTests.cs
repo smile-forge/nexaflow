@@ -23,7 +23,7 @@ public class StartupFailureTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaflow-startup-failure-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexaflow-startup-failure-" + Guid.NewGuid().ToString("N"));
         var now = DateTimeOffset.Now;   // one clock reading, so the log a test reads is the day it was written
         _log = new CrashLog(() => _dir, () => now, "test");
     }

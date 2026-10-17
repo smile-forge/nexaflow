@@ -41,7 +41,7 @@ public class MarkdownAiTests
 
     private MarkdownViewModel Make(string content)
     {
-        var path = Path.GetTempFileName();
+        var path = TestTemp.CreateFile();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
         return new MarkdownViewModel(path, RunningShell());

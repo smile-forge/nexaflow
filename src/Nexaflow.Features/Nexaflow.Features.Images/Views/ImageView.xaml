@@ -5,10 +5,11 @@
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
+             xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
+             xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
-             PreviewMouseWheel="OnPreviewMouseWheel"
              Background="{StaticResource BgBrush}"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
@@ -315,16 +316,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Heading, and a mark when the shown photo carries edits -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding HeaderText}" Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
-                    <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="8" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
-                            ToolTip="{loc:Str Images.Edit.EditedTip}"
-                            Visibility="{Binding ShowsEditedMark, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
-                    </Border>
-                </StackPanel>
+                <!-- A mark when the shown photo carries edits; its name is the tab's and the breadcrumb's -->
+                <Border Padding="6,1" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
+                        ToolTip="{loc:Str Images.Edit.EditedTip}"
+                        Visibility="{Binding ShowsEditedMark, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
+                </Border>
 
                 <!-- Browsing: edit, then the playback controls -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -393,6 +390,15 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <!-- Convert the picture, as a page of writing, to Markdown: shown where it is a page, or before page reading is here to tell -->
+                    <Button Command="{Binding ReadPage.ConvertCommand}" ToolTip="{loc:Str Images.Toolbar.ConvertToMarkdownTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
+                            Visibility="{Binding ReadPage.CanRead, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_ConvertToMarkdown">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="¶" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Toolbar.ConvertToMarkdown}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="{loc:Str Images.Toolbar.AutoTip}" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
                                   AutomationProperties.AutomationId="Image_AutoAdvance">
                         <StackPanel Orientation="Horizontal">
@@ -456,6 +462,8 @@
 
         <!-- ══ Recipe notices ══ -->
         <StackPanel Grid.Row="1">
+            <!-- A picture made for the user and not saved yet: its Save as. -->
+            <drafts:DraftBanner DataContext="{Binding Draft}"/>
             <!-- The photo changed since its edits were made. -->
             <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                     Visibility="{Binding HasChangedSourceNotice, Converter={StaticResource BoolToVis}}">
@@ -478,13 +486,58 @@
                     Visibility="{Binding ShowsSessionOnlyNotice, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{Binding SessionOnlyNotice}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
             </Border>
+            <!-- The photo's AI enhance: being made, waiting on the picture tools, or why it shows as it was. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Restorer.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Restorer.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Restorer.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_RestoreAction" AutomationProperties.Name="{Binding Restorer.ActionLabel}">
+                            <TextBlock Text="{Binding Restorer.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <!-- The photo's erasing: being made, waiting on a tool, or why the photo shows as it is. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Eraser.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Eraser.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Eraser.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_EraseAction" AutomationProperties.Name="{Binding Eraser.ActionLabel}">
+                            <TextBlock Text="{Binding Eraser.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Eraser.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+
+            <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Remover.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Remover.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_RemoveBackgroundAction" AutomationProperties.Name="{Binding Remover.ActionLabel}">
+                            <TextBlock Text="{Binding Remover.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <!-- Converting the page to Markdown: how far it has got, its download, or why it could not -->
+            <pages:PageConversionBar DataContext="{Binding ReadPage.Conversion}"/>
         </StackPanel>
 
         <!-- ══ Content: exactly one sub-view is shown ══ -->
         <Grid Grid.Row="2">
 
             <!-- ── Carousel ── -->
-            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
+            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}" PreviewMouseWheel="OnPreviewMouseWheel">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -670,6 +723,7 @@
 
             <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
             <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"/>
+
         </Grid>
     </Grid>
 </UserControl>

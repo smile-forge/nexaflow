@@ -69,7 +69,7 @@ public class EmailRichTextTests
 
     private static void Opened(MsgBuilder message, Action<EmailViewModel> check)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.msg");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.msg");
         File.WriteAllBytes(path, message.Build());
 
         var vm = new EmailViewModel(path, Substitute.For<IShellServices>());

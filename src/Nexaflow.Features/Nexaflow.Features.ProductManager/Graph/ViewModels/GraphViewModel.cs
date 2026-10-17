@@ -539,6 +539,9 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
 
     public string? GetSecurityContext() => string.IsNullOrEmpty(ProductRoot) ? FilePath : ProductRoot;
 
+    /// <summary>The product's folder, with everything under it — or, for a graph opened on its own, its file.</summary>
+    public ContextGrant GetContextGrant() => string.IsNullOrEmpty(ProductRoot) ? ContextGrant.OfFile(FilePath) : ContextGrant.OfFolder(ProductRoot);
+
     /// <summary>
     /// The whole product surface, plus the two tools that are about *this view* rather than the model.
     /// <para>

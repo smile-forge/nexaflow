@@ -762,6 +762,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// a path (nothing to disambiguate yet).</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(CurrentPath) ? null : CurrentPath;
 
+    /// <summary>The folder the shell works in, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(CurrentPath);
+
     public string? GetAiSystemPromptGuidance() =>
         $"You are attached to a live terminal at '{CurrentPath}' running {ShellDescription}. You can run " +
         "commands directly with the approval-gated `run_command` tool and you receive the actual output " +

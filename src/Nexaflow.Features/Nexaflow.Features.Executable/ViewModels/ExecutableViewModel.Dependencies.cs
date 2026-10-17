@@ -29,8 +29,11 @@ public sealed partial class ExecutableViewModel
         Dependencies.Walk();
     }
 
-    /// <summary>The markdown the diagram is shown from: one binding, to the graph as far as the reader has opened it.</summary>
-    private const string BoundDependencies = "```mermaid\ngraph LR\n{{Dependencies}}\n```\n";
+    /// <summary>
+    /// The diagram the viewport shows, written in Mermaid alone: one binding, to the graph as far as the reader has opened it. Alone,
+    /// so it is laid out at its own size for the viewport to fit, rather than fitted to the width of a page.
+    /// </summary>
+    private const string BoundDependencies = "graph LR\n{{Dependencies}}\n";
 
     private BoundGraph<DependencyGraph>? _dependencies;
 

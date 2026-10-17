@@ -1,0 +1,265 @@
+<UserControl x:Class="Nexaflow.Features.UsbProbe.Views.UsbProbeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.UsbProbe.ViewModels"
+             xmlns:v="clr-namespace:Nexaflow.Features.UsbProbe.Views"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:b="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
+             AutomationProperties.AutomationId="UsbProbeView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+        <KeyBinding Key="Back" Command="{Binding UpCommand}" />
+        <KeyBinding Key="Up" Modifiers="Alt" Command="{Binding UpCommand}" />
+    </UserControl.InputBindings>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+
+
+        <!-- A splitter in a fixed-size row or column that stretches to fill it, so a drag does not spring back. -->
+        <Style x:Key="PaneSplitter" TargetType="GridSplitter">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="ResizeBehavior" Value="PreviousAndNext" />
+        </Style>
+
+        <!-- The app's tree: chevrons, the selected place outlined in the accent, the row lit under the pointer. -->
+        <Style x:Key="TreeItemStyle" TargetType="TreeViewItem" BasedOn="{StaticResource PickerTreeItem}">
+            <Setter Property="Padding" Value="4,3" />
+        </Style>
+
+        <!-- A row the listing draws as the file browser does, and names for assistive technology. -->
+        <Style x:Key="ListingRow" TargetType="ListViewItem" BasedOn="{StaticResource FileListRowStyle}">
+            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+        </Style>
+
+        <!-- Right-click on a tree node or a row: the menu's Tag is the place it was opened on. -->
+        <ContextMenu x:Key="PlaceMenu" x:Shared="False">
+            <MenuItem Header="{loc:Str UsbProbe.Menu.Open}" FontWeight="SemiBold" InputGestureText="Enter" Command="{Binding OpenCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.OpenDevice}" Command="{Binding OpenDeviceCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.ReRead}" Command="{Binding ReReadCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <Separator />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyPath}" Command="{Binding CopyPathCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyInstanceId}" Command="{Binding CopyInstanceIdCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyIds}" Command="{Binding CopyIdsCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <Separator />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyDebug}" Command="{Binding CopyDebugDetailsCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.SaveDebug}" Command="{Binding SaveDebugDetailsCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+        </ContextMenu>
+
+        <!-- Right-click on the listing's blank space: the place open. -->
+        <ContextMenu x:Key="BlankMenu" x:Shared="False">
+            <MenuItem Header="{loc:Str UsbProbe.Menu.Up}" InputGestureText="Backspace" Command="{Binding UpCommand}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.Refresh}" InputGestureText="F5" Command="{Binding RefreshCommand}" />
+            <Separator />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyPath}" Command="{Binding CopyPathCommand}" />
+        </ContextMenu>
+
+        <!-- "New" beside a device plugged in while the page was open, until it is looked at. -->
+        <DataTemplate x:Key="NewBadge">
+            <Border Margin="6,0,0,0" Padding="4,0" CornerRadius="3" VerticalAlignment="Center"
+                    Background="{StaticResource AccentBrush}"
+                    Visibility="{Binding IsNew, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{loc:Str UsbProbe.Listing.New}" FontSize="10" Foreground="{StaticResource OnAccentBrush}" />
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="NameCell" DataType="{x:Type vm:UsbListRow}">
+            <StackPanel Orientation="Horizontal">
+                <icons:IconGlyph Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource NewBadge}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="MutedCell">
+            <TextBlock Text="{Binding}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        </DataTemplate>
+
+        <!-- Buses, hubs: what is plugged in where. -->
+        <GridView x:Key="TopologyColumns" x:Shared="False" ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Name}" Width="260" CellTemplate="{StaticResource NameCell}" />
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Port}" Width="80">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Port}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Ids}" Width="90">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Ids}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Speed}" Width="70">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Speed}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Driver}" Width="200">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Driver}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Power}" Width="110">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Power}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Summary}" Width="360">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Summary}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+        </GridView>
+
+        <!-- Inside a device: configurations, interfaces, endpoints, class descriptors. -->
+        <GridView x:Key="StructureColumns" x:Shared="False" ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Name}" Width="240" CellTemplate="{StaticResource NameCell}" />
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Type}" Width="170">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Kind}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Summary}" Width="460">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><ContentPresenter Content="{Binding Summary}" ContentTemplate="{StaticResource MutedCell}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Offset}" Width="60">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Offset}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+            <GridViewColumn Header="{loc:Str UsbProbe.Column.Length}" Width="60">
+                <GridViewColumn.CellTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Length}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                </GridViewColumn.CellTemplate>
+            </GridViewColumn>
+        </GridView>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="8,5">
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Usb_Up"
+                        Command="{Binding UpCommand}" ToolTip="{loc:Str UsbProbe.Toolbar.UpTip}">
+                    <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_up" />
+                </Button>
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Usb_Refresh"
+                        Command="{Binding RefreshCommand}" ToolTip="{loc:Str UsbProbe.Toolbar.RefreshTip}">
+                    <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_clockwise" />
+                </Button>
+                <Separator Style="{StaticResource TbSep}" />
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Usb_OpenDevice" Command="{Binding OpenDeviceCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:open" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str UsbProbe.Toolbar.OpenDevice}" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Usb_ReRead"
+                        Command="{Binding ReReadCommand}" ToolTip="{loc:Str UsbProbe.Toolbar.ReReadTip}">
+                    <StackPanel Orientation="Horizontal">
+                        <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_sync" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str UsbProbe.Toolbar.ReRead}" />
+                    </StackPanel>
+                </Button>
+                <ProgressBar Style="{StaticResource NexaProgressBar}" Width="80" Height="3" Margin="12,0,0,0" VerticalAlignment="Center"
+                             IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" MinWidth="160" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <TreeView Grid.Column="0" x:Name="Tree"
+                      AutomationProperties.AutomationId="Usb_Tree"
+                      ItemsSource="{Binding TreeRoots}"
+                      ItemContainerStyle="{StaticResource TreeItemStyle}"
+                      b:ListCopy.Enabled="True"
+                      Background="{StaticResource SurfaceBrush}"
+                      BorderThickness="0"
+                      Padding="2,4"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      SelectedItemChanged="Tree_SelectedItemChanged"
+                      ContextMenuOpening="Tree_ContextMenuOpening">
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate DataType="{x:Type vm:UsbTreeNode}" ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal">
+                            <icons:IconGlyph Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource NewBadge}" />
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+            <GridSplitter Grid.Column="1" Style="{StaticResource PaneSplitter}" ResizeDirection="Columns" Cursor="SizeWE" />
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="120" />
+                    <RowDefinition Height="5" />
+                    <RowDefinition Height="*" MinHeight="160" />
+                </Grid.RowDefinitions>
+
+                <ListView Grid.Row="0" x:Name="Listing"
+                          AutomationProperties.AutomationId="Usb_Listing"
+                          ItemsSource="{Binding Rows}"
+                          SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                          SelectionMode="Single"
+                          b:ListCopy.Enabled="True"
+                          b:ListSelection.ClearOnBlankClick="True"
+                          Background="{StaticResource SurfaceBrush}"
+                          BorderThickness="0"
+                          ItemContainerStyle="{StaticResource ListingRow}"
+                          ContextMenuOpening="Listing_ContextMenuOpening"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          MouseDoubleClick="Listing_MouseDoubleClick"
+                          KeyDown="Listing_KeyDown">
+                    <ListView.Style>
+                        <Style TargetType="ListView">
+                            <Setter Property="View" Value="{StaticResource StructureColumns}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTopologyListing}" Value="True">
+                                    <Setter Property="View" Value="{StaticResource TopologyColumns}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListView.Style>
+                </ListView>
+
+                <GridSplitter Grid.Row="1" Style="{StaticResource PaneSplitter}" ResizeDirection="Rows" Cursor="SizeNS" />
+
+                <v:UsbDetailView Grid.Row="2" Detail="{Binding Detail}" SelectedTab="{Binding DetailTab, Mode=TwoWay}" />
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <TextBox Style="{StaticResource SelectableText}" Margin="10,3" Text="{Binding Status, Mode=OneWay}" Foreground="{StaticResource TextMutedBrush}"
+                     FontSize="11" TextWrapping="NoWrap" />
+        </Border>
+    </Grid>
+</UserControl>

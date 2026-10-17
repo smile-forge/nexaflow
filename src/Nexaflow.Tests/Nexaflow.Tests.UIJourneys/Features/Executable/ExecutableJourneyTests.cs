@@ -51,7 +51,7 @@ public class ExecutableJourneyTests : UiJourneyTestBase
     /// </summary>
     private static string StageSampleBinary()
     {
-        string folder = Path.Combine(Path.GetTempPath(), "nexaflow-pe-journey");
+        string folder = Path.Combine(TestTemp.Root, "nexaflow-pe-journey");
         Directory.CreateDirectory(folder);
 
         string source = Path.Combine(Path.GetDirectoryName(UITestBase.FindAppExe())!, SampleBinary);

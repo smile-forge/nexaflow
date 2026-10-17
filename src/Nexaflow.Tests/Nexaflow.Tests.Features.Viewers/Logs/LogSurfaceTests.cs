@@ -35,7 +35,7 @@ public class LogSurfaceTests
 
     private static string WriteTemp(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"logsurface_{Guid.NewGuid():N}.log");
+        var path = Path.Combine(TestTemp.Root, $"logsurface_{Guid.NewGuid():N}.log");
         File.WriteAllText(path, content, new UTF8Encoding(false));
         return path;
     }

@@ -33,8 +33,8 @@ internal sealed class GenerateImageTool : IClientTool
     private bool OffersQuality => _standard is not null && _highQuality is not null;
 
     public string Description => (MostSources > 0
-        ? "Draws a picture from a description, or changes, restyles or combines pictures given to it; saves it as a file and opens it."
-        : "Draws a picture from a description; saves it as a file and opens it.")
+        ? "Draws a picture from a description, or changes, restyles or combines pictures given to it, and opens it for the user."
+        : "Draws a picture from a description and opens it for the user.")
         + " Describe it fully: subject, style, composition, light."
         + (OffersQuality ? " Use high quality only for a finished, polished picture the user asks for: it is slower and is approved first." : "");
 
@@ -46,13 +46,13 @@ internal sealed class GenerateImageTool : IClientTool
             ? [new ClientToolParameter("quality", "Standard when not given.", Required: false, Choices: Qualities)]
             : Array.Empty<ClientToolParameter>(),
         .. MostSources > 0
-            ? [new ClientToolParameter("sources", $"Full paths of up to {MostSources} PNG, JPEG or WebP picture(s) to work from.{SourcesNote}",
+            ? [new ClientToolParameter("sources", $"Full paths of up to {MostSources} PNG, JPEG or WebP picture(s) to work from: pictures open in a tab, or in a folder open in one.{SourcesNote}",
                                        Required: false, Type: "array", ItemType: "string")]
             : Array.Empty<ClientToolParameter>(),
         .. (_standard?.Masks ?? false) || (_highQuality?.Masks ?? false)
             ? [new ClientToolParameter("mask", $"Full path of a PNG the size of the first source; its transparent part is what gets redrawn.{MaskNote}", Required: false)]
             : Array.Empty<ClientToolParameter>(),
-        new("path", @"Where to save it: a folder, or a file path. Pictures\Nexaflow when not given.", Required: false),
+        new("path", GenerationTools.SavedWhere, Required: false),
     ];
 
     internal static readonly IReadOnlyList<string> Shapes = ["square", "landscape", "portrait"];
@@ -94,6 +94,8 @@ internal sealed class GenerateImageTool : IClientTool
         var prompt = ToolArgs.Str(arguments, "prompt", "description");
         if (string.IsNullOrWhiteSpace(prompt)) return ToolResult.Error("no prompt", "Give a 'prompt' describing the picture.");
 
+        if (_files.Refusal(ToolArgs.Str(arguments, "path")) is { } refused) return ToolResult.Error("not saved there", refused);
+
         var model = Model(arguments);
         var paths = arguments["sources"] is JsonArray listed ? listed.Select(s => s?.ToString()).OfType<string>().ToList() : [];
         if (paths.Count > model.MaxSources)
@@ -102,7 +104,7 @@ internal sealed class GenerateImageTool : IClientTool
         var sources = new List<MediaBytes>();
         foreach (var path in paths)
         {
-            if (GeneratedFiles.ReadPicture(path, out var problem) is not { } picture) return ToolResult.Error("source unreadable", problem!);
+            if (_files.ReadPicture(path, out var problem) is not { } picture) return ToolResult.Error("source unreadable", problem!);
             sources.Add(picture);
         }
 
@@ -110,7 +112,7 @@ internal sealed class GenerateImageTool : IClientTool
         if (ToolArgs.Str(arguments, "mask") is { Length: > 0 } maskPath)
         {
             if (!model.Masks || sources.Count == 0) return ToolResult.Error("mask unused", "A mask needs a model that takes one and a source to lay it over.");
-            if (GeneratedFiles.ReadPicture(maskPath, out var problem) is not { } stencil) return ToolResult.Error("mask unreadable", problem!);
+            if (_files.ReadPicture(maskPath, out var problem) is not { } stencil) return ToolResult.Error("mask unreadable", problem!);
             mask = stencil;
         }
 
@@ -126,7 +128,7 @@ internal sealed class GenerateImageTool : IClientTool
         }
 
         var saved = await _files.KeepAsync(made.Media, MadeKind.Picture, ToolArgs.Str(arguments, "path"), prompt, ct);
-        return GeneratedFiles.Made(saved, made.Note, new ContextImage(made.Media.Bytes, made.Media.MimeType, System.IO.Path.GetFileName(saved)));
+        return GeneratedFiles.Made(saved, made.Note, new ContextImage(made.Media.Bytes, made.Media.MimeType, System.IO.Path.GetFileName(saved.Path)));
     }
 
     /// <summary>The shape a model asked for, or <paramref name="fallback"/> where it named none it has.</summary>

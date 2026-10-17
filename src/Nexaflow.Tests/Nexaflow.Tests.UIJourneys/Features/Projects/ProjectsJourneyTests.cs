@@ -50,7 +50,7 @@ public class ProjectsJourneyTests : UiJourneyTestBase
         // A temp folder of its own, so saving the summary never writes into the shared corpus. The seeded text is
         // taller than the viewlet's two-bar height, which is what offers the ··· expander.
         var summaryFolder = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "nexaflow-aisummary-" + Guid.NewGuid().ToString("N"))).FullName;
+            Path.Combine(TestTemp.Root, "nexaflow-aisummary-" + Guid.NewGuid().ToString("N"))).FullName;
         var summaryFile = Path.Combine(summaryFolder, ".aisummary");
         File.WriteAllText(summaryFile, string.Join("\n", Enumerable.Range(1, 30).Select(i => $"Summary line {i}.")));
         NavigateFileBrowserTo(summaryFolder);

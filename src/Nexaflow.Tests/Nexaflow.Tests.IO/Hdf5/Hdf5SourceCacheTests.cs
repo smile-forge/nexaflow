@@ -17,7 +17,7 @@ public sealed class Hdf5SourceCacheTests
     [TestInitialize]
     public void CopySample()
     {
-        _file = Path.Combine(Path.GetTempPath(), $"nexaflow-hdf5-cache-{Guid.NewGuid():N}.h5");
+        _file = Path.Combine(TestTemp.Root, $"nexaflow-hdf5-cache-{Guid.NewGuid():N}.h5");
         File.Copy(TestSampleData.Path("hdf5", "experiment.h5"), _file);
     }
 

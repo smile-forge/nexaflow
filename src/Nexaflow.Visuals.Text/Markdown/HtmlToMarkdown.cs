@@ -388,17 +388,35 @@ public static class HtmlToMarkdown
     /// <summary>A data table as a markdown one: its first row names the columns.</summary>
     private static void WriteGrid(List<List<HtmlNode>> rows, StringBuilder sb)
     {
-        // A markdown cell is one line, so whatever breaks a cell's words over lines is read as the space between them.
-        var matrix = rows
-            .Select(cells => cells.Select(cell => NormalizeWhitespace(InlineChildren(cell)).Trim().Replace("|", "\\|")).ToList())
-            .ToList();
+        // A markdown cell is one line, so whatever breaks a cell's words over lines is read as the space between them. A
+        // cell spanning columns or rows stands in the first place it spans and leaves the others empty, so every row
+        // keeps its columns.
+        var matrix = rows.Select(_ => new List<string?>()).ToList();
+        for (int r = 0; r < rows.Count; r++)
+        {
+            int c = 0;
+            foreach (var cell in rows[r])
+            {
+                while (c < matrix[r].Count && matrix[r][c] is not null) c++;
+                int across = Math.Clamp(cell.GetAttributeValue("colspan", 1), 1, 1000);
+                int down = Math.Clamp(cell.GetAttributeValue("rowspan", 1), 1, rows.Count - r);
+                string text = NormalizeWhitespace(InlineChildren(cell)).Trim().Replace("|", "\\|");
+                for (int dr = 0; dr < down; dr++)
+                {
+                    var row = matrix[r + dr];
+                    while (row.Count < c + across) row.Add(null);
+                    for (int dc = 0; dc < across; dc++) row[c + dc] = dr == 0 && dc == 0 ? text : string.Empty;
+                }
+                c += across;
+            }
+        }
 
         int cols = matrix.Max(r => r.Count);
-        foreach (var r in matrix) while (r.Count < cols) r.Add(string.Empty);
+        var grid = matrix.Select(r => Enumerable.Range(0, cols).Select(i => i < r.Count ? r[i] ?? string.Empty : string.Empty).ToList()).ToList();
 
-        sb.Append("| ").Append(string.Join(" | ", matrix[0])).Append(" |\n");
+        sb.Append("| ").Append(string.Join(" | ", grid[0])).Append(" |\n");
         sb.Append("| ").Append(string.Join(" | ", Enumerable.Repeat("---", cols))).Append(" |\n");
-        foreach (var r in matrix.Skip(1))
+        foreach (var r in grid.Skip(1))
             sb.Append("| ").Append(string.Join(" | ", r)).Append(" |\n");
     }
 

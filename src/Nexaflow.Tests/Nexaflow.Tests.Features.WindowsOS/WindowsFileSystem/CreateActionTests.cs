@@ -12,7 +12,7 @@ public class CreateActionTests
 {
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexacreate_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexacreate_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -16,7 +16,7 @@ public class TabularViewModelLoadTests
 {
     private static string WriteCsv(out string dir)
     {
-        dir = Path.Combine(Path.GetTempPath(), "nexatab_" + Guid.NewGuid().ToString("N"));
+        dir = Path.Combine(TestTemp.Root, "nexatab_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var csv = Path.Combine(dir, "t.csv");
         File.WriteAllText(csv, "a,b,c\n1,2,3\n4,5,6\n");

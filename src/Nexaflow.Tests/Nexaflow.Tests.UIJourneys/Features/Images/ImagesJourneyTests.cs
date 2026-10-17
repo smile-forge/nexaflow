@@ -38,6 +38,17 @@ public class ImagesJourneyTests : UiJourneyTestBase
         // Full-screen — present for every image; invoking it opens a separate window, so only check presence.
         CheckPresent("Full screen", "Image_FullScreen");
 
+        // Convert to Markdown — offered for every picture until page reading is here to tell a page, then only for a page.
+        // It says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
+        if (WaitForId("Image_ConvertToMarkdown", 3) is not null)
+        {
+            CheckDoes("Convert to Markdown", "Image_ConvertToMarkdown",
+                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+            if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
+            if (WaitForId("PageConversion_Stop", 1) is not null)
+                CheckDoes("Stop reading the page", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
+        }
+
         AssertJourney();
     }
 

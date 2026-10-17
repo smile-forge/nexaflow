@@ -173,6 +173,9 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The table this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     /// <summary>Human-readable name of the detected field separator, for <see cref="GetContext"/>.</summary>
     private string DescribeDelimiter() => _data?.Separator switch
     {

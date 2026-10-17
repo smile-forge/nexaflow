@@ -33,7 +33,7 @@ public class VideoModelTests
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_VIDEO") is not { Length: > 0 } root) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
 
-        var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
         _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
         {
             Environment = new AiHostEnvironment(pack),

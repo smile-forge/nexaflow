@@ -9,6 +9,7 @@ using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Images.Views;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Pages;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -28,6 +29,7 @@ public class ImagesAiTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        shell.RunOnUiAsync(Arg.Any<Func<Task<PagesRead?>>>()).Returns(ci => ci.Arg<Func<Task<PagesRead?>>>()());
         return shell;
     }
 
@@ -51,7 +53,7 @@ public class ImagesAiTests
 
             var tools = vm.GetClientTools();
             CollectionAssert.AreEquivalent(
-                new[] { "capture_image", "get_image_info", "next_image", "previous_image" },
+                new[] { "capture_image", "get_image_info", "next_image", "previous_image", "select_in_picture", "cut_out", "restore_picture", "erase_in_picture", "read_page" },
                 tools.Select(t => t.Name).ToArray(),
                 "the Images AI act tool surface changed — update the tree's images-ai-act leaves to match");
 
@@ -79,6 +81,21 @@ public class ImagesAiTests
             Assert.IsFalse(atFirst.IsError);
             Assert.AreEqual(0, vm.CurrentIndex);
             StringAssert.Contains(atFirst.ModelText, "first");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("images-ai-act-read-page")]
+    public async Task ReadPage_WherePageReadingCannotRun_SaysSo()
+    {
+        var vm = new ImageViewModel(TestSampleData.Files("images").Take(1).ToArray(), RunningShell());
+        try
+        {
+            var result = await vm.GetClientTools().Single(t => t.Name == "read_page").InvokeAsync(new JsonObject(), CancellationToken.None);
+
+            Assert.IsTrue(result.IsError);
+            StringAssert.Contains(result.ModelText, "cannot run");
         }
         finally { vm.Dispose(); }
     }

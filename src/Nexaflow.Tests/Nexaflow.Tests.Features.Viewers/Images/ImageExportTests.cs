@@ -149,4 +149,16 @@ public class ImageExportTests
         Assert.IsFalse(exporter.Capability(ImageContainer.Gif, isAnimated: true, ImageContainer.Gif).CanSaveInPlace, "an animation would lose its frames");
         Assert.IsFalse(exporter.Capability(ImageContainer.Png, isAnimated: false, ImageContainer.Gif).KeepsMetadata);
     }
+
+    [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void WhatHoldsTransparency_IsKnownBeforeAsking()
+    {
+        var exporter = Services.Exporter;
+        Assert.IsTrue(exporter.Capability(ImageContainer.Png, isAnimated: false, ImageContainer.Png).KeepsTransparency);
+        Assert.IsTrue(exporter.Capability(ImageContainer.Webp, isAnimated: false, ImageContainer.Webp).KeepsTransparency);
+        Assert.IsTrue(exporter.Capability(ImageContainer.Tiff, isAnimated: false, ImageContainer.Tiff).KeepsTransparency);
+        Assert.IsFalse(exporter.Capability(ImageContainer.Jpeg, isAnimated: false, ImageContainer.Jpeg).KeepsTransparency, "JPEG lays it on white");
+        Assert.IsFalse(exporter.Capability(ImageContainer.Bmp, isAnimated: false, ImageContainer.Bmp).KeepsTransparency);
+    }
 }

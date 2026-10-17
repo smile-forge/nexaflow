@@ -57,7 +57,7 @@ public class WorkspaceConfigScopingTests
     [TestMethod]
     public void SaveTo_ThenLoadFrom_RoundTripsScopedConfig()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         try
         {
             var saved = new ProjectsConfig { ProjectDirectory = @"X:\Custom\Projects" };
@@ -82,7 +82,7 @@ public class WorkspaceConfigScopingTests
     [TestMethod]
     public void ConsoleConfig_FolderBindings_RoundTripPerWorkspace()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         try
         {
             var saved = new ConsoleConfig();
@@ -104,7 +104,7 @@ public class WorkspaceConfigScopingTests
     [TestMethod]
     public void LoadFrom_MissingFile_KeepsDefaults()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         var cfg = new ProjectsConfig { ProjectDirectory = @"C:\Default" };
         ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);   // no file — no-op
         Assert.AreEqual(@"C:\Default", cfg.ProjectDirectory);

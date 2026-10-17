@@ -16,7 +16,7 @@ public class SavePickingTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-savepick-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-savepick-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
     }
 

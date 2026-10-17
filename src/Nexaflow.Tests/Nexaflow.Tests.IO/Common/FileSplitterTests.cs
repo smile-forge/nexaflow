@@ -16,7 +16,7 @@ public class FileSplitterTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), $"nexa-split-{Guid.NewGuid():N}");
+        _dir = Path.Combine(TestTemp.Root, $"nexa-split-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dir);
     }
 

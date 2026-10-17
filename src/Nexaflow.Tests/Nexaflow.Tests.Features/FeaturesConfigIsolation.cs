@@ -13,7 +13,7 @@ public static class FeaturesConfigIsolation
     [AssemblyInitialize]
     public static void Init(TestContext _)
     {
-        TestConfigRoot.Redirect("features");
+        TestConfigRoot.Redirect();
         Localization.EnglishStrings.Use();
     }
 

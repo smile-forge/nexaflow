@@ -32,7 +32,7 @@ public class DotnetViewletJourneyTests : UiJourneyTestBase
     {
         if (_folder.Length > 0) return _folder;
 
-        _folder = Path.Combine(Path.GetTempPath(), "nexadotnetui_" + Guid.NewGuid().ToString("N"));
+        _folder = Path.Combine(TestTemp.Root, "nexadotnetui_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_folder, "App"));
         Directory.CreateDirectory(Path.Combine(_folder, "Lib"));
         File.WriteAllText(Path.Combine(_folder, "App", "App.csproj"), GuiApp);

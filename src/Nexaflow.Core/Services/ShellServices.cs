@@ -935,6 +935,17 @@ public sealed class ShellServices : IShellServices
         return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner, _workspace));
     }
 
+    public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null,
+                                                          string? initialPath = null)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => PickOpenFilesAsync(extensions, initialPath));
+
+        var owner = FocusedWindow?.Window;
+        return Task.FromResult(FileBrowserWindow.ShowMany(initialPath, extensions, owner, _workspace));
+    }
+
     public Task<string?> PickFolderAsync(string? initialPath = null)
     {
         var dispatcher = _ui;
@@ -948,12 +959,16 @@ public sealed class ShellServices : IShellServices
                                            IReadOnlyList<string>? extensions = null,
                                            string? initialPath = null,
                                            long bytes = 0)
+        => PickSaveFileAsync(defaultFileName, [.. (extensions ?? []).Select(ext => new SaveFileType(ext, ext))], initialPath, bytes);
+
+    public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types,
+                                           string? initialPath = null, long bytes = 0)
     {
         var dispatcher = _ui;
         if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, extensions, initialPath, bytes));
+            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
 
-        return Task.FromResult(FileBrowserWindow.ShowSave(defaultFileName, extensions, initialPath, bytes,
+        return Task.FromResult(FileBrowserWindow.ShowSave(defaultFileName, types, initialPath, bytes,
                                                           FocusedWindow?.Window, _workspace));
     }
 

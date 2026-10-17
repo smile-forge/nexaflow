@@ -23,7 +23,7 @@ public class RepoFilesTests
     private string _root = string.Empty;
 
     [TestInitialize]
-    public void Setup() => _root = Directory.CreateTempSubdirectory("nexa-repofiles-").FullName;
+    public void Setup() => _root = TestTemp.CreateSubdirectory("nexa-repofiles-").FullName;
 
     [TestCleanup]
     public void Teardown() { try { Directory.Delete(_root, recursive: true); } catch { } }

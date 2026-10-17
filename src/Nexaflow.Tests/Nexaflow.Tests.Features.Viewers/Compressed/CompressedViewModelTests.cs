@@ -125,7 +125,7 @@ public class CompressedViewModelTests
         {
             Vfs = new VirtualFileSystem();
             Vfs.RegisterHandler(new ZipArchiveHandler());
-            _dir = Path.Combine(Path.GetTempPath(), "nexa-cvm-test-" + Guid.NewGuid().ToString("N"));
+            _dir = Path.Combine(TestTemp.Root, "nexa-cvm-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_dir);
             ZipPath = Path.Combine(_dir, "a.zip");
             using var zip = ZipFile.Open(ZipPath, ZipArchiveMode.Create);

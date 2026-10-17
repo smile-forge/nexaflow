@@ -49,9 +49,9 @@ internal sealed class GenerateVideoTool : IClientTool
         new("seconds", $"How long it runs: {Lengths(FromDescription)}{FromPictureLengths}; {Default(FromDescription)} when not given.",
             Required: false, Type: "integer"),
         .. FromPicture is not null
-            ? [new ClientToolParameter("first_frame", "Full path of a PNG, JPEG or WebP picture the clip starts from.", Required: false)]
+            ? [new ClientToolParameter("first_frame", "Full path of a PNG, JPEG or WebP picture the clip starts from: one open in a tab, or in a folder open in one.", Required: false)]
             : Array.Empty<ClientToolParameter>(),
-        new("path", @"Where to save it: a folder, or a file path. Videos\Nexaflow when not given.", Required: false),
+        new("path", GenerationTools.SavedWhere, Required: false),
     ];
 
     internal static readonly IReadOnlyList<string> Shapes = ["landscape", "portrait"];
@@ -90,6 +90,8 @@ internal sealed class GenerateVideoTool : IClientTool
         var prompt = ToolArgs.Str(arguments, "prompt", "description");
         if (string.IsNullOrWhiteSpace(prompt)) return ToolResult.Error("no prompt", "Give a 'prompt' describing the clip.");
 
+        if (_files.Refusal(ToolArgs.Str(arguments, "path")) is { } refused) return ToolResult.Error("not saved there", refused);
+
         var model   = Model(arguments);
         var shape   = GenerateImageTool.Shape(ToolArgs.Str(arguments, "shape"), MediaShape.Landscape);
         if (shape == MediaShape.Square) shape = MediaShape.Landscape;
@@ -98,7 +100,7 @@ internal sealed class GenerateVideoTool : IClientTool
         if (ToolArgs.Str(arguments, "first_frame") is { Length: > 0 } framePath)
         {
             if (!model.StartsFromImages) return ToolResult.Error("first frame unused", "No model here starts a clip from a picture.");
-            if (GeneratedFiles.ReadPicture(framePath, out var problem) is not { } picture) return ToolResult.Error("first frame unreadable", problem!);
+            if (_files.ReadPicture(framePath, out var problem) is not { } picture) return ToolResult.Error("first frame unreadable", problem!);
             request = request with
             {
                 FirstFrame = model.FirstFrameSize(shape) is var (width, height) ? FrameFit.Fit(picture, width, height) : picture,

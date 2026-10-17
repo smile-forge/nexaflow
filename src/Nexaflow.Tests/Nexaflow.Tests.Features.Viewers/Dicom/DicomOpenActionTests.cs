@@ -88,7 +88,7 @@ public class DicomOpenActionTests
     [TestMethod]
     public void ADicomDirTabIsTitledForItsStudyFolder_NotTheWordDICOMDIR()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-dicom-title-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-dicom-title-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "STUDY01"));
         try
         {

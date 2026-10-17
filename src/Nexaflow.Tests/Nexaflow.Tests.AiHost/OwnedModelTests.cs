@@ -27,7 +27,7 @@ public class OwnedModelTests
     {
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder) return;
 
-        var aiDir = Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName;
+        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
         string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
         _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
         {
@@ -108,7 +108,7 @@ public class OwnedModelTests
         {
             string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
             await using var host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                                              Directory.CreateTempSubdirectory("nexaflow-aihost-").FullName))
+                                                                              TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName))
             {
                 Environment = new AiHostEnvironment(pack),
             };

@@ -51,7 +51,7 @@ public class NotebookSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-nbsearch-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-nbsearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _path = Path.Combine(_dir, "book.ipynb");
         File.WriteAllText(_path, Notebook);

@@ -14,7 +14,7 @@ public class LineSamplingReaderTests
     private static string WriteTemp(string contents, Encoding? enc = null, byte[]? bomBytes = null)
     {
         enc ??= new UTF8Encoding(false);
-        var path = Path.Combine(Path.GetTempPath(), $"tabular-sampling-{Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"tabular-sampling-{Guid.NewGuid():N}.txt");
         using var fs = File.OpenWrite(path);
         if (bomBytes is not null) fs.Write(bomBytes, 0, bomBytes.Length);
         var bytes = enc.GetBytes(contents);

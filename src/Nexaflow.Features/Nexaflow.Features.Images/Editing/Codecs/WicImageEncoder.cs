@@ -16,6 +16,9 @@ public sealed class WicImageEncoder : IImageEncoder
 
     public bool CarriesMetadata(ImageContainer container) => false;
 
+    /// <summary>BMP readers ignore its alpha, and GIF's one transparent palette entry is not chosen here.</summary>
+    public bool CarriesTransparency(ImageContainer container) => false;
+
     public byte[] Encode(SKImage picture, ImageContainer container, EncodeOptions options, MetadataBlocks metadata)
     {
         using var srgb = new SKBitmap(new SKImageInfo(picture.Width, picture.Height, SKColorType.Bgra8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()));

@@ -32,7 +32,7 @@ public sealed class FileSystemPageRegistration(
     IReadOnlyList<PageParameter> IPageRegistration.Parameters =>
     [
         new("mode",  "\"thispc\" for the drive list (default), or \"path\" to open a folder.", Required: false),
-        new("path",  "Folder to open. Required when mode is \"path\".", Required: false),
+        new("path",  "Full path of the folder to open. Required when mode is \"path\".", Required: false, OnDisk: true),
         new("label", "Display name for the tab.", Required: false),
     ];
 

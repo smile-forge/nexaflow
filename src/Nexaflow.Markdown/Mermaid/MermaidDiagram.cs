@@ -128,6 +128,19 @@ public static class MermaidDiagrams
             ? Flowchart.FlowchartParser.Parse
             : MermaidParser.Parse;
 
+    /// <summary>What is wrong with a Mermaid block, each trouble said — read by the parser its header names and worked over
+    /// by its diagram's stages, as the engine reads one to draw it; none for a block drawn as written. A block of a diagram
+    /// Nexaflow does not draw is wrong in itself.</summary>
+    public static IReadOnlyList<string> Troubles(string source)
+    {
+        var named = MermaidParser.Heading(source)?.Header.Part(Ast.Roles.Name)?.Text;
+        var diagram = Named(named);
+        if (diagram == MermaidDiagram.Unknown) return [$"'{named}' is not a diagram Nexaflow draws."];
+        var tree = ParserFor(diagram)(source);
+        var read = new Pipeline.AstPipeline(MermaidPipeline.Of(tree, false)).Run(tree);
+        return [.. read.SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+    }
+
     /// <summary>
     /// What writes back into a block of this type: the diagram's own transpiler where it has one, and the shared
     /// <see cref="MermaidParser"/> otherwise.

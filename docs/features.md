@@ -14,7 +14,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | Create project | yes | `net10.0-windows` WPF class library, reference `Features.Common` |
 | `IPageRegistration` | yes | Factory that produces a `Page` (expose `static string StaticPageKind`) |
 | `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
-| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject` |
+| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
 | Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
@@ -63,8 +63,11 @@ any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`,
 `IPageView` on the tab `UserControl` exposes its `ViewModel` and the `Reinitialize(pageParams)` hook — called
 on first activation **and** whenever the shell routes the tab a new param set (including re-clicking the active
 tab). `IPageViewModel` on the ViewModel is the AI-pipeline contract (`GetContext`, `GetClientTools`,
-`GetContextObject`, plus security-scope / readiness defaults — see its XML doc). Both interfaces have sensible
-defaults, so a context-only page overrides almost nothing.
+`GetContextObject`, plus security-scope / readiness defaults — see its XML doc). A page that shows files says which
+with `GetContextGrant` — its file, its pictures, the folder it is in — and every assistant tool that takes a path is held
+to it ([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk));
+`AiSurfaceRulesTests` names a scoped page that does not. Both interfaces have sensible defaults, so a context-only page
+overrides almost nothing.
 
 ---
 
@@ -289,6 +292,9 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
+| UsbProbe | `location` (optional — a USB location path: `3` a bus, `3-10.2` a device by port path, `3-10.2/config1/if0.0` an interface inside it; a device name or VID:PID opens the first match. Location, not identity: a window keeps one USB tab and an open re-points it) |
+| UsbDevice | `device` (a device's port path such as `3-10.2`, anything inside it, or a name or VID:PID — one tab per device, which follows the device by instance id when it is replugged into another port) |
+| Serial | `port` (optional — a COM port such as `COM5`; one tab per port, omitted for a tab that picks one. Opening the tab never opens the port) |
 | Solver | *(none)* — the page is a fresh surface every time, which is why pinning the tab does not pin the definition or the results |
 | ProjectDetail | `folder` |
 | VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |
@@ -348,7 +354,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFileWatch` | Handle from `IShellServices.WatchFile`; `Enabled = false` holds + coalesces callbacks, dispose to unwatch. |
 | `IBackgroundTask` | Self-contained background work handed to `IShellServices.QueueBackgroundTask` (runs off the UI thread). |
 | `IShellAware` | A custom config-editor control that needs the shell handed to it (for the themed file/folder pickers). |
-| `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL) — the non-drag sibling of `IDropTarget`. |
+| `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL, a `FileByteRange`, a `DraftFile`) — the non-drag sibling of `IDropTarget`. |
 | `IKeyboardHandler` | Claims global keyboard shortcuts; queried against the active page before the key is consumed. |
 | `IDropTarget` | Accepts file drag-drop; resolved from the active page by the file browser. |
 

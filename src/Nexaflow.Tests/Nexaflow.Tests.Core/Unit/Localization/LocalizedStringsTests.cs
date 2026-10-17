@@ -19,7 +19,7 @@ public class LocalizedStringsTests
     [TestInitialize]
     public void CreateDir()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nf-strings-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nf-strings-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

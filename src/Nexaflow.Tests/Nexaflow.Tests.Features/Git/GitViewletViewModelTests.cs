@@ -23,7 +23,7 @@ public class GitViewletViewModelTests
 
     private string InitRepo()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexagitvm_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexagitvm_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         Repository.Init(dir);
         _temp.Add(dir);
@@ -386,7 +386,7 @@ public class GitViewletViewModelTests
     [CoversNode("git-ai-context")]
     public void GetContext_OnANonRepo_IsNullRatherThanThrowing()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexagitvm_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexagitvm_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         _temp.Add(dir);
 

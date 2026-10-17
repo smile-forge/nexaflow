@@ -17,7 +17,7 @@ public class LanguageManagerTests
     [TestInitialize]
     public void CreateDir()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nf-lang-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nf-lang-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

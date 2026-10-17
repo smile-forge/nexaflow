@@ -23,7 +23,7 @@ public class JsonFileLoaderTests
 
     private static string WriteText(string content, bool utf8Bom = false)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"jsonload_{Guid.NewGuid():N}.json");
+        var path = Path.Combine(TestTemp.Root, $"jsonload_{Guid.NewGuid():N}.json");
         using var fs = File.Create(path);
         if (utf8Bom) fs.Write([0xEF, 0xBB, 0xBF]);
         var bytes = Encoding.UTF8.GetBytes(content);
@@ -116,7 +116,7 @@ public class JsonFileLoaderTests
     [TestMethod]
     public async Task LoadAsync_MissingFile_ReturnsNotFound()
     {
-        var missing = Path.Combine(Path.GetTempPath(), $"does_not_exist_{Guid.NewGuid():N}.json");
+        var missing = Path.Combine(TestTemp.Root, $"does_not_exist_{Guid.NewGuid():N}.json");
 
         var result = await new JsonFileLoader().LoadAsync(missing, CancellationToken.None);
 

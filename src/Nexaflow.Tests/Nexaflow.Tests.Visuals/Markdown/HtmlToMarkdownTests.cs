@@ -104,6 +104,12 @@ public class HtmlToMarkdownTests
     }
 
     [TestMethod]
+    public void ACellSpanningColumnsOrRows_StandsInItsFirstPlace_AndEveryRowKeepsItsColumns()
+        => Assert.AreEqual("| Model | Score |  |\n| --- | --- | --- |\n| Ours | 0.9 | 0.8 |\n|  | 0.7 | 0.6 |",
+                           Convert("<table><tr><td>Model</td><td colspan=\"2\">Score</td></tr>" +
+                                   "<tr><td rowspan=\"2\">Ours</td><td>0.9</td><td>0.8</td></tr><tr><td>0.7</td><td>0.6</td></tr></table>"));
+
+    [TestMethod]
     public void ATableThatSaysItIsPresentation_IsLaidOutEvenInRowsAndColumns()
     {
         var html = "<table role=\"presentation\"><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>";

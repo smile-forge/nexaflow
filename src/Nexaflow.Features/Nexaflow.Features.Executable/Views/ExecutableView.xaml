@@ -593,7 +593,9 @@
                                                 MiniMapCorner="BottomRight">
                                 <vcl:PanZoomSurface.SurfaceContent>
                                     <md:MarkdownSurface x:Name="DependencyDiagram"
-                                                        Markdown="{Binding DependencyMarkdown}"/>
+                                                        Markdown="{Binding DependencyMarkdown}"
+                                                        UnlimitedWidth="True"
+                                                        WrittenIn="mermaid"/>
                                 </vcl:PanZoomSurface.SurfaceContent>
                             </vcl:PanZoomSurface>
                         </Border>

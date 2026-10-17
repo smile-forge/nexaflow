@@ -56,6 +56,9 @@ public static class MermaidPiece
 
     /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
     public const string Line = "Line";
+
+    /// <summary>A drawing set smaller, because it was still wider than its room once it had reshaped itself to it — see <c>MermaidBuilder.Reduced</c>.</summary>
+    public const string Reduced = "Reduced";
 }
 
 /// <summary>What every Mermaid diagram's builder shares: reading the block once, the title over the
@@ -145,12 +148,71 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </summary>
     protected void Beneath(LayoutTree tree, Size size, double gap) => this.beneath.Add((tree, size, gap));
 
+    /// <summary>How much smaller than it was laid out the drawing is set — 1 where its diagram did not ask (<see cref="Reduced"/>).</summary>
+    private double reduction = 1;
+
+    /// <summary>How many times a diagram is laid again narrower before what it came to is what it is — see <see cref="LaidNarrower"/>.</summary>
+    private const int Narrowings = 4;
+
+    /// <summary>
+    /// A diagram laid at a measure — how wide its words are set, say — and, where that comes out wider than the room, laid again
+    /// at a narrower one until it fits or can go no narrower: the measure narrowed in step with how far the last lay overflowed,
+    /// never below <paramref name="least"/>. One way a diagram reshapes itself to the room before it is <see cref="Reduced"/>.
+    ///
+    /// <para>
+    /// A lay is kept only where it came out narrower than the one before, since what a measure narrows is not all of what makes a
+    /// diagram wide — words set narrower stand on more lines, and a map is as wide as its branches are deep — so another pass would
+    /// come to the same thing. Laid again more than once for the same reason: the second lay is not the first one in proportion.
+    /// </para>
+    /// </summary>
+    /// <param name="lay">The diagram laid at a measure.</param>
+    /// <param name="wide">How wide a lay came out.</param>
+    protected TLaid LaidNarrower<TLaid>(double measure, double least, Func<double, TLaid> lay, Func<TLaid, double> wide)
+    {
+        var laid = lay(measure);
+        if (double.IsInfinity(Space)) return laid;
+
+        for (var attempt = 0; attempt < Narrowings && wide(laid) > Space; attempt++)
+        {
+            var narrower = Math.Max(least, measure * Space / wide(laid));
+            if (narrower >= measure) break;
+
+            var again = lay(narrower);
+            if (wide(again) >= wide(laid)) break;
+
+            (measure, laid) = (narrower, again);
+        }
+
+        return laid;
+    }
+
+    /// <summary>
+    /// Sets the drawing smaller where it is wider than the room, and hands back the size it then takes — the last thing a diagram
+    /// does to fit, once it has reshaped itself to the room as far as it can.
+    ///
+    /// <para>
+    /// Only the diagram knows how far that is, so only the diagram asks. Some can reshape a long way: a flowchart wraps the parts
+    /// of it nothing joins onto further rows, a timeline runs its periods on under one another, a mindmap sets what its nodes say
+    /// narrower. Some cannot at all, and a branch of a git graph is as long as its commits. Whatever is still too wide after
+    /// that is drawn smaller as a whole — its words, its lines and the air between them together, about its top left, as the
+    /// layout paints, presses and caret it (<see cref="LayoutPaint.Scale"/>) — and never larger.
+    /// </para>
+    /// </summary>
+    protected Size Reduced(Size drawn)
+    {
+        if (double.IsInfinity(Space) || drawn.Width <= Space) return drawn;
+
+        this.reduction = Space / drawn.Width;
+        return new Size(Space, drawn.Height * this.reduction);
+    }
+
     protected sealed override Laid Build()
     {
         var block = MermaidBlock.Of(Reading);
 
         var diagram = new LayoutBuilder();
         this.blamed = null;
+        this.reduction = 1;
         var body = Draw(block, diagram);
 
         var troubled = ContentNested.OwnParts(block.Reading.Root).Where(part => part.Trouble is not null && !part.Derived).ToList();
@@ -215,7 +277,18 @@ internal abstract class MermaidBuilder : ContentBuilder
             top += title.Height + TitleGap;
         }
 
-        build.Graft(drawn, new Point(Pad + Math.Max(0, (width - body.Width) / 2), top));
+        var at = new Point(Pad + Math.Max(0, (width - body.Width) / 2), top);
+        if (this.reduction == 1)
+        {
+            build.Graft(drawn, at);
+        }
+        else
+        {
+            build.Open(MermaidPiece.Reduced, part: null, at, stops: Stops.None, paints: new LayoutPaint(Scale: this.reduction));
+            build.Graft(drawn);
+            build.Close();
+        }
+
         top += body.Height;
 
         foreach (var (tree, taken, gap) in this.beneath)
@@ -228,7 +301,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         foreach (var reason in trouble.Select(diagnostic => diagnostic.Message).Distinct())
         {
             var text = Text(reason, ReasonSize, Palette.Danger);
-            text.MaxTextWidth = Math.Min(Math.Max(width, ReasonRoom), Room);
+            text.MaxTextWidth = Math.Min(Math.Max(width, ReasonRoom), Space);
 
             top += ReasonGap;
             build.Open(MermaidPiece.Trouble, part: null, new Point(Pad, top), stops: Stops.None);

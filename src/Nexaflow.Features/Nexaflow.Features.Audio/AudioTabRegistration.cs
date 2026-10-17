@@ -5,12 +5,14 @@ using System.Linq;
 using Nexaflow.Features.Audio.ViewModels;
 using Nexaflow.Features.Audio.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Drafts;
 
 namespace Nexaflow.Features.Audio;
 
 /// <summary>
 /// Registers the audio player page with <see cref="FeatureManager"/>. Accepts a pipe-separated
-/// <c>"paths"</c> queue and an <c>"index"</c> selecting the starting track. Disposal of the
+/// <c>"paths"</c> queue and an <c>"index"</c> selecting the starting track; a <c>"draft"</c> marks one recording made for
+/// the user and not saved yet, naming the folder its Save as starts in. Disposal of the
 /// view-model (and its playback engine) is wired to <see cref="Page.Closed"/> — NOT the view's
 /// Unloaded — so playback survives tab switches and only stops when the tab is closed.
 /// </summary>
@@ -30,7 +32,7 @@ public sealed class AudioTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("paths", "Pipe-separated audio file paths forming the play queue."),
+        new("paths", "Pipe-separated audio file paths forming the play queue.", OnDisk: true),
         new("index", "Zero-based index of the track to start on.", Required: false),
         new("autoplay", "When \"true\", playback starts immediately (used by \"Play folder\").", Required: false),
         new("scope", "\"folder\" when the queue is a whole folder (used by \"Play folder\").", Required: false),
@@ -74,9 +76,21 @@ public sealed class AudioTabRegistration : IPageRegistration
         else
             page.SetFileBreadcrumbs(currentPath, title);
 
+        var draft = paths.Count == 1 && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
+            ? new DraftSaving(paths[0], offered is { Length: > 0 } ? offered : null,
+                              (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError)
+            : null;
+        // A draft kept somewhere is that file from then on: it opens there, and the draft's tab goes.
+        if (draft is not null)
+            draft.Kept += kept =>
+            {
+                _shell.OpenTab(StaticPageKind, new Dictionary<string, string> { ["paths"] = kept });
+                _shell.CloseTab(page);
+            };
+
         page.ContentFactory = () =>
         {
-            var vm = new AudioViewModel(paths, index, _shell, _config, autoPlay);
+            var vm = new AudioViewModel(paths, index, _shell, _config, autoPlay) { Draft = draft };
             page.Closed += (_, _) => vm.Dispose();
             return new AudioView(vm);
         };

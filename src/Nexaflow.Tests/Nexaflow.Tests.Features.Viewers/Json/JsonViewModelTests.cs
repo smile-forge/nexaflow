@@ -27,7 +27,7 @@ public class JsonViewModelTests
 {
     private static string WriteTempJson(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"jsonvm_{Guid.NewGuid():N}.json");
+        var path = Path.Combine(TestTemp.Root, $"jsonvm_{Guid.NewGuid():N}.json");
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return path;
     }

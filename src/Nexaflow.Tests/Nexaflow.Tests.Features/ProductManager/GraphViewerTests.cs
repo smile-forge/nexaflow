@@ -37,7 +37,7 @@ public class GraphViewerTests
 
     private static string WriteTemp(KnowledgeGraph g)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"graph-{Guid.NewGuid():N}.bin");
+        var path = Path.Combine(TestTemp.Root, $"graph-{Guid.NewGuid():N}.bin");
         GraphArchive.Write(path, new GraphSnapshot { Graph = g });
         return path;
     }

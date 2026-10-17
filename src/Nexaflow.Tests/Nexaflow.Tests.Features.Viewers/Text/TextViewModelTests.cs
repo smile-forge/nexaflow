@@ -26,7 +26,7 @@ public class TextViewModelTests
 {
     private static string WriteTemp(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"textvm_{Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"textvm_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, content, new UTF8Encoding(false));
         return path;
     }
@@ -302,7 +302,7 @@ public class TextViewModelTests
     {
         // A UTF-16 LE file (with BOM) whose bytes are garbage under the default UTF-8 selection —
         // the loader must honour the byte-order mark and decode it correctly regardless.
-        var path = Path.Combine(Path.GetTempPath(), $"textvm_{Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"textvm_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, "héllo\nwörld", Encoding.Unicode);
         try
         {
@@ -320,7 +320,7 @@ public class TextViewModelTests
     public void SelectedEncoding_Change_ReDecodesFile() => AsyncPump.Run(async () =>
     {
         // Byte 0xE9 is 'é' in Latin-1 but an invalid lead byte in UTF-8 (→ replacement char).
-        var path = Path.Combine(Path.GetTempPath(), $"textvm_{Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"textvm_{Guid.NewGuid():N}.txt");
         File.WriteAllBytes(path, Encoding.Latin1.GetBytes("café\nline two"));
         try
         {
@@ -376,7 +376,7 @@ public class TextViewModelTests
     [CoversNode("text-viewer-func-splitting")]
     public async Task Split_QueuesTask_ThatSplitsFileIntoSiblingParts()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"textvm_split_{Guid.NewGuid():N}");
+        var dir = Path.Combine(TestTemp.Root, $"textvm_split_{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, "big.txt");
         File.WriteAllLines(path, Enumerable.Range(0, 20).Select(i => $"line {i}"));

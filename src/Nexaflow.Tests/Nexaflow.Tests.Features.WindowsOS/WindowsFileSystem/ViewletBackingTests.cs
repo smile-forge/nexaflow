@@ -33,7 +33,7 @@ public class ViewletBackingTests
     public void Setup()
     {
         VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-viewlet-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-viewlet-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_dir, "repo", ".git"));
         File.WriteAllText(Path.Combine(_dir, "repo", "App.csproj"), "<Project/>");
 

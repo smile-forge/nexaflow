@@ -1395,6 +1395,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
          : string.IsNullOrEmpty(CurrentPath) ? null
          : CurrentPath;
 
+    /// <summary>The folder this tab shows, with everything under it — where the bytes are, for a mounted one; on This PC, every
+    /// drive it lists.</summary>
+    public ContextGrant GetContextGrant()
+        => IsThisPcMode ? ContextGrant.OfFolders(DriveInfo.GetDrives().Select(d => d.RootDirectory.FullName))
+         : string.IsNullOrEmpty(CurrentPath) ? ContextGrant.None
+         : ContextGrant.OfFolder(Vfs.TryResolveReal(CurrentPath));
+
     /// <summary>
     /// Risk of letting the AI act here: High when unconfined or system-critical (This PC, the system
     /// drive root, or inside the Windows folder), Medium for a whole non-system drive root, else Low.
@@ -1713,17 +1720,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         children.Add(newNode);
     }
 
-    /// <summary>True when <paramref name="target"/> lies strictly below <paramref name="dir"/>.
-    /// The separator is part of the test: a bare prefix match makes "C:\Data" claim "C:\Datasets",
-    /// so expanding one folder would also expand every sibling whose name it starts with.</summary>
-    private static bool IsUnder(string target, string dir)
-    {
-        var root = dir.TrimEnd(Path.DirectorySeparatorChar);
-        return target.Length > root.Length
-            && target[root.Length] == Path.DirectorySeparatorChar
-            && target.AsSpan(0, root.Length).Equals(root, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool TryExpandTo(FileSystemTreeNode node, string target)
     {
         if (string.Equals(node.FullPath, target, StringComparison.OrdinalIgnoreCase))
@@ -1735,7 +1731,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Only descend if the target is under this node.
         // Empty FullPath means a virtual root (e.g. "This PC") — always descend into its children.
-        if (!string.IsNullOrEmpty(node.FullPath) && !IsUnder(target, node.FullPath))
+        if (!string.IsNullOrEmpty(node.FullPath) && !PathScope.IsWithin(target, node.FullPath))
             return false;
 
         node.IsExpanded = true; // triggers lazy load

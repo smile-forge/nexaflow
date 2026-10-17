@@ -33,7 +33,7 @@ public class HexAiToolTests
     [TestInitialize]
     public void WriteSample()
     {
-        _path = Path.Combine(Path.GetTempPath(), $"hexai_{Guid.NewGuid():N}.bin");
+        _path = Path.Combine(TestTemp.Root, $"hexai_{Guid.NewGuid():N}.bin");
         File.WriteAllBytes(_path, Sample);
     }
 

@@ -16,7 +16,7 @@ public class GitServiceTests
 
     private string InitRepo()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexagit_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexagit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         Repository.Init(dir);
         _temp.Add(dir);

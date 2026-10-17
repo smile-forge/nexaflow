@@ -72,6 +72,8 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
         ("nothing to draw", "swimlane-beta"),
     ];
 
+    protected override bool FitsTheRoom => true;
+
     [TestMethod]
     public void EachLaneIsABandRunningTheWholeLengthOfTheChart() => UiThread.Run(() =>
     {

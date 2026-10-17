@@ -49,7 +49,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
 
     protected override Task<ISearchable> CreateAsync()
     {
-        _path = Path.Combine(Path.GetTempPath(), "nexasearch_" + Guid.NewGuid().ToString("N") + ".md");
+        _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".md");
         File.WriteAllText(_path, Document);
         return Task.FromResult<ISearchable>(Open());
     }

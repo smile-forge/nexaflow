@@ -41,7 +41,7 @@ public class ShellNewContentResolverTests
     [TestMethod]
     public void FileName_AbsoluteExisting_ResolvesToPath()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexasnr_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexasnr_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {

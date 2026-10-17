@@ -20,7 +20,7 @@ public class GitWorktreeServiceTests
 
     private string NewTempPath(string tag)
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"nexawt_{tag}_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, $"nexawt_{tag}_" + Guid.NewGuid().ToString("N"));
         _temp.Add(dir);
         return dir;
     }

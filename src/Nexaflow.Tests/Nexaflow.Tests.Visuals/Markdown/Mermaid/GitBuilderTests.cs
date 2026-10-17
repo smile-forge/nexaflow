@@ -47,6 +47,20 @@ public class GitBuilderTests : MermaidBuilderContract
         ("nothing to draw", "gitGraph"),
     ];
 
+    protected override bool FitsTheRoom => true;
+
+    [TestMethod]
+    public void AGraphWiderThanTheRoomIsDrawnSmaller_AndOneThatFitsIsNot() => UiThread.Run(() =>
+    {
+        var source = "gitGraph\n" + string.Concat(Enumerable.Repeat("  commit\n", 12));
+
+        Assert.AreEqual(0, Pieces(Lay(source, 4000), MermaidPiece.Reduced).Count, "a graph that fits is drawn at its size");
+
+        var laid = Lay(source, 240);
+        Assert.AreEqual(1, Pieces(laid, MermaidPiece.Reduced).Count, "a branch is as long as its commits, so one too long is drawn smaller");
+        Assert.IsTrue(laid.Size.Width <= 240.01, $"{laid.Size.Width} wide");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 

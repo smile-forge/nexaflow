@@ -24,7 +24,7 @@ public class OptionalExtensionTests
     [ClassInitialize]
     public static void Init(TestContext _)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-filemap-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-filemap-" + Guid.NewGuid().ToString("N"));
         FileMapManager.Instance.Initialize(baseDir: dir);
 
         FileMapManager.Instance.SaveMapping(new ExperienceMapping

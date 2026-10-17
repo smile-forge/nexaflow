@@ -2,9 +2,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.Core.Services.Tools;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -24,9 +27,11 @@ public sealed class LocalModelsViewModel
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     /// <param name="committed">Saves the grid's config once a choice of a model that is here has been written into it.</param>
+    /// <param name="tools">The tools this machine runs with models of their own — app-wide, offered beside the jobs.</param>
     public LocalModelsViewModel(LocalModelShelf shelf, AiAbilityGridViewModel grid, Workspace workspace, LocalModelDownloads downloads,
-                                Action committed)
+                                Action committed, IReadOnlyList<ILocalTool> tools)
     {
+    foreach (var tool in tools) Tools.Add(new LocalToolViewModel(tool));
         foreach (var slot in Enum.GetValues<LocalSlot>())
             Jobs.Add(new LocalJobViewModel(slot, shelf, grid, workspace, downloads, committed));
 
@@ -46,6 +51,9 @@ public sealed class LocalModelsViewModel
     }
 
     public ObservableCollection<LocalJobViewModel> Jobs { get; } = [];
+
+    /// <summary>The tools, each with what it does and Download while it is not here.</summary>
+    public ObservableCollection<LocalToolViewModel> Tools { get; } = [];
 }
 
 /// <summary>One job on the Local page: its model, the models it could have, and the download a choice is waiting on.</summary>
@@ -237,4 +245,52 @@ public sealed partial class LocalChoiceViewModel(LocalModelOption option, LocalM
             _                                       => Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(shelf.MissingBytes(option))),
         };
     }
+}
+
+/// <summary>
+/// A tool on the Local page: what it does, whether it is here, and Download while it is not — fetched app-wide, for
+/// every workspace, since a tool is no job of one.
+/// </summary>
+public sealed partial class LocalToolViewModel : ObservableObject
+{
+    private readonly ILocalTool _tool;
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+
+    public LocalToolViewModel(ILocalTool tool)
+    {
+        _tool = tool;
+        tool.Changed += (_, _) => _ui.InvokeAsync(Refresh);
+        Refresh();
+    }
+
+    public string Name => _tool.Name;
+
+    public string About => _tool.About;
+
+    /// <summary>Here, coming and how far, or why this machine cannot run it; empty while it waits to be fetched.</summary>
+    [ObservableProperty] private string _status = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DownloadCommand))]
+    private bool _canDownload;
+
+    /// <summary>What Download fetches.</summary>
+    [ObservableProperty] private string _downloadLabel = string.Empty;
+
+    public void Refresh()
+    {
+        CanDownload   = _tool.State == ToolModelsState.NotDownloaded;
+        DownloadLabel = Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(_tool.DownloadBytes));
+        Status = _tool.State switch
+        {
+            ToolModelsState.Unavailable => Str.Get("Shell.Config.Local.NoBuild"),
+            ToolModelsState.Downloading => Str.Format("Shell.Config.Local.DownloadingFormat", _tool.Name, _tool.DownloadPercent),
+            ToolModelsState.Ready       => Str.Get("Shell.Config.Local.Here"),
+            _ when _tool.DownloadFailure is { } why => Str.Format("Shell.Config.Local.FailedFormat", _tool.Name, why),
+            _                           => string.Empty,
+        };
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDownload))]
+    private void Download() => _tool.Download();
 }

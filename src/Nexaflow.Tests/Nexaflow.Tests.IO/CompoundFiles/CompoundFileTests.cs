@@ -135,7 +135,7 @@ public class CompoundFileTests
     {
         foreach (var sector in new[] { 512, 4096 })
         {
-            var path = Path.Combine(Path.GetTempPath(), $"nexaflow-cfb-{Guid.NewGuid():N}.stg");
+            var path = Path.Combine(TestTemp.Root, $"nexaflow-cfb-{Guid.NewGuid():N}.stg");
 
             try
             {
@@ -248,7 +248,7 @@ public class CompoundFileTests
 
     private static string Scratch(byte[] bytes)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-cfb-{Guid.NewGuid():N}.stg");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-cfb-{Guid.NewGuid():N}.stg");
         File.WriteAllBytes(path, bytes);
         return path;
     }

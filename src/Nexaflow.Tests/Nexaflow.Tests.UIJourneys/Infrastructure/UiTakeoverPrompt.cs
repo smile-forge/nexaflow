@@ -41,8 +41,9 @@ public static class UiTakeoverPrompt
         {
             if (_answer == Answer.Unasked)
             {
-                // A sibling host may already have asked for this run — take its answer over asking again.
-                _answer = UiTestGate.RecordedConsent switch
+                // The skip variable is this run's own instruction, so it wins over an answer remembered from an earlier one.
+                // Otherwise a sibling host may already have asked for this run — take its answer over asking again.
+                _answer = IsSet(SkipVariable) ? Answer.Allowed : UiTestGate.RecordedConsent switch
                 {
                     true  => Answer.Allowed,
                     false => Answer.Declined,

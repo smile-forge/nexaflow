@@ -120,7 +120,7 @@ public sealed class LayoutBuilder
     /// line, so a subscript can hang below it without growing it). A piece that gathers nothing states its
     /// extent with <see cref="Covers"/> instead.
     /// </param>
-    /// <param name="paints">How it is drawn beyond its marks — turned, or snapped to a pixel grid. Null for nearly everything.</param>
+    /// <param name="paints">How it is drawn beyond its marks — turned, scaled, or snapped to a pixel grid. Null for nearly everything.</param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
                 Stops stops = Stops.Both,
                 bool gathers = true,
@@ -345,6 +345,11 @@ public sealed class LayoutBuilder
         var marks = _marks.Count;
 
         _marks.AddRange(frame.Marks);
+
+        // What a piece drawn in a frame of its own gathered is where that frame puts it: a piece set smaller reaches as far as what
+        // it holds lands, not as far as it was laid out. One that states its own extent said it where it is placed already.
+        if (frame.Gathers && frame.Paints?.Applied is { } applied && !frame.Box.IsEmpty)
+            frame.Box = Rect.Transform(frame.Box, applied);
 
         // The room it stated, if it stated one. What it reaches is kept apart, for whatever holds it.
         var reach = frame.Box;

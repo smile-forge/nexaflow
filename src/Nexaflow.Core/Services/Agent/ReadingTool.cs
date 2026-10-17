@@ -12,9 +12,10 @@ namespace Nexaflow.Core.Services.Agent;
 /// Hands reading to the model on this machine: it reads the files it is given in full, however long, and does the task the
 /// larger model sets from them, so a long document costs the larger model the answer rather than its every word. It reads in
 /// parts the size of its context: what the task needs is noted from each part, the notes are merged while they outgrow the
-/// context, and the task is done from them. It reads and nothing else: it is given no tools.
+/// context, and the task is done from them. It reads and nothing else: it is given no tools. It reads only what the user has
+/// given the assistant — a file open in a tab, or one in a folder open in a tab.
 /// </summary>
-internal sealed class ReadingTool(ILlmProvider reader, Func<string, IFileTextExtractor?> extractors, Action<string> report) : IClientTool
+internal sealed class ReadingTool(ILlmProvider reader, Func<string, IFileTextExtractor?> extractors, Action<string> report, PathScope scope) : IClientTool
 {
     /// <summary>The most of one file that is read; past it, what was read is used and the answer says so.</summary>
     internal const long MostBytes = 64L << 20;
@@ -50,7 +51,7 @@ internal sealed class ReadingTool(ILlmProvider reader, Func<string, IFileTextExt
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
         new("task", "What to find out or do from the files, complete in itself: the model has not seen this conversation."),
-        new("files", "Full paths of the files to read: text, PDF, Word, Excel, PowerPoint or RTF.", Type: "array", ItemType: "string"),
+        new("files", "Full paths of the files to read — files open in a tab, or in a folder open in one: text, PDF, Word, Excel, PowerPoint or RTF.", Type: "array", ItemType: "string"),
     ];
 
     public ToolSafety Safety => ToolSafety.SafeOperation;
@@ -72,9 +73,10 @@ internal sealed class ReadingTool(ILlmProvider reader, Func<string, IFileTextExt
         var unread = new List<string>();
         var cut = false;
         var left = MostChars;
-        foreach (var path in paths)
+        foreach (var asked in paths)
         {
-            var name = Path.GetFileName(path);
+            var name = Path.GetFileName(asked);
+            if (scope.Resolve(asked) is not { } path) { unread.Add(RunScope.Outside(asked)); continue; }
             if (left <= 0) { unread.Add($"{name}: the files before it were as much as is read at once"); cut = true; continue; }
             report($"Reading {name}…");
             var (text, problem) = await ReadAsync(path, ct);

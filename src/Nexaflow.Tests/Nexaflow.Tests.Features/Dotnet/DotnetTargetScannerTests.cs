@@ -12,7 +12,7 @@ public class DotnetTargetScannerTests
 
     private string TempDir(params string[] files)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexadotnet_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexadotnet_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         foreach (var f in files) File.WriteAllText(Path.Combine(dir, f), "<Project/>");
         _temp.Add(dir);

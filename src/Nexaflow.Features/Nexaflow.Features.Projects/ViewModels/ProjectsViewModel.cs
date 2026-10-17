@@ -215,6 +215,9 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
     /// buckets stay distinguishable when pinned together.</summary>
     public string? GetSecurityContext() => RootFor(SelectedBucket);
 
+    /// <summary>The folder of the projects shown, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(RootFor(SelectedBucket));
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(

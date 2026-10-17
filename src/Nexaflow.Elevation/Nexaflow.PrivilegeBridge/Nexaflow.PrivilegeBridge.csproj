@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+    <!-- USB driver take-over: the binder, its policy and the machine ledger (usb.bind / usb.restore). -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
   </ItemGroup>
 
 </Project>

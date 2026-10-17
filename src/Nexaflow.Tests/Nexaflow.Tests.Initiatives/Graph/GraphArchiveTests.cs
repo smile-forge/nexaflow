@@ -28,7 +28,7 @@ public class GraphArchiveTests
     private string Path_ => System.IO.Path.Combine(_dir, "graph.bin");
 
     [TestInitialize]
-    public void Setup() => _dir = Directory.CreateTempSubdirectory("nexa-archive-").FullName;
+    public void Setup() => _dir = TestTemp.CreateSubdirectory("nexa-archive-").FullName;
 
     [TestCleanup]
     public void Cleanup() { try { Directory.Delete(_dir, recursive: true); } catch { } }

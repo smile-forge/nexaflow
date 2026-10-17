@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.Core.Help;
 using Nexaflow.Core.Localization;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -27,7 +28,7 @@ internal sealed class HelpFixture : IDisposable
 
     public HelpFixture(bool withFrench = false)
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nf-help-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nf-help-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
 
         var packs = new Dictionary<string, FakePack>

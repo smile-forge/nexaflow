@@ -16,7 +16,7 @@ public class ProductGitTests
 
     private string InitRepo()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaprod_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaprod_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         Repository.Init(dir);
         _temp.Add(dir);
@@ -55,7 +55,7 @@ public class ProductGitTests
         var repo = InitRepo();
         Assert.IsTrue(new ProductGit(repo).IsRepo);
 
-        var plain = Path.Combine(Path.GetTempPath(), "nexaplain_" + Guid.NewGuid().ToString("N"));
+        var plain = Path.Combine(TestTemp.Root, "nexaplain_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(plain);
         _temp.Add(plain);
         Assert.IsFalse(new ProductGit(plain).IsRepo);

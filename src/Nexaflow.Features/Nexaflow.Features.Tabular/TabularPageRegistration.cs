@@ -23,6 +23,11 @@ public sealed class TabularPageRegistration : IPageRegistration
     public static string StaticPageKind => "Tabular";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the table to open (.csv, .tsv, .xlsx, .parquet, …).", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path       = pageParams?.GetValueOrDefault("path")       ?? string.Empty;

@@ -23,7 +23,7 @@ public class TreeExpandToPathTests
     [TestInitialize]
     public void CreateTree()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-tree-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-tree-" + Guid.NewGuid().ToString("N"));
         foreach (var name in new[] { "Data", "Datasets", "Dat" })
             Directory.CreateDirectory(Path.Combine(_root, name, "child"));
     }

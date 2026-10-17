@@ -30,7 +30,7 @@ public class WebAiTests
 
     [TestInitialize]
     public void Setup() => _tempDir = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), "nexaflow-web-ai-" + Guid.NewGuid().ToString("N"))).FullName;
+        Path.Combine(TestTemp.Root, "nexaflow-web-ai-" + Guid.NewGuid().ToString("N"))).FullName;
 
     [TestCleanup]
     public void Cleanup()
