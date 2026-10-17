@@ -1385,5 +1385,256 @@
         }
       ]
     }
+  ],
+  "tools": [
+    {
+      "id": "real-esrgan-gfpgan",
+      "displayName": "Real-ESRGAN and GFPGAN",
+      "kind": "pictureRestoration",
+      "parts": [
+        {
+          "role": "upscalerX2",
+          "runner": "esrgan-upscaler",
+          "folder": "tools/real-esrgan-gfpgan/upscaler-x2",
+          "file": "upscaler-x2.onnx",
+          "memoryBytes": 2214592512
+        },
+        {
+          "role": "upscalerX4",
+          "runner": "esrgan-upscaler",
+          "folder": "tools/real-esrgan-gfpgan/upscaler-x4",
+          "file": "upscaler-x4.onnx",
+          "memoryBytes": 3154116608
+        },
+        {
+          "role": "faceDetector",
+          "runner": "retinaface-detector",
+          "folder": "tools/real-esrgan-gfpgan/face-detector",
+          "file": "face-detector.onnx",
+          "memoryBytes": 1577058304
+        },
+        {
+          "role": "faceRestorer",
+          "runner": "gfpgan-restorer",
+          "folder": "tools/real-esrgan-gfpgan/face-restorer",
+          "file": "face-restorer.onnx",
+          "memoryBytes": 1476395008
+        },
+        {
+          "role": "faceParser",
+          "runner": "face-parser",
+          "folder": "tools/real-esrgan-gfpgan/face-parser",
+          "file": "face-parser.onnx",
+          "memoryBytes": 1593835520
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/real-esrgan-gfpgan/upscaler-x2/upscaler-x2.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/upscaler-x2/upscaler-x2.onnx",
+          "size": 69215782,
+          "sha256": "2a90c901938e84d81554b9a436740fee71f5374f9883f49589d23fd51643486e"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/upscaler-x4/upscaler-x4.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/upscaler-x4/upscaler-x4.onnx",
+          "size": 69179144,
+          "sha256": "dc7d65199ac5e2182d4bd0c121d8d7c9b0a3e734fa51ae246c96a7a006077e32"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-detector/face-detector.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-detector/face-detector.onnx",
+          "size": 109545483,
+          "sha256": "f3649c471f5b2d6851c0b0463c3cbbeda5881363e6905fd7094ee71845c99d3d"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-restorer/face-restorer.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-restorer/face-restorer.onnx",
+          "size": 341136033,
+          "sha256": "7a9701ddfdc728de5a7533e51279eb9a42ab75136a0b2c29ff36f8bede5eda9a"
+        },
+        {
+          "path": "tools/real-esrgan-gfpgan/face-parser/face-parser.onnx",
+          "url": "https://huggingface.co/smile-forge/real-esrgan-gfpgan-onnx/resolve/4311b9062b876dacc8dc44a3b2c2fdd681af3ba0/face-parser/face-parser.onnx",
+          "size": 85490061,
+          "sha256": "4c077ff4bda61f4cdef6dde85e3ba9608257cf2fca4158a07b2f6433bb943dd7"
+        }
+      ]
+    },
+    {
+      "id": "sam3.1",
+      "displayName": "SAM 3.1",
+      "kind": "pictureSelection",
+      "parts": [
+        {
+          "role": "imageEncoder",
+          "runner": "sam-image-encoder",
+          "folder": "tools/sam3.1/image-encoder",
+          "file": "image-encoder.onnx",
+          "memoryBytes": 2684354560
+        },
+        {
+          "role": "clickDecoder",
+          "runner": "sam-click-decoder",
+          "folder": "tools/sam3.1/click-decoder",
+          "file": "click-decoder.onnx",
+          "memoryBytes": 838860800
+        },
+        {
+          "role": "textEncoder",
+          "runner": "sam-text-encoder",
+          "folder": "tools/sam3.1/text-encoder",
+          "file": "text-encoder.onnx",
+          "memoryBytes": 1442840576
+        },
+        {
+          "role": "exemplarEncoder",
+          "runner": "sam-exemplar-encoder",
+          "folder": "tools/sam3.1/exemplar-encoder",
+          "file": "exemplar-encoder.onnx",
+          "memoryBytes": 939524096
+        },
+        {
+          "role": "finder",
+          "runner": "sam-finder",
+          "folder": "tools/sam3.1/finder",
+          "file": "finder.onnx",
+          "memoryBytes": 1677721600
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/sam3.1/image-encoder/image-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/image-encoder/image-encoder.onnx",
+          "size": 4700750,
+          "sha256": "2dec5224b1715d1a05978d0c2a388593851daca8a358ffc114749d24769c8ce9"
+        },
+        {
+          "path": "tools/sam3.1/image-encoder/image-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/image-encoder/image-encoder.onnx.data",
+          "size": 925034496,
+          "sha256": "1db980a252fe4320b2827cd1fdbc168017ddca6f63ce207c663361a552f91f13"
+        },
+        {
+          "path": "tools/sam3.1/click-decoder/click-decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/click-decoder/click-decoder.onnx",
+          "size": 17029154,
+          "sha256": "be2400b576ba643fe4cc500bad520c935d64a22ca64d482fe2b71008a7359423"
+        },
+        {
+          "path": "tools/sam3.1/text-encoder/text-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/text-encoder/text-encoder.onnx",
+          "size": 706907562,
+          "sha256": "f41d95c649020b75a81fafef44d7f55059145454e7b51d680021bc24338dfbb5"
+        },
+        {
+          "path": "tools/sam3.1/text-encoder/bpe_simple_vocab_16e6.txt.gz",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/tokenizer/bpe_simple_vocab_16e6.txt.gz",
+          "size": 1356917,
+          "sha256": "924691ac288e54409236115652ad4aa250f48203de50a9e4722a6ecd48d6804a"
+        },
+        {
+          "path": "tools/sam3.1/exemplar-encoder/exemplar-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/exemplar-encoder/exemplar-encoder.onnx",
+          "size": 13138252,
+          "sha256": "ef537fcc89709d8e5c88210bb3a0f8acbc27443cc3ad90c478e9d99db3bfcddb"
+        },
+        {
+          "path": "tools/sam3.1/finder/finder.onnx",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/finder/finder.onnx",
+          "size": 123459330,
+          "sha256": "6451c7bf827f45f1a03445571183344a8b532e7c9fea58072b81dd4d0a0e3490"
+        },
+        {
+          "path": "tools/sam3.1/image-encoder/LICENSE",
+          "url": "https://huggingface.co/smile-forge/sam3.1-onnx/resolve/df0b5cbe54dbcb248d3310d93a25dc8369057410/LICENSE",
+          "size": 7352,
+          "sha256": "bec48f70bd37bf8280a9d1ebf01642d26086f6122ba735baa08fe03c5a6e7448"
+        }
+      ]
+    },
+    {
+      "id": "unlimited-ocr",
+      "displayName": "Unlimited-OCR",
+      "kind": "pageReading",
+      "parts": [
+        {
+          "role": "reader",
+          "runner": "llama-chat",
+          "folder": "tools/unlimited-ocr/reader",
+          "file": "unlimited-ocr-q8_0.gguf",
+          "projector": "unlimited-ocr-mmproj-f16.gguf",
+          "memoryBytes": 7516192768,
+          "contextTokens": 8192
+        },
+        {
+          "role": "textFinder",
+          "runner": "text-finder",
+          "folder": "tools/unlimited-ocr/text-finder",
+          "file": "pp-ocrv5-mobile-det.onnx",
+          "runsOnCpu": true
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/unlimited-ocr/reader/unlimited-ocr-q8_0.gguf",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/reader/unlimited-ocr-q8_0.gguf",
+          "size": 3126140448,
+          "sha256": "260b32988bd2846a685df25cb19954039e16eca0e2aad74e878fd17c7710ccac"
+        },
+        {
+          "path": "tools/unlimited-ocr/reader/unlimited-ocr-mmproj-f16.gguf",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/reader/unlimited-ocr-mmproj-f16.gguf",
+          "size": 825245888,
+          "sha256": "67714d47e38aca9c48618fe7f3513c2cf05fbf464ec258a6ec4efd2f138f2b16"
+        },
+        {
+          "path": "tools/unlimited-ocr/reader/LICENSE",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/LICENSE",
+          "size": 1061,
+          "sha256": "d985048c6d69429d685fdbe7557340aa0897c0fd8dc038299b148b9c75dc3383"
+        },
+        {
+          "path": "tools/unlimited-ocr/text-finder/pp-ocrv5-mobile-det.onnx",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/text-finder/pp-ocrv5-mobile-det.onnx",
+          "size": 4819576,
+          "sha256": "0c5eeee2f49f63ef01626bf3cd149bab5d2e51b820a096abf916ff11771d51e5"
+        },
+        {
+          "path": "tools/unlimited-ocr/text-finder/LICENSE-PaddleOCR",
+          "url": "https://huggingface.co/smile-forge/unlimited-ocr/resolve/81bd5e5eb22bb164c9cdb5e9874f5aefadff9f83/LICENSE-PaddleOCR",
+          "size": 11376,
+          "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+        }
+      ]
+    },
+    {
+      "id": "big-lama",
+      "displayName": "LaMa",
+      "kind": "pictureErasing",
+      "parts": [
+        {
+          "role": "inpainter",
+          "runner": "lama-inpainter",
+          "folder": "tools/big-lama/inpainter",
+          "file": "inpainter.onnx",
+          "memoryBytes": 4222615552
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/big-lama/inpainter/inpainter.onnx",
+          "url": "https://huggingface.co/smile-forge/big-lama-onnx/resolve/4211d2c742f0e3c1076f7e53fcea6cc374addbe8/inpainter/inpainter.onnx",
+          "size": 208851664,
+          "sha256": "ef85edd865769c03c753b5faa066be713a46a9c80c8f77954c67c0bb3a4ba2ff"
+        },
+        {
+          "path": "tools/big-lama/inpainter/LICENSE",
+          "url": "https://huggingface.co/smile-forge/big-lama-onnx/resolve/4211d2c742f0e3c1076f7e53fcea6cc374addbe8/LICENSE",
+          "size": 11549,
+          "sha256": "99820be3ed3693f7726e7cda8baddbee9961137b4a402b3c4b2d539a3e234161"
+        }
+      ]
+    }
   ]
 }

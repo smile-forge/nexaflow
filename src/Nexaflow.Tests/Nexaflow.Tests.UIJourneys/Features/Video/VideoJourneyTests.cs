@@ -68,6 +68,8 @@ public class VideoJourneyTests : UiJourneyTestBase
         // Overlay toggles (in-tab state — safe to invoke).
         CheckInvoke("Scene-strip toggle", "Video_SceneStripToggle");
         CheckInvoke("Info-panel toggle", "Video_InfoToggle");
+        // Present only: pressing it opens the frame in an Images tab, which would take the journey elsewhere.
+        CheckPresent("Cut something out of this frame", "Video_CutOutFrame");
 
         // The picture's click-catcher. Present only: pressing it is Play, which has to go last (class summary).
         CheckPresent("Picture click-catcher", "Video_ClickCatcher");

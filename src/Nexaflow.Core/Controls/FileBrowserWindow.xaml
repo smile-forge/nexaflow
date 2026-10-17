@@ -125,6 +125,14 @@
                                Margin="10,0,0,0"
                                Foreground="{StaticResource TextMutedBrush}"
                                FontSize="13" VerticalAlignment="Center"/>
+                    <!-- What to save it as, where the caller offers more than one kind of file -->
+                    <ComboBox x:Name="TypeChoice" Grid.Column="2"
+                              Margin="10,0,0,0" MinWidth="220"
+                              Style="{StaticResource DarkComboBox}"
+                              Visibility="Collapsed"
+                              AutomationProperties.AutomationId="FileBrowser_SaveType"
+                              AutomationProperties.Name="{loc:Str Shell.Picker.SaveType}"
+                              SelectionChanged="TypeChoice_SelectionChanged"/>
                 </Grid>
 
                 <TextBlock x:Name="WhereText"

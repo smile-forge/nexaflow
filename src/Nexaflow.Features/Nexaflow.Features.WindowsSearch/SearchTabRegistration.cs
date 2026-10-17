@@ -11,6 +11,12 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
     public static string StaticPageKind => "Search";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("query", "What to search for.", Required: false),
+        new("root", "Full path of the folder to search in.", Required: false, OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var query  = pageParams?.GetValueOrDefault("query")  ?? string.Empty;

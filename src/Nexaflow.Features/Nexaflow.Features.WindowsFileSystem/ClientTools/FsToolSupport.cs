@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
@@ -29,12 +30,11 @@ internal static class FsTool
     public static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     /// <summary>
-    /// Resolves <paramref name="nameOrPath"/> within the page's current folder — the tab's security
-    /// context. EVERY resolved path, absolute or relative, must stay inside that folder; anything that
-    /// escapes it (including absolute paths to elsewhere on disk and <c>..\</c> traversals) is rejected.
-    /// The one exception is an unconfined tab with no current folder (e.g. "This PC"): there is no
-    /// boundary, so absolute paths are honoured anywhere and relative names have nothing to resolve
-    /// against. Such tabs are surfaced to the user as High security risk.
+    /// Resolves <paramref name="nameOrPath"/> within what the tab shows — its security context, the page's
+    /// <see cref="FileSystemViewModel.GetContextGrant"/>. A folder tab holds its folder and everything under it, never
+    /// above or beside it; "This PC" holds every drive it shows. A relative name is taken from the folder the tab is in;
+    /// every resolved path, absolute or relative, must fall inside the context, and anything that escapes it — an
+    /// absolute path elsewhere, a <c>..\</c> climbing out, a device or stream — is rejected.
     /// </summary>
     public static bool TryResolve(FileSystemViewModel vm, string? nameOrPath, out string full, out string error)
     {
@@ -47,71 +47,45 @@ internal static class FsTool
             return false;
         }
 
-        try
+        var grant = vm.GetContextGrant();
+        var scope = new PathScope(grant.Files, grant.Folders);
+        if (scope.IsEmpty)
         {
-            // Resolve the tab's location to where the bytes actually are before using it as the
-            // confinement root. Under a mount CurrentPath is "::id\…", which Path.GetFullPath cannot
-            // parse — it would throw into the catch below and turn every file tool into "not a valid
-            // path". Confining on the real path is equivalent (a mount is a bijection over its subtree)
-            // and it is the form every File/Directory call downstream needs anyway.
-            var basePath = vm.CurrentPath;
-            var confined = !string.IsNullOrEmpty(basePath);
-            string? root = null;
-            if (confined)
-            {
-                if (vm.Vfs.TryResolveReal(basePath) is not { } realBase)
-                {
-                    error = "This tab's location isn't backed by the file system, so it can't be used here.";
-                    return false;
-                }
-                root = Path.GetFullPath(realBase);
-            }
-
-            // A caller may name a mounted path directly; map it before deciding if it's absolute.
-            var mapped = vm.Vfs.TryResolveReal(nameOrPath) ?? nameOrPath;
-
-            string candidate;
-            if (Path.IsPathFullyQualified(mapped))
-            {
-                candidate = Path.GetFullPath(mapped);
-            }
-            else
-            {
-                if (!confined)
-                {
-                    error = "No folder is open to resolve a relative name against.";
-                    return false;
-                }
-                candidate = Path.GetFullPath(Path.Combine(root!, nameOrPath));
-            }
-
-            if (confined && !IsWithin(candidate, root!))
-            {
-                error = "That path is outside this tab's folder (its security context).";
-                return false;
-            }
-
-            full = candidate;
-            return true;
+            error = "This tab's location isn't backed by the file system, so it can't be used here.";
+            return false;
         }
-        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+
+        // A caller may name a mounted path directly; map it before deciding if it's absolute. Under a mount
+        // CurrentPath is "::id\…", so relative names are taken from the real folder the bytes are in.
+        var mapped = vm.Vfs.TryResolveReal(nameOrPath) ?? nameOrPath;
+        string candidate;
+        if (Path.IsPathFullyQualified(mapped))
+        {
+            candidate = mapped;
+        }
+        else if (!string.IsNullOrEmpty(vm.CurrentPath) && vm.Vfs.TryResolveReal(vm.CurrentPath) is { } here)
+        {
+            candidate = Path.Combine(here, mapped);
+        }
+        else
+        {
+            error = "No folder is open to resolve a relative name against.";
+            return false;
+        }
+
+        if (PathScope.Full(candidate) is null)
         {
             error = $"'{nameOrPath}' is not a valid path.";
             return false;
         }
-    }
+        if (scope.Resolve(candidate) is not { } inside)
+        {
+            error = "That path is outside this tab's folder (its security context).";
+            return false;
+        }
 
-    /// <summary>
-    /// True when <paramref name="candidate"/> equals <paramref name="root"/> or sits beneath it,
-    /// compared on path-segment boundaries so <c>C:\foo</c> does not match <c>C:\foobar</c>.
-    /// </summary>
-    private static bool IsWithin(string candidate, string root)
-    {
-        char[] seps = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
-        var c = candidate.TrimEnd(seps);
-        var r = root.TrimEnd(seps);
-        return string.Equals(c, r, StringComparison.OrdinalIgnoreCase)
-            || c.StartsWith(r + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        full = inside;
+        return true;
     }
 
     /// <summary>Path display relative to the current folder, falling back to the file name.</summary>

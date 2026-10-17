@@ -993,9 +993,11 @@ each diagram, barcode and QR-style symbol, tune, formula, chemical structure, pl
 ranks, then an ordering that keeps crossings down, then each node pulled toward the middle of its neighbours so a child
 sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
-**A graph pays no attention to the room it is given**, and there is no honest way to wrap one into a panel: measured
-at 300, at 900 or at no width at all, a twelve-way fan comes out the same size. So a host showing nothing but a graph
-stops making the panel hold it and puts the surface on the shared
+**A graph shown on its own is laid out at its own size.** In a page a diagram fits the room it is given — reshaped to it
+first, drawn smaller last — and there is no honest way to wrap a twelve-way fan into a panel, so set into one it only
+comes out too small to read. A host showing nothing but a graph writes it in alone
+([`MarkdownSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs)) with its width unlimited
+(`UnlimitedWidth`), so it is laid out as the graph it is, stops making the panel hold it, and puts the surface on the shared
 [`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) instead — the one the scratchpad's
 corkboard and the image viewer's collage use. The surface asks for its layout's full size, the viewport fits that
 (scaling down, never past 1:1), and the reader zooms with the wheel and recentres from the overview, which is a

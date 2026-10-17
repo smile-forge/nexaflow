@@ -16,6 +16,7 @@ This file is what every turn needs. Depth lives in the docs below — open one w
 | menus, AutomationIds, `TextBox` in UIA, `RichTextBox` hit-testing | [docs/wpf-gotchas.md](docs/wpf-gotchas.md) |
 | strings, help pages, language packs | [docs/localization.md](docs/localization.md) |
 | a Mermaid diagram — adding one on the shared layout tree, or anything under `Markdown/Mermaid` | [docs/mermaid-diagrams.md](docs/mermaid-diagrams.md) · the `mermaid-diagram` skill |
+| an AI tool — a network run for a person or an assistant, not a provider: the picture tools, and adding one | [docs/ai-tools.md](docs/ai-tools.md) |
 
 ## Build
 

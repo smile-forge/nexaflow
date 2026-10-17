@@ -38,7 +38,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     public AiHostEnvironment Environment
         => CudaRuntimePack.Applies(hardware) && CudaRuntimePack.Locate(assets) is { } pack ? new AiHostEnvironment(pack) : AiHostEnvironment.Cpu;
 
-    public CatalogModel CatalogOf(OwnedModel model) => model.CatalogFor(ExecutionProvider);
+    public CatalogModel CatalogOf(OwnedEntry model) => model.CatalogFor(ExecutionProvider);
 
     /// <summary>The owned models of <paramref name="kind"/> this machine can run — those with a build for its runtime
     /// that fit it.</summary>
@@ -58,10 +58,10 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>
     /// Whether <paramref name="model"/> fits this machine, as its GPUs are expected before the host has run: every part
-    /// placed — a picture's parts each on a GPU in turn — and a language model on a GPU, but for the catalog's first,
-    /// which runs wherever there is none.
+    /// placed — a picture's, a clip's or a tool's parts each on a GPU in turn — and a language model on a GPU, but for the
+    /// catalog's first, which runs wherever there is none.
     /// </summary>
-    public bool Fits(OwnedModel model)
+    public bool Fits(OwnedEntry model)
     {
         var gpus = ModelPlacement.Expected(hardware);
         var needs = NeedsOf(model);
@@ -72,21 +72,21 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         }
         var placement = ModelPlacement.Plan(gpus, needs);
         if (placement.Unplaced.Count > 0) return false;
-        return model.Kind != ModelKind.Language || model == OwnedModels.OfKind(ModelKind.Language).First()
+        return model is not OwnedModel { Kind: ModelKind.Language } language || language == OwnedModels.OfKind(ModelKind.Language).First()
                || needs.All(n => n.CpuOnly || placement.Of(n.Id)!.Device is not null);
     }
 
     /// <summary>What the setup needs to place each of <paramref name="model"/>'s parts on this machine.</summary>
-    public IReadOnlyList<PlacementNeed> NeedsOf(OwnedModel model) => [.. model.PartsFor(ExecutionProvider).Select(p => Need(model, p))];
+    public IReadOnlyList<PlacementNeed> NeedsOf(OwnedEntry model) => [.. model.PartsFor(ExecutionProvider).Select(p => Need(model, p))];
 
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
-    public bool IsHere(OwnedModel model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
+    public bool IsHere(OwnedEntry model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
 
     /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
-    public bool IsReady(OwnedModel model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.Locate(assets) is not null);
+    public bool IsReady(OwnedEntry model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.Locate(assets) is not null);
 
     /// <summary>Whether any part of <paramref name="model"/> has made way on its GPU for a picture being drawn.</summary>
-    public bool IsMakingWay(OwnedModel model) => model.PartsFor(ExecutionProvider).Any(part => setup.HasMadeWay(PartId(model, part)));
+    public bool IsMakingWay(OwnedEntry model) => model.PartsFor(ExecutionProvider).Any(part => setup.HasMadeWay(PartId(model, part)));
 
     /// <summary>The host's models <paramref name="ids"/> made way for a picture, until the returned value is disposed.</summary>
     public IDisposable MakingWay(IReadOnlyList<string> ids) => setup.MakingWay(ids);
@@ -99,9 +99,9 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     }
 
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
-    public bool IsFileOf(OwnedModel model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
+    public bool IsFileOf(OwnedEntry model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
 
-    private async Task<bool> FetchFilesAsync(OwnedModel model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
+    private async Task<bool> FetchFilesAsync(OwnedEntry model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
         if (files.All(f => assets.Locate(f) is not null)) return true;
 
@@ -227,7 +227,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>Where a part loaded on demand — a picture's or a clip's — runs beside the models held now.</summary>
     /// <exception cref="LlmProviderException">No GPU here has room for it, and it has no CPU build.</exception>
-    public async Task<ModelSpec> PlacedOnDemandAsync(OwnedModel model, string partName, CancellationToken ct)
+    public async Task<ModelSpec> PlacedOnDemandAsync(OwnedEntry model, string partName, CancellationToken ct)
     {
         host.Environment = Environment;
         var part = model.PartNamed(partName, ExecutionProvider);
@@ -238,7 +238,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>What the setup needs to place a part: how it runs on a GPU and on the CPU — the same part where it runs
     /// on either, its CPU build where it has one — and what its context costs.</summary>
-    private PlacementNeed Need(OwnedModel model, OwnedPart part)
+    private PlacementNeed Need(OwnedEntry model, OwnedPart part)
     {
         var onCpu = part.ExecutionProvider is null ? part
                   : model.Parts.FirstOrDefault(p => p.Name == part.Name && p.ExecutionProvider == OwnedModels.Cpu);
@@ -247,14 +247,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     }
 
     /// <summary>A part as the setup plans it: its folder still the catalog's, relative to the asset store.</summary>
-    private static ModelSpec Unresolved(OwnedModel model, OwnedPart part)
+    private static ModelSpec Unresolved(OwnedEntry model, OwnedPart part)
         => new(PartId(model, part), part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
                part.Projector);
 
     /// <summary>A placed spec with its folder where the build it was placed as is on this machine — fetched, if it is
     /// a build this machine has not needed before.</summary>
     /// <exception cref="LlmProviderException">The build's files would not come.</exception>
-    private async Task<ModelSpec> ResolvedAsync(OwnedModel model, ModelSpec placed, CancellationToken ct)
+    private async Task<ModelSpec> ResolvedAsync(OwnedEntry model, ModelSpec placed, CancellationToken ct)
     {
         var part = model.Parts.First(p => PartId(model, p) == placed.Id && p.Folder == placed.Folder);
         var files = model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).ToList();
@@ -271,14 +271,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>Where one of <paramref name="part"/>'s files is on this machine.</summary>
     /// <exception cref="LlmProviderException">It is not here yet.</exception>
-    public string Locate(OwnedModel model, OwnedPart part, string file)
+    public string Locate(OwnedEntry model, OwnedPart part, string file)
     {
         var asset = model.Catalog.Files.First(f => f.RelativePath == $"{part.Folder}/{file}");
         return assets.Locate(asset) ?? throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
     }
 
     /// <summary>The host's name for a part: the model's id, and the part's name in it — the same for each of its builds.</summary>
-    private static string PartId(OwnedModel model, OwnedPart part) => $"{model.Id}/{part.Name}";
+    private static string PartId(OwnedEntry model, OwnedPart part) => $"{model.Id}/{part.Name}";
 
     private static string Gib(long bytes) => $"{bytes / (double)(1L << 30):0.#} GB";
 }

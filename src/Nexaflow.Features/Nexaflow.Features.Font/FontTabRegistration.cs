@@ -26,7 +26,7 @@ public sealed class FontTabRegistration(IShellServices shell) : IPageRegistratio
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("paths", "Pipe-separated font files to compare (.ttf/.otf/.ttc/.woff). Omit for the blank " +
-                     "'System Fonts' compare mode.", Required: false),
+                     "'System Fonts' compare mode.", Required: false, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

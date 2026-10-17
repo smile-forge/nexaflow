@@ -317,6 +317,23 @@ public class MarkdownSurfaceTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
+    [TestMethod]
+    public void ADiagramWrittenInAlone_GivenNoWidth_IsLaidAtAPagesWidth_UnlessItsWidthIsUnlimited() => UiThread.Run(() =>
+    {
+        var chart = "flowchart LR\n" + string.Concat(Enumerable.Range(0, 9).Select(at => $"  n{at}[Step {at}] --> n{at + 1}[Step {at + 1}]\n"));
+
+        var page = new MarkdownSurface { WrittenIn = "mermaid", Markdown = chart };
+        page.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+        var unlimited = new MarkdownSurface { WrittenIn = "mermaid", Markdown = chart, UnlimitedWidth = true };
+        unlimited.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+        Assert.IsTrue(page.DesiredSize.Width <= 700, $"given no width, it is fitted to the room a page is set in: {page.DesiredSize.Width}");
+        Assert.IsTrue(unlimited.DesiredSize.Width > 700, $"with its width unlimited it is laid at its own size: {unlimited.DesiredSize.Width}");
+        Assert.IsFalse(unlimited.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidPiece.Reduced),
+                       "and so is not drawn smaller");
+    });
+
     private static MarkdownSurface Shown(string markdown, ILayoutActions? host = null)
     {
         var surface = new MarkdownSurface { Host = host, Markdown = markdown };

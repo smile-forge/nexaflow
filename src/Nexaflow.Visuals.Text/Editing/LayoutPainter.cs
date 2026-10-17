@@ -178,7 +178,7 @@ public static class LayoutPainter
     }
 
     /// <summary>
-    /// Puts the drawing context into a piece's own frame where it is drawn in one — turned, or snapped to a pixel grid — and
+    /// Puts the drawing context into a piece's own frame where it is drawn in one — turned, scaled, or snapped to a pixel grid — and
     /// says how many pushes to undo.
     ///
     /// <para>
@@ -190,7 +190,7 @@ public static class LayoutPainter
     /// </summary>
     private static int Enter(DrawingContext dc, Piece piece, ref Vector offset)
     {
-        if (piece.Painting is not { } painting || (painting.Turn is not { Count: > 0 } && painting.Snap is null)) return 0;
+        if (piece.Painting is not { } painting || (painting.Turn is not { Count: > 0 } && painting.Scale == 1 && painting.Snap is null)) return 0;
 
         var pushed = 0;
 
@@ -207,6 +207,13 @@ public static class LayoutPainter
                 dc.PushTransform(turn);
                 pushed++;
             }
+
+        // Inside the turns, as LayoutPaint.Applied says: a drawing set smaller is turned as a whole.
+        if (painting.Scale != 1)
+        {
+            dc.PushTransform(new ScaleTransform(painting.Scale, painting.Scale));
+            pushed++;
+        }
 
         if (painting.Snap is { } snap)
         {

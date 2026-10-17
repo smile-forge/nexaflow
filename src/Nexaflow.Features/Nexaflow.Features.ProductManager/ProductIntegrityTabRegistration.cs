@@ -25,7 +25,7 @@ public sealed class ProductIntegrityTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Folder containing the .product/ directory to validate.", Required: false),
+        new("path", "Folder containing the .product/ directory to validate.", Required: false, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

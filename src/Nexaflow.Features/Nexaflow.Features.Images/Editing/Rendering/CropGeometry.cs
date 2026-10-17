@@ -202,7 +202,8 @@ public static class CropGeometry
     public static SKSizeI OutputSize(ImageRecipe recipe, SKSize source)
     {
         var crop  = EffectiveCrop(recipe.Geometry, source);
-        var shown = Turned(new SKSize((float)crop.Width, (float)crop.Height), recipe.Geometry.QuarterTurns);
+        double restored = recipe.Restore?.Scale ?? 1;   // a restored picture is the same picture, larger
+        var shown = Turned(new SKSize((float)(crop.Width * restored), (float)(crop.Height * restored)), recipe.Geometry.QuarterTurns);
         if (recipe.Resize is not { } resize) return Round(shown.Width, shown.Height);
 
         if (resize.Mode == ResizeMode.Percent)

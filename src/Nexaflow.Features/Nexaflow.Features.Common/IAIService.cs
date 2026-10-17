@@ -114,6 +114,13 @@ namespace Nexaflow.Features.Common
         Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 
         /// <summary>
+        /// A one-shot question about a picture, answered in the background by the workspace's image-recognition model — the
+        /// first in its chain that sees pictures, on this machine or in the cloud as the workspace has it. Null when no model
+        /// here sees pictures.
+        /// </summary>
+        Task<string?> AskAboutPictureAsync(string instruction, ContextImage picture, CancellationToken ct = default);
+
+        /// <summary>
         /// Notes on a stretch of conversation, for the assistant to carry on from in place of the conversation itself: what
         /// was asked and decided, the facts, names and numbers that came up, what was acted on and how, and what is left open.
         /// Condensed by the Analysis model without reasoning, a part at a time where the stretch is longer than it reads at

@@ -1246,6 +1246,16 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         return result;
     }
 
+    /// <summary>What the pinned pages put in front of the assistant together, with the files dropped on the conversation —
+    /// all its tools may reach by path.</summary>
+    public ContextGrant GetContextGrant()
+    {
+        var grant = ContextGrant.OfFiles(Attachments);
+        foreach (var c in ContextItems)
+            if ((c.Page.Content as IPageView)?.ViewModel is IPageViewModel vm) grant = grant.With(vm.GetContextGrant());
+        return grant;
+    }
+
     /// <summary>Estimated tokens for a string, using the same 1.1-tokens-per-word heuristic as the footer.</summary>
     private static long EstTokens(string? text) => CountWords(text) * 11L / 10L;
 

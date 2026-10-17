@@ -12,6 +12,11 @@ public sealed class NotebookTabRegistration(IShellServices shell) : IPageRegistr
     public static string StaticPageKind => "Notebook";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the notebook (.ipynb) to open.", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;

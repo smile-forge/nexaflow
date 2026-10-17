@@ -126,6 +126,9 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
     /// <summary>The notebook file is this page's scope boundary — required now the page exposes tools.</summary>
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The notebook this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public string? GetAiSystemPromptGuidance() =>
         "This is a read-only Jupyter notebook viewer: you can read cell source and any stored outputs, "
       + "but cells cannot be executed or edited here.";

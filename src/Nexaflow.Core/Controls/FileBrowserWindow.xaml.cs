@@ -85,6 +85,11 @@ public partial class FileBrowserWindow : Window
 
     private readonly IReadOnlyList<string>? _extensions;
 
+    /// <summary>What a save can be written as; the one chosen is <see cref="_chosen"/>. Empty for an open.</summary>
+    private IReadOnlyList<SaveFileType> _types = [];
+
+    private int _chosen;
+
     private bool    _saving;
     private long    _bytes;
     private string? _folder;
@@ -119,44 +124,54 @@ public partial class FileBrowserWindow : Window
     }
 
     /// <summary>Shows the browser as a Save As dialog and returns the file to write, or null if cancelled.</summary>
+    /// <param name="types">What the file can be written as, the first offered first; more than one is a choice.</param>
     /// <param name="bytes">How many bytes are about to be written, or 0 where the caller cannot say before it runs.
     /// It buys the reader a size, a free-space check and a warning over a file already there.</param>
     public static string? ShowSave(string suggestedName,
-                                   IReadOnlyList<string>? extensions = null,
+                                   IReadOnlyList<SaveFileType> types,
                                    string? initialPath = null,
                                    long bytes = 0,
                                    Window? owner = null,
                                    WorkspaceRuntime? workspace = null)
     {
-        var win = new FileBrowserWindow(extensions, workspace)
+        IReadOnlyList<string> extensions = [.. types.Select(type => type.Extension)];
+        var win = new FileBrowserWindow(extensions.Count > 0 ? extensions : null, workspace)
         {
             Owner = owner ?? Application.Current.MainWindow
         };
 
         var start = SavePicking.Start(initialPath, extensions);
         win.Loaded += async (_, _) => await win.NavigateToAsync(start);
-        win.Saving(suggestedName, start, bytes);
+        win.Saving(suggestedName, types, start, bytes);
 
         return win.ShowDialog() == true ? win.SelectedPath : null;
     }
 
-    /// <summary>Turns the browser into a Save As: a name to edit, the file it would write, and what writing it
-    /// would mean.</summary>
-    private void Saving(string suggested, string folder, long bytes)
+    /// <summary>Turns the browser into a Save As: a name to edit, what to write it as where there is a choice, the file it
+    /// would write, and what writing it would mean.</summary>
+    private void Saving(string suggested, IReadOnlyList<SaveFileType> types, string folder, long bytes)
     {
         _saving = true;
         _bytes  = bytes;
         _folder = folder;
+        _types  = types;
+        _chosen = 0;
 
         HeaderText.Text = Str.Get("Shell.Picker.SaveAs");
-        SubText.Text    = _extensions is { Count: > 0 } && _extensions[0].TrimStart('.') is { Length: > 0 } kind
+        SubText.Text    = types.Count == 1 && types[0].Extension.TrimStart('.') is { Length: > 0 } kind
                               ? Str.Format("Shell.Picker.SaveWhereFormat", kind.ToUpperInvariant())
                               : Str.Get("Shell.Picker.SaveWhere");
 
         SubText.Visibility  = Visibility.Visible;
         SaveFoot.Visibility = Visibility.Visible;
         OpenFoot.Visibility = Visibility.Collapsed;
-        ExtText.Text        = _extensions is { Count: > 0 } ? _extensions[0] : string.Empty;
+
+        // One kind of file is said beside the name; several are a choice there, the first chosen.
+        ExtText.Text          = types.Count == 1 ? types[0].Extension : string.Empty;
+        ExtText.Visibility    = types.Count > 1 ? Visibility.Collapsed : Visibility.Visible;
+        TypeChoice.Visibility = types.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        TypeChoice.ItemsSource = types.Count > 1 ? types.Select(type => Str.Format("Shell.Picker.TypeFormat", type.Name, type.Extension)).ToList() : null;
+        TypeChoice.SelectedIndex = types.Count > 1 ? 0 : -1;
 
         // The stem is what a reader retypes; the extension is the caller's and goes back on whatever they leave.
         NameBox.Text = Stem(suggested);
@@ -166,16 +181,23 @@ public partial class FileBrowserWindow : Window
         NameBox.SelectAll();
     }
 
+    private void TypeChoice_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_saving || TypeChoice.SelectedIndex < 0) return;
+        _chosen = TypeChoice.SelectedIndex;
+        Weigh();
+    }
+
     private string Stem(string name) =>
-        _extensions is { Count: > 0 } && name.EndsWith(_extensions[0], StringComparison.OrdinalIgnoreCase)
-            ? name[..^_extensions[0].Length]
+        _types.FirstOrDefault(type => name.EndsWith(type.Extension, StringComparison.OrdinalIgnoreCase)) is { } named
+            ? name[..^named.Extension.Length]
             : name;
 
     /// <summary>Works the folder showing and the name typed into the file that would be written, and says what
     /// writing it would cost. Runs on every keystroke and every move through the tree.</summary>
     private void Weigh()
     {
-        if (SavePicking.Named(_folder, NameBox.Text, _extensions) is not { } target)
+        if (SavePicking.Named(_folder, NameBox.Text, _extensions, _types.Count > 0 ? _types[_chosen].Extension : null) is not { } target)
         {
             SelectedPath        = null;
             WhereText.Text      = Str.Get("Shell.Picker.PickAFolder");

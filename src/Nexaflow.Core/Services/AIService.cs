@@ -14,6 +14,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.IO.Common.Hardware;
 using System.Text.Json.Nodes;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Core.Services;
 
@@ -77,7 +78,9 @@ public sealed class AIService : IAIService
         File.WriteAllBytes(picture, clip.Png);
 
         // The call generate_video would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
-        var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell));
+        // It reads only its picture, and the clip opens as a draft for the user to save where they choose.
+        var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([picture], [])));
         var arguments = new JsonObject
         {
             ["prompt"]      = clip.Description,
@@ -174,11 +177,13 @@ public sealed class AIService : IAIService
     /// The context and tools a run offers the model: the shell's (time, workspace, open tabs, its tools, the help the
     /// app ships) and the page's own, when <paramref name="includeContext"/>; nothing when not.
     /// </summary>
-    private (string Context, List<IClientTool> Tools) GatherContext(IPageViewModel? page, bool includeContext)
+    private (string Context, List<IClientTool> Tools, PathScope Scope) GatherContext(IPageViewModel? page, bool includeContext)
     {
-        if (!includeContext) return ("No specific context.", []);
+        if (!includeContext) return ("No specific context.", [], PathScope.None);
 
         var pageContext = page?.GetContext() ?? "No specific context.";
+        // Every tool that takes a path is held to what the user has shown the assistant: the page's files and folders.
+        var scope       = Agent.RunScope.Of(page);
         var tools       = new List<IClientTool>(page?.GetClientTools() ?? []);
 
         // A searchable page gets its search tools automatically — declaring ISearchable is the whole
@@ -189,12 +194,15 @@ public sealed class AIService : IAIService
         // Fold in shell-level context + tools (local time, workspace, open windows/tabs, and the shell tools)
         // alongside the active page's.
         var shellCtx = new ShellAi.ShellAiContext(_workspace);
-        tools.AddRange(shellCtx.BuildTools());
+        tools.AddRange(shellCtx.BuildTools(scope));
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
         if (_workspace.ShellServices is { } shell)
+        {
+            var made = Generation.GeneratedFiles.For(shell, scope);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          HighQualityVideoGenerator, Generation.GeneratedFiles.For(shell)).Tools);
+                                                          HighQualityVideoGenerator, made).Tools);
+        }
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
@@ -207,7 +215,7 @@ public sealed class AIService : IAIService
         }
 
         // The page first — it is what the request is about — then where it sits.
-        return (pageContext + "\n\n" + shellCtx.BuildContext(), tools);
+        return (pageContext + "\n\n" + shellCtx.BuildContext(), tools, scope);
     }
 
     /// <summary>
@@ -474,6 +482,17 @@ public sealed class AIService : IAIService
         return response?.RawText;
     }
 
+    public async Task<string?> AskAboutPictureAsync(string instruction, ContextImage picture, CancellationToken ct = default)
+    {
+        if (Candidates<ILlmProvider>(AiAbility.ImageRecognition).FirstOrDefault(m => m.SupportsImages) is not { } model) return null;
+
+        // Nobody is watching: on a GPU shared with a reply, it waits its turn behind each token.
+        var response = await model.CompleteAsync(
+            [new(LlmRole.User, instruction) { Attachments = [new LlmAttachment(picture.Label ?? "picture", picture.MimeType, picture.Bytes)] }],
+            LlmUrgency.Background, ct);
+        return response?.RawText;
+    }
+
     /// <summary>When the conversation a run continues has grown past this share of the model's context, its older part is
     /// condensed before the run: the page, the tools and the reply need the rest.</summary>
     internal const double CondenseAt = 0.5;
@@ -625,7 +644,7 @@ public sealed class AIService : IAIService
         IAIResponseHandler approval, AgentRunOptions options, CancellationToken ct = default)
     {
         // What the user is looking at as they asked, read on the caller's thread before anything is awaited.
-        var (context, pageTools) = GatherContext(page, includeContext);
+        var (context, pageTools, scope) = GatherContext(page, includeContext);
 
         ModelRoute? route;
         try { route = await RouteAsync(AiAbility.Conversation, input, options.History, ct); }
@@ -637,14 +656,14 @@ public sealed class AIService : IAIService
         try
         {
             var run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
-                                          Delegates(route.Reader, approval), ran, ct);
+                                          Delegates(route.Reader, approval, scope), ran, ct);
 
             if (run.Stuck is { } stuck && route.HandOverTo is { } larger)
             {
                 approval.ReportProgress($"Handing over to {larger.Name}…");
                 var taken = new List<LlmMessage>();
                 run = await RunStepsAsync(larger, page, context, includeContext, pageTools, input, HandOver(stuck.Why), approval,
-                                          options with { History = [.. options.History, .. ran] }, Delegates(route.Model, approval), taken, ct);
+                                          options with { History = [.. options.History, .. ran] }, Delegates(route.Model, approval, scope), taken, ct);
                 ran.AddRange(taken.Skip(1));   // the first is the hand-over, said to the model and not by the user
             }
 
@@ -664,9 +683,9 @@ public sealed class AIService : IAIService
     }
 
     /// <summary>The models a run on a larger model may hand work to: the machine's own, to read for it.</summary>
-    private IReadOnlyList<IClientTool> Delegates(ILlmProvider? reader, IAIResponseHandler approval)
+    private IReadOnlyList<IClientTool> Delegates(ILlmProvider? reader, IAIResponseHandler approval, PathScope scope)
         => reader is null ? []
-         : [new ReadingTool(reader, path => _workspace.ShellServices?.GetFileTextExtractor(path), approval.ReportProgress)];
+         : [new ReadingTool(reader, path => _workspace.ShellServices?.GetFileTextExtractor(path), approval.ReportProgress, scope)];
 
     /// <summary>How a run of the loop on one model ended: its response, or nothing when it was stopped or refused; the files
     /// its tools touched; and, when it got stuck, what to tell the user and why, for a model to take it over.</summary>

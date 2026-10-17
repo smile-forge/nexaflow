@@ -647,6 +647,9 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     /// <summary>File-path scope boundary — keeps two log tabs on different files distinguishable when pinned.</summary>
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The log this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // ── Read / explore (auto-run) — the log content the model couldn't reach before ──

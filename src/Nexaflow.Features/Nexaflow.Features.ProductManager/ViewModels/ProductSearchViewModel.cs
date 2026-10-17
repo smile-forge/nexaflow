@@ -279,4 +279,7 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
 
     /// <summary>The product root is the scope these results came from.</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(_productRoot) ? null : _productRoot;
+
+    /// <summary>The product's folder, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(_productRoot);
 }

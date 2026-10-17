@@ -119,6 +119,9 @@ internal sealed class LiveConversation : IDisposable
     private readonly Action<LiveConversation> _release;
     private bool _disposed;
 
+    private int? _window;
+    private int _promptEnd, _written;
+
     public LiveConversation(LlamaContext context, int sequence, Action<LiveConversation> release)
     {
         _context = context;
@@ -169,8 +172,32 @@ internal sealed class LiveConversation : IDisposable
         if (next is { } chosen) Next = chosen;
     }
 
-    /// <summary>Reads the token generated last and chooses the one after it.</summary>
-    public void Advance(int token) => ReadTokens([token], sample: true);
+    /// <summary>Reads the token generated last and chooses the one after it — forgetting, when it keeps only so much of
+    /// what it writes, the written token that has left the window.</summary>
+    public void Advance(int token)
+    {
+        if (_window is { } window && _written >= window)
+        {
+            int oldest = _promptEnd + _written - window;
+            _context.Forget(Sequence, oldest, oldest + 1);
+            Tokens--;
+        }
+        ReadTokens([token], sample: true);
+        _written++;
+    }
+
+    /// <summary>From here on each token written sees all that was read before it but only the last
+    /// <paramref name="tokens"/> written: the oldest is forgotten as each new one is read, its position kept, as a model
+    /// trained with reference sliding-window attention reads.</summary>
+    public void KeepWritten(int tokens)
+    {
+        _window = tokens;
+        _promptEnd = Positions;
+        _written = 0;
+    }
+
+    /// <summary>Whether it forgets what it writes, and so holds a context nobody can continue.</summary>
+    public bool Forgets => _window is not null;
 
     /// <summary>The prompt now read in full, before its reply is generated.</summary>
     public void Prompted(string prompt) => Prompt = prompt;

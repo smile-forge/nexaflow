@@ -58,6 +58,9 @@ internal sealed class TimelineBuilder : MermaidBuilder
     private const double Column = 150;
     private const double Between = 24;
 
+    /// <summary>The clear air between one row of periods and the next, where a timeline runs on down the page.</summary>
+    private const double Apart = 32;
+
     /// <summary>The least a period's box is, before what it says asks for more.</summary>
     private const double Least = 34;
 
@@ -98,7 +101,9 @@ internal sealed class TimelineBuilder : MermaidBuilder
         if (down) Down(build, config, sectioned, said, pad, room);
         else Across(build, config, sectioned, said, pad, room);
 
-        return room.Size;
+        // Run on in rows to the room already where it reads across; a single period wider than the room, or a timeline read
+        // down the page, is drawn smaller.
+        return Reduced(room.Size);
     }
 
     // ── What is written ─────────────────────────────────────────────────────
@@ -228,30 +233,56 @@ internal sealed class TimelineBuilder : MermaidBuilder
     {
         var banded = sectioned ? Band + Gap : 0;
         var tall = Math.Max(Least, said.Max(shown => shown.Words.Height) + (pad * 2));
-        var top = banded;
 
-        var boxes = said.Select((shown, at) => new Rect(at * (Column + Between), top, Column, tall)).ToList();
-        var spine = top + (tall / 2);
+        // As many periods to a row as the room holds, and the rest running on in rows under it as words run on under a line: a
+        // timeline longer than its room is read on down the page before it is drawn smaller. One at the least, so a room narrower
+        // than a period still has a period in every row.
+        var each = double.IsInfinity(Space) ? said.Count : Math.Clamp((int)((Space + Between) / (Column + Between)), 1, said.Count);
 
-        if (sectioned) Bands(build, config, said, boxes, band => new Rect(band.Left, 0, band.Width, Band), pad, room);
+        var rows = new List<(int From, int Count)>();
+        var boxes = new List<Rect>();
+        var happenings = new List<List<Rect>>();
+        var top = 0.0;
 
-        // The spine runs through the middle of the periods, from the first to the last.
-        Spine(build, [new Point(boxes[0].Left + (Column / 2), spine), new Point(boxes[^1].Left + (Column / 2), spine)], room);
-
-        for (var at = 0; at < said.Count; at++)
+        for (var from = 0; from < said.Count; from += each)
         {
-            var box = boxes[at];
-            var events = new List<Rect>();
-            var y = box.Bottom + Reach;
+            var count = Math.Min(each, said.Count - from);
+            var bottom = top + banded + tall;
+            rows.Add((from, count));
 
-            foreach (var happening in said[at].Events)
+            for (var at = from; at < from + count; at++)
             {
-                events.Add(new Rect(box.Left, y, Column, happening.Size.Height));
-                y += happening.Size.Height + Gap;
+                var box = new Rect((at - from) * (Column + Between), top + banded, Column, tall);
+                var events = new List<Rect>();
+                var y = box.Bottom + Reach;
+
+                foreach (var happening in said[at].Events)
+                {
+                    events.Add(new Rect(box.Left, y, Column, happening.Size.Height));
+                    y += happening.Size.Height + Gap;
+                }
+
+                boxes.Add(box);
+                happenings.Add(events);
+                bottom = Math.Max(bottom, events.Count > 0 ? events[^1].Bottom : box.Bottom);
             }
 
-            Placed(build, said[at], config, down: false, box, events, new Point(box.Left + (Column / 2), box.Bottom), pad, room);
+            top = bottom + Apart;
         }
+
+        if (sectioned) Bands(build, config, said, boxes, rows, band => new Rect(band.Left, band.Top - banded, band.Width, Band), pad, room);
+
+        // A spine runs through the middle of each row of periods, from the first of them to the last.
+        foreach (var (from, count) in rows)
+        {
+            var (first, last) = (boxes[from], boxes[from + count - 1]);
+            var spine = first.Top + (tall / 2);
+
+            Spine(build, [new Point(first.Left + (Column / 2), spine), new Point(last.Left + (Column / 2), spine)], room);
+        }
+
+        for (var at = 0; at < said.Count; at++)
+            Placed(build, said[at], config, down: false, boxes[at], happenings[at], new Point(boxes[at].Left + (Column / 2), boxes[at].Bottom), pad, room);
     }
 
     // ── Down the page ───────────────────────────────────────────────────────
@@ -281,7 +312,7 @@ internal sealed class TimelineBuilder : MermaidBuilder
             y += tall + Gap;
         }
 
-        if (sectioned) Bands(build, config, said, boxes, band => new Rect(0, band.Top, Strip, band.Height), pad, room);
+        if (sectioned) Bands(build, config, said, boxes, [(0, said.Count)], band => new Rect(0, band.Top, Strip, band.Height), pad, room);
 
         var middle = left + (Column / 2);
         Spine(build, [new Point(middle, boxes[0].Top), new Point(middle, boxes[^1].Bottom)], room);
@@ -292,26 +323,32 @@ internal sealed class TimelineBuilder : MermaidBuilder
 
     // ── Layers ──────────────────────────────────────────────────────────────
 
-    /// <summary>A band over each run of periods the same section groups — <paramref name="over"/> saying where it goes.</summary>
+    /// <summary>
+    /// A band over each run of periods the same section groups — <paramref name="over"/> saying where it goes. A run is
+    /// found in each of <paramref name="rows"/> on its own, so a section the periods run on past the end of a row is a band in
+    /// each row rather than one across the rows between.
+    /// </summary>
     private void Bands(LayoutBuilder build, TimelineConfig config, IReadOnlyList<Sized> said, IReadOnlyList<Rect> boxes,
-                       Func<Rect, Rect> over, double pad, DiagramRoom room)
+                       IReadOnlyList<(int From, int Count)> rows, Func<Rect, Rect> over, double pad, DiagramRoom room)
     {
         build.Open(TimelinePiece.Sections, part: null, stops: Stops.None);
 
-        foreach (var (_, at, _, run) in DiagramBand.Runs(said, shown => shown.Section.Order, boxes))
-        {
-            if (said[at].Section is not { Name: { } name } group) continue;
+        foreach (var (from, count) in rows)
+            foreach (var (_, first, _, run) in DiagramBand.Runs([.. said.Skip(from).Take(count)], shown => shown.Section.Order, [.. boxes.Skip(from).Take(count)]))
+            {
+                var at = from + first;
+                if (said[at].Section is not { Name: { } name } group) continue;
 
-            var band = over(run);
-            // A section's name heads what it holds, so it is written in the title's colour.
-            var lines = Said(name, NameSize, TitleInk, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
-            var fill = Colour(config, said[at].Slot);
+                var band = over(run);
+                // A section's name heads what it holds, so it is written in the title's colour.
+                var lines = Said(name, NameSize, TitleInk, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
+                var fill = Colour(config, said[at].Slot);
 
-            room.Reach(band);
-            DiagramShapes.Draw(build, TimelinePiece.Section, group.Part, DiagramShape.Rounded, band,
-                DiagramInk.Faded(fill, Banded), new DiagramStroke(DiagramInk.Faded(fill, 0.5)),
-                DiagramWords.Placed(lines, Rect.Inflate(band, -pad, -pad), TimelinePiece.Name));
-        }
+                room.Reach(band);
+                DiagramShapes.Draw(build, TimelinePiece.Section, group.Part, DiagramShape.Rounded, band,
+                    DiagramInk.Faded(fill, Banded), new DiagramStroke(DiagramInk.Faded(fill, 0.5)),
+                    DiagramWords.Placed(lines, Rect.Inflate(band, -pad, -pad), TimelinePiece.Name));
+            }
 
         build.Close();
     }

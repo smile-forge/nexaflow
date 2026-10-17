@@ -192,7 +192,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
-| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
+| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`) |
 | `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
@@ -570,6 +570,36 @@ Implement on your `UserControl`. The file browser resolves this from the active 
 ### `IClientTool` — AI-invokable client tools
 
 Expose tools from a page by overriding `IPageViewModel.GetClientTools()`. Each tool is an `IClientTool` (or a `DelegateClientTool` for trivial cases) carrying its own name, parameters, `ToolSafety`, and `InvokeAsync`. During `IAIService.RunAgentAsync` the LLM emits `client_tool` blocks; the harness runs read-only tools immediately and routes mutating ones through `IToolApprovalCoordinator` before invoking them, feeding each `ToolResult` back to the model.
+
+#### What a tool may reach on disk
+
+The assistant works inside what the user has put in front of it by the tabs it sees, and the user's choice of tabs is
+the security boundary: a tool reaches what the user can see, and nothing the user has not shown it. Each page says what
+of the disk it shows with `IPageViewModel.GetContextGrant()` — a `ContextGrant` of files given one by one (an open
+document, the pictures of an image tab) and folders given whole (a file system tab's folder; This PC's drives). A
+conversation's grant is everything pinned to it, with its attachments. `AiSurfaceRulesTests` names a page with a security
+scope that says nothing of the disk, unless it is listed as showing nothing from it.
+
+`PathScope` (in `Nexaflow.IO.Common`) is the one check. A path is inside when it is one of the files, or one of the
+folders or anything under it — `C:\temp\special` holds `C:\temp\special\other`, never `C:\temp` or
+`C:\temp\specialist`. It reads a path as the user reads it: made full, so `..` climbs no further than it says; short 8.3
+names spelled out; a long-path or device prefix before a drive or share taken off; case ignored. Relative paths, named
+streams, wildcards, raw devices and volumes by name are no path at all. A link inside a folder is followed as the user
+can follow it there: the check keeps the context matching what the user sees, and does not shield the user from a link
+they made themselves. `ResolveInFolder` is the stricter test for a new file — only a folder holds files not yet there.
+
+- **A page's own tools** test against their page's grant: the file system tools (`FsTool.TryResolve`), Search's
+  `index_coverage`, the product graph's edits (only under the product folder).
+- **Core's tools** are built per run in `AIService.GatherContext` with the run's scope (`RunScope.Of(page)`): the
+  generation tools read pictures only from it and save only into a folder in it; `ask_local_model` reads only files in
+  it; `open_page` refuses a parameter the page does not declare and holds each declared `PageParameter.OnDisk` value to
+  it (a web address is no place on disk).
+- **Something made with nowhere to go** — a generation tool asked to save nowhere, the assistant's `cut_out`, a video
+  frame cut out — is kept under `DraftLocation` and handed to `IShellServices.HandleObject` as a `DraftFile`. The
+  viewer for its kind claims it and opens it as a draft tab: `DraftBanner` over the page, its `DraftSaving` keeping the
+  file where the user picks (a picture with its edits), and the tab becomes that file. The assistant is told only that
+  the tab opened.
+- The terminal's `run_command` is a shell, which no path check can confine; it stays behind approval.
 
 ---
 

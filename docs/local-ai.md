@@ -647,11 +647,15 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 
 Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
 and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation and Video
-Generation (HQ) rows. It saves the
-result where the model asked — else under Pictures, Music or Videos, in a `Nexaflow` folder — never over a file already
-there, and opens it as a double-click would, in Nexaflow's own image, audio or video viewer. The model is told where it
-went, the conversation carries the file, and a picture made while the model waits goes back as a `ContextImage`, so the
-model sees what it drew; the existing loop, approvals and context handling apply unchanged.
+Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
+([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk)): pictures to work
+from, a mask and a first frame are files open in a tab or in a folder open in one, and `path` is a folder or file inside
+a folder open in a tab — anywhere else is refused before anything is made. Asked to save there, a tool writes the result
+never over a file already there and opens it as a double-click would; the model is told where it went and the
+conversation carries the file. Asked to save nowhere, the result is kept in a temp folder and opened as a draft
+(`DraftFile`) in Nexaflow's own image, audio or video viewer, whose Save as keeps it where the user chooses; the model is
+told only that it opened. A picture made while the model waits goes back as a `ContextImage` either way, so the model
+sees what it drew; the existing loop, approvals and context handling apply unchanged.
 
 - **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
   (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is
@@ -857,7 +861,7 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row; clips on this machine with Wan2.2-TI2V-5B — FastWan for clips from a description, the full model, in a high-quality video row, for clips from a picture. To come: the audio generation contract with music (ACE-Step) | medium per tool |
-| 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill. To come: OCR, then a web agent on Fara 1.5, each a sub-agent with what it may touch set by what it does | medium |
+| 5. Delegation | under way: requests routed by weight between the machine's model and a larger one, with hand-over when the machine's gets stuck; reading handed to the machine's model as a sub-agent; slow tool calls in the background, with the AI bar's pill; pages of writing read on this machine by page reading, a tool ([ai-tools.md](ai-tools.md#page-reading)). To come: a web agent on Fara 1.5, a sub-agent with what it may touch set by what it does | medium |
 
 Phase 1 is useful on its own — streaming improves the cloud path before any local model exists.
 

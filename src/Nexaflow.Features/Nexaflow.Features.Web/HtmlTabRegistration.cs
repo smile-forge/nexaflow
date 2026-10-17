@@ -15,6 +15,11 @@ public sealed class HtmlTabRegistration(IShellServices shell) : IPageRegistratio
     public static string StaticPageKind => "Html";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of an HTML file, or a web address (http or https).", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var url  = pageParams?.GetValueOrDefault("path") ?? "";

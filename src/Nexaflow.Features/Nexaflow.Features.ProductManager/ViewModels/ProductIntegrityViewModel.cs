@@ -536,6 +536,9 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// three views of the same tree, and pinning two of them should not read as two datasets.</summary>
     public string? GetSecurityContext() => ProductRoot;
 
+    /// <summary>The product's folder, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(ProductRoot);
+
     public string? GetAiSystemPromptGuidance() =>
         "A list of snaplinks whose target no longer exists (missing file, renamed heading, undeclared " +
         "class/method, malformed URL). Each can be re-pointed by editing its target, or removed — " +

@@ -15,6 +15,11 @@ public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices 
     public static string StaticPageKind => "Code";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the source file to open.", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;

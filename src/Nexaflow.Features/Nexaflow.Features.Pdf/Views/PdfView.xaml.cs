@@ -40,6 +40,7 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
 
         ViewModel.NavigateToPageAsync = GoToPageAsync;
         ViewModel.CapturePageAsync    = ct => Surface.CapturePngAsync(1600, ct);
+        ViewModel.Host                = this;   // what opens beside the document — its scans' Markdown — opens in its window
 
         Surface.Unavailable += (_, e) => HandleSurfaceUnavailable(e);
 
@@ -47,8 +48,13 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         // grid columns have to collapse with it.
         ViewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(PdfViewModel.IsPanelOpen)) ApplyPanelWidth();
+            if (e.PropertyName != nameof(PdfViewModel.IsPanelOpen)) return;
+            if (!_makingRoom) _closedForRoom = false;   // the reader opened or closed it: theirs from now on
+            ApplyPanelWidth();
         };
+
+        // A view too narrow for the panel and the reader — a pane of a split window — gives the reader the room.
+        SizeChanged += (_, _) => MakeRoom();
 
         Loaded += OnLoaded;
     }
@@ -108,6 +114,38 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
             PanelColumn.MinWidth   = 0;
             PanelColumn.Width      = new GridLength(0);
             SplitterColumn.Width   = new GridLength(0);
+        }
+    }
+
+    /// <summary>The panel was closed to give the reader room, not by the reader: it opens again once there is room.</summary>
+    private bool _closedForRoom;
+
+    private bool _makingRoom;
+
+    /// <summary>
+    /// Closes the panel where the view cannot hold it beside the reader at its least, and opens it again once it can. The
+    /// reader's surface is a window of its own that no layout clips, so a view laid out wider than it is would have the
+    /// document drawn over whatever stands beside it.
+    /// </summary>
+    private void MakeRoom()
+    {
+        bool open = ViewModel.IsPanelOpen;
+        if (open && ActualWidth < PanelMinWidth + SplitterWidth + ReaderColumn.MinWidth)
+        {
+            _closedForRoom = true;
+            Set(false);
+        }
+        else if (!open && _closedForRoom && ActualWidth >= _panelWidth.Value + SplitterWidth + ReaderColumn.MinWidth)
+        {
+            _closedForRoom = false;
+            Set(true);
+        }
+
+        void Set(bool value)
+        {
+            _makingRoom = true;
+            try { ViewModel.IsPanelOpen = value; }
+            finally { _makingRoom = false; }
         }
     }
 

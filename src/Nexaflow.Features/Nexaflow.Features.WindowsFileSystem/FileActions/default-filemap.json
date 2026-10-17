@@ -64,7 +64,8 @@
     "Source": "User",
     "Criteria": [
       { "Type": "Extension", "Value": "*.md" },
-      { "Type": "Extension", "Value": "*.markdown" }
+      { "Type": "Extension", "Value": "*.markdown" },
+      { "Type": "Extension", "Value": "*.mdz" }
     ]
   },
   {

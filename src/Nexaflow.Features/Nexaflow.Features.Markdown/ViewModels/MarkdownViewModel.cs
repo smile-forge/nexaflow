@@ -12,6 +12,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using Nexaflow.Visuals.Common.Theming;
+using System;
+using Nexaflow.Markdown.Packaging;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -29,8 +31,35 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 {
     // ── File state ────────────────────────────────────────────────────────
 
-    public string FilePath { get; }
+    public string FilePath { get; private set; }
     public string FileName => Path.GetFileName(FilePath);
+
+    /// <summary>
+    /// Where the files the document shows or links to are read from: the file's own folder — or, for a Markdown Package, the
+    /// folder it is unpacked in while it is open, which a save packs up again.
+    /// </summary>
+    [ObservableProperty]
+    private string? _documentFolder;
+
+    /// <summary>What Save As offers a document to be written as: a package first, its attachments in it, or a file beside
+    /// its attachments. A file of one language — a tune, a formula — stays that.</summary>
+    private static readonly SaveFileType[] DocumentTypes =
+    [
+        new("Markdown Package", MarkdownPackage.Extension),
+        new("Markdown", ".md"),
+    ];
+
+    /// <summary>
+    /// Where a draft is offered to be saved — a document made for the reader and kept in a temp folder, such as a page read
+    /// into Markdown — or null for a file opened where it lives. A draft's Save asks where, starting here, and once saved it
+    /// is that file.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private string? _draftFolder;
+
+    /// <summary>Raised, with the new file, once the document is saved as another file and is that file from then on.</summary>
+    public event Action<string>? Moved;
 
     /// <summary>Heading title-path to scroll to once rendered (set when opened from a snaplink), or null.</summary>
     public IReadOnlyList<string>? InitialHeading { get; }
@@ -105,26 +134,105 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    public MarkdownViewModel(string filePath, IShellServices shell, IReadOnlyList<string>? initialHeading = null)
+    public MarkdownViewModel(string filePath, IShellServices shell, IReadOnlyList<string>? initialHeading = null, string? draftFolder = null)
     {
         FilePath       = filePath;
         _shell         = shell;
         InitialHeading = initialHeading;
+        _draftFolder   = draftFolder;
         WrittenIn      = SingleBlockFiles.LanguageOf(filePath);
-        _savedText = VirtualFileSystem.Instance.Exists(filePath)
-            ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
-            : string.Empty;
+        if (MarkdownPackage.Names(filePath) && VirtualFileSystem.Instance.Exists(filePath))
+        {
+            _documentFolder = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", Guid.NewGuid().ToString("N")[..12]);
+            _savedText      = MarkdownPackage.Unpack(filePath, _documentFolder).ReplaceLineEndings("\n");
+        }
+        else
+        {
+            _documentFolder = Path.GetDirectoryName(filePath) is { Length: > 0 } folder ? folder : null;
+            _savedText = VirtualFileSystem.Instance.Exists(filePath)
+                ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
+                : string.Empty;
+        }
         Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
     }
 
     // ── Commands ──────────────────────────────────────────────────────────
 
-    [RelayCommand(CanExecute = nameof(IsDirty))]
-    private void Save()
+    /// <summary>Writes the document to its file — packed, for a Markdown Package — or, for a draft, to the file the reader
+    /// picks (<see cref="SaveAs"/>).</summary>
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task Save()
     {
-        VirtualFileSystem.Instance.WriteAllText(FilePath, Markdown);
+        if (DraftFolder is not null)
+        {
+            await SaveAs();
+            return;
+        }
+        if (MarkdownPackage.Names(FilePath)) MarkdownPackage.Pack(Markdown, DocumentFolder!, FilePath);
+        else VirtualFileSystem.Instance.WriteAllText(FilePath, Markdown);
         _savedText = Markdown;
         IsDirty    = false;
+    }
+
+    /// <summary>Something to save: edits, or a draft not yet saved anywhere.</summary>
+    private bool CanSave => IsDirty || DraftFolder is not null;
+
+    /// <summary>
+    /// Writes the document to a file the reader picks, offered beside it — or, for a draft, where the draft says — and makes
+    /// it that file. As a Markdown Package, the default, the files it shows or links to go inside it; as a Markdown file they
+    /// go to the same places beside the new file, so it still shows them.
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveAs()
+    {
+        string? folder = DraftFolder ?? Path.GetDirectoryName(FilePath);
+        string extension = Path.GetExtension(FilePath);
+        IReadOnlyList<SaveFileType> types = WrittenIn is null ? DocumentTypes : [new(extension.TrimStart('.').ToUpperInvariant(), extension)];
+        if (await _shell.PickSaveFileAsync(Path.GetFileNameWithoutExtension(FilePath), types,
+                                           string.IsNullOrEmpty(folder) ? null : folder) is not { } target) return;
+        try
+        {
+            if (MarkdownPackage.Names(target)) MarkdownPackage.Pack(Markdown, DocumentFolder ?? Path.GetDirectoryName(Path.GetFullPath(target))!, target);
+            else
+            {
+                CarryAttachments(Path.GetDirectoryName(Path.GetFullPath(target))!);
+                VirtualFileSystem.Instance.WriteAllText(target, Markdown);
+                DocumentFolder = Path.GetDirectoryName(Path.GetFullPath(target));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _shell.ShowError($"The document could not be saved: {ex.Message}");
+            return;
+        }
+        FilePath = target;
+        OnPropertyChanged(nameof(FilePath));
+        OnPropertyChanged(nameof(FileName));
+        DraftFolder = null;
+        _savedText  = Markdown;
+        IsDirty     = false;
+        Moved?.Invoke(target);
+    }
+
+    /// <summary>The files the document shows or links to from its folder, copied to the same places under <paramref name="to"/>.</summary>
+    private void CarryAttachments(string to)
+    {
+        if (DocumentFolder is not { } from || string.Equals(Path.GetFullPath(from), to, StringComparison.OrdinalIgnoreCase)) return;
+        foreach (var attachment in MarkdownAttachments.Paths(Markdown))
+        {
+            string source = Path.Combine(from, attachment);
+            if (!File.Exists(source)) continue;
+            string copy = Path.Combine(to, attachment);
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.Copy(source, copy, overwrite: true);
+        }
+    }
+
+    /// <summary>Lets go of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
+    public void Release()
+    {
+        if (DocumentFolder is { } folder && folder.StartsWith(Path.Combine(Path.GetTempPath(), "nexaflow-mdz"), StringComparison.OrdinalIgnoreCase))
+            try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     // ── Links ─────────────────────────────────────────────────────────────
@@ -215,6 +323,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The document this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() => MarkdownTools.For(this);
 
     public IContext? GetContextObject()
@@ -235,11 +346,10 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>A rendered, read-only snapshot of the current document for the conversation context panel.</summary>
     public UserControl CreateContextPreview()
     {
-        var dir = Path.GetDirectoryName(FilePath);
         return new MarkdownSurface
         {
             Markdown                    = Markdown,
-            BaseDirectory               = string.IsNullOrEmpty(dir) ? null : dir,
+            BaseDirectory               = DocumentFolder,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
     }

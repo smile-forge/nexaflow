@@ -30,8 +30,8 @@ public sealed class DicomTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "A DICOMDIR, a folder of DICOM instances, or a single .dcm file", Required: false),
-        new("paths", "Pipe-separated DICOM instance paths (a multi-file selection)", Required: false),
+        new("path", "A DICOMDIR, a folder of DICOM instances, or a single .dcm file", Required: false, OnDisk: true),
+        new("paths", "Pipe-separated DICOM instance paths (a multi-file selection)", Required: false, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

@@ -172,6 +172,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- File name + the search chip an AI-bar "?" search leaves behind -->
@@ -220,6 +221,16 @@
                         <TextBlock Text="💾" FontSize="12" Margin="0,0,4,0"/>
                         <TextBlock Text="Save"  FontSize="12"/>
                     </StackPanel>
+                </Button>
+
+                <!-- Save as: the document written to a file the reader picks, its pictures with it; the tab follows it -->
+                <Button Grid.Column="3"
+                        Margin="6,0,0,0"
+                        Style="{StaticResource TbBtn}"
+                        ToolTip="Save as another file (Ctrl+Shift+S)"
+                        AutomationProperties.AutomationId="Markdown_SaveAs"
+                        Command="{Binding SaveAsCommand}">
+                    <TextBlock Text="Save as…" FontSize="12"/>
                 </Button>
 
             </Grid>

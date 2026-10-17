@@ -16,6 +16,9 @@ public interface IImageEncoder
     /// <summary>True when what it writes in <paramref name="container"/> keeps EXIF, XMP and the like.</summary>
     bool CarriesMetadata(ImageContainer container);
 
+    /// <summary>True when what it writes in <paramref name="container"/> keeps what is transparent transparent.</summary>
+    bool CarriesTransparency(ImageContainer container);
+
     byte[] Encode(SKImage picture, ImageContainer container, EncodeOptions options, MetadataBlocks metadata);
 }
 
@@ -26,6 +29,9 @@ public sealed class ImageEncoders(IReadOnlyList<IImageEncoder> encoders)
 
     public bool CarriesMetadata(ImageContainer container) =>
         encoders.FirstOrDefault(e => e.Encodes(container))?.CarriesMetadata(container) ?? false;
+
+    public bool CarriesTransparency(ImageContainer container) =>
+        encoders.FirstOrDefault(e => e.Encodes(container))?.CarriesTransparency(container) ?? false;
 
     public byte[] Encode(SKImage picture, ImageContainer container, EncodeOptions options, MetadataBlocks metadata) =>
         (encoders.FirstOrDefault(e => e.Encodes(container)) ?? throw new NotSupportedException($"No encoder writes {container} images."))

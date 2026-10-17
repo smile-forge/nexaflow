@@ -44,6 +44,9 @@ internal sealed class MindmapBuilder : MermaidBuilder
 {
     private const double TextSize = 13;
     private const double MaxNodeWidth = 200;
+
+    /// <summary>The narrowest a map too wide for its room sets what a node says, before it is drawn smaller instead.</summary>
+    private const double Narrowest = 100;
     private const double Padding = 10;
 
     /// <summary>How much bigger a node's icon is drawn than its title.</summary>
@@ -168,27 +171,13 @@ internal sealed class MindmapBuilder : MermaidBuilder
         if (Read() is not { } root) return AsWritten(build);
 
         var config = Configured(MindmapConfig.Default);
-        var padding = config.Padding ?? Padding;
-        var widest = config.MaxNodeWidth ?? MaxNodeWidth;
         var nodes = root.All().ToList();
 
-        // Every node's words first, since what a node says is what says how big it is.
-        var said = new Dictionary<Node, (IReadOnlyList<DiagramWords> Words, Size Size, DiagramShape Shape, Painted Paint)>();
-        foreach (var node in nodes)
-        {
-            var shape = Shaped(node.Shape);
-            var pad = RoomFor(node.Shape, padding);
-            var paint = Paint(config, node);
-            var title = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
-
-            // The icon it names goes over its title, as Mermaid draws one.
-            IReadOnlyList<DiagramWords> lines = Iconed(node.Icon, TextSize * IconScale, paint.Words) is { } icon ? [icon, .. title] : title;
-            var words = new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height));
-
-            said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape, paint);
-        }
-
-        var placed = DiagramTree.Lay(root, node => node.Children, node => said[node].Size);
+        // What a node says is what says how big it is, and so how wide the map is: a map wider than the room sets what its nodes
+        // say narrower, as far as words can be set narrower and still read as words, before anything is drawn smaller.
+        var (said, placed) = LaidNarrower(config.MaxNodeWidth ?? MaxNodeWidth, Narrowest,
+                                          widest => Laid(config, root, nodes, widest),
+                                          laid => laid.Placed.Values.Aggregate(Rect.Union).Width);
 
         var room = new DiagramRoom();
         foreach (var (_, rect) in placed) room.Reach(rect);
@@ -232,7 +221,34 @@ internal sealed class MindmapBuilder : MermaidBuilder
 
         build.Close();
 
-        return room.Size;
+        return Reduced(room.Size);
+    }
+
+    /// <summary>
+    /// Every node's words, set no wider than <paramref name="widest"/>, and the size and shape they make it — and then where every
+    /// node goes, since what a node says is what says how big it is.
+    /// </summary>
+    private (Dictionary<Node, (IReadOnlyList<DiagramWords> Words, Size Size, DiagramShape Shape, Painted Paint)> Said, Dictionary<Node, Rect> Placed)
+        Laid(MindmapConfig config, Node root, IReadOnlyList<Node> nodes, double widest)
+    {
+        var padding = config.Padding ?? Padding;
+        var said = new Dictionary<Node, (IReadOnlyList<DiagramWords> Words, Size Size, DiagramShape Shape, Painted Paint)>();
+
+        foreach (var node in nodes)
+        {
+            var shape = Shaped(node.Shape);
+            var pad = RoomFor(node.Shape, padding);
+            var paint = Paint(config, node);
+            var title = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
+
+            // The icon it names goes over its title, as Mermaid draws one.
+            IReadOnlyList<DiagramWords> lines = Iconed(node.Icon, TextSize * IconScale, paint.Words) is { } icon ? [icon, .. title] : title;
+            var words = new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height));
+
+            said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape, paint);
+        }
+
+        return (said, DiagramTree.Lay(root, node => node.Children, node => said[node].Size));
     }
 
     private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));

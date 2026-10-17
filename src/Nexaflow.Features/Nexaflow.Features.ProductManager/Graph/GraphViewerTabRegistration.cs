@@ -24,7 +24,7 @@ public sealed class GraphViewerTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Path to a knowledge-graph file (graph.json).", Required: true),
+        new("path", "Path to a knowledge-graph file (graph.json).", Required: true, OnDisk: true),
         new("node", "Id of a node to select on open (deep link from the graph search results).", Required: false),
     ];
 

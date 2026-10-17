@@ -183,6 +183,13 @@ public interface IShellServices
                                     string? initialPath = null, long bytes = 0);
 
     /// <summary>
+    /// As <see cref="PickSaveFileAsync(string, IReadOnlyList{string}?, string?, long)"/>, the file written as one of
+    /// <paramref name="types"/>: the first, unless the reader picks another or types an extension of one.
+    /// </summary>
+    Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types,
+                                    string? initialPath = null, long bytes = 0);
+
+    /// <summary>
     /// Refreshes the focused window's active page (re-initialises it with its current params).
     /// Used by actions that mutate the file system from a shell-level overlay — e.g. rename / delete —
     /// to re-enumerate the file list once the change is committed.

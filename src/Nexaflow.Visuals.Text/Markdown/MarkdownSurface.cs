@@ -253,6 +253,21 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     }
 
     /// <summary>
+    /// Whether the document, given no width at all, is laid out with none to keep to — see
+    /// <see cref="ContentElement.UnlimitedWidth"/>. For a surface that is the whole of a pan and zoom viewport, which fits a
+    /// diagram itself and wants it at its own size rather than drawn smaller to fit a page.
+    /// </summary>
+    public static readonly DependencyProperty UnlimitedWidthProperty = DependencyProperty.Register(
+        nameof(UnlimitedWidth), typeof(bool), typeof(MarkdownSurface),
+        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).Remake()));
+
+    public bool UnlimitedWidth
+    {
+        get => (bool)GetValue(UnlimitedWidthProperty);
+        set => SetValue(UnlimitedWidthProperty, value);
+    }
+
+    /// <summary>
     /// Whether this scrolls itself, or lets whatever holds it do the scrolling — the second being what a reply in a
     /// conversation wants, where every reply scrolling separately would be unusable, and so the default.
     /// </summary>
@@ -382,6 +397,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         var element = new MarkdownElement(source, style, Host, _engine, Named)
         {
             IsReadOnly = IsReadOnly,
+            UnlimitedWidth = UnlimitedWidth,
             Margin = ContentPadding,
         };
 

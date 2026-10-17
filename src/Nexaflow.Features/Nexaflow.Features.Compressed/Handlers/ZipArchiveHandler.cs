@@ -18,7 +18,7 @@ public sealed class ZipArchiveHandler : IArchiveHandler
     {
         ".zip", ".jar", ".war", ".ear", ".apk", ".aar", ".kmz", ".epub",
         ".odt", ".ods", ".odp", ".odg", ".docx", ".xlsx", ".pptx",
-        ".nupkg", ".vsix", ".appx", ".xpi", ".whl", ".crx",
+        ".nupkg", ".vsix", ".appx", ".xpi", ".whl", ".crx", ".mdz",
     };
 
     public string Name => "Zip";

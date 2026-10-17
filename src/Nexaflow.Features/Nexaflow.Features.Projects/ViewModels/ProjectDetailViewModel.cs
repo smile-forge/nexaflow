@@ -325,6 +325,9 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     /// pinned together and the tools act only within this project.</summary>
     public string? GetSecurityContext() => _projectPath;
 
+    /// <summary>The project's folder, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(_projectPath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(

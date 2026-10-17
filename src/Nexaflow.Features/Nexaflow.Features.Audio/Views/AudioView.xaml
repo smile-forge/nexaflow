@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctl="clr-namespace:Nexaflow.Features.Audio.Controls"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="AudioView"
              Background="{StaticResource BgBrush}">
 
@@ -162,13 +163,17 @@
     </UserControl.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <Grid.RowDefinitions>
+    <RowDefinition Height="Auto"/>
+    <RowDefinition Height="Auto"/>
+    <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
 
-        <!-- ── Top bar: panel toggles (right-aligned) ────────────────────── -->
-        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+    <!-- ── A recording made for the user and not saved yet: its Save as ── -->
+    <drafts:DraftBanner Grid.Row="0" DataContext="{Binding Draft}"/>
+
+    <!-- ── Top bar: panel toggles (right-aligned) ────────────────────── -->
+    <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,6">
             <Grid>
                 <ToggleButton Style="{StaticResource TbToggle}" Content="☰  Playlist" HorizontalAlignment="Left"
@@ -194,7 +199,7 @@
         </Border>
 
         <!-- ── Content: playlist drawer (left) + player + tags/lyrics drawer (right) ─── -->
-        <Grid Grid.Row="1" ClipToBounds="True">
+        <Grid Grid.Row="2" ClipToBounds="True">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
