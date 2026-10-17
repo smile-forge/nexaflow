@@ -51,6 +51,12 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>How wide, in pixels, a page is drawn when the AI asks to look at it.</summary>
     private const int PagePictureWidth = 1600;
 
+    /// <summary>How many pixels a page is drawn at for page reading, per point: 200 dots an inch.</summary>
+    private const double ReadingResolution = 200.0 / 72;
+
+    /// <summary>The longest side, in pixels, a page is drawn at for page reading, however large the page.</summary>
+    private const int ReadingSide = 2400;
+
     private readonly IShellServices _shell;
     private readonly PdfConfig _config;
     private readonly CancellationTokenSource _cts = new();
@@ -89,6 +95,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <summary>The document's scanned pages, by number: no text on them, one picture over each.</summary>
     private IReadOnlyList<int> _scans = [];
+
+    // The pages the reading last asked for, and the pages of the reading whose texts the conversion holds — the whole
+    // document's, or its scans' — so each text is known by its page.
+    private IReadOnlyList<int> _askedPages = [];
+    private IReadOnlyList<int> _readPages = [];
 
     /// <summary>The document has scanned pages, and this machine can read them — the notice above it says so.</summary>
     [ObservableProperty]
@@ -181,6 +192,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _config  = config;
         FileName = Path.GetFileName(path);
         Conversion = new PageConversion(reading, ai, shell);
+        Conversion.TextRead += () => _readPages = _askedPages;
 
         // A PDF inside an archive is virtual and the default PDF application can't open it; materialise a real copy
         // and remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
@@ -293,33 +305,59 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         HasScans = true;
     }
 
-    /// <summary>Converts the scanned pages to Markdown — read now, or found read before — and opens it in the right-hand pane.</summary>
+    /// <summary>Converts the whole document to Markdown with page reading — every page, whether its text is its own or a scan's.</summary>
     [RelayCommand]
-    private Task ConvertScans() => _scans.Count == 0 ? Task.CompletedTask : Conversion.ConvertAsync(Scanned(), Host);
+    private Task ConvertDocument() =>
+        PageCount == 0 ? Task.CompletedTask : Conversion.ConvertAsync(PagesToRead(Enumerable.Range(1, PageCount).ToList(), "pages"), Host);
 
     [RelayCommand]
     private void DismissScansNotice() => ScansNoticeDismissed = true;
 
-    /// <summary>The scanned pages as pages to read: named by the file as it is now, their pictures taken out when read.</summary>
-    private PageSource Scanned()
+    /// <summary>
+    /// The pages numbered <paramref name="numbers"/>, to read: each drawn as the reader draws it when the reading reaches it.
+    /// They are named by this file as it now stands and by <paramref name="what"/> of it they are — the whole document, or
+    /// its scans — so a reading kept for them is found again.
+    /// </summary>
+    private PageSource PagesToRead(IReadOnlyList<int> numbers, string what)
     {
         var file = new FileInfo(_path);
-        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}";
-        var scans = _scans;
-        return new PageSource(key, _path, async ct => await WithDocumentAsync(doc =>
+        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}|{what}";
+        _askedPages = numbers;
+        return new PageSource(key, _path, numbers.Count, (at, ct) => PagePictureAsync(numbers[at], ct),
+            PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
+    }
+
+    /// <summary>
+    /// Page <paramref name="number"/> as page reading reads it, written to a temporary PNG: drawn as the reader draws it —
+    /// its colours through their profiles, its scans however they are encoded, masked and turned as the page is shown — at
+    /// <see cref="ReadingResolution"/>, or a scanned page at its own resolution where that is finer, its longest side held to
+    /// <see cref="ReadingSide"/>. Null where the page cannot be drawn.
+    /// </summary>
+    private async Task<string?> PagePictureAsync(int number, CancellationToken ct)
+    {
+        if (_source is not { } source || number < 1 || number > source.PageCount) return null;
+
+        var size = source.PageSize(number - 1);
+        var points = new System.Windows.Size(size.Width / PdfPageLayout.DipsPerPoint, size.Height / PdfPageLayout.DipsPerPoint);
+        var perPoint = ReadingResolution;
+        if (_scans.Contains(number) && await WithDocumentAsync(doc => PdfScans.ScanResolution(doc, number), ct) is { } scanned)
+            perPoint = Math.Max(perPoint, scanned);
+        perPoint = Math.Min(perPoint, ReadingSide / Math.Max(points.Width, points.Height));
+
+        byte[]? png;
+        try
         {
-            var pictures = new List<string>();
-            foreach (int number in scans)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (PdfScans.Picture(doc, number) is not { } picture) continue;
-                string file = Path.Combine(Path.GetTempPath(), $"nexaflow-scan-{Guid.NewGuid():N}{(picture[0] == 0xFF ? ".jpg" : ".png")}");
-                File.WriteAllBytes(file, picture);
-                pictures.Add(file);
-            }
-            return (IReadOnlyList<string>)pictures;
-        }, ct) ?? [],   // a document that no longer opens has no pages to read
-        PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
+            png = await source.PictureAsync(number - 1, Math.Max(1, (int)Math.Round(points.Width * perPoint)), ct);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;   // the document is no longer readable
+        }
+        if (png is not { Length: > 0 }) return null;
+
+        string picture = Path.Combine(Path.GetTempPath(), $"nexaflow-page-{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(picture, png, ct);
+        return picture;
     }
 
     /// <summary>
@@ -784,14 +822,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         return ToolResult.Ok($"Found \"{query}\" in {FileName}.", sb.ToString());
     }
 
-    /// <summary>A scanned page's text as page reading read it; null for a page not read, or not a scan.</summary>
+    /// <summary>The text page reading read on page <paramref name="page"/>, in the reading the conversion holds; null where it holds none of it.</summary>
     private string? ScanText(int page)
     {
-            if (Conversion.PageTexts is not { } texts) return null;
-            for (int at = 0; at < _scans.Count && at < texts.Count; at++)
-                if (_scans[at] == page) return texts[at];
-            return null;
-        }
+        if (Conversion.PageTexts is not { } texts) return null;
+        for (int at = 0; at < _readPages.Count && at < texts.Count; at++)
+            if (_readPages[at] == page) return texts[at];
+        return null;
+    }
 
     /// <summary>Where <paramref name="query"/> stands in the scanned pages' read text, each with a little around it.</summary>
     private IEnumerable<(int Page, string Snippet)> ScanHits(string query, int most)
@@ -813,7 +851,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     {
         if (_scans.Count == 0) return ToolResult.Ok($"{FileName} has no scanned pages.", "Every page has text of its own: read it with pdf_read_text.");
         if (!Conversion.Available) return ToolResult.Error("Page reading cannot run on this machine.");
-        if (await _shell.RunOnUiAsync(() => Conversion.ReadAsync(Scanned(), ct)) is not { Pages: var texts })
+        if (await _shell.RunOnUiAsync(() => Conversion.ReadAsync(PagesToRead(_scans, "scans"), ct)) is not { Pages: var texts })
             return ToolResult.Error(Conversion.Status ?? "The scanned pages could not be read.");
 
         var sb = new StringBuilder();

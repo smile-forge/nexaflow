@@ -36,10 +36,11 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 - Right-click to copy a title, a title with its page, or the whole outline with its indentation and page numbers.
 - Most PDFs carry no bookmarks. Where there is no outline the tab says so.
 
-## Scanned pages
-- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and this PC can run page reading. ✕ puts it away for the document.
-- **Convert to Markdown** reads them on this PC, saying how far it has got, and opens the Markdown in the Markdown editor in the right-hand pane: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one. [Show me](locate:Pdf_ConvertScans)
-- The reading is kept, so converting the document again opens at once. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
+## Converting to Markdown
+- [Convert to Markdown](locate:Pdf_ConvertDocument) reads the whole document on this PC with page reading, page by page, saying how far it has got, and opens the Markdown in the Markdown editor in the right-hand pane: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one. [Show me](locate:Pdf_ConvertDocument)
+- Each page is read as the reader draws it, so a scan is read in its own colours however it is stored, and a page with text of its own is read with its layout.
+- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and offers the same conversion. ✕ puts it away for the document.
+- Reading takes a few seconds a page, so a long document takes a while; Stop ends it. The reading is kept, so converting the document again opens at once. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
 - The first time, page reading is a download of about 4 GB, offered above the document.
 
 ## The panel

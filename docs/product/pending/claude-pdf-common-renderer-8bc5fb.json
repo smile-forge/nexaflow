@@ -397,21 +397,81 @@
           }
         ]
       }
+    },
+    "pdf-convert-markdown": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ConvertDocument"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "PagePictureAsync"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
+          "title_path": [
+            "PDF reader",
+            "Converting to Markdown"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "ConvertingTheDocument_ReadsEveryPage_DrawnAsTheReaderDrawsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "pdf-scans-notice": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
+          "title_path": [
+            "PDF reader",
+            "Converting to Markdown"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "ConvertDocument"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 23,
+  "changed_sets": 26,
   "touched_nodes": [
     "paged-layout",
     "pdf-ai-act-view-page",
     "pdf-blend",
     "pdf-colour",
+    "pdf-convert-markdown",
     "pdf-document-ast",
     "pdf-find",
     "pdf-links",
     "pdf-page-navigation",
     "pdf-print",
     "pdf-render",
+    "pdf-scans-notice",
     "pdf-text-selection",
     "pdf-zoom"
   ]

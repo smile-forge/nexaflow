@@ -22,7 +22,7 @@
 
   "Pdf.Scans.Notice": "{0} of {1} pages are scans — their text can't be searched or copied.",
   "Pdf.Scans.Convert": "Convert to Markdown",
-  "Pdf.Scans.ConvertTip": "Read the scanned pages into a Markdown document, opened in the right-hand pane: columns as one text, formulas as LaTeX, tables and figures",
+  "Pdf.Scans.ConvertTip": "Read the whole document, its scanned pages and the rest, into a Markdown document, opened in the right-hand pane: columns as one text, formulas as LaTeX, tables and figures",
   "Pdf.Scans.DismissTip": "Hide this for this document",
   "Pdf.Menu.CopyAllProperties": "Copy all properties",
   "Pdf.Menu.CopyTitle": "Copy title",
@@ -39,6 +39,7 @@
   "Pdf.Toolbar.FitWidthTip": "Fit the page to the width",
   "Pdf.Toolbar.FitPageTip": "Fit the whole page",
   "Pdf.Toolbar.PrintTip": "Print",
+  "Pdf.Toolbar.ConvertTip": "Convert to Markdown — read every page with page reading into a Markdown document, opened in the right-hand pane: columns as one text, headings, formulas as LaTeX, tables and figures",
   "Pdf.Find.Tip": "Find in document — Enter for the next match, Shift+Enter for the previous, Esc to clear",
   "Pdf.Find.PreviousTip": "Previous match",
   "Pdf.Find.NextTip": "Next match",

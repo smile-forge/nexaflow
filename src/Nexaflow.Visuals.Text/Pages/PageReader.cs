@@ -24,51 +24,62 @@ public sealed record PagesRead(string Markdown, IReadOnlyList<string> Pages);
 public sealed class PageReader(IPageReading reading, IAIService? ai)
 {
     /// <summary>
-    /// Reads <paramref name="pages"/> — picture files, in order — into Markdown, its figures written to
-    /// <paramref name="figures"/> and linked as <paramref name="figuresLink"/>/<c>figure-N.png</c>. The document so far is
-    /// reported after each block and each figure, with the page it has reached; the whole comes back with each page's own
-    /// text beside it.
+    /// Reads <paramref name="source"/>'s pages into Markdown, each page's picture asked for when the reading reaches it and
+    /// let go once it has been read, its figures written to <paramref name="figures"/> and linked as
+    /// <paramref name="figuresLink"/>/<c>figure-N.png</c>. The document so far is reported as each page is begun and after
+    /// each block and each figure, with the page it has reached; the whole comes back with each page's own text beside it. A
+    /// page whose picture cannot be made is read as blank, so every page keeps its place.
     /// </summary>
     /// <exception cref="InvalidOperationException">Page reading is not ready here, or a page could not be read.</exception>
-    public async Task<PagesRead> ReadAsync(IReadOnlyList<string> pages, string figures, string figuresLink, IProgress<PagesSoFar>? written, CancellationToken ct)
+    public async Task<PagesRead> ReadAsync(PageSource source, string figures, string figuresLink, IProgress<PagesSoFar>? written, CancellationToken ct)
     {
         var read = new List<IReadOnlyList<PageBlock>>();
         var drawn = new Dictionary<(int Page, int Block), string>();
         string Markdown() => PageMarkdown.Write(read, (p, b) => drawn.GetValueOrDefault((p, b)));
         int figureCount = 0;
 
-        for (int p = 0; p < pages.Count; p++)
+        for (int p = 0; p < source.Pages; p++)
         {
             // Each block shown as it is read; the page is what the reading gives back whole.
             var shown = new List<PageBlock>();
             read.Add(shown);
-            var blocks = await reading.ReadPageAsync(pages[p], new Shown(block =>
-            {
-                shown.Add(block);
-                written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown()));
-            }), ct);
-            read[p] = blocks;
+            written?.Report(new PagesSoFar(read.Count, source.Pages, Markdown()));
+            if (await source.Picture(p, ct) is not { } picture) continue;
 
-            var figureBlocks = blocks.Select((block, at) => (block, at)).Where(f => f.block.Kind == PageBlockKind.Figure).ToList();
-            if (figureBlocks.Count == 0) continue;
-            Directory.CreateDirectory(figures);
-            var cut = await Task.Run(() => PageFigures.Cut(pages[p], figureBlocks.Select(f => f.block).ToList()), ct);
-            for (int f = 0; f < figureBlocks.Count; f++)
+            try
             {
-                if (cut[f] is not { } png) continue;
-                string name = $"figure-{++figureCount}.png";
-                await File.WriteAllBytesAsync(Path.Combine(figures, name), png, ct);
-                var at = (p, figureBlocks[f].at);
-                drawn[at] = $"![figure {figureCount}]({figuresLink}/{name})";
-                if (ai is null)
+                var blocks = await reading.ReadPageAsync(picture, new Shown(block =>
                 {
-                    written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown()));
-                    continue;
+                    shown.Add(block);
+                    written?.Report(new PagesSoFar(read.Count, source.Pages, Markdown()));
+                }), ct);
+                read[p] = blocks;
+
+                var figureBlocks = blocks.Select((block, at) => (block, at)).Where(f => f.block.Kind == PageBlockKind.Figure).ToList();
+                if (figureBlocks.Count == 0) continue;
+                Directory.CreateDirectory(figures);
+                var cut = await Task.Run(() => PageFigures.Cut(picture, figureBlocks.Select(f => f.block).ToList()), ct);
+                for (int f = 0; f < figureBlocks.Count; f++)
+                {
+                    if (cut[f] is not { } png) continue;
+                    string name = $"figure-{++figureCount}.png";
+                    await File.WriteAllBytesAsync(Path.Combine(figures, name), png, ct);
+                    var at = (p, figureBlocks[f].at);
+                    drawn[at] = $"![figure {figureCount}]({figuresLink}/{name})";
+                    if (ai is null)
+                    {
+                        written?.Report(new PagesSoFar(read.Count, source.Pages, Markdown()));
+                        continue;
+                    }
+                    // The picture shows while the image model draws it again; a diagram drawn cleanly takes its place.
+                    written?.Report(new PagesSoFar(read.Count, source.Pages, Markdown(), figureCount));
+                    if (await DiagramDrawing.DrawAsync(ai, png, ct) is { } diagram) drawn[at] = "```mermaid\n" + diagram + "\n```";
+                    written?.Report(new PagesSoFar(read.Count, source.Pages, Markdown()));
                 }
-                // The picture shows while the image model draws it again; a diagram drawn cleanly takes its place.
-                written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown(), figureCount));
-                if (await DiagramDrawing.DrawAsync(ai, png, ct) is { } diagram) drawn[at] = "```mermaid\n" + diagram + "\n```";
-                written?.Report(new PagesSoFar(read.Count, pages.Count, Markdown()));
+            }
+            finally
+            {
+                try { File.Delete(picture); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
         }
         return new PagesRead(Markdown(), [.. read.Select(blocks => PageMarkdown.Write([blocks], (_, _) => null))]);

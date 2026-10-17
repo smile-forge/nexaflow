@@ -129,6 +129,37 @@ public class PdfViewModelAiTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-convert-markdown")]
+    public async Task ConvertingTheDocument_ReadsEveryPage_DrawnAsTheReaderDrawsIt()
+    {
+        // A document whose pages carry text of their own: none is a scan, and every one is read, each as a picture the
+        // reader drew at the resolution page reading reads at.
+        var reading = Reading(ToolModelsState.Ready);
+        var pictures = new List<(int Width, int Height)>();
+        reading.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var frame = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri(call.Arg<string>()),
+                System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+            pictures.Add((frame.PixelWidth, frame.PixelHeight));
+            return Task.FromResult<IReadOnlyList<PageBlock>>([new PageBlock(PageBlockKind.Text, 0, 0, 1, 1, "A page of its own.")]);
+        });
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), reading);
+        try
+        {
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
+            Assert.IsTrue(vm.PageCount > 1, "a document of several pages");
+
+            await vm.ConvertDocumentCommand.ExecuteAsync(null);
+
+            Assert.AreEqual(vm.PageCount, pictures.Count, "every page read, though none is a scan");
+            var size = vm.Pages!.PageSize(0);
+            Assert.AreEqual(Math.Round(size.Width * 0.75 * 200 / 72), pictures[0].Width, 1, "drawn at 200 dots an inch");
+            Assert.IsNull(vm.Conversion.Status, vm.Conversion.Status);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
     [CoversNode("pdf-scan-reading")]
     public async Task AScannedDocument_SaysSoAboveIt_UntilTheReaderPutsTheNoticeAway()
     {

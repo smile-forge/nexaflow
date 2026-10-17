@@ -22,7 +22,7 @@
 
   "Pdf.Scans.Notice": "{0} des {1} pages sont numérisées — leur texte ne peut être ni recherché ni copié.",
   "Pdf.Scans.Convert": "Convertir en Markdown",
-  "Pdf.Scans.ConvertTip": "Lire les pages numérisées dans un document Markdown, ouvert dans le volet de droite : les colonnes en un seul texte, les formules en LaTeX, les tableaux et les figures",
+  "Pdf.Scans.ConvertTip": "Lire tout le document, ses pages numérisées comme les autres, dans un document Markdown, ouvert dans le volet de droite : les colonnes en un seul texte, les formules en LaTeX, les tableaux et les figures",
   "Pdf.Scans.DismissTip": "Masquer pour ce document",
   "Pdf.Menu.CopyAllProperties": "Copier toutes les propriétés",
   "Pdf.Menu.CopyTitle": "Copier le titre",
@@ -39,6 +39,7 @@
   "Pdf.Toolbar.FitWidthTip": "Ajuster la page à la largeur",
   "Pdf.Toolbar.FitPageTip": "Afficher la page entière",
   "Pdf.Toolbar.PrintTip": "Imprimer",
+  "Pdf.Toolbar.ConvertTip": "Convertir en Markdown — lire chaque page par la lecture de pages dans un document Markdown, ouvert dans le volet de droite : les colonnes en un seul texte, les titres, les formules en LaTeX, les tableaux et les figures",
   "Pdf.Find.Tip": "Rechercher dans le document — Entrée pour l'occurrence suivante, Maj+Entrée pour la précédente, Échap pour effacer",
   "Pdf.Find.PreviousTip": "Occurrence précédente",
   "Pdf.Find.NextTip": "Occurrence suivante",

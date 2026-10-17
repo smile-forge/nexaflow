@@ -58,7 +58,7 @@ public class PageConversionTests
     /// <summary>Pages from <c>scan.png</c> in the test folder: one white picture each time they are asked for, noted in
     /// <paramref name="made"/>.</summary>
     private PageSource Scan(List<string> made, string? key = null) => new(
-        key ?? Guid.NewGuid().ToString(), Path.Combine(_dir, "scan.png"), _ =>
+        key ?? Guid.NewGuid().ToString(), Path.Combine(_dir, "scan.png"), 1, (_, _) =>
         {
             string page = Path.Combine(_dir, $"page-{Guid.NewGuid():N}.png");
             var pixels = new byte[200 * 200 * 4];
@@ -67,7 +67,7 @@ public class PageConversionTests
             encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(200, 200, 96, 96, PixelFormats.Bgra32, null, pixels, 200 * 4)));
             using (var file = File.Create(page)) encoder.Save(file);
             made.Add(page);
-            return Task.FromResult<IReadOnlyList<string>>([page]);
+            return Task.FromResult<string?>(page);
         },
         "Images", new Dictionary<string, string> { ["paths"] = Path.Combine(_dir, "scan.png") });
 

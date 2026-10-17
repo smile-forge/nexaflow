@@ -192,6 +192,15 @@ public class PdfJourneyTests : UiJourneyTestBase
 
         // ── A scanned document: the notice above it, where this machine can read pages ─────────
         Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
+
+        // Any document converts to Markdown, every page of it read, where this machine can read pages.
+        if (WaitForId("Pdf_ConvertDocument", 2) is not null)
+        {
+            CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
+                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+            if (WaitForId("PageConversion_Stop", 1) is not null)
+                CheckDoes("Stop reading the document", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
+        }
         if (WaitForId("Pdf_ConvertScans", 10) is not null)
         {
             // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.

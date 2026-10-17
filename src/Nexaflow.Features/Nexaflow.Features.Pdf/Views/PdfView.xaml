@@ -441,6 +441,13 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="5" Orientation="Horizontal">
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_ConvertDocument"
+                                Command="{Binding ConvertDocumentCommand}"
+                                Visibility="{Binding Conversion.Available, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{loc:Str Pdf.Toolbar.ConvertTip}">
+                            <TextBlock Text="M↓" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
                         <Button Style="{StaticResource PdfToolbarBtn}"
                                 AutomationProperties.AutomationId="Pdf_Print"
                                 Click="Print_Click"
@@ -457,7 +464,7 @@
                 </Grid>
             </Border>
 
-<!-- Scanned pages: that their text can't be searched or copied, and converting them to Markdown; then how
+<!-- Scanned pages: that their text can't be searched or copied, and converting the document to Markdown; then how
      the conversion is getting on. -->
 <StackPanel Grid.Row="1">
     <Border Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
@@ -468,7 +475,7 @@
                     AutomationProperties.AutomationId="Pdf_ScansNoticeDismiss">
                 <TextBlock Text="✕" FontSize="11"/>
             </Button>
-            <Button DockPanel.Dock="Right" Command="{Binding ConvertScansCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
+            <Button DockPanel.Dock="Right" Command="{Binding ConvertDocumentCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
                     ToolTip="{loc:Str Pdf.Scans.ConvertTip}" AutomationProperties.AutomationId="Pdf_ConvertScans">
                 <TextBlock Text="{loc:Str Pdf.Scans.Convert}"/>
             </Button>
