@@ -176,8 +176,10 @@ makers decode it with in `ReplyDecoding`:
   likeliest read straight from the scores (`LlamaScores`). A round starts once every reply in it has chosen, and is one
   GPU step at the highest priority among them. `PageReader` keeps `IPageReading.PagesAtOnce` pages in flight — three
   for the reader, whose pictures and windows then fill under two thirds of its cache. A 368-page textbook reads in 5.2
-  minutes on an RTX PRO 6000, 0.85 s a page, where one page at a time takes 7.7; each page's picture is still a step of
-  its own.
+  minutes on an RTX PRO 6000, 0.85 s a page, where one page at a time takes 7.7. Each page's picture is a step of its
+  own, and is best left one: the projector encodes a page's five tiles in about 220 ms of the card's compute, batched
+  or one at a time, and encoded alongside the rounds it only shares the card with them — each tile takes nearly three
+  times as long, and the whole reads no faster.
   Read together, a page's text is the same, though a box's edge can move by a thousandth or a near tie tip the other
   way: the step's sums are taken in another order for three than for one (`PagesReadTogether_ReadAsEachDoesAlone`).
 
