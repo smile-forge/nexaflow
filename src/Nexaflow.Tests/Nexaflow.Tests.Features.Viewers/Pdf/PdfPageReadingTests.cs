@@ -321,6 +321,50 @@ public class PdfPageReadingTests
         Assert.AreEqual(Colors.Red, Pixel(picture, 25, 175), "the path under the state's mask is hidden");
     }
 
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ASoftMaskFinerThanItsImage_IsDrawnAtItsOwnResolution()
+    {
+        // One red sample masked by two: the left one shows, the right one does not. Both are stretched over the same square,
+        // so the left half of the page is red and the right half bare.
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra:
+            [
+                (5, Stream("/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 6 0 R",
+                    "FF0000>")),
+                (6, Stream("/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8",
+                    "FF00>")),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        // Drawn larger, the picture is smoothed a little either side of the mask's edge; well inside each half it is plain.
+        var shown = Pixel(picture, 50, 100);
+        Assert.IsTrue(shown is { R: > 250, G: < 6, B: < 6 }, $"where the mask shows the sample: {shown}");
+        var hidden = Pixel(picture, 150, 100);
+        Assert.IsTrue(hidden is { R: > 249, G: > 249, B: > 249 }, $"where the mask hides it: {hidden}");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AShadingThatStopsAtItsEnds_ReachesAcrossThePage_HoweverSmallItsUnits()
+    {
+        // A red-to-blue axis up the middle of the page, said in units of a hundred-thousandth of a point (as a document laid
+        // out in EMUs says it): the band between its ends runs right across the page, not just near the axis.
+        var page = Read("q 0.00001 0 0 0.00001 0 0 cm /Sh sh Q",
+            resources: "/Shading << /Sh << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [10000000 0 10000000 20000000] "
+                       + "/Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> /Extend [false false] >> >>");
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        foreach (var x in new[] { 5, 100, 195 })
+        {
+            var halfway = Pixel(picture, x, 100);
+            Assert.AreEqual(128, halfway.R, 6, $"halfway up, at {x}, the shading is half red");
+            Assert.AreEqual(0, halfway.G, 6);
+            Assert.AreEqual(128, halfway.B, 6, "and half blue");
+        }
+    }
+
     /// <summary>An image stream whose samples are written as hex, so the document stays text.</summary>
     private static string Stream(string dictionary, string hex) =>
         $"<< {dictionary} /Filter /ASCIIHexDecode /Length {hex.Length} >>\nstream\n{hex}\nendstream";

@@ -276,7 +276,8 @@ public class PdfCorpusFidelityTests
             var dips = new Rect(0, 0, page.Size.Width * PdfPageLayout.DipsPerPoint, page.Size.Height * PdfPageLayout.DipsPerPoint);
             try
             {
-                ours = LayoutPictures.Painted(tree.Root, dips, size.Width / dips.Width, Brushes.Black, Brushes.White);
+                ours = LayoutPictures.Painted(tree.Root, dips, PixelsPerPoint(page.Size) / PdfPageLayout.DipsPerPoint,
+                    Brushes.Black, Brushes.White);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -303,11 +304,17 @@ public class PdfCorpusFidelityTests
         /// <summary>The page's size in pixels at the sweep's resolution, its longest side held to <see cref="LongestSide"/>.</summary>
         private (int Width, int Height) Pixels(Size points)
         {
-            var width = points.Width / 72 * _dpi;
-            var height = points.Height / 72 * _dpi;
-            var shrink = Math.Min(1, LongestSide / Math.Max(width, height));
-            return (Math.Max(1, (int)Math.Round(width * shrink)), Math.Max(1, (int)Math.Round(height * shrink)));
+            var scale = PixelsPerPoint(points);
+            return (Math.Max(1, (int)Math.Round(points.Width * scale)), Math.Max(1, (int)Math.Round(points.Height * scale)));
         }
+
+        /// <summary>
+        /// How many pixels a point is drawn at: the sweep's resolution, less where the page's longest side would pass
+        /// <see cref="LongestSide"/>. Ours is drawn at exactly this, never at a scale taken back from a rounded width, which
+        /// on a tall page falls short of Windows' by a pixel for every few hundred.
+        /// </summary>
+        private double PixelsPerPoint(Size points) =>
+            _dpi / 72 * Math.Min(1, LongestSide / (Math.Max(points.Width, points.Height) / 72 * _dpi));
 
         private static WinPdf.PdfDocument? Windows(string file)
         {

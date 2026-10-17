@@ -105,7 +105,16 @@ internal sealed class PdfBrushes(Rect page)
     public Geometry? Reach(PdfShading shading, Matrix toDips)
     {
         if (shading.ExtendStart && shading.ExtendEnd) return null;
+        if (!toDips.HasInverse) return null;
         var c = shading.Coordinates;
+
+        // Everywhere a shading could show, said in its own space: all of the page brought back through the matrix that
+        // places the shading. A length fixed in the shading's own units reaches a different distance on every page, and
+        // falls short of it where those units are small — a document that measures in EMUs, 12700 to a point.
+        var fromDips = toDips;
+        fromDips.Invert();
+        var everywhere = PdfSpace.Transform(PdfSpace.Everywhere, fromDips);
+        var far = Math.Sqrt((everywhere.Width * everywhere.Width) + (everywhere.Height * everywhere.Height));
 
         Geometry reach;
         if (shading.Kind == PdfShadingKind.Axial)
@@ -115,14 +124,15 @@ internal sealed class PdfBrushes(Rect page)
             var along = to - from;
             if (along.LengthSquared == 0) return null;
 
-            // The band runs across the shading's axis; it reaches far beyond any page one way when an end extends.
+            // The band runs across the shading's axis, past the page either side; it runs past the page along the axis too
+            // where an end extends.
             var across = new Vector(-along.Y, along.X);
             across.Normalize();
-            across *= 1e6;
+            across *= far;
             var unit = along;
             unit.Normalize();
-            var back = shading.ExtendStart ? from - unit * 1e6 : from;
-            var forth = shading.ExtendEnd ? to + unit * 1e6 : to;
+            var back = shading.ExtendStart ? from - unit * far : from;
+            var forth = shading.ExtendEnd ? to + unit * far : to;
 
             var band = new StreamGeometry();
             using (var context = band.Open())
@@ -144,7 +154,7 @@ internal sealed class PdfBrushes(Rect page)
             var innerExtends = big ? shading.ExtendStart : shading.ExtendEnd;
 
             Geometry disc = outerExtends
-                ? new RectangleGeometry(PdfSpace.Everywhere)
+                ? new RectangleGeometry(everywhere)
                 : new EllipseGeometry(outer.Center, outer.Radius, outer.Radius);
             reach = innerExtends || inner.Radius <= 0
                 ? disc

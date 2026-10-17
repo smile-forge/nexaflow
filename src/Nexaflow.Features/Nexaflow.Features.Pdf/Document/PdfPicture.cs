@@ -108,7 +108,24 @@ internal sealed class PdfPicture
                 components = 3;
             }
 
-            return new PdfPicture(Colour(samples, width, height, components, alpha), isStencil: false);
+            // A soft mask may be finer than the image it masks — a word set as one flat colour with its letters in the
+            // mask — and both are stretched over the same square: the picture is as fine as the finer of the two.
+            byte[]? levels = null;
+            if (alpha is { } mask)
+            {
+                levels = mask.Levels;
+                if (mask.Width != width || mask.Height != height)
+                {
+                    var toWidth  = Math.Max(width, mask.Width);
+                    var toHeight = Math.Max(height, mask.Height);
+                    samples = Resampled(samples, width, height, components, toWidth, toHeight);
+                    levels  = Resampled(mask.Levels, mask.Width, mask.Height, 1, toWidth, toHeight);
+                    width   = toWidth;
+                    height  = toHeight;
+                }
+            }
+
+            return new PdfPicture(Colour(samples, width, height, components, levels), isStencil: false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -195,22 +212,24 @@ internal sealed class PdfPicture
     }
 
     /// <summary>
-    /// The alpha the image's own mask gives each of its samples, at the image's resolution: a soft mask's grey
-    /// levels, a stencil mask's bits, or a colour-key range. Null when the image is opaque.
+    /// How much of each sample shows, at the resolution it was given in: a soft mask's own, which need not be the image's,
+    /// or the image's for a colour key. Null where every sample shows.
     /// </summary>
-    private static byte[]? Alpha(IPdfImage image, int width, int height, int components, ReadOnlySpan<byte> samples)
+    private static (byte[] Levels, int Width, int Height)? Alpha(IPdfImage image, int width, int height, int components,
+        ReadOnlySpan<byte> samples)
     {
         if (image.MaskImage is { } mask)
-            return MaskAlpha(mask, width, height);
+            return MaskAlpha(mask);
 
-        if (image.ImageDictionary.TryGet(NameToken.Mask, out ArrayToken range) && range is not null)
-            return KeyedAlpha(image, range, width, height, components, samples);
+        if (image.ImageDictionary.TryGet(NameToken.Mask, out ArrayToken range) && range is not null &&
+            KeyedAlpha(image, range, width, height, components, samples) is { } keyed)
+            return (keyed, width, height);
 
         return null;
     }
 
     /// <summary>A mask image's levels, resampled to the image it masks by nearest sample.</summary>
-    private static byte[]? MaskAlpha(IPdfImage mask, int width, int height)
+    private static (byte[] Levels, int Width, int Height)? MaskAlpha(IPdfImage mask)
     {
         var maskWidth  = mask.WidthInSamples;
         var maskHeight = mask.HeightInSamples;
@@ -242,17 +261,26 @@ internal sealed class PdfPicture
             levels = grey[..(maskWidth * maskHeight)].ToArray();
         }
 
-        if (maskWidth == width && maskHeight == height) return levels;
+        return (levels, maskWidth, maskHeight);
+    }
 
-        var alpha = new byte[width * height];
-        for (var y = 0; y < height; y++)
+    /// <summary>
+    /// Samples of <paramref name="components"/> bytes each, <paramref name="width"/> by <paramref name="height"/>, over a
+    /// grid of <paramref name="toWidth"/> by <paramref name="toHeight"/> covering the same square: each cell takes the sample
+    /// it falls in, as the image's own grid would place it.
+    /// </summary>
+    private static byte[] Resampled(ReadOnlySpan<byte> samples, int width, int height, int components, int toWidth, int toHeight)
+    {
+        var resampled = new byte[toWidth * toHeight * components];
+        for (var y = 0; y < toHeight; y++)
         {
-            var maskRow = (int)((long)y * maskHeight / height) * maskWidth;
-            for (var x = 0; x < width; x++)
-                alpha[y * width + x] = levels[maskRow + (int)((long)x * maskWidth / width)];
+            var from = (int)((long)y * height / toHeight) * width;
+            for (var x = 0; x < toWidth; x++)
+                samples.Slice((from + (int)((long)x * width / toWidth)) * components, components)
+                    .CopyTo(resampled.AsSpan((y * toWidth + x) * components, components));
         }
 
-        return alpha;
+        return resampled;
     }
 
     /// <summary>
