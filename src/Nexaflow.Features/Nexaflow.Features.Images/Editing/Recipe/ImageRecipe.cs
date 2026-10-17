@@ -16,9 +16,9 @@ namespace Nexaflow.Features.Images.Editing.Recipe;
 public sealed record ImageRecipe
 {
     /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
-    /// rewritten. Version 2 added <see cref="Restore"/> and version 3 <see cref="CutOut"/>; a recipe is written as the
-    /// oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
-    public const int CurrentVersion = 3;
+    /// rewritten. Version 2 added <see cref="Restore"/>, version 3 <see cref="CutOut"/> and version 4 <see cref="Erasures"/>;
+    /// a recipe is written as the oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
+    public const int CurrentVersion = 4;
 
     public static ImageRecipe Identity { get; } = new();
 
@@ -53,20 +53,31 @@ public sealed record ImageRecipe
     /// null keeps the whole photo.</summary>
     public RecipeCutOut? CutOut { get; init; }
 
+    /// <summary>What is erased from the photo, a step at a time in list order, before anything else is done to it —
+    /// before it is restored too, so a restoration is of the photo as erased.</summary>
+    /// <remarks>Never default: a recipe read from a file that names no erasures has none, not a missing list.</remarks>
+    public ImmutableArray<RecipeErase> Erasures
+    {
+        get => _erasures.IsDefault ? [] : _erasures;
+        init => _erasures = value;
+    }
+
+    private readonly ImmutableArray<RecipeErase> _erasures = [];
+
     /// <summary>The version a file of this recipe is written as: the oldest that holds everything in it.</summary>
     [JsonIgnore]
-    public int WrittenVersion => CutOut is not null ? 3 : Restore is not null ? 2 : 1;
+    public int WrittenVersion => !Erasures.IsEmpty ? 4 : CutOut is not null ? 3 : Restore is not null ? 2 : 1;
 
     /// <summary>True when applying the recipe changes nothing — such a recipe is not worth a file.</summary>
     [JsonIgnore]
     public bool IsIdentity =>
         Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Restore is null && CutOut is null
-        && Export == RecipeExport.Default;
+        && Erasures.IsEmpty && Export == RecipeExport.Default;
 
     /// <summary>True when the pixels differ from the source — what the export settings alone never do.</summary>
     [JsonIgnore]
     public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null || Restore is not null
-                                 || CutOut is not null;
+                                 || CutOut is not null || !Erasures.IsEmpty;
 
     public bool Equals(ImageRecipe? other) =>
         other is not null
@@ -78,9 +89,11 @@ public sealed record ImageRecipe
         && Resize == other.Resize
         && Restore == other.Restore
         && CutOut == other.CutOut
+        && Erasures.AsSpan().SequenceEqual(other.Erasures.AsSpan())
         && Export == other.Export;
 
-    public override int GetHashCode() => HashCode.Combine(HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export), CutOut);
+    public override int GetHashCode()
+        => HashCode.Combine(HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export), CutOut, Erasures.Length);
 }
 
 /// <summary>Where the image goes on the way out: straighten, crop, quarter turns and flips.</summary>
@@ -264,6 +277,88 @@ public sealed record RecipeCutOut
             ? $"phrase:{phrase}"
             : string.Create(System.Globalization.CultureInfo.InvariantCulture,
                 $"clicks:{string.Join(";", Clicks.Select(c => $"{c.X:R},{c.Y:R},{(c.Include ? 1 : 0)}"))}|box:{(Box is { } b ? $"{b.Left:R},{b.Top:R},{b.Right:R},{b.Bottom:R}" : "")}");
+}
+
+/// <summary>How an erased place is filled.</summary>
+public enum EraseFill
+{
+    /// <summary>By picture erasing, a neural network (LaMa): best where what is erased crosses edges and shapes.</summary>
+    Ai,
+
+    /// <summary>With the photo's own patches (content-aware fill): sharp copied texture, nothing to download.</summary>
+    ContentAware,
+
+    /// <summary>With texture copied from <see cref="RecipeErase.HealFrom"/> away, made to meet the colour and light round
+    /// it (the healing brush).</summary>
+    Heal,
+}
+
+/// <summary>A brush stroke over the photo: round, <see cref="Width"/> source pixels across, through <see cref="Points"/>.
+/// It marks what to erase, or — where <see cref="Marks"/> is false — takes marking back.</summary>
+public sealed record RecipeEraseStroke
+{
+    /// <remarks>Never default: a stroke read from a file that names no points has none.</remarks>
+    public ImmutableArray<MarkupPoint> Points
+    {
+        get => _points.IsDefault ? [] : _points;
+        init => _points = value;
+    }
+
+    private readonly ImmutableArray<MarkupPoint> _points = [];
+
+    public double Width { get; init; }
+
+    public bool Marks { get; init; } = true;
+
+    public bool Equals(RecipeEraseStroke? other)
+        => other is not null && Width == other.Width && Marks == other.Marks && Points.AsSpan().SequenceEqual(other.Points.AsSpan());
+
+    public override int GetHashCode() => HashCode.Combine(Points.Length, Width, Marks);
+
+    /// <summary>The stroke as text, the same for the same stroke.</summary>
+    public string Describe()
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{(Marks ? '+' : '-')}{Width:R}:{string.Join(";", Points.Select(p => $"{p.X:R},{p.Y:R}"))}");
+}
+
+/// <summary>
+/// One step of erasing: what it erases — a thing picked as the cut-out tool picks it (<see cref="Pick"/>), brush
+/// strokes, or both — and how the place is filled. A step erases from the photo as the steps before it left it.
+/// </summary>
+public sealed record RecipeErase
+{
+    public EraseFill Fill { get; init; }
+
+    /// <summary>The thing picked to erase, by clicks and a box or by a phrase; null where only strokes mark it.</summary>
+    public RecipeCutOut? Pick { get; init; }
+
+    /// <summary>The strokes, in the order they were made, over what is picked.</summary>
+    /// <remarks>Never default: a step read from a file that names no strokes has none.</remarks>
+    public ImmutableArray<RecipeEraseStroke> Strokes
+    {
+        get => _strokes.IsDefault ? [] : _strokes;
+        init => _strokes = value;
+    }
+
+    private readonly ImmutableArray<RecipeEraseStroke> _strokes = [];
+
+    /// <summary>For <see cref="EraseFill.Heal"/>: how far, in source pixels, each healed pixel's texture is copied from.</summary>
+    public MarkupPoint? HealFrom { get; init; }
+
+    /// <summary>Whether the step marks anything to erase.</summary>
+    [JsonIgnore]
+    public bool MarksAnything => Pick is not null || Strokes.Any(s => s.Marks && !s.Points.IsEmpty);
+
+    public bool Equals(RecipeErase? other)
+        => other is not null && Fill == other.Fill && Pick == other.Pick && HealFrom == other.HealFrom
+           && Strokes.AsSpan().SequenceEqual(other.Strokes.AsSpan());
+
+    public override int GetHashCode() => HashCode.Combine(Fill, Pick, Strokes.Length, HealFrom);
+
+    /// <summary>The step as one line of text, the same for the same step: what what it makes is filed by.</summary>
+    public string Describe()
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"fill:{Fill}|pick:{Pick?.Describe()}|strokes:{string.Join("/", Strokes.Select(s => s.Describe()))}|from:{(HealFrom is { } f ? $"{f.X:R},{f.Y:R}" : "")}");
 }
 
 /// <summary>What a save writes besides the pixels.</summary>

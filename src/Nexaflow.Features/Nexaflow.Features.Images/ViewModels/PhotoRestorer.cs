@@ -19,10 +19,17 @@ public sealed class PhotoRestorer : ToolEdit<RecipeRestore>
         : base(services, tools, runOnUi, "Images.Restore.")
         => _tools = tools;
 
+    /// <summary>Whether the picture tools are here now, ready to restore.</summary>
+    public bool RestoresNow => _tools is { State: ToolModelsState.Ready };
+
     /// <summary>Whether a <paramref name="width"/> × <paramref name="height"/> photo restores at <paramref name="scale"/> here.</summary>
     public bool Restores(int width, int height, int scale) => Available && _tools!.Restores(width, height, scale);
 
     protected override RecipeRestore? AskOf(ImageRecipe recipe) => recipe.Restore;
+
+    /// <summary>The photo as erased, where the recipe erases from it — the restoration is of that, so it waits until it is
+    /// made — else the photo.</summary>
+    protected override string? Input(ImageEditSession session) => session.Recipe.Erasures.IsEmpty ? session.Path : session.ErasedPath;
 
     protected override bool MakesSame(RecipeRestore ask, RecipeRestore other) => ask.MakesSameAs(other);
 

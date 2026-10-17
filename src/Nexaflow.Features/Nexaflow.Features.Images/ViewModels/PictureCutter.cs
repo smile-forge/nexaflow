@@ -180,6 +180,16 @@ public sealed partial class PictureCutter : ObservableObject
         return _finds;
     }
 
+    /// <summary>Picks the thing inside <paramref name="box"/>, as a box drawn round it does, and gives whether anything was
+    /// picked — not where nothing stands out there, or the pick could not be made; <see cref="Notice"/> then says why.</summary>
+    public async Task<bool> BoxedAsync(PictureBox box)
+    {
+        ClearPicks();
+        Box = box;
+        await PickAsync(phrase: null);
+        return HasSelection;
+    }
+
     [RelayCommand]
     private void Clear()
     {

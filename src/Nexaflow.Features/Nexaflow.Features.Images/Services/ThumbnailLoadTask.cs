@@ -44,8 +44,8 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
     private readonly ImageEditingServices _editing;
     private readonly Func<string, ImageRecipe, MadeByTools>? _made;
 
-    /// <param name="made">Finds what the picture tools made and kept for a photo's recipe — its restoration, its cut-out's
-    /// mask; without it, or where none is kept, the thumbnail shows the photo without them.</param>
+    /// <param name="made">Finds what the picture tools made and kept for a photo's recipe — the photo as erased, its
+    /// restoration, its cut-out's mask; without it, or where none is kept, the thumbnail shows the photo without them.</param>
     public ThumbnailLoadTask(IReadOnlyList<ImageThumbItem> items, int size, IShellServices shell, ImageEditingServices editing,
                              Func<string, ImageRecipe, MadeByTools>? made = null)
     {
@@ -96,7 +96,10 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
                 ? _editing.DecodeRestored(kept, decoded.SourceSize, _size * EditedDecodeFactor * restore.Scale)
                 : null;
             using var mask = recipe.CutOut is not null && made.CutOut is { } cut ? CutOutMasks.Decode(cut) : null;
-            using var pipeline = _editing.Pipeline(decoded, cache: false, restored, mask);
+            using var erased = !recipe.Erasures.IsEmpty && made.Erased is { } rubbed
+                ? _editing.DecodeRestored(rubbed, decoded.SourceSize, _size * EditedDecodeFactor)
+                : null;
+            using var pipeline = _editing.Pipeline(erased ?? decoded, cache: false, restored, mask);
             return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
         }
         catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)

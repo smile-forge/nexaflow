@@ -25,6 +25,7 @@ public enum EditTool
     Adjust,
     Markup,
     CutOut,
+    Erase,
     Resize,
     Export,
 }

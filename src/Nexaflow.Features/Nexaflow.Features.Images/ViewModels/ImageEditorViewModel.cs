@@ -41,6 +41,7 @@ public partial class ImageEditorViewModel : ObservableObject
 
     private readonly PhotoRestorer _restorer;
     private readonly BackgroundRemover _remover;
+    private readonly PhotoEraser _eraser;
 
     private CropRect? _straightenBase;
     private bool _straightenGesture;
@@ -82,8 +83,34 @@ public partial class ImageEditorViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(RemovesBackground))]
     private void KeepBackground() => Commit(r => r with { CutOut = null });
 
+    /// <summary>The Erase tool's marks: brush strokes, the fill, where the healing brush copies from.</summary>
+    public EraseMarking EraseMarks { get; }
+
+    /// <summary>Whether a step can be filled by picture erasing on this machine.</summary>
+    public bool ErasesByAi => _eraser.ErasesByAi;
+
+    /// <summary>Erases what is marked — what the cut-out tool has picked, and the strokes — as one step of the recipe,
+    /// undone like any other; the marks go once it is.</summary>
+    [RelayCommand(CanExecute = nameof(CanErase))]
+    private void Erase()
+    {
+        if (EraseMarks.Step(Cutter.PickedCutOut) is not { } step) return;
+        Commit(r => r with { Erasures = r.Erasures.Add(step) });
+        ClearMarks();
+    }
+
+    private bool CanErase() => !Cutter.IsWorking && EraseMarks.Step(Cutter.PickedCutOut) is not null;
+
+    /// <summary>Lets everything marked go: the strokes, where the healing brush copies from, and what is picked.</summary>
+    [RelayCommand]
+    private void ClearMarks()
+    {
+        EraseMarks.Clear();
+        Cutter.ClearCommand.Execute(null);
+    }
+
     internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
-                                      PictureCutter cutter)
+                                      PictureCutter cutter, PhotoEraser eraser)
     {
     _viewer   = viewer;
     Cutter    = cutter;
@@ -91,15 +118,22 @@ public partial class ImageEditorViewModel : ObservableObject
     _services = services;
     _restorer = restorer;
     _remover  = remover;
-    // A restoration or a cut-out mask arriving lets the photo be saved.
+    _eraser   = eraser;
+    EraseMarks = new EraseMarking(eraser.ErasesByAi);
+    // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
     restorer.Made += ToolMade;
     remover.Made  += ToolMade;
-    // What is picked is what Remove background keeps.
+    eraser.Made   += ToolMade;
+    // What is picked is what Remove background keeps, and part of what Erase erases.
     cutter.PropertyChanged += (_, e) =>
     {
         if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking))
+        {
             RemoveBackgroundCommand.NotifyCanExecuteChanged();
+            EraseCommand.NotifyCanExecuteChanged();
+        }
     };
+    EraseMarks.PropertyChanged += (_, _) => EraseCommand.NotifyCanExecuteChanged();
     }
 
     private void ToolMade()
@@ -119,6 +153,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsAdjustTool))]
     [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
     [NotifyPropertyChangedFor(nameof(IsCutOutTool))]
+    [NotifyPropertyChangedFor(nameof(IsEraseTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
     [NotifyPropertyChangedFor(nameof(IsExportTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
@@ -128,6 +163,7 @@ public partial class ImageEditorViewModel : ObservableObject
     public bool IsAdjustTool => Tool == EditTool.Adjust;
     public bool IsMarkupTool => Tool == EditTool.Markup;
     public bool IsCutOutTool => Tool == EditTool.CutOut;
+    public bool IsEraseTool  => Tool == EditTool.Erase;
     public bool IsResizeTool => Tool == EditTool.Resize;
     public bool IsExportTool => Tool == EditTool.Export;
 
@@ -162,6 +198,7 @@ public partial class ImageEditorViewModel : ObservableObject
             return;
         }
         Cutter.Close();   // the photo read for picking is let go with the editor
+        EraseMarks.Clear();
         CancelOpenGestures();
         ShowOriginal = false;
         IsLevelTool  = false;
@@ -172,6 +209,7 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         CancelOpenGestures();
         SelectedId = null;
+        EraseMarks.Clear();   // marks are of the photo they were made on
     _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
         if (_viewer.IsEditing) Cutter.Follow(Session?.Path);
         OnRecipeChanged();
@@ -186,6 +224,7 @@ public partial class ImageEditorViewModel : ObservableObject
         SaveCopyCommand.NotifyCanExecuteChanged();
         RemoveBackgroundCommand.NotifyCanExecuteChanged();
         KeepBackgroundCommand.NotifyCanExecuteChanged();
+        EraseCommand.NotifyCanExecuteChanged();
     }
 
     private void CancelOpenGestures()
@@ -832,8 +871,8 @@ public partial class ImageEditorViewModel : ObservableObject
     private bool _isSaving;
 
     /// <summary>The photo can be written: not saving already, and what its recipe asks of the picture tools made.</summary>
-    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending;
-    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending;
+    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending;
+    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending;
 
     /// <summary>Bakes the edits into the original after a confirmation; the recipe is then spent.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]

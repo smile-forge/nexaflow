@@ -166,6 +166,28 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             CheckDoes("Keep background puts it back, and the banner goes", "Image_CutOutKeepBackground",
                       () => WaitForGone("Image_RemoveBackgroundAction", 3));
 
+            // Erase: picking waits for picture selection and AI for picture erasing, neither of which the journey's AI folder
+            // has; content-aware fill needs nothing, so a brushed step erases at once.
+            Check("Erase panel", () => SelectRadio("Image_EditToolErase") && WaitForFs(() => Exists("Image_EraseMarkPick"), 3));
+            Check("Picking: a click on the photo asks for picture selection",
+                  () => SelectRadio("Image_EraseMarkPick") && ClickCanvas() && WaitForFs(() => WaitForId("Image_ErasePickAction", 1)?.IsEnabled == true, 5));
+            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_ErasePhrase", "mug")
+                                                              && WaitForFs(() => WaitForId("Image_EraseFind", 1)?.IsEnabled == true, 3));
+            CheckInvoke("Find, which waits for picture selection", "Image_EraseFind");
+            CheckInvoke("Clear what is marked", "Image_EraseClear");
+            Check("Brushing", () => SelectRadio("Image_EraseMarkBrush") && WaitForFs(() => Exists("Image_EraseBrushSize"), 3));
+            Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));
+            Check("Heal, which asks where to copy from", () => SelectRadio("Image_EraseFillHeal"));
+            Check("AI fill, a stroke brushed and erased: the banner offers picture erasing",
+                  () => SelectRadio("Image_EraseFillAi") && DragOnCanvas(-10, 0, 10, 0)
+                        && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
+                        && WaitForFs(() => WaitForId("Image_EraseAction", 1)?.IsEnabled == true, 5));
+            Check("Undo takes the step back, and the banner goes", () => PressNth("Image_EditUndo", 0) && WaitForGone("Image_EraseAction", 3));
+            Check("Content-aware fill, a stroke brushed and erased at once",
+                  () => SelectRadio("Image_EraseFillContentAware") && DragOnCanvas(-10, 4, 10, 4)
+                        && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
+                        && WaitForGone("Image_EraseAction", 5));
+
             // Export options
             Check("Export panel", () => SelectRadio("Image_EditToolExport"));
             Check("Strip metadata toggles", () => SetToggle("Image_EditStripMetadata", true) && SetToggle("Image_EditStripMetadata", false));

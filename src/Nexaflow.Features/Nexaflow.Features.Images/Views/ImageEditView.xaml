@@ -62,6 +62,11 @@
                             <TextBlock Text="{loc:Str Images.Edit.Tool.CutOut}" FontSize="11"/>
                         </RadioButton>
                         <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
+                                     ToolTip="{loc:Str Images.Edit.Tool.EraseTip}" AutomationProperties.AutomationId="Image_EditToolErase"
+                                     IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Erase}">
+                            <TextBlock Text="{loc:Str Images.Edit.Tool.Erase}" FontSize="11"/>
+                        </RadioButton>
+                        <RadioButton GroupName="EditTool" Style="{StaticResource SegRadioStyle}" Padding="4,5"
                                      ToolTip="{loc:Str Images.Edit.Tool.ResizeTip}" AutomationProperties.AutomationId="Image_EditToolResize"
                                      IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Resize}">
                             <TextBlock Text="{loc:Str Images.Edit.Tool.Resize}" FontSize="11"/>
@@ -398,6 +403,94 @@
                                         Visibility="{Binding Editor.RemovesBackground, Converter={StaticResource BoolToVis}}"
                                         ToolTip="{loc:Str Images.CutOut.KeepBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutKeepBackground">
                                     <TextBlock Text="{loc:Str Images.CutOut.KeepBackground}" FontSize="11"/>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <!-- ── Erase ── -->
+                        <StackPanel Visibility="{Binding Editor.IsEraseTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
+                            <UniformGrid Rows="1">
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick"
+                                             ToolTip="{loc:Str Images.Erase.PickTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Pick}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush"
+                                             ToolTip="{loc:Str Images.Erase.BrushTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Brush}" FontSize="11"/>
+                                </RadioButton>
+                            </UniformGrid>
+
+                            <!-- Picking, as the cut-out tool picks: what is picked here is what it has picked. -->
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsPicking, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                             VerticalContentAlignment="Center" Padding="4,3"
+                                             Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.AutomationId="Image_ErasePhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
+                                            AutomationProperties.AutomationId="Image_EraseFind">
+                                        <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
+                                    </Button>
+                                </Grid>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding Editor.Cutter.Notice}"/>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                        Command="{Binding Editor.Cutter.ActCommand}"
+                                        Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
+                                        AutomationProperties.AutomationId="Image_ErasePickAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
+                                    <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Brushing: the brush's width in the photo's pixels. -->
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsBrushing, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Erase.BrushSize}"/>
+                                <Slider Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" Margin="0,4,0,0"
+                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}"
+                                        AutomationProperties.AutomationId="Image_EraseBrushSize" AutomationProperties.Name="{loc:Str Images.Erase.BrushSize}"/>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.BrushHint}"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Erase.Fill}"/>
+                            <UniformGrid Rows="1">
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillAi"
+                                             ToolTip="{loc:Str Images.Erase.AiTip}" IsEnabled="{Binding Editor.ErasesByAi}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Ai}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Ai}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillContentAware"
+                                             ToolTip="{loc:Str Images.Erase.ContentAwareTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=ContentAware}">
+                                    <TextBlock Text="{loc:Str Images.Erase.ContentAware}" FontSize="11"/>
+                                </RadioButton>
+                                <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillHeal"
+                                             ToolTip="{loc:Str Images.Erase.HealTip}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Heal}">
+                                    <TextBlock Text="{loc:Str Images.Erase.Heal}" FontSize="11"/>
+                                </RadioButton>
+                            </UniformGrid>
+                            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.HealHint}"
+                                       Visibility="{Binding Editor.EraseMarks.NeedsHealSource, Converter={StaticResource BoolToVis}}"/>
+
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.EraseCommand}"
+                                        ToolTip="{loc:Str Images.Erase.ApplyTip}" AutomationProperties.AutomationId="Image_EraseApply">
+                                    <TextBlock Text="{loc:Str Images.Erase.Apply}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.ClearMarksCommand}"
+                                        ToolTip="{loc:Str Images.Erase.ClearTip}" AutomationProperties.AutomationId="Image_EraseClear">
+                                    <TextBlock Text="{loc:Str Images.Erase.Clear}" FontSize="11"/>
                                 </Button>
                             </WrapPanel>
                         </StackPanel>

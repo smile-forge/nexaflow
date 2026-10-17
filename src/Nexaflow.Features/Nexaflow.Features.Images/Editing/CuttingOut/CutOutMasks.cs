@@ -80,6 +80,19 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
                ?? throw new InvalidDataException($"{path} could not be made a mask.");
     }
 
+    /// <summary>The kept mask as one byte a pixel, 255 over what it marks — <paramref name="width"/> × <paramref name="height"/>,
+    /// the photo's size it was picked at.</summary>
+    public static byte[] ReadGrey(string path, int width, int height)
+    {
+        using var codec = SKCodec.Create(path) ?? throw new InvalidDataException($"{path} is not a mask.");
+        if (codec.Info.Width != width || codec.Info.Height != height)
+            throw new InvalidDataException($"{path} is {codec.Info.Width}x{codec.Info.Height}, not the photo's {width}x{height}.");
+        var info = new SKImageInfo(width, height, SKColorType.Gray8, SKAlphaType.Opaque);
+        if (codec.GetPixels(info, out var grey) is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+            throw new InvalidDataException($"{path} could not be read as a mask.");
+        return grey;
+    }
+
     private static string Made(RecipeCutOut cutOut, string modelsVersion) => $"cutout|{cutOut.Describe()}|{modelsVersion}";
 
     private static byte[] Union(IReadOnlyList<byte[]> masks, int size)

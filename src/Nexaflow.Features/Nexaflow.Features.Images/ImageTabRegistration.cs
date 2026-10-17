@@ -22,6 +22,7 @@ public sealed class ImageTabRegistration : IPageRegistration
     private readonly IPictureSelection? _selection;
 
     private readonly IPageReading? _reading;
+    private readonly IPictureErasing? _erasing;
 
     /// <summary>The editing engine every Images tab of this workspace shares: codecs, renderer and the recipe store.</summary>
     private readonly ImageEditingServices _editing = new();
@@ -31,13 +32,14 @@ public sealed class ImageTabRegistration : IPageRegistration
     /// <param name="selection">Picture selection, which picks things out of a photo — the editor's cut-out — where the app has it.</param>
     /// <param name="reading">Page reading, which reads a picture of a page into Markdown, where the app has it.</param>
     public ImageTabRegistration(IShellServices shell, IAIService ai, IPictureTools? pictures = null, IPictureSelection? selection = null,
-                                IPageReading? reading = null)
+                                IPageReading? reading = null, IPictureErasing? erasing = null)
     {
         _shell     = shell;
         _ai        = ai;
         _pictures  = pictures;
         _selection = selection;
         _reading   = reading;
+        _erasing   = erasing;
     }
 
     public static string StaticPageKind => "Images";
@@ -77,7 +79,7 @@ public sealed class ImageTabRegistration : IPageRegistration
             Icon        = "🖼",
             ContentFactory = () =>
             {
-                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading);
+                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing);
                 if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) viewer.Editor.Tool = tool;
                 return new ImageView(viewer);
             }

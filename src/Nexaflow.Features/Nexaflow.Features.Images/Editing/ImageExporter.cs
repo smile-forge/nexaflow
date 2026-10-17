@@ -44,9 +44,11 @@ public sealed class ImageExporter(ImageEditingServices services)
     using var full = services.Decoders.Decode(file, maxLongEdge: null);
     ct.ThrowIfCancellationRequested();
 
+    // Erased, the photo is drawn from as erased; its metadata and container are still the file's.
+    using var erasedFull = !recipe.Erasures.IsEmpty ? services.DecodeRestored(made.Erased!, full.SourceSize, maxLongEdge: null) : null;
     using var restoredFull = recipe.Restore is not null ? services.DecodeRestored(made.Restored!, full.SourceSize, maxLongEdge: null) : null;
     using var mask = recipe.CutOut is not null ? CutOutMasks.Decode(made.CutOut!) : null;
-    using var pipeline = services.Pipeline(full, cache: false, restoredFull, mask);
+    using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask);
         var picture = pipeline.Render(recipe, RenderRequest.Saved);
         ct.ThrowIfCancellationRequested();
 

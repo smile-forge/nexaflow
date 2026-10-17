@@ -6,8 +6,9 @@ provider: nothing in the cloud stands in for it, a workspace's ability grid neve
 Its models are fetched once, app-wide, when a person asks, and run in the AI host on the same plan of its GPUs as the
 owned models.
 
-Three are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
-(`sam3.1`), and page reading, Unlimited-OCR with PP-OCRv5's text detector (`unlimited-ocr`).
+Four are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
+(`sam3.1`), picture erasing, LaMa (`big-lama`), and page reading, Unlimited-OCR with PP-OCRv5's text detector
+(`unlimited-ocr`).
 
 ## How a tool fits
 
@@ -21,7 +22,7 @@ Three are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpga
 | Contract | what a feature asks of it: `IToolModels` (where its models stand, download) and the tool's own | `Features.Common/ToolModels.cs` |
 | Core | the contract over the front; where its models stand, their download app-wide and `ILocalTool` for the settings pages from `LocalToolModels` | `Core/Services/Tools/` |
 | Features | given the contract by `FeatureManager.ProvideTool`, by constructor | the feature |
-| Assistant | a client tool over the same contract, offered wherever the machine can run it | `AIService.GatherContext` |
+| Assistant | client tools over the same contract, on the page that shows what the tool works on — acting only on what that page has open, never on a file of the model's choosing | the page's `GetClientTools` |
 | Settings | the Local page's Tools section offers each download; the Downloaded page lists each for removal | `LocalToolViewModel`, `DownloadedModelsViewModel` |
 
 A tool offered to the assistant while its models are not downloaded yet answers with where to get them, rather than
@@ -58,8 +59,8 @@ it in the background; the viewer's banner says how far it has got, offers the to
 The render pipeline lays it over the photo at its strength in the geometry pass, so a strength drag redraws one pass,
 and Save renders from it at full size once it is made.
 
-**For the assistant.** `restore_picture` restores a picture file into a new one beside it — upright as its EXIF says —
-and opens it; the original is never touched.
+**For the assistant.** `restore_picture`, on an image tab, restores the picture on screen as the editor does — the recipe's
+restore section set, its scale, faces and strength as asked — and answers once it is made; the user undoes or saves it.
 
 ## Picture selection
 
@@ -100,8 +101,48 @@ and `IPictureSelection.ModelsVersion`) or picks it again at full size in the bac
 decodes it beside the photo, and the render pipeline clears what it does not keep at the end of the geometry pass. A
 photo whose format holds no transparency is saved only as a copy.
 
-**For the assistant.** `cut_out` cuts what a phrase names, or what a box holds, out of a picture file into a new PNG
-beside it — transparent around it, cropped to it — and opens it; the original is never touched.
+**For the assistant.** On an image tab, `select_in_picture` picks out everything a phrase names in the picture on screen
+and shows it in the editor's Cut out; `cut_out` picks it the same way, or what a box holds, saves it as a PNG beside the
+picture and opens that for the user in a new tab — the assistant is told only that the tab opened, and works on the new
+picture once the user gives it that tab.
+
+## Picture erasing
+
+**What it does.** What a mask covers erased from a picture and filled from what is round it — scratches, dust, wires, a
+person or a sign rubbed out of a photo. Only the mask's pixels change.
+
+**The graph.** LaMa's big-lama, fp32, one graph that is LaMa's predict around its generator. `tools/ai-models/big-lama`
+traces it from the makers' own modules, the checkpoint read by an unpickler that keeps tensors alone, and holds it to the
+original on CPU and CUDA to 8×10⁻⁵. Its Fourier units take their FFTs as matrix products with cosine and sine matrices
+built from the input's size (`fourier_matmul.py`): ONNX Runtime's CUDA provider has no DFT, and its CPU one loops in
+O(n²) off powers of two — over two minutes for a 1800×1200 picture. A width's parity is a tensor comparison in the
+graph, since a test of it in Python is settled once, at the size the graph was traced at.
+
+**The port.** `ErasePicture` works each part of the mask in a region of its surroundings (`InpaintRegions` in
+`IO.Common`): as much picture again on every side, at least 512 pixels each way, regions whose surroundings overlap
+joined, a region past 1536 square worked smaller — down by PIL's bilinear resize, which averages over the reduction, its
+mask marking every pixel a hole reaches — and its fill brought back up by Lanczos. `ErasingHandover` hands a region over
+as LaMa's predict does: RGB over 255, the mask taken where it is not 0, symmetric padding to a multiple of 8, the result
+clipped and truncated to 8 bits. `PictureErasingTests` holds the host to the makers' predict on SAM 3's sample pictures
+with drawn masks — 58–62 dB inside the mask on a GPU, 85 dB on a CPU, nothing outside it changed.
+
+**Memory.** The graph peaks at 4 GB at 1536 square, 0.1 s on a GPU and under 5 s on 16 CPU threads; the download is
+209 MB.
+
+**For features.** `IPictureErasing.EraseAsync` takes a picture and a mask by file and writes the erased picture.
+
+**In the image editor.** The Erase tool marks what to erase by picking it as Cut out picks it, or by brushing over it —
+a thing picked and its shadow brushed are one step — and fills it three ways: AI (picture erasing), content-aware fill,
+or the healing brush from where the user Alt-clicks. Content-aware fill and the healing brush are algorithms in
+`IO.Common` (`ContentAwareFill`, `HealingBrush`) and need nothing downloaded. Each Erase is a step of the recipe's
+erasures (`RecipeErase`, version 4 of the recipe): `PhotoEraser` finds the photo as erased kept on disk
+(`ErasedPictures`, every run of first steps kept, so a step added makes only itself) or makes it in the background — a
+picked thing grown past its edge (`EraseMasks`), the strokes painted over it — needing picture erasing only for AI steps
+and picture selection only for picked ones (`ToolEdit.Needs`). The erased photo is drawn in the photo's place, and a
+restoration is of the photo as erased (`ToolEdit.Input`), so erasing comes before every other edit.
+
+**For the assistant.** `erase_in_picture`, on an image tab, erases what a phrase names or a box holds from the picture on
+screen as a step of its edits, filled by AI where picture erasing is here, else content-aware, and answers once it is made.
 
 ## Page reading
 
@@ -160,8 +201,7 @@ reads it for the assistant.
 stored or decoded to PNG, turned as the page is shown; a notice above the document says so and converts them.
 `pdf_read_scans` reads them for the assistant, and `pdf_read_text` and `pdf_find_text` include their text once read.
 
-**For the assistant.** `read_page_file` reads a picture file of a page and returns its text; saved as Markdown when
-asked, its figures beside it.
+
 
 ## Adding a tool
 
@@ -175,5 +215,7 @@ asked, its figures beside it.
 4. Its front in `Providers.AiHost`, deriving `OwnedToolFront`; its contract in `Features.Common`, extending
    `IToolModels`; and Core's service, deriving `LocalToolModels` and implementing the contract, built in
    `App.InitializeApp`, passed to `ProviderManager.Initialize` and given to features with `FeatureManager.ProvideTool`.
-5. The client tool, and the pages that use it. An edit a tool makes to a photo is a recipe section and a `ToolEdit`,
-   its results kept by `KeptFiles` and named to the renderer and the exporter in `MadeByTools`.
+5. The pages that use it, and their client tools: on the page that shows what the tool works on, acting only on what
+   that page has open — the assistant reaches no further than the tabs the user opened. An edit a tool makes to a photo
+   is a recipe section and a `ToolEdit` — naming the tools each ask needs, and the picture it is made from where that is
+   what another edit makes — its results kept by `KeptFiles` and named to the renderer and the exporter in `MadeByTools`.

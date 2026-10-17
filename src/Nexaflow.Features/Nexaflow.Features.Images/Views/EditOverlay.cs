@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.ViewModels;
 using SkiaSharp;
@@ -38,7 +39,10 @@ public sealed class EditOverlay : FrameworkElement
     private PictureMask? _tintFor;
     private BitmapSource? _tint;
 
-    private enum Gesture { None, Crop, Level, Markup, CutOut }
+    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase }
+
+    // Where the pointer is over the photo while the Erase tool brushes, for the brush's outline.
+    private Point? _brushAt;
 
     public EditOverlay()
     {
@@ -66,6 +70,7 @@ public sealed class EditOverlay : FrameworkElement
         viewer.PropertyChanged += OnChanged;
         viewer.Editor.PropertyChanged += OnChanged;
         viewer.Cutter.PropertyChanged += OnChanged;
+        viewer.Editor.EraseMarks.PropertyChanged += OnChanged;
     }
 
     public void Detach()
@@ -74,6 +79,7 @@ public sealed class EditOverlay : FrameworkElement
         _viewer.PropertyChanged -= OnChanged;
         _viewer.Editor.PropertyChanged -= OnChanged;
         _viewer.Cutter.PropertyChanged -= OnChanged;
+        _viewer.Editor.EraseMarks.PropertyChanged -= OnChanged;
         _viewer = null;
     }
 
@@ -95,8 +101,10 @@ public sealed class EditOverlay : FrameworkElement
             DrawLevelLine(dc);
         if (editor.IsMarkupTool && editor.SelectedOutline is { } outline)
             DrawSelection(dc, outline);
-        if (editor.IsCutOutTool)
+        if (editor.IsCutOutTool || editor.IsEraseTool)
             DrawCutOut(dc, editor.Cutter);
+        if (editor.IsEraseTool)
+            DrawErase(dc, editor.EraseMarks);
     }
 
     private void DrawCrop(DrawingContext dc, Rect crop, bool alignment)
@@ -184,6 +192,62 @@ public sealed class EditOverlay : FrameworkElement
             dc.DrawEllipse(Brush(point.Include ? "AccentBrush" : "DangerBrush"), outline, Wpf(toCanvas.MapPoint(new SKPoint((float)point.X, (float)point.Y))), r, r);
     }
 
+    /// <summary>The Erase tool's marks: the strokes, tinted where they mark and outlined where they take marking back; where the
+    /// healing brush copies from, and where it copies from for the brush's place now; the brush's outline under the pointer.</summary>
+    private void DrawErase(DrawingContext dc, EraseMarking marks)
+    {
+        if (_viewer?.Canvas is not { } canvas) return;
+        var toCanvas = canvas.SourceToCanvas;
+        double px = 1 / _zoom, sourceScale = Math.Sqrt(Math.Abs(toCanvas.ScaleX * toCanvas.ScaleY - toCanvas.SkewX * toCanvas.SkewY));
+
+        dc.PushTransform(new MatrixTransform(toCanvas.ScaleX, toCanvas.SkewY, toCanvas.SkewX, toCanvas.ScaleY, toCanvas.TransX, toCanvas.TransY));
+        var marked = Brush("DangerBrush").Clone();
+        marked.Opacity = 0.45;
+        foreach (var stroke in marks.Strokes)
+        {
+            if (stroke.Points.IsEmpty) continue;
+            var pen = stroke.Marks
+                ? new Pen(marked, stroke.Width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }
+                : new Pen(Brush("OnAccentBrush"), stroke.Width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            if (!stroke.Marks) pen.Brush = new SolidColorBrush(Colors.Transparent);
+            var figure = new PathFigure { StartPoint = new Point(stroke.Points[0].X, stroke.Points[0].Y) };
+            foreach (var point in stroke.Points.Skip(1)) figure.Segments.Add(new LineSegment(new Point(point.X, point.Y), true));
+            if (stroke.Points.Length == 1) figure.Segments.Add(new LineSegment(new Point(stroke.Points[0].X, stroke.Points[0].Y), true));
+            var path = new PathGeometry([figure]);
+            dc.DrawGeometry(null, pen, path);
+            if (!stroke.Marks)
+                dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 1.5 * px / sourceScale) { DashStyle = new DashStyle([4, 3], 0) },
+                                path.GetWidenedPathGeometry(new Pen(Brushes.Black, stroke.Width)));
+        }
+        dc.Pop();
+
+        var accent = new Pen(Brush("AccentBrush"), 1.5 * px);
+        var halo = new Pen(Brush("OnAccentBrush"), 3 * px);
+        if (marks.HealSource is { } source)
+        {
+            var at = Wpf(toCanvas.MapPoint(new SKPoint((float)source.X, (float)source.Y)));
+            double arm = MarkerSize * px;
+            foreach (var pen in new[] { halo, accent })
+            {
+                dc.DrawLine(pen, new Point(at.X - arm, at.Y), new Point(at.X + arm, at.Y));
+                dc.DrawLine(pen, new Point(at.X, at.Y - arm), new Point(at.X, at.Y + arm));
+            }
+        }
+        if (marks.IsBrushing && _brushAt is { } pointer && toCanvas.TryInvert(out var toSource))
+        {
+            double radius = marks.BrushSize / 2 * sourceScale;
+            dc.DrawEllipse(null, halo, pointer, radius, radius);
+            dc.DrawEllipse(null, accent, pointer, radius, radius);
+            // Where the healing brush copies from for the brush's place now.
+            if (marks.HealOffset is { } offset)
+            {
+                var under = toSource.MapPoint(Sk(pointer));
+                var copied = Wpf(toCanvas.MapPoint(new SKPoint(under.X + (float)offset.X, under.Y + (float)offset.Y)));
+                dc.DrawEllipse(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([3, 3], 0) }, copied, radius, radius);
+            }
+        }
+    }
+
     /// <summary>A mask as a tint of the accent colour, made once for each mask shown.</summary>
     private BitmapSource Tint(PictureMask mask)
     {
@@ -244,11 +308,25 @@ public sealed class EditOverlay : FrameworkElement
             if (editor.MarkupTool == MarkupTool.Select && !editor.HasSelection) return;   // nothing hit: pan
             Begin(Gesture.Markup, e);
         }
-        else if (editor.IsCutOutTool)
+        else if (editor.IsCutOutTool || editor.IsEraseTool && editor.EraseMarks.IsPicking)
         {
             _cutFrom = _cutTo = at;
             _cutDragging = false;
             Begin(Gesture.CutOut, e);
+        }
+        else if (editor.IsEraseTool && canvas.SourceToCanvas.TryInvert(out var brushToSource))
+        {
+            var under = brushToSource.MapPoint(p);
+            if (OnPhoto(under) is not { } onPhoto) return;
+            // Alt-click with the healing brush: where it copies from.
+            if (editor.EraseMarks.IsHealing && (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+            {
+                editor.EraseMarks.SetHealSource(new MarkupPoint(onPhoto.X, onPhoto.Y));
+                e.Handled = true;
+                return;
+            }
+            editor.EraseMarks.BeginStroke(new MarkupPoint(onPhoto.X, onPhoto.Y), marks: true);
+            Begin(Gesture.Erase, e);
         }
     }
 
@@ -276,8 +354,18 @@ public sealed class EditOverlay : FrameworkElement
                 float step = (float)(StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas));
                 editor.MarkupDrag(toSource.MapPoint(Sk(at)), step);
                 break;
+            case Gesture.Erase when _viewer?.Canvas is { } canvas && canvas.SourceToCanvas.TryInvert(out var toSource):
+                var under = toSource.MapPoint(Sk(at));
+                editor.EraseMarks.ContinueStroke(new MarkupPoint(under.X, under.Y), StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas));
+                _brushAt = at;
+                break;
             default:
                 Cursor = HoverCursor(editor, Sk(at));
+                if (editor.IsEraseTool && editor.EraseMarks.IsBrushing)
+                {
+                    _brushAt = at;
+                    InvalidateVisual();
+                }
                 break;
         }
     }
@@ -288,6 +376,22 @@ public sealed class EditOverlay : FrameworkElement
         if (_gesture == Gesture.None) return;
         Finish(cancelled: false);
         e.Handled = true;
+    }
+
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonUp(e);
+        if (_gesture != Gesture.Erase) return;
+        Finish(cancelled: false);
+        e.Handled = true;
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_brushAt is null) return;
+        _brushAt = null;
+        InvalidateVisual();
     }
 
     protected override void OnLostMouseCapture(MouseEventArgs e)
@@ -322,6 +426,9 @@ public sealed class EditOverlay : FrameworkElement
                 if (!cancelled) editor.Level(Sk(_levelFrom), Sk(_levelTo));
                 InvalidateVisual();
                 break;
+            case Gesture.Erase:
+                editor.EraseMarks.EndStroke();
+                break;
         }
     }
 
@@ -341,13 +448,21 @@ public sealed class EditOverlay : FrameworkElement
             cutter.Click(at.X, at.Y, include: (Keyboard.Modifiers & ModifierKeys.Alt) == 0);
     }
 
-    /// <summary>A right-click in the cut-out tool: a click off the thing.</summary>
+    /// <summary>A right-click while picking — in the cut-out tool, or the Erase tool picking — is a click off the thing; a
+    /// right-drag while the Erase tool brushes takes marking back.</summary>
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        if (Editor is not { ShowOriginal: false, IsCutOutTool: true } editor || _viewer?.Canvas is not { } canvas
+        if (Editor is not { ShowOriginal: false } editor || !(editor.IsCutOutTool || editor.IsEraseTool) || _viewer?.Canvas is not { } canvas
             || !canvas.SourceToCanvas.TryInvert(out var toSource)) return;
-        if (OnPhoto(toSource.MapPoint(Sk(e.GetPosition(this)))) is { } at) editor.Cutter.Click(at.X, at.Y, include: false);
+        if (OnPhoto(toSource.MapPoint(Sk(e.GetPosition(this)))) is not { } at) return;
+        if (editor.IsEraseTool && editor.EraseMarks.IsBrushing)
+        {
+            editor.EraseMarks.BeginStroke(new MarkupPoint(at.X, at.Y), marks: false);
+            Begin(Gesture.Erase, e);
+            return;
+        }
+        editor.Cutter.Click(at.X, at.Y, include: false);
         e.Handled = true;
     }
 
@@ -371,7 +486,7 @@ public sealed class EditOverlay : FrameworkElement
                 _                                            => Cursors.Arrow,
             };
         }
-        if (editor.IsCutOutTool) return Cursors.Cross;
+        if (editor.IsCutOutTool || editor.IsEraseTool) return Cursors.Cross;
         if (editor.IsMarkupTool)
             return editor.MarkupTool switch
             {

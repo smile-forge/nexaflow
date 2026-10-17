@@ -197,15 +197,6 @@ public sealed class AIService : IAIService
             var made = Generation.GeneratedFiles.For(shell);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
                                                           HighQualityVideoGenerator, made).Tools);
-
-            // The tools Nexaflow runs on this machine, whatever model the workspace converses with — offered wherever the
-            // machine can run them, so a request for one that is not downloaded yet is answered with where to get it.
-            if (ProviderManager.Instance.Service<IPictureTools>() is { State: not ToolModelsState.Unavailable } pictures)
-                tools.Add(new Tools.RestorePictureTool(pictures, made));
-            if (ProviderManager.Instance.Service<IPictureSelection>() is { State: not ToolModelsState.Unavailable } selection)
-                    tools.Add(new Tools.CutOutTool(selection, made));
-                if (ProviderManager.Instance.Service<IPageReading>() is { State: not ToolModelsState.Unavailable } reading)
-                    tools.Add(new Tools.ReadPageFileTool(reading, this));
         }
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to

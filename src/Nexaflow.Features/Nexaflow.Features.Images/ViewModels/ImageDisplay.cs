@@ -43,11 +43,9 @@ public sealed class ImageDisplay : IDisposable
     private CancellationTokenSource? _decodeCts;
     private int _decodingEdge;
 
-    // The restoration decoded or being decoded: its file, the long edge asked of it, and whether it is still on its way.
-    private CancellationTokenSource? _restoredCts;
-    private string? _restoredFile;
-    private int _restoredEdge;
-    private bool _restoredUnderway;
+    // The restoration and the photo as erased, each decoded or being decoded beside the photo.
+    private readonly MadeDecode _restored;
+    private readonly MadeDecode _erased;
 
     // The cut-out mask being decoded: its file, while it is on its way.
     private CancellationTokenSource? _cutOutCts;
@@ -64,6 +62,8 @@ public sealed class ImageDisplay : IDisposable
         _presenter = new SkiaBitmapPresenter(runOnUi);
         _presenter.BitmapChanged += () => ImageChanged?.Invoke(_presenter.Bitmap);
         _presenter.Presented     += tag => { if (tag is EditCanvas canvas) Presented?.Invoke(canvas); };
+        _restored = new MadeDecode(this, s => s.RestoredProxy, (s, picture, file) => s.AttachRestored(picture, file), s => RestoredDecodeFailed?.Invoke(s));
+        _erased   = new MadeDecode(this, s => s.ErasedProxy, (s, picture, file) => s.AttachErased(picture, file), s => ErasedDecodeFailed?.Invoke(s));
     }
 
     /// <summary>The bitmap frames land in is a new one, or none. On the UI thread.</summary>
@@ -84,16 +84,17 @@ public sealed class ImageDisplay : IDisposable
     /// <summary>The photo's cut-out mask could not be decoded — its kept file gone, say. On the UI thread.</summary>
     public event Action<ImageEditSession>? CutOutDecodeFailed;
 
+    /// <summary>The photo as erased could not be decoded — its kept file gone, say. On the UI thread.</summary>
+    public event Action<ImageEditSession>? ErasedDecodeFailed;
+
     /// <summary>The photo to show from now on; a different one — or the same one still without pixels — starts its decodes afresh and, until it has pixels, shows nothing.</summary>
     public void Show(ImageEditSession? session)
     {
         if (ReferenceEquals(session, _session) && session?.Proxy is not null) return;
         _decodeCts?.Cancel();
         _decodingEdge = 0;
-        _restoredCts?.Cancel();
-        _restoredFile = null;
-        _restoredEdge = 0;
-        _restoredUnderway = false;
+        _restored.Reset();
+        _erased.Reset();
         _cutOutCts?.Cancel();
         _cutOutFile = null;
         _session = session;
@@ -160,7 +161,8 @@ public sealed class ImageDisplay : IDisposable
 
         var sourceToCanvas = CropGeometry.SourceToCanvas(recipe, source, frame, renderScale, out _);
         EnsureSharpEnough(session, proxy, CropGeometry.SourcePixelsPerCanvasPixel(sourceToCanvas));
-        if (recipe.Restore is { } restore && session.RestoredPath is { } restoredFile) EnsureRestoredDecoded(session, restoredFile, proxy, restore.Scale);
+        if (!recipe.Erasures.IsEmpty && session.ErasedPath is { } erasedFile) _erased.Ensure(session, erasedFile, proxy, 1);
+        if (recipe.Restore is { } restore && session.RestoredPath is { } restoredFile) _restored.Ensure(session, restoredFile, proxy, restore.Scale);
                 if (recipe.CutOut is not null && session.CutOutPath is { } cutOutFile) EnsureCutOutDecoded(session, cutOutFile);
 
         var straightenedToLayout = CropGeometry.FrameToCanvas(recipe, source, frame, layoutScale, out var layout);
@@ -219,50 +221,69 @@ public sealed class ImageDisplay : IDisposable
     }
 
     /// <summary>
-    /// Decodes the restoration off the UI thread at the sharpness the photo's own decode has, <paramref name="scale"/> times
-    /// larger — or whole, once the photo is decoded whole — once per file and size asked for.
+    /// A picture the tools made of the photo — its restoration, or the photo as erased — decoded beside it, as sharp as the
+    /// photo's own decode calls for: <c>scale</c> times its long edge, the full picture once the photo is decoded in full.
     /// </summary>
-    private void EnsureRestoredDecoded(ImageEditSession session, string file, DecodedImage proxy, int scale)
+    private sealed class MadeDecode(ImageDisplay display, Func<ImageEditSession, DecodedImage?> decoded,
+                                    Action<ImageEditSession, DecodedImage, string> attach, Action<ImageEditSession> failed)
     {
-        int edge = proxy.IsFullResolution ? int.MaxValue : Math.Max(proxy.Pixels.Width, proxy.Pixels.Height) * scale;
-        // Decoded at this size already, or on its way: the session let go of a decode only when it was handed another file.
-        if (string.Equals(file, _restoredFile, StringComparison.OrdinalIgnoreCase) && _restoredEdge >= edge
-            && (_restoredUnderway || session.RestoredProxy is not null)) return;
-        _restoredFile = file;
-        _restoredEdge = edge;
-        _restoredUnderway = true;
-        _restoredCts?.Cancel();
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
-        _restoredCts = cts;
-        var sourceSize = proxy.SourceSize;
+        // Its file, the long edge asked of it, and whether it is still on its way.
+        private CancellationTokenSource? _cts;
+        private string? _file;
+        private int _edge;
+        private bool _underway;
 
-        _ = Task.Run(() =>
+        public void Reset()
         {
-            DecodedImage restored;
-            try
-            {
-                restored = _editing.DecodeRestored(file, sourceSize, edge == int.MaxValue ? null : edge);
-            }
-            catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
-            {
-                if (!cts.IsCancellationRequested)
-                    _ = _runOnUi(() =>
-                    {
-                        if (!ReferenceEquals(_session, session)) return;
-                        _restoredFile = null;
-                        RestoredDecodeFailed?.Invoke(session);
-                    });
-                return;
-            }
-            if (cts.IsCancellationRequested) { restored.Dispose(); return; }
+            _cts?.Cancel();
+            _file = null;
+            _edge = 0;
+            _underway = false;
+        }
 
-            session.AttachRestored(restored, file);
-            _ = _runOnUi(() =>
+        public void Cancel() => _cts?.Cancel();
+
+        public void Ensure(ImageEditSession session, string file, DecodedImage proxy, int scale)
+        {
+            int edge = proxy.IsFullResolution ? int.MaxValue : Math.Max(proxy.Pixels.Width, proxy.Pixels.Height) * scale;
+            // Decoded at this size already, or on its way: the session let go of a decode only when it was handed another file.
+            if (string.Equals(file, _file, StringComparison.OrdinalIgnoreCase) && _edge >= edge && (_underway || decoded(session) is not null)) return;
+            _file = file;
+            _edge = edge;
+            _underway = true;
+            _cts?.Cancel();
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(display._lifetime);
+            _cts = cts;
+            var sourceSize = proxy.SourceSize;
+
+            _ = Task.Run(() =>
             {
-                if (ReferenceEquals(_restoredCts, cts)) _restoredUnderway = false;
-                if (ReferenceEquals(_session, session)) Decoded?.Invoke(session);
-            });
-        }, cts.Token);
+                DecodedImage picture;
+                try
+                {
+                    picture = display._editing.DecodeRestored(file, sourceSize, edge == int.MaxValue ? null : edge);
+                }
+                catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+                {
+                    if (!cts.IsCancellationRequested)
+                        _ = display._runOnUi(() =>
+                        {
+                            if (!ReferenceEquals(display._session, session)) return;
+                            _file = null;
+                            failed(session);
+                        });
+                    return;
+                }
+                if (cts.IsCancellationRequested) { picture.Dispose(); return; }
+
+                attach(session, picture, file);
+                _ = display._runOnUi(() =>
+                {
+                    if (ReferenceEquals(_cts, cts)) _underway = false;
+                    if (ReferenceEquals(display._session, session)) display.Decoded?.Invoke(session);
+                });
+            }, cts.Token);
+        }
     }
 
     /// <summary>Decodes the cut-out mask off the UI thread, once per file the session is handed.</summary>
@@ -307,7 +328,8 @@ public sealed class ImageDisplay : IDisposable
     public void Dispose()
     {
         _decodeCts?.Cancel();
-        _restoredCts?.Cancel();
+        _restored.Cancel();
+        _erased.Cancel();
         _cutOutCts?.Cancel();
         _presenter.Dispose();
     }

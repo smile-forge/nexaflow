@@ -7,6 +7,7 @@ using Nexaflow.IO.Common;
 using SkiaSharp;
 using System.IO;
 using Nexaflow.Features.Images.Editing.CuttingOut;
+using Nexaflow.Features.Images.Editing.Erasing;
 
 namespace Nexaflow.Features.Images.Editing;
 
@@ -21,10 +22,12 @@ public sealed class ImageEditingServices : IDisposable
 
     /// <param name="restored">Where restorations are kept; the app's cache when not given.</param>
     /// <param name="cutOuts">Where cut-out masks are kept; the app's cache when not given.</param>
-    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null)
+    /// <param name="erased">Where erased photos are kept; the app's cache when not given.</param>
+    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null, ErasedPictures? erased = null)
     {
     Restored = restored ?? new RestoredPictures();
     CutOuts = cutOuts ?? new CutOutMasks();
+    Erased = erased ?? new ErasedPictures();
         var jpeg = new JpegMetadata();
         var png  = new PngMetadata();
         var webp = new WebpMetadata();
@@ -51,6 +54,9 @@ public sealed class ImageEditingServices : IDisposable
 
     /// <summary>The masks photos are cut out of their backgrounds by, kept so each is picked once.</summary>
     public CutOutMasks CutOuts { get; }
+
+    /// <summary>The photos as erased, kept so each step is done once.</summary>
+    public ErasedPictures Erased { get; }
 
     /// <summary>True when <paramref name="path"/> is a file on disk — one a sidecar can sit beside and a save can replace.</summary>
     public static bool IsFileBacked(string path) => File.Exists(path);
@@ -95,8 +101,9 @@ public sealed class ImageEditingServices : IDisposable
         => new(source, Adjustments, Markup, cache, restored, cutOut);
 
     /// <summary>
-    /// The restoration kept at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given, as the
-    /// same picture larger: upright already, its pixels read against the photo's own <paramref name="sourceSize"/>.
+    /// A picture the tools made of the photo — its restoration, or the photo as erased — kept at <paramref name="path"/>,
+    /// reduced to <paramref name="maxLongEdge"/> when given, as the same picture at its size or larger: upright already,
+    /// its pixels read against the photo's own <paramref name="sourceSize"/>.
     /// </summary>
     public DecodedImage DecodeRestored(string path, SKSize sourceSize, int? maxLongEdge)
     {

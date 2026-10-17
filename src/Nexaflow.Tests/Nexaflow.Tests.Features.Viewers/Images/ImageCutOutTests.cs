@@ -231,6 +231,41 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
+    public async Task TheAssistant_CutsOutWhatItNames_IntoANewPictureBesideIt_OpenedInATabOfItsOwn()
+    {
+        var shell = Shell();
+        var vm = Editing(new Patch(), shell);
+        var args = new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" };
+
+        var result = await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
+
+        Assert.IsFalse(result.IsError, result.ModelText);
+        var saved = Path.Combine(_dir, "mug" + Str.Get("Images.CutOut.FileSuffix") + ".png");
+        Assert.IsTrue(File.Exists(saved), "saved beside the picture");
+        StringAssert.Contains(result.ModelText, "opened it for the user in a new tab");
+        Assert.IsFalse(result.ModelText.Contains(saved, StringComparison.OrdinalIgnoreCase), "the assistant is told the tab opened, not where the file is");
+        Assert.AreEqual(0, result.Images?.Count ?? 0, "nor shown the new picture");
+        using (var cut = SKBitmap.Decode(saved))
+            Assert.AreEqual((Patch.Right - Patch.Left, Patch.Bottom - Patch.Top), (cut.Width, cut.Height), "cropped to what was picked");
+        shell.Received().OpenTab("Images", Arg.Is<Dictionary<string, string>>(p => p["paths"] == saved), Arg.Any<IPageView?>(), Arg.Any<bool>());
+
+        await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
+        Assert.IsTrue(File.Exists(Path.Combine(_dir, Path.GetFileNameWithoutExtension(saved) + " 2.png")), "a second cut-out does not overwrite the first");
+    }
+
+    [TestMethod]
+    public async Task TheAssistant_CutsOutWhatABoxHolds()
+    {
+        var vm = Editing(new Patch());
+
+        var result = await vm.GetClientTools().Single(t => t.Name == "cut_out")
+            .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["box"] = "4,2,12,10" }, CancellationToken.None);
+
+        Assert.IsFalse(result.IsError, result.ModelText);
+        StringAssert.Contains(result.ModelText, "the thing in the box");
+    }
+
+    [TestMethod]
     public async Task TheAssistant_IsToldWhereToGetPictureSelection_WhereItIsNotHere()
     {
         var vm = Editing(new Patch { State = ToolModelsState.NotDownloaded });

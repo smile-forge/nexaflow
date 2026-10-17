@@ -6,18 +6,21 @@ using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Features.Images.Editing.Erasing;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>
-/// An edit a picture tool makes: gives the photo on screen what its recipe asks of the tool — the kept result where it is
-/// made, else made now in the background, once the tool is here — and then shown. What it is doing is said in the viewer's
-/// banner: making it and how far, the tool to download first, or why the photo shows without it.
+/// An edit picture tools make: gives the photo on screen what its recipe asks of them — the kept result where it is
+/// made, else made now in the background, once the tools it needs are here — and then shown. What it is doing is said in
+/// the viewer's banner: making it and how far, the tools to download first, or why the photo shows without it. An edit
+/// may need a different set of tools for each ask (<see cref="Needs"/>), none at all for one an algorithm makes, and may
+/// work from a picture another edit makes (<see cref="Input"/>).
 /// </summary>
 /// <typeparam name="TAsk">The recipe's section that asks for it.</typeparam>
 public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : class
 {
-    private readonly IToolModels? _tools;
+    private readonly IReadOnlyList<IToolModels?> _tools;
     private readonly Func<Action, Task> _runOnUi;
     private readonly string _texts;
     private ImageEditSession? _session;
@@ -31,12 +34,19 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
     /// <param name="texts">The prefix of what its banner says: <c>Making</c>, <c>NeedsTool</c>, <c>Downloading</c>,
     /// <c>Unavailable</c>, <c>Failed</c>, <c>Download</c> and <c>Retry</c> after it.</param>
     protected ToolEdit(ImageEditingServices services, IToolModels? tools, Func<Action, Task> runOnUi, string texts)
+        : this(services, [tools], runOnUi, texts)
+    {
+    }
+
+    /// <param name="tools">Every tool's models the edit may use, each where the app has it.</param>
+    protected ToolEdit(ImageEditingServices services, IReadOnlyList<IToolModels?> tools, Func<Action, Task> runOnUi, string texts)
     {
         Services = services;
         _tools = tools;
         _runOnUi = runOnUi;
         _texts = texts;
-        if (tools is not null) tools.Changed += (_, _) => _ = _runOnUi(() => Follow(_session));
+        foreach (var tool in tools)
+            if (tool is not null) tool.Changed += (_, _) => _ = _runOnUi(() => Follow(_session));
     }
 
     protected ImageEditingServices Services { get; }
@@ -45,14 +55,27 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
     public event Action? Made;
 
     /// <summary>Whether this machine can make it at all — what the editor's controls for it show for.</summary>
-    public bool Available => _tools is { State: not ToolModelsState.Unavailable };
+    public virtual bool Available => _tools.All(t => t is { State: not ToolModelsState.Unavailable });
 
-    /// <summary>What <paramref name="ask"/> made of <paramref name="photo"/>, kept on disk where the tool is here to name
-    /// its models; null otherwise — what a thumbnail of the edited photo is drawn from.</summary>
-    public string? KeptFor(string photo, TAsk ask) => _tools is { State: ToolModelsState.Ready } ? Kept(photo, ask, _tools.ModelsVersion) : null;
+    /// <summary>What <paramref name="ask"/> made of <paramref name="input"/>, kept on disk where the tools it needs are here
+    /// to name their models; null otherwise — what a thumbnail of the edited photo is drawn from.</summary>
+    /// <param name="input">The picture it is made from (<see cref="Input"/>): the photo, or what another edit made of it.</param>
+    public string? KeptFor(string input, TAsk ask) => VersionOf(Needs(ask)) is { } version ? Kept(input, ask, version) : null;
 
     /// <summary>The photo's recipe asks for it and it is not here yet: the photo cannot be saved until it is.</summary>
     public bool IsPending => _session is { } session && AskOf(session.Recipe) is not null && UsedPath(session) is null;
+
+    /// <summary>The tools <paramref name="ask"/> needs — every tool the edit was given, unless an edit says otherwise; a
+    /// null among them is one the app does not have.</summary>
+    protected virtual IReadOnlyList<IToolModels?> Needs(TAsk ask) => _tools;
+
+    /// <summary>The picture the edit is made from: the photo, unless it is made from what another edit makes — then null
+    /// until that is made.</summary>
+    protected virtual string? Input(ImageEditSession session) => session.Path;
+
+    /// <summary>What names the models of <paramref name="tools"/> together, once every one of them is here; "" for none.</summary>
+    protected static string? VersionOf(IReadOnlyList<IToolModels?> tools)
+        => tools.All(t => t is { State: ToolModelsState.Ready }) ? string.Join("+", tools.Select(t => t!.ModelsVersion)) : null;
 
     /// <summary>What the banner says; null when there is nothing to say.</summary>
     [ObservableProperty]
@@ -130,42 +153,52 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
             Say(null);
             return;
         }
+        // Made from what another edit makes, and that is not made yet: it is made once that is, which follows again.
+        if (Input(session) is not { } input)
+        {
+            Stop();
+            Unshown(session, null);
+            return;
+        }
 
         // What moved does not change what is made: the result shown is still the one asked for.
-        if (Same(_shown, session.Path, ask) && UsedPath(session) is not null) return;
-        if (_makingFor is not null && !Same(_makingFor, session.Path, ask)) Stop();
-        if (_failedFor is not null && !Same(_failedFor, session.Path, ask))
+        if (Same(_shown, input, ask) && UsedPath(session) is not null) return;
+        if (_makingFor is not null && !Same(_makingFor, input, ask)) Stop();
+        if (_failedFor is not null && !Same(_failedFor, input, ask))
         {
             _failedFor = null;
             Failed = false;
         }
 
-        if (_tools is null || _tools.State == ToolModelsState.Unavailable)
+        var needs = Needs(ask);
+        if (needs.Any(t => t is null || t.State == ToolModelsState.Unavailable))
         {
             Unshown(session, Str.Get(_texts + "Unavailable"));
             return;
         }
-        if (_tools.State != ToolModelsState.Ready)
+        if (needs.Any(t => t!.State != ToolModelsState.Ready))
         {
-            CanDownload = _tools.State == ToolModelsState.NotDownloaded;
-            Unshown(session, _tools.State == ToolModelsState.Downloading
-                ? Str.Format(_texts + "Downloading", _tools.DownloadPercent)
-                : _tools.DownloadFailure is { } failure ? Str.Format(_texts + "DownloadStopped", failure)
-                : Str.Format(_texts + "NeedsTool", SizeFormatter.FormatBytes(_tools.DownloadBytes)));
+            CanDownload = needs.Any(t => t!.State == ToolModelsState.NotDownloaded);
+            var downloading = needs.FirstOrDefault(t => t!.State == ToolModelsState.Downloading);
+            var stopped = needs.Select(t => t!.DownloadFailure).FirstOrDefault(f => f is not null);
+            Unshown(session, downloading is not null ? Str.Format(_texts + "Downloading", downloading.DownloadPercent)
+                : stopped is not null ? Str.Format(_texts + "DownloadStopped", stopped)
+                : Str.Format(_texts + "NeedsTool", SizeFormatter.FormatBytes(needs.Sum(t => t!.DownloadBytes))));
             return;
         }
 
-        if (Kept(session.Path, ask, _tools.ModelsVersion) is { } kept)
+        string version = VersionOf(needs)!;
+        if (Kept(input, ask, version) is { } kept)
         {
             Use(session, kept);
-            _shown = (session.Path, ask);
+            _shown = (input, ask);
             Say(null);
             Made?.Invoke();
             return;
         }
         // Not made yet: made now, unless it is being made or failed — then the banner keeps saying so.
         Unshown(session, Notice);
-        if (_makingFor is null && _failedFor is null) Make(session, ask);
+        if (_makingFor is null && _failedFor is null) Make(session, input, ask);
     }
 
     private bool Same((string Photo, TAsk Ask)? key, string photo, TAsk ask) => key is { } k && k.Photo == photo && MakesSame(k.Ask, ask);
@@ -184,16 +217,16 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
         if (!ReferenceEquals(session, _session)) return;
         Use(session, null);
         _shown = null;
-        if (AskOf(session.Recipe) is { } ask && _tools is not null)
-            try { File.Delete(KeptPath(session.Path, ask, _tools.ModelsVersion)); } catch (IOException) { }
+        if (AskOf(session.Recipe) is { } ask && Input(session) is { } input && VersionOf(Needs(ask)) is { } version)
+            try { File.Delete(KeptPath(input, ask, version)); } catch (IOException) { }
         Follow(session);
     }
 
-    private void Make(ImageEditSession session, TAsk ask)
+    private void Make(ImageEditSession session, string input, TAsk ask)
     {
         var cts = new CancellationTokenSource();
         _making = cts;
-        _makingFor = (session.Path, ask);
+        _makingFor = (input, ask);
         IsMaking = true;
         Percent = 0;
         Say(Str.Format(_texts + "Making", 0));
@@ -209,7 +242,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
             string? failure = null;
             try
             {
-                await MakeAsync(session.Path, ask, progress, cts.Token);
+                await MakeAsync(input, ask, progress, cts.Token);
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested) { return; }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
@@ -224,7 +257,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
                 IsMaking = false;
                 if (failure is not null)
                 {
-                    _failedFor = (session.Path, ask);
+                    _failedFor = (input, ask);
                     Failed = true;
                     Say(Str.Format(_texts + "Failed", failure));
                     return;
@@ -244,11 +277,15 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
 
     private void Say(string? notice) => Notice = notice;
 
-    /// <summary>The banner's button: fetches the tool, or tries again.</summary>
+    /// <summary>The banner's button: fetches the tools the photo's ask needs, or tries again.</summary>
     [RelayCommand(CanExecute = nameof(HasAction))]
     private void Act()
     {
-        if (CanDownload) _tools?.Download();
+        if (CanDownload && _session is { } session && AskOf(session.Recipe) is { } ask)
+        {
+            foreach (var tool in Needs(ask))
+                if (tool is { State: ToolModelsState.NotDownloaded }) tool.Download();
+        }
         else if (Failed) Retry();
     }
 
@@ -263,5 +300,28 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : cla
     private sealed class Inline(Action<double> report) : IProgress<double>
     {
         public void Report(double value) => report(value);
+    }
+
+    /// <summary>The next time the photo's result is made — null — or fails — what the banner says of it. Asked before the
+    /// recipe moves, so a result already kept is not missed.</summary>
+    public async Task<string?> NextMadeAsync(CancellationToken ct)
+    {
+        var done = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnMade() => done.TrySetResult(null);
+        void OnChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Notice) && Failed) done.TrySetResult(Notice);
+        }
+        Made += OnMade;
+        PropertyChanged += OnChanged;
+        try
+        {
+            using (ct.Register(() => done.TrySetCanceled(ct))) return await done.Task;
+        }
+        finally
+        {
+            Made -= OnMade;
+            PropertyChanged -= OnChanged;
+        }
     }
 }

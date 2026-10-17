@@ -497,6 +497,21 @@
                     <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
+            <!-- The photo's erasing: being made, waiting on a tool, or why the photo shows as it is. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Eraser.HasNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding Eraser.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                Visibility="{Binding Eraser.HasAction, Converter={StaticResource BoolToVis}}"
+                                AutomationProperties.AutomationId="Image_EraseAction" AutomationProperties.Name="{Binding Eraser.ActionLabel}">
+                            <TextBlock Text="{Binding Eraser.ActionLabel}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Eraser.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+
             <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
             <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                     Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">

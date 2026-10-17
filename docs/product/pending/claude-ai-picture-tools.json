@@ -15,16 +15,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Core/Services/Tools/RestorePictureTool.cs",
-          "class": "RestorePictureTool"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Core/Services/Tools/PictureFiles.cs",
-          "class": "PictureFiles"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureTools.cs",
           "class": "OwnedPictureTools"
         },
@@ -166,11 +156,6 @@
           "type": "code",
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Selecting/ClipTokenizer.cs",
           "class": "ClipTokenizer"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Core/Services/Tools/CutOutTool.cs",
-          "class": "CutOutTool"
         },
         {
           "type": "code",
@@ -366,11 +351,6 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
           "class": "PageMarks"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Core/Services/Tools/ReadPageFileTool.cs",
-          "class": "ReadPageFileTool"
         },
         {
           "type": "code",
@@ -838,6 +818,16 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/InpaintRegionsTests.cs",
             "class": "InpaintRegionsTests"
           }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Picture erasing"
+            ]
+          }
         ]
       }
     },
@@ -856,6 +846,42 @@
         {
           "type": "node",
           "target": "picture-erasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoEraser.cs",
+          "class": "PhotoEraser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/EraseMarking.cs",
+          "class": "EraseMarking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/ErasedPictures.cs",
+          "class": "ErasedPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/EraseMasks.cs",
+          "class": "EraseMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeErase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "Erase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
         }
       ],
       "concerns": {
@@ -869,17 +895,89 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/HealingBrushTests.cs",
             "class": "HealingBrushTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+            "title_path": [
+              "Images",
+              "Editing"
+            ]
+          }
+        ]
+      }
+    },
+    "images-ai-act-cut-out": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_CutsOutWhatItNames_IntoANewPictureBesideIt_OpenedInATabOfItsOwn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_CutsOutWhatABoxHolds"
+          }
+        ]
+      }
+    },
+    "images-ai-act-erase-in-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesWhatItNames_AsAStepOfTheEdits_FilledByAiWhereItIsHere"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesNothing_WhereNothingIsWhatItNames"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_ErasesABox_ContentAware_WherePictureErasingIsNotHere"
+          }
+        ]
+      }
+    },
+    "images-ai-act-restore-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEraseTests.cs",
+            "class": "ImageEraseTests",
+            "method": "TheAssistant_RestoresThePictureOnScreen_AsOneOfItsEdits"
           }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 38,
+  "changed_sets": 43,
   "touched_nodes": [
     "ai-tools",
     "executable-dependency-viewport",
+    "images-ai-act-cut-out",
+    "images-ai-act-erase-in-picture",
     "images-ai-act-read-page",
+    "images-ai-act-restore-picture",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
     "images-edit-erase",

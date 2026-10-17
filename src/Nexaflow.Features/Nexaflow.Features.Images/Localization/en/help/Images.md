@@ -61,7 +61,15 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
   time, picture selection is a download of about 1.8 GB, offered in the panel. [Show me](locate:Image_EditToolCutOut,Image_CutOutPhrase,Image_CutOutSave)
   **Remove background** keeps what is picked in the picture itself and makes everything else transparent — an edit like
   any other, undone or put back with **Keep background**. A JPEG can't be transparent, so it is then saved as a copy,
-  offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
+    offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
+  - **Erase** rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
+    to erase with **Pick**, which picks a thing as Cut out does, or with **Brush**: brush over it, and right-drag to take
+    marking back. Anything picked is erased with what you brush, so pick a person and brush their shadow. Then choose how to
+    fill it: **AI** fills from what is round it and is best where an edge or shape runs through what you erase; the first
+    time it is a download of about 210 MB, offered above the picture. **Content-aware** copies the picture's own texture in,
+    sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. **Heal** copies texture from where you
+    Alt-click, matched to the light and colour round what you heal. **Erase** makes it one step of your edits — undone like
+    any other — and a picture restored with AI enhance is restored as erased. [Show me](locate:Image_EditToolErase,Image_EraseMarkBrush,Image_EraseFillAi,Image_EraseApply)
 - **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
 - **AI upscale** makes the picture twice or four times its size with the picture tools, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
 - **Export** chooses whether saving keeps the camera details, location, dates and descriptions, or removes them, and sets the quality of a JPEG or WebP. The colour profile is always kept. [Show me](locate:Image_EditToolExport,Image_EditStripMetadata)
@@ -83,6 +91,8 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 
 - Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin and removes it from every view; the selection moves to what is left.
 - The assistant can look at the picture you are on, as edited, and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.
-- Ask the assistant to pick something out — "select the dog", "find the woman with red hair" — and it opens the editor's Cut out with every one it found picked, ready to copy or save. It can also cut something out of a picture file into a new PNG beside it without opening it.
-- Ask the assistant to read a page — "what does this letter say", "type up this receipt" — and it reads the picture with page reading, its text opening beside it. It can read a picture file of a page without opening it, too.
+- The assistant works on the picture you are on, and nothing else: a picture is its to see or change only once you have it open.
+- Ask the assistant to pick something out — "select the dog", "find the woman with red hair" — and it opens the editor's Cut out with every one it found picked, ready to copy or save. Ask it to cut something out and it saves it as a PNG beside the picture and opens that in a new tab for you.
+- Ask the assistant to clean up or enlarge the picture, or to erase something from it — "remove the sign", "get rid of the people in the background" — and it does it as one of your edits in the editor, which you can undo or save.
+- Ask the assistant to read a page — "what does this letter say", "type up this receipt" — and it reads the picture with page reading, its text opening beside it.
 - In a conversation, this tab's context chip previews every image it holds.
