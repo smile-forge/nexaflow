@@ -98,4 +98,5 @@ internal enum PdfMaskKind
 /// <param name="Kind">Whether the mask is read from alpha or luminosity.</param>
 /// <param name="Group">The mask's drawing, in page space.</param>
 /// <param name="Backdrop">For a luminosity mask, what the drawing is painted over.</param>
-internal sealed record PdfSoftMask(PdfMaskKind Kind, PdfGroupNode Group, Color Backdrop);
+/// <param name="Transfer">What each level the drawing gives becomes before it masks, or null where it masks as it is.</param>
+internal sealed record PdfSoftMask(PdfMaskKind Kind, PdfGroupNode Group, Color Backdrop, PdfMaskTransfer? Transfer = null);

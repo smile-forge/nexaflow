@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Parser.Parts;
 using UglyToad.PdfPig.Tokenization.Scanner;
 using UglyToad.PdfPig.Tokens;
@@ -10,6 +11,10 @@ namespace Nexaflow.Features.Pdf.Document;
 /// <summary>
 /// Which of a document's optional content (layers) shows, by its default configuration. Content in a hidden layer —
 /// a print-only watermark, an alternative language, a CAD drawing's switched-off overlay — is not drawn.
+/// <para>
+/// A group is known by its object, never by its dictionary: a document may carry two groups whose dictionaries are
+/// the same, one shown and the other hidden, as a layout program's duplicated layer is (8.11.2).
+/// </para>
 /// </summary>
 internal sealed class PdfOptionalContent
 {
@@ -29,12 +34,12 @@ internal sealed class PdfOptionalContent
     private static readonly NameToken AllOff       = NameToken.Create("AllOff");
     private static readonly NameToken Default      = NameToken.Create("D");
 
-    private readonly HashSet<DictionaryToken> _on;
+    private readonly HashSet<IndirectReference> _on;
     private readonly bool _baseOn;
-    private readonly HashSet<DictionaryToken> _off;
+    private readonly HashSet<IndirectReference> _off;
     private readonly IPdfTokenScanner? _scanner;
 
-    private PdfOptionalContent(HashSet<DictionaryToken> on, bool baseOn, HashSet<DictionaryToken> off, IPdfTokenScanner? scanner = null)
+    private PdfOptionalContent(HashSet<IndirectReference> on, bool baseOn, HashSet<IndirectReference> off, IPdfTokenScanner? scanner = null)
     {
         _on      = on;
         _baseOn  = baseOn;
@@ -54,46 +59,58 @@ internal sealed class PdfOptionalContent
     }
 
     /// <summary>
-    /// Whether content marked with <paramref name="membership"/> — an optional content group, or a membership
-    /// dictionary over several — shows.
+    /// Whether content marked with <paramref name="membership"/> shows: an optional content group or a membership
+    /// dictionary over several, as the object it is, or a membership dictionary given inline. A group given inline is no
+    /// object the configuration can name, so it shows.
     /// </summary>
-    public bool Shows(DictionaryToken? membership)
+    public bool Shows(IToken? membership)
     {
         if (membership is null || _scanner is null) return true;
 
-        if (!membership.TryGet(NameToken.Type, _scanner, out NameToken? type) || !type.Equals(Ocmd))
-            return GroupShows(membership);
+        if (membership is IndirectReferenceToken reference)
+        {
+            if (!DirectObjectFinder.TryGet(reference, _scanner, out DictionaryToken? referred)) return true;
+            return IsMembership(referred) ? MembershipShows(referred) : GroupShows(reference.Data);
+        }
 
-        if (membership.TryGet(Expression, _scanner, out ArrayToken? expression))
+        return membership is DictionaryToken inline && IsMembership(inline) ? MembershipShows(inline) : true;
+    }
+
+    private bool IsMembership(DictionaryToken dictionary) =>
+        dictionary.TryGet(NameToken.Type, _scanner!, out NameToken? type) && type.Equals(Ocmd);
+
+    private bool MembershipShows(DictionaryToken membership)
+    {
+        if (membership.TryGet(Expression, _scanner!, out ArrayToken? expression))
             return Evaluates(expression);
 
         var groups = Members(membership).ToList();
         if (groups.Count == 0) return true;
 
-        var policy = membership.TryGet(Policy, _scanner, out NameToken? named) ? named : null;
+        var policy = membership.TryGet(Policy, _scanner!, out NameToken? named) ? named : null;
         if (policy?.Equals(AllOn) == true)  return groups.All(GroupShows);
         if (policy?.Equals(AnyOff) == true) return groups.Any(g => !GroupShows(g));
         if (policy?.Equals(AllOff) == true) return groups.All(g => !GroupShows(g));
         return groups.Any(GroupShows);
     }
 
-    private bool GroupShows(DictionaryToken group) =>
+    private bool GroupShows(IndirectReference group) =>
         _baseOn ? !_off.Contains(group) : _on.Contains(group);
 
-    private IEnumerable<DictionaryToken> Members(DictionaryToken membership)
+    private IEnumerable<IndirectReference> Members(DictionaryToken membership)
     {
         if (!membership.TryGet(Ocgs, out var token)) yield break;
 
-        if (DirectObjectFinder.TryGet(token, _scanner!, out DictionaryToken? single))
+        if (token is IndirectReferenceToken single && !DirectObjectFinder.TryGet(single, _scanner!, out ArrayToken? _))
         {
-            yield return single;
+            yield return single.Data;
             yield break;
         }
 
         if (!DirectObjectFinder.TryGet(token, _scanner!, out ArrayToken? many)) yield break;
         foreach (var item in many.Data)
-            if (DirectObjectFinder.TryGet(item, _scanner!, out DictionaryToken? group))
-                yield return group;
+            if (item is IndirectReferenceToken group)
+                yield return group.Data;
     }
 
     /// <summary>A visibility expression: <c>[/And …]</c>, <c>[/Or …]</c>, <c>[/Not x]</c>, its leaves groups.</summary>
@@ -114,18 +131,17 @@ internal sealed class PdfOptionalContent
     private bool Operand(IToken token)
     {
         if (DirectObjectFinder.TryGet(token, _scanner!, out ArrayToken? nested)) return Evaluates(nested);
-        if (DirectObjectFinder.TryGet(token, _scanner!, out DictionaryToken? group)) return GroupShows(group);
-        return true;
+        return token is not IndirectReferenceToken group || GroupShows(group.Data);
     }
 
-    private static HashSet<DictionaryToken> Groups(DictionaryToken configuration, NameToken key, IPdfTokenScanner scanner)
+    private static HashSet<IndirectReference> Groups(DictionaryToken configuration, NameToken key, IPdfTokenScanner scanner)
     {
-        var groups = new HashSet<DictionaryToken>();
+        var groups = new HashSet<IndirectReference>();
         if (!configuration.TryGet(key, scanner, out ArrayToken? list)) return groups;
 
         foreach (var item in list.Data)
-            if (DirectObjectFinder.TryGet(item, scanner, out DictionaryToken? group))
-                groups.Add(group);
+            if (item is IndirectReferenceToken group)
+                groups.Add(group.Data);
 
         return groups;
     }

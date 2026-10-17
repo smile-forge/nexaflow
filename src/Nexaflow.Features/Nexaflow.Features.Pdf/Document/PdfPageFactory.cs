@@ -98,8 +98,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
             if (annotation.Type == AnnotationType.Popup || flags.HasFlag(AnnotationFlags.Hidden) ||
                 flags.HasFlag(AnnotationFlags.NoView))
                 continue;
-            if (annotation.AnnotationDictionary.TryGet(OcKey, PdfScanner, out DictionaryToken? layer) &&
-                !_caches.OptionalContent.Shows(layer))
+            if (annotation.AnnotationDictionary.TryGet(OcKey, out IToken? layer) && !_caches.OptionalContent.Shows(layer))
                 continue;
 
             var rect = Rectangle(annotation.AnnotationDictionary) ?? annotation.Rectangle;

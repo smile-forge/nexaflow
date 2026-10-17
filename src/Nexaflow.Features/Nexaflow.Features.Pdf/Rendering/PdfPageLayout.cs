@@ -162,9 +162,13 @@ internal sealed class PdfLaying
         return _into.Seal();
     }
 
-    /// <summary>A group laid on its own, on nothing: the source of a blend.</summary>
-    private LayoutTree Alone(PdfGroupNode group)
+    /// <summary>
+    /// A group laid on its own, on nothing: the source of a blend. A blend inside it is composited over what the group has
+    /// painted beneath it, as one on the page is over what the page has.
+    /// </summary>
+    private LayoutTree Alone(PdfGroupNode group, PdfPageNode page)
     {
+        _page = page;
         _into.Open(PdfPieces.Group);
         Group(group);
         Close();
@@ -303,7 +307,7 @@ internal sealed class PdfLaying
 
         var alone = new PdfGroupNode(group.Role, group.Children, group.Clip, group.ClipRule, group.Opacity, group.Mask,
             BlendMode.Normal, group.Tag);
-        var source = LayoutPictures.Painted(new PdfLaying(_brushes, _cancel).Alone(alone).Root, region, resolution, Brushes.Black, null);
+        var source = LayoutPictures.Painted(new PdfLaying(_brushes, _cancel).Alone(alone, page).Root, region, resolution, Brushes.Black, null);
         if (backdrop is null || source is null) return;
 
         var composite = new PictureMark(PdfBlending.Composite(backdrop, source, group.Blend), region);
@@ -370,7 +374,10 @@ internal sealed class PdfLaying
         {
             var geometry = path.Shape.ToGeometry(toDips, path.Rule);
             if (fill is not null) Fill(geometry, fill, path.Fill!);
-            Draw(Stroked(geometry, stroke, path.Pen, PdfSpace.MeanScale(toDips)));
+            var scale = PdfSpace.MeanScale(toDips);
+            Draw(Bevelled(path.Shape, toDips, path.Pen, scale) is { } restored
+                ? GeometryMark.Filled(Outlined(geometry, path.Pen, scale, restored).Frozen(), stroke)
+                : Stroked(geometry, stroke, path.Pen, scale));
             return;
         }
 
@@ -379,8 +386,9 @@ internal sealed class PdfLaying
         // where the pen is round, and that outline is filled through the transform.
         if (fill is not null) Fill(path.Shape.ToGeometry(toDips, path.Rule), fill, path.Fill!);
         var user = path.Shape.ToGeometry(Matrix.Identity, path.Rule);
-        var pen = Pen(path.Pen, 1, Brushes.Black);
-        var widened = user.GetWidenedPathGeometry(pen);
+        var widened = Bevelled(path.Shape, Matrix.Identity, path.Pen, 1) is { } miters
+            ? Outlined(user, path.Pen, 1, miters)
+            : user.GetWidenedPathGeometry(Pen(path.Pen, 1, Brushes.Black));
         widened.Transform = new MatrixTransform(toDips);
         Draw(GeometryMark.Filled(widened.Frozen(), stroke));
     }
@@ -410,6 +418,34 @@ internal sealed class PdfLaying
             Outline = new LayoutPen(pen.Cap, pen.Cap, pen.Cap, pen.Join, Math.Max(pen.MiterLimit, 1),
                 pen.Dashes.Count > 0 ? pen.DashPhase / thicknessInUser : 0),
         };
+    }
+
+    /// <summary>
+    /// The miters a mitred stroke's joins within its limit lack once its joins past the limit are bevelled, as PDF
+    /// bevels them (<see cref="PdfMiters"/>), through <paramref name="through"/>; <see langword="null"/> where no join is
+    /// past the limit, or the stroke is not mitred, and a pen draws it as it stands.
+    /// </summary>
+    private static Geometry? Bevelled(PdfShape shape, Matrix through, PdfPen pen, double scale)
+    {
+        if (pen.Join != PenLineJoin.Miter || pen.Width <= 0) return null;
+
+        var dashes = new double[pen.Dashes.Count];
+        for (var i = 0; i < dashes.Length; i++) dashes[i] = pen.Dashes[i] * scale;
+        return PdfMiters.Restored(shape, through, pen.Width * scale, pen, dashes, pen.DashPhase * scale);
+    }
+
+    /// <summary>
+    /// A stroke as the shape it covers: the outline of <paramref name="geometry"/> stroked with bevelled joins, and the
+    /// <paramref name="miters"/> restored to the joins within the limit, filled as one so that a translucent stroke does not
+    /// cover itself twice.
+    /// </summary>
+    private static Geometry Outlined(Geometry geometry, PdfPen pen, double scale, Geometry miters)
+    {
+        var bevelled = geometry.GetWidenedPathGeometry(Pen(pen with { Join = PenLineJoin.Bevel }, scale, Brushes.Black));
+        var outline = new GeometryGroup { FillRule = FillRule.Nonzero };
+        outline.Children.Add(bevelled);
+        outline.Children.Add(miters);
+        return outline;
     }
 
     /// <summary>A PDF dash array, in user-space lengths, as WPF wants it: in multiples of the line's thickness.</summary>

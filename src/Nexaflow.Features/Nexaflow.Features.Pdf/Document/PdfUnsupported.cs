@@ -9,8 +9,6 @@ internal enum PdfUnsupportedKind
     FunctionShading,
     /// <summary>A mesh shading (types 4–7).</summary>
     MeshShading,
-    /// <summary>A soft mask's transfer function.</summary>
-    MaskTransfer,
     /// <summary>A PostScript XObject, which no conforming reader draws.</summary>
     PostScript,
     /// <summary>A glyph with no outline in its font and no system font to stand in for it.</summary>

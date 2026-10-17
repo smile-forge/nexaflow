@@ -445,7 +445,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         PdfSoftMask? read = null;
         if (mask.TransparencyGroup is { } group)
         {
-            if (mask.TransferFunction is not null) Unsupported(PdfUnsupportedKind.MaskTransfer, mask.Subtype.ToString());
+
 
             var reader = new PdfPageInterpreter(PageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
                 _cropBox, UserSpaceUnit, Rotation,
@@ -455,7 +455,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
             var drawing = reader.ProcessForm(group, NameToken.Create("SMask"));
             read = new PdfSoftMask(
                 mask.Subtype == SoftMaskType.Luminosity ? PdfMaskKind.Luminosity : PdfMaskKind.Alpha,
-                drawing, Backdrop(mask));
+                drawing, Backdrop(mask), PdfMaskTransfer.Of(mask.TransferFunction));
         }
 
         _masks[mask] = read;
@@ -643,7 +643,12 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     {
         properties ??= propertyDictionaryName is null ? null : ResourceStore.GetMarkedContentPropertiesDictionary(propertyDictionaryName);
 
-        var hides = name.Equals(OptionalContentKey) && !_caches.OptionalContent.Shows(properties);
+        // A layer is known by its object, which the resources name: its dictionary alone could be another layer's too.
+        IToken? membership = propertyDictionaryName is not null
+            && ResourceStore.TryGetMarkedContentPropertiesReference(propertyDictionaryName, out var reference)
+                ? new IndirectReferenceToken(reference)
+                : properties;
+        var hides = name.Equals(OptionalContentKey) && !_caches.OptionalContent.Shows(membership);
         var actual = properties is not null && properties.TryGet(ActualTextKey, PdfScanner, out StringToken? said) ? said.Data : null;
 
         _marked.Push(new MarkedFrame(hides, _actualText, _actualTextPending));
@@ -666,8 +671,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
 
     /// <summary>Whether a dictionary that may carry <c>/OC</c> — an XObject's, an annotation's — names a layer that shows.</summary>
     private bool Shows(DictionaryToken dictionary) =>
-        !dictionary.TryGet(OptionalContentKey, PdfScanner, out DictionaryToken? membership) ||
-        _caches.OptionalContent.Shows(membership);
+        !dictionary.TryGet(OptionalContentKey, out IToken? membership) || _caches.OptionalContent.Shows(membership);
 
     // ── Text ───────────────────────────────────────────────────────────────────────────────────────────────────────
 

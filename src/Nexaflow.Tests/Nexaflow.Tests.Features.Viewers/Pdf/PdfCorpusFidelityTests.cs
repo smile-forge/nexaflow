@@ -533,6 +533,9 @@ public class PdfCorpusFidelityTests
             return text.ToString();
         }
 
+        /// <summary>How wide a page is shown in the review, in CSS pixels.</summary>
+        private const double ShownWidth = 460;
+
         private void WriteReview(List<Parsed> measured)
         {
             var revisit = Revisiting is not null;
@@ -542,7 +545,7 @@ public class PdfCorpusFidelityTests
 
             var html = new StringBuilder();
             html.AppendLine("<!doctype html><meta charset=utf-8><title>PDF fidelity review</title>");
-            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{width:460px;background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}</style>");
+            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}</style>");
             html.AppendLine(revisit
                 ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first — Windows · ours · difference (red off, orange past near)</h2><table>"
                 : $"<h2>Worst {Reviewed} pages by off pixels — Windows · ours · difference (red off, orange past near)</h2><table>");
@@ -554,8 +557,13 @@ public class PdfCorpusFidelityTests
                 var was = _before.TryGetValue((row.File, row.Page), out var before)
                     ? $"<br><span class={(row.Off < before ? "better" : row.Off > before ? "worse" : "same")}>was {Percent(before)}</span>"
                     : "";
+                // The three pictures are shown at one scale, the page's width brought to 460 pixels, never each at one
+                // width: a picture a pixel or two wider than Windows' would otherwise be drawn smaller, and its page look
+                // shorter than it is.
+                var zoom = (ShownWidth / Math.Max(1, row.Width)).ToString("0.####", CultureInfo.InvariantCulture);
+                var img = $"loading=lazy style=\"zoom:{zoom}\"";
                 html.AppendLine($"<tr><td>{Percent(row.Off!.Value)} off{was}<br>{WebUtility.HtmlEncode(row.File)} p{row.Page}<br>{WebUtility.HtmlEncode(row.Status)}</td>"
-                                + $"<td><img loading=lazy src=\"{windows}\"></td><td><img loading=lazy src=\"{ours}\"></td><td><img loading=lazy src=\"{diff}\"></td></tr>");
+                                + $"<td><img {img} src=\"{windows}\"></td><td><img {img} src=\"{ours}\"></td><td><img {img} src=\"{diff}\"></td></tr>");
             }
 
             html.AppendLine("</table>");
@@ -573,7 +581,7 @@ public class PdfCorpusFidelityTests
         private static string Percent(double share) =>
             double.IsNaN(share) ? "-" : (share * 100).ToString("0.###", CultureInfo.InvariantCulture) + "%";
 
-        private sealed record Parsed(string File, int Page, double? Identical, double? Near, double? Off, double? MeanError,
+        private sealed record Parsed(string File, int Page, int Width, double? Identical, double? Near, double? Off, double? MeanError,
             double? WorstTile, long OursMs, long WindowsMs, int Unsupported, string Status);
 
         private static Parsed? RowOf(string line)
@@ -581,7 +589,8 @@ public class PdfCorpusFidelityTests
             var cells = Cells(line);
             if (cells.Count < 13) return null;
             static double? D(string s) => s.Length == 0 ? null : double.Parse(s, CultureInfo.InvariantCulture);
-            return new Parsed(cells[0], int.Parse(cells[1], CultureInfo.InvariantCulture), D(cells[4]), D(cells[5]), D(cells[6]),
+            return new Parsed(cells[0], int.Parse(cells[1], CultureInfo.InvariantCulture),
+                int.Parse(cells[2], CultureInfo.InvariantCulture), D(cells[4]), D(cells[5]), D(cells[6]),
                 D(cells[7]), D(cells[8]), long.Parse(cells[9], CultureInfo.InvariantCulture),
                 long.Parse(cells[10], CultureInfo.InvariantCulture), int.Parse(cells[11], CultureInfo.InvariantCulture), cells[12]);
         }

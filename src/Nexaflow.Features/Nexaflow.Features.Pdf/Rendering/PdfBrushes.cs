@@ -186,6 +186,12 @@ internal sealed class PdfBrushes(Rect page)
     /// <summary>
     /// A tiling pattern: its cell drawn once and tiled at the pattern's step, through the pattern's placement. The cell is
     /// laid in device-independent pixels like everything else, so its placement is taken back out of them and on to the page.
+    /// <para>
+    /// WPF draws a tile brush by drawing its whole tile, gaps and all, into one picture of bounded size; a pattern stepped
+    /// far wider than its cell — a picture placed as a pattern stepped 99999 apart, so that it shows once — is drawn into that
+    /// picture so small that its cell is a blur. Where no more than one of the cell's repeats reaches the page, that one is
+    /// drawn on its own, as it would be by itself.
+    /// </para>
     /// </summary>
     private Brush? Tiling(PdfTilingPaint tiling)
     {
@@ -193,38 +199,91 @@ internal sealed class PdfBrushes(Rect page)
         if (step.X <= 0 || step.Y <= 0) return null;
 
         var cell = Drawing(tiling.Cell);
-        var tile = new Rect(tiling.Bounds.Left * PdfPageLayout.DipsPerPoint, tiling.Bounds.Top * PdfPageLayout.DipsPerPoint,
-            step.X * PdfPageLayout.DipsPerPoint, step.Y * PdfPageLayout.DipsPerPoint);
+        var bounds = PdfSpace.Transform(tiling.Bounds, Scale);
+        var stride = step * PdfPageLayout.DipsPerPoint;
+        var tile = new Rect(bounds.Left, bounds.Top, stride.X, stride.Y);
 
         // What one cell keeps of its drawing is its bounding box; the tile is the step, which may be larger (gaps) or smaller
         // (overlap, which a tile cannot show — the overlap is cut).
-        var kept = new DrawingGroup { ClipGeometry = new RectangleGeometry(PdfSpace.Transform(tiling.Bounds, Scale)) };
+        var kept = new DrawingGroup { ClipGeometry = new RectangleGeometry(bounds) };
         kept.Children.Add(cell);
         kept.Freeze();
 
         var unscale = Scale;
         unscale.Invert();
-        var brush = new DrawingBrush(kept)
+        var placement = unscale * tiling.ToPage * Scale;
+
+        DrawingBrush brush;
+        switch (RepeatsOnPage(bounds, stride, placement))
         {
-            TileMode = TileMode.Tile,
-            Stretch = Stretch.None,
-            AlignmentX = AlignmentX.Left,
-            AlignmentY = AlignmentY.Top,
-            ViewboxUnits = BrushMappingMode.Absolute,
-            Viewbox = tile,
-            ViewportUnits = BrushMappingMode.Absolute,
-            Viewport = tile,
-            Transform = new MatrixTransform(unscale * tiling.ToPage * Scale),
-            Opacity = tiling.Alpha,
-        };
+            case { Count: 0 }:
+                return Solid(Colors.Transparent);
+
+            case { Count: 1, Offset: var offset }:
+                var at = Rect.Offset(bounds, offset);
+                brush = new DrawingBrush(kept)
+                {
+                    TileMode = TileMode.None,
+                    Stretch = Stretch.Fill,
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = bounds,
+                    ViewportUnits = BrushMappingMode.Absolute,
+                    Viewport = at,
+                };
+                break;
+
+            default:
+                brush = new DrawingBrush(kept)
+                {
+                    TileMode = TileMode.Tile,
+                    Stretch = Stretch.None,
+                    AlignmentX = AlignmentX.Left,
+                    AlignmentY = AlignmentY.Top,
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = tile,
+                    ViewportUnits = BrushMappingMode.Absolute,
+                    Viewport = tile,
+                };
+                break;
+        }
+
+        brush.Transform = new MatrixTransform(placement);
+        brush.Opacity = tiling.Alpha;
         brush.Freeze();
         return brush;
     }
 
     /// <summary>
+    /// How many of a cell's repeats — <paramref name="bounds"/> moved by whole steps of <paramref name="stride"/>, in the
+    /// pattern's own space — can reach the page through <paramref name="placement"/>, counted no further than two; and,
+    /// where it is one, how far that one is moved.
+    /// </summary>
+    private (int Count, Vector Offset) RepeatsOnPage(Rect bounds, Vector stride, Matrix placement)
+    {
+        if (!placement.HasInverse) return (2, default);
+
+        var back = placement;
+        back.Invert();
+        var reach = PdfSpace.Transform(page, back);
+
+        static (long From, long To) Steps(double cellFrom, double cellTo, double reachFrom, double reachTo, double step) =>
+            ((long)Math.Ceiling((reachFrom - cellTo) / step), (long)Math.Floor((reachTo - cellFrom) / step));
+
+        var (fromX, toX) = Steps(bounds.Left, bounds.Right, reach.Left, reach.Right, stride.X);
+        var (fromY, toY) = Steps(bounds.Top, bounds.Bottom, reach.Top, reach.Bottom, stride.Y);
+        var across = Math.Max(0, toX - fromX + 1);
+        var down = Math.Max(0, toY - fromY + 1);
+        if (across == 0 || down == 0) return (0, default);
+        if (across > 1 || down > 1) return (2, default);
+        return (1, new Vector(fromX * stride.X, fromY * stride.Y));
+    }
+
+    /// <summary>
     /// A soft mask as an opacity mask. An alpha mask is its drawing, whose alpha is exactly what an opacity mask reads. A
     /// luminosity mask is read as brightness, which no brush does, so its drawing is painted over its backdrop into a
-    /// picture whose alpha is set from each pixel's luminosity.
+    /// picture whose alpha is set from each pixel's luminosity; so is an alpha mask with a transfer function, whose levels
+    /// each go through it. Where the group paints nothing the mask is its backdrop's luminosity, or no alpha at all
+    /// (11.6.5.2), through the transfer function too — which can make the rest of the page show, as an inverted mask does.
     /// </summary>
     public Brush? Mask(PdfSoftMask mask)
     {
@@ -232,44 +291,49 @@ internal sealed class PdfBrushes(Rect page)
 
         var drawing = Drawing(mask.Group);
         var bounds = drawing.Bounds;
+        var outside = Transferred(mask, mask.Kind == PdfMaskKind.Luminosity
+            ? Luma(mask.Backdrop.R, mask.Backdrop.G, mask.Backdrop.B)
+            : (byte)0);
+
         Brush? brush = null;
         if (!bounds.IsEmpty && bounds.Width > 0 && bounds.Height > 0)
         {
-            brush = mask.Kind == PdfMaskKind.Alpha
-                ? new DrawingBrush(drawing)
+            if (mask.Kind == PdfMaskKind.Alpha && mask.Transfer is null)
+                brush = new DrawingBrush(drawing)
                 {
                     Stretch = Stretch.Fill,
                     ViewboxUnits = BrushMappingMode.Absolute,
                     Viewbox = bounds,
                     ViewportUnits = BrushMappingMode.Absolute,
                     Viewport = bounds,
-                }
-                : Rect.Intersect(bounds, page) is { IsEmpty: false, Width: > 0, Height: > 0 } shown
-                    ? Luminosity(drawing, shown, mask.Backdrop)
-                    : null;
+                };
+            else if (Rect.Intersect(bounds, page) is { IsEmpty: false, Width: > 0, Height: > 0 } shown)
+                brush = Around(Levels(drawing, shown, mask), shown, outside);
             brush?.Freeze();
         }
 
-        // A mask that draws nothing is its backdrop throughout: its alpha is zero, hiding everything it masks, and its
-        // luminosity the backdrop's, which a mask reads as alpha.
-        brush ??= mask.Kind == PdfMaskKind.Luminosity
-            ? Solid(Color.FromArgb(Luma(mask.Backdrop.R, mask.Backdrop.G, mask.Backdrop.B), 0, 0, 0))
-            : Solid(Colors.Transparent);
+        brush ??= Solid(Color.FromArgb(outside, 0, 0, 0));
 
         _masks[mask] = brush;
         return brush;
     }
 
-    private static ImageBrush Luminosity(Drawing drawing, Rect bounds, Color backdrop)
+    /// <summary>
+    /// A mask's drawing over <paramref name="bounds"/> as the levels it masks with, in a picture whose alpha is each level:
+    /// for a luminosity mask painted over its backdrop and read as brightness, for an alpha mask its own alpha, each through
+    /// the mask's transfer function.
+    /// </summary>
+    private static ImageBrush Levels(Drawing drawing, Rect bounds, PdfSoftMask mask)
     {
         var resolution = Math.Min(MaskResolution, Math.Sqrt(MaskPixels / (bounds.Width * bounds.Height)));
         var width = Math.Max(1, (int)Math.Ceiling(bounds.Width * resolution));
         var height = Math.Max(1, (int)Math.Ceiling(bounds.Height * resolution));
+        var luminosity = mask.Kind == PdfMaskKind.Luminosity;
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            dc.DrawRectangle(new SolidColorBrush(backdrop), null, new Rect(0, 0, width, height));
+            if (luminosity) dc.DrawRectangle(new SolidColorBrush(mask.Backdrop), null, new Rect(0, 0, width, height));
             dc.PushTransform(new ScaleTransform(resolution, resolution));
             dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
             dc.DrawDrawing(drawing);
@@ -286,9 +350,9 @@ internal sealed class PdfBrushes(Rect page)
         for (var i = 0; i < pixels.Length; i += 4)
         {
             // The alpha is all a mask reads.
-            var luma = Luma(pixels[i + 2], pixels[i + 1], pixels[i]);
+            var level = luminosity ? Luma(pixels[i + 2], pixels[i + 1], pixels[i]) : pixels[i + 3];
             pixels[i] = pixels[i + 1] = pixels[i + 2] = 0;
-            pixels[i + 3] = luma;
+            pixels[i + 3] = Transferred(mask, level);
         }
 
         var picture = BitmapSource.Create(width, height, 96, 96, PixelFormats.Pbgra32, null, pixels, stride);
@@ -300,6 +364,31 @@ internal sealed class PdfBrushes(Rect page)
             Viewport = bounds,
         };
     }
+
+    /// <summary>
+    /// <paramref name="inner"/> where a mask's drawing is, and the level <paramref name="outside"/> over the rest of the
+    /// page; just <paramref name="inner"/> where the rest hides everything anyway.
+    /// </summary>
+    private Brush Around(Brush inner, Rect shown, byte outside)
+    {
+        if (outside == 0) return inner;
+
+        var whole = new DrawingGroup();
+        whole.Children.Add(new GeometryDrawing(Solid(Color.FromArgb(outside, 0, 0, 0)), null,
+            new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(page), new RectangleGeometry(shown))));
+        whole.Children.Add(new GeometryDrawing(inner, null, new RectangleGeometry(shown)));
+        return new DrawingBrush(whole)
+        {
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = page,
+            ViewportUnits = BrushMappingMode.Absolute,
+            Viewport = page,
+        };
+    }
+
+    /// <summary>A level of <paramref name="mask"/>'s drawing as it masks: through its transfer function, where it has one.</summary>
+    private static byte Transferred(PdfSoftMask mask, byte level) => mask.Transfer is { } transfer ? transfer[level] : level;
 
     /// <summary>A colour's luminosity as a mask takes it: Rec. 601 luma, as PDF's luminosity is the colour's in its own space.</summary>
     private static byte Luma(byte red, byte green, byte blue) => (byte)((red * 299 + green * 587 + blue * 114) / 1000);

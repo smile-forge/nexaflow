@@ -34,6 +34,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageSource.cs",
           "class": "PdfPageSource"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfMiters.cs",
+          "class": "PdfMiters"
         }
       ],
       "concerns": {
@@ -55,6 +60,30 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
             "class": "PdfPageReadingTests",
             "method": "AnImagesOwnSoftMask_TakesThePlaceOfTheGraphicsStatesMask"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AJoinPastTheMiterLimit_IsBevelled_AndOneWithinIt_KeepsItsMiter"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "APatternSteppedToShowOnce_IsDrawnAsSharpAsItsCell"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AMasksTransferFunction_RemapsItsLevels_WhereItsGroupPaintsAndWhereItDoesNot"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "TwoLayersWithTheSameDictionary_AreShownAndHiddenApart"
           }
         ]
       }
@@ -283,6 +312,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
             "class": "PdfPageReadingTests",
             "method": "BlendsOverBlends_AreEachCompositedOnce"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ABlendInsideABlendedGroup_IsCompositedOverWhatTheGroupHasPainted"
           }
         ]
       }

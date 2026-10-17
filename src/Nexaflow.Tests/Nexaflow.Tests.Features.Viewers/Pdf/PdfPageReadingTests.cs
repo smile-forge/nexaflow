@@ -97,6 +97,21 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    public void TwoLayersWithTheSameDictionary_AreShownAndHiddenApart()
+    {
+        // Objects 8 and 9 are the same dictionary, as a layout program's duplicated layer is; the configuration turns 9
+        // off and leaves 8 on, so what is marked with 8 shows.
+        var page = Read("/OC /shown BDC 1 0 0 rg 0 0 100 100 re f EMC /OC /hidden BDC 0 0 1 rg 0 0 20 20 re f EMC",
+            resources: "/Properties << /shown 8 0 R /hidden 9 0 R >>",
+            catalog: "/OCProperties << /OCGs [8 0 R 9 0 R] /D << /ON [8 0 R] /OFF [9 0 R] >> >>",
+            extra: [(8, "<< /Type /OCG /Name (Layer) >>"), (9, "<< /Type /OCG /Name (Layer) >>")]);
+
+        var drawn = page.Content.Children.OfType<PdfPathNode>().ToList();
+        Assert.AreEqual(1, drawn.Count, "only the layer left on is drawn");
+        Assert.AreEqual(Colors.Red, ((PdfSolidPaint)drawn[0].Fill!).Colour);
+    }
+
+    [TestMethod]
     public void ThePagesText_IsWhereItsRunsSay_ALineBreakBetweenLines()
     {
         var page = Read("BT /F 12 Tf 20 150 Td (falcon) Tj 0 -30 Td (kestrel) Tj ET",
@@ -255,6 +270,29 @@ public class PdfPageReadingTests
 
     [TestMethod]
     [CoversNode("pdf-blend")]
+    public void ABlendInsideABlendedGroup_IsCompositedOverWhatTheGroupHasPainted()
+    {
+        // A form multiplied onto the white page paints green, then multiplies grey across its left half: the grey's
+        // backdrop is the green the form has painted, so the left half is a darker green, not grey.
+        var page = Read("/M gs /F Do",
+            resources: "/ExtGState << /M << /BM /Multiply >> >> /XObject << /F 5 0 R >>",
+            extra:
+            [
+                (5, "<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Group << /S /Transparency >> "
+                    + "/Resources << /ExtGState << /M << /BM /Multiply >> >> >> /Length 54 >>\nstream\n"
+                    + "0 1 0 rg 0 0 200 200 re f /M gs 0.5 g 0 0 100 200 re f\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var both = Pixel(picture, 50, 100);
+        Assert.AreEqual(0, both.R, 3, "green times grey");
+        Assert.AreEqual(128, both.G, 3);
+        Assert.AreEqual(0, both.B, 3);
+        Assert.AreEqual(Colors.Lime, Pixel(picture, 150, 100), "the grey does not reach the right");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-blend")]
     [Timeout(60_000)]
     public void BlendsOverBlends_AreEachCompositedOnce()
     {
@@ -368,6 +406,42 @@ public class PdfPageReadingTests
 
     [TestMethod]
     [CoversNode("pdf-render")]
+    public void AJoinPastTheMiterLimit_IsBevelled_AndOneWithinIt_KeepsItsMiter()
+    {
+        // One stroke 20 wide: up the left side, along the top, then back the way it came. Turning back at (170, 170) is a
+        // join past any miter limit, which PDF bevels; cutting its miter off at the limit, as WPF would, leaves a spike
+        // ten half-widths long running on to the right. The square corner at (30, 170) is within the limit: its miter
+        // fills the corner out to (20, 180).
+        var page = Read("20 w 0 J 0 j 10 M 30 30 m 30 170 l 170 170 l 30 170 l S");
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.AreEqual(Colors.White, Pixel(picture, 190, 30), "no spike runs on past where the stroke turns back");
+        Assert.AreEqual(Colors.Black, Pixel(picture, 22, 22), "the square corner keeps its miter");
+        Assert.AreEqual(Colors.Black, Pixel(picture, 100, 30), "the stroke itself is drawn");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void APatternSteppedToShowOnce_IsDrawnAsSharpAsItsCell()
+    {
+        // A cell black on its left half, stepped 99999 apart so it shows once, as a picture placed as a pattern is. Drawn as
+        // a tile of that step it would be squeezed into one small picture and come out a grey blur.
+        var page = Read("/Pattern cs /P scn 0 0 200 200 re f",
+            resources: "/Pattern << /P 5 0 R >>",
+            extra:
+            [
+                (5, "<< /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 200 200] /XStep 99999 /YStep 99999 "
+                    + "/Resources << >> /Length 20 >>\nstream\n0 g 0 0 100 200 re f\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.AreEqual(Colors.Black, Pixel(picture, 50, 100), "the cell's black half");
+        Assert.AreEqual(Colors.Black, Pixel(picture, 97, 100), "right up to its edge");
+        Assert.AreEqual(Colors.White, Pixel(picture, 103, 100), "and none past it");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
     public void AnIccBasedColour_IsDrawnThroughItsProfile()
     {
         // ProPhoto RGB's grey is lighter than sRGB's at the same numbers, its gamma being 1.8: drawn as its alternate,
@@ -443,6 +517,26 @@ public class PdfPageReadingTests
 
         var luminosity = ThroughWindows("ProPhoto.icm", 128);
         Assert.AreEqual(255 - luminosity, Pixel(picture, 100, 100).G, 3, "the backdrop is ProPhoto's grey");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AMasksTransferFunction_RemapsItsLevels_WhereItsGroupPaintsAndWhereItDoesNot()
+    {
+        // The mask's group paints its left half white, and its transfer function inverts: white masks out, and the black
+        // backdrop everywhere the group paints nothing masks in. Red over the page shows on the right only.
+        var page = Read("/M gs 1 0 0 rg 0 0 200 200 re f",
+            resources: "/ExtGState << /M << /SMask << /Type /Mask /S /Luminosity /G 6 0 R /TR 7 0 R >> >> >>",
+            extra:
+            [
+                (6, "<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Group << /S /Transparency /CS /DeviceGray >> /Length 22 >>\nstream\n1 g 0 0 100 200 re f\nendstream"),
+                (7, "<< /FunctionType 4 /Domain [0 1] /Range [0 1] /Length 13 >>\nstream\n{1 exch sub}\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.AreEqual(Colors.White, Pixel(picture, 50, 100), "the group's white, inverted, hides the red");
+        Assert.AreEqual(Colors.Red, Pixel(picture, 150, 100), "the black backdrop, inverted, shows it");
+        Assert.IsFalse(page.Unsupported.Any(), "a transfer function is drawn, not reported");
     }
 
     /// <summary>An image stream whose samples are written as hex, so the document stays text.</summary>
