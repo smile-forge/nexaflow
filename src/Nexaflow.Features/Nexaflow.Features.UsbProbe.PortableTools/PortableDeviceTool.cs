@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common.Portable;
@@ -60,7 +62,7 @@ public sealed class PortableToolProvider : IUsbToolProvider
 /// unlocked — only what it shares over MTP does. So the device is opened when the tile is, and the store's own events
 /// (a storage shared on unlocking) bring the browser back to read it again.
 /// </remarks>
-public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool
+public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
 {
     const int ListedEntries = 200;
 
@@ -69,6 +71,8 @@ public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool
     readonly IUsbToolHost _host;
     readonly Func<string, IReadOnlyList<string>> _devicePaths;
     readonly Func<string, IFileStore> _open;
+
+    IFileStore? _store;
     bool _disposed;
 
     internal PortableDeviceTool(UsbDeviceNode device, UsbFunctionNode function, IUsbToolHost host,
@@ -99,11 +103,14 @@ public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool
 
     [ObservableProperty] private string _status;
 
+    /// <summary>The devnodes a portable device may hang from: the function, and the WPD devnodes Windows made of it.</summary>
+    IEnumerable<string> SharingDevnodes() =>
+        new[] { _function.InstanceId }.Concat(_function.Children.Where(c => c.ClassName is "WPD").Select(c => c.InstanceId));
+
     public async Task ActivateAsync(CancellationToken ct)
     {
         if (Browser is not null || _disposed) return;
-        var devnodes = new[] { _function.InstanceId }.Concat(_function.Children.Where(c => c.ClassName is "WPD").Select(c => c.InstanceId));
-        string? path = devnodes.SelectMany(_devicePaths).FirstOrDefault();
+        string? path = SharingDevnodes().SelectMany(_devicePaths).FirstOrDefault();
         if (path is null)
         {
             Status = Note = Str.Get("PortableTools.Note.NoDevice");
@@ -120,6 +127,7 @@ public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool
         if (_disposed) { store.Dispose(); return; }
 
         Note = null;
+        _store = store;
         var browser = new StoreBrowser(store, new UsbToolStoreHost(this, _host), IconRef.Fluent("phone"))
         {
             EmptyNote = Str.Get("PortableTools.Note.NothingShared"),
@@ -175,6 +183,54 @@ public sealed partial class PortableDeviceTool : ObservableObject, IUsbTool
         value.TrimStart().StartsWith('[')
             ? JsonSerializer.Deserialize<List<string>>(value) ?? []
             : value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>The portable-device paths Windows gave the function, what the device says about itself, and the storages
+    /// it shares — through the store the tile has open, or one opened for the purpose and closed after.</summary>
+    public async Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct)
+    {
+        var paths = SharingDevnodes().SelectMany(_devicePaths).ToList();
+        var details = new JsonObject
+        {
+            ["devicePaths"] = new JsonArray([.. paths.Select(p => (JsonNode?)mask.Text(p))]),
+            ["openedBy"] = _store is not null ? "tile" : paths.Count > 0 ? "debug details" : null,
+        };
+        if (_store is { } open)
+            await AddStoreAsync(details, open, ct);
+        else if (paths.Count > 0)
+        {
+            try
+            {
+                using var store = await Task.Run(() => _open(paths[0]), ct);
+                await AddStoreAsync(details, store, ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
+            {
+                details["openError"] = $"0x{e.HResult:X8} {e.Message}";
+            }
+        }
+        return details;
+    }
+
+    static async Task AddStoreAsync(JsonObject details, IFileStore store, CancellationToken ct)
+    {
+        details["facts"] = new JsonObject([.. store.Facts.Select(f => KeyValuePair.Create(f.Key, (JsonNode?)f.Value))]);
+        try
+        {
+            var roots = await store.RootsAsync(ct);
+            details["storages"] = new JsonArray([.. roots.Select(r => (JsonNode)new JsonObject
+            {
+                ["name"] = r.Name,
+                ["fileSystem"] = r.FileSystem,
+                ["capacity"] = r.Capacity,
+                ["free"] = r.Free,
+                ["readOnly"] = r.IsReadOnly,
+            })]);
+        }
+        catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
+        {
+            details["storagesError"] = $"0x{e.HResult:X8} {e.Message}";
+        }
+    }
 
     public void Dispose()
     {

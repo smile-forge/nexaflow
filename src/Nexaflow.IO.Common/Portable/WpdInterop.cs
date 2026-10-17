@@ -67,6 +67,11 @@ internal static class WpdKeys
     public static PropertyKey DeviceFriendlyName = new(Device, 12);
     public static PropertyKey DeviceModel = new(Device, 8);
 
+    public static PropertyKey DeviceFirmwareVersion = new(Device, 3);
+    public static PropertyKey DeviceProtocol = new(Device, 6);
+    public static PropertyKey DeviceManufacturer = new(Device, 7);
+    public static PropertyKey DeviceType = new(Device, 15);
+
     public static PropertyKey ResourceDefault = new(new Guid("E81E79BE-34F0-41BF-B53F-F1A06AE87842"), 0);
 }
 

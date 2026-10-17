@@ -8,6 +8,7 @@ Every USB bus, hub, port and device on this PC, and everything each one says abo
 - The tree on the left holds the buses and the devices plugged in, a hub opening onto what hangs off it; what a device is made of is in the list and on its own page. [Show me](locate:Usb_Tree)
 - The list shows what the open place holds. Double-click a row, or press Enter, to open it; click its blank space to clear the selection. [Show me](locate:Usb_Listing)
 - Right-click a place in the tree or a row in the list for what it offers: open it, open its device page, read it again, or copy its USB path, its device instance ID or its VID:PID.
+- A device's right-click also copies or saves its debug details: everything it and Windows report about it, raw, with what each live tool sees. They are for the Nexaflow developers — send them when a device is not supported as it should be. Serial numbers and volume labels are left out.
 - [Up](locate:Usb_Up) (or Backspace) goes to the place that holds this one; the breadcrumbs above the page go anywhere along the way.
 - Type `>` in the AI bar followed by a place to go there: `> 3-10.2`, `> 046d:0843`, `> webcam`, `> COM5`.
 - [Open device](locate:Usb_OpenDevice) opens the selected device on its own page, with its live tools: storage, phone files, audio, HID and serial.
@@ -35,7 +36,7 @@ Every USB bus, hub, port and device on this PC, and everything each one says abo
 - A drive Windows has ejected ("Safe to remove") stays in its port, shown as ejected, until it is unplugged.
 - Driver changes show at once too, and so does what Windows makes of a device: a phone unlocked into file transfer.
 - Reading the tree needs no administrator rights and sends nothing to any device: Windows already holds everything shown.
-- A device that was asleep may not have given its strings. [Read device again](locate:Usb_ReRead) asks it, waking it — the only thing this page ever sends a device, and only standard GET_DESCRIPTOR requests.
+- A device that was asleep may not have given its strings. [Read device again](locate:Usb_ReRead) asks it, waking it. That and debug details, which ask a HID device for its report descriptors, are all this page ever sends a device, and both send only standard GET_DESCRIPTOR requests.
 
 ## Device names
 - Vendor, product and class names come from usb.ids. Options → USB checks linux-usb.org for a newer list when the page opens, at most once a month, and can check at once.

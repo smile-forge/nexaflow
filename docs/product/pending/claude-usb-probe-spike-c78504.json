@@ -892,10 +892,56 @@
           }
         ]
       }
+    },
+    "io-usb-diagnostics": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Diagnostics/UsbDebugDetails.cs",
+          "class": "UsbDebugDetails"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Tools/IUsbToolDebugDetails.cs",
+          "class": "IUsbToolDebugDetails"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Usb/Windows/UsbHidReportReader.cs",
+          "class": "UsbHidReportReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Usb/UsbDebugDetailsTests.cs",
+            "class": "UsbDebugDetailsTests"
+          }
+        ]
+      }
+    },
+    "usbprobe-debug": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe/UsbDebugCollector.cs",
+          "class": "UsbDebugCollector"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/UsbProbe/UsbDebugCollectorTests.cs",
+            "class": "UsbDebugCollectorTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 77,
+  "changed_sets": 81,
   "touched_nodes": [
     "io-file-stores",
     "io-usb",
@@ -904,6 +950,7 @@
     "io-usb-browsing",
     "io-usb-changes",
     "io-usb-descriptors",
+    "io-usb-diagnostics",
     "io-usb-hid",
     "io-usb-inventory",
     "io-usb-ledger",
@@ -921,6 +968,7 @@
     "usbprobe",
     "usbprobe-ai",
     "usbprobe-audio",
+    "usbprobe-debug",
     "usbprobe-device",
     "usbprobe-device-ai",
     "usbprobe-device-tools",

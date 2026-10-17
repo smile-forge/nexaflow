@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -45,6 +46,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     readonly HashSet<Uri> _templates = [];
     readonly ToolHost _host;
 
+    readonly UsbDebugCollector _debug;
+
     UsbDescriptorMapCache _maps;
     UsbBrowser _browser;
     string _target;
@@ -64,6 +67,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         _maps = new UsbDescriptorMapCache(names.Current);
         _browser = new UsbBrowser(UsbInventorySnapshot.Empty, _maps);
         _host = new ToolHost(this);
+        _debug = new UsbDebugCollector(providers, shell, names);
         _names.Changed += OnNamesChanged;
     }
 
@@ -337,28 +341,10 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         Reconcile(device, offered);
     }
 
-    /// <summary>Every provider's tools for the device. A provider that throws is logged and skipped — one broken plugin
-    /// does not take the others' tiles with it.</summary>
-    List<(IUsbToolProvider Provider, IUsbTool Tool)> Collect(UsbDeviceNode device)
-    {
-        var offered = new List<(IUsbToolProvider, IUsbTool)>();
-        // Ejected, nothing on it answers until it is plugged in again: no tool is offered.
-        if (device.IsEjected) return offered;
-        foreach (var handle in _providers)
-        {
-            try
-            {
-                var provider = handle.Value;
-                foreach (var tool in provider.Offer(device, _host)) offered.Add((provider, tool));
-            }
-            catch (Exception e) when (e is not OutOfMemoryException)
-            {
-                var name = handle.DisplayName;
-                _ = _shell.RunOnUiAsync(() => AddLog(name, Str.Format("UsbProbe.Device.Log.ProviderFailed", e.Message)));
-            }
-        }
-        return offered;
-    }
+    /// <summary>Every provider's tools for the device; a provider that throws is logged and skipped.</summary>
+    List<(IUsbToolProvider Provider, IUsbTool Tool)> Collect(UsbDeviceNode device) =>
+        UsbToolOffers.From(_providers, device, _host,
+            (provider, e) => _ = _shell.RunOnUiAsync(() => AddLog(provider, Str.Format("UsbProbe.Device.Log.ProviderFailed", e.Message))));
 
     /// <summary>Replaces the tiles with the newly offered tools, keeping each tool's open or shut state by its key.</summary>
     void Reconcile(UsbDeviceNode device, List<(IUsbToolProvider Provider, IUsbTool Tool)> offered)
@@ -385,7 +371,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     }
 
     /// <summary>The functions no tool works through — hubs and usbccgp's split aside, which are plumbing.</summary>
-    static IReadOnlyList<UsbUncoveredFunction> Uncovered(UsbDeviceNode device, IEnumerable<string?> claimedBy)
+    internal static IReadOnlyList<UsbUncoveredFunction> Uncovered(UsbDeviceNode device, IEnumerable<string?> claimedBy)
     {
         var claimed = claimedBy.ToList();
         bool wholeDevice = claimed.Contains(null);
@@ -453,6 +439,36 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     [RelayCommand]
     private void OpenInExplorer() =>
         _shell.OpenTab(UsbProbePageRegistration.StaticPageKind, new() { [UsbProbePageRegistration.LocationParam] = Path });
+
+    /// <summary>Copies the device's debug details — for the developers, see <see cref="UsbDebugCollector"/> — with what
+    /// each tool open here sees and what they did.</summary>
+    [RelayCommand]
+    private Task CopyDebugDetailsAsync() =>
+        TakeDebugDetailsAsync(device => _debug.CopyAsync(device, LiveTools(), LogLines(), _lifetime.Token));
+
+    /// <summary>Saves the device's debug details as a .json, to send.</summary>
+    [RelayCommand]
+    private async Task SaveDebugDetailsAsync()
+    {
+        if (Device is not { } device || await _debug.PickSaveFileAsync(device) is not { } path) return;
+        await TakeDebugDetailsAsync(d => _debug.SaveAsync(path, d, LiveTools(), LogLines(), _lifetime.Token));
+    }
+
+    async Task TakeDebugDetailsAsync(Func<UsbDeviceNode, Task<string>> take)
+    {
+        if (Device is not { } device) return;
+        IsBusy = true;
+        Status = Str.Get("UsbProbe.Status.CollectingDebug");
+        try { Status = await take(device); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Status = Str.Format("UsbProbe.Status.DebugFailed", e.Message); }
+        finally { IsBusy = false; }
+    }
+
+    IReadOnlyList<IUsbTool> LiveTools() => [.. Tiles.OfType<UsbToolTile>().Select(t => t.Tool)];
+
+    /// <summary>The activity log, oldest first.</summary>
+    IReadOnlyList<string> LogLines() => [.. Log.Reverse().Select(e => $"{e.At:O} {e.Tool}: {e.Message}")];
 
     // ── Names ──────────────────────────────────────────────────────────────────────────────────────────────
 

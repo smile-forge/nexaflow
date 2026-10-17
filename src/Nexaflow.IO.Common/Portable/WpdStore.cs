@@ -43,6 +43,7 @@ public sealed class WpdStore : IFileStore
         _listKeys = Keys(WpdKeys.ObjectName, WpdKeys.ObjectOriginalFileName, WpdKeys.ObjectContentType, WpdKeys.ObjectSize,
             WpdKeys.ObjectDateModified, WpdKeys.ObjectIsHidden, WpdKeys.ObjectIsSystem);
         Name = DeviceName();
+        Facts = DeviceFacts();
         _events = new Events(this);
         try { _device.Advise(0, _events, null, out var cookie); _cookie = cookie; }
         catch (COMException) { _cookie = null; }
@@ -76,6 +77,8 @@ public sealed class WpdStore : IFileStore
 
     /// <summary>Opened for reading only: the device would not let it write.</summary>
     public bool IsReadOnly { get; }
+
+    public IReadOnlyDictionary<string, string> Facts { get; }
 
     public event EventHandler? Changed;
 
@@ -230,6 +233,25 @@ public sealed class WpdStore : IFileStore
             return TextOf(values, WpdKeys.DeviceFriendlyName) ?? TextOf(values, WpdKeys.DeviceModel) ?? "Portable device";
         }
         catch (COMException) { return "Portable device"; }
+    }
+
+    /// <summary>The device object's own account of itself, each property it answers: "protocol" is the MTP version it
+    /// speaks ("MTP: 1.10"), "type" the WPD_DEVICE_TYPES value (0 generic, 1 camera, 2 media player, 3 phone …).</summary>
+    Dictionary<string, string> DeviceFacts()
+    {
+        var facts = new Dictionary<string, string>();
+        try
+        {
+            _properties.GetValues(WpdGuids.DeviceObjectId,
+                Keys(WpdKeys.DeviceManufacturer, WpdKeys.DeviceModel, WpdKeys.DeviceFirmwareVersion, WpdKeys.DeviceProtocol, WpdKeys.DeviceType),
+                out var values);
+            foreach (var (name, key) in new[] { ("manufacturer", WpdKeys.DeviceManufacturer), ("model", WpdKeys.DeviceModel),
+                         ("firmware", WpdKeys.DeviceFirmwareVersion), ("protocol", WpdKeys.DeviceProtocol) })
+                if (TextOf(values, key) is { } text) facts[name] = text;
+            if (UIntOf(values, WpdKeys.DeviceType) is { } type) facts["type"] = type.ToString();
+        }
+        catch (COMException e) { facts["error"] = $"0x{e.HResult:X8} {e.Message}"; }
+        return facts;
     }
 
     static StoreEntry EntryOf(string id, IPortableDeviceValues values)

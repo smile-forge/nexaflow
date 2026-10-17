@@ -25,6 +25,8 @@ public sealed class DiskStore : IFileStore
 
     public string Name { get; }
 
+    public IReadOnlyDictionary<string, string> Facts { get; } = new Dictionary<string, string>();
+
     /// <summary>A disk tells no one when it changes; a browser reads it again when asked.</summary>
     public event EventHandler? Changed { add { } remove { } }
 

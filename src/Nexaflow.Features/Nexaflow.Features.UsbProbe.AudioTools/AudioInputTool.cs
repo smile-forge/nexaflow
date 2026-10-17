@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Icons;
@@ -31,7 +33,7 @@ public sealed partial class AudioMeterRow(string name) : ObservableObject
 /// H3, audio input: every channel of one of the device's recording endpoints metered live while the tile is open, and
 /// a recording of a few seconds saved as a float WAV with every channel it has — what the device sent, unprocessed.
 /// </summary>
-public sealed partial class AudioInputTool : ObservableObject, IUsbTool
+public sealed partial class AudioInputTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
 {
     readonly UsbFunctionNode _function;
     readonly AudioEndpointInfo _endpoint;
@@ -206,6 +208,8 @@ public sealed partial class AudioInputTool : ObservableObject, IUsbTool
                 return RecordToAsync(args["path"], seconds, ct);
             }),
     ];
+
+    public Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct) => Task.FromResult(AudioEndpointDebug.Of(_endpoint, mask));
 
     public void Dispose()
     {

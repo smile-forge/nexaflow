@@ -27,6 +27,8 @@ public class StoreTransferTests
         public Func<byte[], byte[]>? ReadsBack { get; set; }
 
         public string Name => "Phone";
+
+        public IReadOnlyDictionary<string, string> Facts { get; } = new Dictionary<string, string>();
         public event EventHandler? Changed { add { } remove { } }
 
         public Task<IReadOnlyList<StoreRoot>> RootsAsync(CancellationToken ct) =>

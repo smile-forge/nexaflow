@@ -4,6 +4,8 @@ using Nexaflow.Features.UsbProbe.Views;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
+using Nexaflow.IO.Usb.Tools;
+using Nexaflow.Plugins;
 using Nexaflow.IO.Usb.Windows;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -13,7 +15,7 @@ namespace Nexaflow.Features.UsbProbe;
 /// Advertises the USB page. <c>location</c> says where in the tree to look, not which page this is — there is one
 /// USB tree, so opening another location re-points the open tab rather than opening a second.
 /// </summary>
-public sealed class UsbProbePageRegistration(UsbProbeConfig config, IShellServices shell) : IPageRegistration
+public sealed class UsbProbePageRegistration(UsbProbeConfig config, IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>> tools, IShellServices shell) : IPageRegistration
 {
     public const string LocationParam = "location";
 
@@ -45,7 +47,7 @@ public sealed class UsbProbePageRegistration(UsbProbeConfig config, IShellServic
             // Built here so defining the tab stays cheap: the inventory reads the machine once the view loads.
             var names = UsbIdsStore.ForUser;
             var inventory = UsbInventoryShare.Machine.Acquire(() => new WindowsUsbInventory(names.Current));
-            var vm = new UsbProbeViewModel(inventory, names, config, shell, location);
+            var vm = new UsbProbeViewModel(inventory, names, config, tools, shell, location);
             var view = new UsbProbeView(vm);
             vm.NavigationChanged += crumbs => ApplyBreadcrumbs(page, vm, crumbs);
             page.Closed += (_, _) => vm.Dispose();

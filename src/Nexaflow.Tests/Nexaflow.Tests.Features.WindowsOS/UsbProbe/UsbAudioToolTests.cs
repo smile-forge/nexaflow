@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.Features.UsbProbe.AudioTools;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Tests.Fixtures;
 
@@ -165,5 +166,20 @@ public class UsbAudioToolTests
         StringAssert.Contains(said, "2 channel(s) at 48000 Hz");
         Assert.IsFalse(input.IsListening, "recorded with the tile shut, the microphone is let go afterwards");
         Assert.AreEqual(1, _host.Logged.Count);
+    }
+
+    [TestMethod]
+    public async Task TheirDebugDetails_AreTheFormatWindowsMixesAt()
+    {
+        var tools = new UsbAudioToolProvider(new Devices(Mic, Speaker)).Offer(UsbProbeSamples.UsbMicrophone(), _host);
+        var speaker = await ((IUsbToolDebugDetails)tools[0]).DebugDetailsAsync(new UsbDebugMask([]), CancellationToken.None);
+        var mic = await ((IUsbToolDebugDetails)tools[1]).DebugDetailsAsync(new UsbDebugMask([]), CancellationToken.None);
+
+        Assert.AreEqual("Playback", (string?)speaker["flow"]);
+        Assert.AreEqual(48_000, (int?)speaker["sampleRate"]);
+        Assert.AreEqual("0x00000003", (string?)speaker["channelMask"]);
+        Assert.AreEqual(2, speaker["channelNames"]!.AsArray().Count);
+        Assert.AreEqual("Recording", (string?)mic["flow"]);
+        Assert.AreEqual(UsbProbeSamples.MicrophoneFunction, (string?)mic["adapter"]);
     }
 }

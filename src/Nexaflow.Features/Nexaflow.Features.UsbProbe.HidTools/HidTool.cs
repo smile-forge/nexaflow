@@ -12,6 +12,8 @@ using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Icons;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 
 namespace Nexaflow.Features.UsbProbe.HidTools;
 
@@ -46,7 +48,7 @@ public sealed class HidReportRow(HidReport report) : IClipboardText
 /// reports still are, and the tile says why. The monitor reads off the UI thread and the list is refreshed in batches,
 /// so a 1000 Hz mouse does not flood the page.
 /// </remarks>
-public sealed partial class HidTool : ObservableObject, IUsbTool
+public sealed partial class HidTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
 {
     const int ShownReports = 300;
     static readonly TimeSpan Flush = TimeSpan.FromMilliseconds(80);
@@ -340,6 +342,50 @@ public sealed partial class HidTool : ObservableObject, IUsbTool
         text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? byte.Parse(text[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture)
             : byte.Parse(text, CultureInfo.InvariantCulture);
+
+    /// <summary>Every collection Windows made of the function as the HID class driver decoded it — its caps, how far it
+    /// can be opened, each field of each report — and the preparsed data it was decoded from.</summary>
+    public async Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct)
+    {
+        var names = _host.Names;
+        IReadOnlyList<HidCollection> collections = _read ? [.. Collections] : await Task.Run(() => _access.CollectionsOf(_function, names), ct);
+        var preparsed = await Task.Run(() => collections.Select(_access.PreparsedData).ToList(), ct);
+        return new JsonObject
+        {
+            ["collections"] = new JsonArray([.. collections.Select((c, i) => (JsonNode)new JsonObject
+            {
+                ["instanceId"] = mask.Text(c.InstanceId),
+                ["devicePath"] = mask.Text(c.DevicePath),
+                ["usagePage"] = $"{c.UsagePage:X4}",
+                ["usage"] = $"{c.Usage:X4}",
+                ["title"] = c.Title,
+                ["product"] = mask.Text(c.Product),
+                ["inputLength"] = c.InputLength,
+                ["outputLength"] = c.OutputLength,
+                ["featureLength"] = c.FeatureLength,
+                ["reach"] = c.Reach.ToString(),
+                ["reports"] = new JsonArray([.. c.Reports.Select(r => (JsonNode)new JsonObject
+                {
+                    ["kind"] = r.Kind.ToString(),
+                    ["reportId"] = r.ReportId,
+                    ["bits"] = r.Bits,
+                    ["fields"] = new JsonArray([.. r.Fields.Select(f => (JsonNode)new JsonObject
+                    {
+                        ["name"] = f.Name,
+                        ["usagePage"] = $"{f.UsagePage:X4}",
+                        ["usages"] = f.UsageMin == f.UsageMax ? $"{f.UsageMin:X4}" : $"{f.UsageMin:X4}-{f.UsageMax:X4}",
+                        ["button"] = f.IsButton,
+                        ["bitSize"] = f.BitSize,
+                        ["count"] = f.Count,
+                        ["logical"] = $"{f.LogicalMin}..{f.LogicalMax}",
+                        ["absolute"] = f.IsAbsolute,
+                        ["linkCollection"] = f.LinkCollection,
+                    })]),
+                })]),
+                ["preparsedData"] = preparsed[i] is { } blob ? UsbHex.Format(blob) : null,
+            })]),
+        };
+    }
 
     public void Dispose()
     {

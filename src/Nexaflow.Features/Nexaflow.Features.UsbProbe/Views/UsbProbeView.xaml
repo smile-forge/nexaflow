@@ -53,6 +53,11 @@
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
             <MenuItem Header="{loc:Str UsbProbe.Menu.CopyIds}" Command="{Binding CopyIdsCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <Separator />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.CopyDebug}" Command="{Binding CopyDebugDetailsCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str UsbProbe.Menu.SaveDebug}" Command="{Binding SaveDebugDetailsCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
         </ContextMenu>
 
         <!-- Right-click on the listing's blank space: the place open. -->

@@ -280,4 +280,23 @@ public class UsbDeviceViewModelTests
     }
 
     static ToolResult Run(IClientTool tool, JsonObject args) => tool.InvokeAsync(args, CancellationToken.None).GetAwaiter().GetResult();
+
+    [TestMethod]
+    public async Task DebugDetails_AreSavedWhereAsked_WithWhatTheOpenToolsSee_AndWhatTheyDid()
+    {
+        string path = Path.Combine(_dir, "lg.json");
+        _shell.PickSaveFileAsync("usb-043e-9a39-debug.json", Arg.Any<IReadOnlyList<string>?>()).Returns(path);
+        var vm = await PageAsync("1-2.4", HidTools());
+        vm.AddLog("Tool test.hid", "read the layout");
+
+        await vm.SaveDebugDetailsCommand.ExecuteAsync(null);
+        Assert.IsTrue(File.Exists(path), vm.Status);
+
+        var details = JsonNode.Parse(File.ReadAllText(path))!;
+        Assert.AreEqual("test.hid", (string?)details["tools"]![0]!["tool"]);
+        StringAssert.EndsWith((string)details["log"]!.AsArray().Last()!, "Tool test.hid: read the layout");
+        StringAssert.Contains(vm.Status, path);
+        Assert.IsFalse(vm.IsBusy);
+        Assert.IsFalse(_made.Single().Disposed, "the page's own tool is still open");
+    }
 }

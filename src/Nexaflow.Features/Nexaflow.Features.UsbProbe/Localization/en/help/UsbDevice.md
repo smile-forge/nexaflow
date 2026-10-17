@@ -31,6 +31,7 @@ One USB device on its own page: what it is, what you can do with it now, what it
 - Problems Windows or the descriptors report: problem codes in plain words, descriptors that do not add up, strings the device did not answer for. [Show me](locate:UsbDevice_Tab_Diagnostics,UsbDevice_Problems)
 - Everything the live tools did — copies, recordings, reports sent — with the time. [Show me](locate:UsbDevice_Log)
 - [Read device again](locate:UsbDevice_ReRead) asks the device for its descriptors and strings, waking it if it slept.
+- [Copy](locate:UsbDevice_CopyDebug) or [save](locate:UsbDevice_SaveDebug) the device's debug details for the Nexaflow developers: its descriptors raw, what Windows made of it, its HID report descriptors, what each live tool sees, and what they did. Send them when a device does not work as it should. Serial numbers and volume labels are left out.
 
 ## Asking the assistant
 - The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report.

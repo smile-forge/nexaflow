@@ -70,6 +70,13 @@ public interface IHidAccess
     IReadOnlyList<HidCollection> CollectionsOf(UsbFunctionNode function, UsbIdsDatabase? names);
 
     IHidChannel Open(HidCollection collection);
+
+    /// <summary>
+    /// Windows' preparsed data for the collection — its compiled form of the report descriptor, which the layout is read
+    /// from — as the bytes hid.dll holds, or null when it cannot be had. For a device's debug details: the report
+    /// descriptor can be rebuilt from it (as hidapi does) where the device will not send its own.
+    /// </summary>
+    byte[]? PreparsedData(HidCollection collection);
 }
 
 /// <summary>HID usage names from usb.ids, with the number when the file has no name for it.</summary>

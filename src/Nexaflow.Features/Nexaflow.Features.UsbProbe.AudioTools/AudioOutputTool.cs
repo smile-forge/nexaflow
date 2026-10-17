@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Icons;
@@ -23,7 +25,7 @@ public sealed record AudioChoice<T>(T Value, string Label);
 /// time naming each as it sounds. Signals are generated at the endpoint's own mix format, so a tone sent to "Side
 /// left" reaches that speaker and no other.
 /// </summary>
-public sealed partial class AudioOutputTool : ObservableObject, IUsbTool
+public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
 {
     const double MinHz = 20, MaxHz = 20_000;
     static readonly TimeSpan SweepLength = TimeSpan.FromSeconds(10);
@@ -256,6 +258,8 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool
         int index = _endpoint.ChannelNames.ToList().FindIndex(c => c.Equals(name, StringComparison.OrdinalIgnoreCase));
         return index < 0 ? throw new ArgumentException($"No channel '{name}'. This endpoint has: {string.Join(", ", _endpoint.ChannelNames)}.") : ChannelSelection.Only(index);
     }
+
+    public Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct) => Task.FromResult(AudioEndpointDebug.Of(_endpoint, mask));
 
     public void Dispose()
     {

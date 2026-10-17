@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common.Stores;
@@ -16,7 +18,7 @@ namespace Nexaflow.Features.UsbProbe.StorageTools;
 /// <see cref="DiskStore"/>), with copies both ways — each read back past the cache and checked by SHA-256 — new
 /// folders, renames and deletes, every change asked for first.
 /// </summary>
-public sealed partial class UsbStorageTool : ObservableObject, IUsbTool
+public sealed partial class UsbStorageTool : ObservableObject, IUsbTool, IUsbToolDebugDetails
 {
     const int ListedEntries = 200;
 
@@ -103,6 +105,35 @@ public sealed partial class UsbStorageTool : ObservableObject, IUsbTool
         value.TrimStart().StartsWith('[')
             ? JsonSerializer.Deserialize<List<string>>(value) ?? []
             : value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>The disks the storage stack made of the function and what was mounted on them — labels hashed, and of
+    /// folder mount points only how many, since their paths are the user's.</summary>
+    public async Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct)
+    {
+        var disks = await Task.Run(() => _locator.DisksOf(_function), ct);
+        return new JsonObject
+        {
+            ["disks"] = new JsonArray([.. disks.Select(d => (JsonNode)new JsonObject
+            {
+                ["instanceId"] = mask.Text(d.InstanceId),
+                ["name"] = mask.Text(d.Name),
+                ["diskNumber"] = d.DiskNumber,
+                ["size"] = d.Size,
+                ["error"] = d.Error,
+                ["volumes"] = new JsonArray([.. d.Volumes.Select(v => (JsonNode)new JsonObject
+                {
+                    ["driveRoots"] = new JsonArray([.. v.MountPoints.Where(p => p.Length <= 3).Select(p => (JsonNode)p)]),
+                    ["folderMounts"] = v.MountPoints.Count(p => p.Length > 3),
+                    ["label"] = UsbDebugMask.Name(v.Label),
+                    ["fileSystem"] = v.FileSystem,
+                    ["capacity"] = v.Capacity,
+                    ["free"] = v.Free,
+                    ["readOnly"] = v.IsReadOnly,
+                    ["error"] = v.Error,
+                })]),
+            })]),
+        };
+    }
 
     public void Dispose()
     {

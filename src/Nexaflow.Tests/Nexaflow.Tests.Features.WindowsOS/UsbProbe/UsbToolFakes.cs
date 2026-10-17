@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Text.Json.Nodes;
+using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.Icons;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
@@ -43,7 +45,7 @@ internal sealed class FakeProvider(string name, Func<UsbDeviceNode, IUsbToolHost
 }
 
 /// <summary>A tool that records what the page asks of it, with one operation that reads and one that writes.</summary>
-internal sealed class FakeTool(string id, string? function) : IUsbTool
+internal class FakeTool(string id, string? function) : IUsbTool
 {
     public int Activations, Deactivations;
     public bool Disposed;
@@ -84,6 +86,13 @@ internal sealed class FakeTool(string id, string? function) : IUsbTool
     ];
 
     public void Dispose() => Disposed = true;
+}
+
+/// <summary>A tool that adds to a device's debug details whatever the test has it answer.</summary>
+internal sealed class FakeDebugTool(string id, string? function, Func<UsbDebugMask, CancellationToken, Task<JsonObject>> answer)
+    : FakeTool(id, function), IUsbToolDebugDetails
+{
+    public Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct) => answer(mask, ct);
 }
 
 /// <summary>A tool host for a tool tested on its own: confirms as told, picks what it is given, records the rest.</summary>

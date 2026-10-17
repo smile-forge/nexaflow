@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Nexaflow.Features.UsbProbe.HidTools;
+using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Hid;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
@@ -48,6 +49,8 @@ public class UsbHidToolTests
         public Port? Opened;
         public IReadOnlyList<HidCollection> CollectionsOf(UsbFunctionNode function, UsbIdsDatabase? names) => [collection];
         public IHidChannel Open(HidCollection c) => Opened = new Port(c);
+
+        public byte[]? PreparsedData(HidCollection c) => "HidP KDR"u8.ToArray();
     }
 
     static HidCollection Collection(HidReach reach) => new(
@@ -187,5 +190,18 @@ public class UsbHidToolTests
         }
         Assert.IsFalse(HidHex.TryParse("", out _, out _));
         Assert.IsFalse(HidHex.TryParse("0g", out _, out _));
+    }
+
+    [TestMethod]
+    public async Task ItsDebugDetails_AreTheLayoutAsDecoded_AndThePreparsedDataItCameFrom()
+    {
+        var (tool, _) = await ToolAsync(HidReach.LayoutOnly);
+        var details = await tool.DebugDetailsAsync(new UsbDebugMask([]), CancellationToken.None);
+        var collection = details["collections"]![0]!;
+
+        Assert.AreEqual("FF00", (string?)collection["usagePage"]);
+        Assert.AreEqual("LayoutOnly", (string?)collection["reach"]);
+        Assert.AreEqual("0..100", (string?)collection["reports"]![1]!["fields"]![0]!["logical"]);
+        Assert.AreEqual("48 69 64 50 20 4B 44 52", (string?)collection["preparsedData"]);
     }
 }

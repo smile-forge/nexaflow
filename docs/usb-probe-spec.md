@@ -162,7 +162,8 @@ standard user.
 
 ## 6. Phase 1: "What is this thing?" — the USB page
 
-No privilege; nothing sent to a device beyond standard GET_DESCRIPTOR requests, and those only on "Read device again".
+No privilege; nothing sent to a device beyond standard GET_DESCRIPTOR requests, and those only on "Read device again"
+and when debug details are taken (a HID interface's report descriptor).
 
 | ID | Feature | As built |
 |---|---|---|
@@ -175,6 +176,7 @@ No privilege; nothing sent to a device beyond standard GET_DESCRIPTOR requests, 
 | D7 | Capability summary | A plain-language verdict per function, from rules, not AI ("HID Mouse — watch its input; never taken over while it is a keyboard or pointer"); the device page adds the live tools it has |
 | D8 | Microsoft OS descriptors | MS OS 1.0 and 2.0 and WebUSB detected, with "WinUSB-ready: raw access needs no driver change" |
 | D9 | Agent access | `GetContext` describes the open place; `usb_list`, `usb_describe` (every decoded field with offsets and bytes), `usb_find`, `usb_open` and `usb_reread` explore the same tree by the same paths |
+| D10 | Debug details | For the developers, not the user: a device's right-click on the USB page, and the device page's Diagnostics tab, copy or save one JSON (`UsbDebugDetails`, format 1) so a device nobody here has can be supported from what a tester sends. It holds a summary; every descriptor raw, in the fixtures' hex, so a dump becomes a test; strings, MS OS support, and the devnodes and drivers Windows made of each function; each HID interface's report descriptor read through its hub, or why not; what each live tool sees through `IUsbToolDebugDetails` — a disk's volumes, a phone's WPD facts and storages, a HID collection's decoded layout and the preparsed data it came from, an audio endpoint's mix format — or the error it gave; the functions no tool covers; and the activity log. From the USB page each provider is offered the device afresh through a host that asks nothing of the user, and the tools are let go after. Serials, wherever they appear, become a stable `SERIAL-` hash and volume labels a `NAME-` token; file names are never included |
 
 ---
 

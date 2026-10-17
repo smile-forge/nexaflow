@@ -273,6 +273,22 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock Text="{loc:Str UsbProbe.Device.Diagnostics.Debug}" Style="{StaticResource Heading}" Margin="0,12,0,0" />
+                        <TextBox Style="{StaticResource MutedBox}" Text="{loc:Str UsbProbe.Device.Diagnostics.DebugNote}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbDevice_CopyDebug" Command="{Binding CopyDebugDetailsCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:copy" />
+                                    <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str UsbProbe.Device.Diagnostics.CopyDebug}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbDevice_SaveDebug" Command="{Binding SaveDebugDetailsCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:save" />
+                                    <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str UsbProbe.Device.Diagnostics.SaveDebug}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                     <DockPanel Grid.Row="1">
                         <TextBlock DockPanel.Dock="Top" Text="{loc:Str UsbProbe.Device.Diagnostics.Activity}" Style="{StaticResource Heading}" />
@@ -304,7 +320,8 @@
         </TabControl>
 
         <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <TextBox Style="{StaticResource MutedBox}" Margin="10,3" Text="{Binding Status, Mode=OneWay}" FontSize="11" TextWrapping="NoWrap" />
+            <TextBox Style="{StaticResource MutedBox}" Margin="10,3" Text="{Binding Status, Mode=OneWay}" FontSize="11" TextWrapping="NoWrap"
+                     AutomationProperties.AutomationId="UsbDevice_Status" />
         </Border>
     </Grid>
 </UserControl>

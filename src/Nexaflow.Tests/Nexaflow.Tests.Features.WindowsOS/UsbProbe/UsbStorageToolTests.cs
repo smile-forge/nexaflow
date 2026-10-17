@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.UsbProbe.StorageTools;
+using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Storage;
 using Nexaflow.Tests.Fixtures;
@@ -282,5 +283,18 @@ public class UsbStorageToolTests
             "is not on", "copy_to_device writes to the device only");
         Assert.IsFalse(tool.Operations.Single(o => o.Name == "list_volumes").ChangesSomething);
         StringAssert.Contains(tool.Describe(), "STICK");
+    }
+
+    [TestMethod]
+    public async Task ItsDebugDetails_AreTheDisksAndVolumes_WithoutTheUsersNames()
+    {
+        var tool = (UsbStorageTool)new UsbStorageToolProvider(new FolderStorage(_stick)).Offer(UsbProbeSamples.Stick(), _host).Single();
+        var details = await tool.DebugDetailsAsync(new UsbDebugMask(["4C530001"]), CancellationToken.None);
+        var volume = details["disks"]![0]!["volumes"]![0]!;
+
+        Assert.AreEqual("exFAT", (string?)volume["fileSystem"]);
+        StringAssert.StartsWith((string)volume["label"]!, "NAME-");
+        Assert.AreEqual(1, (int?)volume["folderMounts"], "a folder it is mounted on is counted, not named");
+        Assert.IsFalse(details.ToJsonString().Contains("STICK") || details.ToJsonString().Contains("stick"), "neither the label nor the folder's path");
     }
 }

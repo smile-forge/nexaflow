@@ -8,6 +8,8 @@ using Nexaflow.Icons;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
+using Nexaflow.IO.Usb.Tools;
+using Nexaflow.Plugins;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -42,10 +44,11 @@ public class UsbProbeViewModelTests
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_dir, recursive: true);
 
-    UsbProbeViewModel Page(string? location = null)
+    UsbProbeViewModel Page(string? location = null, params IUsbToolProvider[] providers)
     {
         // No monthly check: a test never asks linux-usb.org anything.
-        var vm = new UsbProbeViewModel(_inventory, new UsbIdsStore(_dir, () => null), new UsbProbeConfig { CheckDeviceNamesMonthly = false }, _shell, location);
+        var handles = providers.Select((p, i) => (ISubfeatureHandle<IUsbToolProvider>)new FakeHandle<IUsbToolProvider>(p, $"p{i}")).ToList();
+        var vm = new UsbProbeViewModel(_inventory, new UsbIdsStore(_dir, () => null), new UsbProbeConfig { CheckDeviceNamesMonthly = false }, handles, _shell, location);
         vm.NavigationChanged += _crumbs.Add;
         vm.StartAsync().GetAwaiter().GetResult();
         return vm;
@@ -95,11 +98,13 @@ public class UsbProbeViewModelTests
         Assert.AreEqual(UsbProbeSamples.LgId, vm.CopyTextOf(lg, UsbCopyKind.InstanceId));
         Assert.AreEqual("043E:9A39", vm.CopyTextOf(lg, UsbCopyKind.Ids));
         Assert.IsTrue(vm.OpenDeviceCommand.CanExecute(lg));
+        Assert.IsTrue(vm.CopyDebugDetailsCommand.CanExecute(lg) && vm.SaveDebugDetailsCommand.CanExecute(lg));
 
         var port = vm.Rows.First(r => r.Location.Kind == UsbLocationKind.Port);
         Assert.IsNull(vm.CopyTextOf(port, UsbCopyKind.InstanceId), "an empty port is no device");
         Assert.IsFalse(vm.OpenDeviceCommand.CanExecute(port));
         Assert.IsFalse(vm.ReReadCommand.CanExecute(port));
+        Assert.IsFalse(vm.CopyDebugDetailsCommand.CanExecute(port) || vm.SaveDebugDetailsCommand.CanExecute(port), "debug details are a device's");
 
         var bus = vm.Root.Children.Single();
         Assert.AreEqual("1", vm.CopyTextOf(bus, UsbCopyKind.Path));
@@ -279,7 +284,7 @@ public class UsbProbeViewModelTests
     [TestMethod]
     public void Registration_IsCheap_AndLocationIsNotIdentity()
     {
-        var registration = new UsbProbePageRegistration(new UsbProbeConfig(), _shell);
+        var registration = new UsbProbePageRegistration(new UsbProbeConfig(), [], _shell);
         Assert.IsFalse(registration.Parameters.Single(p => p.Name == UsbProbePageRegistration.LocationParam).Identity);
 
         var page = registration.CreatePageDefinition(new() { [UsbProbePageRegistration.LocationParam] = " USB:1-2.4/ " });

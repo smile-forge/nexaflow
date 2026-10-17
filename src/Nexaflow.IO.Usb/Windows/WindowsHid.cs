@@ -6,6 +6,7 @@ using Nexaflow.IO.Usb.Hid;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 using Nexaflow.IO.Usb.Windows.Native;
+using System.Runtime.InteropServices;
 
 namespace Nexaflow.IO.Usb.Windows;
 
@@ -29,6 +30,27 @@ public sealed class WindowsHidAccess : IHidAccess
     }
 
     public IHidChannel Open(HidCollection collection) => new WindowsHidChannel(collection);
+
+    /// <summary>Copies the preparsed blob out of hid.dll. Its length is nowhere stated, so it is worked out from the
+    /// header (the layout hidapi documents): 44 bytes, then the caps, then the link collections, 16 bytes each.</summary>
+    public byte[]? PreparsedData(HidCollection collection)
+    {
+        using var handle = OpenHandle(collection.DevicePath, 0, overlapped: false);
+        if (handle.IsInvalid || !HidDll.HidD_GetPreparsedData(handle, out nint preparsed)) return null;
+        try
+        {
+            var header = new byte[PreparsedHeader];
+            Marshal.Copy(preparsed, header, 0, header.Length);
+            if (!header.AsSpan(0, 8).SequenceEqual("HidP KDR"u8)) return null;
+            int length = PreparsedHeader + U16(header, 40) + U16(header, 42) * 16;
+            var blob = new byte[length];
+            Marshal.Copy(preparsed, blob, 0, length);
+            return blob;
+        }
+        finally { HidDll.HidD_FreePreparsedData(preparsed); }
+    }
+
+    const int PreparsedHeader = 44;
 
     static HidCollection? Read(string path, string instanceId, UsbIdsDatabase? names)
     {

@@ -54,4 +54,33 @@ public class WindowsHidAccessTests
             Assert.IsTrue(c.Of(HidReportKind.Input).Any(), $"{c.Title}: its input layout is still there to read");
         }
     }
+
+    [TestMethod]
+    public async Task EveryUsbHidCollection_GivesUpItsPreparsedData_ForTheDebugDetails()
+    {
+        var collections = await CollectionsOnThisMachineAsync();
+        if (collections.Count == 0) Assert.Inconclusive("no USB HID device on this machine");
+
+        var access = new WindowsHidAccess();
+        foreach (var c in collections)
+        {
+            var blob = access.PreparsedData(c);
+            Assert.IsNotNull(blob, $"{c.Title}: no preparsed data");
+            CollectionAssert.AreEqual("HidP KDR"u8.ToArray(), blob.AsSpan(0, 8).ToArray(), $"{c.Title}: not the layout hidapi reads");
+            Assert.IsTrue(blob.Length > 44, $"{c.Title}: the header alone");
+        }
+    }
+
+    [TestMethod]
+    public async Task EachHidInterface_GivesItsReportDescriptor_OrSaysWhyNot()
+    {
+        using var inventory = new WindowsUsbInventory(null);
+        var snapshot = await inventory.RefreshAsync(CancellationToken.None);
+        var devices = snapshot.Devices.Where(d => d.ActiveConfiguration?.DefaultSettings.Any(i => i.HidReportDescriptorLength is > 0) == true).ToList();
+        if (devices.Count == 0) Assert.Inconclusive("no USB HID device on this machine");
+
+        foreach (var device in devices)
+            foreach (var read in UsbHidReportReader.Read(device))
+                Assert.IsTrue(read.Bytes is { Length: > 0 } != (read.Problem is not null), $"{device.DisplayName} interface {read.Interface}: bytes or a reason, one or the other");
+    }
 }

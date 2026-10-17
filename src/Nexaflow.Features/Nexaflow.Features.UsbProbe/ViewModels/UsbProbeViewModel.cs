@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using Nexaflow.IO.Usb.Tools;
+using Nexaflow.Plugins;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -45,6 +48,8 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     readonly UsbIdsStore _names;
     readonly UsbProbeConfig _config;
     readonly IShellServices _shell;
+
+    readonly UsbDebugCollector _debug;
     readonly CancellationTokenSource _lifetime = new();
 
     /// <summary>Devices plugged in while the page was open and not looked at since.</summary>
@@ -56,12 +61,14 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     bool _navigating;
     bool _disposed;
 
-    public UsbProbeViewModel(IUsbDeviceInventory inventory, UsbIdsStore names, UsbProbeConfig config, IShellServices shell, string? location)
+    public UsbProbeViewModel(IUsbDeviceInventory inventory, UsbIdsStore names, UsbProbeConfig config,
+        IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>> providers, IShellServices shell, string? location)
     {
         _inventory = inventory;
         _names = names;
         _config = config;
         _shell = shell;
+        _debug = new UsbDebugCollector(providers, shell, names);
         _maps = new UsbDescriptorMapCache(names.Current);
         _browser = new UsbBrowser(UsbInventorySnapshot.Empty, _maps);
         _currentPath = UsbLocationPath.Normalize(location);
@@ -183,8 +190,8 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     }
 
     /// <summary>
-    /// Asks a device for its strings and BOS again, waking it if it was asleep — the only thing this page sends a device,
-    /// and only standard GET_DESCRIPTOR requests. The device is the one the menu was opened on, or else the one in view.
+    /// Asks a device for its strings and BOS again, waking it if it was asleep — standard GET_DESCRIPTOR requests only, as
+    /// the debug details' HID report descriptors are. The device is the one the menu was opened on, or else the one in view.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanReRead))]
     private async Task ReReadAsync(object? target)
@@ -264,6 +271,31 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
         catch (System.Runtime.InteropServices.ExternalException) { Status = Str.Get("UsbProbe.Status.ClipboardBusy"); }
     }
 
+    /// <summary>Copies a device's debug details — for the developers, see <see cref="UsbDebugCollector"/>; each tool the
+    /// device would be offered is asked what it sees.</summary>
+    [RelayCommand(CanExecute = nameof(CanReRead))]
+    private Task CopyDebugDetailsAsync(object? target) =>
+        TakeDebugDetailsAsync(DeviceOf(target), device => _debug.CopyAsync(device, null, [], _lifetime.Token));
+
+    /// <summary>Saves a device's debug details as a .json, to send.</summary>
+    [RelayCommand(CanExecute = nameof(CanReRead))]
+    private async Task SaveDebugDetailsAsync(object? target)
+    {
+        if (DeviceOf(target) is not { } device || await _debug.PickSaveFileAsync(device) is not { } path) return;
+        await TakeDebugDetailsAsync(device, d => _debug.SaveAsync(path, d, null, [], _lifetime.Token));
+    }
+
+    async Task TakeDebugDetailsAsync(UsbDeviceNode? device, Func<UsbDeviceNode, Task<string>> take)
+    {
+        if (device is null) return;
+        IsBusy = true;
+        Status = Str.Get("UsbProbe.Status.CollectingDebug");
+        try { Status = await take(device); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Status = Str.Format("UsbProbe.Status.DebugFailed", e.Message); }
+        finally { IsBusy = false; }
+    }
+
     internal void OpenDevicePage(UsbDeviceNode device) =>
         _shell.OpenTab(UsbDevicePageRegistration.StaticPageKind, new() { [UsbDevicePageRegistration.DeviceParam] = device.Location.PortPath });
 
@@ -311,6 +343,8 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
         CopyPathCommand.NotifyCanExecuteChanged();
         CopyInstanceIdCommand.NotifyCanExecuteChanged();
         CopyIdsCommand.NotifyCanExecuteChanged();
+        CopyDebugDetailsCommand.NotifyCanExecuteChanged();
+        SaveDebugDetailsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(IsContextReady));
@@ -356,6 +390,8 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
         CopyPathCommand.NotifyCanExecuteChanged();
         CopyInstanceIdCommand.NotifyCanExecuteChanged();
         CopyIdsCommand.NotifyCanExecuteChanged();
+        CopyDebugDetailsCommand.NotifyCanExecuteChanged();
+        SaveDebugDetailsCommand.NotifyCanExecuteChanged();
     }
 
     // ── The tree ───────────────────────────────────────────────────────────────────────────────────────────

@@ -25,6 +25,11 @@ public interface IFileStore : IDisposable
     /// <summary>What the store is, for a heading: "Galaxy S21", "Mass storage".</summary>
     string Name { get; }
 
+    /// <summary>What the device behind the store says about itself — a phone's maker, model, firmware and protocol — for
+    /// the developers reading a device's debug details. Never a serial or a name a person gave it; empty where the store is
+    /// a folder on this PC.</summary>
+    IReadOnlyDictionary<string, string> Facts { get; }
+
     /// <summary>Raised when what the store holds changes on its own — a phone unlocked and sharing its storage, a file
     /// added on the device. May be raised on any thread.</summary>
     event EventHandler? Changed;

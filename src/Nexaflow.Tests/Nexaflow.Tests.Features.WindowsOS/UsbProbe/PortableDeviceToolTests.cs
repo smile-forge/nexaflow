@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.Features.UsbProbe.PortableTools;
 using Nexaflow.IO.Common.Stores;
+using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UsbProbe;
@@ -41,6 +42,8 @@ public class PortableDeviceToolTests
         Item Add(string id, string parent, string name, bool folder, byte[]? data = null) => _items[id] = new Item(id, parent, name, folder, data ?? []);
 
         public string Name => "Galaxy S21";
+
+        public IReadOnlyDictionary<string, string> Facts { get; } = new Dictionary<string, string> { ["manufacturer"] = "Fake", ["protocol"] = "MTP: 1.10" };
         public event EventHandler? Changed;
 
         public Task<IReadOnlyList<StoreRoot>> RootsAsync(CancellationToken ct) =>
@@ -165,5 +168,22 @@ public class PortableDeviceToolTests
         var tool = await ToolAsync(phone);
         tool.Dispose();
         Assert.IsTrue(phone.Disposed);
+    }
+
+    [TestMethod]
+    public async Task ItsDebugDetails_SayWhatThePhoneIs_AndWhatItShares_EvenUnopened()
+    {
+        var phone = new FakePhone(unlocked: true);
+        var provider = new PortableToolProvider(id => id == MtpFunction ? [@"\\?\usb#phone"] : [], _ => phone);
+        var tool = (PortableDeviceTool)provider.Offer(Phone(), _host).Single();
+
+        var details = await tool.DebugDetailsAsync(new UsbDebugMask([]), CancellationToken.None);
+
+        Assert.AreEqual(@"\\?\usb#phone", (string?)details["devicePaths"]![0]);
+        Assert.AreEqual("debug details", (string?)details["openedBy"]);
+        Assert.AreEqual("MTP: 1.10", (string?)details["facts"]!["protocol"]);
+        Assert.AreEqual("Internal storage", (string?)details["storages"]![0]!["name"]);
+        Assert.IsTrue(phone.Disposed, "a phone opened for the details is let go");
+        Assert.IsNull(tool.Browser, "and the tile is left as it was");
     }
 }
