@@ -1,5 +1,7 @@
 {
   "Common.Search.Placeholder": "Search",
+  "Common.List.Copy": "Copy",
+
   "Common.ColorPicker.ThemeDefault": "Theme default",
   "Common.ColorPicker.ThemeDefaultTip": "Use the theme's own colour, which changes with the theme",
   "Common.ColorPicker.Eyedropper": "Pick from screen",

@@ -69,6 +69,33 @@ internal static unsafe class DevNodes
         return cr == CfgMgr32.CrSuccess ? DecodeString(buffer) : null;
     }
 
+    /// <summary>
+    /// Whether a devnode is a USB device or hangs beneath one — a stick's disk, a HID collection, a phone's portable
+    /// device — walking up at most <paramref name="generations"/> parents. A devnode just removed is found as a phantom.
+    /// </summary>
+    public static bool IsUsbOrBeneathUsb(string instanceId, int generations = 6)
+    {
+        if (IsUsb(instanceId)) return true;
+        if (CfgMgr32.CM_Locate_DevNode(out uint devInst, instanceId, CfgMgr32.LocatePhantom) != CfgMgr32.CrSuccess) return false;
+        for (int i = 0; i < generations; i++)
+        {
+            if (CfgMgr32.CM_Get_Parent(out uint parent, devInst, 0) != CfgMgr32.CrSuccess || IdOf(parent) is not { } id) return false;
+            if (IsUsb(id)) return true;
+            devInst = parent;
+        }
+        return false;
+    }
+
+    public static bool IsUsb(string instanceId) => instanceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase);
+
+    static string? IdOf(uint devInst)
+    {
+        if (CfgMgr32.CM_Get_Device_ID_Size(out uint length, devInst, 0) != CfgMgr32.CrSuccess) return null;
+        var buffer = new char[length + 1];
+        fixed (char* p = buffer)
+            return CfgMgr32.CM_Get_Device_ID(devInst, p, (uint)buffer.Length, 0) == CfgMgr32.CrSuccess ? new string(p) : null;
+    }
+
     /// <summary>The devnode's "Device Parameters" key, or null when it has none.</summary>
     public static RegistryKey? HardwareKey(uint devInst, bool writable)
     {

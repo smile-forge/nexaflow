@@ -6,6 +6,8 @@ using FlaUI.Core.Tools;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using System.Diagnostics;
 using System.Linq;
+using System.IO;
+using FlaUI.Core.Capturing;
 
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -355,5 +357,50 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         if (box is null) return false;
         box.AsTextBox().Text = text;
         return WaitForFs(() => box.AsTextBox().Text == text, 2);
+    }
+
+    // ── Right-click menus ──────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The middle of an element, to point at it.</summary>
+    protected static System.Drawing.Point CentreOf(AutomationElement element)
+    {
+        var r = element.BoundingRectangle;
+        return new System.Drawing.Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+    }
+
+    /// <summary>Right-clicks at a point and waits for the menu it opens to settle.</summary>
+    protected static void RightClickAt(System.Drawing.Point at)
+    {
+        Mouse.MoveTo(at);
+        Mouse.Click(MouseButton.Right);
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+    }
+
+    /// <summary>An open menu's item by its text, anywhere on the desktop — a context menu is a window of its own.</summary>
+    protected AutomationElement? MenuItemNamed(string name)
+    {
+        for (int i = 0; i < 30; i++)
+        {
+            var hit = Automation.GetDesktop()
+                .FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.MenuItem))
+                .FirstOrDefault(e => e.Name == name);
+            if (hit is not null) return hit;
+            Thread.Sleep(100);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The window's part of the screen, saved under %TEMP%\<paramref name="folder"/> — for what opens over the window, which
+    /// a capture of the window leaves out: a context menu is a popup of its own. Only the window's own area is taken, never
+    /// the rest of the desktop.
+    /// </summary>
+    protected void ShootWindowArea(string folder, string name)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), folder);
+        Directory.CreateDirectory(dir);
+        Capture.Rectangle(MainWindow.BoundingRectangle).ToFile(Path.Combine(dir, $"{name}.png"));
+        Console.WriteLine($"[shot] {Path.Combine(dir, name)}.png");
     }
 }

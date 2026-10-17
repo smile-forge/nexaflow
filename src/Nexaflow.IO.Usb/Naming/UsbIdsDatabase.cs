@@ -6,7 +6,8 @@ namespace Nexaflow.IO.Usb.Naming;
 /// <summary>
 /// Vendor, product and class names from a linux-usb.org <c>usb.ids</c> file. The format is line-oriented:
 /// vendors flush left (<c>vvvv  name</c>) with products one tab in, then a <c>C cc  name</c> class section with
-/// subclasses and protocols tabbed beneath; the remaining sections (AT, HID, R, L, …) are not used and skipped.
+/// subclasses and protocols tabbed beneath, then a <c>HUT pp  name</c> HID usage-page section with each page's usages
+/// (<c>uuu  name</c>) one tab in; the remaining sections (AT, HID, R, L, …) are not used and skipped.
 /// Immutable once parsed, so one instance is shared freely across threads.
 /// </summary>
 public sealed class UsbIdsDatabase
@@ -19,6 +20,8 @@ public sealed class UsbIdsDatabase
     readonly Dictionary<ushort, string> _vendors = [];
     readonly Dictionary<uint, string> _products = [];
     readonly Dictionary<uint, string> _classes = [];
+    readonly Dictionary<byte, string> _usagePages = [];
+    readonly Dictionary<uint, string> _usages = [];
 
     UsbIdsDatabase() { }
 
@@ -42,8 +45,8 @@ public sealed class UsbIdsDatabase
         var db = new UsbIdsDatabase();
         var section = Section.Vendors;
         ushort vendor = 0;
-        byte cls = 0, sub = 0;
-        bool haveVendor = false, haveClass = false, haveSub = false;
+        byte cls = 0, sub = 0, page = 0;
+        bool haveVendor = false, haveClass = false, haveSub = false, havePage = false;
 
         for (string? line = reader.ReadLine(); line is not null; line = reader.ReadLine())
         {
@@ -58,7 +61,7 @@ public sealed class UsbIdsDatabase
             var body = line.AsSpan(depth);
             if (depth == 0)
             {
-                haveVendor = haveClass = haveSub = false;
+                haveVendor = haveClass = haveSub = havePage = false;
                 if (TryHexField(body, 4, out uint v))
                 {
                     section = Section.Vendors;
@@ -72,6 +75,13 @@ public sealed class UsbIdsDatabase
                     cls = (byte)c;
                     haveClass = true;
                     db._classes[ClassKey(cls)] = Name(body, 4);
+                }
+                else if (body.StartsWith("HUT ") && TryHexField(body[4..], 2, out uint hp))
+                {
+                    section = Section.HidUsages;
+                    page = (byte)hp;
+                    havePage = true;
+                    db._usagePages[page] = Name(body, 6);
                 }
                 else section = Section.Other;
                 continue;
@@ -89,6 +99,9 @@ public sealed class UsbIdsDatabase
                     break;
                 case Section.Classes when depth == 2 && haveSub && TryHexField(body, 2, out uint pr):
                     db._classes[ClassKey(cls, sub, (byte)pr)] = Name(body, 2);
+                    break;
+                case Section.HidUsages when depth == 1 && havePage && TryHexField(body, 3, out uint u):
+                    db._usages[(uint)page << 16 | u] = Name(body, 3);
                     break;
             }
         }
@@ -118,7 +131,20 @@ public sealed class UsbIdsDatabase
         return parts.Length == 0 ? null : string.Join(" / ", parts);
     }
 
-    enum Section { Vendors, Classes, Other }
+    /// <summary>
+    /// A HID usage page's name, e.g. "Generic Desktop Controls". The file lists pages by their low byte and names the
+    /// whole vendor range FF00–FFFF under <c>ff</c>, so any page from FF00 up is "Vendor Specific".
+    /// </summary>
+    public string? UsagePageName(ushort usagePage) =>
+        usagePage <= 0xFF ? _usagePages.GetValueOrDefault((byte)usagePage)
+        : usagePage >= 0xFF00 ? _usagePages.GetValueOrDefault((byte)0xFF)
+        : null;
+
+    /// <summary>A usage's name within its page, e.g. page 01 usage 02 is "Mouse"; null for vendor pages and gaps.</summary>
+    public string? UsageName(ushort usagePage, ushort usage) =>
+        usagePage <= 0xFF ? _usages.GetValueOrDefault((uint)usagePage << 16 | usage) : null;
+
+    enum Section { Vendors, Classes, HidUsages, Other }
 
     // Level in the top byte keeps "class 03" distinct from "class 03, subclass 00".
     static uint ClassKey(byte cls) => 1u << 24 | (uint)cls << 16;

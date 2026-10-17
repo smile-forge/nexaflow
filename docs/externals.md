@@ -114,7 +114,7 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Tracked integration branch | `nexaflow` |
 | In-flight feature branches | *(none — `nexaflow` is a plain `upstream/master` commit)* |
 | Nexaflow consumer project | `src/Nexaflow.IO.Usb/Nexaflow.IO.Usb.csproj` |
-| Wired project(s) | **None.** `usb.ids` is an `EmbeddedResource` (`LogicalName` `Nexaflow.IO.Usb.usb.ids`), read by `UsbIdsDatabase.LoadBundled`. |
+| Wired project(s) | **None.** `usb.ids` is an `EmbeddedResource` (`LogicalName` `Nexaflow.IO.Usb.usb.ids`), read by `UsbIdsDatabase.LoadBundled`. At run time `UsbIdsStore` may replace it with a newer copy downloaded from linux-usb.org, so a stale submodule only means a stale first run. |
 | Do **NOT** reference | Nothing else in the repo is used. |
 | Notes | The vendor/product/class name database. A bump is recipe 6 — upstream commits a new `usb.ids` every few weeks — and needs no code change. The mirror's `LICENSE` file is GPL-3.0, while linux-usb.org offers `usb.ids` under GPL-2.0-or-later or BSD-3-Clause; which one Nexaflow ships it under is recorded in [ADR-001](adr/ADR-001-usb-raw-access.md). |
 

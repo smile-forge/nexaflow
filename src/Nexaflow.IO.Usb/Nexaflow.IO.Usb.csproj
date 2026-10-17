@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    WPF-free USB device layer (docs/usb-probe-spec.md, docs/adr/ADR-001-usb-raw-access.md): descriptor parsing,
-    the unprivileged inventory and hot-plug, usb.ids names, the device report, and driver take-over. The take-over's
-    elevated half runs inside Nexaflow.PrivilegeBridge, which references this; nothing here elevates.
+    WPF-free USB device layer (docs/usb-probe-spec.md, docs/adr/ADR-001-usb-raw-access.md): descriptor parsing and
+    descriptor maps, the unprivileged inventory and hot-plug, usb.ids names and their updates, the browsing model the
+    USB pages and the agent share, the live-tool contract, USB disks and HID access, and driver take-over. The
+    take-over's elevated half runs inside Nexaflow.PrivilegeBridge, which references this; nothing here elevates.
 
-    Descriptors/, Naming/, Inventory/ (the model), Reports/ and Binding/ (records, ledger, policy, broker) hold no
-    Windows types, so they carry over to a libusb backend elsewhere; Windows/ is the only platform code.
+    Descriptors/, Naming/, Inventory/ (the model), Browsing/, Tools/, Storage/, Hid/ and Binding/ (records, ledger,
+    policy, broker) hold no Windows types, so they carry over to a libusb backend elsewhere; Windows/ is the only
+    platform code.
 
     net10.0-windows with UseWPF off, as IO.Network: P/Invoke, and Elevation.Contracts is net10.0-windows.
   -->
@@ -22,6 +24,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+    <!-- A tool's icon is an IconRef — a name in the app's icon font, drawn themed — and that type is WPF-free. -->
+    <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
   </ItemGroup>
 
   <ItemGroup>

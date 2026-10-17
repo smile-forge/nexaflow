@@ -42,6 +42,14 @@ public class UsbInventoryDiffTests
     }
 
     [TestMethod]
+    public void NamesFromANewerUsbIds_AreAnUpdate()
+    {
+        var before = LgMonitor();
+        var after = LgMonitor() with { VendorName = "LG Electronics, Inc." };
+        Assert.AreEqual(UsbInventoryChangeKind.Updated, UsbInventoryDiff.Between(Snapshot(before), Snapshot(after)).Single().Kind);
+    }
+
+    [TestMethod]
     public void PowerStateAlone_IsNotAChange()
     {
         var a = LgMonitor();

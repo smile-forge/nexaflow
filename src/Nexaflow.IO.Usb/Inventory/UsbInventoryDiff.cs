@@ -27,11 +27,21 @@ public static class UsbInventoryDiff
         && string.Equals(a.InfPath, b.InfPath, StringComparison.OrdinalIgnoreCase);
 
     // Power state is left out: it moves on its own between passes and is not a change anyone acts on.
+    // What Windows made of each function is in: a phone unlocked into file transfer keeps its USB devnode and gains a
+    // portable-device child, and a serial adapter can be given another COM port.
     static bool SameDescription(UsbDeviceNode a, UsbDeviceNode b) =>
-        a.RawDeviceDescriptor.AsSpan().SequenceEqual(b.RawDeviceDescriptor)
+        SameOffspring(a, b)
+        && a.RawDeviceDescriptor.AsSpan().SequenceEqual(b.RawDeviceDescriptor)
         && a.ActiveConfigurationValue == b.ActiveConfigurationValue
         && a.Configurations.Count == b.Configurations.Count
         && a.Strings.Complete == b.Strings.Complete && a.Strings.ByIndex.Count == b.Strings.ByIndex.Count
         && (a.Bos is null) == (b.Bos is null)
-        && a.Location.PortPath == b.Location.PortPath;
+        && a.Location.PortPath == b.Location.PortPath
+        && a.VendorName == b.VendorName && a.ProductName == b.ProductName;
+
+    static bool SameOffspring(UsbDeviceNode a, UsbDeviceNode b) =>
+        Ids(a.Auxiliary).SetEquals(Ids(b.Auxiliary))
+        && a.Functions.Zip(b.Functions).All(p => p.First.ComPort == p.Second.ComPort && Ids(p.First.Children).SetEquals(Ids(p.Second.Children)));
+
+    static HashSet<string> Ids(IEnumerable<UsbChildNode> nodes) => new(nodes.Select(n => n.InstanceId), StringComparer.OrdinalIgnoreCase);
 }

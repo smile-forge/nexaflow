@@ -1,6 +1,7 @@
 using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.Tests.Fixtures;
 using static Nexaflow.Tests.IO.Usb.UsbFixtures;
+using static Nexaflow.Tests.Fixtures.UsbSamples;
 
 namespace Nexaflow.Tests.IO.Usb;
 

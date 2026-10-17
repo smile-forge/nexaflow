@@ -21,6 +21,12 @@ public class WindowsUsbInventoryTests
         if (snapshot.Hubs.Count == 0) Assert.Inconclusive("this machine exposes no USB hubs");
 
         Assert.IsTrue(snapshot.Hubs.All(h => h.OpenError is null), string.Join("; ", snapshot.Hubs.Select(h => h.OpenError).OfType<string>()));
+        Assert.IsTrue(snapshot.Hubs.Any(h => h.IsRoot), "every bus hangs from a root hub with a controller above it");
+        foreach (var hub in snapshot.Hubs)
+        {
+            Assert.AreEqual(hub.PortCount, hub.Ports.Count, $"{hub.InstanceId}: every port is listed, empty or not");
+            Assert.IsTrue(hub.Bus >= 1, $"{hub.InstanceId} is on no bus");
+        }
         foreach (var device in snapshot.Devices)
         {
             Assert.IsTrue(device.Location.PortChain.Count >= 1 && device.Location.Bus >= 1, $"{device.InstanceId} has no place in the tree");

@@ -1,0 +1,310 @@
+<UserControl x:Class="Nexaflow.Features.UsbProbe.Views.UsbDeviceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.UsbProbe.ViewModels"
+             xmlns:v="clr-namespace:Nexaflow.Features.UsbProbe.Views"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:b="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
+             AutomationProperties.AutomationId="UsbDeviceView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding ReReadCommand}" />
+    </UserControl.InputBindings>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource AccentColor}" Opacity="0.45" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource AccentColor}" Opacity="0.55" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}" />
+
+        <!-- Everything this page says can be selected and copied: values, names, notes, the status line. -->
+        <Style x:Key="ValueBox" TargetType="TextBox" BasedOn="{StaticResource SelectableText}" />
+        <Style x:Key="MutedBox" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+
+        <!-- A fact with no label (a line of the plain-language summary) takes the whole width. -->
+        <Style x:Key="FactValue" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+            <Setter Property="Grid.Column" Value="1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Label}" Value="">
+                    <Setter Property="Grid.Column" Value="0" />
+                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <!-- A tile's header: the chevron, the tool's glyph and title, the function it works through, and its status. -->
+        <Style x:Key="TileToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <DockPanel Background="Transparent">
+                            <TextBlock x:Name="Chev" DockPanel.Dock="Left" Text="▸" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentBrush}" FontSize="12" />
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chev" Property="Text" Value="▾" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate DataType="{x:Type vm:UsbToolTile}">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <DockPanel>
+                    <ToggleButton DockPanel.Dock="Top" Style="{StaticResource TileToggle}" Padding="0" Margin="10,8"
+                                  AutomationProperties.AutomationId="UsbDevice_TileToggle"
+                                  AutomationProperties.Name="{Binding Tool.Title}"
+                                  IsChecked="{Binding IsExpanded, Mode=TwoWay}" ToolTip="{Binding Tool.Description}">
+                        <DockPanel>
+                            <Ellipse DockPanel.Dock="Right" Width="8" Height="8" Margin="8,0,0,0" VerticalAlignment="Center"
+                                     Fill="{StaticResource AccentBrush}" Visibility="{Binding Tool.IsBusy, Converter={StaticResource BoolToVis}}" />
+                            <icons:IconGlyph DockPanel.Dock="Left" Icon="{Binding Tool.Icon}" FontSize="20" Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Tool.Title}" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                                    <TextBlock Text="{Binding FunctionName}" Margin="8,0,0,0" Foreground="{StaticResource TextMutedBrush}"
+                                               TextTrimming="CharacterEllipsis" Visibility="{Binding FunctionName, Converter={StaticResource NullToVis}}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Tool.Status}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DockPanel>
+                    </ToggleButton>
+                    <Grid Margin="10,0,10,10" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Error, Mode=OneWay}" Foreground="{StaticResource DangerBrush}"
+                                 Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                        <ContentPresenter Content="{Binding Tool}"
+                                          Visibility="{Binding HasError, Converter={StaticResource InvBoolToVis}}" />
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:UsbUncoveredTile}">
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10,8">
+                <StackPanel>
+                    <TextBlock Text="{loc:Str UsbProbe.Device.Tools.Uncovered}" Style="{StaticResource Heading}" />
+                    <ItemsControl ItemsSource="{Binding Functions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,4,0,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextWrapping="NoWrap" />
+                                        <TextBox Style="{StaticResource MutedBox}" Text="{Binding ClassName, Mode=OneWay}" Margin="8,0,0,0" TextWrapping="NoWrap" />
+                                    </StackPanel>
+                                    <TextBox Style="{StaticResource MutedBox}" Text="{Binding Guidance, Mode=OneWay}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FactGroupTemplate">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" />
+                <ItemsControl ItemsSource="{Binding Facts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Style="{StaticResource FactValue}" Text="{Binding Value, Mode=OneWay}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Which device this is, and the two things to do with it as a whole. -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ProgressBar Style="{StaticResource NexaProgressBar}" Width="80" Height="3" Margin="0,0,12,0" VerticalAlignment="Center"
+                                 IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbDevice_ShowInTree"
+                            Command="{Binding OpenInExplorerCommand}" ToolTip="{loc:Str UsbProbe.Device.Toolbar.ShowInTreeTip}">
+                        <TextBlock Text="{loc:Str UsbProbe.Device.Toolbar.ShowInTree}" />
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbDevice_ReRead"
+                            Command="{Binding ReReadCommand}" ToolTip="{loc:Str UsbProbe.Device.Toolbar.ReReadTip}">
+                        <TextBlock Text="{loc:Str UsbProbe.Device.Toolbar.ReRead}" />
+                    </Button>
+                </StackPanel>
+                <icons:IconGlyph DockPanel.Dock="Left" Icon="{Binding Icon}" FontSize="28" Foreground="{StaticResource AccentBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                <StackPanel VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Title, Mode=OneWay}" FontSize="16" FontWeight="SemiBold" TextWrapping="NoWrap" />
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Ids, Mode=OneWay}" FontFamily="Consolas" Margin="10,3,0,0"
+                                 Foreground="{StaticResource TextMutedBrush}" TextWrapping="NoWrap" />
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Path, Mode=OneWay}" FontFamily="Consolas" Margin="10,3,0,0"
+                                 Foreground="{StaticResource TextMutedBrush}" TextWrapping="NoWrap" AutomationProperties.AutomationId="UsbDevice_Path" />
+                    </StackPanel>
+                    <TextBox Style="{StaticResource MutedBox}" Text="{Binding Subtitle, Mode=OneWay}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Unplugged: the page waits for it, and says so. -->
+        <Border Grid.Row="1" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding IsPresent, Converter={StaticResource InvBoolToVis}}">
+            <TextBox Style="{StaticResource ValueBox}" Text="{loc:Str UsbProbe.Device.Unplugged}" />
+        </Border>
+
+        <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0" Margin="8,6,8,0"
+                    ItemContainerStyle="{StaticResource ThemedTabItem}"
+                    SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+
+            <TabItem Header="{loc:Str UsbProbe.Device.Tab.Overview}" AutomationProperties.AutomationId="UsbDevice_Tab_Overview">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl Margin="4,8" ItemsSource="{Binding FactGroups}" ItemTemplate="{StaticResource FactGroupTemplate}" />
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="{loc:Str UsbProbe.Device.Tab.Tools}" AutomationProperties.AutomationId="UsbDevice_Tab_Tools">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                    <TextBox Style="{StaticResource MutedBox}" Margin="4,10" Text="{Binding NoTools, Mode=OneWay}" AutomationProperties.AutomationId="UsbDevice_NoTools"
+                             Visibility="{Binding NoTools, Converter={StaticResource NullToVis}}" />
+                        <ItemsControl ItemsSource="{Binding Tiles}" Margin="2,8" AutomationProperties.AutomationId="UsbDevice_Tiles">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <vc:ColumnTilePanel MinColumnWidth="400" Spacing="10" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="vc:ColumnTilePanel.IsWide" Value="{Binding IsWide, FallbackValue=True}" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="{loc:Str UsbProbe.Device.Tab.Interfaces}" AutomationProperties.AutomationId="UsbDevice_Tab_Interfaces">
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="460" MinWidth="200" />
+                        <ColumnDefinition Width="5" />
+                        <ColumnDefinition Width="*" MinWidth="300" />
+                    </Grid.ColumnDefinitions>
+                    <ListView Grid.Column="0" AutomationProperties.AutomationId="UsbDevice_Structure"
+                              ItemsSource="{Binding Structure}" SelectedItem="{Binding SelectedStructure, Mode=TwoWay}" SelectionMode="Single" b:ListCopy.Enabled="True"
+                              Background="{StaticResource SurfaceBrush}" BorderThickness="0" ItemContainerStyle="{StaticResource FileListRowStyle}">
+                        <ListView.View>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                                <GridViewColumn Header="{loc:Str UsbProbe.Device.Structure.Name}" Width="200">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate DataType="{x:Type vm:UsbStructureRow}">
+                                            <StackPanel Orientation="Horizontal" Margin="{Binding Indent}">
+                                                <icons:IconGlyph Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="{loc:Str UsbProbe.Device.Structure.Summary}" Width="240">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Summary}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Summary}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                    <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" Cursor="SizeWE" />
+                    <v:UsbDetailView Grid.Column="2" Detail="{Binding StructureDetail}" SelectedTab="{Binding StructureDetailTab, Mode=TwoWay}" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="{loc:Str UsbProbe.Device.Tab.Diagnostics}" AutomationProperties.AutomationId="UsbDevice_Tab_Diagnostics">
+                <Grid Margin="4,8,4,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                        <TextBlock Text="{loc:Str UsbProbe.Device.Diagnostics.Problems}" Style="{StaticResource Heading}" />
+                        <TextBox Style="{StaticResource MutedBox}" Text="{loc:Str UsbProbe.Device.Diagnostics.NoProblems}"
+                                 Visibility="{Binding HasProblems, Converter={StaticResource InvBoolToVis}}" />
+                        <ItemsControl ItemsSource="{Binding Problems}" AutomationProperties.AutomationId="UsbDevice_Problems">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBox Style="{StaticResource ValueBox}" Text="{Binding Mode=OneWay}" Margin="0,1" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <DockPanel Grid.Row="1">
+                        <TextBlock DockPanel.Dock="Top" Text="{loc:Str UsbProbe.Device.Diagnostics.Activity}" Style="{StaticResource Heading}" />
+                        <ListView AutomationProperties.AutomationId="UsbDevice_Log" ItemsSource="{Binding Log}" SelectionMode="Extended" b:ListCopy.Enabled="True" b:ListSelection.ClearOnBlankClick="True"
+                                  Background="{StaticResource SurfaceBrush}" BorderThickness="0" ItemContainerStyle="{StaticResource FileListRowStyle}">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Device.Log.Time}" Width="70">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Time}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Device.Log.Tool}" Width="150">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Tool}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Device.Log.Message}" Width="600">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Message}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Message}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <TextBox Style="{StaticResource MutedBox}" Margin="10,3" Text="{Binding Status, Mode=OneWay}" FontSize="11" TextWrapping="NoWrap" />
+        </Border>
+    </Grid>
+</UserControl>

@@ -231,6 +231,8 @@
   "Shell.Tabs.Menu.ClosePane": "Close pane",
   "Shell.Breadcrumb.CopyPath": "Copy path",
   "Shell.Breadcrumb.LongPath": "(long path)",
+  "Shell.Text.Copy": "Copy",
+  "Shell.Text.SelectAll": "Select all",
   "Shell.PageError.Headline": "This tab couldn't open",
   "Shell.PageError.HeadlineFormat": "{0} couldn't open",
   "Shell.PageError.Summary": "The rest of Nexaflow is unaffected — you can close this tab and carry on. If it keeps happening, the detail below is what to report.",

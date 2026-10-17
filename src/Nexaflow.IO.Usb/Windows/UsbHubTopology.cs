@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using Nexaflow.IO.Usb.Descriptors;
+using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Windows.Native;
 
 namespace Nexaflow.IO.Usb.Windows;
@@ -10,7 +11,7 @@ internal sealed record UsbPortConnection(
     int Port, string? DriverKey, bool IsHub, UsbSpeed Speed, bool? SuperSpeedCapable, byte CurrentConfiguration,
     byte[] DeviceDescriptor, bool? UserConnectable, bool? TypeC);
 
-internal sealed record UsbHubScan(string InstanceId, string InterfacePath, string Kind, int PortCount, string? OpenError, IReadOnlyList<UsbPortConnection> Ports);
+internal sealed record UsbHubScan(string InstanceId, string InterfacePath, string Kind, int PortCount, string? OpenError, IReadOnlyList<UsbPortConnection> Ports, IReadOnlyList<UsbHubPort> AllPorts);
 
 /// <summary>
 /// Every hub — root or external — exposes GUID_DEVINTERFACE_USB_HUB, and its connection IOCTLs describe each
@@ -27,14 +28,24 @@ internal static unsafe class UsbHubTopology
             using var hub = OpenHub(path);
             if (hub.IsInvalid)
             {
-                scans.Add(new UsbHubScan(instanceId, path, "?", 0, Kernel32.LastError("open hub"), []));
+                scans.Add(new UsbHubScan(instanceId, path, "?", 0, Kernel32.LastError("open hub"), [], []));
                 continue;
             }
             var (kind, portCount) = HubInformation(hub);
             var ports = new List<UsbPortConnection>();
+            var all = new List<UsbHubPort>(portCount);
             for (int port = 1; port <= portCount; port++)
-                if (Connection(hub, port) is { } connection) ports.Add(connection);
-            scans.Add(new UsbHubScan(instanceId, path, kind, portCount, null, ports));
+            {
+                if (Connection(hub, port) is { } connection)
+                {
+                    ports.Add(connection);
+                    all.Add(new UsbHubPort(port, true, connection.UserConnectable, connection.TypeC));
+                    continue;
+                }
+                var (userConnectable, typeC) = ConnectorProperties(hub, port);
+                all.Add(new UsbHubPort(port, false, userConnectable, typeC));
+            }
+            scans.Add(new UsbHubScan(instanceId, path, kind, portCount, null, ports, all));
         }
         return scans;
     }

@@ -1,6 +1,23 @@
+using Nexaflow.IO.Usb.Naming;
+
 namespace Nexaflow.IO.Usb.Inventory;
 
-public sealed record UsbHubInfo(string InstanceId, string Kind, int PortCount, string? OpenError);
+/// <summary>One downstream port of a hub, occupied or not, with what the port itself says about its connector.</summary>
+public sealed record UsbHubPort(int Number, bool Connected, bool? UserConnectable, bool? TypeC);
+
+/// <summary>The host controller a root hub belongs to: the PCI (or platform) device the bus hangs from.</summary>
+public sealed record UsbHostController(string InstanceId, string Name, UsbDevNodeDriver Driver);
+
+/// <summary>
+/// A hub — root or external — as the topology scan saw it. A root hub carries its <see cref="Controller"/>; an
+/// external hub is also a <see cref="UsbDeviceNode"/> with the same instance id.
+/// </summary>
+public sealed record UsbHubInfo(
+    string InstanceId, string Kind, string? Name, int Bus, int PortCount, IReadOnlyList<UsbHubPort> Ports,
+    UsbHostController? Controller, string? OpenError)
+{
+    public bool IsRoot => Controller is not null;
+}
 
 /// <summary>One complete, immutable inventory pass.</summary>
 public sealed class UsbInventorySnapshot(DateTimeOffset capturedAt, IReadOnlyList<UsbDeviceNode> devices, IReadOnlyList<UsbHubInfo> hubs, IReadOnlyList<string> diagnostics)
@@ -18,6 +35,9 @@ public sealed class UsbInventorySnapshot(DateTimeOffset capturedAt, IReadOnlyLis
 
     /// <summary>The device owning a function devnode, or the device itself.</summary>
     public UsbDeviceNode? FindOwner(string instanceId) => Find(instanceId) ?? devices.FirstOrDefault(d => d.Function(instanceId) is not null);
+
+    public UsbHubInfo? Hub(string instanceId) =>
+        hubs.FirstOrDefault(h => string.Equals(h.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
 }
 
 public enum UsbInventoryChangeKind
@@ -56,4 +76,10 @@ public interface IUsbDeviceInventory : IDisposable
 
     /// <summary>Re-reads one device's descriptors from the wire even if it was asleep before — the explicit "look again".</summary>
     Task<UsbDeviceNode?> RefreshDeviceAsync(string instanceId, CancellationToken ct);
+
+    /// <summary>
+    /// Names devices from <paramref name="names"/> from now on, and runs a pass so the snapshot carries them — after
+    /// a newer usb.ids was downloaded. Devices whose names changed are reported as <see cref="UsbInventoryChangeKind.Updated"/>.
+    /// </summary>
+    Task<UsbInventorySnapshot> UseNamesAsync(UsbIdsDatabase? names, CancellationToken ct);
 }

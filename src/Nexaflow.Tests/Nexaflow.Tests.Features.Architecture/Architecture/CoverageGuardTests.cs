@@ -26,6 +26,10 @@ public class CoverageGuardTests
         ["Network.Arp"]             = "Network",     // discovery plugins share the Network suite, the
         ["Network.Ssdp"]            = "Network",     // same way the codec backends share Compressed's
         ["Network.Actions"]         = "Network",
+        ["UsbProbe.StorageTools"]   = "UsbProbe",    // the device page's live-tool plugins share the UsbProbe suite,
+        ["UsbProbe.AudioTools"]     = "UsbProbe",    // as the discovery plugins share Network's
+        ["UsbProbe.HidTools"]       = "UsbProbe",
+        ["UsbProbe.SerialLink"]     = "UsbProbe",
     };
 
     [TestMethod]

@@ -33,6 +33,7 @@ public class FileTransferEngineTests
     public void Teardown()
     {
         FileTransferEngine.FreeSpaceProbe = null;
+        FileTransferEngine.AfterWriteProbe = null;
         try { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); } catch { }
     }
 
@@ -424,5 +425,66 @@ public class FileTransferEngineTests
     private sealed class SynchronousProgress(Action<TransferProgress> onReport) : IProgress<TransferProgress>
     {
         public void Report(TransferProgress value) => onReport(value);
+    }
+
+    // ── Verified copies ───────────────────────────────────────────────────────
+
+    private static Task<TransferResult> RunVerified(string source, string destination, IProgress<TransferProgress>? progress = null)
+        => FileTransferEngine.RunAsync(
+            new FileTransferRequest(TransferKind.Copy, [new TransferItem(source, destination)], ConflictPolicy.AutoRename, Verify: true),
+            null, progress, null, default);
+
+    private static string Sha256Of(string path) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
+
+    [TestMethod]
+    public async Task AVerifiedCopy_ReadsEveryFileBack_AndNamesItsHash()
+    {
+        var src = Dir("src");
+        FileWith(@"src\a.bin", new string('a', 5_000));
+        FileWith(@"src\sub\b.bin", new string('b', 3_000_000));   // past one buffer, so the read-back loops
+        var dest = Path.Combine(_root, "dest");
+        var seen = new List<TransferProgress>();
+
+        var result = await RunVerified(src, dest, new SyncProgress<TransferProgress>(seen.Add));
+
+        Assert.IsTrue(result.Completed);
+        Assert.AreEqual(0, result.Failures.Count, string.Join("; ", result.Failures.Select(f => f.Message)));
+        Assert.AreEqual(2, result.Verified.Count);
+        foreach (var file in result.Verified)
+            Assert.AreEqual(Sha256Of(file.Destination), file.Sha256, $"{file.Destination}'s recorded hash is what is on disk");
+        Assert.AreEqual(Sha256Of(Path.Combine(src, @"sub\b.bin")), result.Verified.Single(v => v.Destination.EndsWith("b.bin")).Sha256);
+        Assert.IsTrue(seen.Any(p => p.Verifying), "the run says while it is reading back");
+    }
+
+    [TestMethod]
+    public async Task ACopyThatReadsBackDifferent_IsRemoved_AndNamedAFailure()
+    {
+        var source = FileWith("good.txt", "the bytes that were sent");
+        var dest = Path.Combine(Dir("dest"), "good.txt");
+        FileTransferEngine.AfterWriteProbe = partial => File.WriteAllText(partial, "the bytes that were kept");
+
+        var result = await RunVerified(source, dest);
+
+        Assert.AreEqual(1, result.Failures.Count);
+        Assert.AreEqual("verify", result.Failures[0].Verb);
+        Assert.AreEqual(0, result.Verified.Count);
+        Assert.IsFalse(File.Exists(dest), "a copy that did not match never takes the real name");
+        Assert.AreEqual(0, Directory.GetFiles(Path.GetDirectoryName(dest)!).Length, "and leaves nothing half-written behind");
+    }
+
+    [TestMethod]
+    public async Task AnUnverifiedCopy_ListsNothingAsVerified()
+    {
+        var source = FileWith("plain.txt", "plain");
+        var result = await Run(TransferKind.Copy, source, Path.Combine(_root, "out.txt"));
+
+        Assert.AreEqual(0, result.Failures.Count);
+        Assert.AreEqual(0, result.Verified.Count);
+    }
+
+    /// <summary>Reports on the caller's thread, so a test sees every report before the run's task completes.</summary>
+    private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

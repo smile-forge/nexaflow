@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:s="clr-namespace:Nexaflow.Features.UsbProbe.StorageTools"
+                    xmlns:v="clr-namespace:Nexaflow.Features.UsbProbe.StorageTools.Views">
+
+    <!-- How the device page draws a mass-storage tool: its file browser (UsbStorageView). -->
+
+    <DataTemplate DataType="{x:Type s:UsbStorageTool}">
+        <v:UsbStorageView />
+    </DataTemplate>
+</ResourceDictionary>

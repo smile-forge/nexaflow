@@ -24,7 +24,7 @@
 
 ### Strategy A — LG monitor CDC serial interface (`VID_043E&PID_9A39&MI_01`, `usbser`, COM5)
 
-| Exit criterion (spec §5.5) | Result |
+| Exit criterion (spec §5.1) | Result |
 |---|---|
 | Binds one interface of a composite without affecting siblings | **Pass** — MI_01 → `WINUSB`, MI_00 stayed `HidUsb`, problem 0 |
 | libusb-1.0 opens it and completes GET_DESCRIPTOR | **Pass** — from the *unelevated* process: open, claim interface 1, GET_DESCRIPTOR, GET_STATUS. WinUSB P/Invoke likewise |
@@ -57,7 +57,7 @@ while a vendor app holds the device is untested, and the UI must expect it to fa
 
 Opens HID-backed devices (its HID backend) and serves GET_DESCRIPTOR(device) from the cache; `usbstor` →
 *not supported*; `usbvideo`/`usbaudio` and `BTHUSB` → *entity not found*; a D3 Corsair hub was not enumerated at
-all. libusb adds nothing over the class APIs for these — adapters (spec §7) stay on the class APIs.
+all. libusb adds nothing over the class APIs for these — the live tools (spec §7) stay on the class APIs.
 
 ### Phase 1 discovery, unprivileged
 
@@ -78,7 +78,7 @@ GUIDs; MS OS 1.0 support and vendor code from the `usbflags` cache (no request s
   reconstructs a descriptor from it), not from the hub.
 - **A composite function sees a rewritten device descriptor.** Through WinUSB on `MI_01`, `iProduct` read 5 where the
   hub's copy reads 3: `usbccgp` points the function's product string at its interface name. The hub copy is the
-  device's own; the report uses it.
+  device's own; the inventory and the USB page use it.
 - **A force-selected driver is per devnode instance**, not per hardware ID: nothing is published to the driver store,
   so an identical device on another port keeps its Windows driver (the opposite of Strategy B). Replug on the same
   port and reboot behaviour are still to be confirmed.
@@ -130,7 +130,11 @@ finishes it from whatever state it is in.
 `external/usbids` mirrors linux-usb.org's `usb.ids`, which linux-usb.org offers under GPL-2.0-or-later **or**
 BSD-3-Clause; Nexaflow (Unlicense) embeds it under BSD-3-Clause. The mirror's own `LICENSE` file is GPL-3.0, which
 is not one of those two — **open:** confirm with the maintainer that the mirror carries the file under its
-original dual licence before a release ships it.
+original dual licence before a release ships it. A newer copy is downloaded from linux-usb.org itself
+(`UsbIdsStore`), under the same BSD-3-Clause option — at most monthly when the USB page opens, or from Options → USB.
+linux-usb.org's HTTPS certificate names another host on the same server, so a handshake that fails on the host name
+and nothing else falls back to `http://www.linux-usb.org/usb.ids`; any other certificate failure is a failure. The
+download is validated the same way over either.
 
 ## Transport choice
 
@@ -152,9 +156,10 @@ libusbK/libusb0, or a non-Windows build — the contract keeps room for it.
   there is no `Devices.*` / `Modules.*` convention and no separate broker exe.
 - **There is no hierarchical state machine in the repo.** The binding lifecycle (§8.1) is the `BindingState` above,
   owned by the ledger; a UI state machine is a separate decision.
-- **"Send to AI chat" is pull-based here:** the USB page returns the report JSON from `IPageViewModel.GetContext()`
-  and exposes `IClientTool`s; the page is attached to a conversation. Opening a conversation seeded with a page is not
-  in `IShellServices` yet.
+- **No report, no export, no "send to AI".** The USB page is a live explorer, not a document: the agent reads it the
+  way it reads any page — `GetContext()` names the open place and its rows, and read-only tools (`usb_list`,
+  `usb_describe`, `usb_find`, `usb_open`, `usb_reread`) walk the same `UsbBrowser` tree the user does, by the same
+  location paths. The spec's §10 report schema is not implemented.
 - **`IO.Network`'s guarded transport** (`IGuardedTransport` / `SendIntent`) is the model for the armed state on raw
   OUT transfers.
 

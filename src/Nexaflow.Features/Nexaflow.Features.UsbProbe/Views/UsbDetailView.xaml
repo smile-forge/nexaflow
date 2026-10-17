@@ -1,0 +1,175 @@
+<UserControl x:Class="Nexaflow.Features.UsbProbe.Views.UsbDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.UsbProbe.ViewModels"
+             xmlns:v="clr-namespace:Nexaflow.Features.UsbProbe.Views"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:b="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
+             AutomationProperties.AutomationId="Usb_Detail">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- A value the user can select and copy: an instance id or a hardware id is something to paste elsewhere. -->
+        <Style x:Key="ValueBox" TargetType="TextBox" BasedOn="{StaticResource SelectableText}" />
+        <Style x:Key="MutedBox" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+
+        <!-- A fact with no label (a line of the plain-language summary) takes the whole width. -->
+        <Style x:Key="FactValue" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+            <Setter Property="Grid.Column" Value="1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Label}" Value="">
+                    <Setter Property="Grid.Column" Value="0" />
+                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FieldRowStyle" TargetType="ListViewItem" BasedOn="{StaticResource FileListRowStyle}">
+            <EventSetter Event="MouseEnter" Handler="Field_MouseEnter" />
+            <EventSetter Event="MouseLeave" Handler="Field_MouseLeave" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+            DataContext="{Binding Detail, RelativeSource={RelativeSource AncestorType=v:UsbDetailView}}">
+        <Grid Margin="10,8,10,6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                <icons:IconGlyph DockPanel.Dock="Left" Icon="{Binding Icon}" FontSize="20" Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Title, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" TextWrapping="NoWrap" />
+                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding Path, Mode=OneWay}" FontFamily="Consolas" Margin="10,1,0,0"
+                                 Foreground="{StaticResource TextMutedBrush}" TextWrapping="NoWrap" AutomationProperties.AutomationId="Usb_DetailPath" />
+                    </StackPanel>
+                    <TextBox Style="{StaticResource MutedBox}" Text="{Binding Summary, Mode=OneWay}" />
+                </StackPanel>
+            </DockPanel>
+
+            <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
+                        Visibility="{Binding HasContent, Converter={StaticResource BoolToVis}}"
+                        ItemContainerStyle="{StaticResource ThemedTabItem}"
+                        SelectedIndex="{Binding SelectedTab, RelativeSource={RelativeSource AncestorType=v:UsbDetailView}, Mode=TwoWay}">
+
+                <TabItem Header="{loc:Str UsbProbe.Detail.Overview}" AutomationProperties.AutomationId="Usb_Tab_Overview"
+                         Visibility="{Binding HasFacts, Converter={StaticResource BoolToVis}}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding FactGroups}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,3" />
+                                        <ItemsControl ItemsSource="{Binding Facts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="170" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBox Style="{StaticResource FactValue}" Text="{Binding Value, Mode=OneWay}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="{loc:Str UsbProbe.Detail.Descriptor}" AutomationProperties.AutomationId="Usb_Tab_Descriptor"
+                         Visibility="{Binding HasDescriptor, Converter={StaticResource BoolToVis}}">
+                    <Grid Margin="0,6,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="280" />
+                            <ColumnDefinition Width="5" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="{Binding BlobCaption}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4" />
+
+                        <ListView Grid.Row="1" Grid.Column="0"
+                                  AutomationProperties.AutomationId="Usb_Fields"
+                                  ItemsSource="{Binding Fields}"
+                                  Background="{StaticResource SurfaceBrush}"
+                                  BorderThickness="0"
+                                  ItemContainerStyle="{StaticResource FieldRowStyle}"
+                                  SelectionMode="Extended" b:ListCopy.Enabled="True" b:ListSelection.ClearOnBlankClick="True"
+                                  MouseLeave="Fields_MouseLeave">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Field.Offset}" Width="44">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Offset}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Field.Name}" Width="150">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Name}" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Field.Size}" Width="36">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Size}" FontFamily="Consolas" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Field.Value}" Width="120">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Value}" FontFamily="Consolas" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{loc:Str UsbProbe.Field.Meaning}" Width="280">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Meaning}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Meaning}" /></DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <GridSplitter Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" Cursor="SizeWE" />
+
+                        <ScrollViewer Grid.Row="1" Grid.Column="2"
+                                      AutomationProperties.AutomationId="Usb_Hex"
+                                      CanContentScroll="True"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      Background="{StaticResource SurfaceBrush}"
+                                      Padding="6,4">
+                            <vc:ByteFieldView Bytes="{Binding Bytes}"
+                                              Selection="{Binding Selection, Mode=OneWay}"
+                                              Highlight="{Binding Highlight, Mode=OneWay}"
+                                              HoveredOffset="{Binding HoveredOffset, Mode=TwoWay}"
+                                              FontFamily="Consolas"
+                                              Foreground="{StaticResource TextBrush}"
+                                              OffsetForeground="{StaticResource TextMutedBrush}"
+                                              SelectionBrush="{StaticResource AccentSubtleBrush}"
+                                              HighlightBrush="{StaticResource Search.Match}"
+                                              HoverBrush="{StaticResource AccentBrush}" />
+                        </ScrollViewer>
+
+                        <TextBox Grid.Row="2" Grid.ColumnSpan="3" Margin="0,4,0,0" MinHeight="16" Style="{StaticResource ValueBox}"
+                                 Text="{Binding HoverText, Mode=OneWay}" FontFamily="Consolas" TextWrapping="NoWrap" />
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Border>
+</UserControl>

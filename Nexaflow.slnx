@@ -126,6 +126,24 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Text/Nexaflow.Features.Text.csproj" Id="77cbeb58-09f2-493e-8b0f-127bed679b92">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe/Nexaflow.Features.UsbProbe.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Nexaflow.Features.UsbProbe.StorageTools.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/Nexaflow.Features.UsbProbe.AudioTools.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.HidTools/Nexaflow.Features.UsbProbe.HidTools.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Nexaflow.Features.UsbProbe.SerialLink.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Serial/Nexaflow.Features.Serial.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Video/Nexaflow.Features.Video.csproj">
       <Platform Project="x64" />
     </Project>

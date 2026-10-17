@@ -16,12 +16,21 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
 {
     static readonly TimeSpan DefaultSettle = TimeSpan.FromMilliseconds(250);
 
-    readonly UsbIdsDatabase? _names;
+    volatile UsbIdsDatabase? _names;
     readonly TimeSpan _settle;
     readonly SemaphoreSlim _passGate = new(1, 1);
     readonly Dictionary<string, CachedDescriptors> _cache = new(StringComparer.OrdinalIgnoreCase);
     readonly Timer _settleTimer;
     UsbPnpWatcher? _watcher;
+
+    /// <summary>USB devnodes enumerated or removed since the last pass: re-enumerated, so their cached descriptors may
+    /// describe the device as it was before — a phone switching into file transfer keeps its id and changes its
+    /// configuration.</summary>
+    readonly HashSet<string> _reenumerated = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The non-USB devnodes the last pass found beneath USB devices, so their removal is recognised without
+    /// asking Windows about a devnode that has gone.</summary>
+    volatile HashSet<string> _offspring = new(StringComparer.OrdinalIgnoreCase);
     volatile UsbInventorySnapshot _snapshot = UsbInventorySnapshot.Empty;
     bool _disposed;
 
@@ -40,7 +49,46 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await RefreshAsync(ct).ConfigureAwait(false);
-        _watcher ??= new UsbPnpWatcher(_ => _settleTimer.Change(_settle, Timeout.InfiniteTimeSpan));
+        _watcher ??= new UsbPnpWatcher(OnDevNode);
+    }
+
+    /// <summary>
+    /// A devnode came, started or went. A USB one always calls for a pass; so does one the last pass found beneath a USB
+    /// device; any other is looked up — off the notification thread, which must not block — and calls for a pass only when
+    /// it hangs beneath a USB device.
+    /// </summary>
+    void OnDevNode(string instanceId, bool enumeratedOrRemoved)
+    {
+        if (DevNodes.IsUsb(instanceId))
+        {
+            if (enumeratedOrRemoved) lock (_reenumerated) _reenumerated.Add(instanceId);
+            Settle();
+        }
+        else if (_offspring.Contains(instanceId))
+        {
+            Settle();
+        }
+        else
+        {
+            ThreadPool.UnsafeQueueUserWorkItem(static state =>
+            {
+                var (self, id) = state;
+                if (!self._disposed && DevNodes.IsUsbOrBeneathUsb(id)) self.Settle();
+            }, (this, instanceId), preferLocal: false);
+        }
+    }
+
+    /// <summary>Runs a pass once things have been quiet for the settle time.</summary>
+    void Settle()
+    {
+        if (_disposed) return;
+        try { _settleTimer.Change(_settle, Timeout.InfiniteTimeSpan); }
+        catch (ObjectDisposedException) { }
+    }
+
+    bool TakeReenumerated(string instanceId)
+    {
+        lock (_reenumerated) return _reenumerated.Remove(instanceId);
     }
 
     public Task<UsbInventorySnapshot> RefreshAsync(CancellationToken ct) => PassAsync(forceWireFor: null, ct);
@@ -50,6 +98,12 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
         var owner = _snapshot.FindOwner(instanceId)?.InstanceId ?? instanceId;
         var snapshot = await PassAsync(owner, ct).ConfigureAwait(false);
         return snapshot.Find(owner);
+    }
+
+    public Task<UsbInventorySnapshot> UseNamesAsync(UsbIdsDatabase? names, CancellationToken ct)
+    {
+        _names = names;
+        return RefreshAsync(ct);
     }
 
     async Task PassAfterEventsAsync()
@@ -123,21 +177,51 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
                 present.Add(node.Id);
                 var location = Locate(node.Id, scan, port, placement, buses);
                 bool force = string.Equals(node.Id, forceWireFor, StringComparison.OrdinalIgnoreCase);
-                devices.Add(Build(node.Id, node.DevInst, scan, port, descriptor, location, force));
+                devices.Add(Build(node.Id, node.DevInst, scan, port, descriptor, location, force, fresh: TakeReenumerated(node.Id)));
             }
         }
 
         foreach (var stale in _cache.Keys.Where(k => !present.Contains(k)).ToList()) _cache.Remove(stale);
+        _offspring = new HashSet<string>(
+            devices.SelectMany(d => d.Functions.SelectMany(f => f.Children).Concat(d.Auxiliary)).Select(c => c.InstanceId),
+            StringComparer.OrdinalIgnoreCase);
         devices.Sort((a, b) => string.CompareOrdinal(a.Location.PortPath, b.Location.PortPath));
-        return new UsbInventorySnapshot(DateTimeOffset.Now, devices,
-            scans.Select(s => new UsbHubInfo(s.InstanceId, s.Kind, s.PortCount, s.OpenError)).ToList(), diagnostics);
+        return new UsbInventorySnapshot(DateTimeOffset.Now, devices, Hubs(scans, placement, buses), diagnostics);
     }
 
-    UsbDeviceNode Build(string instanceId, uint devInst, UsbHubScan scan, UsbPortConnection port, UsbDeviceDescriptor descriptor, UsbPortLocation location, bool forceWire)
+    /// <summary>
+    /// Each hub with its name, its bus and, for a root hub, the controller above it — what a tree needs to show a
+    /// controller › hub › port path without asking the configuration manager again.
+    /// </summary>
+    static List<UsbHubInfo> Hubs(List<UsbHubScan> scans, Dictionary<string, (string Hub, int Port)> placement, Dictionary<string, int> buses)
+    {
+        var hubs = new List<UsbHubInfo>(scans.Count);
+        foreach (var scan in scans)
+        {
+            string root = scan.InstanceId;
+            while (placement.TryGetValue(root, out var at)) root = at.Hub;
+
+            uint? devInst = DevNodes.Locate(scan.InstanceId);
+            string? name = devInst is { } d ? DevNodes.String(d, DevPropKeys.FriendlyName) ?? DevNodes.String(d, DevPropKeys.DeviceDesc) : null;
+            hubs.Add(new UsbHubInfo(scan.InstanceId, scan.Kind, name, buses.GetValueOrDefault(root), scan.PortCount, scan.AllPorts,
+                buses.ContainsKey(scan.InstanceId) && devInst is { } r ? Controller(r) : null, scan.OpenError));
+        }
+        return hubs;
+    }
+
+    static UsbHostController? Controller(uint rootHub)
+    {
+        if (DevNodes.String(rootHub, DevPropKeys.Parent) is not { } parentId || DevNodes.Locate(parentId) is not { } parent) return null;
+        string name = DevNodes.String(parent, DevPropKeys.FriendlyName) ?? DevNodes.String(parent, DevPropKeys.DeviceDesc) ?? parentId;
+        return new UsbHostController(parentId, name, DevNodes.Driver(parent));
+    }
+
+    /// <param name="fresh">The device re-enumerated since the last pass: read its descriptors again rather than trust the cache.</param>
+    UsbDeviceNode Build(string instanceId, uint devInst, UsbHubScan scan, UsbPortConnection port, UsbDeviceDescriptor descriptor, UsbPortLocation location, bool forceWire, bool fresh)
     {
         var power = DevNodes.Power(devInst);
         bool asleep = power is UsbPowerState.D2 or UsbPowerState.D3;
-        var wire = Descriptors(instanceId, scan.InterfacePath, port, descriptor, readWire: forceWire || !asleep, forceWire);
+        var wire = Descriptors(instanceId, scan.InterfacePath, port, descriptor, readWire: forceWire || !asleep, force: forceWire || fresh);
 
         var diagnostics = new List<string>(wire.Problems);
         if (!wire.WireRead) diagnostics.Add($"suspended ({power}): strings and BOS were not requested, so the device was not woken");

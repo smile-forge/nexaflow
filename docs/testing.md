@@ -184,10 +184,10 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info, USB devices and their live tools, the serial terminal | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the suites above **and** `Tests.Initiatives` (for their **output**, not their API) |
 | `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
-| `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
+| `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network`, `IO.Usb` | those four + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
@@ -605,16 +605,23 @@ no shell and no config root (no IO library reaches one), so they are the fastest
 least able to fail for a reason that is not about its subject.
 
 - **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
-  `TextLineIndex`, `TextTransforms`.
+  `TextLineIndex`, `TextTransforms`, and `FileTransferEngine`'s verified copies (a test seam changes what landed
+  before the read-back). `Common/Audio/` holds the test signals and the meter's arithmetic, sample by sample, and the
+  float WAV round trip. `AudioEndpointCatalogTests` and `SerialPortCatalogTests` list this machine's audio endpoints
+  and COM ports without opening any.
 - **`Protocol/`** — the DynamicProtocol engine, plus the ten-protocol corpus (`Protocol/Corpus/*.json`)
   and the protocol graphs authored against it (`Protocol/Definitions/*.json`), both copied to the output
   by the csproj. See [dynamic-protocol.md](dynamic-protocol.md) → *Reading the tests*.
 - **`Network/`** — the device graph's identity lattice and the send guard.
-- **`Usb/`** — descriptor parsing against bytes captured from real devices (`UsbFixtures`), usb.ids naming, the
-  function and mode rules, the change diff, the device report, and the take-over gate: policy, ledger, and the
-  broker's requests asserted against a fake bridge. `WindowsUsbInventoryTests` reads this machine's real USB tree —
-  read-only and unprivileged — and is inconclusive where there is none. The binder itself changes drivers and is
-  exercised by `spikes/UsbDriverBinding`, never by a test.
+- **`Usb/`** — descriptor parsing and the byte-for-byte descriptor maps against bytes captured from real devices
+  (`UsbSamples` in `Tests.Fixtures`, built into devices by `UsbFixtures`), usb.ids naming and the store's updates
+  against a fake linux-usb.org, the function and mode rules, the browsing model's paths and facts, the change diff,
+  and the take-over gate: policy, ledger, and the broker's requests asserted against a fake bridge. The shared
+  inventory, the live-tool support (function classes, guidance, HID usage names) and usb.ids' HID usage tables are
+  tested on their own. `WindowsUsbInventoryTests`, `WindowsHidAccessTests` and `WindowsUsbStorageTests` read this
+  machine's real USB tree, HID collections and USB disks — read-only and unprivileged, sending nothing to a device and
+  reading no media — and are inconclusive where there are none. The binder itself changes drivers and is exercised by
+  `spikes/UsbDriverBinding`, never by a test.
 
 ### Providers (`Nexaflow.Tests.Providers`)
 

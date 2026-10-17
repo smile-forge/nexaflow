@@ -25,7 +25,14 @@ public class UsbIdsDatabaseTests
         "\t\t02  Mouse",
         "AT 0100  USB Audio Terminal section, not used",
         "\t0101  must not become a product of the last vendor",
-        "HID 00  Unknown");
+        "HID 00  Unknown",
+        "HUT 01  Generic Desktop Controls",
+        "\t002  Mouse",
+        "\t030  Direction-X",
+        "HUT 09  Buttons",
+        "\t001  Button 1 (Primary)",
+        "HUT ff  Vendor Specific",
+        "R 04  Usage Page");
 
     static UsbIdsDatabase Parse() => UsbIdsDatabase.Parse(new StringReader(Sample));
 
@@ -62,6 +69,21 @@ public class UsbIdsDatabaseTests
         var db = Parse();
         Assert.IsNull(db.ProductName(0x0B05, 0x0101));
         Assert.IsNull(db.VendorName(0x0100));
+    }
+
+    [TestMethod]
+    public void HidUsageTables_NamePagesAndUsages()
+    {
+        var db = Parse();
+        Assert.AreEqual("Generic Desktop Controls", db.UsagePageName(0x01));
+        Assert.AreEqual("Mouse", db.UsageName(0x01, 0x02));
+        Assert.AreEqual("Direction-X", db.UsageName(0x01, 0x30));
+        Assert.AreEqual("Button 1 (Primary)", db.UsageName(0x09, 0x01));
+        Assert.IsNull(db.UsageName(0x09, 0x02), "a usage the file does not list has no name");
+        Assert.AreEqual("Vendor Specific", db.UsagePageName(0xFF00), "the file names the whole vendor range under ff");
+        Assert.AreEqual("Vendor Specific", db.UsagePageName(0xFFA0));
+        Assert.IsNull(db.UsagePageName(0x0400), "between the defined pages and the vendor range nothing is named");
+        Assert.IsNull(db.UsageName(0x04, 0x01), "the R section after the table is not usages");
     }
 
     [TestMethod]

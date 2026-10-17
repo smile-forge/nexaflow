@@ -289,6 +289,9 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
+| UsbProbe | `location` (optional — a USB location path: `3` a bus, `3-10.2` a device by port path, `3-10.2/config1/if0.0` an interface inside it; a device name or VID:PID opens the first match. Location, not identity: a window keeps one USB tab and an open re-points it) |
+| UsbDevice | `device` (a device's port path such as `3-10.2`, anything inside it, or a name or VID:PID — one tab per device, which follows the device by instance id when it is replugged into another port) |
+| Serial | `port` (optional — a COM port such as `COM5`; one tab per port, omitted for a tab that picks one. Opening the tab never opens the port) |
 | Solver | *(none)* — the page is a fresh surface every time, which is why pinning the tab does not pin the definition or the results |
 | ProjectDetail | `folder` |
 | VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |

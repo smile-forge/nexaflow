@@ -5,19 +5,23 @@ namespace Nexaflow.IO.Usb.Windows;
 
 /// <summary>
 /// Follows every devnode the PnP manager enumerates, starts or removes (CM_Register_Notification with
-/// CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES) and reports the USB ones. A take-over is a remove-and-start of
-/// the function devnode, so driver changes arrive on the same path as plug and unplug. Callbacks come on a
-/// system thread pool thread and must not block, so this only hands the instance id on.
+/// CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES) and hands each on, saying whether it was enumerated or removed — a
+/// devnode that comes and goes under the same id has re-enumerated. Every devnode, not only the <c>USB\</c> ones: what
+/// Windows makes of a device (a stick's disk, a phone's portable device once it is unlocked) arrives as devnodes of
+/// other buses beneath it, and the listener decides which concern it. A take-over is a remove-and-start of the
+/// function devnode, so driver changes arrive on the same path as plug and unplug. Callbacks come on a system thread
+/// pool thread and must not block, so this only hands the instance id on.
 /// </summary>
 internal sealed unsafe class UsbPnpWatcher : IDisposable
 {
-    readonly Action<string> _onUsbDevNode;
+    readonly Action<string, bool> _onDevNode;
     GCHandle _self;
     nint _registration;
 
-    public UsbPnpWatcher(Action<string> onUsbDevNode)
+    /// <param name="onDevNode">The devnode's instance id, and true when it was enumerated or removed rather than started.</param>
+    public UsbPnpWatcher(Action<string, bool> onDevNode)
     {
-        _onUsbDevNode = onUsbDevNode;
+        _onDevNode = onDevNode;
         _self = GCHandle.Alloc(this);
         var filter = new CmNotifyFilter
         {
@@ -43,7 +47,7 @@ internal sealed unsafe class UsbPnpWatcher : IDisposable
                 && size > (uint)sizeof(CmNotifyEventData) && GCHandle.FromIntPtr(context).Target is UsbPnpWatcher watcher)
             {
                 var instanceId = new string((char*)((byte*)data + sizeof(CmNotifyEventData)));
-                if (instanceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)) watcher._onUsbDevNode(instanceId);
+                watcher._onDevNode(instanceId, action != CmNotifyEventData.ActionDeviceInstanceStarted);
             }
         }
         catch (Exception)
