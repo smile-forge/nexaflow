@@ -196,9 +196,9 @@ public sealed partial class StoreBrowser : ObservableObject, IDisposable
         string? local = _store.LocalPathOf(file.Entry.Id);
         if (local is null)
         {
-            // On a phone a file has no path here: it is fetched into a folder of this PC's temp space, read back like any
+            // On a phone a file has no path here: it is fetched into the folder the host keeps for that, read back like any
             // copy, and opened from there.
-            string folder = Directory.CreateDirectory(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Nexaflow", "Opened")).FullName;
+            string folder = Directory.CreateDirectory(_host.FetchedFilesFolder).FullName;
             var result = await CopyAsync(_store, [file.Entry], DiskStore.Over(folder), folder, CancellationToken.None, refresh: false);
             if (result is not { Verified: [var fetched] }) return;
             local = System.IO.Path.Combine(folder, fetched.Destination);

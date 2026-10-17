@@ -17,6 +17,15 @@ public interface IStoreBrowserHost
     /// <summary>Opens a file on this PC in the app's viewer for it; false when nothing in the app opens it.</summary>
     bool OpenFile(string path);
 
+    /// <summary>
+    /// Where a file with no path on this PC — one on a phone — is fetched to be opened: copied there, read back like any copy,
+    /// and opened from there.
+    /// </summary>
+    string FetchedFilesFolder { get; }
+
+    /// <summary>Where the app fetches such files: a folder of this PC's temp space.</summary>
+    static string DefaultFetchedFilesFolder => Path.Combine(Path.GetTempPath(), "Nexaflow", "Opened");
+
     /// <summary>Records what was done to the store, for whoever keeps a log of it.</summary>
     void Log(string message);
 

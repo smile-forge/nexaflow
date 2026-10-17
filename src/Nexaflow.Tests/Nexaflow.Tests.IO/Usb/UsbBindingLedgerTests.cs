@@ -10,7 +10,7 @@ public class UsbBindingLedgerTests
     string _dir = "";
 
     [TestInitialize]
-    public void Setup() => _dir = Directory.CreateTempSubdirectory("nexaflow-usb-ledger-").FullName;
+    public void Setup() => _dir = TestTemp.CreateSubdirectory("nexaflow-usb-ledger-").FullName;
 
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_dir, recursive: true);

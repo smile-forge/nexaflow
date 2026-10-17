@@ -86,7 +86,7 @@ public class StoreTransferTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-stores-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-stores-").FullName;
         Directory.CreateDirectory(Path.Combine(_dir, "pc", "Album"));
         File.WriteAllText(Path.Combine(_dir, "pc", "notes.txt"), "notes");
         File.WriteAllBytes(Path.Combine(_dir, "pc", "Album", "a.jpg"), [1, 2, 3]);

@@ -6,6 +6,7 @@ using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Plugins;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UsbProbe;
 
@@ -133,6 +134,10 @@ internal sealed class RecordingHost : IUsbToolHost
         OpenedFiles.Add(path);
         return true;
     }
+
+    /// <summary>The run's own folder, so a fetched file is gone with the test host rather than left in this PC's temp space.</summary>
+    public string FetchedFilesFolder => _fetched.Value;
+    private readonly Lazy<string> _fetched = new(() => TestTemp.CreateSubdirectory("nexaflow-usb-fetched-").FullName);
 
     public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions) => Task.FromResult(PickedFile);
     public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions) =>

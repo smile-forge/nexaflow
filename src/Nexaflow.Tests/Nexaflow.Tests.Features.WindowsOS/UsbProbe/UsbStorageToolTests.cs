@@ -30,7 +30,7 @@ public class UsbStorageToolTests
     [TestInitialize]
     public void Setup()
     {
-        var root = Directory.CreateTempSubdirectory("nexaflow-usbstorage-").FullName;
+        var root = TestTemp.CreateSubdirectory("nexaflow-usbstorage-").FullName;
         _stick = Directory.CreateDirectory(Path.Combine(root, "stick")).FullName + "\\";
         _pc = Directory.CreateDirectory(Path.Combine(root, "pc")).FullName;
         File.WriteAllText(Path.Combine(_stick, "notes.txt"), "on the stick");

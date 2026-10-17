@@ -144,7 +144,7 @@ public class PortableDeviceToolTests
         await tool.Browser.OpenCommand.ExecuteAsync(tool.Browser.Entries.Single());
 
         var opened = _host.OpenedFiles.Single();
-        StringAssert.StartsWith(opened, Path.GetTempPath());
+        StringAssert.StartsWith(opened, _host.FetchedFilesFolder);
         CollectionAssert.AreEqual(new byte[] { 7, 7, 7 }, File.ReadAllBytes(opened));
         StringAssert.Contains(tool.Browser.LastResult, "1 read back and matched");
         File.Delete(opened);

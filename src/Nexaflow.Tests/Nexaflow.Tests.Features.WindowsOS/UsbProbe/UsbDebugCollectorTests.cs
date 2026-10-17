@@ -30,7 +30,7 @@ public class UsbDebugCollectorTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-usbdebug-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-usbdebug-").FullName;
         _shell = Substitute.For<IShellServices>();
         _shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call =>
         {

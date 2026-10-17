@@ -18,7 +18,7 @@ public class UsbIdsStoreTests
     readonly Server _server = new();
 
     [TestInitialize]
-    public void Setup() => _dir = Directory.CreateTempSubdirectory("nexaflow-usbids-").FullName;
+    public void Setup() => _dir = TestTemp.CreateSubdirectory("nexaflow-usbids-").FullName;
 
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_dir, recursive: true);
