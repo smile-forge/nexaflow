@@ -38,7 +38,7 @@ public class TabularSearchableTests : SearchableContentConformanceTests
 
     private static string WriteCsv(string content)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "tabsearch_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "tabsearch_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var csv = Path.Combine(dir, "people.csv");
         File.WriteAllText(csv, content);

@@ -4,6 +4,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.SystemInfo.Services;
+using Nexaflow.IO.Common.Hardware;
 
 namespace Nexaflow.Tests.Features.SystemInfo;
 
@@ -16,7 +18,8 @@ public class SystemInfoLocalAiCheckTests
     private static readonly LocalAiSetup Gemma = new([new LocalAiGpu(0, "NVIDIA GeForce RTX 4090", 24L << 30, 21L << 30)],
         [new LocalAiModel("Gemma 4 E4B", 0, 6L << 30, 32768, OnDemand: false, Displaces: false, Fits: true)], []);
 
-    /// <summary>A page gathered once: the shell runs the gather it is handed and reports it done.</summary>
+    /// <summary>A page gathered once: the shell runs the gather it is handed and reports it done. The gather reads
+    /// <see cref="OneGpuMachine"/> rather than this one; <see cref="SystemInfoDashboardTests"/> holds the cards a real gather fills.</summary>
     private static async Task<(SystemInfoViewModel Vm, IShellServices Shell)> GatheredAsync(IAIService ai)
     {
         IBackgroundTask? task = null;
@@ -25,10 +28,24 @@ public class SystemInfoLocalAiCheckTests
         shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>()))
              .Do(ci => (task, complete) = (ci.Arg<IBackgroundTask>(), ci.Arg<Action<bool>>()));
 
-        var vm = new SystemInfoViewModel(shell, ai);
+        var vm = new SystemInfoViewModel(shell, ai, new OneGpuMachine());
         await task!.RunAsync(default);
         complete!(true);
         return (vm, shell);
+    }
+
+    /// <summary>A machine with one discrete GPU and no NPU, of which only the Local AI card is gathered.</summary>
+    private sealed class OneGpuMachine : ISystemInfoCollector
+    {
+        private static readonly ComputeHardwareReport Hardware =
+            new([new ComputeAdapter("NVIDIA GeForce RTX 4090", ComputeVendor.Nvidia, 24L << 30, IsIntegrated: false, IsNpu: false)], new Version(13, 0));
+
+        public SystemInfoSnapshot Collect(LocalAiSetup? localAi = null)
+        {
+            var snapshot = new SystemInfoSnapshot();
+            snapshot.Sections.Add(snapshot.LocalAi = SystemInfoCollector.CollectLocalAi(Hardware, localAi));
+            return snapshot;
+        }
     }
 
     private static SystemInfoSection LocalAiCard(SystemInfoViewModel vm) => vm.Sections.Single(s => s.Title == "Local AI");

@@ -70,6 +70,63 @@ public static class WavAudio
         return wav;
     }
 
+    /// <summary>A clip as a 32-bit IEEE-float WAV with every channel it has — a recording kept exactly as it was heard.</summary>
+    public static byte[] WriteFloat(AudioClip clip)
+    {
+        int data = clip.Samples.Length * 4, block = clip.Channels * 4;
+        var wav = new byte[44 + data];
+        "RIFF"u8.CopyTo(wav);
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(4), 36 + data);
+        "WAVEfmt "u8.CopyTo(wav.AsSpan(8));
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(16), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(20), 3);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(22), (short)clip.Channels);
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(24), clip.Rate);
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(28), clip.Rate * block);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(32), (short)block);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(34), 32);
+        "data"u8.CopyTo(wav.AsSpan(36));
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(40), data);
+        for (int i = 0; i < clip.Samples.Length; i++) BinaryPrimitives.WriteSingleLittleEndian(wav.AsSpan(44 + i * 4), clip.Samples[i]);
+        return wav;
+    }
+
+    /// <summary>Any PCM or IEEE-float WAV as interleaved float, every channel kept.</summary>
+    /// <exception cref="InvalidDataException">It is not a PCM or IEEE-float WAV.</exception>
+    public static AudioClip ReadClip(ReadOnlySpan<byte> wav)
+    {
+        if (wav.Length < 12 || !wav[..4].SequenceEqual("RIFF"u8) || !wav[8..12].SequenceEqual("WAVE"u8))
+            throw new InvalidDataException("Not a WAV file.");
+
+        int format = 0, channels = 0, rate = 0, bits = 0;
+        for (int at = 12; at + 8 <= wav.Length;)
+        {
+            var id   = wav.Slice(at, 4);
+            int size = BinaryPrimitives.ReadInt32LittleEndian(wav[(at + 4)..]);
+            var body = wav.Slice(at + 8, Math.Min(size, wav.Length - at - 8));
+            if (id.SequenceEqual("fmt "u8))
+            {
+                format   = BinaryPrimitives.ReadUInt16LittleEndian(body);
+                channels = BinaryPrimitives.ReadUInt16LittleEndian(body[2..]);
+                rate     = BinaryPrimitives.ReadInt32LittleEndian(body[4..]);
+                bits     = BinaryPrimitives.ReadUInt16LittleEndian(body[14..]);
+                if (format == 0xFFFE && body.Length >= 26) format = BinaryPrimitives.ReadUInt16LittleEndian(body[24..]);
+            }
+            else if (id.SequenceEqual("data"u8))
+            {
+                if (channels == 0) break;
+                if (!(format == 1 && bits is 8 or 16 or 24 or 32) && !(format == 3 && bits == 32))
+                    throw new InvalidDataException($"WAV format {format} at {bits} bits is not PCM or 32-bit float.");
+                int bytes = bits / 8, count = body.Length / bytes / channels * channels;
+                var samples = new float[count];
+                for (int i = 0; i < count; i++) samples[i] = (float)Sample(body.Slice(i * bytes, bytes), format, bits);
+                return new AudioClip(samples, channels, rate);
+            }
+            at += 8 + size + (size & 1);
+        }
+        throw new InvalidDataException("The WAV file has no format or no samples.");
+    }
+
     private static byte[] Downmix(ReadOnlySpan<byte> data, int format, int channels, int bits)
     {
         const int Pcm = 1, Float = 3;

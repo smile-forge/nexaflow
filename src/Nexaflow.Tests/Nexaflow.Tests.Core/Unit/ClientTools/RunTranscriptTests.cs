@@ -19,7 +19,7 @@ public class RunTranscriptTests
     [TestInitialize]
     public void Point()
     {
-        _folder = Directory.CreateTempSubdirectory("nexaflow-transcripts-").FullName;
+        _folder = TestTemp.CreateSubdirectory("nexaflow-transcripts-").FullName;
         _was    = Environment.GetEnvironmentVariable(RunTranscript.Variable);
         Environment.SetEnvironmentVariable(RunTranscript.Variable, _folder);
     }

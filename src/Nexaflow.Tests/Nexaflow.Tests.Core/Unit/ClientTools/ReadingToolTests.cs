@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.IO.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 
@@ -52,12 +53,14 @@ public class ReadingToolTests
         public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct) => Task.FromResult<string?>(text);
     }
 
-    private static ReadingTool Tool(Reader reader, IFileTextExtractor? extractor = null)
-        => new(reader, path => extractor is not null && extractor.CanExtract(path) ? extractor : null, _ => { });
+    /// <summary>The tool, with the temp folder the files are saved in open in a tab — or <paramref name="scope"/>.</summary>
+    private static ReadingTool Tool(Reader reader, IFileTextExtractor? extractor = null, PathScope? scope = null)
+        => new(reader, path => extractor is not null && extractor.CanExtract(path) ? extractor : null, _ => { },
+               scope ?? new PathScope([], [TestTemp.Root]));
 
     private static string Saved(string name, string text)
     {
-        var path = Path.Combine(Directory.CreateTempSubdirectory("nexaflow-reading-").FullName, name);
+        var path = Path.Combine(TestTemp.CreateSubdirectory("nexaflow-reading-").FullName, name);
         File.WriteAllText(path, text);
         return path;
     }
@@ -123,7 +126,7 @@ public class ReadingToolTests
     public async Task AFileThatIsNotText_IsSaidSo_AndTheRestAreRead()
     {
         var reader = new Reader(context: 8192);
-        var binary = Path.Combine(Directory.CreateTempSubdirectory("nexaflow-reading-").FullName, "image.bin");
+        var binary = Path.Combine(TestTemp.CreateSubdirectory("nexaflow-reading-").FullName, "image.bin");
         File.WriteAllBytes(binary, [0x89, 0x50, 0x00, 0x00, 0x01, 0x02]);
         var text   = Saved("notes.txt", "Kept.");
 
@@ -132,6 +135,22 @@ public class ReadingToolTests
         StringAssert.Contains(result.ModelText, "Not read: image.bin: it is not text");
         var none = await Tool(reader).InvokeAsync(Asking("Read it.", binary), default);
         Assert.IsTrue(none.IsError);
+    }
+
+    [TestMethod]
+    public async Task OnlyAFileTheUserGave_IsRead_OpenInATab_OrInAFolderOpenInOne()
+    {
+        var reader = new Reader(context: 8192);
+        var given  = Saved("notes.txt", "Kept.");
+        var other  = Saved("secret.txt", "Not for you.");
+
+        var result = await Tool(reader, scope: new PathScope([given], [])).InvokeAsync(Asking("Read them.", given, other), default);
+
+        Assert.IsFalse(reader.Asked.Any(a => a.Contains("Not for you.")), "nothing outside what the user gave is read");
+        StringAssert.Contains(result.ModelText, "outside what the user has given you");
+        CollectionAssert.AreEqual(new[] { given }, result.Attachments!.ToArray());
+        var none = await Tool(reader, scope: PathScope.None).InvokeAsync(Asking("Read it.", given), default);
+        Assert.IsTrue(none.IsError, "with nothing given, nothing is read");
     }
 
     [TestMethod]

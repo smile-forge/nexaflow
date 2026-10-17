@@ -477,6 +477,12 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         return $"dicom:{id}";
     }
 
+    /// <summary>The scan's files this tab shows.</summary>
+    public ContextGrant GetContextGrant()
+        => _originParams.TryGetValue("path", out var p) && !string.IsNullOrEmpty(p) ? ContextGrant.OfFile(p)
+         : _originParams.TryGetValue("paths", out var ps) && !string.IsNullOrEmpty(ps) ? ContextGrant.OfFiles(ps.Split('|', StringSplitOptions.RemoveEmptyEntries))
+         : ContextGrant.None;
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool("dicom_list_contents",

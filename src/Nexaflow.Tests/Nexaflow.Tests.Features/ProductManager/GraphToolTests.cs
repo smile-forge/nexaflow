@@ -35,7 +35,7 @@ public class GraphToolTests
     [TestInitialize]
     public void CreateProductAndGraph()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-graphtools-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-graphtools-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "src"));
 
         File.WriteAllText(Path.Combine(_root, "src", "Widget.cs"), """
@@ -440,7 +440,7 @@ public class GraphToolTests
     [TestMethod]
     public async Task WithNoGraphBuiltYet_TheToolsSayHowToGetOne()
     {
-        var bare = Path.Combine(Path.GetTempPath(), "nexa-nograph-" + Guid.NewGuid().ToString("N"));
+        var bare = Path.Combine(TestTemp.Root, "nexa-nograph-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bare);
         new ProductStore(bare).Initialize("Bare");
         try
@@ -502,5 +502,22 @@ public class GraphToolTests
         Assert.IsTrue(File.Exists(Path.Combine(_root, "src", "Parts", "Widget.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "a file left holding only its namespace is removed");
         StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Parts", "Widget.cs")), "namespace Demo;");
+    }
+
+    [TestMethod]
+    [CoversNode("ai-context-paths")]
+    public async Task Edit_NeverReachesOutsideTheProductFolder()
+    {
+        var outside = Path.Combine(Path.GetDirectoryName(_root)!, "Widget.cs");
+
+        var refused = await Run("graph_edit", new JsonObject
+        {
+            ["op"] = "move", ["node_id"] = "code:src/Widget.cs#T:Widget", ["to"] = "file:../Widget.cs",
+        });
+
+        Assert.IsTrue(refused.IsError, refused.ModelText);
+        StringAssert.Contains(refused.ModelText, "outside the product folder");
+        Assert.IsFalse(File.Exists(outside), "nothing is written above the folder the page shows");
+        Assert.IsTrue(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "nor is anything inside it changed");
     }
 }

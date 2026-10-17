@@ -67,7 +67,7 @@ internal sealed unsafe class LlamaContext : IDisposable
                 batch.Logits[i] = (sbyte)(sample && i == tokens.Length - 1 ? 1 : 0);
             }
             Check(LlamaNative.Decode(Handle, batch));
-            return sample ? LlamaNative.SamplerSample(sampler?.Handle ?? _sampler, Handle, -1) : null;
+            return sample ? Sample(sampler) : null;
         }
     }
 
@@ -78,16 +78,20 @@ internal sealed unsafe class LlamaContext : IDisposable
         lock (_gate)
         {
             Check(read(Handle));
-            return sample ? LlamaNative.SamplerSample(sampler?.Handle ?? _sampler, Handle, -1) : null;
+            return sample ? Sample(sampler) : null;
         }
     }
 
-    /// <summary>Drops a sequence's tokens from <paramref name="from"/> on — all of them by default.</summary>
-    public void Forget(int sequence, int from = -1)
+    /// <summary>Drops a sequence's tokens at positions from <paramref name="from"/> up to <paramref name="to"/> — all of
+    /// them by default.</summary>
+    public void Forget(int sequence, int from = -1, int to = -1)
     {
         lock (_gate)
-            if (_context != IntPtr.Zero) LlamaNative.MemoryRemove(_memory, sequence, from, -1);
+            if (_context != IntPtr.Zero) LlamaNative.MemoryRemove(_memory, sequence, from, to);
     }
+
+    /// <summary>The next token, from the last read's logits: by the reader's sampler, or the likeliest.</summary>
+    private int Sample(LlamaSampler? sampler) => sampler?.Sample(Handle) ?? LlamaNative.SamplerSample(_sampler, Handle, -1);
 
     private IntPtr Handle => _context != IntPtr.Zero ? _context : throw new ObjectDisposedException(nameof(LlamaContext));
 

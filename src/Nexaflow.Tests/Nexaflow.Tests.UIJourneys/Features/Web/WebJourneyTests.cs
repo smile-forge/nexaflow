@@ -44,7 +44,7 @@ public class WebJourneyTests : UiJourneyTestBase
         if (_folder.Length > 0) return _folder;
 
         _folder = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "nexaflow-webjourney-" + Guid.NewGuid().ToString("N"))).FullName;
+            Path.Combine(TestTemp.Root, "nexaflow-webjourney-" + Guid.NewGuid().ToString("N"))).FullName;
 
         File.WriteAllText(Path.Combine(_folder, FirstPage),
             $"<html><head><title>First</title></head><body><h1>{FirstHeading}</h1>" +

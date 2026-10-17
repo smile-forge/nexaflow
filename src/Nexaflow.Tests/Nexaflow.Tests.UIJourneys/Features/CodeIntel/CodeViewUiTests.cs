@@ -47,7 +47,7 @@ public class CodeViewUiTests : FileSystemUiTestBase
     {
         // A single tall class box makes the panel taller than its viewport AND fills it with the diagram, so
         // the cursor sits over the diagram. Before the fix the diagram's ScrollViewer swallowed the wheel.
-        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "codeintel-wheel-" + System.Guid.NewGuid().ToString("N"));
+        var dir = System.IO.Path.Combine(TestTemp.Root, "codeintel-wheel-" + System.Guid.NewGuid().ToString("N"));
         System.IO.Directory.CreateDirectory(dir);
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("using System.Aaa;").AppendLine("using System.Bbb;").AppendLine("namespace W;").AppendLine("public class Big").AppendLine("{");

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:paged="clr-namespace:Nexaflow.Visuals.Text.Editing.Paged;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
              AutomationProperties.AutomationId="PdfView"
              Background="{StaticResource BgBrush}"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
@@ -149,7 +150,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="PanelColumn" Width="300" MinWidth="220"/>
             <ColumnDefinition x:Name="SplitterColumn" Width="4"/>
-            <ColumnDefinition Width="*" MinWidth="320"/>
+            <ColumnDefinition x:Name="ReaderColumn" Width="*" MinWidth="320"/>
         </Grid.ColumnDefinitions>
 
         <!-- ══ Document panel ══════════════════════════════════════════════ -->
@@ -297,6 +298,7 @@
                             </ListBox>
                         </Grid>
                     </TabItem>
+
                 </TabControl>
             </Grid>
         </Border>
@@ -315,6 +317,7 @@
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="36"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -454,24 +457,44 @@
                 </Grid>
             </Border>
 
-            <!-- The pages, drawn natively from the document: a paged host over the shared layout tree, scrolling itself
-                 so only the pages near the viewport are read and laid. -->
-            <ScrollViewer Grid.Row="1"
-                          CanContentScroll="True"
-                          Focusable="False"
-                          HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto">
-                <paged:PagedLayoutElement x:Name="Pages"
-                                          AutomationProperties.AutomationId="Pdf_Pages"
-                                          Source="{Binding Pages}"
-                                          Background="{DynamicResource BgBrush}"
-                                          Paper="{DynamicResource Pdf.Paper}"
-                                          Selection="{DynamicResource Pdf.Selection}"
-                                          Highlight="{DynamicResource Pdf.FindHit}"
-                                          CurrentHighlight="{DynamicResource Pdf.FindCurrent}"/>
-            </ScrollViewer>
+<!-- Scanned pages: that their text can't be searched or copied, and converting them to Markdown; then how
+     the conversion is getting on. -->
+<StackPanel Grid.Row="1">
+    <Border Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+            Padding="12,6" Visibility="{Binding ShowsScansNotice, Converter={StaticResource BoolToVis}}">
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Command="{Binding DismissScansNoticeCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                    ToolTip="{loc:Str Pdf.Scans.DismissTip}" AutomationProperties.Name="{loc:Str Pdf.Scans.DismissTip}"
+                    AutomationProperties.AutomationId="Pdf_ScansNoticeDismiss">
+                <TextBlock Text="✕" FontSize="11"/>
+            </Button>
+            <Button DockPanel.Dock="Right" Command="{Binding ConvertScansCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
+                    ToolTip="{loc:Str Pdf.Scans.ConvertTip}" AutomationProperties.AutomationId="Pdf_ConvertScans">
+                <TextBlock Text="{loc:Str Pdf.Scans.Convert}"/>
+            </Button>
+            <TextBlock Text="{Binding ScansSummary}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+    </Border>
+    <pages:PageConversionBar DataContext="{Binding Conversion}"/>
+</StackPanel>
 
-            <Border Grid.Row="1"
+<!-- The pages, drawn natively from the document: a paged host over the shared layout tree, scrolling itself
+     so only the pages near the viewport are read and laid. -->
+<ScrollViewer Grid.Row="2"
+              CanContentScroll="True"
+              Focusable="False"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto">
+    <paged:PagedLayoutElement x:Name="Pages"
+                              AutomationProperties.AutomationId="Pdf_Pages"
+                              Source="{Binding Pages}"
+                              Background="{DynamicResource BgBrush}"
+                              Paper="{DynamicResource Pdf.Paper}"
+                              Selection="{DynamicResource Pdf.Selection}"
+                              Highlight="{DynamicResource Pdf.FindHit}"
+                              CurrentHighlight="{DynamicResource Pdf.FindCurrent}"/>
+</ScrollViewer>
+            <Border Grid.Row="2"
                     AutomationProperties.AutomationId="Pdf_FallbackPanel"
                     Background="{DynamicResource BgBrush}"
                     Panel.ZIndex="20"

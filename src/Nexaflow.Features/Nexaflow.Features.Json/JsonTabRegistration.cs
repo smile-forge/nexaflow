@@ -15,6 +15,11 @@ public sealed class JsonTabRegistration : IPageRegistration
     public static string StaticPageKind => "Json";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the JSON file to open.", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;

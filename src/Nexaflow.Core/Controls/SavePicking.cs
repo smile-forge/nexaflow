@@ -24,10 +24,9 @@ internal static class SavePicking
         return SaveRoom.TakesASave(home) ? home : KnownFolderService.DocumentsPath;
     }
 
-    /// <summary>The file a folder and a typed name come to, or nothing where there is no name to build on. The
-    /// extension the caller asked for is added unless the name already carries one it allows, and a reader who
-    /// types a path of their own gets it, wherever the tree happens to be standing.</summary>
-    internal static string? Named(string? folder, string? typed, IReadOnlyList<string>? extensions)
+    /// <summary>The file a typed name makes in <paramref name="folder"/>: as typed where it ends in one of
+    /// <paramref name="extensions"/>, else with <paramref name="chosen"/> — the first of them where none is — added.</summary>
+    internal static string? Named(string? folder, string? typed, IReadOnlyList<string>? extensions, string? chosen = null)
     {
         if (string.IsNullOrWhiteSpace(typed)) return null;
 
@@ -39,7 +38,7 @@ internal static class SavePicking
 
         return extensions is { Count: > 0 }
                && !extensions.Any(ext => joined.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                   ? joined + extensions[0]
+                   ? joined + (chosen ?? extensions[0])
                    : joined;
     }
 

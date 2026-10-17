@@ -4,7 +4,9 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Core.Services.Generation;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Core.Unit.Voice;
 using Nexaflow.Tests.Fixtures;
@@ -13,23 +15,34 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Tests.Core.Unit.Generation;
 
 /// <summary>
-/// The tools that make things: each offered only where the workspace has a model for it, each saving what it made
-/// where it was asked — never over a file already there — opening it, and telling the model where it went.
+/// The tools that make things: each offered only where the workspace has a model for it, each working only from what the
+/// user has given the assistant and saving only into a folder open in a tab — never over a file already there — or, asked
+/// for nowhere, opening what it made as a draft for the user to save; telling the model where it went, or only that it opened.
 /// </summary>
 [TestClass]
 [CoversNode("agent-generation-tools")]
 public class GenerationToolsTests
 {
     private string _home = "";
-    private readonly List<string> _opened = [];
+    private readonly List<object> _opened = [];
 
     [TestInitialize]
-    public void Setup() => Directory.CreateDirectory(_home = Path.Combine(Path.GetTempPath(), "nexaflow-generated-" + Guid.NewGuid().ToString("N")));
+    public void Setup()
+    {
+        _home = Path.Combine(TestTemp.Root, "nexaflow-generated-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Context);
+    }
 
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_home, recursive: true);
 
-    private GeneratedFiles Files => new(kind => Path.Combine(_home, kind.ToString()), path => { _opened.Add(path); return Task.CompletedTask; });
+    /// <summary>A folder open in a tab: the one place the tools may save in, and where they may read pictures from.</summary>
+    private string Context => Path.Combine(_home, "context");
+
+    private string Drafts => Path.Combine(_home, "drafts");
+
+    private GeneratedFiles Files => new(new PathScope([], [Context]), Drafts, kind => Path.Combine(_home, "offered", kind.ToString()),
+                                        made => { _opened.Add(made); return Task.CompletedTask; });
 
     private static readonly byte[] Drawn = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3];
 
@@ -47,21 +60,66 @@ public class GenerationToolsTests
     }
 
     [TestMethod]
-    public async Task APicture_IsSavedUnderItsPrompt_Opened_AndShownToTheModel()
+    public async Task APicture_AskedForNowhere_OpensAsADraft_ShownToTheModel_ButNeverGivenIt()
     {
         var painter = new Painter();
 
         var result = await new GenerateImageTool(painter, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "A red fox, asleep in the snow at dusk", ["shape"] = "landscape" }, default);
 
-        var saved = Path.Combine(_home, "Picture", "A red fox asleep in the.png");
         Assert.IsTrue(result.Success, result.ModelText);
-        CollectionAssert.AreEqual(Drawn, File.ReadAllBytes(saved));
-        CollectionAssert.AreEqual(new[] { saved }, _opened, "opened as a double-click would");
-        CollectionAssert.AreEqual(new[] { saved }, result.Attachments!.ToArray(), "the conversation carries the file");
+        var draft = (DraftFile)_opened.Single();
+        Assert.AreEqual("A red fox asleep in the.png", Path.GetFileName(draft.Path), "named from its prompt");
+        StringAssert.StartsWith(draft.Path, Drafts, "kept in a temp folder until the user saves it");
+        Assert.AreEqual(Path.Combine(_home, "offered", "Picture"), draft.OfferedFolder, "Save as starts in the user's own folder for pictures");
+        CollectionAssert.AreEqual(Drawn, File.ReadAllBytes(draft.Path));
+        Assert.IsNull(result.Attachments, "a draft is not handed to the conversation");
+        Assert.IsFalse(result.ModelText.Contains(draft.Path), "the model is told it opened, not where it is");
+        StringAssert.Contains(result.ModelText, "not saved yet");
         CollectionAssert.AreEqual(Drawn, result.Images!.Single().Bytes, "the model sees what it made");
-        StringAssert.Contains(result.ModelText, saved);
         StringAssert.Contains(result.ModelText, "a fox, curled up", "what the model said about it is passed on");
         Assert.AreEqual(MediaShape.Landscape, painter.Asked.Single().Shape);
+    }
+
+    [TestMethod]
+    public async Task APicture_AskedIntoAFolderOpenInATab_IsSavedThere_Opened_AndToldToTheModel()
+    {
+        var result = await new GenerateImageTool(new Painter(), null, Files).InvokeAsync(
+            new JsonObject { ["prompt"] = "fox", ["path"] = Path.Combine(Context, "art") + Path.DirectorySeparatorChar }, default);
+
+        var saved = Path.Combine(Context, "art", "fox.png");
+        Assert.IsTrue(result.Success, result.ModelText);
+        CollectionAssert.AreEqual(Drawn, File.ReadAllBytes(saved));
+        CollectionAssert.AreEqual(new object[] { saved }, _opened, "opened as a double-click would");
+        CollectionAssert.AreEqual(new[] { saved }, result.Attachments!.ToArray(), "the conversation carries the file");
+        StringAssert.Contains(result.ModelText, saved);
+    }
+
+    [TestMethod]
+    [DataRow("above", DisplayName = "the folder above the one open")]
+    [DataRow("beside", DisplayName = "a folder beside it")]
+    [DataRow("climbing", DisplayName = "a '..' climbing out")]
+    [DataRow("relative", DisplayName = "a relative path")]
+    public async Task APlaceOutsideWhatTheUserGave_IsRefused_BeforeAnythingIsMade(string where)
+    {
+        var asked = where switch
+        {
+            "above"    => _home,
+            "beside"   => Path.Combine(_home, "contexts", "fox.png"),
+            "climbing" => Path.Combine(Context, "..", "fox.png"),
+            _          => "fox.png",
+        };
+        var painter = new Painter();
+        var voice   = new FakeSpeaker();
+        var filmer  = new Filmer();
+
+        var picture   = await new GenerateImageTool(painter, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "fox", ["path"] = asked }, default);
+        var recording = await new GenerateSpeechTool(voice, Files).InvokeAsync(new JsonObject { ["text"] = "Hello.", ["path"] = asked }, default);
+        var clip      = await new GenerateVideoTool(filmer, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "waves", ["path"] = asked }, default);
+
+        foreach (var result in new[] { picture, recording, clip }) Assert.IsTrue(result.IsError, result.ModelText);
+        Assert.AreEqual(0, painter.Asked.Count + voice.Said.Count + filmer.Asked.Count, "nothing is made to be thrown away");
+        Assert.AreEqual(0, _opened.Count);
+        Assert.AreEqual(1, Directory.GetFileSystemEntries(_home).Length, "nothing is written anywhere");
     }
 
     [TestMethod]
@@ -69,11 +127,11 @@ public class GenerationToolsTests
     {
         var tool = new GenerateImageTool(new Painter(), null, Files);
 
-        await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox" }, default);
-        var second = await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox" }, default);
+        await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox", ["path"] = Context }, default);
+        var second = await tool.InvokeAsync(new JsonObject { ["prompt"] = "fox", ["path"] = Context }, default);
 
-        Assert.AreEqual(Path.Combine(_home, "Picture", "fox (2).png"), second.Attachments!.Single());
-        Assert.AreEqual(2, Directory.GetFiles(Path.Combine(_home, "Picture")).Length);
+        Assert.AreEqual(Path.Combine(Context, "fox (2).png"), second.Attachments!.Single());
+        Assert.AreEqual(2, Directory.GetFiles(Context).Length);
     }
 
     [TestMethod]
@@ -110,7 +168,7 @@ public class GenerationToolsTests
     [TestMethod]
     public async Task AQualityThatTakesNoSources_IsToldSo_WhenTheOtherDoes()
     {
-        var source = Path.Combine(_home, "fox.png");
+        var source = Path.Combine(Context, "fox.png");
         File.WriteAllBytes(source, Drawn);
         var tool = new GenerateImageTool(new Painter { Sources = 3 }, new Painter { Sources = 0 }, Files);
 
@@ -123,12 +181,12 @@ public class GenerationToolsTests
     [TestMethod]
     public void TheFileAskedFor_IsAFolderToNameItIn_OrAFileGivenWhatWasMadesExtension()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_home, "art")).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(Context, "art")).FullName;
 
-        Assert.AreEqual(Path.Combine(folder, "a fox.png"), GeneratedFiles.Target(folder, _home, "a fox", ".png"));
-        Assert.AreEqual(Path.Combine(_home, "new", "a fox.png"), GeneratedFiles.Target(@"new\", _home, "a fox", ".png"), "a path ending in a separator is a folder");
-        Assert.AreEqual(Path.Combine(folder, "cover.png"), GeneratedFiles.Target(Path.Combine(folder, "cover.jpg"), _home, "a fox", ".png"));
-        Assert.AreEqual(Path.Combine(_home, "cover.png"), GeneratedFiles.Target("cover", _home, "a fox", ".png"), "a relative path is taken from home");
+        Assert.AreEqual(Path.Combine(folder, "a fox.png"), GeneratedFiles.Target(folder, "a fox", ".png"));
+        Assert.AreEqual(Path.Combine(Context, "new", "a fox.png"), GeneratedFiles.Target(Path.Combine(Context, "new") + @"\", "a fox", ".png"), "a path ending in a separator is a folder");
+        Assert.AreEqual(Path.Combine(folder, "cover.png"), GeneratedFiles.Target(Path.Combine(folder, "cover.jpg"), "a fox", ".png"));
+        Assert.IsNull(GeneratedFiles.Target("cover", "a fox", ".png"), "a relative path names no place");
     }
 
     [TestMethod]
@@ -141,7 +199,7 @@ public class GenerationToolsTests
     [TestMethod]
     public async Task PicturesToWorkFrom_AreOfferedOnlyToAModelThatTakesThem_AndReachIt()
     {
-        var source = Path.Combine(_home, "fox.png");
+        var source = Path.Combine(Context, "fox.png");
         File.WriteAllBytes(source, Drawn);
         var drawsOnly = new Painter { Sources = 0 };
         var editor    = new Painter { Sources = 2, Masking = true };
@@ -160,11 +218,30 @@ public class GenerationToolsTests
     }
 
     [TestMethod]
+    public async Task APictureToWorkFrom_IsReadOnlyWhereTheUserGaveIt_OpenInATab_OrInAFolderOpenInOne()
+    {
+        var outside = Path.Combine(_home, "fox.png");
+        File.WriteAllBytes(outside, Drawn);
+        var editor = new Painter { Sources = 1 };
+
+        var refused = await new GenerateImageTool(editor, null, Files).InvokeAsync(
+            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(outside) }, default);
+        var openAlone = new GeneratedFiles(new PathScope([outside], []), Drafts, _ => _home, _ => Task.CompletedTask);
+        var given = await new GenerateImageTool(editor, null, openAlone).InvokeAsync(
+            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(outside) }, default);
+
+        Assert.IsTrue(refused.IsError);
+        StringAssert.Contains(refused.ModelText, "outside what the user has given you");
+        Assert.IsTrue(given.Success, given.ModelText);
+        Assert.AreEqual(1, editor.Asked.Count, "only the picture open in a tab reached the model");
+    }
+
+    [TestMethod]
     public async Task APictureThatCannotBeRead_OrAFailedDrawing_IsToldToTheModel_AndNothingIsSaved()
     {
         var editor = new Painter { Sources = 1 };
         var missing = await new GenerateImageTool(editor, null, Files).InvokeAsync(
-            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(Path.Combine(_home, "nope.png")) }, default);
+            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(Path.Combine(Context, "nope.png")) }, default);
         var refused = await new GenerateImageTool(new Painter { Refusal = "the picture was withheld: people" }, null, Files).InvokeAsync(
             new JsonObject { ["prompt"] = "a crowd" }, default);
 
@@ -173,7 +250,7 @@ public class GenerationToolsTests
         Assert.AreEqual(0, editor.Asked.Count, "nothing is asked of the model with a source missing");
         Assert.IsTrue(refused.IsError);
         StringAssert.Contains(refused.ModelText, "withheld: people");
-        Assert.IsFalse(Directory.Exists(Path.Combine(_home, "Picture")));
+        Assert.IsFalse(Directory.Exists(Drafts));
         Assert.AreEqual(0, _opened.Count);
     }
 
@@ -183,7 +260,7 @@ public class GenerationToolsTests
         var voice = new FakeSpeaker();
 
         var result = await new GenerateSpeechTool(voice, Files).InvokeAsync(
-            new JsonObject { ["text"] = "Bonjour à tous. Voici les nouvelles du jour.", ["language"] = "FR" }, default);
+            new JsonObject { ["text"] = "Bonjour à tous. Voici les nouvelles du jour.", ["language"] = "FR", ["path"] = Context }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
         CollectionAssert.AreEqual(new[] { ("Bonjour à tous.", "fr"), ("Voici les nouvelles du jour.", "fr") }, voice.Said.Select(s => (s.Text, s.Language)).ToArray());
@@ -206,11 +283,11 @@ public class GenerationToolsTests
         Assert.AreEqual(4, GenerateVideoTool.Nearest(filmer.Lengths, 5));
         Assert.AreEqual(12, GenerateVideoTool.Nearest(filmer.Lengths, 10), "between two, the longer");
 
-        var result = await tool.InvokeAsync(new JsonObject { ["prompt"] = "waves at night", ["seconds"] = 7, ["shape"] = "square" }, default);
+        var result = await tool.InvokeAsync(new JsonObject { ["prompt"] = "waves at night", ["seconds"] = 7, ["shape"] = "square", ["path"] = Context }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
         Assert.AreEqual(new VideoGenerationRequest("waves at night", MediaShape.Landscape, 8), filmer.Asked.Single());
-        Assert.AreEqual(Path.Combine(_home, "Video", "waves at night.mp4"), result.Attachments!.Single());
+        Assert.AreEqual(Path.Combine(Context, "waves at night.mp4"), result.Attachments!.Single());
     }
 
     [TestMethod]
@@ -225,7 +302,7 @@ public class GenerationToolsTests
     [TestMethod]
     public async Task AFirstFrame_IsCutAndScaledToTheSizeTheModelStartsFrom()
     {
-        var frame = Path.Combine(_home, "wide.png");
+        var frame = Path.Combine(Context, "wide.png");
         File.WriteAllBytes(frame, Picture(300, 100));
         var filmer = new Filmer { Frame = (64, 128) };
 
@@ -242,7 +319,7 @@ public class GenerationToolsTests
     [TestMethod]
     public async Task AClipFromAPicture_IsMadeByTheHighQualityModel_AndOneFromADescriptionByTheFastOne()
     {
-        var frame = Path.Combine(_home, "start.png");
+        var frame = Path.Combine(Context, "start.png");
         File.WriteAllBytes(frame, Picture(64, 36));
         var fast   = new Filmer { Pictures = false, Made = [5] };
         var finest = new Filmer { Made = [5] };

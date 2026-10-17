@@ -27,7 +27,7 @@ public class GitRepoResolutionTests
     private string _tmp = string.Empty;
 
     [TestInitialize]
-    public void Setup() => _tmp = Directory.CreateTempSubdirectory("nexa-gitrepo-").FullName;
+    public void Setup() => _tmp = TestTemp.CreateSubdirectory("nexa-gitrepo-").FullName;
 
     [TestCleanup]
     public void Teardown() { try { Directory.Delete(_tmp, recursive: true); } catch { } }

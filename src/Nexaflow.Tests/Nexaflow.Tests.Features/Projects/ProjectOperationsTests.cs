@@ -21,7 +21,7 @@ public class ProjectOperationsTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-proj-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-proj-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
         _ops = new ProjectOperations(new ProjectsConfig { EnableProjects = true, ProjectDirectory = _root });
     }

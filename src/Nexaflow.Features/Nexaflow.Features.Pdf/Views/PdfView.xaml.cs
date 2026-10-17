@@ -38,7 +38,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
 
         ViewModel.NavigateToPage = (page, offsetFromTop) =>
             Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
-
+        ViewModel.Host           = this;   // what opens beside the document — its scans' Markdown — opens in its window
         Pages.LinkActivated += (_, href) => FollowLink(href);
         Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
         Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
@@ -51,12 +51,18 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         {
             switch (e.PropertyName)
             {
-                case nameof(PdfViewModel.IsPanelOpen): ApplyPanelWidth(); break;
-                case nameof(PdfViewModel.FoundRanges):    ShowFindHits(reveal: false); break;
+                case nameof(PdfViewModel.IsPanelOpen):
+                    if (!_makingRoom) _closedForRoom = false;   // the reader opened or closed it: theirs from now on
+                    ApplyPanelWidth();
+                    break;
+                case nameof(PdfViewModel.FoundRanges): ShowFindHits(reveal: false); break;
                 case nameof(PdfViewModel.FindIndex):   ShowFindHits(reveal: true); break;
                 case nameof(PdfViewModel.Pages):       OpenPending(); break;
             }
         };
+
+        // A view too narrow for the panel and the reader — a pane of a split window — gives the reader the room.
+        SizeChanged += (_, _) => MakeRoom();
 
         Loaded += OnLoaded;
     }
@@ -108,6 +114,37 @@ public partial class PdfView : UserControl, IPageView, IDisposable
             PanelColumn.MinWidth   = 0;
             PanelColumn.Width      = new GridLength(0);
             SplitterColumn.Width   = new GridLength(0);
+        }
+    }
+
+    /// <summary>The panel was closed to give the reader room, not by the reader: it opens again once there is room.</summary>
+    private bool _closedForRoom;
+
+    private bool _makingRoom;
+
+    /// <summary>
+    /// Closes the panel where the view cannot hold it beside the reader at its least, and opens it again once it can: in a
+    /// pane of a split window the pages need the room more than the panel does.
+    /// </summary>
+    private void MakeRoom()
+    {
+        bool open = ViewModel.IsPanelOpen;
+        if (open && ActualWidth < PanelMinWidth + SplitterWidth + ReaderColumn.MinWidth)
+        {
+            _closedForRoom = true;
+            Set(false);
+        }
+        else if (!open && _closedForRoom && ActualWidth >= _panelWidth.Value + SplitterWidth + ReaderColumn.MinWidth)
+        {
+            _closedForRoom = false;
+            Set(true);
+        }
+
+        void Set(bool value)
+        {
+            _makingRoom = true;
+            try { ViewModel.IsPanelOpen = value; }
+            finally { _makingRoom = false; }
         }
     }
 

@@ -76,7 +76,7 @@ public class ValidateWriteFreedomTests
 
     private string NewDir(string prefix)
     {
-        var dir = Path.Combine(Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N")[..12]);
+        var dir = Path.Combine(TestTemp.Root, prefix + Guid.NewGuid().ToString("N")[..12]);
         Directory.CreateDirectory(dir);
         _temp.Add(dir);
         return dir;

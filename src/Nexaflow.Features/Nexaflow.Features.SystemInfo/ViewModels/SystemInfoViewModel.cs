@@ -16,7 +16,7 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
 {
     private readonly IShellServices _shell;
     private readonly IAIService _ai;
-    private readonly SystemInfoCollector _collector;
+    private readonly ISystemInfoCollector _collector;
 
     /// <summary>The Local AI card's check of the machine, kept across refreshes so a run under way stays shown.</summary>
     private SystemInfoAction? _check;
@@ -32,7 +32,7 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
 
     public SystemInfoViewModel(IShellServices shell, IAIService ai) : this(shell, ai, new SystemInfoCollector()) { }
 
-    public SystemInfoViewModel(IShellServices shell, IAIService ai, SystemInfoCollector collector)
+    public SystemInfoViewModel(IShellServices shell, IAIService ai, ISystemInfoCollector collector)
     {
         _shell     = shell;
         _ai        = ai;

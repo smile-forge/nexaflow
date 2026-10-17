@@ -34,7 +34,7 @@ public class JsonEditSaveTests
 
     private async Task<(JsonViewModel Vm, IShellServices Shell)> LoadedAsync(string content)
     {
-        _path = Path.Combine(Path.GetTempPath(), $"jsonedit_{Guid.NewGuid():N}.json");
+        _path = Path.Combine(TestTemp.Root, $"jsonedit_{Guid.NewGuid():N}.json");
         File.WriteAllText(_path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         var shell = Substitute.For<IShellServices>();
         var vm = new JsonViewModel(_path, new JsonFileLoader(), new JsonPathEvaluator(), shell);

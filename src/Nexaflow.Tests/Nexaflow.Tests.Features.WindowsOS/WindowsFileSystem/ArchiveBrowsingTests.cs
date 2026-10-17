@@ -24,7 +24,7 @@ public class ArchiveBrowsingTests
     {
         // "A .zip expands in place" is now a filemap decision (DefaultFileOpener.ExpandsInPlace →
         // FileMapManager /archive extension mapping), so the bundled defaults must be seeded.
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-browse-filemap-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-browse-filemap-" + Guid.NewGuid().ToString("N"));
         FileMapManager.Instance.Initialize(baseDir: dir);
     }
 
@@ -71,7 +71,7 @@ public class ArchiveBrowsingTests
 
         public Fixture()
         {
-            _dir = Path.Combine(Path.GetTempPath(), "nexa-browse-test-" + Guid.NewGuid().ToString("N"));
+            _dir = Path.Combine(TestTemp.Root, "nexa-browse-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_dir);
             ZipPath = Path.Combine(_dir, "a.zip");
             using (var zip = ZipFile.Open(ZipPath, ZipArchiveMode.Create))

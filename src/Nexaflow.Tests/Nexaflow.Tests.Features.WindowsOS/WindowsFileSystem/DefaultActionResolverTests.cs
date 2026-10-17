@@ -21,7 +21,7 @@ public class DefaultActionResolverTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-defaultact-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-defaultact-" + Guid.NewGuid().ToString("N"));
         FileMapManager.Instance.Initialize(baseDir: _dir);
         FileMapManager.Instance.SaveMapping(new ExperienceMapping
         {

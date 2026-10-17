@@ -37,7 +37,7 @@ public class LogSearchableTests : SearchableContentConformanceTests
 
     private static string WriteTemp(string content, string suffix = "")
     {
-        var path = Path.Combine(Path.GetTempPath(), $"logsearch_{Guid.NewGuid():N}{suffix}.log");
+        var path = Path.Combine(TestTemp.Root, $"logsearch_{Guid.NewGuid():N}{suffix}.log");
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return path;
     }

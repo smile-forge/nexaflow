@@ -23,7 +23,7 @@ public class WindowsSearchServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-search-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-search-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "sub"));
         File.WriteAllText(Path.Combine(_root, "alpha.json"), "{}");
         File.WriteAllText(Path.Combine(_root, "notes.txt"),  "hi");

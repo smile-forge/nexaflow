@@ -61,6 +61,25 @@ public abstract class MermaidBuilderContract
                 }
     });
 
+    /// <summary>
+    /// Whether the diagram fits whatever room it is given — reshaping itself to it as far as it can, and drawn smaller where it
+    /// is still too wide (<c>MermaidBuilder.Reduced</c>). True for each diagram once it does.
+    /// </summary>
+    protected virtual bool FitsTheRoom => false;
+
+    [TestMethod]
+    public void EveryBlockIsNoWiderThanTheRoomItIsGiven() => UiThread.Run(() =>
+    {
+        if (!FitsTheRoom) Assert.Inconclusive($"{Diagram} does not fit itself to its room yet");
+
+        foreach (var (what, source) in Drawn)
+            foreach (var room in new[] { 700d, 240d })
+            {
+                var laid = Lay(source, room);
+                Assert.IsTrue(laid.Size.Width <= room + 0.01, $"{what} is {laid.Size.Width:0.#} wide in a room {room} wide");
+            }
+    });
+
     [TestMethod]
     public void EveryBlockKeepsDrawingWhileItIsTyped() => UiThread.Run(() =>
     {

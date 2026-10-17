@@ -41,14 +41,14 @@ public class FileSystemJourneyTests : UiJourneyTestBase
 
     protected override void OnUISetup()
     {
-        _folder = Path.Combine(Path.GetTempPath(), "nexaflow-fs-journey-" + Guid.NewGuid().ToString("N"));
+        _folder = Path.Combine(TestTemp.Root, "nexaflow-fs-journey-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
         File.WriteAllText(Path.Combine(_folder, "existing.txt"), "x");   // for the existence warning
 
         // Enough rows that a band can cross several and still leave empty space to start the drag in.
         for (int i = 1; i <= 5; i++) File.WriteAllText(Path.Combine(_folder, $"bulk-{i}.txt"), "x");
 
-        _sourceTemplate = Path.Combine(Path.GetTempPath(),
+        _sourceTemplate = Path.Combine(TestTemp.Root,
             "nexaflow-tplsrc-" + Guid.NewGuid().ToString("N") + ".md");
         File.WriteAllText(_sourceTemplate, TemplateBody);
     }

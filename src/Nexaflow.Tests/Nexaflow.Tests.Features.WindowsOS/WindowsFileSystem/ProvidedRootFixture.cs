@@ -7,6 +7,7 @@ using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -30,7 +31,7 @@ internal sealed class ProvidedRootFixture : IDisposable
     public ProvidedRootFixture(bool withProvider = true)
     {
         MountId  = "testcloud" + Guid.NewGuid().ToString("N")[..8];
-        RealRoot = Path.Combine(Path.GetTempPath(), "nexa-provided-" + Guid.NewGuid().ToString("N"));
+        RealRoot = Path.Combine(TestTemp.Root, "nexa-provided-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(RealRoot, "Documents", "Nested"));
         File.WriteAllText(Path.Combine(RealRoot, "Documents", "notes.txt"), "hello");
         File.WriteAllText(Path.Combine(RealRoot, "top.txt"), "top");

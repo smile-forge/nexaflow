@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Phase 0 spike for docs/usb-probe-spec.md. Not in Nexaflow.slnx and never shipped: kept to re-run the
+       driver-access matrix when a Windows build changes. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Nexaflow.Spikes.UsbDriverBinding</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- libusb-1.0 managed wrapper named by the spec (LGPL-3.0-or-later); ships no native libusb. -->
+    <PackageReference Include="LibUsbDotNet" Version="3.0.224" />
+    <!-- MIT; the only maintained package carrying a current win-x64 libusb-1.0.dll (1.0.30). -->
+    <PackageReference Include="UsbDotNet.LibUsbNative" Version="1.4.2" />
+  </ItemGroup>
+
+</Project>

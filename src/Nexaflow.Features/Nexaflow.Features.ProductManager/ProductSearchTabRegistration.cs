@@ -23,7 +23,7 @@ public sealed class ProductSearchTabRegistration(IShellServices shell) : IPageRe
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Folder containing the .product/ directory whose graph is searched.", Required: true),
+        new("path", "Folder containing the .product/ directory whose graph is searched.", Required: true, OnDisk: true),
         new("query", "What to search the graph for.", Required: false),
     ];
 

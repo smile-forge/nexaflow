@@ -57,39 +57,75 @@
                    Foreground="{StaticResource TextMutedBrush}"/>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding Jobs}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:LocalJobViewModel}">
-                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="200"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,6,0,0"
-                                           Foreground="{StaticResource TextBrush}"/>
-                                <StackPanel Grid.Column="1">
-                                    <ComboBox AutomationProperties.AutomationId="LocalModels_Choice"
-                                              AutomationProperties.Name="{Binding Label}"
-                                              Style="{StaticResource DarkComboBox}" ItemContainerStyle="{StaticResource ChoiceItem}"
-                                              ItemTemplate="{StaticResource ChoiceTemplate}"
-                                              ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}"
-                                              Visibility="{Binding CanChoose, Converter={StaticResource BoolVis}}"
-                                              HorizontalAlignment="Left" MinWidth="380"/>
-                                    <TextBlock Text="{Binding Remark}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               Visibility="{Binding Remark, Converter={StaticResource NullHidden}}"/>
-                                    <TextBlock Text="{Binding Note}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               Visibility="{Binding CanChoose, Converter={StaticResource InverseBoolVis}}"/>
-                                    <TextBlock Text="{Binding Status}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Jobs}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:LocalJobViewModel}">
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,6,0,0"
+                                               Foreground="{StaticResource TextBrush}"/>
+                                    <StackPanel Grid.Column="1">
+                                        <ComboBox AutomationProperties.AutomationId="LocalModels_Choice"
+                                                  AutomationProperties.Name="{Binding Label}"
+                                                  Style="{StaticResource DarkComboBox}" ItemContainerStyle="{StaticResource ChoiceItem}"
+                                                  ItemTemplate="{StaticResource ChoiceTemplate}"
+                                                  ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                                                  Visibility="{Binding CanChoose, Converter={StaticResource BoolVis}}"
+                                                  HorizontalAlignment="Left" MinWidth="380"/>
+                                        <TextBlock Text="{Binding Remark}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Visibility="{Binding Remark, Converter={StaticResource NullHidden}}"/>
+                                        <TextBlock Text="{Binding Note}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Visibility="{Binding CanChoose, Converter={StaticResource InverseBoolVis}}"/>
+                                        <TextBlock Text="{Binding Status}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- The tools: app-wide, each with what it does and Download while it is not here. -->
+                <TextBlock Text="{loc:Str Shell.Config.Local.ToolsHeading}" Margin="0,20,0,0"
+                           FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{loc:Str Shell.Config.Local.ToolsIntro}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,4"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <ItemsControl ItemsSource="{Binding Tools}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:LocalToolViewModel}">
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,2,0,0"
+                                               AutomationProperties.AutomationId="LocalModels_Tool"
+                                               Foreground="{StaticResource TextBrush}"/>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding About}" FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        <Button Style="{StaticResource RowButton}" Content="{Binding DownloadLabel}" Command="{Binding DownloadCommand}"
+                                                Visibility="{Binding CanDownload, Converter={StaticResource BoolVis}}"
+                                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                                AutomationProperties.AutomationId="LocalModels_ToolDownload"
+                                                AutomationProperties.Name="{Binding DownloadLabel}"/>
+                                        <TextBlock Text="{Binding Status}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </ScrollViewer>
     </DockPanel>
 </UserControl>

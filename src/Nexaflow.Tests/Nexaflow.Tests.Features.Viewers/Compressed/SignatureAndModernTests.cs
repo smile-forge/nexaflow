@@ -84,7 +84,7 @@ public class SignatureAndModernTests
 
     private static string NewDir()
     {
-        var d = Path.Combine(Path.GetTempPath(), "nexa-sig-" + Guid.NewGuid().ToString("N"));
+        var d = Path.Combine(TestTemp.Root, "nexa-sig-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }

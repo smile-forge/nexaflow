@@ -203,7 +203,7 @@ public class CodeIntelligenceTests
     [CoversNode("code-map-deps")]
     public void Extract_Python_ResolvesRelativeImportButNotLibrary()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"codeintel_{System.Guid.NewGuid():N}");
+        var dir = Path.Combine(TestTemp.Root, $"codeintel_{System.Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "util.py"), "def helper():\n    pass\n");
         try

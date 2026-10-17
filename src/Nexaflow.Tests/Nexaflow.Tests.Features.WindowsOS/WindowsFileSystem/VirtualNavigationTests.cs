@@ -169,7 +169,7 @@ public class VirtualNavigationTests
     public void AnOrdinaryFolderIsUnaffectedByAnyOfThis()
     {
         using var fx = new ProvidedRootFixture(withProvider: false);
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-plain-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-plain-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "sub"));
         File.WriteAllText(Path.Combine(dir, "a.txt"), "a");
         try

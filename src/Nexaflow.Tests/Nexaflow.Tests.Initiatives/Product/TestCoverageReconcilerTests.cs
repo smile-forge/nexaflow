@@ -172,7 +172,7 @@ public class TestCoverageReconcilerTests
     /// whichever csprojs the caller names. Enough for the filesystem-walking half of the validator.</summary>
     private static string RepoWith(params string[] assemblies)
     {
-        var root = Path.Combine(Path.GetTempPath(), "nfi-proj-" + Guid.NewGuid().ToString("N")[..8]);
+        var root = Path.Combine(TestTemp.Root, "nfi-proj-" + Guid.NewGuid().ToString("N")[..8]);
         foreach (var asm in assemblies)
         {
             var dir = Path.Combine(root, "src", "Nexaflow.Features", asm);

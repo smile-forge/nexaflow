@@ -57,7 +57,7 @@ public class VirtualDiskSurfaceTests
     [CoversNode("vdisk-format-summary")]
     public async Task AnImageTheReaderCannotOpenSaysSo_RatherThanShowingBlanks()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"notadisk_{Guid.NewGuid():N}.vhd");
+        var path = Path.Combine(TestTemp.Root, $"notadisk_{Guid.NewGuid():N}.vhd");
         File.WriteAllBytes(path, [0x00, 0x01, 0x02, 0x03]);
         try
         {
@@ -157,7 +157,7 @@ public class VirtualDiskSurfaceTests
     public async Task ExtractingWritesTheImageOutAndSaysWhereItWent()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        var dest = Path.Combine(Path.GetTempPath(), $"vdiskout_{Guid.NewGuid():N}");
+        var dest = Path.Combine(TestTemp.Root, $"vdiskout_{Guid.NewGuid():N}");
         Directory.CreateDirectory(dest);
         var shell = Substitute.For<IShellServices>();
         shell.PickFolderAsync(Arg.Any<string>()).Returns(Task.FromResult<string?>(dest));

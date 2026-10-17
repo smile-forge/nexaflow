@@ -36,7 +36,7 @@ public sealed class RtfSearchableTests : SearchableContentConformanceTests
 
     private async Task<RtfViewModel> OpenAsync()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexasearch_{Guid.NewGuid():N}.rtf");
+        var path = Path.Combine(TestTemp.Root, $"nexasearch_{Guid.NewGuid():N}.rtf");
         File.WriteAllText(path, Document, Encoding.Latin1);
         _paths.Add(path);
 

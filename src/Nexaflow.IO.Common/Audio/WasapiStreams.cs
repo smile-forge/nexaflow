@@ -81,6 +81,84 @@ internal static class WasapiStreams
         }
     }
 
+    /// <summary>A shared-mode format as WASAPI reports one: channels, rate, speaker mask, and whether samples are 32-bit float.</summary>
+    public readonly record struct StreamFormat(int Channels, int Rate, uint Mask, bool IsFloat32);
+
+    private static readonly Guid FloatSubFormat = new("00000003-0000-0010-8000-00aa00389b71");
+
+    /// <summary>Reads a <c>WAVEFORMATEX</c>, or the <c>WAVEFORMATEXTENSIBLE</c> it opens, at <paramref name="format"/>.</summary>
+    public static StreamFormat Describe(IntPtr format)
+    {
+        ushort tag = (ushort)Marshal.ReadInt16(format, 0);
+        int channels = (ushort)Marshal.ReadInt16(format, 2);
+        int rate = Marshal.ReadInt32(format, 4);
+        int bits = (ushort)Marshal.ReadInt16(format, 14);
+        uint mask = 0;
+        bool isFloat = tag == 3;
+        if (tag == 0xFFFE && (ushort)Marshal.ReadInt16(format, 16) >= 22)
+        {
+            mask = (uint)Marshal.ReadInt32(format, 20);
+            var sub = new byte[16];
+            Marshal.Copy(format + 24, sub, 0, 16);
+            isFloat = new Guid(sub) == FloatSubFormat;
+        }
+        return new(channels, rate, mask, isFloat && bits == 32);
+    }
+
+    /// <summary>
+    /// An initialised shared-mode client at the audio engine's own mix format — every channel the endpoint has, at the
+    /// mixer's rate, as 32-bit float — so nothing is downmixed or resampled between a test signal and the device. An
+    /// engine mixing in anything but float is asked for float at the same layout, and converts.
+    /// </summary>
+    public static IAudioClient2 OpenAtMixFormat(string endpointId, int bufferMs, out StreamFormat format)
+    {
+        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+        IMMDevice? device = null;
+        try
+        {
+            Check(enumerator.GetDevice(endpointId, out device));
+            var iid = AudioClient2Id;
+            Check(device.Activate(ref iid, ClsCtxAll, IntPtr.Zero, out object o));
+            var client = (IAudioClient2)o;
+            Check(client.GetMixFormat(out IntPtr mix));
+            try
+            {
+                format = Describe(mix);
+                if (format.IsFloat32)
+                {
+                    Check(client.Initialize(0, 0, bufferMs * 10_000L, 0, mix, IntPtr.Zero));
+                    return client;
+                }
+
+                IntPtr wanted = Marshal.AllocHGlobal(40);
+                try
+                {
+                    int block = format.Channels * 4;
+                    Marshal.WriteInt16(wanted, 0, unchecked((short)0xFFFE));
+                    Marshal.WriteInt16(wanted, 2, (short)format.Channels);
+                    Marshal.WriteInt32(wanted, 4, format.Rate);
+                    Marshal.WriteInt32(wanted, 8, format.Rate * block);
+                    Marshal.WriteInt16(wanted, 12, (short)block);
+                    Marshal.WriteInt16(wanted, 14, 32);
+                    Marshal.WriteInt16(wanted, 16, 22);
+                    Marshal.WriteInt16(wanted, 18, 32);
+                    Marshal.WriteInt32(wanted, 20, unchecked((int)format.Mask));
+                    Marshal.Copy(FloatSubFormat.ToByteArray(), 0, wanted + 24, 16);
+                    Check(client.Initialize(0, AutoConvertPcm | SrcDefaultQuality, bufferMs * 10_000L, 0, wanted, IntPtr.Zero));
+                }
+                finally { Marshal.FreeHGlobal(wanted); }
+                format = format with { IsFloat32 = true };
+                return client;
+            }
+            finally { Marshal.FreeCoTaskMem(mix); }
+        }
+        finally
+        {
+            if (device is not null) Marshal.ReleaseComObject(device);
+            Marshal.ReleaseComObject(enumerator);
+        }
+    }
+
     /// <summary>Whether Windows reports echo cancellation on for the stream.</summary>
     public static bool CancelsEcho(IAudioClient2 client)
     {

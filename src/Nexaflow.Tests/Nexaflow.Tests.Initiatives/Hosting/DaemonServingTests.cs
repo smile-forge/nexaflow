@@ -43,7 +43,7 @@ public class DaemonServingTests
 
     private static string Product()
     {
-        var root = Directory.CreateTempSubdirectory("nexa-daemon-").FullName;
+        var root = TestTemp.CreateSubdirectory("nexa-daemon-").FullName;
         new ProductStore(root).Initialize("P");
         return root;
     }

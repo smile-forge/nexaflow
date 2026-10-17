@@ -19,6 +19,11 @@
   "Pdf.Error.Clipboard": "Couldn't copy to the clipboard.",
   "Pdf.Tab.Properties": "Properties",
   "Pdf.Tab.Contents": "Contents",
+
+  "Pdf.Scans.Notice": "{0} of {1} pages are scans — their text can't be searched or copied.",
+  "Pdf.Scans.Convert": "Convert to Markdown",
+  "Pdf.Scans.ConvertTip": "Read the scanned pages into a Markdown document, opened in the right-hand pane: columns as one text, formulas as LaTeX, tables and figures",
+  "Pdf.Scans.DismissTip": "Hide this for this document",
   "Pdf.Menu.CopyAllProperties": "Copy all properties",
   "Pdf.Menu.CopyTitle": "Copy title",
   "Pdf.Menu.CopyTitleAndPage": "Copy title and page",

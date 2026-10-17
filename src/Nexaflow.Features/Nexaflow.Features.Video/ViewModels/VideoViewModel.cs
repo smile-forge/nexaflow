@@ -22,6 +22,8 @@ using Nexaflow.Features.Video.Interop;
 using Nexaflow.Features.Video.Models;
 using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
+using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Drafts;
 
 namespace Nexaflow.Features.Video.ViewModels;
 
@@ -550,14 +552,15 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
     // ── AI: capture the current frame for vision (own short-lived Media) ─────
 
-    /// <summary>Decodes the frame at the current playback position and returns it as PNG bytes (for the
-    /// <c>video_capture_frame</c> tool). Uses a fresh Media so it never disturbs live playback.</summary>
-    public async Task<(byte[] Png, string TimeLabel)?> CaptureCurrentFrameAsync(CancellationToken ct)
+    /// <summary>Decodes the frame at the current playback position and returns it as PNG bytes, at most
+    /// <paramref name="widest"/> pixels wide — 1280 for the <c>video_capture_frame</c> tool to look at. Uses a fresh Media
+    /// so it never disturbs live playback.</summary>
+    public async Task<(byte[] Png, string TimeLabel)?> CaptureCurrentFrameAsync(CancellationToken ct, uint widest = 1280)
     {
         if (_libVlc is null) return null;
         long t = _mp?.Time ?? 0;
 
-        uint w = _videoWidth > 0 ? Math.Min(_videoWidth, 1280u) : 1280u;
+        uint w = _videoWidth > 0 ? Math.Min(_videoWidth, widest) : Math.Min(1280u, widest);
         uint h = (_videoWidth > 0 && _videoHeight > 0)
             ? (uint)Math.Round(_videoHeight * (w / (double)_videoWidth))
             : 720u;
@@ -574,6 +577,27 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             var bytes = PictureBytes(pic);
             return bytes is null ? null : (bytes, Format(t));
         }
+    }
+
+    /// <summary>Where a frame taken to cut something out of is kept: a temporary folder, since what is kept is the cut-out.</summary>
+    public static string FramesFolder => Path.Combine(Path.GetTempPath(), "nexaflow-frames");
+
+    /// <summary>The frame on screen, at the video's own size, opened in the image editor's Cut out — playback paused on it.</summary>
+    [RelayCommand]
+    private async Task CutOutFrame()
+    {
+        if (_shell is null) return;
+        try { if (_mp is { IsPlaying: true }) _mp.SetPause(true); } catch { }
+        var frame = await CaptureCurrentFrameAsync(CancellationToken.None, widest: uint.MaxValue);
+        if (frame is not { } captured)
+        {
+            await OnUi(() => _shell.ShowError(Str.Get("Video.CutOut.Failed")));
+            return;
+        }
+        Directory.CreateDirectory(FramesFolder);
+        var path = Path.Combine(FramesFolder, $"{Path.GetFileNameWithoutExtension(_path)} {captured.TimeLabel.Replace(':', '.')}.png");
+        await File.WriteAllBytesAsync(path, captured.Png);
+        await OnUi(() => _shell.OpenTab("Images", new Dictionary<string, string> { ["paths"] = path, ["view"] = "edit", ["tool"] = "cutout", [DraftFile.PageParameterName] = Path.GetDirectoryName(_path) ?? "" }));
     }
 
     // ── AI: read the parsed media facts / steer the playhead ────────────────
@@ -635,6 +659,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     /// <summary>File-scoped boundary so two video tabs pinned into one conversation don't collapse
     /// first-wins in the hub's tool grouping (AI-readiness aspect 4).</summary>
     public string? GetSecurityContext() => _path;
+
+    /// <summary>The clip this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(_path);
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -797,4 +824,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             try { cts.Dispose(); }     catch { }
         });
     }
+
+    /// <summary>The Save as of a clip made for the user and not saved yet — the tab's draft — or null for a video opened where it lives.</summary>
+    public DraftSaving? Draft { get; init; }
 }

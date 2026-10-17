@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The device page's mass-storage tool (Phase 2, H1), as a subfeature plugin: found by its [Subfeature("usbprobe", ...)]
+    attribute, so the device page references none of it. The tool is a headless view-model; WPF is on only for the
+    DataTemplate that draws it, which the page merges from this assembly.
+
+    Volumes come from Nexaflow.IO.Usb's storage locator; copies go through Nexaflow.IO.Common's FileTransferEngine with
+    read-back verification. It references no feature.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Stores\Nexaflow.Visuals.Stores.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
+  </ItemGroup>
+
+</Project>

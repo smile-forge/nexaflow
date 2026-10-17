@@ -36,6 +36,12 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 - Right-click to copy a title, a title with its page, or the whole outline with its indentation and page numbers.
 - Most PDFs carry no bookmarks. Where there is no outline the tab says so.
 
+## Scanned pages
+- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and this PC can run page reading. ✕ puts it away for the document.
+- **Convert to Markdown** reads them on this PC, saying how far it has got, and opens the Markdown in the Markdown editor in the right-hand pane: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one. [Show me](locate:Pdf_ConvertScans)
+- The reading is kept, so converting the document again opens at once. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
+- The first time, page reading is a download of about 4 GB, offered above the document.
+
 ## The panel
 - [Hide the panel](locate:Pdf_TogglePanel) and the pages take the whole tab.
 - [Drag the divider](locate:Pdf_Splitter) to set its width; it comes back that wide next time you show it.
@@ -46,6 +52,7 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 - It can find a phrase across the whole document and report the pages it appears on with a snippet of each, and can jump by the contents list straight to a section.
 - It can list what images a page holds — pixel size, format, whether an image repeats one seen earlier — and then fetch only the one worth looking at.
 - It can read a scanned page as a picture at its own resolution, and look at any page drawn as the reader draws it.
+- It can read the scanned pages into text with page reading; from then on it reads and searches them like any other page.
 - It can move your reader to a page.
 - All of it is read-only and none of it stops to ask permission. Two documents open at once stay two separate documents.
 

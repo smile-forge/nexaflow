@@ -1,0 +1,18 @@
+{#- The makers' chat_template.jinja, after the start-of-sentence token their own code puts first: their template was
+    written for a processor that adds it, and llama.cpp adds nothing a template does not write. -#}
+{{- bos_token }}
+{%- for message in messages %}
+    {%- if message['content'] is string %}
+        {{- message['content'] }}
+    {%- else %}
+        {%- for content in message['content'] | selectattr('type', 'equalto', 'image') %}
+            {{- '<image>' }}
+        {%- endfor %}
+        {%- for content in message['content'] | selectattr('type', 'equalto', 'text') %}
+            {{- content['text'] }}
+        {%- endfor %}
+    {%- endif %}
+    {%- if message['role'] == 'assistant' %}
+        {{- eos_token }}
+    {%- endif %}
+{%- endfor %}

@@ -106,7 +106,7 @@ public class RepackageAndEncryptTests
 
     private static string NewDir()
     {
-        var d = Path.Combine(Path.GetTempPath(), "nexa-repack-" + Guid.NewGuid().ToString("N"));
+        var d = Path.Combine(TestTemp.Root, "nexa-repack-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }

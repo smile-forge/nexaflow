@@ -26,6 +26,9 @@ public sealed partial class Hdf5ViewModel
     /// <summary>The file this page reads — so two viewers pinned at once keep their tools apart.</summary>
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The file this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public string GetContext()
     {
         if (IsLoading) return $"An HDF5 viewer is opening {FilePath}.";

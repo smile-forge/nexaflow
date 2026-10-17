@@ -130,8 +130,15 @@ public readonly record struct Piece
     /// <summary>What it answers to, or null where it answers to nothing.</summary>
     public LayoutActions? Acts => _tree?.ActsOf(_at);
 
-    /// <summary>Where its own frame begins on the page — what its marks and its region are measured from.</summary>
+    /// <summary>Where its anchor is on the page — the nought its box is measured from.</summary>
     internal Vector Anchor => _tree is null ? default : _tree.AnchorOf(_at);
+
+    /// <summary>
+    /// The frame its marks, words, shape and children are measured in, and how that stands on the page — moved, for nearly every
+    /// piece, and turned or scaled inside anything drawn in a frame of its own. What a press comes back through into the piece,
+    /// and what a caret, a wash or its shape goes out through. See <see cref="LayoutFrame"/>.
+    /// </summary>
+    internal LayoutFrame Frame => _tree is null ? default : _tree.FrameOf(_at);
 
     /// <summary>What holds it, or nothing at the root.</summary>
     public Piece Parent => _tree is null ? default : _tree.At(_tree.Piece(_at).Parent);

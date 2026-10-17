@@ -25,7 +25,7 @@ public class ModelAssetStoreTests
     [TestInitialize]
     public void Init()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         _root   = Path.Combine(dir, "ai");
         _legacy = Path.Combine(dir, "voice", "models");
         Directory.CreateDirectory(_legacy);

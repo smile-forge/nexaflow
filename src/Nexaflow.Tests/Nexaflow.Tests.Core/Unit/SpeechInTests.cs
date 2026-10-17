@@ -74,7 +74,7 @@ public class SpeechInTests
     public void ASpeechModelThatFinishesDownloading_IsOfferedAndTheRuntimeSaysSo()
     {
         var runtime  = new WorkspaceRuntime();
-        var service  = new AIService(runtime, Path.GetTempPath());
+        var service  = new AIService(runtime, TestTemp.Root);
         var listener = new Listener();
         service.Register("stt", listener);
         service.LoadAbilityConfig(new AiConfig
@@ -98,7 +98,7 @@ public class SpeechInTests
     {
         AIService Service(ProviderModelPair listening)
         {
-            var service = new AIService(new WorkspaceRuntime(), Path.GetTempPath());
+            var service = new AIService(new WorkspaceRuntime(), TestTemp.Root);
             service.Register(Local, new Listener { Ready = true });
             service.Register("voice", new FakeSpeaker());
             service.Register("chat", new Answerer());

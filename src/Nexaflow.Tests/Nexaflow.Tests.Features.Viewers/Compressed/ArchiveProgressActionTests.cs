@@ -30,7 +30,7 @@ public class ArchiveProgressActionTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-arcact-" + Guid.NewGuid().ToString("N")[..8]);
+        _root = Path.Combine(TestTemp.Root, "nexa-arcact-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_root);
 
         // The actions reach for the process-wide VFS by design, so this process needs a zip backend.

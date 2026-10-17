@@ -31,7 +31,7 @@ public class WorkspaceManagerTests
     public void Setup()
     {
         _origBaseDir = ConfigManager.Instance.BaseDir;
-        _baseDir     = Path.Combine(Path.GetTempPath(), "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
+        _baseDir     = Path.Combine(TestTemp.Root, "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
         ConfigManager.Instance.Initialize(_baseDir);
         WorkspaceManager.Instance.Initialize(new WorkspacesConfig());   // baseline: one default workspace
     }

@@ -36,6 +36,11 @@ Plays a video file in a tab.
 - Audio: codec, channel layout, sample rate and language.
 - Subtitles: one entry per text track, with its language.
 
+## Cutting something out of a frame
+
+- Pause on the frame you want and press ✂. The frame opens at the video's own size in the image editor's Cut out, where you click the thing to keep — or name it — and copy or save it without its background. The frame opens as a draft: **Save as** keeps it, and until then it is kept only until Windows clears its temporary files. [Show me](locate:Video_CutOutFrame)
+- A clip the assistant makes with nowhere asked to save it opens here as a draft, with a strip over it saying it is not saved yet: **Save as** keeps it where you choose, and the tab becomes that file.
+
 ## Fullscreen
 
 - Open a borderless window over the whole display, with the same transport bar driving the same playback. [Show me](locate:Video_Fullscreen)

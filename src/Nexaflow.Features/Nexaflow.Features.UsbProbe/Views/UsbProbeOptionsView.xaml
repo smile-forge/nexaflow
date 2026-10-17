@@ -1,0 +1,37 @@
+<UserControl x:Class="Nexaflow.Features.UsbProbe.Views.UsbProbeOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <!-- Bound to the edit model, not to the live config the panel sets as DataContext: a change the user then
+         cancelled would already have happened. -->
+    <StackPanel x:Name="Root">
+        <TextBlock Text="{loc:Str UsbProbe.Options.Heading}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <TextBlock Text="{loc:Str UsbProbe.Options.Explain}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <ToggleButton Style="{StaticResource ToggleSwitch}"
+                          AutomationProperties.AutomationId="UsbOpt_CheckMonthly"
+                          IsChecked="{Binding CheckMonthly, Mode=TwoWay}" />
+            <TextBlock Text="{loc:Str UsbProbe.Options.CheckMonthly}" Margin="8,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextBrush}" />
+        </StackPanel>
+
+        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10,8">
+            <StackPanel>
+                <TextBlock Text="{Binding InUse}" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LastChecked}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="UsbOpt_CheckNow"
+                            Command="{Binding CheckNowCommand}" Padding="12,4">
+                        <TextBlock Text="{loc:Str UsbProbe.Options.CheckNow}" />
+                    </Button>
+                    <TextBlock Text="{Binding CheckResult}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="{loc:Str UsbProbe.Options.Licence}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+    </StackPanel>
+</UserControl>

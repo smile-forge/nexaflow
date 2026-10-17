@@ -18,7 +18,7 @@ public sealed class EmailTabRegistration(IShellServices shell) : IPageRegistrati
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "The .eml or .msg file to open."),
+        new("path", "The .eml or .msg file to open.", OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

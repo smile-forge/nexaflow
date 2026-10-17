@@ -24,7 +24,7 @@ public class TextFindReplaceTests
 {
     private static string WriteTemp(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"textfr_{Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"textfr_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, content, new UTF8Encoding(false));
         return path;
     }

@@ -34,7 +34,7 @@ public class WoffDecoderTests
             "decoded sfnt has an unexpected version.");
 
         // Write to a temp file and load it exactly as the viewer would.
-        var temp = Path.Combine(Path.GetTempPath(), $"nexaflow-woff-test-{Guid.NewGuid():N}.ttf");
+        var temp = Path.Combine(TestTemp.Root, $"nexaflow-woff-test-{Guid.NewGuid():N}.ttf");
         try
         {
             File.WriteAllBytes(temp, sfnt);

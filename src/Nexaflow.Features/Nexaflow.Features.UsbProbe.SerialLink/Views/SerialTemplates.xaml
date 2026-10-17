@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:s="clr-namespace:Nexaflow.Features.UsbProbe.SerialLink"
+                    xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <!-- How the device page draws the serial link: the port, and the way to its terminal. -->
+
+    <DataTemplate DataType="{x:Type s:SerialLinkTool}">
+        <StackPanel>
+            <TextBox Style="{StaticResource SelectableText}" Text="{Binding Port, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" FontFamily="Consolas" TextWrapping="NoWrap" />
+            <TextBox Style="{StaticResource SelectableText}" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,8">
+                <TextBox.Text>
+                    <MultiBinding StringFormat="{}{0} · {1}" Mode="OneWay">
+                        <Binding Path="Kind" />
+                        <Binding Path="Driver" />
+                    </MultiBinding>
+                </TextBox.Text>
+            </TextBox>
+            <Button Style="{StaticResource TbBtn}" HorizontalAlignment="Left" AutomationProperties.AutomationId="UsbSerial_OpenTerminal"
+                    Command="{Binding OpenTerminalCommand}" ToolTip="{loc:Str SerialLink.OpenTip}">
+                <TextBlock Text="{loc:Str SerialLink.Open}" />
+            </Button>
+        </StackPanel>
+    </DataTemplate>
+</ResourceDictionary>

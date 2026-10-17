@@ -26,7 +26,7 @@ public class WebViewModelTests
 
     [TestInitialize]
     public void Setup() => _tempDir = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), "nexaflow-webvm-" + Guid.NewGuid().ToString("N"))).FullName;
+        Path.Combine(TestTemp.Root, "nexaflow-webvm-" + Guid.NewGuid().ToString("N"))).FullName;
 
     [TestCleanup]
     public void Cleanup()

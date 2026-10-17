@@ -24,7 +24,7 @@ public class FileTextEditorViewModelTests
 {
     private const long Big = 50L * 1024 * 1024;
 
-    private static string Temp() => Path.Combine(Path.GetTempPath(), $"editvm_{Guid.NewGuid():N}.txt");
+    private static string Temp() => Path.Combine(TestTemp.Root, $"editvm_{Guid.NewGuid():N}.txt");
 
     /// <summary>
     /// Runs a file operation, tolerating the brief window where the editor still holds the file open.
@@ -143,7 +143,7 @@ public class FileTextEditorViewModelTests
     [CoversNode("code-ai-act")]
     public void EditDeclaration_At_EditsAProjectFile_AndRefusesAPathAndAnIdTogether() => AsyncPumpCore.Run(async () =>
     {
-        var path = Path.Combine(Path.GetTempPath(), $"editvm_{Guid.NewGuid():N}.csproj");
+        var path = Path.Combine(TestTemp.Root, $"editvm_{Guid.NewGuid():N}.csproj");
         File.WriteAllText(path,
             "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n    <PackageReference Include=\"NAudio\" Version=\"2.2.1\" />\n  </ItemGroup>\n</Project>\n",
             new UTF8Encoding(false));

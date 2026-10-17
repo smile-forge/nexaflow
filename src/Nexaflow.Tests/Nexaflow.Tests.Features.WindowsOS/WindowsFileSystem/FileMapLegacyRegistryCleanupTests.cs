@@ -18,7 +18,7 @@ public class FileMapLegacyRegistryCleanupTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-filemap-cleanup-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-filemap-cleanup-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_dir, "filemap"));
     }
 

@@ -24,7 +24,7 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path",   "The file to open."),
+        new("path",   "The file to open.", OnDisk: true),
         new("offset", "Byte offset to reveal and select from. Decimal, or 0x-prefixed hex.",
             Required: false, Identity: false),
         new("length", "How many bytes to select at that offset. Omit to just place the cursor.",

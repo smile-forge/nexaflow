@@ -14,7 +14,7 @@ public class HexViewModelTests
 
     private static string WriteTempFile(byte[] bytes)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"hexvm_{Guid.NewGuid():N}.bin");
+        var path = Path.Combine(TestTemp.Root, $"hexvm_{Guid.NewGuid():N}.bin");
         File.WriteAllBytes(path, bytes);
         return path;
     }

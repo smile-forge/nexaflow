@@ -29,7 +29,7 @@ public class WorkspaceStartupTabsTests
     public void Setup()
     {
         _origBaseDir = ConfigManager.Instance.BaseDir;
-        _baseDir     = Path.Combine(Path.GetTempPath(), "nexaflow-tabs-" + Guid.NewGuid().ToString("N"));
+        _baseDir     = Path.Combine(TestTemp.Root, "nexaflow-tabs-" + Guid.NewGuid().ToString("N"));
         ConfigManager.Instance.Initialize(_baseDir);
     }
 

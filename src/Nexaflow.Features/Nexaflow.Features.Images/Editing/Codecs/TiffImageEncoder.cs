@@ -25,6 +25,9 @@ public sealed class TiffImageEncoder : IImageEncoder
 
     public bool CarriesMetadata(ImageContainer container) => true;
 
+    /// <summary>A picture with any transparency is written with an alpha sample.</summary>
+    public bool CarriesTransparency(ImageContainer container) => true;
+
     public byte[] Encode(SKImage picture, ImageContainer container, EncodeOptions options, MetadataBlocks metadata)
     {
         bool wide = picture.ColorType is SKColorType.RgbaF16 or SKColorType.RgbaF32 or SKColorType.Rgba16161616;

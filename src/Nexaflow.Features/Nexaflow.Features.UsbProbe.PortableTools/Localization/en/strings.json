@@ -1,0 +1,8 @@
+{
+  "PortableTools.Title": "Phone files",
+  "PortableTools.Description": "The storage a phone or camera shares over MTP, in a file browser, with copies to and from it — every copy read back and checked by SHA-256.",
+  "PortableTools.Status.NotRead": "Open to read what it shares",
+  "PortableTools.Note.NoDevice": "Windows has not made a portable device of it yet: unlock the phone and choose File transfer in its USB settings.",
+  "PortableTools.Note.OpenFailed": "The device could not be opened: {0}",
+  "PortableTools.Note.NothingShared": "The phone shares no storage yet: unlock it, and choose File transfer in its USB settings. It shows here as soon as it does."
+}

@@ -171,7 +171,7 @@ public class PdfPageReadingTests
     [CoversNode("pdf-print")]
     public void APrintedPage_IsDrawnWholeOnTheSheet_AsLargeAsFits()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-pdf-{Guid.NewGuid():N}.pdf");
+        var path = TestTemp.CreateFile(".pdf");
         File.WriteAllBytes(path, Write("1 0 0 rg 0 0 200 200 re f", "", "", [], ""));
         try
         {
@@ -317,7 +317,7 @@ public class PdfPageReadingTests
     private static PdfPageNode Read(string content, string resources = "", string catalog = "",
         (int Number, string Body)[]? extra = null, string page = "")
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-pdf-{Guid.NewGuid():N}.pdf");
+        var path = TestTemp.CreateFile(".pdf");
         File.WriteAllBytes(path, Write(content, resources, catalog, extra ?? [], page));
         try
         {

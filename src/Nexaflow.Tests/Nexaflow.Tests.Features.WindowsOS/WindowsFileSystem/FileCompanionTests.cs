@@ -36,7 +36,7 @@ public class FileCompanionTests
     [TestInitialize]
     public void CreateScratch()
     {
-        _scratch = Path.Combine(Path.GetTempPath(), "nexa-companions-" + Guid.NewGuid().ToString("N"));
+        _scratch = Path.Combine(TestTemp.Root, "nexa-companions-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_scratch);
     }
 

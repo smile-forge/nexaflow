@@ -740,13 +740,17 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
         var target = Normalize(entryPath);
         var rebuilt = new List<ArchiveWriteEntry>();
+        bool written = false;
         using (var session = OpenSession(containerFile, containerFileName))
         {
             foreach (var e in session.Entries)
             {
                 if (e.IsDirectory) { rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, IsDirectory = true, Modified = e.Modified }); continue; }
                 if (PathEquals(e.Name, target))
+                {
                     rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = System.DateTime.Now, OpenContent = () => new MemoryStream(newContent) });
+                    written = true;
+                }
                 else
                 {
                     var bytes = ReadEntryBytes(session, e.Name);
@@ -754,6 +758,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
                 }
             }
         }
+        // A file the archive does not hold yet is written into it, as a file is written into a folder.
+        if (!written) rebuilt.Add(new ArchiveWriteEntry { Path = target, Modified = System.DateTime.Now, OpenContent = () => new MemoryStream(newContent) });
         handler.Write(output, containerFileName, rebuilt);
     }
 

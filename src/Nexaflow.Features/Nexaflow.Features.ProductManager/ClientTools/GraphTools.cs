@@ -6,6 +6,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.ProductManager.ClientTools;
 
@@ -350,8 +351,11 @@ public static class GraphTools
             steps.Add(step);
         }
 
-        var outcome = EditPlan.Run(g, steps, RawReader(root), rel => SourceFile.NewlineFor(FullPath(root, rel), root));
+        var outcome = EditPlan.Run(g, steps, RawReader(root),
+                                   rel => Inside(root, rel) ? SourceFile.NewlineFor(FullPath(root, rel), root) : Environment.NewLine);
         if (!outcome.Ok) return ToolResult.Error(outcome.Message);
+        if (outcome.Files.FirstOrDefault(f => !Inside(root, f.RelativePath)) is { } outside)
+            return ToolResult.Error($"{outside.RelativePath} is outside the product folder this page shows; a graph edit changes only files under it.");
 
         var report = new System.Text.StringBuilder();
         foreach (var change in outcome.Steps.SelectMany(s => s.Changes))
@@ -494,10 +498,15 @@ public static class GraphTools
 
     /// <summary>Raw file text — line endings and BOM intact, because an edit puts them back. The
     /// line-splitting <see cref="Reader"/> above normalises both away, so it cannot be used for editing.</summary>
-    private static GraphEdit.ReadText RawReader(string root) => rel => SourceFile.Read(FullPath(root, rel))?.Text;
+    private static GraphEdit.ReadText RawReader(string root) => rel => Inside(root, rel) ? SourceFile.Read(FullPath(root, rel))?.Text : null;
 
     private static string FullPath(string root, string rel) =>
         System.IO.Path.Combine(root, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+
+    /// <summary>Whether <paramref name="rel"/> names a file under <paramref name="root"/> — the product folder the page shows —
+    /// rather than reaching outside it with a ".." or a rooted path. Nothing outside is read or written.</summary>
+    private static bool Inside(string root, string rel)
+        => PathScope.Full(FullPath(root, rel)) is { } full && PathScope.Full(root) is { } top && PathScope.IsWithin(full, top);
 
     private static bool Bool(JsonObject a, string key) =>
         a.TryGetPropertyValue(key, out var v) && bool.TryParse(v?.ToString(), out var b) && b;

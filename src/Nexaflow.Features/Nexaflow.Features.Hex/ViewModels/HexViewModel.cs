@@ -462,6 +462,9 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
 
     public string? GetSecurityContext() => string.IsNullOrEmpty(FilePath) ? null : FilePath;
 
+    /// <summary>The file this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // ── Read / explore (auto-run) — reach any byte, not just the visible window ──

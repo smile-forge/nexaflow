@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -63,6 +65,35 @@ internal static class JourneyTimings
         }
         catch { /* a timing log is never worth failing a test over */ }
     }
+
+    private const string LapHeader = "timestampUtc,appVersion,scope,unit,check,beforeMs,tookMs";
+
+    /// <summary>
+    /// Records every check of one journey to <c>artifacts/journey-laps.csv</c>: the time spent before it (the journey's own
+    /// steps and waits) and in it. A passing test's output is not shown, so this is where a slow journey says which step
+    /// is slow. Best-effort, as <see cref="Record"/> is.
+    /// </summary>
+    public static void RecordLaps(string scope, string unit, IEnumerable<(string Label, TimeSpan Before, TimeSpan Took)> laps)
+    {
+        if (LogPath.Value is not { } timings) return;
+        var path = Path.Combine(Path.GetDirectoryName(timings)!, "journey-laps.csv");
+        var stamp = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        var rows = laps.Select(lap => string.Join(',', stamp, Version.Value, scope, unit, Csv(lap.Label),
+            lap.Before.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture),
+            lap.Took.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)));
+        try
+        {
+            lock (Gate)
+            {
+                if (!File.Exists(path)) File.WriteAllText(path, LapHeader + Environment.NewLine);
+                File.AppendAllLines(path, rows);
+            }
+        }
+        catch { /* a timing log is never worth failing a test over */ }
+    }
+
+    /// <summary>A field as CSV holds it: quoted, its own quotes doubled.</summary>
+    private static string Csv(string field) => "\"" + field.Replace("\"", "\"\"") + "\"";
 
     /// <summary>A one-line summary of a row, for <c>TestContext.WriteLine</c> — the same numbers, where
     /// whoever is watching the run will actually see them.</summary>

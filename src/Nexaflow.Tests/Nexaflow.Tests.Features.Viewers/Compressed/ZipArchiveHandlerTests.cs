@@ -72,6 +72,19 @@ public class ZipArchiveHandlerTests
         Assert.AreEqual("logo", fresh.ReadAllText(Path.Combine(fix.ZipPath, "docs", "img", "logo.txt")));
     }
 
+    [TestMethod]
+    public void AFileWrittenWhereTheArchiveHoldsNone_IsWrittenIntoIt_OthersIntact()
+    {
+        using var fix = new ZipFixture();
+        var added = Path.Combine(fix.ZipPath, "docs", "new.md");
+
+        fix.Vfs.WriteAllText(added, "# New");
+
+        var fresh = NewVfs();
+        Assert.AreEqual("# New", fresh.ReadAllText(added), "written as into a folder, not dropped");
+        Assert.AreEqual("guide", fresh.ReadAllText(Path.Combine(fix.ZipPath, "docs", "guide.md")));
+    }
+
     private static VirtualFileSystem NewVfs()
     {
         var vfs = new VirtualFileSystem();
@@ -88,7 +101,7 @@ public class ZipArchiveHandlerTests
         public ZipFixture()
         {
             Vfs = NewVfs();
-            _dir = Path.Combine(Path.GetTempPath(), "nexa-zip-test-" + Guid.NewGuid().ToString("N"));
+            _dir = Path.Combine(TestTemp.Root, "nexa-zip-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_dir);
             ZipPath = Path.Combine(_dir, "a.zip");
 

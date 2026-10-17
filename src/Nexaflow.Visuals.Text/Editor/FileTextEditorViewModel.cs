@@ -647,6 +647,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     /// pinned into one conversation (so their identically-named tools don't collapse first-wins).</summary>
     public virtual string? GetSecurityContext() => string.IsNullOrEmpty(FilePath) ? null : FilePath;
 
+    /// <summary>The file this editor shows.</summary>
+    public virtual ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     /// <summary>A compact, read-only preview for the conversation context panel — file name, a meta line, and a
     /// capped monospace snippet. Built fresh each time; it never re-hosts the live editor.</summary>
     public System.Windows.Controls.UserControl CreateContextPreview()

@@ -53,7 +53,7 @@ public class CompressedSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-csearch-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-csearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _zip = Path.Combine(_dir, "a.zip");
 

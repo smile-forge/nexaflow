@@ -34,9 +34,9 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 
-    <!-- Pages are laid as the shared layout tree every document is drawn from, and shown by its paged host. -->
-    <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
-  </ItemGroup>
+<!-- Pages are laid as the shared layout tree every document is drawn from and shown by its paged host; scanned
+     pages are converted to Markdown by the page reading the image viewer shares. -->
+<ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />

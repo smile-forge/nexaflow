@@ -22,7 +22,7 @@ public class SourceFileTests
     private string _root = "";
 
     [TestInitialize]
-    public void Setup() => _root = Directory.CreateTempSubdirectory("nexa-sourcefile-").FullName;
+    public void Setup() => _root = TestTemp.CreateSubdirectory("nexa-sourcefile-").FullName;
 
     [TestCleanup]
     public void Cleanup() { try { Directory.Delete(_root, recursive: true); } catch { } }

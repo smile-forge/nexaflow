@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The USB page: every bus, hub, port and device on the machine as places to go, down to a single descriptor
+    field and its bytes; and the device page, one device with its live tools. It owns no USB code of its own — the
+    inventory, the descriptor maps and the browsing model all live in the WPF-free Nexaflow.IO.Usb leaf, which the
+    agent's tools read through the same model.
+
+    It references NO tool. Live tools arrive as IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>>, resolved by
+    FeatureManager from [Subfeature("usbprobe", ...)] attributes, so a new kind of tool is a new assembly
+    (Nexaflow.Features.UsbProbe.StorageTools, .AudioTools, .HidTools, .SerialLink) and never an edit here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
+  </ItemGroup>
+
+</Project>

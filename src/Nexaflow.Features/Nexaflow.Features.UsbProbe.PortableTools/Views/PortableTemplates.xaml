@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:p="clr-namespace:Nexaflow.Features.UsbProbe.PortableTools"
+                    xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+                    xmlns:stores="clr-namespace:Nexaflow.Visuals.Stores;assembly=Nexaflow.Visuals.Stores">
+
+    <!-- How the device page draws a phone's or camera's files: the shared file browser over its storage, or why there
+         is none yet. -->
+
+    <conv:NullToVisibilityConverter x:Key="PortableTools.NullToVis" />
+
+    <DataTemplate DataType="{x:Type p:PortableDeviceTool}">
+        <Grid>
+            <TextBox Style="{StaticResource SelectableText}" Text="{Binding Note, Mode=OneWay}" Foreground="{StaticResource TextMutedBrush}"
+                     AutomationProperties.AutomationId="UsbPortable_Note"
+                     Visibility="{Binding Note, Converter={StaticResource PortableTools.NullToVis}}" />
+            <stores:StoreBrowserView DataContext="{Binding Browser}"
+                                     Visibility="{Binding Browser, Converter={StaticResource PortableTools.NullToVis}}" />
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>

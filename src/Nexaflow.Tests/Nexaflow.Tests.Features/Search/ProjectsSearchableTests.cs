@@ -41,7 +41,7 @@ public class ProjectsSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-projsearch-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-projsearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(ActiveDir);
         Directory.CreateDirectory(ShelfDir);
 

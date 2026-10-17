@@ -17,7 +17,7 @@ public sealed class RtfTabRegistration(IShellServices shell) : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Full path to a rich-text document (.rtf).", Required: true),
+        new("path", "Full path to a rich-text document (.rtf).", Required: true, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

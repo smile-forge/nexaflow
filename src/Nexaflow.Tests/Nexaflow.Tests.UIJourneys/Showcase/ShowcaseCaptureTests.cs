@@ -104,7 +104,7 @@ public class ShowcaseCaptureTests : FileSystemUiTestBase
     [ClassInitialize]
     public static void BuildDemoWorkspace(TestContext _)
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-showcase");
+        _root = Path.Combine(TestTemp.Root, "nexaflow-showcase");
         WriteTree(_root);
 
         // A subst drive inherits the label of the volume it is taken from; the temp folder is on the system

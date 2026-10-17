@@ -36,7 +36,7 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
     protected override async Task<ISearchable> CreateAsync()
     {
-        _path = Path.Combine(Path.GetTempPath(), "nexasearch_" + Guid.NewGuid().ToString("N") + ".cs");
+        _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".cs");
         File.WriteAllText(_path, Source);
 
         var vm = new CodeViewModel(_path, Substitute.For<IShellServices>(), maxEditableBytes: long.MaxValue);

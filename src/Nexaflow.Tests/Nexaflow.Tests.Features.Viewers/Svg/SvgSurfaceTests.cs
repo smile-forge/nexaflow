@@ -52,7 +52,7 @@ public class SvgSurfaceTests
     public async Task AFileWithoutAViewBoxHidesThatPartOfTheFooter()
     {
         // An SVG need not declare a viewBox; showing "viewBox " with nothing after it is worse than nothing.
-        var path = Path.Combine(Path.GetTempPath(), $"svgnovb_{Guid.NewGuid():N}.svg");
+        var path = Path.Combine(TestTemp.Root, $"svgnovb_{Guid.NewGuid():N}.svg");
         File.WriteAllText(path,
             """<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>""");
         try
@@ -105,7 +105,7 @@ public class SvgSurfaceTests
     {
         // Valid XML, valid SVG, nothing in it. Without this the tab is a blank canvas with no explanation,
         // which reads as "the viewer is broken" rather than "the file is empty".
-        var path = Path.Combine(Path.GetTempPath(), $"svgempty_{Guid.NewGuid():N}.svg");
+        var path = Path.Combine(TestTemp.Root, $"svgempty_{Guid.NewGuid():N}.svg");
         File.WriteAllText(path, """<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>""");
         try
         {

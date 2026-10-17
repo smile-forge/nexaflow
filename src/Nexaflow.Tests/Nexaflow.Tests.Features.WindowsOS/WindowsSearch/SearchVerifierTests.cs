@@ -20,7 +20,7 @@ public class SearchVerifierTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexaverify_" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexaverify_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

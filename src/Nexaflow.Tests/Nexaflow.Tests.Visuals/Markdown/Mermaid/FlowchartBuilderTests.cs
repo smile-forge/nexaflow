@@ -68,6 +68,45 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         ("nothing to draw", "flowchart TD"),
     ];
 
+    protected override bool FitsTheRoom => true;
+
+    [TestMethod]
+    public void PartsNothingJoinsRunOnUnderOneAnotherWhereTheRoomEnds_RatherThanTheChartBeingDrawnSmaller() => UiThread.Run(() =>
+    {
+        const string source = "flowchart TD\n  a1 --> a2\n  b1 --> b2\n  c1 --> c2\n  d1 --> d2\n  e1 --> e2";
+        var wide = Nodes(Build(source, 900));
+        var laid = Build(source, 260);
+        var narrow = Nodes(laid);
+
+        Assert.AreEqual(wide["a1"].Top, wide["e1"].Top, 0.01, "side by side where there is room for them");
+        Assert.IsTrue(narrow["e1"].Top > narrow["a2"].Bottom, $"and on a row of their own under the first where there is not: {narrow["a2"]} then {narrow["e1"]}");
+        Assert.AreEqual(0, Pieces(laid, MermaidPiece.Reduced).Count, "so nothing is drawn smaller");
+        Assert.IsTrue(laid.Size.Width <= 260.01, $"{laid.Size.Width} wide");
+    });
+
+    [TestMethod]
+    public void AChartStillWiderThanTheRoomIsDrawnSmaller_AndPressedAndCarettedWhereItIsDrawn() => UiThread.Run(() =>
+    {
+        const string source = "flowchart LR\n  first --> second --> third --> fourth --> fifth --> sixth";
+        var laid = Build(source, 300);
+
+        var reduced = Pieces(laid, MermaidPiece.Reduced).Single();
+        Assert.IsTrue(reduced.Painting!.Scale < 1, "one run of links has nothing to wrap, so it is drawn smaller");
+        Assert.IsTrue(laid.Size.Width <= 300.01, $"{laid.Size.Width} wide");
+
+        var sixth = laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == "sixth");
+        var start = source.IndexOf("sixth", StringComparison.Ordinal);
+        var where = sixth.Bounds;
+        Assert.IsTrue(reduced.Bounds.Contains(where), "its words are where the smaller drawing puts them");
+
+        Assert.AreEqual(start, laid.Root.OffsetAt(new Point(where.Left + 0.5, where.Top + (where.Height / 2))), "a press on its first letter means before it");
+        Assert.AreEqual(start + 5, laid.Root.OffsetAt(new Point(where.Right - 0.5, where.Top + (where.Height / 2))), "and on its last, after it");
+
+        var caret = laid.Root.CaretRect(start + 2);
+        Assert.IsTrue(caret.X > where.Left && caret.X < where.Right && caret.Height <= where.Height + 0.01,
+                      $"a caret inside it stands between its letters, as tall as they are drawn: {caret} in {where}");
+    });
+
     [TestMethod]
     public void ALinkPutsWhatItReachesInTheRankBeyondWhatItLeaves() => UiThread.Run(() =>
     {

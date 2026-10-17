@@ -153,7 +153,7 @@ public class GitCredentialHelperTests
     public void RunProcessCredential_ExeNotFound_ReturnsNull()
     {
         var result = GitCredentialHelper.RunProcessCredential(
-            "nexaflow-nonexistent-git-xyz", Path.GetTempPath(), "fill", "url=https://x\n\n", 2_000);
+            "nexaflow-nonexistent-git-xyz", TestTemp.Root, "fill", "url=https://x\n\n", 2_000);
 
         Assert.IsNull(result);
     }

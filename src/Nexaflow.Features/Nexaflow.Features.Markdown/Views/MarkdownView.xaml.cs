@@ -30,8 +30,8 @@ public partial class MarkdownView : UserControl, IPageView
         ViewModel   = viewModel;
         DataContext = viewModel;
 
-        // Resolve relative ![](img.png) images against the file's own folder.
-        Editor.BaseDirectory = Path.GetDirectoryName(viewModel.FilePath);
+        // Resolve relative ![](img.png) images against the document's folder — the file's own, or where a package is unpacked.
+        Editor.BaseDirectory = viewModel.DocumentFolder;
 
         // A link out of the document is the shell's to route, the same as one pressed on a post-it or in a code
         // comment. Unhandled leaves it to open the way any other link does.
@@ -67,6 +67,9 @@ public partial class MarkdownView : UserControl, IPageView
                 e.Handled = true;
             }
         };
+
+        // Ctrl+Shift+S → save as, likewise in either mode.
+        InputBindings.Add(new KeyBinding(viewModel.SaveAsCommand, Key.S, ModifierKeys.Control | ModifierKeys.Shift));
 
         // Ctrl+wheel zooms over either surface. Preview, so it beats the surface's own scroll handling; a
         // plain wheel is left alone and still scrolls.
@@ -120,6 +123,12 @@ public partial class MarkdownView : UserControl, IPageView
     /// </summary>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Saved as a file somewhere else: its pictures are read beside that one now.
+        if (e.PropertyName == nameof(MarkdownViewModel.DocumentFolder))
+        {
+            Editor.BaseDirectory = ViewModel.DocumentFolder;
+            return;
+        }
         if (e.PropertyName != nameof(MarkdownViewModel.ViewMode)) return;
 
         var towardsSource = ViewModel.ViewMode > _laidOut;

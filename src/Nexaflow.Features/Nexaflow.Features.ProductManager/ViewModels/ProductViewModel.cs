@@ -927,6 +927,9 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     /// <summary>The product folder this tab operates on — a stable scope so two pinned Product tabs on
     /// different products don't collapse first-wins (aspect-4 disambiguation).</summary>
     public string? GetSecurityContext() => ProductRoot;
+
+    /// <summary>The product's folder, with everything under it.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFolder(ProductRoot);
     public IReadOnlyList<IClientTool> GetClientTools() => _tools ??= ProductTools.ForRoot(ProductRoot);
     public string? GetAiSystemPromptGuidance() =>
         "A product tracker: a tree of component nodes, each with a status (should/shouldn't/done/faulted), " +

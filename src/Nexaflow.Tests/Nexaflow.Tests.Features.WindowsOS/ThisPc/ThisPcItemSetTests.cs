@@ -152,7 +152,7 @@ public class ThisPcItemSetTests
     [TestMethod]
     public void EnumeratingYieldsTheDrivesFirstThenTheContributedLocations()
     {
-        var provider = new FakeProvider("p", 10, Item("p.docs", System.IO.Path.GetTempPath()));
+        var provider = new FakeProvider("p", 10, Item("p.docs", TestTemp.Root));
 
         var places = ThisPcItemSet.Enumerate([provider]);
 
@@ -174,7 +174,7 @@ public class ThisPcItemSetTests
     [TestMethod]
     public void EveryContributedPlaceCarriesItsItemAndItsRealTarget()
     {
-        var temp = System.IO.Path.GetTempPath();
+        var temp = TestTemp.Root;
         var places = ThisPcItemSet.Enumerate([new FakeProvider("p", 10, Item("p.docs", temp))]);
 
         var provided = places.Single(p => p.Kind == ThisPcPlaceKind.Provided);
@@ -235,7 +235,7 @@ public class ThisPcItemSetTests
     [TestMethod]
     public void ProbingReportsAnExistingLocationAndWhetherItHasSubfolders()
     {
-        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexa-probe-" + Guid.NewGuid().ToString("N"));
+        var dir = System.IO.Path.Combine(TestTemp.Root, "nexa-probe-" + Guid.NewGuid().ToString("N"));
         System.IO.Directory.CreateDirectory(System.IO.Path.Combine(dir, "child"));
         try
         {

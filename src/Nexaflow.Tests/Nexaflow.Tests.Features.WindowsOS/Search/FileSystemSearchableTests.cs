@@ -57,7 +57,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     }
 
     private static FileSystemViewModel Vm(IShellServices? shell = null, string? root = null)
-        => new(root ?? Path.GetTempPath(), shell ?? Shell(), Substitute.For<IAIService>(),
+        => new(root ?? TestTemp.Root, shell ?? Shell(), Substitute.For<IAIService>(),
                new Dictionary<Type, IFeatureConfig>());
 
     protected override Task<ISearchable> CreateAsync()
@@ -96,7 +96,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     public void DisplayingSearch_HandsOffWithoutNamingWhoShowsIt() => RunUnpumped(async () =>
     {
         var shell = Shell();
-        var root  = Path.GetTempPath();
+        var root  = TestTemp.Root;
         shell.HandleObject(Arg.Any<object>()).Returns(true);
 
         await Vm(shell, root).SearchAsync(new SearchRequest("*.cs"), display: true, default);
@@ -115,7 +115,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
         var shell = Shell(withCorpus: false);          // nothing here can run a search
         shell.HandleObject(Arg.Any<object>()).Returns(true);
 
-        await Vm(shell, Path.GetTempPath()).SearchAsync(new SearchRequest("*.cs"), display: true, default);
+        await Vm(shell, TestTemp.Root).SearchAsync(new SearchRequest("*.cs"), display: true, default);
 
         shell.Received(1).HandleObject(Arg.Any<FileSearchRequest>());
     });
@@ -129,7 +129,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
         var shell = Shell(withCorpus: true);
         shell.HandleObject(Arg.Any<object>()).Returns(true);
 
-        var outcome = await Vm(shell, Path.GetTempPath())
+        var outcome = await Vm(shell, TestTemp.Root)
             .SearchAsync(new SearchRequest("zqxwv-no-such-token-8813"), display: true, default);
 
         Assert.IsFalse(outcome.Failed, "a display search reports the handoff, not the search's outcome");
@@ -142,7 +142,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
         var shell = Shell();
         shell.HandleObject(Arg.Any<object>()).Returns(false);   // no feature claimed it
 
-        var outcome = await Vm(shell, Path.GetTempPath()).SearchAsync(new SearchRequest("*.cs"), display: true, default);
+        var outcome = await Vm(shell, TestTemp.Root).SearchAsync(new SearchRequest("*.cs"), display: true, default);
 
         Assert.IsTrue(outcome.Failed, "a handoff nobody claims must not look like a successful silent search");
     });
@@ -151,7 +151,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     public void AgentSearch_QueriesTheIndexWithoutOpeningATab() => RunUnpumped(async () =>
     {
         var shell = Shell(withCorpus: true);
-        var vm    = Vm(shell, Path.GetTempPath());
+        var vm    = Vm(shell, TestTemp.Root);
 
         var outcome = await vm.SearchAsync(new SearchRequest("alpha42"), display: false, default);
 
@@ -162,7 +162,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     [TestMethod]
     public void AgentRegexSearch_ReachesTheEngineAsARegex() => RunUnpumped(async () =>
     {
-        var vm      = Vm(Shell(withCorpus: true), Path.GetTempPath());
+        var vm      = Vm(Shell(withCorpus: true), TestTemp.Root);
         var pattern = @"alpha\d+\.cs";
 
         // The browser must not flatten the pattern to text on the way out. The two calls differing is the
@@ -177,7 +177,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     [TestMethod]
     public void RegexThatMatchesNothing_SaysSoWithoutClaimingTheFolderIsEmpty() => RunUnpumped(async () =>
     {
-        var vm = Vm(Shell(withCorpus: true), Path.GetTempPath());
+        var vm = Vm(Shell(withCorpus: true), TestTemp.Root);
 
         var outcome = await vm.SearchAsync(
             new SearchRequest(@"TODO\s*:\s*refactor", IsRegex: true), display: false, default);
@@ -190,7 +190,7 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     [TestMethod]
     public void RegexResults_SplitProvenRowsFromUncheckedOnes() => RunUnpumped(async () =>
     {
-        var vm = Vm(Shell(withCorpus: true), Path.GetTempPath());
+        var vm = Vm(Shell(withCorpus: true), TestTemp.Root);
 
         // The browser can't run the content verifier (it lives with the search feature), so the agent must
         // be told which rows are proven rather than handed a set that mixes proven and possible silently.

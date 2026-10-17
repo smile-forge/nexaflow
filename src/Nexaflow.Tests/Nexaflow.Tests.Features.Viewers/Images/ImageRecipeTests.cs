@@ -53,6 +53,26 @@ public class ImageRecipeTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-remove-background")]
+    public void ACutOut_IsWrittenAsVersionThree_AndReadBackTheSame()
+    {
+        var clicked = ImageRecipe.Identity with
+        {
+            CutOut = new RecipeCutOut { Clicks = [new RecipeCutClick(10.5, 8, true), new RecipeCutClick(20, 4, false)], Box = new RecipeCutBox(1, 2, 30, 20) },
+        };
+        var named = ImageRecipe.Identity with { CutOut = new RecipeCutOut { Phrase = "mug" } };
+
+        var json = ImageRecipeJson.Serialize(clicked);
+        StringAssert.Contains(json, "\"version\": 3");
+        var read = ImageRecipeJson.Deserialize(json);
+        Assert.AreEqual(RecipeReadStatus.Read, read.Status);
+        Assert.AreEqual(clicked.CutOut, read.Recipe!.CutOut);
+        Assert.AreEqual(named.CutOut, ImageRecipeJson.Deserialize(ImageRecipeJson.Serialize(named)).Recipe!.CutOut);
+        Assert.IsTrue(read.Recipe.ChangesPixels, "a removed background is an edit");
+        Assert.IsFalse(ImageRecipeJson.Serialize(ImageRecipe.Identity).Contains("\"version\": 3"), "a recipe without one is written as it was");
+    }
+
+    [TestMethod]
     [CoversNode("images-recipe-sidecar")]
     public void ARecipeThatLeavesSectionsOut_ReadsAsHavingNone_AndWritesAgain()
     {

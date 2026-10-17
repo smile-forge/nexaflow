@@ -188,7 +188,7 @@ public class FileOperationHostTests
         var action = registry.FileActions.OfType<UnzipHereAction>().SingleOrDefault();
         Assert.IsNotNull(action, "the registry did not build the archive action at all");
 
-        var root    = Path.Combine(Path.GetTempPath(), "nexa-di-" + Guid.NewGuid().ToString("N")[..8]);
+        var root    = Path.Combine(TestTemp.Root, "nexa-di-" + Guid.NewGuid().ToString("N")[..8]);
         var payload = Path.Combine(root, "payload");
         Directory.CreateDirectory(payload);
         File.WriteAllText(Path.Combine(payload, "a.txt"), "alpha");

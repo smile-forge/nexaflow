@@ -190,14 +190,14 @@ public static class LayoutPainter
     }
 
     /// <summary>
-    /// Puts the drawing context into a piece's own frame where it is drawn in one — turned, snapped to a pixel grid, clipped or
-    /// masked — scopes how much of it shows, and says how many pushes to undo.
-    ///
+/// Puts the drawing context into a piece's own frame where it is drawn in one — turned, scaled, snapped to a pixel grid,
+/// clipped or masked — scopes how much of it shows, and says how many pushes to undo.    ///
     /// <para>
     /// Where it sits first, then how it is drawn: a piece turned inside whatever holds it is turned about its own anchor,
     /// which is what makes the turn part of the piece rather than of the page. So what has built up of where it stands is
-    /// pushed before the turn, and inside it everything is measured from nothing again. A clip and a mask are said in the
-    /// piece's own frame as well, inside however it is turned, so they go on after the turn; a fade is the same in any frame,
+    /// pushed before the turn, and inside it everything is measured from nothing again; a drawing set smaller is scaled inside
+    /// the turn, so it turns as a whole. A clip and a mask are said in the piece's own frame as well, inside however it is
+    /// turned and scaled, so they go on after both; a fade is the same in any frame,
     /// and on its own moves nothing. Any other piece pushes nothing: where it stands is carried down to its marks.
     /// </para>
     /// </summary>
@@ -220,6 +220,13 @@ public static class LayoutPainter
                 dc.PushTransform(turn);
                 pushed++;
             }
+
+        // Inside the turns, as LayoutPaint.Applied says: a drawing set smaller is turned as a whole.
+        if (painting.Scale != 1)
+        {
+            dc.PushTransform(new ScaleTransform(painting.Scale, painting.Scale));
+            pushed++;
+        }
 
         if (painting.Snap is { } snap)
         {
@@ -250,10 +257,10 @@ public static class LayoutPainter
 
     /// <summary>
     /// Whether what a piece holds is painted measured from its own anchor rather than carried down to it — whether anything it
-    /// is painted with is said in its own frame.
+    /// is painted with is said in its own frame, or is drawn about its anchor.
     /// </summary>
     private static bool Framed(LayoutPaint painting) =>
-        painting.Turn is { Count: > 0 } || painting.Snap is not null || painting.Clip is not null || painting.Mask is not null;
+        painting.Applies || painting.Snap is not null || painting.Clip is not null || painting.Mask is not null;
 
     /// <summary>A stretch of the page, said in a frame standing <paramref name="by"/> from the one it was said in.</summary>
     private static Rect? Moved(Rect? area, Vector by) => area is { } rect ? Rect.Offset(rect, by) : null;

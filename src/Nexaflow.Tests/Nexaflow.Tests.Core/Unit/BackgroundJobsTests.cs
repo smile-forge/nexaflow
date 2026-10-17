@@ -107,7 +107,7 @@ public class BackgroundJobsTests
     private static (AIService Service, WorkspaceRuntime Workspace) Assistant(BackgroundActivityManager tasks, List<NotificationItem> told, Model model)
     {
         var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, Path.GetTempPath(), new BackgroundJobs(tasks, ws, told.Add));
+        var svc = new AIService(ws, TestTemp.Root, new BackgroundJobs(tasks, ws, told.Add));
         Set(nameof(WorkspaceRuntime.AiService), svc);
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
         svc.Register("c1", model);

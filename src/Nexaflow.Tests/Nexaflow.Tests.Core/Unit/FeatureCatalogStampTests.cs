@@ -22,7 +22,7 @@ public class FeatureCatalogStampTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), $"catalogstamp_{Guid.NewGuid():N}");
+        _dir = Path.Combine(TestTemp.Root, $"catalogstamp_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dir);
         Write(Core, "core");
         Write("Nexaflow.Features.Alpha.dll", "alpha");

@@ -37,7 +37,7 @@ public class CompileHostTests
     [ClassInitialize]
     public static void Build(TestContext _)
     {
-        _root = Directory.CreateTempSubdirectory("nexa-compile-").FullName;
+        _root = TestTemp.CreateSubdirectory("nexa-compile-").FullName;
 
         Write(Lib("Lib.csproj"),
               "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework>"
