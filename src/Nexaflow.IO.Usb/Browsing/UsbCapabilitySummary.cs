@@ -13,6 +13,11 @@ public static class UsbCapabilitySummary
     public static IReadOnlyList<string> Describe(UsbDeviceNode device)
     {
         var lines = new List<string>();
+        if (device.IsEjected)
+        {
+            lines.Add("Ejected: Windows has let go of it, so it can be unplugged safely. Unplug it and plug it back in to use it again.");
+            return lines;
+        }
         if (device.IsHub)
         {
             lines.Add("A USB hub: it gives the devices plugged into it their ports. Each of those devices has a page of its own; "
@@ -50,6 +55,8 @@ public static class UsbCapabilitySummary
             UsbFunctionMode.NoDriver => function.Driver.ProblemCode == 0
                 ? "Windows has no driver for it, so nothing can use it yet; only its descriptors can be read."
                 : $"Windows has no working driver for it (problem {function.Driver.ProblemCode}), so nothing can use it yet; only its descriptors can be read.",
+            UsbFunctionMode.VendorDriver when function.ComPort is { } com =>
+                $"its maker's own driver ({service}), which gives it a serial port, {com} — open it in the serial terminal.",
             UsbFunctionMode.VendorDriver => $"its maker's own driver ({service}{(function.Driver.Provider is { } p ? $", from {p}" : "")}) — used through the maker's software.",
             UsbFunctionMode.WindowsClass => ClassVerdict(service, function, owned),
             _ => service,
@@ -64,6 +71,7 @@ public static class UsbCapabilitySummary
         "HIDUSB" => "an input device (HID): its reports can be decoded, its input watched and its settings read.",
         "USBSER" => $"a serial port{(function.ComPort is { } com ? $", {com}" : " with no COM number yet")} — open it in the serial terminal.",
         "USBSTOR" or "UASPSTOR" => "a disk: browse it and copy files to and from it, each copy checked.",
+        "WUDFWPDMTP" or "WPDUSB" => "a phone's or camera's files, over MTP: browse them and copy files to and from it, each copy checked.",
         "USBAUDIO" or "USBAUDIO2" => owned.Any(s => s.Endpoints.Any(e => e is { Direction: UsbDirection.In, Type: UsbEndpointType.Isochronous }))
             ? "a microphone or audio input: watch its levels and record from it."
             : "speakers or an audio output: play test sounds through it.",

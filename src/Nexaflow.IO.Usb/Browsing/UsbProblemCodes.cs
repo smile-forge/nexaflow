@@ -6,6 +6,8 @@ namespace Nexaflow.IO.Usb.Browsing;
 /// </summary>
 public static class UsbProblemCodes
 {
+    /// <summary>CM_PROB_HELD_FOR_EJECT: Windows has let go of the device for safe removal, and it is still plugged in.</summary>
+    public const uint PreparedForRemoval = 47;
     /// <summary>"28 — no driver installed"; null for 0, which is no problem.</summary>
     public static string? Describe(uint code) => code switch
     {

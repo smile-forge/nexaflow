@@ -1,16 +1,16 @@
-<UserControl x:Class="Nexaflow.Features.UsbProbe.StorageTools.Views.UsbStorageView"
+<UserControl x:Class="Nexaflow.Visuals.Stores.StoreBrowserView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:s="clr-namespace:Nexaflow.Features.UsbProbe.StorageTools"
+             xmlns:s="clr-namespace:Nexaflow.Visuals.Stores"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:b="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
-             AutomationProperties.AutomationId="UsbStorage_Browser">
+             AutomationProperties.AutomationId="Store_Browser">
 
-    <!-- The device's volumes as a file browser: a toolbar and path bar, the folder tree beside the open folder's
-         contents, and what is selected and how much room is left beneath. Copies, renames and deletes go through the
-         tool; right-click, keys and drag-and-drop reach them as they do in the file browser. -->
+    <!-- A store as a file browser: a toolbar and path bar, the folder tree beside the open folder's contents, and what
+         is selected and how much room is left beneath. Its DataContext is a StoreBrowser; right-click, keys and
+         drag-and-drop reach its commands as they do in the file browser. -->
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -20,8 +20,6 @@
         <Style x:Key="Muted" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
         </Style>
-
-
 
         <!-- A step of the path bar: flat text on the bar, lit only under the pointer, like a breadcrumb. -->
         <Style x:Key="Crumb" TargetType="Button">
@@ -51,7 +49,7 @@
 
         <Style x:Key="EntryRow" TargetType="ListViewItem" BasedOn="{StaticResource FileListRowStyle}">
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-            <!-- What a screen reader (and a journey) hears of a row: its name, not the row's type. -->
+            <!-- What a screen reader (and a journey) hears of a row: its name. -->
             <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
         </Style>
 
@@ -61,7 +59,7 @@
 
         <!-- A column header sorts by its column; the arrow shows which one, and which way. -->
         <Style x:Key="SortHeader" TargetType="GridViewColumnHeader" BasedOn="{StaticResource GridColumnHeaderStyle}">
-            <Setter Property="Command" Value="{Binding Browser.SortCommand}" />
+            <Setter Property="Command" Value="{Binding SortCommand}" />
             <Setter Property="CommandParameter" Value="{Binding Tag, RelativeSource={RelativeSource Self}}" />
             <Setter Property="ContentTemplate">
                 <Setter.Value>
@@ -71,14 +69,14 @@
                             <TextBlock Margin="6,0,0,0" FontSize="9" VerticalAlignment="Center">
                                 <TextBlock.Text>
                                     <MultiBinding Converter="{x:Static conv:SortGlyphConverter.Instance}">
-                                        <Binding Path="DataContext.Browser.SortColumn" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
-                                        <Binding Path="DataContext.Browser.SortAscending" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
+                                        <Binding Path="DataContext.SortColumn" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
+                                        <Binding Path="DataContext.SortAscending" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
                                         <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
                                     </MultiBinding>
                                 </TextBlock.Text>
                                 <TextBlock.Foreground>
                                     <MultiBinding Converter="{x:Static conv:SortBrushConverter.Instance}">
-                                        <Binding Path="DataContext.Browser.SortColumn" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
+                                        <Binding Path="DataContext.SortColumn" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
                                         <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=GridViewColumnHeader}" />
                                     </MultiBinding>
                                 </TextBlock.Foreground>
@@ -91,44 +89,44 @@
 
         <!-- Right-click on selected rows: they are what each item acts on. -->
         <ContextMenu x:Key="RowMenu" x:Shared="False">
-            <MenuItem Header="{loc:Str StorageTools.Menu.Open}" FontWeight="SemiBold" InputGestureText="Enter" Command="{Binding Browser.OpenCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.CopyToComputer}" Command="{Binding CopyToComputerCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.CopyPath}" Command="{Binding CopyPathCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.Open}" FontWeight="SemiBold" InputGestureText="Enter" Command="{Binding OpenCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.CopyToComputer}" Command="{Binding CopyToComputerCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.CopyPath}" Command="{Binding CopyPathCommand}" />
             <Separator />
-            <MenuItem Header="{loc:Str StorageTools.Menu.Rename}" InputGestureText="F2" Command="{Binding RenameCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.Delete}" InputGestureText="Del" Command="{Binding DeleteCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.Rename}" InputGestureText="F2" Command="{Binding RenameCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.Delete}" InputGestureText="Del" Command="{Binding DeleteCommand}" />
         </ContextMenu>
 
         <!-- Right-click on a folder in the tree, or on a step of the path bar: the menu's Tag is that folder. -->
         <ContextMenu x:Key="FolderMenu" x:Shared="False">
-            <MenuItem Header="{loc:Str StorageTools.Menu.Open}" FontWeight="SemiBold" Command="{Binding Browser.OpenCommand}"
+            <MenuItem Header="{loc:Str Stores.Menu.Open}" FontWeight="SemiBold" Command="{Binding OpenCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.CopyToComputer}" Command="{Binding CopyToComputerCommand}"
+            <MenuItem Header="{loc:Str Stores.Menu.CopyToComputer}" Command="{Binding CopyToComputerCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.CopyPath}" Command="{Binding CopyPathCommand}"
-                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <Separator />
-            <MenuItem Header="{loc:Str StorageTools.Menu.NewFolder}" Command="{Binding NewFolderCommand}"
-                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.AddFile}" Command="{Binding AddFileCommand}"
-                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.AddFolder}" Command="{Binding AddFolderCommand}"
+            <MenuItem Header="{loc:Str Stores.Menu.CopyPath}" Command="{Binding CopyPathCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
             <Separator />
-            <MenuItem Header="{loc:Str StorageTools.Menu.Rename}" InputGestureText="F2" Command="{Binding RenameCommand}"
+            <MenuItem Header="{loc:Str Stores.Menu.NewFolder}" Command="{Binding NewFolderCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.Delete}" InputGestureText="Del" Command="{Binding DeleteCommand}"
+            <MenuItem Header="{loc:Str Stores.Menu.AddFiles}" Command="{Binding AddFilesCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str Stores.Menu.AddFolder}" Command="{Binding AddFolderCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <Separator />
+            <MenuItem Header="{loc:Str Stores.Menu.Rename}" InputGestureText="F2" Command="{Binding RenameCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="{loc:Str Stores.Menu.Delete}" InputGestureText="Del" Command="{Binding DeleteCommand}"
                       CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
         </ContextMenu>
 
         <!-- Right-click on the open folder's blank space: what goes into it. -->
         <ContextMenu x:Key="BlankMenu" x:Shared="False">
-            <MenuItem Header="{loc:Str StorageTools.Menu.NewFolder}" Command="{Binding NewFolderCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.AddFile}" Command="{Binding AddFileCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.AddFolder}" Command="{Binding AddFolderCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.NewFolder}" Command="{Binding NewFolderCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.AddFiles}" Command="{Binding AddFilesCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.AddFolder}" Command="{Binding AddFolderCommand}" />
             <Separator />
-            <MenuItem Header="{loc:Str StorageTools.Menu.CopyPath}" Command="{Binding CopyPathCommand}" />
-            <MenuItem Header="{loc:Str StorageTools.Menu.Refresh}" InputGestureText="F5" Command="{Binding RefreshCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.CopyPath}" Command="{Binding CopyPathCommand}" />
+            <MenuItem Header="{loc:Str Stores.Menu.Refresh}" InputGestureText="F5" Command="{Binding RefreshCommand}" />
         </ContextMenu>
     </UserControl.Resources>
 
@@ -144,38 +142,38 @@
 
         <!-- Moving around on the left, putting things in and taking them out on the right. -->
         <DockPanel Grid.Row="0" Margin="0,0,0,6" LastChildFill="True">
-            <Button DockPanel.Dock="Left" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_Up"
-                    Command="{Binding Browser.UpCommand}" ToolTip="{loc:Str StorageTools.Toolbar.UpTip}">
+            <Button DockPanel.Dock="Left" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_Up"
+                    Command="{Binding UpCommand}" ToolTip="{loc:Str Stores.Toolbar.UpTip}">
                 <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_up" />
             </Button>
-            <Button DockPanel.Dock="Left" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_Refresh"
-                    Command="{Binding RefreshCommand}" ToolTip="{loc:Str StorageTools.Toolbar.RefreshTip}">
+            <Button DockPanel.Dock="Left" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_Refresh"
+                    Command="{Binding RefreshCommand}" ToolTip="{loc:Str Stores.Toolbar.RefreshTip}">
                 <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_clockwise" />
             </Button>
 
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_CopyToComputer" Command="{Binding CopyToComputerCommand}">
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_CopyToComputer" Command="{Binding CopyToComputerCommand}">
                     <StackPanel Orientation="Horizontal">
                         <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:arrow_download" />
-                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str StorageTools.Toolbar.CopyToComputer}" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str Stores.Toolbar.CopyToComputer}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_AddFile" Command="{Binding AddFileCommand}">
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_AddFiles" Command="{Binding AddFilesCommand}">
                     <StackPanel Orientation="Horizontal">
                         <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:document_arrow_up" />
-                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str StorageTools.Toolbar.AddFile}" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str Stores.Toolbar.AddFiles}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_AddFolder" Command="{Binding AddFolderCommand}">
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_AddFolder" Command="{Binding AddFolderCommand}">
                     <StackPanel Orientation="Horizontal">
                         <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:folder_arrow_up" />
-                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str StorageTools.Toolbar.AddFolder}" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str Stores.Toolbar.AddFolder}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_NewFolder" Command="{Binding NewFolderCommand}">
+                <Button Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_NewFolder" Command="{Binding NewFolderCommand}">
                     <StackPanel Orientation="Horizontal">
                         <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:folder_add" />
-                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str StorageTools.Toolbar.NewFolder}" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str Stores.Toolbar.NewFolder}" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -183,17 +181,17 @@
             <!-- The path, a step per folder: click one to go there, right-click for its menu. -->
             <Border x:Name="PathBar" Background="{StaticResource Surface2Brush}" CornerRadius="4" Height="30" Margin="4,0,8,0" Padding="2,0"
                     ContextMenuOpening="OnPathBarContextMenuOpening">
-                <ItemsControl ItemsSource="{Binding Browser.Crumbs}" VerticalAlignment="Center" AutomationProperties.AutomationId="UsbStorage_Path">
+                <ItemsControl ItemsSource="{Binding Crumbs}" VerticalAlignment="Center" AutomationProperties.AutomationId="Store_Path">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type s:UsbPathCrumb}">
+                        <DataTemplate DataType="{x:Type s:StoreCrumb}">
                             <StackPanel Orientation="Horizontal">
                                 <icons:IconGlyph x:Name="Chevron" Icon="fluent:chevron_right" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
                                                  VerticalAlignment="Center" Margin="2,0" />
-                                <Button Style="{StaticResource Crumb}" AutomationProperties.AutomationId="UsbStorage_Crumb"
-                                        Command="{Binding DataContext.Browser.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                <Button Style="{StaticResource Crumb}" AutomationProperties.AutomationId="Store_Crumb"
+                                        Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding}" Content="{Binding Label}" />
                             </StackPanel>
                             <DataTemplate.Triggers>
@@ -207,7 +205,7 @@
             </Border>
         </DockPanel>
 
-        <TextBox Grid.Row="1" Style="{StaticResource Muted}" Text="{Binding Note, Mode=OneWay}" Margin="0,0,0,6"
+        <TextBox Grid.Row="1" Style="{StaticResource Muted}" Text="{Binding Note, Mode=OneWay}" Margin="0,0,0,6" AutomationProperties.AutomationId="Store_Note"
                  Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
 
         <!-- The folder tree and the open folder, as the file browser draws them. -->
@@ -218,7 +216,7 @@
                 <ColumnDefinition Width="*" MinWidth="200" />
             </Grid.ColumnDefinitions>
 
-            <TreeView x:Name="Tree" Grid.Column="0" ItemsSource="{Binding Browser.Roots}" AutomationProperties.AutomationId="UsbStorage_Tree"
+            <TreeView x:Name="Tree" Grid.Column="0" ItemsSource="{Binding Roots}" AutomationProperties.AutomationId="Store_Tree"
                       ItemContainerStyle="{StaticResource FolderItem}" Background="{StaticResource Surface2Brush}" BorderThickness="0" Padding="2,4"
                       AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop" ContextMenuOpening="OnTreeContextMenuOpening"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -228,10 +226,9 @@
                     <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
                 </TreeView.InputBindings>
                 <TreeView.ItemTemplate>
-                    <HierarchicalDataTemplate DataType="{x:Type s:UsbFolderNode}" ItemsSource="{Binding Children}">
+                    <HierarchicalDataTemplate DataType="{x:Type s:StoreFolderNode}" ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal">
-                            <icons:IconGlyph Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource AccentBrush}"
-                                             VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <icons:IconGlyph Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </HierarchicalDataTemplate>
@@ -240,16 +237,16 @@
 
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" />
 
-            <ListView x:Name="Entries" Grid.Column="2" ItemsSource="{Binding Browser.Entries}" SelectionMode="Extended"
-                      AutomationProperties.AutomationId="UsbStorage_Entries"
-                      b:ListActivation.Command="{Binding Browser.OpenCommand}" b:ListCopy.Enabled="True" b:ListSelection.ClearOnBlankClick="True"
+            <ListView x:Name="Entries" Grid.Column="2" ItemsSource="{Binding Entries}" SelectionMode="Extended"
+                      AutomationProperties.AutomationId="Store_Entries"
+                      b:ListActivation.Command="{Binding OpenCommand}" b:ListCopy.Enabled="True" b:ListSelection.ClearOnBlankClick="True"
                       Background="{StaticResource Surface2Brush}" BorderThickness="0"
                       ItemContainerStyle="{StaticResource EntryRow}"
                       AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop" ContextMenuOpening="OnEntriesContextMenuOpening"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListView.InputBindings>
-                    <KeyBinding Key="Back" Command="{Binding Browser.UpCommand}" />
-                    <KeyBinding Key="Up" Modifiers="Alt" Command="{Binding Browser.UpCommand}" />
+                    <KeyBinding Key="Back" Command="{Binding UpCommand}" />
+                    <KeyBinding Key="Up" Modifiers="Alt" Command="{Binding UpCommand}" />
                     <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
                     <KeyBinding Key="F2" Command="{Binding RenameCommand}" />
                     <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
@@ -258,10 +255,10 @@
                     <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
                         <GridViewColumn Width="300">
                             <GridViewColumn.Header>
-                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Name" Content="{loc:Str StorageTools.Column.Name}" />
+                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Name" Content="{loc:Str Stores.Column.Name}" />
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type s:UsbFileRow}">
+                                <DataTemplate DataType="{x:Type s:StoreRow}">
                                     <StackPanel Orientation="Horizontal">
                                         <icons:IconGlyph x:Name="Glyph" Icon="{Binding Icon}" FontSize="16" Foreground="{StaticResource TextMutedBrush}"
                                                          VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -277,7 +274,7 @@
                         </GridViewColumn>
                         <GridViewColumn Width="90">
                             <GridViewColumn.Header>
-                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Size" Content="{loc:Str StorageTools.Column.Size}" />
+                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Size" Content="{loc:Str Stores.Column.Size}" />
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate><TextBlock Text="{Binding SizeText}" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
@@ -285,7 +282,7 @@
                         </GridViewColumn>
                         <GridViewColumn Width="140">
                             <GridViewColumn.Header>
-                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Modified" Content="{loc:Str StorageTools.Column.Modified}" />
+                                <GridViewColumnHeader Style="{StaticResource SortHeader}" Tag="Modified" Content="{loc:Str Stores.Column.Modified}" />
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate><TextBlock Text="{Binding ModifiedText}" Foreground="{StaticResource TextMutedBrush}" /></DataTemplate>
@@ -296,22 +293,22 @@
             </ListView>
         </Grid>
 
-        <!-- What is in the open folder and selected, and the room left on its volume. -->
+        <!-- What is in the open folder and selected, and the room left on its root. -->
         <DockPanel Grid.Row="3" Margin="2,6,2,0">
-            <TextBox DockPanel.Dock="Right" Style="{StaticResource Muted}" Text="{Binding Browser.VolumeSummary, Mode=OneWay}" TextWrapping="NoWrap"
-                     AutomationProperties.AutomationId="UsbStorage_Volume" />
-            <TextBox Style="{StaticResource Muted}" Text="{Binding Browser.Summary, Mode=OneWay}" TextWrapping="NoWrap" />
+            <TextBox DockPanel.Dock="Right" Style="{StaticResource Muted}" Text="{Binding RootSummary, Mode=OneWay}" TextWrapping="NoWrap"
+                     AutomationProperties.AutomationId="Store_Root" />
+            <TextBox Style="{StaticResource Muted}" Text="{Binding Summary, Mode=OneWay}" TextWrapping="NoWrap" />
         </DockPanel>
-        <TextBox Grid.Row="4" Style="{StaticResource Text}" Text="{Binding Browser.Notice, Mode=OneWay}" Foreground="{StaticResource DangerBrush}" Margin="2,4,2,0"
-                 Visibility="{Binding Browser.Notice, Converter={StaticResource NullToVis}}" />
+        <TextBox Grid.Row="4" Style="{StaticResource Text}" Text="{Binding Notice, Mode=OneWay}" Foreground="{StaticResource DangerBrush}" Margin="2,4,2,0"
+                 Visibility="{Binding Notice, Converter={StaticResource NullToVis}}" />
 
         <!-- A copy in progress, then how the last change went. -->
         <StackPanel Grid.Row="5">
             <DockPanel Margin="0,8,0,0" Visibility="{Binding IsCopying, Converter={StaticResource BoolToVis}}">
-                <Button DockPanel.Dock="Right" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="UsbStorage_Cancel" Command="{Binding CancelCommand}">
+                <Button DockPanel.Dock="Right" Style="{StaticResource TbIconBtn}" AutomationProperties.AutomationId="Store_Cancel" Command="{Binding CancelCommand}">
                     <StackPanel Orientation="Horizontal">
                         <icons:IconGlyph Style="{StaticResource TbIcon}" Icon="fluent:dismiss" />
-                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str StorageTools.Toolbar.Cancel}" />
+                        <TextBlock Style="{StaticResource TbLabel}" Text="{loc:Str Stores.Toolbar.Cancel}" />
                     </StackPanel>
                 </Button>
                 <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
@@ -319,7 +316,7 @@
                     <TextBox Style="{StaticResource Muted}" Text="{Binding ProgressText, Mode=OneWay}" FontSize="11" TextWrapping="NoWrap" Margin="0,3,0,0" />
                 </StackPanel>
             </DockPanel>
-            <TextBox Style="{StaticResource Text}" Text="{Binding LastResult, Mode=OneWay}" Margin="2,6,2,0" AutomationProperties.AutomationId="UsbStorage_LastResult"
+            <TextBox Style="{StaticResource Text}" Text="{Binding LastResult, Mode=OneWay}" Margin="2,6,2,0" AutomationProperties.AutomationId="Store_LastResult"
                      Visibility="{Binding LastResult, Converter={StaticResource NullToVis}}" />
         </StackPanel>
     </Grid>

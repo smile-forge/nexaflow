@@ -32,9 +32,9 @@ public class UsbDeviceJourneyTests : UiJourneyTestBase
     /// which Windows refuses for keyboards and mice — are listed for what they are and not expected.</summary>
     static readonly (string Tool, string[] Always, string[] Sometimes)[] ToolControls =
     [
-        ("storage", ["UsbStorage_Browser", "UsbStorage_Tree", "UsbStorage_Entries", "UsbStorage_Path", "UsbStorage_Up", "UsbStorage_Refresh",
-                     "UsbStorage_CopyToComputer", "UsbStorage_AddFile", "UsbStorage_AddFolder", "UsbStorage_NewFolder", "UsbStorage_Volume"],
-                    ["UsbStorage_Crumb", "UsbStorage_Cancel", "UsbStorage_LastResult"]),
+        ("storage", ["Store_Browser", "Store_Tree", "Store_Entries", "Store_Path", "Store_Up", "Store_Refresh",
+                     "Store_CopyToComputer", "Store_AddFiles", "Store_AddFolder", "Store_NewFolder", "Store_Root"],
+                    ["Store_Crumb", "Store_Cancel", "Store_LastResult"]),
         ("audio out", ["UsbAudio_Signal", "UsbAudio_Frequency", "UsbAudio_Level", "UsbAudio_Channel", "UsbAudio_Play", "UsbAudio_Stop",
                        "UsbAudio_Identify"], ["UsbAudio_PickFile"]),
         ("audio in", ["UsbAudio_Meters", "UsbAudio_Duration", "UsbAudio_Record"], ["UsbAudio_StopRecording"]),
@@ -100,7 +100,7 @@ public class UsbDeviceJourneyTests : UiJourneyTestBase
                     foreach (var id in always) CheckPresent($"{tool}: {id}", id);
         }
 
-        if (Exists("UsbStorage_Refresh")) CheckInvoke("storage: read the volumes again", "UsbStorage_Refresh");
+        if (Exists("Store_Refresh")) CheckInvoke("storage: read the volumes again", "Store_Refresh");
 
         Check("Interfaces", () => Select("UsbDevice_Tab_Interfaces"));
         CheckPresent("the device's structure", "UsbDevice_Structure");
@@ -134,14 +134,14 @@ public class UsbDeviceJourneyTests : UiJourneyTestBase
     {
         if (!OpenDeviceFoundBy("USBSTOR")) Assert.Inconclusive("no USB disk plugged in");
         Check("Live tools", () => Select("UsbDevice_Tab_Tools"));
-        Check("its volume is the folder tree's root", () => WaitForId("UsbStorage_Tree", 15)?.AsTree().Items.Length > 0);
-        Check("the volume's root is listed", () => WaitForId("UsbStorage_Entries", 15)?.AsListBox().Items.Length > 0);
+        Check("its volume is the folder tree's root", () => WaitForId("Store_Tree", 15)?.AsTree().Items.Length > 0);
+        Check("the volume's root is listed", () => WaitForId("Store_Entries", 15)?.AsListBox().Items.Length > 0);
         foreach (var id in ToolControls[0].Always) CheckPresent(id, id);
-        Check("nothing above the volume's root", () => WaitForId("UsbStorage_Up", 5) is { IsEnabled: false });
+        Check("nothing above the volume's root", () => WaitForId("Store_Up", 5) is { IsEnabled: false });
         Thread.Sleep(800);
         Shoot("5-storage");
 
-        var list = WaitForId("UsbStorage_Entries", 5)!.AsListBox();
+        var list = WaitForId("Store_Entries", 5)!.AsListBox();
         var first = list.Items[0];
 
         // The menus a right-click opens, each drawn in the app's theme — photographed off the window, where they open.
@@ -163,12 +163,12 @@ public class UsbDeviceJourneyTests : UiJourneyTestBase
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
         Check("right-click on the path bar offers Copy path", () =>
-            RightClick(CentreOf(WaitForId("UsbStorage_Path", 5)!)) && MenuItemNamed("Copy path") is not null);
+            RightClick(CentreOf(WaitForId("Store_Path", 5)!)) && MenuItemNamed("Copy path") is not null);
         ShootWindowArea(ShotFolder, "5c-path-menu");
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
         Check("right-click on selectable text offers Select all", () =>
-            RightClick(CentreOf(WaitForId("UsbStorage_Volume", 5)!)) && MenuItemNamed("Select all") is not null);
+            RightClick(CentreOf(WaitForId("Store_Root", 5)!)) && MenuItemNamed("Select all") is not null);
         ShootWindowArea(ShotFolder, "5d-text-menu");
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
@@ -177,22 +177,70 @@ public class UsbDeviceJourneyTests : UiJourneyTestBase
     var folder = list.Items.FirstOrDefault(IsFolderRow);
         if (folder is not null)
         {
-            int steps = CountOf("UsbStorage_Crumb");
+            int steps = CountOf("Store_Crumb");
             Check("double-clicking a folder opens it", () =>
             {
                 folder.DoubleClick();
                 Thread.Sleep(800);
-                return CountOf("UsbStorage_Crumb") == steps + 1;
+                return CountOf("Store_Crumb") == steps + 1;
             });
             Shoot("5e-storage-folder");
             Check("Backspace goes back up", () =>
             {
                 Keyboard.Press(VirtualKeyShort.BACK);
                 Thread.Sleep(800);
-                return CountOf("UsbStorage_Crumb") == steps;
+                return CountOf("Store_Crumb") == steps;
             });
         }
+
+        // Add files opens the app's picker choosing several — a tick beside each file. Clicked, not invoked: the picker is
+        // modal, and an Invoke would wait on it.
+        Mouse.Click(CentreOf(WaitForId("Store_AddFiles", 5)!));
+        Check("Add files opens the picker", () => WaitFor(() => FindInAppWindows("FileBrowser_Ok"), 10) is not null);
+        if (TickAFileInThePicker() is { } tick)
+            Check("ticking a file lets OK answer", () =>
+            {
+                tick.AsCheckBox().IsChecked = true;
+                Thread.Sleep(300);
+                return FindInAppWindows("FileBrowser_Ok")?.IsEnabled == true;
+            });
+        ShootWindowArea(ShotFolder, "5f-picker");
+        Check("cancelling the picker copies nothing", () => PressInDialog("FileBrowser_Cancel"));
         AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("usbprobe-portable")]
+    public void APhone_ShowsWhatItShares()
+    {
+        if (!OpenDeviceFoundBy("WUDFWpdMtp")) Assert.Inconclusive("no phone or camera plugged in over MTP");
+        Check("Live tools", () => Select("UsbDevice_Tab_Tools"));
+        Thread.Sleep(2000);
+        Check("its storage is browsed, or it says how to share it", () =>
+            WaitFor(() => FindInAppWindows("Store_Tree") ?? FindInAppWindows("UsbPortable_Note"), 15) is not null);
+        if (WaitForId("Store_Tree", 2)?.AsTree().Items.Length > 0)
+            Check("what it shares is listed", () => WaitForId("Store_Entries", 10)?.AsListBox().Items.Length > 0);
+        else
+            Check("it says how to share its files", () => Exists("Store_Note") || Exists("UsbPortable_Note"));
+        Thread.Sleep(800);
+        Shoot("9-phone");
+        AssertJourney();
+    }
+
+    /// <summary>Opens the picker's places one by one until a file shows its tick; that tick, or null when none does.</summary>
+    AutomationElement? TickAFileInThePicker()
+    {
+        var ok = FindInAppWindows("FileBrowser_Ok");
+        var window = ok;
+        while (window is not null && window.ControlType != FlaUI.Core.Definitions.ControlType.Window) window = window.Parent;
+        if (window?.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Tree))?.AsTree() is not { } tree) return null;
+        foreach (var place in tree.Items.Take(Affordable(4)))
+        {
+            place.Expand();
+            Thread.Sleep(800);
+            if (window.FindFirstDescendant(cf => cf.ByAutomationId("FileBrowser_Tick")) is { IsOffscreen: false } tick) return tick;
+        }
+        return null;
     }
 
     [TestMethod]

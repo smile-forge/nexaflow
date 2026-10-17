@@ -141,6 +141,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Nexaflow.Features.UsbProbe.SerialLink.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.PortableTools/Nexaflow.Features.UsbProbe.PortableTools.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Serial/Nexaflow.Features.Serial.csproj">
       <Platform Project="x64" />
     </Project>
@@ -359,6 +362,9 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.Visuals.Stores/Nexaflow.Visuals.Stores.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Visuals.Terminal/Nexaflow.Visuals.Terminal.csproj">

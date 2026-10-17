@@ -612,16 +612,6 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Nexaflow.Features.UsbProbe.StorageTools.csproj"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Browsing/UsbStorageBrowser.cs",
-          "class": "UsbStorageBrowser"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Views/UsbStorageView.xaml.cs",
-          "class": "UsbStorageView"
         }
       ],
       "concerns": {
@@ -823,11 +813,91 @@
           }
         ]
       }
+    },
+    "io-file-stores": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Stores/IFileStore.cs",
+          "class": "IFileStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Stores/DiskStore.cs",
+          "class": "DiskStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Stores/StoreTransfer.cs",
+          "class": "StoreTransfer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Portable/WpdStore.cs",
+          "class": "WpdStore"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Stores/StoreTransferTests.cs",
+            "class": "StoreTransferTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Stores/WindowsPortableDeviceTests.cs",
+            "class": "WindowsPortableDeviceTests"
+          }
+        ]
+      }
+    },
+    "visuals-stores": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Stores/StoreBrowser.cs",
+          "class": "StoreBrowser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Stores/StoreBrowserView.xaml.cs",
+          "class": "StoreBrowserView"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/UsbProbe/UsbStorageToolTests.cs",
+            "class": "UsbStorageToolTests"
+          }
+        ]
+      }
+    },
+    "usbprobe-portable": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.PortableTools/PortableDeviceTool.cs",
+          "class": "PortableDeviceTool"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/UsbProbe/PortableDeviceToolTests.cs",
+            "class": "PortableDeviceToolTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 71,
+  "changed_sets": 77,
   "touched_nodes": [
+    "io-file-stores",
     "io-usb",
     "io-usb-binder",
     "io-usb-broker",
@@ -856,12 +926,14 @@
     "usbprobe-device-tools",
     "usbprobe-hid",
     "usbprobe-names",
+    "usbprobe-portable",
     "usbprobe-serial-link",
     "usbprobe-storage",
     "usbprobe-ui",
     "vcommon-byte-field-view",
     "vcommon-column-tile-panel",
     "vcommon-list-copy",
-    "vcommon-pointer-menus"
+    "vcommon-pointer-menus",
+    "visuals-stores"
   ]
 }

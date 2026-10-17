@@ -35,7 +35,8 @@ public class UsbToolSupportTests
     [TestMethod]
     public void Guidance_SaysWhatATool_WouldUse()
     {
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Image, 1, 1), UsbFunctionMode.WindowsClass), "Portable Devices");
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Image, 1, 1), UsbFunctionMode.WindowsClass), "choose File transfer",
+            "an MTP function no tool covers is one Windows has not made a portable device of yet");
         StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Video, 1, 0), UsbFunctionMode.WindowsClass), "Media Foundation");
         StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.SmartCard, 0, 0), UsbFunctionMode.WindowsClass), "PC/SC");
         StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.CdcControl, 0x0D, 0), UsbFunctionMode.WindowsClass), "Network page");

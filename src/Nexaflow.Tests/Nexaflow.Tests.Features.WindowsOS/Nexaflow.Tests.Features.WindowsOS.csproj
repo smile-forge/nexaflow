@@ -57,6 +57,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.UsbProbe.AudioTools\Nexaflow.Features.UsbProbe.AudioTools.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.UsbProbe.HidTools\Nexaflow.Features.UsbProbe.HidTools.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.UsbProbe.SerialLink\Nexaflow.Features.UsbProbe.SerialLink.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.UsbProbe.PortableTools\Nexaflow.Features.UsbProbe.PortableTools.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Serial\Nexaflow.Features.Serial.csproj" />
 
     <!-- Specimen actions/viewlets for the matching tests (see the note above), not subjects of this suite. -->

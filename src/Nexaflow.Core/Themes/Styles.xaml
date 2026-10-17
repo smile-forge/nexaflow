@@ -506,7 +506,10 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Cursor" Value="IBeam"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource AccentSubtleBrush}"/>
+        <!-- The accent itself: WPF lays a selection over the text at SelectionOpacity, so a brush already faint (the
+             12% subtle accent) all but vanishes under it. -->
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="SelectionOpacity" Value="0.4"/>
         <!-- Without this a read-only TextBox drops its selection wash the moment it loses focus — which is
              exactly when the user right-clicks to copy, so the selection they were about to copy vanishes as
              the menu opens. -->

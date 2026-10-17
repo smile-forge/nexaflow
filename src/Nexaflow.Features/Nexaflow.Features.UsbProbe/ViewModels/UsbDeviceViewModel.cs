@@ -245,7 +245,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
 
     /// <summary>What the tools depend on: the functions, their drivers and what Windows made of them. A change here
     /// is a reason to offer the device to the providers again; a renamed string is not.</summary>
-    static string Signature(UsbDeviceNode device) => string.Join("|", device.Functions.Select(f =>
+    static string Signature(UsbDeviceNode device) => $"{device.Driver.ProblemCode}#" + string.Join("|", device.Functions.Select(f =>
         $"{f.InstanceId};{f.Driver.Service};{f.Driver.ProblemCode};{f.Mode};{f.ComPort};{string.Join(",", f.Children.Select(c => c.InstanceId))}"));
 
     void RefreshOverview(UsbDeviceNode device)
@@ -342,6 +342,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     List<(IUsbToolProvider Provider, IUsbTool Tool)> Collect(UsbDeviceNode device)
     {
         var offered = new List<(IUsbToolProvider, IUsbTool)>();
+        // Ejected, nothing on it answers until it is plugged in again: no tool is offered.
+        if (device.IsEjected) return offered;
         foreach (var handle in _providers)
         {
             try
@@ -372,10 +374,11 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
             Tiles.Add(tile);
         }
 
-        var uncovered = Uncovered(device, offered.Select(o => o.Tool.FunctionInstanceId));
+        var uncovered = device.IsEjected ? [] : Uncovered(device, offered.Select(o => o.Tool.FunctionInstanceId));
         if (uncovered.Count > 0) Tiles.Add(new UsbUncoveredTile(uncovered));
 
         NoTools = Tiles.Count > 0 ? null
+            : device.IsEjected ? Str.Get("UsbProbe.Device.Tools.Ejected")
             : device.IsHub ? Str.Get("UsbProbe.Device.Tools.Hub")
             : Str.Get("UsbProbe.Device.Tools.None");
         SyncInView();
@@ -492,6 +495,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         public bool OpenFile(string path) => page._shell.HandleObject(path);
 
         public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions) => page._shell.PickOpenFileAsync(extensions);
+
+        public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions) => page._shell.PickOpenFilesAsync(extensions);
 
         public Task<string?> PickFolderAsync() => page._shell.PickFolderAsync();
 

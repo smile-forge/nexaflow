@@ -3,13 +3,14 @@ using Nexaflow.Features.UsbProbe.StorageTools;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Storage;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Stores;
 
 namespace Nexaflow.Tests.Features.UsbProbe;
 
 /// <summary>
-/// The mass-storage tool over a "volume" that is a folder the test owns: offered for disks only, a folder tree and a
-/// list kept on the same folder, copies both ways always read back and matched, every change asked for first, and
-/// nothing reached outside the device's own volumes.
+/// The mass-storage tool over a "volume" that is a folder the test owns, browsed through the shared store browser: offered
+/// for disks only, a folder tree and a list kept on the same folder, copies both ways always read back and matched, every
+/// change asked for first, and nothing reached outside the device's own volumes.
 /// </summary>
 [TestClass]
 [CoversNode("usbprobe-storage")]
@@ -56,7 +57,7 @@ public class UsbStorageToolTests
 
     static string[] Names(UsbStorageTool tool) => [.. tool.Browser.Entries.Select(e => e.Name)];
 
-    UsbFileRow Row(UsbStorageTool tool, string name) => tool.Browser.Entries.Single(e => e.Name == name);
+    static StoreRow Row(UsbStorageTool tool, string name) => tool.Browser.Entries.Single(e => e.Name == name);
 
     [TestMethod]
     public void OnlyADisk_IsOffered()
@@ -71,7 +72,7 @@ public class UsbStorageToolTests
     {
         var tool = await ToolAsync();
 
-        Assert.AreEqual("STICK", tool.Browser.CurrentVolume!.Volume.Label);
+        StringAssert.Contains(tool.Browser.CurrentRoot!.Name, "STICK");
         StringAssert.Contains(tool.Status, "free of");
         CollectionAssert.AreEqual(new[] { "Photos", "notes.txt" }, Names(tool), "folders first");
         Assert.IsFalse(tool.Browser.UpCommand.CanExecute(null), "nothing above the volume's root");
@@ -81,7 +82,7 @@ public class UsbStorageToolTests
         Assert.IsTrue(tool.Browser.UpCommand.CanExecute(null));
 
         await tool.Browser.UpCommand.ExecuteAsync(null);
-        Assert.AreEqual(_stick, tool.Browser.Folder);
+        Assert.AreEqual(_stick, tool.Browser.FolderPath);
         Assert.IsTrue(Row(tool, "Photos").IsSelected, "coming back up, the folder just left is the one selected");
     }
 
@@ -90,22 +91,22 @@ public class UsbStorageToolTests
     {
         var tool = await ToolAsync();
         var volume = tool.Browser.Roots.Single();
-        Assert.IsTrue(volume.IsVolume);
+        Assert.IsTrue(volume.IsRoot);
 
         await tool.Browser.OpenCommand.ExecuteAsync(Row(tool, "Photos"));
         await tool.Browser.OpenCommand.ExecuteAsync(Row(tool, "2024"));
 
         Assert.IsTrue(volume.IsExpanded);
-        var photos = volume.ChildAt(Path.Combine(_stick, "Photos"))!;
+        var photos = volume.ChildWithId(Path.Combine(_stick, "Photos"))!;
         Assert.IsTrue(photos.IsExpanded);
-        Assert.IsTrue(photos.ChildAt(Path.Combine(_stick, "Photos", "2024"))!.IsSelected, "the tree selects the folder open");
+        Assert.IsTrue(photos.ChildWithId(Path.Combine(_stick, "Photos", "2024"))!.IsSelected, "the tree selects the folder open");
         CollectionAssert.AreEqual(new[] { volume.Name, "Photos", "2024" }, tool.Browser.Crumbs.Select(c => c.Label).ToArray());
 
         await tool.Browser.OpenCommand.ExecuteAsync(tool.Browser.Crumbs[0]);
-        Assert.AreEqual(_stick, tool.Browser.Folder, "a step of the path bar opens its folder");
+        Assert.AreEqual(_stick, tool.Browser.FolderPath, "a step of the path bar opens its folder");
 
         photos.IsSelected = true;
-        await WaitFor(() => tool.Browser.Folder == photos.FullPath);
+        await WaitFor(() => tool.Browser.FolderPath == photos.Path);
         CollectionAssert.AreEqual(new[] { "2024", "a.jpg" }, Names(tool), "selecting a folder in the tree opens it");
     }
 
@@ -114,7 +115,7 @@ public class UsbStorageToolTests
     {
         var tool = await ToolAsync();
         File.WriteAllBytes(Path.Combine(_stick, "big.bin"), new byte[4096]);
-        await tool.RefreshCommand.ExecuteAsync(null);
+        await tool.Browser.RefreshCommand.ExecuteAsync(null);
 
         tool.Browser.SortCommand.Execute("Size");
         CollectionAssert.AreEqual(new[] { "Photos", "big.bin", "notes.txt" }, Names(tool), "largest first");
@@ -147,7 +148,7 @@ public class UsbStorageToolTests
         Assert.AreEqual("on the stick", File.ReadAllText(Path.Combine(_pc, "notes.txt")));
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, File.ReadAllBytes(Path.Combine(_pc, "Photos", "a.jpg")));
         StringAssert.Contains(said, "2 read back and matched");
-        Assert.AreEqual(said, tool.LastResult);
+        Assert.AreEqual(said, tool.Browser.LastResult);
         Assert.IsTrue(_host.Logged.Contains(said), "the Diagnostics tab hears of it");
     }
 
@@ -160,15 +161,33 @@ public class UsbStorageToolTests
         _host.PickedFile = file;
 
         _host.Confirm = false;
-        await tool.AddFileCommand.ExecuteAsync(null);
+        await tool.Browser.AddFilesCommand.ExecuteAsync(null);
         Assert.IsFalse(File.Exists(Path.Combine(_stick, "report.pdf")), "declined, nothing written");
         StringAssert.Contains(_host.Confirmations.Single(), "report.pdf");
 
         _host.Confirm = true;
-        await tool.AddFileCommand.ExecuteAsync(null);
+        await tool.Browser.AddFilesCommand.ExecuteAsync(null);
         Assert.AreEqual("report", File.ReadAllText(Path.Combine(_stick, "report.pdf")));
         Assert.IsTrue(Row(tool, "report.pdf").IsSelected, "the folder shows what arrived, selected");
-        StringAssert.Contains(tool.LastResult, "read back and matched");
+        StringAssert.Contains(tool.Browser.LastResult, "read back and matched");
+    }
+
+    [TestMethod]
+    public async Task SeveralFiles_CopyOntoTheDevice_InOneAsk()
+    {
+        var tool = await ToolAsync();
+        var a = Path.Combine(_pc, "a.txt");
+        var b = Path.Combine(_pc, "b.txt");
+        File.WriteAllText(a, "a");
+        File.WriteAllText(b, "b");
+        _host.PickedFiles = [a, b];
+
+        await tool.Browser.AddFilesCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(_host.Confirmations.Single(), "2 items", "one question for the lot");
+        Assert.AreEqual("a", File.ReadAllText(Path.Combine(_stick, "a.txt")));
+        Assert.AreEqual("b", File.ReadAllText(Path.Combine(_stick, "b.txt")));
+        StringAssert.Contains(tool.Browser.LastResult, "2 read back and matched");
     }
 
     [TestMethod]
@@ -178,7 +197,7 @@ public class UsbStorageToolTests
         var file = Path.Combine(_pc, "dropped.txt");
         File.WriteAllText(file, "dropped");
 
-        await tool.DropAsync([file], Path.Combine(_stick, "Photos"));
+        await tool.Browser.DropAsync([file], Row(tool, "Photos"));
 
         Assert.AreEqual(1, _host.Confirmations.Count);
         Assert.AreEqual("dropped", File.ReadAllText(Path.Combine(_stick, "Photos", "dropped.txt")));
@@ -189,18 +208,18 @@ public class UsbStorageToolTests
     {
         var tool = await ToolAsync();
         _host.Answer = "Scans";
-        await tool.NewFolderCommand.ExecuteAsync(null);
+        await tool.Browser.NewFolderCommand.ExecuteAsync(null);
 
         Assert.IsTrue(Directory.Exists(Path.Combine(_stick, "Scans")));
         Assert.IsTrue(Row(tool, "Scans").IsSelected);
 
         _host.Answer = null;
-        await tool.NewFolderCommand.ExecuteAsync(null);
+        await tool.Browser.NewFolderCommand.ExecuteAsync(null);
         Assert.AreEqual(2, tool.Browser.Entries.Count(e => e.IsFolder), "cancelled, nothing made");
 
         _host.Answer = "a/b";
-        await tool.NewFolderCommand.ExecuteAsync(null);
-        StringAssert.Contains(tool.LastResult, "cannot be a file or folder name");
+        await tool.Browser.NewFolderCommand.ExecuteAsync(null);
+        StringAssert.Contains(tool.Browser.LastResult, "cannot be a file or folder name");
     }
 
     [TestMethod]
@@ -208,16 +227,16 @@ public class UsbStorageToolTests
     {
         var tool = await ToolAsync();
         _host.Answer = "readme.txt";
-        await tool.RenameCommand.ExecuteAsync(Row(tool, "notes.txt"));
+        await tool.Browser.RenameCommand.ExecuteAsync(Row(tool, "notes.txt"));
         Assert.IsTrue(File.Exists(Path.Combine(_stick, "readme.txt")));
         Assert.IsTrue(Row(tool, "readme.txt").IsSelected);
 
         await tool.Browser.OpenCommand.ExecuteAsync(Row(tool, "Photos"));
-        var photos = tool.Browser.Roots.Single().ChildAt(Path.Combine(_stick, "Photos"))!;
-        Assert.IsFalse(tool.RenameCommand.CanExecute(tool.Browser.Roots.Single()), "a volume's root has no name of its own to change");
+        var photos = tool.Browser.Roots.Single().ChildWithId(Path.Combine(_stick, "Photos"))!;
+        Assert.IsFalse(tool.Browser.RenameCommand.CanExecute(tool.Browser.Roots.Single()), "a volume's root has no name of its own to change");
         _host.Answer = "Pictures";
-        await tool.RenameCommand.ExecuteAsync(photos);
-        Assert.AreEqual(Path.Combine(_stick, "Pictures"), tool.Browser.Folder, "renaming the folder open keeps it open under its new name");
+        await tool.Browser.RenameCommand.ExecuteAsync(photos);
+        Assert.AreEqual(Path.Combine(_stick, "Pictures"), tool.Browser.FolderPath, "renaming the folder open keeps it open under its new name");
     }
 
     [TestMethod]
@@ -228,26 +247,26 @@ public class UsbStorageToolTests
         Row(tool, "Photos").IsSelected = true;
 
         _host.Confirm = false;
-        await tool.DeleteCommand.ExecuteAsync(null);
+        await tool.Browser.DeleteCommand.ExecuteAsync(null);
         Assert.IsTrue(File.Exists(Path.Combine(_stick, "notes.txt")), "declined, nothing deleted");
         StringAssert.Contains(_host.Confirmations.Single(), "2 items");
-        StringAssert.Contains(_host.Confirmations.Single(), "cannot be undone");
+        StringAssert.Contains(_host.Confirmations.Single(), "removed for good");
 
         _host.Confirm = true;
-        await tool.DeleteCommand.ExecuteAsync(null);
+        await tool.Browser.DeleteCommand.ExecuteAsync(null);
         Assert.AreEqual(0, tool.Browser.Entries.Count);
-        Assert.IsFalse(tool.DeleteCommand.CanExecute(tool.Browser.Roots.Single()), "a volume's root is never deleted");
+        Assert.IsFalse(tool.Browser.DeleteCommand.CanExecute(tool.Browser.Roots.Single()), "a volume's root is never deleted");
     }
 
     [TestMethod]
     public async Task CopyPath_IsTheSelection_OrTheFolderOpen()
     {
         var tool = await ToolAsync();
-        Assert.AreEqual(_stick, tool.PathTextOf(null), "nothing selected: the folder open");
+        Assert.AreEqual(_stick, tool.Browser.PathTextOf(null), "nothing selected: the folder open");
         Row(tool, "notes.txt").IsSelected = true;
         Row(tool, "Photos").IsSelected = true;
-        Assert.AreEqual($"{Path.Combine(_stick, "Photos")}{Environment.NewLine}{Path.Combine(_stick, "notes.txt")}", tool.PathTextOf(null));
-        Assert.AreEqual(_stick, tool.PathTextOf(tool.Browser.Crumbs[0]));
+        Assert.AreEqual($"{Path.Combine(_stick, "Photos")}{Environment.NewLine}{Path.Combine(_stick, "notes.txt")}", tool.Browser.PathTextOf(null));
+        Assert.AreEqual(_stick, tool.Browser.PathTextOf(tool.Browser.Crumbs[0]));
     }
 
     [TestMethod]
@@ -258,9 +277,9 @@ public class UsbStorageToolTests
         var copy = tool.Operations.Single(o => o.Name == "copy_to_device");
 
         StringAssert.Contains(await list.RunAsync(new Dictionary<string, string> { ["path"] = Path.Combine(_stick, "Photos") }, CancellationToken.None), "a.jpg");
-        StringAssert.Contains(await list.RunAsync(new Dictionary<string, string> { ["path"] = _pc }, CancellationToken.None), "is not on this device");
+        StringAssert.Contains(await list.RunAsync(new Dictionary<string, string> { ["path"] = _pc }, CancellationToken.None), "is not on");
         StringAssert.Contains(await copy.RunAsync(new Dictionary<string, string> { ["paths"] = _stick + "notes.txt", ["folder"] = _pc }, CancellationToken.None),
-            "is not on this device", "copy_to_device writes to the device only");
+            "is not on", "copy_to_device writes to the device only");
         Assert.IsFalse(tool.Operations.Single(o => o.Name == "list_volumes").ChangesSomething);
         StringAssert.Contains(tool.Describe(), "STICK");
     }

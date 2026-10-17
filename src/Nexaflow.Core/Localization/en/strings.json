@@ -10,8 +10,11 @@
   "Shell.Prompt.Ok": "OK",
 
     "Shell.Picker.FileLabel": "File: ",
+    "Shell.Picker.FilesLabel": "Files: ",
     "Shell.Picker.FolderLabel": "Folder: ",
     "Shell.Picker.SelectFile": "Select File",
+    "Shell.Picker.SelectFiles": "Select Files",
+    "Shell.Picker.Ticked": "{0} files: {1}",
     "Shell.Picker.SelectFileOfFormat": "Select File ({0})",
     "Shell.Picker.SelectFolder": "Select Folder",
     "Shell.Picker.SelectFolderSub": "Pick the folder to work in",

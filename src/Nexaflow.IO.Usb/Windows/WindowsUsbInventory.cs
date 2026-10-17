@@ -261,15 +261,21 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
 
     static (List<UsbFunctionNode>, List<UsbChildNode>) Functions(string instanceId, uint devInst, UsbDevNodeDriver driver, UsbConfiguration? active)
     {
-        if (UsbFunctionLayout.Classify(driver.Service, driver.InfPath) != UsbFunctionMode.CompositeParent)
+        var childIds = DevNodes.Strings(devInst, DevPropKeys.Children);
+        bool viaUsbccgp = UsbFunctionLayout.Classify(driver.Service, driver.InfPath) == UsbFunctionMode.CompositeParent;
+        if (!viaUsbccgp && !UsbFunctionLayout.SplitsIntoFunctions(instanceId, childIds))
             return ([Function(instanceId, devInst, driver, null, active)], []);
 
+        // A composite: usbccgp's functions are MI_xx; a vendor's composite driver (Samsung's dg_ssudbus) names them
+        // otherwise, and its interface is the instance's last number.
         var functions = new List<UsbFunctionNode>();
         var auxiliary = new List<UsbChildNode>();
-        foreach (var childId in DevNodes.Strings(devInst, DevPropKeys.Children))
+        foreach (var childId in childIds)
         {
             if (DevNodes.Locate(childId) is not { } child) continue;
-            if (UsbFunctionLayout.FunctionInterfaceOf(childId) is { } mi) functions.Add(Function(childId, child, DevNodes.Driver(child), mi, active));
+            var mi = UsbFunctionLayout.FunctionInterfaceOf(childId)
+                     ?? (viaUsbccgp ? null : UsbFunctionLayout.TrailingInterfaceOf(childId, active));
+            if (mi is { } number) functions.Add(Function(childId, child, DevNodes.Driver(child), number, active));
             else auxiliary.Add(Child(childId, child));
         }
         functions.Sort((a, b) => Nullable.Compare(a.FunctionInterface, b.FunctionInterface));

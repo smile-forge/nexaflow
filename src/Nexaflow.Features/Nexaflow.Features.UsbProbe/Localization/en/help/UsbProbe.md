@@ -5,11 +5,12 @@ Every USB bus, hub, port and device on this PC, and everything each one says abo
 ---
 
 ## Getting around
-- The tree on the left holds the places that hold something: buses, hubs, devices, their configurations and interfaces. [Show me](locate:Usb_Tree)
-- The list shows what the open place holds. Double-click a row, or press Enter, to open it. [Show me](locate:Usb_Listing)
+- The tree on the left holds the buses and the devices plugged in, a hub opening onto what hangs off it; what a device is made of is in the list and on its own page. [Show me](locate:Usb_Tree)
+- The list shows what the open place holds. Double-click a row, or press Enter, to open it; click its blank space to clear the selection. [Show me](locate:Usb_Listing)
+- Right-click a place in the tree or a row in the list for what it offers: open it, open its device page, read it again, or copy its USB path, its device instance ID or its VID:PID.
 - [Up](locate:Usb_Up) (or Backspace) goes to the place that holds this one; the breadcrumbs above the page go anywhere along the way.
 - Type `>` in the AI bar followed by a place to go there: `> 3-10.2`, `> 046d:0843`, `> webcam`, `> COM5`.
-- [Open device](locate:Usb_OpenDevice) opens the selected device on its own page, with its live tools: storage, audio, HID and serial.
+- [Open device](locate:Usb_OpenDevice) opens the selected device on its own page, with its live tools: storage, phone files, audio, HID and serial.
 
 ## Places and paths
 - `3` is bus 3: one host controller and the root hub on it. Its rows are its ports, empty or not.
@@ -30,8 +31,9 @@ Every USB bus, hub, port and device on this PC, and everything each one says abo
 - A descriptor shorter or longer than its standard says is shown as it is, with the problem named, rather than hidden.
 
 ## Live
-- Plug a device in and it appears at once, marked NEW until you look at it. Unplug one and it goes; if you were inside it, the page moves to the nearest place that still exists.
-- Driver changes show at once too.
+- Plug a device in and it appears at once — the tree opens onto it — marked NEW until you look at it. Unplug one and it goes; if you were inside it, the page moves to the nearest place that still exists.
+- A drive Windows has ejected ("Safe to remove") stays in its port, shown as ejected, until it is unplugged.
+- Driver changes show at once too, and so does what Windows makes of a device: a phone unlocked into file transfer.
 - Reading the tree needs no administrator rights and sends nothing to any device: Windows already holds everything shown.
 - A device that was asleep may not have given its strings. [Read device again](locate:Usb_ReRead) asks it, waking it — the only thing this page ever sends a device, and only standard GET_DESCRIPTOR requests.
 

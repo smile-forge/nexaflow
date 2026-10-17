@@ -86,6 +86,10 @@ public sealed record UsbDeviceNode(
     /// <summary>The best human name: the device's own product string, then usb.ids, then what the bus reported to Windows.</summary>
     public string DisplayName => Strings.Product ?? ProductName ?? BusReportedName ?? $"{VendorId:X4}:{ProductId:X4}";
 
+    /// <summary>Ejected: Windows has let go of it for safe removal ("safe to remove"), and it is still in its port —
+    /// unusable until it is unplugged and plugged in again.</summary>
+    public bool IsEjected => Driver.ProblemCode == Browsing.UsbProblemCodes.PreparedForRemoval;
+
     public UsbFunctionNode? Function(string instanceId) =>
         Functions.FirstOrDefault(f => string.Equals(f.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
 }

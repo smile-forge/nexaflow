@@ -47,4 +47,32 @@ public static class UsbFunctionLayout
         return at >= 0 && at + 6 <= instanceId.Length && byte.TryParse(instanceId.AsSpan(at + 4, 2), System.Globalization.NumberStyles.AllowHexSpecifier, null, out var mi)
             ? mi : null;
     }
+
+    /// <summary>
+    /// The interface a function devnode stands for under a vendor's own composite driver, which names its functions by
+    /// what they are (<c>…&amp;MODEM\8&amp;130557e0&amp;2&amp;0001</c>) rather than <c>MI_xx</c> but numbers their instances as
+    /// usbccgp does, the interface last. Taken only where <paramref name="configuration"/> has that interface.
+    /// </summary>
+    public static byte? TrailingInterfaceOf(string instanceId, UsbConfiguration? configuration)
+    {
+        int at = instanceId.LastIndexOf('&');
+        if (at < 0 || instanceId.Length - at - 1 != 4
+            || !ushort.TryParse(instanceId.AsSpan(at + 1), System.Globalization.NumberStyles.AllowHexSpecifier, null, out var number)
+            || number > byte.MaxValue)
+            return null;
+        return configuration?.DefaultSettings.Any(i => i.Number == number) == true ? (byte)number : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="childIds"/> are the functions of a composite device, whatever driver split it: each a USB
+    /// devnode of the device's own vendor and product (<c>USB\VID_04E8&amp;PID_6860&amp;…</c>). usbccgp is one such driver;
+    /// a phone maker's is another.
+    /// </summary>
+    public static bool SplitsIntoFunctions(string deviceInstanceId, IEnumerable<string> childIds)
+    {
+        int slash = deviceInstanceId.LastIndexOf('\\');
+        if (slash < 0) return false;
+        string own = deviceInstanceId[..slash] + "&";
+        return childIds.Any(id => id.StartsWith(own, StringComparison.OrdinalIgnoreCase));
+    }
 }

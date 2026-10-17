@@ -38,6 +38,7 @@ public static class UsbIcons
     /// </summary>
     static string Device(UsbDeviceNode device)
     {
+        if (device.IsEjected) return "plug_disconnected";
         if (device.IsHub) return "branch_fork";
         var functions = device.Functions.Where(f => f.Mode != UsbFunctionMode.CompositeParent).ToList();
         bool Has(byte cls) => functions.Any(f => device.Speaks(f, cls));

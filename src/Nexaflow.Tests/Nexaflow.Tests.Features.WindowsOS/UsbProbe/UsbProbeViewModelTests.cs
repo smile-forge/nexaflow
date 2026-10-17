@@ -153,6 +153,34 @@ public class UsbProbeViewModelTests
     }
 
     [TestMethod]
+    public void APluggedInDevice_ShowsInTheTree_WithoutTakingTheSelection()
+    {
+        var vm = Page("1");
+        var hub = vm.Root.Children.Single().Children.Single(c => c.Path == "1-2");
+        hub.IsExpanded = false;
+
+        _inventory.Become(UsbProbeSamples.Tree(UsbProbeSamples.Hub(), UsbProbeSamples.Lg(), UsbProbeSamples.Newcomer()));
+
+        Assert.IsTrue(hub.IsExpanded, "the hub it was plugged into opens, so it shows");
+        var arrived = hub.Children.Single(c => c.Path == "1-2.1");
+        Assert.IsTrue(arrived.IsNew);
+        Assert.IsFalse(arrived.IsSelected);
+        Assert.AreEqual("1", vm.CurrentPath, "what was open stays open");
+    }
+
+    [TestMethod]
+    public void AnEjectedDevice_IsShownEjected()
+    {
+        var vm = Page("1-2");
+        var ejected = UsbProbeSamples.Lg() with { Driver = UsbProbeSamples.Lg().Driver with { ProblemCode = UsbProblemCodes.PreparedForRemoval } };
+        _inventory.Become(UsbProbeSamples.Tree(UsbProbeSamples.Hub(), ejected));
+
+        var row = vm.Rows.Single(r => r.Path == "1-2.4");
+        StringAssert.Contains(row.Summary, "ejected — safe to unplug");
+        Assert.AreEqual(Nexaflow.Icons.IconRef.Fluent("plug_disconnected"), row.Icon);
+    }
+
+    [TestMethod]
     public void UnpluggingTheDeviceInView_MovesToTheNearestPlaceLeft_AndPluggingBackShowsItThere()
     {
         var vm = Page("1-2.4/config1/iad1/if1.0");

@@ -1,21 +1,19 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Media;
 using Nexaflow.Visuals.Common.Behaviors;
 
-namespace Nexaflow.Features.UsbProbe.StorageTools.Views;
+namespace Nexaflow.Visuals.Stores;
 
 /// <summary>
-/// What the storage browser does with the pointer that bindings cannot say: which menu a right-click opens (a row's, a
-/// folder's, or the open folder's), and where something dragged in from elsewhere lands. What each then does is the
-/// tool's.
+/// What a store browser does with the pointer that bindings cannot say: which menu a right-click opens (a row's, a
+/// folder's, or the open folder's), and where something dragged in from this PC lands. What each then does is the
+/// <see cref="StoreBrowser"/>'s.
 /// </summary>
-public partial class UsbStorageView : UserControl
+public partial class StoreBrowserView : UserControl
 {
-    public UsbStorageView() => InitializeComponent();
+    public StoreBrowserView() => InitializeComponent();
 
-    UsbStorageTool? Tool => DataContext as UsbStorageTool;
+    StoreBrowser? Browser => DataContext as StoreBrowser;
 
     // ── Right-click ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -25,7 +23,7 @@ public partial class UsbStorageView : UserControl
     {
         e.Handled = true;
         if (e.OriginalSource is not DependencyObject hit || PointerMenus.ItemUnder<GridViewColumnHeader>(hit, Entries) is not null) return;
-        if (ItemsControl.ContainerFromElement(Entries, hit) is ListViewItem { DataContext: UsbFileRow row })
+        if (ItemsControl.ContainerFromElement(Entries, hit) is ListViewItem { DataContext: StoreRow row })
         {
             if (!row.IsSelected)
             {
@@ -44,7 +42,7 @@ public partial class UsbStorageView : UserControl
     void OnTreeContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         e.Handled = true;
-        if (e.OriginalSource is DependencyObject hit && PointerMenus.ItemUnder<TreeViewItem>(hit, Tree) is { DataContext: UsbFolderNode node })
+        if (e.OriginalSource is DependencyObject hit && PointerMenus.ItemUnder<TreeViewItem>(hit, Tree) is { DataContext: StoreFolderNode node })
             Open("FolderMenu", Tree, node);
     }
 
@@ -52,8 +50,8 @@ public partial class UsbStorageView : UserControl
     void OnPathBarContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         e.Handled = true;
-        var crumb = (e.OriginalSource as FrameworkElement)?.DataContext as UsbPathCrumb;
-        if (crumb is null && Tool?.Browser.Crumbs.LastOrDefault() is { } open) crumb = open;
+        var crumb = (e.OriginalSource as FrameworkElement)?.DataContext as StoreCrumb;
+        if (crumb is null && Browser?.Crumbs.LastOrDefault() is { } open) crumb = open;
         if (crumb is not null) Open("FolderMenu", PathBar, crumb);
     }
 
@@ -65,7 +63,7 @@ public partial class UsbStorageView : UserControl
     /// row or tree node — or into the folder open.</summary>
     void OnDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = Tool is { } tool && e.Data.GetDataPresent(DataFormats.FileDrop) && tool.CanDropInto(DropFolder(sender, e))
+        e.Effects = Browser is { } browser && e.Data.GetDataPresent(DataFormats.FileDrop) && browser.CanDropInto(DropTarget(sender, e))
             ? DragDropEffects.Copy
             : DragDropEffects.None;
         e.Handled = true;
@@ -74,14 +72,14 @@ public partial class UsbStorageView : UserControl
     void OnDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
-        if (Tool is not { } tool || e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
-        _ = tool.DropAsync(paths, DropFolder(sender, e));
+        if (Browser is not { } browser || e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
+        _ = browser.DropAsync(paths, DropTarget(sender, e));
     }
 
-    string? DropFolder(object sender, DragEventArgs e)
+    object? DropTarget(object sender, DragEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject hit) return null;
-        if (sender == Tree) return PointerMenus.ItemUnder<TreeViewItem>(hit, Tree)?.DataContext is UsbFolderNode node ? node.FullPath : null;
-        return ItemsControl.ContainerFromElement(Entries, hit) is ListViewItem { DataContext: UsbFileRow { IsFolder: true } folder } ? folder.FullPath : null;
+        if (sender == Tree) return PointerMenus.ItemUnder<TreeViewItem>(hit, Tree)?.DataContext as StoreFolderNode;
+        return ItemsControl.ContainerFromElement(Entries, hit) is ListViewItem { DataContext: StoreRow { IsFolder: true } folder } ? folder : null;
     }
 }

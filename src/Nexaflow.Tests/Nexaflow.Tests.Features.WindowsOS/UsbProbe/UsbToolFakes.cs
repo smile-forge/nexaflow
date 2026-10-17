@@ -120,6 +120,9 @@ internal sealed class RecordingHost : IUsbToolHost
     }
 
     public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions) => Task.FromResult(PickedFile);
+    public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions) =>
+        Task.FromResult<IReadOnlyList<string>>(PickedFiles ?? (PickedFile is { } one ? [one] : []));
+    public IReadOnlyList<string>? PickedFiles;
     public Task<string?> PickFolderAsync() => Task.FromResult(PickedFolder);
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions) => Task.FromResult(SavedFile);
     public void OpenPage(string pageKind, IReadOnlyDictionary<string, string> parameters) => Opened.Add((pageKind, parameters));

@@ -167,6 +167,12 @@ public interface IShellServices
     Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null);
 
     /// <summary>
+    /// The app's file picker with a tick beside each file, for choosing one or several: the files ticked, or the one
+    /// selected when none is; empty when cancelled. Folders are never an answer.
+    /// </summary>
+    Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null);
+
+    /// <summary>
     /// Shows the shell's themed folder picker and returns the chosen folder path, or null if cancelled.
     /// Use this rather than a <c>Microsoft.Win32</c> dialog. Marshals to the UI thread.
     /// </summary>

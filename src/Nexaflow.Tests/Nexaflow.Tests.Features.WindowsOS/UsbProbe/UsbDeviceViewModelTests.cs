@@ -128,6 +128,22 @@ public class UsbDeviceViewModelTests
     }
 
     [TestMethod]
+    public async Task Ejected_ItsToolsGo_AndThePageSaysWhy()
+    {
+        var vm = await PageAsync("1-2.4", HidTools());
+        Assert.IsTrue(vm.Tiles.Count > 0);
+
+        var ejected = UsbProbeSamples.Lg() with { Driver = UsbProbeSamples.Lg().Driver with { ProblemCode = UsbProblemCodes.PreparedForRemoval } };
+        _inventory.Become(UsbProbeSamples.Tree(UsbProbeSamples.Hub(), ejected));
+        await vm.Offered;
+
+        Assert.AreEqual(0, vm.Tiles.Count, "nothing on an ejected device answers");
+        StringAssert.Contains(vm.NoTools, "Ejected");
+        StringAssert.StartsWith(vm.FactGroups[0].Facts[0].Value, "Ejected");
+        Assert.IsTrue(_made.All(t => t.Disposed), "the tools it had are let go");
+    }
+
+    [TestMethod]
     public async Task ATool_RunsOnlyWhileItCanBeSeen()
     {
         var vm = await PageAsync("1-2.4", HidTools());

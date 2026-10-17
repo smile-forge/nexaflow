@@ -78,6 +78,7 @@
   "UsbProbe.Device.Tab.Diagnostics": "Diagnostics",
   "UsbProbe.Device.Structure.Name": "Part",
   "UsbProbe.Device.Structure.Summary": "What it is",
+  "UsbProbe.Device.Tools.Ejected": "Ejected: Windows has let go of it, so it can be unplugged safely. Its tools come back when it is plugged in again.",
   "UsbProbe.Device.Tools.Hub": "A hub has no live tools of its own. The devices plugged into it each have a page, with theirs — Show in USB tree lists them.",
   "UsbProbe.Device.Tools.None": "No live tool here works with this device. Interfaces shows what it is made of.",
   "UsbProbe.Device.Tools.Uncovered": "Not covered by a live tool",

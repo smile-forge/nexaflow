@@ -34,6 +34,27 @@ public class UsbFunctionLayoutTests
     }
 
     [TestMethod]
+    public void AVendorsCompositeDriver_SplitsTheDeviceToo()
+    {
+        // Samsung's dg_ssudbus names its functions by what they are, not MI_xx, and numbers them as usbccgp does.
+        const string phone = @"USB\VID_04E8&PID_6860\RFCWC16VHEV";
+        string[] functions =
+        [
+            @"USB\VID_04E8&PID_6860&MS_COMP_MTP&SAMSUNG_Android\8&130557e0&2&0000",
+            @"USB\VID_04E8&PID_6860&Modem\8&130557e0&2&0001",
+        ];
+        Assert.IsTrue(UsbFunctionLayout.SplitsIntoFunctions(phone, functions));
+        Assert.IsFalse(UsbFunctionLayout.SplitsIntoFunctions(phone, [@"USBSTOR\DISK&VEN_GENERIC\18052507001672&0"]),
+            "a disk beneath a stick is what Windows made of it, not a function of the device");
+
+        var configuration = Lg;   // interfaces 0, 1 and 2
+        Assert.AreEqual((byte)1, UsbFunctionLayout.TrailingInterfaceOf(functions[1], configuration));
+        Assert.IsNull(UsbFunctionLayout.TrailingInterfaceOf(@"USB\VID_04E8&PID_6860&ADB\8&130557e0&2&0003", configuration),
+            "an interface the configuration does not have is no interface");
+        Assert.IsNull(UsbFunctionLayout.TrailingInterfaceOf(phone, configuration));
+    }
+
+    [TestMethod]
     public void FunctionInterface_FromTheInstanceId()
     {
         Assert.AreEqual((byte)0x01, UsbFunctionLayout.FunctionInterfaceOf(@"USB\VID_043E&PID_9A39&MI_01\8&F264BB0&0&0001"));

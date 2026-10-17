@@ -1,11 +1,11 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:Nexaflow.Features.UsbProbe.StorageTools"
-                    xmlns:v="clr-namespace:Nexaflow.Features.UsbProbe.StorageTools.Views">
+                    xmlns:stores="clr-namespace:Nexaflow.Visuals.Stores;assembly=Nexaflow.Visuals.Stores">
 
-    <!-- How the device page draws a mass-storage tool: its file browser (UsbStorageView). -->
+    <!-- How the device page draws a mass-storage tool: the shared file browser over its volumes. -->
 
     <DataTemplate DataType="{x:Type s:UsbStorageTool}">
-        <v:UsbStorageView />
+        <stores:StoreBrowserView DataContext="{Binding Browser}" />
     </DataTemplate>
 </ResourceDictionary>

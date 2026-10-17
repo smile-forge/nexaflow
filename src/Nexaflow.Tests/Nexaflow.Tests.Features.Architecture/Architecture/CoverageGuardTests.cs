@@ -30,6 +30,7 @@ public class CoverageGuardTests
         ["UsbProbe.AudioTools"]     = "UsbProbe",    // as the discovery plugins share Network's
         ["UsbProbe.HidTools"]       = "UsbProbe",
         ["UsbProbe.SerialLink"]     = "UsbProbe",
+        ["UsbProbe.PortableTools"]  = "UsbProbe",
     };
 
     [TestMethod]

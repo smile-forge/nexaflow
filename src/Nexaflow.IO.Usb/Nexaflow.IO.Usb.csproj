@@ -26,6 +26,9 @@
     <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <!-- A tool's icon is an IconRef — a name in the app's icon font, drawn themed — and that type is WPF-free. -->
     <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
+    <!-- A live tool that browses a store (a USB volume, a phone over MTP) puts the store browser's questions through
+         the device page: UsbToolStoreHost answers IStoreBrowserHost, which is IO.Common's. -->
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

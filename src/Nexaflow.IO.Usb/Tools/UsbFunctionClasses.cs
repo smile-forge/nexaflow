@@ -56,8 +56,8 @@ public static class UsbClassGuidance
         return (triple.Class, triple.SubClass, triple.Protocol) switch
         {
             (UsbClassCodes.Image, _, _) =>
-                "A camera or media player speaking PTP/MTP. Windows exposes it as a portable device; a tool for it would browse "
-              + "it through Windows Portable Devices.",
+                "A phone, camera or media player speaking PTP/MTP. Its files show here once Windows has made a portable device of "
+              + "it — on a phone, unlock it and choose File transfer in its USB settings.",
             (UsbClassCodes.Printer, _, _) =>
                 "A printer. Print jobs belong to the Windows print system; a tool for it would read its IEEE 1284 device ID and "
               + "status through the printer class driver.",

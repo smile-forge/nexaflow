@@ -388,6 +388,25 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     }
 
     /// <summary>
+    /// Opens the tree down to a device just plugged in, so it shows — with its NEW badge — without being selected: what
+    /// the reader was looking at stays in view.
+    /// </summary>
+    void RevealArrival(string path)
+    {
+        var node = Root;
+        foreach (var step in UsbLocationPath.Lineage(path).Skip(1))
+        {
+            if (step == path) break;
+            if (!node.IsLoaded) Expand(node);
+            node.IsExpanded = true;
+            if (node.Children.FirstOrDefault(c => c.Path == step) is not { } next) return;
+            node = next;
+        }
+        if (!node.IsLoaded) Expand(node);
+        node.IsExpanded = true;
+    }
+
+    /// <summary>
     /// What the tree shows beneath a place: buses and the devices plugged in, so a hub opens onto what hangs off it. What a
     /// device is made of — its configurations, interfaces and endpoints — is the listing's and the device page's, not the
     /// tree's; empty ports are listing rows too.
@@ -461,6 +480,8 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
 
         _browser = new UsbBrowser(snapshot, _maps);
         SyncTree(Root);
+        foreach (var arrived in changes.Where(c => c.Kind == UsbInventoryChangeKind.Arrived && c.Device is not null))
+            RevealArrival(arrived.Device!.Location.PortPath);
         if (!_started || Current is null) return;
 
         if (_browser.Resolve(CurrentPath) is not { } current)

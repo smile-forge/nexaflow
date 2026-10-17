@@ -48,6 +48,8 @@ internal sealed class FakeShellServices : IShellServices
     public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null) => throw new NotSupportedException();
     public Task<string?> PickFolderAsync(string? initialPath = null) => throw new NotSupportedException();
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions = null, string? initialPath = null, long bytes = 0) => throw new NotSupportedException();
     public void RequestRefresh() => throw new NotSupportedException();

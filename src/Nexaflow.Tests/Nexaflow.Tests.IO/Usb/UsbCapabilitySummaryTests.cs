@@ -39,6 +39,14 @@ public class UsbCapabilitySummaryTests
     }
 
     [TestMethod]
+    public void AnEjectedDevice_SaysOnlyThat()
+    {
+        var ejected = LgMonitor() with { Driver = UsbDevNodeDriver.None with { Service = "usbccgp", ProblemCode = UsbProblemCodes.PreparedForRemoval } };
+        Assert.IsTrue(ejected.IsEjected);
+        StringAssert.StartsWith(UsbCapabilitySummary.Describe(ejected).Single(), "Ejected");
+    }
+
+    [TestMethod]
     public void AudioInputIsFoundInAnAlternateSetting()
     {
         var configuration = UsbDescriptorParser.ParseConfiguration(Bytes(Microphone), UsbSpeed.High);

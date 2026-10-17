@@ -206,6 +206,7 @@ public sealed class UsbBrowser(UsbInventorySnapshot snapshot, UsbDescriptorMapCa
 
     string DeviceSummary(UsbDeviceNode device)
     {
+        if (device.IsEjected) return $"{device.VendorId:X4}:{device.ProductId:X4} · ejected — safe to unplug";
         var parts = new List<string> { $"{device.VendorId:X4}:{device.ProductId:X4}", DeviceClass(device), device.Speed.ToString() };
         if (UsbLocationText.Modes(device) is { Length: > 0 } modes) parts.Add(modes);
         if (device.Power is UsbPowerState.D2 or UsbPowerState.D3) parts.Add("asleep");

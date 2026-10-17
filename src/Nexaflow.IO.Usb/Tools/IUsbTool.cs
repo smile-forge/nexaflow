@@ -103,6 +103,9 @@ public interface IUsbToolHost
 
     Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions);
 
+    /// <summary>One or several files, ticked in the app's picker; empty when the user cancels.</summary>
+    Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions);
+
     Task<string?> PickFolderAsync();
 
     Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions);
