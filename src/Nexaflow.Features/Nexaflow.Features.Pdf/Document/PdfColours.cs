@@ -1,6 +1,7 @@
 using System;
 using System.Windows.Media;
 using UglyToad.PdfPig.Graphics.Colors;
+using UglyToad.PdfPig.Graphics.Core;
 
 namespace Nexaflow.Features.Pdf.Document;
 
@@ -9,13 +10,14 @@ internal static class PdfColours
 {
     /// <summary>
     /// <paramref name="colour"/> as an sRGB colour carrying <paramref name="alpha"/>; black when the document gave
-    /// none. A pattern has no single colour and is not converted here.
+    /// none. A pattern has no single colour and is not converted here. Device CMYK goes through the press it means under
+    /// <paramref name="intent"/>; every other colour space has converted its colour already.
     /// </summary>
-    public static Color ToColour(IColor? colour, double alpha)
+    public static Color ToColour(IColor? colour, double alpha, RenderingIntent intent)
     {
         var a = ToByte(alpha);
         if (colour is null) return Color.FromArgb(a, 0, 0, 0);
-        if (colour is CMYKColor cmyk) return PdfCmyk.Colour(cmyk.C, cmyk.M, cmyk.Y, cmyk.K, a);
+        if (colour is CMYKColor cmyk) return PdfCmyk.Colour(cmyk.C, cmyk.M, cmyk.Y, cmyk.K, a, intent);
 
         var (red, green, blue) = colour.ToRGBValues();
         return Color.FromArgb(a, ToByte(red), ToByte(green), ToByte(blue));

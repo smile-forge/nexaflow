@@ -11,6 +11,7 @@ using UglyToad.PdfPig.Filters;
 using UglyToad.PdfPig.Geometry;
 using UglyToad.PdfPig.Graphics;
 using UglyToad.PdfPig.Graphics.Colors;
+using UglyToad.PdfPig.Graphics.Colors.Icc;
 using UglyToad.PdfPig.Graphics.Core;
 using UglyToad.PdfPig.Graphics.Operations;
 using UglyToad.PdfPig.Parser;
@@ -85,10 +86,10 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     public PdfPageInterpreter(
         int pageNumber, IResourceStore resourceStore, IPdfTokenScanner pdfScanner, IPageContentParser pageContentParser,
         ILookupFilterProvider filterProvider, CropBox cropBox, UserSpaceUnit userSpaceUnit, PageRotationDegrees rotation,
-        TransformationMatrix initialMatrix, ParsingOptions parsingOptions,
+        TransformationMatrix initialMatrix, IIccProfile? outputIntent, ParsingOptions parsingOptions,
         PdfReadingCaches caches, Matrix output, List<PdfUnsupported> unsupported, StringBuilder? text, bool onPage)
         : base(pageNumber, resourceStore, pdfScanner, pageContentParser, filterProvider, cropBox, userSpaceUnit,
-            rotation, initialMatrix, parsingOptions)
+            rotation, initialMatrix, outputIntent, parsingOptions)
     {
         _caches      = caches;
         _output      = output;
@@ -362,7 +363,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         switch (colour)
         {
             case ShadingPatternColor shadingPattern:
-                var shading = PdfShadings.TryRead(shadingPattern.Shading, out var unsupportedShading);
+                var shading = PdfShadings.TryRead(shadingPattern.Shading, GetCurrentState().RenderingIntent, out var unsupportedShading);
                 if (shading is null)
                 {
                     Unsupported(unsupportedShading!.Value);
@@ -382,7 +383,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
                     new Vector(tiling.XStep, tiling.YStep), PatternToOutput(tiling.Matrix), alpha);
 
             default:
-                return new PdfSolidPaint(PdfColours.ToColour(colour, alpha));
+                return new PdfSolidPaint(PdfColours.ToColour(colour, alpha, GetCurrentState().RenderingIntent));
         }
     }
 
@@ -399,7 +400,8 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         try
         {
             var cell = new PdfPageInterpreter(PageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
-                new CropBox(tiling.BBox), UserSpaceUnit, default, TransformationMatrix.Identity, ParsingOptions,
+                new CropBox(tiling.BBox), UserSpaceUnit, default, TransformationMatrix.Identity,
+                GetCurrentState().OutputIntentProfile, ParsingOptions,
                 _caches, Matrix.Identity, _unsupported, text: null, onPage: false);
             return cell.Process(PageNumber, operations);
         }
@@ -448,30 +450,63 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
             var reader = new PdfPageInterpreter(PageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
                 _cropBox, UserSpaceUnit, Rotation,
                 _maskMatrices.TryGetValue(mask, out var setAt) ? setAt : CurrentTransformationMatrix,
-                ParsingOptions, _caches, _output, _unsupported,
+                GetCurrentState().OutputIntentProfile, ParsingOptions, _caches, _output, _unsupported,
                 text: null, onPage: false);
             var drawing = reader.ProcessForm(group, NameToken.Create("SMask"));
             read = new PdfSoftMask(
                 mask.Subtype == SoftMaskType.Luminosity ? PdfMaskKind.Luminosity : PdfMaskKind.Alpha,
-                drawing, Backdrop(mask.BC));
+                drawing, Backdrop(mask));
         }
 
         _masks[mask] = read;
         return read;
     }
 
-    /// <summary>A luminosity mask's backdrop, named in its group's colour space; black when it names none.</summary>
-    private static Color Backdrop(double[]? components) => components switch
+    /// <summary>
+    /// The colour a mask's group is drawn over: its /BC, in the colour space the group's /CS names (11.6.5.2), or read as
+    /// grey, RGB or CMYK by how many components it has where the group names none.
+    /// </summary>
+    private Color Backdrop(SoftMask mask)
     {
-        [var grey]                     => Color.FromRgb(PdfColours.ToByte(grey), PdfColours.ToByte(grey), PdfColours.ToByte(grey)),
-        [var r, var g, var b]          => Color.FromRgb(PdfColours.ToByte(r), PdfColours.ToByte(g), PdfColours.ToByte(b)),
-        [var c, var m, var y, var k]   => Cmyk(c, m, y, k),
-        _                              => Colors.Black,
-    };
+        var components = mask.BC;
+        var intent = GetCurrentState().RenderingIntent;
+        if (components is { Length: > 0 } && GroupSpace(mask.TransparencyGroup) is { } space
+            && space.NumberOfColorComponents == components.Length)
+        {
+            return PdfColours.ToColour(space.GetColor(components, intent), 1, intent);
+        }
 
-    private static Color Cmyk(double c, double m, double y, double k)
+        return components switch
+        {
+            [var grey]                     => Color.FromRgb(PdfColours.ToByte(grey), PdfColours.ToByte(grey), PdfColours.ToByte(grey)),
+            [var r, var g, var b]          => Color.FromRgb(PdfColours.ToByte(r), PdfColours.ToByte(g), PdfColours.ToByte(b)),
+            [var c, var m, var y, var k]   => PdfCmyk.Colour(c, m, y, k, 255, intent),
+            _                              => Colors.Black,
+        };
+    }
+
+    /// <summary>
+    /// The colour space a transparency group's attributes name its own (/CS), or null where they name none, or one this
+    /// document does not define.
+    /// </summary>
+    private ColorSpaceDetails? GroupSpace(StreamToken group)
     {
-        return PdfCmyk.Colour(c, m, y, k, 255);
+        if (!group.StreamDictionary.TryGet(NameToken.Group, PdfScanner, out DictionaryToken? attributes)) return null;
+
+        var named = attributes.TryGet(NameToken.Cs, PdfScanner, out NameToken? name) ? name
+            : attributes.TryGet(NameToken.Cs, PdfScanner, out ArrayToken? array) && array.Length > 0 && array.Data[0] is NameToken first ? first
+            : null;
+        if (named is null) return null;
+
+        try
+        {
+            var space = ResourceStore.GetColorSpaceDetails(named, attributes);
+            return space is UnsupportedColorSpaceDetails ? null : space;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     // ── XObjects ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -556,7 +591,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
 
         var picture = _caches.Picture(_xObject, () =>
         {
-            var image = XObjectFactory.ReadImage(xObjectContentRecord, PdfScanner, FilterProvider, ResourceStore);
+            var image = XObjectFactory.ReadImage(xObjectContentRecord, PdfScanner, FilterProvider, ResourceStore, ParsingOptions);
             var decoded = PdfPicture.TryDecode(image, out var why);
             return (decoded, why);
         }, out var failure);
@@ -591,7 +626,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     {
         if (_hidden > 0) return;
 
-        var shading = PdfShadings.TryRead(ResourceStore.GetShading(shadingName), out var unsupported);
+        var shading = PdfShadings.TryRead(ResourceStore.GetShading(shadingName), GetCurrentState().RenderingIntent, out var unsupported);
         if (shading is null)
         {
             Unsupported(unsupported!.Value);

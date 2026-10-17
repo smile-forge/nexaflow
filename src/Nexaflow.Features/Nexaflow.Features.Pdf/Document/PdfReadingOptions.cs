@@ -11,4 +11,7 @@ internal sealed class PdfReadingOptions : ParsingOptions
 {
     /// <summary>The caches this document's pages share.</summary>
     public PdfReadingCaches Caches { get; } = new();
+
+    /// <summary>Options under which colours an ICC profile describes are converted by Windows' colour engine.</summary>
+    public PdfReadingOptions() => IccProfileService = PdfColourEngine.Shared;
 }

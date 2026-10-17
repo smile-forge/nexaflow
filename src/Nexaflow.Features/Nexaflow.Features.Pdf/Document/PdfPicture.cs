@@ -71,8 +71,10 @@ internal sealed class PdfPicture
             int components;
             if (Jpeg(image, details, width, height) is { } jpeg)
             {
-                samples = jpeg.Samples;
-                components = jpeg.Components;
+                // Decoded from its JPEG, each sample is as the colour space has it, and the space converts it as it
+                // converts any other image's: through its profile, or its calibration.
+                samples = ColorSpaceDetailsByteConverter.Convert(details, jpeg, 8, width, height, null, image.RenderingIntent);
+                components = details.BaseNumberOfColorComponents;
             }
             else
             {
@@ -83,7 +85,7 @@ internal sealed class PdfPicture
                 }
 
                 samples = ColorSpaceDetailsByteConverter.Convert(
-                    details, memory.Span, image.BitsPerComponent, width, height, image.Decode);
+                    details, memory.Span, image.BitsPerComponent, width, height, image.Decode, image.RenderingIntent);
                 components = details.BaseNumberOfColorComponents;
             }
             if (components is not (1 or 3 or 4))
@@ -104,7 +106,7 @@ internal sealed class PdfPicture
             // from the inks it was keyed in.
             if (components == 4)
             {
-                samples = PdfCmyk.Convert(samples, width, height);
+                samples = PdfCmyk.Convert(samples, width, height, image.RenderingIntent);
                 components = 3;
             }
 
@@ -135,12 +137,13 @@ internal sealed class PdfPicture
     }
 
     /// <summary>
-    /// A plain JPEG's samples, decoded by Windows' own codec: an image whose only filter is <c>DCTDecode</c>, in grey or RGB,
+    /// A plain JPEG's samples, before its colour space converts them, decoded by Windows' own codec: an image whose only
+    /// filter is <c>DCTDecode</c>, in grey or RGB,
     /// with the default decode. That is most photographs in most documents, and the native codec reads them many times
     /// faster than a managed one; anything else (CMYK, a Decode array, a filter chain) is left to PdfPig's decoding, which
     /// knows the PDF-specific cases. Null when the image is not such a JPEG, or Windows will not read it.
     /// </summary>
-    private static (byte[] Samples, int Components)? Jpeg(IPdfImage image, ColorSpaceDetails details, int width, int height)
+    private static byte[]? Jpeg(IPdfImage image, ColorSpaceDetails details, int width, int height)
     {
         var filter = image.ImageDictionary.TryGet(NameToken.Filter, out var named) ? named : null;
         var dct = filter switch
@@ -173,7 +176,7 @@ internal sealed class PdfPicture
             var stride = width * components;
             var samples = new byte[stride * height];
             converted.CopyPixels(samples, stride, 0);
-            return (samples, components);
+            return samples;
         }
         catch (Exception ex) when (ex is NotSupportedException or System.IO.FileFormatException or ArgumentException or InvalidOperationException)
         {
@@ -256,7 +259,7 @@ internal sealed class PdfPicture
         {
             var details = mask.ColorSpaceDetails ?? DeviceGrayColorSpaceDetails.Instance;
             var grey = ColorSpaceDetailsByteConverter.Convert(
-                details, memory.Span, mask.BitsPerComponent, maskWidth, maskHeight, mask.Decode);
+                details, memory.Span, mask.BitsPerComponent, maskWidth, maskHeight, mask.Decode, mask.RenderingIntent);
             if (grey.Length < maskWidth * maskHeight) return null;
             levels = grey[..(maskWidth * maskHeight)].ToArray();
         }

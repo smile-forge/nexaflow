@@ -286,14 +286,91 @@
           }
         ]
       }
+    },
+    "pdf-colour": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfColourEngine.cs",
+          "class": "PdfColourEngine"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfColourTransform.cs",
+          "class": "PdfColourTransform"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfCmyk.cs",
+          "class": "PdfCmyk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfIccProfile.cs",
+          "class": "PdfIccProfile"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AnIccBasedColour_IsDrawnThroughItsProfile"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AnIccBasedImage_IsDrawnThroughItsProfile"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ASpotColoursLabAlternate_IsDrawnInLab"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ALuminosityMasksBackdrop_IsInItsGroupsColourSpace"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfColourEngineTests.cs",
+            "class": "PdfColourEngineTests",
+            "method": "ARelativelyRenderedPressBlack_IsTheScreensBlack"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfColourEngineTests.cs",
+            "class": "PdfColourEngineTests",
+            "method": "APressWhite_StaysWhite_UnderEveryIntent"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfColourEngineTests.cs",
+            "class": "PdfColourEngineTests",
+            "method": "SamplesAndSingleColours_AgreeAfterCompensation"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfColourEngineTests.cs",
+            "class": "PdfColourEngineTests",
+            "method": "ALabProfile_IsReadWithItsOwnRanges"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 21,
+  "changed_sets": 23,
   "touched_nodes": [
     "paged-layout",
     "pdf-ai-act-view-page",
     "pdf-blend",
+    "pdf-colour",
     "pdf-document-ast",
     "pdf-find",
     "pdf-links",

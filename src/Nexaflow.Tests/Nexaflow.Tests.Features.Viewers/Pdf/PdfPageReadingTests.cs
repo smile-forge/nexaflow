@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -365,9 +366,184 @@ public class PdfPageReadingTests
         }
     }
 
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AnIccBasedColour_IsDrawnThroughItsProfile()
+    {
+        // ProPhoto RGB's grey is lighter than sRGB's at the same numbers, its gamma being 1.8: drawn as its alternate,
+        // DeviceRGB, it would be sRGB's 128.
+        var prophoto = InstalledProfile("ProPhoto.icm");
+        var page = Read("/P cs 0.5 0.5 0.5 sc 0 0 200 200 re f",
+            resources: "/ColorSpace << /P [/ICCBased 5 0 R] >>",
+            extra: [(5, Stream("/N 3 /Alternate /DeviceRGB", Convert.ToHexString(prophoto) + ">"))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var expected = ThroughWindows("ProPhoto.icm", 128);
+        var drawn = Pixel(picture, 100, 100);
+        Assert.IsTrue(expected > 140, $"ProPhoto's grey is lighter than sRGB's, not {expected}");
+        Assert.AreEqual(expected, drawn.R, 2, "drawn as Windows converts it");
+        Assert.AreEqual(expected, drawn.G, 2);
+        Assert.AreEqual(expected, drawn.B, 2);
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AnIccBasedImage_IsDrawnThroughItsProfile()
+    {
+        var prophoto = InstalledProfile("ProPhoto.icm");
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 6 0 R >>",
+            extra:
+            [
+                (5, Stream("/N 3 /Alternate /DeviceRGB", Convert.ToHexString(prophoto) + ">")),
+                (6, Stream("/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 5 0 R] /BitsPerComponent 8",
+                    "808080>")),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var expected = ThroughWindows("ProPhoto.icm", 128);
+        Assert.AreEqual(expected, Pixel(picture, 100, 100).G, 2, "the image's samples go through its profile");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ASpotColoursLabAlternate_IsDrawnInLab()
+    {
+        // A spot colour as Pantone's are written: its tint a Lab colour, in an ICCBased space whose profile is Lab and which
+        // gives no Range. A full tint is L* 50, a* and b* 0: sRGB's mid grey, 119.
+        var page = Read("/S cs 1 sc 0 0 200 200 re f",
+            resources: "/ColorSpace << /S [/Separation /Spot [/ICCBased 5 0 R] << /FunctionType 2 /Domain [0 1] "
+                       + "/C0 [100 0 0] /C1 [50 0 0] /N 1 /Range [0 100 -128 127 -128 127] >>] >>",
+            extra: [(5, Stream("/N 3", Convert.ToHexString(LabProfile()) + ">"))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var drawn = Pixel(picture, 100, 100);
+        Assert.AreEqual(119, drawn.R, 2, "L* 50 is sRGB's 119");
+        Assert.AreEqual(119, drawn.G, 2);
+        Assert.AreEqual(119, drawn.B, 2);
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ALuminosityMasksBackdrop_IsInItsGroupsColourSpace()
+    {
+        // The mask's group paints nothing, so the mask is the luminosity of its backdrop alone: ProPhoto's mid grey, lighter
+        // than the 128 the same numbers make in DeviceRGB. Red at that alpha over the white page leaves green and blue at
+        // what the alpha does not cover.
+        var prophoto = InstalledProfile("ProPhoto.icm");
+        var page = Read("/M gs 1 0 0 rg 0 0 200 200 re f",
+            resources: "/ExtGState << /M << /SMask << /Type /Mask /S /Luminosity /G 6 0 R /BC [0.5 0.5 0.5] >> >> >>",
+            extra:
+            [
+                (5, Stream("/N 3 /Alternate /DeviceRGB", Convert.ToHexString(prophoto) + ">")),
+                (6, "<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Group << /S /Transparency /CS [/ICCBased 5 0 R] >> "
+                    + "/Length 0 >>\nstream\n\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var luminosity = ThroughWindows("ProPhoto.icm", 128);
+        Assert.AreEqual(255 - luminosity, Pixel(picture, 100, 100).G, 3, "the backdrop is ProPhoto's grey");
+    }
+
     /// <summary>An image stream whose samples are written as hex, so the document stays text.</summary>
     private static string Stream(string dictionary, string hex) =>
         $"<< {dictionary} /Filter /ASCIIHexDecode /Length {hex.Length} >>\nstream\n{hex}\nendstream";
+
+    /// <summary>A profile Windows installs, which a test of colour management converts through.</summary>
+    private static byte[] InstalledProfile(string name)
+    {
+        var path = Path.Combine(Environment.SystemDirectory, "spool", "drivers", "color", name);
+        if (!File.Exists(path)) Assert.Inconclusive($"Windows has no {name} here");
+        return File.ReadAllBytes(path);
+    }
+
+    /// <summary>
+    /// A grey of <paramref name="level"/> in the RGB of the profile Windows installs as <paramref name="name"/>, in sRGB as
+    /// WPF's own colour conversion makes it: one channel, the three being equal.
+    /// </summary>
+    private static byte ThroughWindows(string name, byte level)
+    {
+        var source = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96, PixelFormats.Rgb24, null,
+            new[] { level, level, level }, 3);
+        var converted = new System.Windows.Media.Imaging.ColorConvertedBitmap(source,
+            new ColorContext(new Uri(Path.Combine(Environment.SystemDirectory, "spool", "drivers", "color", name))),
+            new ColorContext(PixelFormats.Bgra32), PixelFormats.Bgra32);
+        var bgra = new byte[4];
+        converted.CopyPixels(bgra, 4, 0);
+        return bgra[1];
+    }
+
+    /// <summary>
+    /// A Lab profile that leaves Lab as it is, as a Lab spot colour's alternate carries one: its header, a copyright, a
+    /// description, the D50 white point, and one eight-bit table from Lab to Lab that serves both ways (ICC.1:2001, 6.5.7).
+    /// </summary>
+    private static byte[] LabProfile()
+    {
+        var lut = new byte[48 + 3 * 256 + 8 * 3 + 3 * 256];
+        Encoding.ASCII.GetBytes("mft1").CopyTo(lut, 0);
+        lut[8] = 3;
+        lut[9] = 3;
+        lut[10] = 2;
+        for (var i = 0; i < 3; i++) BinaryPrimitives.WriteInt32BigEndian(lut.AsSpan(12 + 16 * i), 0x10000);
+        for (var c = 0; c < 3; c++)
+        for (var s = 0; s < 256; s++)
+        {
+            lut[48 + c * 256 + s] = (byte)s;
+            lut[48 + 3 * 256 + 8 * 3 + c * 256 + s] = (byte)s;
+        }
+        for (var corner = 0; corner < 8; corner++)
+        for (var c = 0; c < 3; c++)
+            lut[48 + 3 * 256 + corner * 3 + c] = (byte)((corner >> (2 - c) & 1) * 255);
+
+        var copyright = new byte[8 + 5];
+        Encoding.ASCII.GetBytes("text").CopyTo(copyright, 0);
+        Encoding.ASCII.GetBytes("none").CopyTo(copyright, 8);
+
+        var description = new byte[12 + 4 + 4 + 4 + 2 + 1 + 67];
+        Encoding.ASCII.GetBytes("desc").CopyTo(description, 0);
+        BinaryPrimitives.WriteUInt32BigEndian(description.AsSpan(8), 4);
+        Encoding.ASCII.GetBytes("Lab").CopyTo(description, 12);
+
+        var white = new byte[20];
+        Encoding.ASCII.GetBytes("XYZ ").CopyTo(white, 0);
+        D50(white.AsSpan(8));
+
+        (string Tag, byte[] Data)[] data = [("cprt", copyright), ("desc", description), ("wtpt", white), ("A2B0", lut)];
+        var tags = new[] { "cprt", "desc", "wtpt", "A2B0", "B2A0" };
+        var places = new Dictionary<string, (int Offset, int Length)>();
+        var at = 128 + 4 + 12 * tags.Length;
+        foreach (var (tag, bytes) in data)
+        {
+            places[tag] = (at, bytes.Length);
+            at += (bytes.Length + 3) & ~3;
+        }
+        places["B2A0"] = places["A2B0"];
+
+        var profile = new byte[at];
+        BinaryPrimitives.WriteUInt32BigEndian(profile, (uint)at);
+        profile[8] = 2;
+        profile[9] = 0x10;
+        Encoding.ASCII.GetBytes("spacLab Lab ").CopyTo(profile, 12);
+        Encoding.ASCII.GetBytes("acsp").CopyTo(profile, 36);
+        D50(profile.AsSpan(68));
+        BinaryPrimitives.WriteUInt32BigEndian(profile.AsSpan(128), (uint)tags.Length);
+        for (var i = 0; i < tags.Length; i++)
+        {
+            var entry = profile.AsSpan(132 + 12 * i);
+            Encoding.ASCII.GetBytes(tags[i]).CopyTo(entry);
+            BinaryPrimitives.WriteUInt32BigEndian(entry[4..], (uint)places[tags[i]].Offset);
+            BinaryPrimitives.WriteUInt32BigEndian(entry[8..], (uint)places[tags[i]].Length);
+        }
+        foreach (var (tag, bytes) in data) bytes.CopyTo(profile, places[tag].Offset);
+        return profile;
+
+        static void D50(Span<byte> xyz)
+        {
+            BinaryPrimitives.WriteInt32BigEndian(xyz, 63190);
+            BinaryPrimitives.WriteInt32BigEndian(xyz[4..], 65536);
+            BinaryPrimitives.WriteInt32BigEndian(xyz[8..], 54061);
+        }
+    }
 
     [TestMethod]
     [CoversNode("pdf-blend")]

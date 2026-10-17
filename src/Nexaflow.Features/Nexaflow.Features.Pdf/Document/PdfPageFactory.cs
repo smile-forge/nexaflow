@@ -11,6 +11,7 @@ using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Filters;
 using UglyToad.PdfPig.Geometry;
+using UglyToad.PdfPig.Graphics.Colors.Icc;
 using UglyToad.PdfPig.Graphics.Operations;
 using UglyToad.PdfPig.Outline.Destinations;
 using UglyToad.PdfPig.Parser;
@@ -59,13 +60,14 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
         var unsupported = new List<PdfUnsupported>();
         var text = new StringBuilder();
 
+        var outputIntent = ResourceStore.GetPageOutputIntentProfile(dictionary);
         var interpreter = new PdfPageInterpreter(pageNumber, ResourceStore, PdfScanner, PageContentParser,
-            FilterProvider, cropBox, userSpaceUnit, rotation, initialMatrix, ParsingOptions, _caches, flip,
+            FilterProvider, cropBox, userSpaceUnit, rotation, initialMatrix, outputIntent, ParsingOptions, _caches, flip,
             unsupported, text, onPage: true);
         var content = interpreter.Process(pageNumber, operations);
 
         var annotations = Annotations(pageNumber, dictionary, namedDestinations, cropBox, userSpaceUnit, rotation,
-            initialMatrix, flip, unsupported);
+            initialMatrix, outputIntent, flip, unsupported);
 
         return new PdfPageNode(pageNumber, new Size(visible.Width, visible.Height),
             PdfSpace.ToMatrix(initialMatrix) * flip, content, annotations, text.ToString(), unsupported);
@@ -73,7 +75,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
 
     private IReadOnlyList<PdfAnnotationNode> Annotations(
         int pageNumber, DictionaryToken page, NamedDestinations destinations, CropBox cropBox, UserSpaceUnit unit,
-        PageRotationDegrees rotation, TransformationMatrix initialMatrix, Matrix flip, List<PdfUnsupported> unsupported)
+        PageRotationDegrees rotation, TransformationMatrix initialMatrix, IIccProfile? outputIntent, Matrix flip,
+        List<PdfUnsupported> unsupported)
     {
         IEnumerable<Annotation> read;
         try
@@ -105,7 +108,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
             PdfGroupNode? appearance = null;
             try
             {
-                appearance = Appearance(pageNumber, annotation, rect, cropBox, unit, rotation, initialMatrix, flip, unsupported);
+                appearance = Appearance(pageNumber, annotation, rect, cropBox, unit, rotation, initialMatrix, outputIntent,
+                    flip, unsupported);
             }
             catch (Exception ex) when (ex is not (OperationCanceledException or ObjectDisposedException or OutOfMemoryException))
             {
@@ -127,7 +131,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     /// </summary>
     private PdfGroupNode? Appearance(
         int pageNumber, Annotation annotation, PdfRectangle rect, CropBox cropBox, UserSpaceUnit unit,
-        PageRotationDegrees rotation, TransformationMatrix initialMatrix, Matrix flip, List<PdfUnsupported> unsupported)
+        PageRotationDegrees rotation, TransformationMatrix initialMatrix, IIccProfile? outputIntent, Matrix flip,
+        List<PdfUnsupported> unsupported)
     {
         if (annotation.NormalAppearance is not { } appearances) return null;
 
@@ -156,7 +161,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
         var fit = TransformationMatrix.FromValues(sx, 0, 0, sy, rect.Left - left * sx, rect.Bottom - bottom * sy);
 
         var reader = new PdfPageInterpreter(pageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
-            cropBox, unit, rotation, fit.Multiply(initialMatrix), ParsingOptions, _caches, flip, unsupported, text: null, onPage: true);
+            cropBox, unit, rotation, fit.Multiply(initialMatrix), outputIntent, ParsingOptions, _caches, flip, unsupported,
+            text: null, onPage: true);
         var drawn = reader.ProcessForm(stream, NameToken.Create(annotation.Type.ToString()));
         return drawn.Children.Count == 0 ? null : new PdfGroupNode(PdfGroupRole.Appearance, drawn.Children, tag: annotation.Type.ToString());
     }

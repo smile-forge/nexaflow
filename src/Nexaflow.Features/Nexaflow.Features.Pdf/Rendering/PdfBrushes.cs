@@ -250,8 +250,11 @@ internal sealed class PdfBrushes(Rect page)
             brush?.Freeze();
         }
 
-        // A mask that draws nothing hides everything it masks: its alpha, or its luminosity over black, is zero throughout.
-        brush ??= mask.Kind == PdfMaskKind.Luminosity && mask.Backdrop != Colors.Black ? Solid(mask.Backdrop) : Solid(Colors.Transparent);
+        // A mask that draws nothing is its backdrop throughout: its alpha is zero, hiding everything it masks, and its
+        // luminosity the backdrop's, which a mask reads as alpha.
+        brush ??= mask.Kind == PdfMaskKind.Luminosity
+            ? Solid(Color.FromArgb(Luma(mask.Backdrop.R, mask.Backdrop.G, mask.Backdrop.B), 0, 0, 0))
+            : Solid(Colors.Transparent);
 
         _masks[mask] = brush;
         return brush;
@@ -282,8 +285,8 @@ internal sealed class PdfBrushes(Rect page)
         rendered.CopyPixels(pixels, stride, 0);
         for (var i = 0; i < pixels.Length; i += 4)
         {
-            // Rec. 601 luma, as PDF's luminosity is the colour's luminosity in its own space; the alpha is all a mask reads.
-            var luma = (byte)((pixels[i + 2] * 299 + pixels[i + 1] * 587 + pixels[i] * 114) / 1000);
+            // The alpha is all a mask reads.
+            var luma = Luma(pixels[i + 2], pixels[i + 1], pixels[i]);
             pixels[i] = pixels[i + 1] = pixels[i + 2] = 0;
             pixels[i + 3] = luma;
         }
@@ -297,6 +300,9 @@ internal sealed class PdfBrushes(Rect page)
             Viewport = bounds,
         };
     }
+
+    /// <summary>A colour's luminosity as a mask takes it: Rec. 601 luma, as PDF's luminosity is the colour's in its own space.</summary>
+    private static byte Luma(byte red, byte green, byte blue) => (byte)((red * 299 + green * 587 + blue * 114) / 1000);
 
     /// <summary>An image mask's one-bit picture, its set samples in <paramref name="colour"/>.</summary>
     public BitmapSource Coloured(PdfPicture stencil, Color colour)
