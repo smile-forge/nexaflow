@@ -26,7 +26,5 @@ internal sealed class UnreadBuilder : ContentBuilder
     /// <summary>The whole of it blamed, since nothing read any part of it well enough to blame a part.</summary>
     protected override Laid Build() => AsSource(Reading.Root.Trouble ?? string.Empty);
 
-    protected override FormattedText Characters(string text) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Style.Face(Style.MonoFont), Style.TextSize, Style.Text,
-            LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(Style.MonoFont), Style.TextSize, Style.Text);
 }

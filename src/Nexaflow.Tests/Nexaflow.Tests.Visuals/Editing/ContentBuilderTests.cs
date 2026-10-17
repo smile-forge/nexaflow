@@ -38,9 +38,7 @@ public class ContentBuilderTests
     {
         protected override Laid? Build() => read();
 
-        protected override FormattedText Characters(string text) =>
-            new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                new Typeface("Consolas"), 13, Brushes.Black, 1.0);
+        protected override CharacterSetting Characters => new(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture);
     }
 
     [TestMethod]
@@ -96,7 +94,7 @@ public class ContentBuilderTests
         var tree = ContentPart.Of(ContentNode.Branch("line", [ContentNode.Leaf("word", "one "), ContentNode.Leaf("word", "two"), ContentNode.Leaf("word", " three")]));
         var two = tree.Children[1];
         var laid = SourceShown.Lay(tree, [(two, "Two is not a word here.")],
-                                   text => new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Consolas"), 13, Brushes.Black, 1.0),
+                                   new CharacterSetting(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture),
                                    StyleFormat.Dark);
 
         var unread = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Unread);

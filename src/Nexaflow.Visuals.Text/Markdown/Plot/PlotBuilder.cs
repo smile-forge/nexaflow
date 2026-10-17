@@ -1210,14 +1210,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             ink,
             Editing.LayoutText.Density);
 
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Brushes.Black,
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Brushes.Black);
 
     /// <summary>The plot as it is written, and why nothing of it could be drawn.</summary>
     private Laid Stopped(string reason) => AsSource(reason);

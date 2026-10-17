@@ -378,12 +378,5 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// <summary>The cloud as it is written, and why nothing of it could be drawn.</summary>
     private Laid Stopped(string reason) => AsSource(reason);
 
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Brushes.Black,
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Brushes.Black);
 }

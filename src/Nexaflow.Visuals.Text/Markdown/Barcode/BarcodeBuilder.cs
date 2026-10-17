@@ -377,14 +377,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
     }
 
     /// <summary>How a barcode sets the source it could not lay out: as the fields it was written as.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Style.Text,
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Style.Text);
 
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
 

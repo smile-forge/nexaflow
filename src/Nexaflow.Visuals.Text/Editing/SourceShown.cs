@@ -50,7 +50,7 @@ public static class SourceShown
     /// <param name="tree">The parse tree the block was read into.</param>
     /// <param name="blamed">Each part that could not be drawn, and why; the tree itself where the whole of it could not.</param>
     /// <param name="characters">How the block sets raw characters: its typeface and size.</param>
-    public static Laid Lay(ContentPart tree, IReadOnlyList<(ContentPart Part, string Reason)> blamed, Func<string, FormattedText> characters,
+    public static Laid Lay(ContentPart tree, IReadOnlyList<(ContentPart Part, string Reason)> blamed, CharacterSetting characters,
                            StyleFormat style, double room = double.PositiveInfinity) =>
         Shown(tree, [.. blamed.Select(blame => Diagnostic.Of(blame.Part, blame.Reason))],
               [.. Runs(tree, blamed.Select(blame => blame.Part).ToHashSet())], characters, style, room);
@@ -60,7 +60,7 @@ public static class SourceShown
     /// stands in it — how a host shows a block whose own content could not be drawn, fences and all.
     /// </summary>
     /// <param name="trouble">What the content inside said: each part it blamed, and why.</param>
-    public static Laid Lay(ContentPart tree, IReadOnlyList<Diagnostic> trouble, Func<string, FormattedText> characters,
+    public static Laid Lay(ContentPart tree, IReadOnlyList<Diagnostic> trouble, CharacterSetting characters,
                            StyleFormat style, double room = double.PositiveInfinity) =>
         Shown(tree, trouble,
               [.. trouble.Select(said => (said.Part ?? new SourceSpan(said.Start, said.Length), said.Start - tree.Start, said.Length))],
@@ -70,11 +70,11 @@ public static class SourceShown
     private static string Printed(ContentPart part) => part.Print().TrimEnd('\r', '\n');
 
     private static Laid Shown(ContentPart tree, IReadOnlyList<Diagnostic> trouble, IReadOnlyList<(ISourcePart Part, int From, int Length)> runs,
-                              Func<string, FormattedText> characters, StyleFormat style, double room)
+                              CharacterSetting characters, StyleFormat style, double room)
     {
         // Up to the last line's end, not past it: a block's closing line break is where the next block starts, not a line of its own.
         var printed = Printed(tree);
-        var text = characters(printed.Length == 0 ? " " : printed);
+        var text = characters.Set(printed.Length == 0 ? " " : printed);
 
         // What is said first, since how wide it runs is part of how wide the block is.
         var reasons = trouble.Select(said => said.Message).Where(reason => reason.Length > 0).Distinct()

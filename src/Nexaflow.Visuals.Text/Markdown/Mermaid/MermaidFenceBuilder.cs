@@ -22,7 +22,5 @@ internal sealed class MermaidFenceBuilder(ContentReading reading, EditState stat
         Nested(Reading.Root, Room)?.Laid
         ?? AsSource([.. Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null).Select(part => (part, part.Trouble!))]);
 
-    protected override FormattedText Characters(string text) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Style.Face(new FontFamily("Cascadia Code, Consolas, monospace")), 13,
-            Style.Text, LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(new FontFamily("Cascadia Code, Consolas, monospace")), 13, Style.Text);
 }
