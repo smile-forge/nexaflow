@@ -266,17 +266,24 @@ public class WindowsAppsSurfaceTests
     [CoversNode("cleanup-broken")]
     public async Task RemoveFromList_OnlyOffersItselfForAnOrphanedEntry()
     {
-        var shell = Substitute.For<IShellServices>();
-        shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-             .Returns(Task.FromResult(false));
-        // A healthy Win32 entry (has an uninstaller) is not a leftover — the action must refuse it.
-        var vm = BuildLoaded(shell, App("Healthy", location: TestTemp.Root));
-        shell.ClearReceivedCalls();
+        // A folder of its own: the size pass walks the install location, and the run's shared temp folder fills
+        // with every other test's files.
+        var dir = TestTemp.CreateSubdirectory("nexaapps_healthy_").FullName;
+        try
+        {
+            var shell = Substitute.For<IShellServices>();
+            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.FromResult(false));
+            // A healthy Win32 entry (has an uninstaller) is not a leftover — the action must refuse it.
+            var vm = BuildLoaded(shell, App("Healthy", location: dir));
+            shell.ClearReceivedCalls();
 
-        await vm.DeleteRecordCommand.ExecuteAsync(vm.Apps.Single());
+            await vm.DeleteRecordCommand.ExecuteAsync(vm.Apps.Single());
 
-        Assert.IsFalse(vm.Apps.Single().IsOrphaned, "precondition: this entry is not a leftover");
-        await shell.DidNotReceiveWithAnyArgs().ConfirmAsync(default!, default!, default);
+            Assert.IsFalse(vm.Apps.Single().IsOrphaned, "precondition: this entry is not a leftover");
+            await shell.DidNotReceiveWithAnyArgs().ConfirmAsync(default!, default!, default);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
     }
 
     [TestMethod]

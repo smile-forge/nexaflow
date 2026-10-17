@@ -107,9 +107,12 @@ public class AiHostClientTests
     {
         var host = new FakeHost { Serve = FakeHost.Silent };
         await using var client = new AiHostClient(host, Fast);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        using var cts = new CancellationTokenSource();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => Describe(client, ct: cts.Token));
+        var describing = Describe(client, ct: cts.Token);
+        await host.RequestArrived.WaitAsync(Generous);
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => describing);
 
         Assert.AreEqual(1, host.CancelsReceived.Count);
         Assert.IsTrue(client.IsRunning);
@@ -136,9 +139,12 @@ public class AiHostClientTests
     {
         var host = new FakeHost { Serve = FakeHost.Silent, HonourCancel = false };
         await using var client = new AiHostClient(host, Fast);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        using var cts = new CancellationTokenSource();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => Describe(client, ct: cts.Token));
+        var describing = Describe(client, ct: cts.Token);
+        await host.RequestArrived.WaitAsync(Generous);
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => describing);
 
         Assert.IsTrue(host.Last!.WasKilled, "a host that will not stop is hung");
         Assert.IsFalse(client.IsRunning);

@@ -26,6 +26,12 @@ internal sealed class FakeHost : IAiHostLauncher
     /// <summary>What the host does with input sent into a request; by default nothing.</summary>
     public Func<RequestInput, HostChannel, Task> Receive { get; set; } = (_, _) => Task.CompletedTask;
 
+    private readonly TaskCompletionSource _requestArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes once a request is in the host's hands — when a cancel is sure to reach a request it is serving,
+    /// however long starting the host took.</summary>
+    public Task RequestArrived => _requestArrived.Task;
+
     public ConcurrentBag<long> CancelsReceived { get; } = [];
 
     public ConcurrentQueue<RequestInput> InputsReceived { get; } = [];
@@ -83,6 +89,7 @@ internal sealed class FakeHost : IAiHostLauncher
                         await Receive(input, channel);
                         break;
                     case HostRequest request:
+                        _requestArrived.TrySetResult();
                         _ = Task.Run(() => Serve(request, channel));
                         break;
                 }
