@@ -418,7 +418,7 @@ set it.
 |---|---|
 | `IExternalDependency` | A feature declares a third-party runtime/tool it needs present on the machine (Edge WebView2, libvlc, the `dotnet` CLI). Discovered by reflection like `IThemeContribution`; Core probes each off the UI thread and lists them in **Options → About → System components**. |
 
-Two features may declare the **same** `Id` — WebView2 is declared by both `Pdf` and `Web`. The registry keys
+Two features may declare the **same** `Id` — one runtime that several features need. The registry keys
 on the id and merges them into one row naming both, and `Required` beats `Optional` whichever is seen first.
 Keep the wording identical across co-declarations; `ExternalDependencyRulesTests` fails the build if it drifts,
 if a declaration has no parameterless constructor, or if a probe throws.

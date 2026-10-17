@@ -95,8 +95,8 @@ public sealed class ExternalDependencyRegistry
     /// </summary>
     internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types)
     {
-        // Keyed on the component's id, not the declaring type: WebView2 is declared by both the PDF reader
-        // and the Web tab, and the user cares about one runtime, listed once, naming both.
+        // Keyed on the component's id, not the declaring type: one runtime can be declared by several features,
+        // and the user cares about it listed once, naming each.
         var merged = new Dictionary<string, Accumulator>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var type in types)

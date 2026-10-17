@@ -64,8 +64,8 @@ public class ExternalDependencyRulesTests
     [TestMethod]
     public void Declarations_sharing_an_id_agree_on_what_it_is()
     {
-        // Two features may declare the same component — WebView2 is declared by both the PDF reader and the
-        // Web tab. The registry keeps whichever it meets first, so if their wording differs the About page
+        // Two features may declare the same component — one runtime several features need. The registry keeps
+        // whichever it meets first, so if their wording differs the About page
         // reads differently depending on assembly load order.
         var offenders = Declarations()
             .Select(t => (IExternalDependency)Activator.CreateInstance(t)!)

@@ -249,10 +249,23 @@ public sealed record PictureMark(ImageSource Picture, Rect Bounds) : LayoutMark
 {
     public override Rect Covers => Bounds;
 
-    public override void PaintOn(DrawingContext dc, Brush fallback) => dc.DrawImage(Picture, Bounds);
+    public override void PaintOn(DrawingContext dc, Brush fallback) => Draw(dc, Bounds);
 
-    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) =>
-        dc.DrawImage(Picture, Rect.Offset(Bounds, offset));
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) => Draw(dc, Rect.Offset(Bounds, offset));
+
+    /// <summary>
+    /// The picture into <paramref name="box"/>, resampled by area: drawn smaller than its pixels, each pixel shown averages
+    /// the pixels it covers — what a scanned page's dither or a photograph fitted to a column must look like — where WPF's
+    /// default samples between neighbours and aliases. Software rendering resamples by Fant, hardware by mipmap.
+    /// </summary>
+    private void Draw(DrawingContext dc, Rect box)
+    {
+        var drawing = new DrawingGroup();
+        RenderOptions.SetBitmapScalingMode(drawing, BitmapScalingMode.HighQuality);
+        drawing.Children.Add(new ImageDrawing(Picture, box));
+        if (drawing.CanFreeze) drawing.Freeze();
+        dc.DrawDrawing(drawing);
+    }
 }
 
 /// <summary>

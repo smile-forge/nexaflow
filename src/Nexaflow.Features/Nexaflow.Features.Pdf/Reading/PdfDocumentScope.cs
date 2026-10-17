@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading;
+using Nexaflow.Features.Pdf.Document;
 using Nexaflow.IO.Common;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Logging;
@@ -22,12 +23,18 @@ internal sealed class PdfDocumentScope : IDisposable
 {
     private readonly Stream _stream;
     private readonly CancellationTokenRegistration _cancelHook;
+    private readonly PdfReadingOptions _options;
+    private PdfPageReader? _pages;
 
     public PdfDocument Document { get; }
 
-    private PdfDocumentScope(PdfDocument document, Stream stream, CancellationTokenRegistration cancelHook)
+    /// <summary>The document read as objects — page slots, and each page's content on request.</summary>
+    public PdfPageReader Pages => _pages ??= new PdfPageReader(Document, _options);
+
+    private PdfDocumentScope(PdfDocument document, PdfReadingOptions options, Stream stream, CancellationTokenRegistration cancelHook)
     {
         Document    = document;
+        _options    = options;
         _stream     = stream;
         _cancelHook = cancelHook;
     }
@@ -55,7 +62,7 @@ internal sealed class PdfDocumentScope : IDisposable
             var toKill = stream;
             cancelHook = ct.Register(() => { try { toKill.Dispose(); } catch { } });
 
-            var document = PdfDocument.Open(stream, new ParsingOptions
+            var options = new PdfReadingOptions
             {
                 // The 90%-of-real-PDFs setting. Plenty of files in the wild have a broken cross-reference
                 // table or a font the writer never embedded; strict parsing rejects them outright, lenient
@@ -68,14 +75,16 @@ internal sealed class PdfDocumentScope : IDisposable
                 // it shouldn't: a PDF that genuinely needs a secret still throws.
                 Password = string.Empty,
 
-                // Nothing here draws the page, so clipping work is pure cost.
+                // PdfPig's own page reading only extracts. The drawn page is read by the Document interpreter, which
+                // keeps clips as groups of its own, so clipping PdfPig's paths is pure cost.
                 ClipPaths = false,
 
                 FilterProvider = PdfFilterProvider.Instance,
                 Logger         = SilentLog.Instance,
-            });
+            };
+            var document = PdfDocument.Open(stream, options);
 
-            return new PdfDocumentScope(document, stream, cancelHook);
+            return new PdfDocumentScope(document, options, stream, cancelHook);
         }
         catch (OperationCanceledException)
         {

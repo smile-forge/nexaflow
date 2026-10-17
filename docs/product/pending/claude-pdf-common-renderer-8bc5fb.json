@@ -1,0 +1,288 @@
+{
+  "branch": "claude/pdf-common-renderer-8bc5fb",
+  "nodes": {
+    "pdf-ai-act-view-page": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "ViewPage_MovesTheReader_AndRefusesAPageTheDocumentLacks"
+          }
+        ]
+      }
+    },
+    "pdf-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml.cs",
+          "class": "PdfView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageLayout.cs",
+          "class": "PdfLaying"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfBrushes.cs",
+          "class": "PdfBrushes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageSource.cs",
+          "class": "PdfPageSource"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ThePaintingOrder_SurvivesIntoTheLayoutTree"
+          }
+        ]
+      }
+    },
+    "paged-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Paged/PagedLayoutElement.cs",
+          "class": "PagedLayoutElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Paged/IPagedLayoutSource.cs",
+          "class": "IPagedLayoutSource"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/PagedLayoutElementTests.cs",
+            "class": "PagedLayoutElementTests"
+          }
+        ]
+      }
+    },
+    "pdf-document-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPageInterpreter.cs",
+          "class": "PdfPageInterpreter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfContentNodes.cs",
+          "class": "PdfGroupNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPageReader.cs",
+          "class": "PdfPageReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfGlyphOutlines.cs",
+          "class": "PdfGlyphOutlines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPicture.cs",
+          "class": "PdfPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfOptionalContent.cs",
+          "class": "PdfOptionalContent"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests"
+          }
+        ]
+      }
+    },
+    "pdf-page-navigation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml.cs",
+          "class": "PdfView",
+          "method": "PageBox_KeyDown"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/PagedLayoutElementTests.cs",
+            "class": "PagedLayoutElementTests",
+            "method": "GoingToAPage_MakesItThePageBeingRead_EvenWhereTheDocumentIsTooShortToScrollIt"
+          }
+        ]
+      }
+    },
+    "pdf-zoom": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml.cs",
+          "class": "PdfView",
+          "method": "FitWidth_Click"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/PagedLayoutElementTests.cs",
+            "class": "PagedLayoutElementTests",
+            "method": "Zooming_ScalesTheScrollRange"
+          }
+        ]
+      }
+    },
+    "pdf-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "FindAllAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "pdf-print": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPaginator.cs",
+          "class": "PdfPaginator"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "APrintedPage_IsDrawnWholeOnTheSheet_AsLargeAsFits"
+          }
+        ]
+      }
+    },
+    "pdf-text-selection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageLayout.cs",
+          "class": "PdfLaying",
+          "method": "Words"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ATextRun_IsSelectableWhereItsGlyphsAre"
+          }
+        ]
+      }
+    },
+    "pdf-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml.cs",
+          "class": "PdfView",
+          "method": "FollowLink"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ALinkAnnotation_IsAPieceThatFollowsItsTarget"
+          }
+        ]
+      }
+    },
+    "pdf-blend": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfBlending.cs",
+          "class": "PdfBlending"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageLayout.cs",
+          "class": "PdfLaying",
+          "method": "Blended"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AMultipliedFill_DarkensWhatIsUnderIt_AndLeavesTheRestOfThePageAlone"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "TheBlendModes_FollowThePdfFormulas"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 21,
+  "touched_nodes": [
+    "paged-layout",
+    "pdf-ai-act-view-page",
+    "pdf-blend",
+    "pdf-document-ast",
+    "pdf-find",
+    "pdf-links",
+    "pdf-page-navigation",
+    "pdf-print",
+    "pdf-render",
+    "pdf-text-selection",
+    "pdf-zoom"
+  ]
+}

@@ -25,7 +25,7 @@ public class PdfViewModelAiTests
     private static PdfViewModel LoadedVm(string sample = "outline.pdf")
     {
         var vm = new PdfViewModel(Sample(sample), Substitute.For<IShellServices>(), new PdfConfig());
-        vm.LoadAsync().GetAwaiter().GetResult();
+        vm.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
         return vm;
     }
 
@@ -262,14 +262,32 @@ public class PdfViewModelAiTests
 
     [TestMethod]
     [CoversNode("pdf-ai-act-page-image")]
-    public async Task PageImage_SaysWhatToTryInstead_WhenThereIsNothingToShow()
+    public async Task PageImage_DrawsATextPage_AsTheReaderShowsIt()
     {
         var vm = LoadedVm("text.pdf");
         try
         {
             var result = await Invoke(vm, "pdf_page_image", new JsonObject { ["page"] = 1 });
 
-            Assert.IsFalse(result.Success, "a text page with no renderer attached can't be pictured");
+            Assert.IsTrue(result.Success, "a page with text and no picture is drawn, as the reader draws it");
+            Assert.IsNotNull(result.Images);
+            Assert.AreEqual(1, result.Images.Count);
+            Assert.AreEqual("image/png", result.Images[0].MimeType);
+            Assert.IsTrue(result.Images[0].Bytes.Length > 0);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-page-image")]
+    public async Task PageImage_SaysWhatToTryInstead_ForAPageTheDocumentLacks()
+    {
+        var vm = LoadedVm("text.pdf");
+        try
+        {
+            var result = await Invoke(vm, "pdf_page_image", new JsonObject { ["page"] = 99 });
+
+            Assert.IsFalse(result.Success, "a page past the end can't be pictured");
             StringAssert.Contains(result.ModelText, "pdf_read_text");
         }
         finally { vm.Dispose(); }
@@ -341,19 +359,23 @@ public class PdfViewModelAiTests
 
     [TestMethod]
     [CoversNode("pdf-ai-act-view-page")]
-    public async Task ViewPage_StopsOfferingToJump_OnceTheRendererRefusesOnce()
+    public async Task ViewPage_MovesTheReader_AndRefusesAPageTheDocumentLacks()
     {
         var vm = LoadedVm();
         try
         {
-            vm.NavigateToPageAsync = (_, _, _) => Task.FromResult(false);   // a renderer that ignores page fragments
+            int? shown = null;
+            vm.NavigateToPage = (page, _) => shown = page;
 
-            var first = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = 2 });
-            Assert.IsFalse(first.Success);
+            var moved = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = 2 });
+            Assert.IsTrue(moved.Success);
+            Assert.AreEqual(2, shown);
 
-            // Latched off, so the contents rows stop pretending to be links and the model stops retrying.
-            Assert.IsFalse(vm.CanNavigateToPage);
-            Assert.IsTrue(vm.Contents.All(c => !c.CanJump));
+            shown = null;
+            var past = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = vm.PageCount + 1 });
+            Assert.IsFalse(past.Success);
+            Assert.IsNull(shown, "a page that isn't there is not scrolled to");
+            StringAssert.Contains(past.ModelText, vm.PageCount.ToString());
         }
         finally { vm.Dispose(); }
     }

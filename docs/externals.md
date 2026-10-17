@@ -8,7 +8,7 @@ before touching anything under `external/`.
 A third-party dependency is a NuGet package wherever the published package will do. The ones here are the
 exceptions — each had to be built from source because its package was stale, broken or short of what Nexaflow needs —
 and Nexaflow consumes them via a fork the `smile-forge` org controls.
-Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the odd one out
+The .NET libraries are wired in with `ProjectReference` (never `PackageReference`); the odd one out
 (**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
 `.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
 below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
@@ -100,6 +100,23 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Wired project(s) | `external/AngouriMath/Sources/AngouriMath/AngouriMath.csproj` — the C# kernel. Its two analyzer projects (`Sources/Analyzers/Analyzers`, `Sources/Analyzers/RuleRegistryGenerator`) come in as `OutputItemType="Analyzer"` references and **must be listed in `Nexaflow.slnx`** or VS restore fails with NU1105. |
 | Do **NOT** reference | `Sources/Tests`, `Sources/Samples`, `Sources/Terminal`, `Sources/Utils`, `Sources/Wrappers` (the F# and Jupyter wrappers). |
 | Notes | **Why a submodule rather than the NuGet package**: the Solver needs `MathS.Polynomials.Factor` (the `factor` chip) and `DerivationPath.OfSimplifying` (the local step-by-step chip), and *both landed after the 2.3.0 release* — 2.3.0 keeps polynomial factorisation `internal`, so from the package the capability is unreachable. So the pin is a commit on upstream `master`, not a tag, and we carry **no** patch. Keep it that way: if a future need does require one, it goes on an atomic `feat/*` branch merged into `nexaflow`, per recipe 2. Multi-targets `netstandard2.0;net8.0;net10.0` → consumers resolve `net10.0`. `Sources/Directory.Build.props` exists, so MSBuild's walk-up stops inside the submodule and this repo's `Platforms=x64` never leaks in — unlike tree-sitter-dotnet-bindings, this one needs no empty-props shim. Builds with `TreatWarningsAsErrors`; if a Roslyn bump ever breaks that, relax it on `nexaflow` as an integration-only commit. |
+
+…and **PdfPig with its three image filters**, a family of four forks that only work as one: each filter depends on
+PdfPig, so with PdfPig built from source the filters must be too, or the app would load the package's PdfPig beside
+ours.
+
+| | **PdfPig** | **PdfPig.Filters.Dct.JpegLibrary** · **.Jbig2.PdfboxJbig2** · **.Jpx.OpenJpeg** |
+|---|---|---|
+| Submodule path | `external/PdfPig` | `external/PdfPig.Filters.Dct.JpegLibrary`, `external/PdfPig.Filters.Jbig2.PdfboxJbig2`, `external/PdfPig.Filters.Jpx.OpenJpeg` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/PdfPig.git` | `https://github.com/smile-forge/PdfPig.Filters.<name>.git` |
+| `upstream` (original) | `https://github.com/UglyToad/PdfPig.git` | `https://github.com/BobLd/UglyToad.PdfPig.Filters.<name>.git` |
+| **Upstream default branch** | **`master`** | **`master`** |
+| Tracked integration branch | `nexaflow` — the `v0.1.16` release, the integration shim, then our fixes | `nexaflow` — the commit each 0.1.16 package was built from, then the integration shim |
+| In-flight feature branches | `feat/truetype-unicode-platform-cmap` — a TrueType font whose only Unicode cmap is on the Unicode platform (0, *) drew the wrong glyphs | *(none)* |
+| Nexaflow consumer project | `src/Nexaflow.Features/Nexaflow.Features.Pdf/Nexaflow.Features.Pdf.csproj` | the same |
+| Wired project(s) | `src/UglyToad.PdfPig/UglyToad.PdfPig.csproj` (pulls Core, Fonts, Tokenization, Tokens) and `src/UglyToad.PdfPig.DocumentLayoutAnalysis/…csproj` (reading order) | `UglyToad.PdfPig.Filters.<name>/UglyToad.PdfPig.Filters.<name>.csproj` |
+| Do **NOT** reference | `tools/UglyToad.PdfPig.Package` (it repackages the projects above as the NuGet package), tests, benchmarks, examples | the test projects |
+| Notes | **Why a submodule**: the package's TrueType lookup reads only the Windows (3, 1) Unicode cmap, so an embedded font that carries only a Unicode-platform one — common in macOS-written subsets — is drawn with capitals for lower case and letters missing; still so on upstream `master`. Our `nexaflow` commits: (1) a **`Directory.Build.props`** at the root — integration-only, never upstreamed: PdfPig has none of its own, so the walk-up would apply Nexaflow's, and it sets `Optimize` in every configuration, because Nexaflow's Debug build is how the app runs day to day and an unoptimised PdfPig reads a page in about twice the time (symbols are still produced); (2) the fixes, each also on its `feat/*` branch for an upstream PR. Its test documents have names past `MAX_PATH` under a worktree, so it is checked out with `core.longpaths` (`ensure-submodules.ps1` passes it). Multi-targets up to `net9.0`, which the app resolves. Apache-2.0. | One integration-only commit on each `nexaflow`: a `Directory.Build.props` that stops the walk-up, builds the codec optimised in every configuration (as PdfPig is) and names PdfPig's source beside it as `$(PdfPigSource)`, a matching empty `Directory.Build.targets`, and the `PdfPig` `PackageReference` made conditional on that source being absent — so the filter builds against our PdfPig here and against the package on its own. **Jpx** compiles OpenJPEG.net from a nested submodule (`external/OpenJPEG.net`, BobLd's), which `ensure-submodules.ps1` initialises too. Dct and Jbig2 are Apache-2.0 (Jbig2 with a `NOTICE.txt`), Jpx is BSD-2-Clause. |
 
 To read the *current* pinned commits and tracked branch at any time:
 

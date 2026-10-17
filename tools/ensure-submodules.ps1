@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     A fresh `git worktree` starts with EMPTY submodule directories (external/DiscUtils,
-    external/AngouriMath, external/tree-sitter-xml), so the `ProjectReference`s into them point at
+    external/AngouriMath, external/tree-sitter-xml, external/PdfPig, …), so the `ProjectReference`s into them point at
     .csproj files that do not exist yet - and the tree-sitter grammar has no C sources to compile -
     so Visual Studio / `dotnet build` fail. This populates any missing submodule so the references
     resolve and the build "just works".
@@ -32,8 +32,22 @@ foreach ($line in $status) {
     if ($line -match '^-\S+\s+(?<path>\S+)') {
         $path = $Matches['path']
         Write-Host "ensure-submodules: initialising '$path'..."
-        # `--` guards the path; only this submodule is touched.
-        & git -C $root -c protocol.file.allow=always submodule update --init -- $path
+        # `--` guards the path; only this submodule is touched. Long paths, because PdfPig's test documents carry
+        # names that run past MAX_PATH once they are under a worktree, and a checkout that cannot write one fails.
+        & git -C $root -c protocol.file.allow=always -c core.longpaths=true submodule update --init -- $path
+    }
+}
+
+# Submodules whose own submodules are part of what Nexaflow compiles: the JPX filter builds OpenJPEG.net from source
+# it holds as a submodule of its own.
+foreach ($withNested in @('external/PdfPig.Filters.Jpx.OpenJpeg')) {
+    $at = Join-Path $root $withNested
+    if (-not (Test-Path (Join-Path $at '.git'))) { continue }
+    foreach ($line in @(& git -C $at submodule status 2>$null)) {
+        if ($line -match '^-\S+\s+(?<path>\S+)') {
+            Write-Host "ensure-submodules: initialising '$withNested/$($Matches['path'])'..."
+            & git -C $at -c protocol.file.allow=always submodule update --init -- $Matches['path']
+        }
     }
 }
 

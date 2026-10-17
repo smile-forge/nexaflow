@@ -1,33 +1,31 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Common.Dependencies;
-using Nexaflow.Features.Pdf.Dependencies;
 using Nexaflow.Features.Pdf.Models;
+using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Visuals.Common.Localization;
-using Nexaflow.Visuals.Web;
+using Nexaflow.Visuals.Text.Editing.Paged;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Nexaflow.Features.Pdf.Views;
 
 /// <summary>
-/// The PDF reader tab: the shared browser surface renders the document (Edge reads PDFs natively, and its
-/// own toolbar is left intact — it already carries page selection, search, zoom and print), with Nexaflow's
-/// document panel beside it.
+/// The PDF reader tab: the document's pages drawn natively by the paged host, with the reader's toolbar over them and
+/// Nexaflow's document panel beside them.
 /// </summary>
-public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDisposable
+public partial class PdfView : UserControl, IPageView, IDisposable
 {
     private readonly IShellServices _shell;
 
-    /// <summary>How long to wait for a navigation to settle before deciding the renderer ignored it.</summary>
-    private static readonly TimeSpan NavigationSettle = TimeSpan.FromSeconds(1.5);
+    /// <summary>How much one press of a zoom button zooms by.</summary>
+    private const double ZoomStep = 1.25;
 
     public PdfViewModel ViewModel { get; }
 
@@ -38,50 +36,52 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         _shell      = shell;
         DataContext = viewModel;
 
-        ViewModel.NavigateToPageAsync = GoToPageAsync;
-        ViewModel.CapturePageAsync    = ct => Surface.CapturePngAsync(1600, ct);
+        ViewModel.NavigateToPage = (page, offsetFromTop) =>
+            Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
 
-        Surface.Unavailable += (_, e) => HandleSurfaceUnavailable(e);
+        Pages.LinkActivated += (_, href) => FollowLink(href);
+        Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
+        Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
+        DependencyPropertyDescriptor.FromProperty(PagedLayoutElement.CurrentPageProperty, typeof(PagedLayoutElement))
+            .AddValueChanged(Pages, (_, _) => ViewModel.CurrentPage = Pages.CurrentPage + 1);
 
         // Collapsing the panel Border alone would leave its 300px column behind as a blank gutter, so the
         // grid columns have to collapse with it.
         ViewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(PdfViewModel.IsPanelOpen)) ApplyPanelWidth();
+            switch (e.PropertyName)
+            {
+                case nameof(PdfViewModel.IsPanelOpen): ApplyPanelWidth(); break;
+                case nameof(PdfViewModel.FoundRanges):    ShowFindHits(reveal: false); break;
+                case nameof(PdfViewModel.FindIndex):   ShowFindHits(reveal: true); break;
+                case nameof(PdfViewModel.Pages):       OpenPending(); break;
+            }
         };
 
         Loaded += OnLoaded;
     }
 
+    private bool _loaded;
+
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Loaded fires again on a re-parent (tab torn off to another window); the surface leaves a live
-        // browser alone, so the user's scroll position survives the move.
-        if (Surface.IsReady || !ViewModel.SurfaceAvailable) return;
+        // Loaded fires again on a re-parent (tab torn off to another window); the document is already read, and the
+        // reader's place survives the move.
+        if (_loaded) return;
+        _loaded = true;
 
-        // Pre-flight: when the shell already knows the runtime is absent, show the fallback now rather than
-        // starting a browser that cannot start. Only a definite Missing counts — Unknown means the probe
-        // could not decide (or has not run yet), and the right response to that is still to try.
-        if (_shell.GetDependencyStatus(WebView2Dependency.DependencyId).State == ExternalDependencyState.Missing)
-        {
-            ShowRuntimeMissing();
-            _pendingPage = null;
-            await ViewModel.LoadAsync();
-            return;
-        }
-
-        if (await Surface.EnsureReadyAsync())
-            Surface.NavigateTo(InitialUrl(_pendingPage));
-
-        _pendingPage = null;
-
-        // The panel parse is independent of the renderer and must never gate it — start it after the
-        // navigation so the page appears while PdfPig is still working.
-        await ViewModel.LoadAsync();
+        var paper = TryFindResource("Pdf.Paper") as Brush ?? Brushes.White;
+        await ViewModel.LoadAsync(paper.IsFrozen ? paper : (Brush)paper.GetCurrentValueAsFrozen());
+        Pages.Focus();
     }
 
-    /// <summary>A page asked for before the surface was ready (an initial "page" param), applied on load.</summary>
+    /// <summary>A page asked for before the pages were ready (an initial "page" param), applied once they are.</summary>
     private int? _pendingPage;
+
+    private void OpenPending()
+    {
+        if (_pendingPage is int page && ViewModel.GoToPage(page)) _pendingPage = null;
+    }
 
     /// <summary>The panel width to restore: whatever the user last dragged the splitter to.</summary>
     private GridLength _panelWidth = new(300);
@@ -114,57 +114,11 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
     private const double PanelMinWidth = 220;
     private const double SplitterWidth = 4;
 
-    /// <summary>Sets the page the document should open at. Only meaningful before the first navigation.</summary>
-    public void OpenAtPage(int page) => _pendingPage = page > 0 ? page : null;
-    /// <summary>The URL the document is first loaded from, optionally opening at a page.</summary>
-    private string InitialUrl(int? page)
-        => page is int p && p > 0
-            ? ViewModel.FileUri.AbsoluteUri + PageFragment(p, null)
-            : ViewModel.FileUri.AbsoluteUri;
-
-
-    /// <summary>The fragment alone, without the document URL in front of it.</summary>
-    private static string PageFragment(int page, double? offsetFromTop)
+    /// <summary>Sets the page the document should open at, once its pages are read.</summary>
+    public void OpenAtPage(int page)
     {
-        var fragment = $"#page={page}";
-        if (offsetFromTop is double y)
-            fragment += $"&view=FitH,{y.ToString("0.##", CultureInfo.InvariantCulture)}";
-        return fragment;
-    }
-
-    /// <summary>
-    /// Moves the rendered view to a page, escalating only when it has to.
-    /// <para>
-    /// The document is almost always already loaded, so the first attempt changes only the fragment from
-    /// inside the page — a same-document navigation the renderer handles without re-fetching anything. Only
-    /// if the page won't take that do we fall back to a real navigation, which always lands but re-fetches
-    /// the document; on a large PDF that is a visible re-render.
-    /// </para>
-    /// <para>
-    /// Returning false — rather than assuming it worked — is what lets the caller degrade honestly when the
-    /// renderer ignores page fragments altogether.
-    /// </para>
-    /// </summary>
-    private async Task<bool> GoToPageAsync(int page, double? offsetFromTop, CancellationToken ct)
-    {
-        if (!Surface.IsReady) return false;
-
-        var fragment = PageFragment(page, offsetFromTop);
-
-        // Only meaningful while our document is the one loaded; otherwise there is nothing to move within.
-        if (Surface.CurrentUrl.StartsWith(ViewModel.FileUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase)
-            && await Surface.TrySetFragmentAsync(fragment, ct))
-            return true;
-
-        var url = ViewModel.FileUri.AbsoluteUri + fragment;
-        if (await Surface.NavigateAndWaitAsync(url, NavigationSettle, ct))
-            return true;
-
-        // Nothing settled: the renderer treated the fragment as a no-op even as a navigation.
-        if (!await Surface.NavigateAndWaitAsync("about:blank", NavigationSettle, ct))
-            return false;
-
-        return await Surface.NavigateAndWaitAsync(url, NavigationSettle, ct);
+        _pendingPage = page > 0 ? page : null;
+        OpenPending();
     }
 
     /// <summary>
@@ -175,17 +129,11 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
     /// button-up, and marking down handled would stop the list selecting the row at all.
     /// </para>
     /// <para>
-    /// Calls the view-model directly rather than through JumpToCommand. That command is an
-    /// <c>AsyncRelayCommand</c>, which refuses to start while a previous run is still going — and a jump runs
-    /// for as long as the renderer takes to settle, so a second click during that window was being dropped
-    /// rather than queued or superseded.
-    /// </para>
-    /// <para>
-    /// Not driven off selection changing either: the reader may scroll away and want to click the same row
-    /// again to come back, which a selection-driven jump would ignore.
+    /// Not driven off selection changing: the reader may scroll away and want to click the same row again to come
+    /// back, which a selection-driven jump would ignore.
     /// </para>
     /// </summary>
-    private async void OutlineRow_Click(object sender, MouseButtonEventArgs e)
+    private void OutlineRow_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: PdfOutlineItem item }) return;
 
@@ -193,31 +141,97 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         // to go.
         if (item.PageNumber is not int page || !item.CanJump) return;
 
-        await ViewModel.GoToPageAsync(page, CancellationToken.None, item.OffsetFromTop);
+        ViewModel.GoToPage(page, item.OffsetFromTop);
     }
 
-    // ── Browser-unavailable fallback ──────────────────────────────────────
+    // ── Toolbar ───────────────────────────────────────────────────────────
 
-    private void HandleSurfaceUnavailable(WebSurfaceUnavailableEventArgs e)
+    private void PreviousPage_Click(object sender, RoutedEventArgs e) => ViewModel.GoToPage(ViewModel.CurrentPage - 1);
+
+    private void NextPage_Click(object sender, RoutedEventArgs e) => ViewModel.GoToPage(ViewModel.CurrentPage + 1);
+
+    /// <summary>Enter goes to the page typed; anything not a page of the document puts the box back as it was.</summary>
+    private void PageBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.RuntimeMissing) { ShowRuntimeMissing(); return; }
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
 
-        ViewModel.SurfaceAvailable = false;
-        ViewModel.RuntimeMissing   = false;
-        ViewModel.FailureMessage   =
-            Str.Get("Pdf.Fallback.SurfaceFailed");
+        if (!int.TryParse(PageBox.Text.Trim(), out var page) || !ViewModel.GoToPage(page))
+            PageBox.Text = ViewModel.CurrentPage.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+        Pages.Focus();
     }
 
-    /// <summary>
-    /// The runtime-missing fallback. Reached two ways — the pre-flight check on load, and a failed browser
-    /// start — so the wording lives in one place and both routes offer the same install link.
-    /// </summary>
-    private void ShowRuntimeMissing()
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => Pages.Zoom /= ZoomStep;
+
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => Pages.Zoom *= ZoomStep;
+
+    private void FitWidth_Click(object sender, RoutedEventArgs e) => Pages.FitWidth();
+
+    private void FitPage_Click(object sender, RoutedEventArgs e) => Pages.FitPage();
+
+    /// <summary>Enter finds the next hit, Shift+Enter the previous; Escape clears the search and returns to the pages.</summary>
+    private void FindBox_KeyDown(object sender, KeyEventArgs e)
     {
-        ViewModel.SurfaceAvailable = false;
-        ViewModel.RuntimeMissing   = true;
-        ViewModel.FailureMessage   =
-            Str.Get("Pdf.Fallback.RuntimeMissing");
+        switch (e.Key)
+        {
+            case Key.Enter when Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
+                ViewModel.FindPreviousCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                ViewModel.FindNextCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                ViewModel.ClearFindCommand.Execute(null);
+                Pages.Focus();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>The search's hits washed over the pages; the one being looked at brought into view when it moved.</summary>
+    private void ShowFindHits(bool reveal)
+    {
+        var hits = ViewModel.FoundRanges;
+        var index = ViewModel.FindIndex;
+        Pages.ShowHighlights(hits, index);
+        if (reveal && index >= 0 && index < hits.Count) _ = Pages.RevealAsync(hits[index]);
+    }
+
+    private void Print_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new PrintDialog { UserPageRangeEnabled = false };
+        if (dialog.ShowDialog() != true) return;
+
+        var sheet = new Size(dialog.PrintableAreaWidth, dialog.PrintableAreaHeight);
+        if (ViewModel.Paginator(sheet) is not { } paginator) return;
+
+        try
+        {
+            dialog.PrintDocument(paginator, ViewModel.FileName);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _shell.ShowError(Str.Format("Pdf.Error.PrintFormat", ex.Message));
+        }
+    }
+
+    /// <summary>A link on a page: a place in this document is scrolled to, anything else opened as an address.</summary>
+    private void FollowLink(string href)
+    {
+        if (PdfLinks.TryRead(href, out var target))
+        {
+            ViewModel.GoToTarget(target);
+            return;
+        }
+
+        if (!Uri.TryCreate(href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
+            return;
+
+        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenLinkFormat", ex.Message)); }
     }
 
     private void OpenExternal_Click(object sender, RoutedEventArgs e)
@@ -232,21 +246,6 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         }
     }
 
-    private void InstallRuntime_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
-    {
-        e.Handled = true;
-        try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenDownloadPageFormat", ex.Message)); }
-    }
-
-    // ── IAirspaceContent ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// Collapses the renderer while a shell overlay covers the page — its native HWND draws above all WPF
-    /// content, so without this the overlay would be hidden behind the document.
-    /// </summary>
-    void IAirspaceContent.SetCoveredByOverlay(bool covered) => ViewModel.IsCovered = covered;
-
     // ── IPageView ─────────────────────────────────────────────────────────
 
     IPageViewModel? IPageView.ViewModel => ViewModel;
@@ -257,13 +256,8 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         if (!pageParams.TryGetValue("page", out var raw) || !int.TryParse(raw, out var page) || page < 1)
             return;
 
-        if (Surface.IsReady) _ = ViewModel.GoToPageAsync(page, CancellationToken.None);
-        else                 OpenAtPage(page);
+        OpenAtPage(page);
     }
 
-    public void Dispose()
-    {
-        Surface.Dispose();
-        ViewModel.Dispose();
-    }
+    public void Dispose() => ViewModel.Dispose();
 }

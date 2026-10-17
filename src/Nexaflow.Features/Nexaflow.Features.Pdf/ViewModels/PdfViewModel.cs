@@ -2,11 +2,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Editing.Paged;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -21,17 +24,16 @@ using UglyToad.PdfPig;
 namespace Nexaflow.Features.Pdf.ViewModels;
 
 /// <summary>
-/// Drives the PDF reader tab. The page itself is rendered by the shared browser surface (Edge renders PDFs
-/// natively, toolbar and all); everything this view-model adds is what the renderer can't tell anyone —
-/// the document's properties and table of contents in the side panel, and a tool surface that lets the AI
-/// actually read the text, look at a page, and pull out a figure.
+/// Drives the PDF reader tab: the document's pages, read as objects and laid on the shared layout tree for the paged
+/// host to show; the document's properties and table of contents in the side panel; finding text; and a tool surface
+/// that lets the AI read the text, look at a page, and pull out a figure.
 /// <para>
 /// The document is opened once for the tab's lifetime and every reader serialised behind one lock: PdfPig's
 /// <see cref="PdfDocument"/> is not thread-safe, and re-parsing the cross-reference table per question is
 /// the difference between a fast answer and a slow one on a large report.
 /// </para>
 /// </summary>
-public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDisposable, IPdfDocumentAccess
 {
     /// <summary>Characters of page text a single read returns unless the caller asks for fewer.</summary>
     private const int DefaultReadChars = 40_000;
@@ -44,6 +46,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// signature of a scan. Below it, an embedded image is an illustration on a page that also has text.
     /// </summary>
     private const double ScannedPageCoverage = 0.90;
+
+    /// <summary>How wide, in pixels, a page is drawn when the AI asks to look at it.</summary>
+    private const int PagePictureWidth = 1600;
 
     private readonly IShellServices _shell;
     private readonly PdfConfig _config;
@@ -59,7 +64,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private DateTime _lastUsedUtc = DateTime.UtcNow;
     private bool _disposed;
 
-    /// <summary>The file:// URI the renderer navigates to.</summary>
+    /// <summary>The document as a real file — what the default PDF application is handed.</summary>
     public Uri FileUri { get; }
 
     public string FileName { get; }
@@ -93,37 +98,53 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         ? Str.Get("Pdf.Panel.Reading")
         : Str.Get("Pdf.Panel.NoContents");
 
-    /// <summary>
-    /// Whether the renderer honours "go to page N". Probed on the first jump: some builds of the embedded
-    /// PDF viewer ignore a page fragment entirely, and a table of contents whose rows do nothing when
-    /// clicked is worse than one that plainly isn't clickable.
-    /// </summary>
-    [ObservableProperty] private bool _canNavigateToPage = true;
+    // ── Pages ─────────────────────────────────────────────────────────────
 
-    /// <summary>True while a shell overlay covers the page; the native browser HWND has to hide for it.</summary>
+    /// <summary>The document's pages, once its page slots are read; what the paged host shows.</summary>
+    [ObservableProperty] private IPagedLayoutSource? _pages;
+
+    /// <summary>How many pages the document has; zero until it is read.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SurfaceVisible))]
-    private bool _isCovered;
+    [NotifyPropertyChangedFor(nameof(PageCountText))]
+    private int _pageCount;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SurfaceVisible))]
-    private bool _surfaceAvailable = true;
+    /// <summary>"of N", beside the page being read.</summary>
+    public string PageCountText => Str.Format("Pdf.Toolbar.PageCountFormat", PageCount);
 
-    public bool SurfaceVisible => SurfaceAvailable && !IsCovered;
+    /// <summary>The page being read, 1-based, as the paged host reports it.</summary>
+    [ObservableProperty] private int _currentPage = 1;
+
+    /// <summary>True when the document could not be read at all — damaged past recovery, or locked with a password.</summary>
+    [ObservableProperty] private bool _isUnreadable;
 
     [ObservableProperty] private string _failureMessage = string.Empty;
-    [ObservableProperty] private bool   _runtimeMissing;
+
+    private PdfPageSource? _source;
+
+    // ── Finding text ──────────────────────────────────────────────────────
+
+    /// <summary>What the reader is looking for.</summary>
+    [ObservableProperty] private string _findText = string.Empty;
+
+    /// <summary>Where a search stands: searching, how many hits, or none.</summary>
+    [ObservableProperty] private string _findStatus = string.Empty;
+
+    /// <summary>Every hit of the last search, page by page in reading order.</summary>
+    public IReadOnlyList<PageRange> FoundRanges { get; private set; } = [];
+
+    /// <summary>The hit being looked at, or -1.</summary>
+    [ObservableProperty] private int _findIndex = -1;
+
+    private string _foundFor = string.Empty;
+    private CancellationTokenSource? _finding;
 
     // ── View-supplied hooks ───────────────────────────────────────────────
 
     /// <summary>
-    /// Set by the view: moves the rendered view to a 1-based page, optionally to a position measured down
-    /// from the top of it. False = the renderer wouldn't move.
+    /// Set by the view: scrolls the paged host to a 1-based page, optionally to a position measured down from the top
+    /// of it in points.
     /// </summary>
-    public Func<int, double?, CancellationToken, Task<bool>>? NavigateToPageAsync { get; set; }
-
-    /// <summary>Set by the view: captures what the renderer is currently showing, as a PNG.</summary>
-    public Func<CancellationToken, Task<byte[]?>>? CapturePageAsync { get; set; }
+    public Action<int, double?>? NavigateToPage { get; set; }
 
     public PdfViewModel(string path, IShellServices shell, PdfConfig config)
     {
@@ -132,8 +153,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _config  = config;
         FileName = Path.GetFileName(path);
 
-        // A PDF inside an archive is virtual and the renderer can't load it; materialise a real copy and
-        // remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
+        // A PDF inside an archive is virtual and the default PDF application can't open it; materialise a real copy
+        // and remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
         var real = RealizeLocalFile(path);
         _tempCopy = string.Equals(real, path, StringComparison.OrdinalIgnoreCase) ? null : real;
         FileUri   = new Uri(real);
@@ -156,11 +177,34 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private PdfDocumentInfo? _info;
 
     /// <summary>
-    /// Reads everything cheap about the document and fills the panel. Runs entirely off the UI thread; the
-    /// renderer paints in parallel and never waits for this.
+    /// Reads the document's page slots, for the pages to be shown, and everything cheap about it for the panel. Runs
+    /// entirely off the UI thread; the pages appear as soon as their slots are read, before the panel is filled.
     /// </summary>
-    public async Task LoadAsync()
+    /// <param name="paper">What pages are laid on, from the theme.</param>
+    public async Task LoadAsync(System.Windows.Media.Brush paper)
     {
+        PdfDocumentNode? document = null;
+        try
+        {
+            document = await ReadScopeAsync(scope => scope.Pages.ReadDocument(_cts.Token), _cts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { /* falls through to the unreadable state */ }
+
+        if (_disposed) return;
+
+        if (document is null)
+        {
+            IsUnreadable   = true;
+            FailureMessage = Str.Get("Pdf.Fallback.Unreadable");
+        }
+        else
+        {
+            _source   = new PdfPageSource(this, document, paper);
+            PageCount = document.Pages.Count;
+            Pages     = _source;
+        }
+
         var oversize = OversizeMessage();
         if (oversize is not null)
         {
@@ -193,7 +237,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         foreach (var entry in info.Outline)
             Contents.Add(new PdfOutlineItem(entry.Title, entry.Level, entry.PageNumber, entry.OffsetFromTop)
             {
-                CanJump = entry.PageNumber is not null && CanNavigateToPage,
+                CanJump = entry.PageNumber is not null && _source is not null,
             });
 
         HasProperties     = Properties.Count > 0;
@@ -269,12 +313,22 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// needed. Returns default when the document can't be opened at all — every caller has to be able to
     /// say so honestly rather than reporting an empty document.
     /// </summary>
-    private async Task<T?> WithDocumentAsync<T>(Func<PdfDocument, T> read, CancellationToken ct)
+    private Task<T?> WithDocumentAsync<T>(Func<PdfDocument, T> read, CancellationToken ct) =>
+        ReadScopeAsync(scope => read(scope.Document), ct);
+
+    Task<T?> IPdfDocumentAccess.ReadAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct) where T : default =>
+        ReadScopeAsync(read, ct);
+
+    /// <summary>
+    /// Runs <paramref name="read"/> against the open document, opening it first when it is not, off the UI thread and
+    /// under the lock every reader of it shares: PdfPig's document is not thread-safe.
+    /// </summary>
+    private async Task<T?> ReadScopeAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         var token = linked.Token;
 
-        await _docLock.WaitAsync(token);
+        await _docLock.WaitAsync(token).ConfigureAwait(false);
         try
         {
             return await Task.Run(() =>
@@ -286,8 +340,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 }
 
                 _lastUsedUtc = DateTime.UtcNow;
-                return _scope is null ? default : read(_scope.Document);
-            }, token);
+                return _scope is null ? default : read(_scope);
+            }, token).ConfigureAwait(false);
         }
         finally
         {
@@ -320,26 +374,18 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     // ── Page navigation ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// Moves the rendered view to <paramref name="page"/>. False means it wouldn't move — the caller must
-    /// say so rather than pretend. The first failure latches <see cref="CanNavigateToPage"/> off, which
-    /// turns the Contents rows into plain labels instead of links that do nothing.
-    /// </summary>
-    public async Task<bool> GoToPageAsync(int page, CancellationToken ct, double? offsetFromTop = null)
+    /// <summary>Scrolls the reader to a 1-based page, optionally to a position that many points down it.</summary>
+    /// <returns>False when the page is not one of the document's, or nothing is showing it.</returns>
+    public bool GoToPage(int page, double? offsetFromTop = null)
     {
-        if (NavigateToPageAsync is null || !CanNavigateToPage) return false;
-        if (page < 1) return false;
-
-        var moved = await NavigateToPageAsync(page, offsetFromTop, ct);
-        if (!moved) DisablePageNavigation();
-        return moved;
+        if (NavigateToPage is null || page < 1 || page > PageCount) return false;
+        NavigateToPage(page, offsetFromTop);
+        return true;
     }
 
-    private void DisablePageNavigation()
-    {
-        CanNavigateToPage = false;
-        foreach (var item in Contents) item.CanJump = false;
-    }
+    /// <summary>Follows a link to a place in this document: its page, at the height it names when that page has been read.</summary>
+    internal bool GoToTarget(PdfPageTarget target) =>
+        GoToPage(target.PageNumber, _source?.OffsetFromTop(target));
 
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;
@@ -391,6 +437,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         }
 
         sb.Append('.');
+
+        if (PageCount > 0) sb.Append($" The reader is showing page {CurrentPage} of {PageCount}.");
 
         sb.Append(Contents.Count > 0
             ? $" It has a table of contents with {Contents.Count} entries."
@@ -744,18 +792,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                                                   $"{FileName} page {page}")] };
         }
 
-        if (CanNavigateToPage && CapturePageAsync is not null)
+        if (_source is not null && page >= 1 && page <= PageCount)
         {
-            var moved = await GoToPageAsync(page, ct);
-            if (moved)
-            {
-                var png = await CapturePageAsync(ct);
-                if (png is { Length: > 0 })
-                    return ToolResult.Ok(
-                        $"Captured page {page} as rendered.",
-                        $"A picture of page {page} of {FileName} as it is rendered on screen is attached.")
-                        with { Images = [new ContextImage(png, "image/png", $"{FileName} page {page}")] };
-            }
+            var png = await _source.PictureAsync(page - 1, PagePictureWidth, ct);
+            if (png is { Length: > 0 })
+                return ToolResult.Ok(
+                    $"Drew page {page} as the reader shows it.",
+                    $"A picture of page {page} of {FileName}, drawn as the reader shows it, is attached.")
+                    with { Images = [new ContextImage(png, "image/png", $"{FileName} page {page}")] };
         }
 
         if (embedded is { Count: > 0 })
@@ -763,7 +807,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             var take = embedded.Take(3).ToList();
             return ToolResult.Ok(
                 $"Returned {take.Count} image(s) embedded on page {page}.",
-                $"The renderer couldn't be photographed, so here is what page {page} of {FileName} embeds "
+                $"The page couldn't be drawn, so here is what page {page} of {FileName} embeds "
                 + $"({take.Count} of {embedded.Count} image(s)) — this is what the page contains, not how it looks.")
                 with
             {
@@ -773,7 +817,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         }
 
         return ToolResult.Error(
-            $"Page {page} has no embedded image and the on-screen renderer isn't available to photograph. "
+            $"Page {page} has no embedded image and couldn't be drawn. "
             + "Try pdf_read_text for this page instead.");
     }
 
@@ -827,21 +871,17 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         catch { return false; }
     }
 
-    private async Task<ToolResult> ViewPageToolAsync(JsonObject args, CancellationToken ct)
+    private Task<ToolResult> ViewPageToolAsync(JsonObject args, CancellationToken ct)
     {
         if (ReadInt(args, "page") is not int page)
-            return ToolResult.Error("No page number was given.");
+            return Task.FromResult(ToolResult.Error("No page number was given."));
 
-        if (NavigateToPageAsync is null)
-            return ToolResult.Error("The on-screen reader isn't available, so it can't be moved.");
-        if (!CanNavigateToPage)
-            return ToolResult.Error("This document's renderer doesn't support jumping to a page, so the view "
-                                  + "can't be moved. You can still read any page with pdf_read_text.");
+        if (NavigateToPage is null)
+            return Task.FromResult(ToolResult.Error("The on-screen reader isn't showing the document, so it can't be moved."));
 
-        var moved = await GoToPageAsync(page, ct);
-        return moved
+        return Task.FromResult(GoToPage(page)
             ? ToolResult.Ok($"Showed page {page}.", $"The reader is now showing page {page} of {FileName}.")
-            : ToolResult.Error($"The reader wouldn't move to page {page}.");
+            : ToolResult.Error($"{FileName} has no page {page}; it has {PageCount}."));
     }
 
     private ToolResult Unreadable()
@@ -899,4 +939,118 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (_tempCopy is not null)
             try { File.Delete(_tempCopy); } catch { }
     }
+
+    // ── Finding text ──────────────────────────────────────────────────────
+
+    /// <summary>The next hit of <see cref="FindText"/>, searching the document first when the text changed.</summary>
+    [RelayCommand]
+    private Task FindNextAsync() => FindStepAsync(forward: true);
+
+    /// <summary>The previous hit of <see cref="FindText"/>, searching the document first when the text changed.</summary>
+    [RelayCommand]
+    private Task FindPreviousAsync() => FindStepAsync(forward: false);
+
+    private async Task FindStepAsync(bool forward)
+    {
+        var query = FindText.Trim();
+        if (query.Length == 0 || _source is null)
+        {
+            ClearFind();
+            return;
+        }
+
+        if (!string.Equals(query, _foundFor, StringComparison.Ordinal))
+        {
+            await FindAllAsync(query);
+            return;
+        }
+
+        if (FoundRanges.Count == 0) return;
+        FindIndex = (FindIndex + (forward ? 1 : -1) + FoundRanges.Count) % FoundRanges.Count;
+        FindStatus = Str.Format("Pdf.Find.ResultFormat", FindIndex + 1, FoundRanges.Count);
+    }
+
+    /// <summary>
+    /// Every hit of <paramref name="query"/>, page by page from the page being read round to the one before it, so the
+    /// first hit shown is the nearest ahead. A page's text is the text the reader selects, so a hit is a stretch of it the
+    /// reader can wash. Hits are shown as each page is searched; a new search abandons this one.
+    /// </summary>
+    private async Task FindAllAsync(string query)
+    {
+        _finding?.Cancel();
+        var finding = _finding = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _foundFor = query;
+        FoundRanges = [];
+        FindIndex = -1;
+        OnPropertyChanged(nameof(FoundRanges));
+        FindStatus = Str.Get("Pdf.Find.Searching");
+
+        var hits = new List<PageRange>();
+        var start = Math.Clamp(CurrentPage - 1, 0, Math.Max(0, PageCount - 1));
+        try
+        {
+            for (var step = 0; step < PageCount; step++)
+            {
+                var index = (start + step) % PageCount;
+                var text = await _source!.TextAsync(index, finding.Token);
+                for (var at = text.IndexOf(query, StringComparison.CurrentCultureIgnoreCase);
+                     at >= 0;
+                     at = text.IndexOf(query, at + query.Length, StringComparison.CurrentCultureIgnoreCase))
+                    hits.Add(new PageRange(index, at, query.Length));
+
+                if (hits.Count > 0 && FindIndex < 0)
+                {
+                    Publish(hits, 0);
+                    FindStatus = Str.Format("Pdf.Find.ResultFormat", 1, hits.Count);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (finding != _finding) return;
+        Publish(hits, hits.Count == 0 ? -1 : Math.Max(FindIndex, 0));
+        FindStatus = hits.Count == 0
+            ? Str.Get("Pdf.Find.None")
+            : Str.Format("Pdf.Find.ResultFormat", FindIndex + 1, hits.Count);
+    }
+
+    private void Publish(List<PageRange> hits, int index)
+    {
+        // Hits are kept in reading order, which is not the order they were found in when the search started part-way.
+        FoundRanges = [.. hits.OrderBy(static h => h.Page).ThenBy(static h => h.Start)];
+        OnPropertyChanged(nameof(FoundRanges));
+        FindIndex = index < 0 ? -1 : FirstFrom(CurrentPage - 1, index);
+    }
+
+    /// <summary>The hit to show first: the first on or after the page being read.</summary>
+    private int FirstFrom(int page, int fallback)
+    {
+        for (var i = 0; i < FoundRanges.Count; i++)
+            if (FoundRanges[i].Page >= page) return i;
+        return Math.Min(fallback, FoundRanges.Count - 1);
+    }
+
+    /// <summary>Drops the search and its hits.</summary>
+    [RelayCommand]
+    private void ClearFind()
+    {
+        _finding?.Cancel();
+        _foundFor = string.Empty;
+        FoundRanges = [];
+        OnPropertyChanged(nameof(FoundRanges));
+        FindIndex = -1;
+        FindStatus = string.Empty;
+    }
+
+    // ── Printing ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The document's pages for a printer whose sheets print <paramref name="sheet"/> (device-independent pixels); a print
+    /// still going when the tab closes is abandoned with it.
+    /// </summary>
+    internal System.Windows.Documents.DocumentPaginator? Paginator(System.Windows.Size sheet) =>
+        _source is null ? null : new PdfPaginator(_source, sheet, _cts.Token);
 }
