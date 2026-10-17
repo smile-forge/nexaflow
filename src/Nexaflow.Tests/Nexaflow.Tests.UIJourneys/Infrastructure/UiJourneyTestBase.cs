@@ -26,6 +26,34 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     private readonly List<string> _failures = [];
     private int _checks;
 
+    /// <summary>Each check as it ran: how long the journey spent before it (its own steps and sleeps) and in it.</summary>
+    private readonly List<(string Label, TimeSpan Before, TimeSpan Took)> _laps = [];
+    private Stopwatch? _sinceLastCheck;
+    private int _checkDepth;
+
+    /// <summary>How many of the slowest checks <see cref="AssertJourney"/> prints.</summary>
+    private const int SlowestShown = 12;
+
+    /// <summary>Runs a check and records its time. A check made inside another (Invoke checks presence first) is
+    /// part of the outer one's time, not a lap of its own.</summary>
+    private T Timed<T>(string label, Func<T> check)
+    {
+        if (_checkDepth++ > 0)
+        {
+            try { return check(); }
+            finally { _checkDepth--; }
+        }
+        var before = _sinceLastCheck?.Elapsed ?? TimeSpan.Zero;
+        var took = Stopwatch.StartNew();
+        try { return check(); }
+        finally
+        {
+            _checkDepth--;
+            _laps.Add((label, before, took.Elapsed));
+            _sinceLastCheck = Stopwatch.StartNew();
+        }
+    }
+
     /// <summary>
     /// Opens <paramref name="fileName"/> in a specific viewer by selecting it in the file browser and
     /// clicking its ActionStrip action (by <paramref name="actionDisplayName"/>) — deterministic, unlike a
@@ -93,13 +121,13 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     }
 
     /// <summary>Records whether a control with <paramref name="automationId"/> is present + on-screen.</summary>
-    protected AutomationElement? CheckPresent(string label, string automationId, int seconds = 5)
+    protected AutomationElement? CheckPresent(string label, string automationId, int seconds = 5) => Timed(label, () =>
     {
         _checks++;
         var el = WaitForId(automationId, Affordable(seconds));
         if (el is null) _failures.Add($"{label}: control '{automationId}' not found.");
         return el;
-    }
+    });
 
     /// <summary>
     /// Finds a control, invokes it, and requires it to have an observable <paramref name="effect"/> —
@@ -110,9 +138,9 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// re-rendered, the panel opened, the row disappeared) and let the journey fail when it doesn't.
     /// </para>
     /// </summary>
-    protected void CheckDoes(string label, string automationId, Func<bool> effect, int seconds = 5)
+    protected void CheckDoes(string label, string automationId, Func<bool> effect, int seconds = 5) => Timed(label, () =>
     {
-        if (CheckInvoke(label, automationId, seconds) is null) return;   // absence already recorded
+        if (CheckInvoke(label, automationId, seconds) is null) return false;   // absence already recorded
         _checks++;
         try
         {
@@ -122,7 +150,8 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         {
             _failures.Add($"{label}: checking the effect of '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
         }
-    }
+        return true;
+    });
 
     /// <summary>
     /// Finds a control and invokes (or clicks) it, recording any failure. Returns the element if found.
@@ -133,7 +162,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// </para>
     /// Prefer <see cref="CheckDoes"/> — this on its own does not assert the click achieved anything.
     /// </summary>
-    protected AutomationElement? CheckInvoke(string label, string automationId, int seconds = 5)
+    protected AutomationElement? CheckInvoke(string label, string automationId, int seconds = 5) => Timed(label, () =>
     {
         var el = CheckPresent(label, automationId, seconds);
         if (el is null) return null;
@@ -156,22 +185,36 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         }
         if (App.HasExited) _failures.Add($"{label}: app exited after invoking '{automationId}'.");
         return el;
-    }
+    });
 
     /// <summary>Runs an arbitrary check, recording a failure if it throws or returns false.</summary>
-    protected void Check(string label, Func<bool> assertion)
+    protected void Check(string label, Func<bool> assertion) => Timed(label, () =>
     {
         _checks++;
         try { if (!assertion()) _failures.Add($"{label}: assertion returned false."); }
         catch (Exception ex) { _failures.Add($"{label}: threw {ex.GetType().Name}: {ex.Message}"); }
-    }
+        return true;
+    });
 
-    /// <summary>Asserts the whole journey passed — call once at the end of each journey test method.</summary>
-    protected void AssertJourney()
+    /// <summary>Ends the journey: says where its time went, then fails once listing every check that missed.</summary>
+    protected void AssertJourney([System.Runtime.CompilerServices.CallerMemberName] string journey = "")
     {
+        ReportTimings(journey);
         Assert.IsFalse(App.HasExited, "App exited during the journey.");
         if (_failures.Count > 0)
             Assert.Fail($"{_failures.Count}/{_checks} control checks failed:\n  - " + string.Join("\n  - ", _failures));
+    }
+
+    /// <summary>The journey's time from its first check to its last, and the checks it went on — each with the steps
+    /// before it, where fixed sleeps and navigation show — to the output, and every check to <see cref="JourneyTimings"/>.</summary>
+    private void ReportTimings(string journey)
+    {
+        var total = _laps.Aggregate(TimeSpan.Zero, (sum, lap) => sum + lap.Before + lap.Took);
+        Console.WriteLine($"[timing] {journey}: {_laps.Count} checks in {total.TotalSeconds:F1} s; the slowest:");
+        foreach (var (label, before, took) in _laps.OrderByDescending(l => l.Before + l.Took).Take(SlowestShown))
+            Console.WriteLine($"[timing]   {took.TotalSeconds,5:F1} s in it, {before.TotalSeconds,5:F1} s before it — {label}");
+        JourneyTimings.Record(GetType().Name, journey, _laps.Count, total, _failures.Count);
+        JourneyTimings.RecordLaps(GetType().Name, journey, _laps);
     }
 
     /// <summary>
@@ -368,27 +411,39 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         return new System.Drawing.Point(r.X + r.Width / 2, r.Y + r.Height / 2);
     }
 
-    /// <summary>Right-clicks at a point and waits for the menu it opens to settle.</summary>
+    /// <summary>Right-clicks at a point. What it opens is waited for by whatever looks for it (<see cref="MenuItemNamed"/>).</summary>
     protected static void RightClickAt(System.Drawing.Point at)
     {
         Mouse.MoveTo(at);
         Mouse.Click(MouseButton.Right);
         Wait.UntilInputIsProcessed();
-        Thread.Sleep(400);
     }
 
-    /// <summary>An open menu's item by its text, anywhere on the desktop — a context menu is a window of its own.</summary>
+    /// <summary>A menu item by its text in a menu the app has open, waited for up to three seconds. A WPF menu opens in a
+    /// popup that UI Automation lists as a child of the window owning it, so only those popups are searched — never the
+    /// desktop, nor a window's whole page.</summary>
     protected AutomationElement? MenuItemNamed(string name)
     {
         for (int i = 0; i < 30; i++)
         {
-            var hit = Automation.GetDesktop()
-                .FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.MenuItem))
+            var hit = OpenPopups()
+                .SelectMany(p => p.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.MenuItem)))
                 .FirstOrDefault(e => e.Name == name);
             if (hit is not null) return hit;
             Thread.Sleep(100);
         }
         return null;
+    }
+
+    /// <summary>The popups the app has open: a popup window of its own, or one owned by one of its windows.</summary>
+    private IEnumerable<AutomationElement> OpenPopups()
+    {
+        Window[] windows;
+        try { windows = App.GetAllTopLevelWindows(Automation); }
+        catch (System.Runtime.InteropServices.COMException) { return []; }
+        return windows.SelectMany(w => w.ClassName == "Popup"
+            ? [w]
+            : w.FindAllChildren(cf => cf.ByClassName("Popup")));
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
@@ -52,6 +53,13 @@ public abstract class UITestBase
     /// what this suite did before, a deadlock is not.</summary>
     private static readonly TimeSpan GateTimeout = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// How fast the pointer travels. FlaUI glides it at half a pixel a millisecond, so every click across a 1000-pixel
+    /// window first spends two seconds getting there. It still moves in steps, so hover and drag see it pass; it only
+    /// stops taking its time.
+    /// </summary>
+    private const double PointerPixelsPerMillisecond = 20;
+
     private IDisposable? _gate;
 
     /// <summary>
@@ -89,12 +97,20 @@ public abstract class UITestBase
         return UiTestGate.Acquire(GateTimeout);
     }
 
+    /// <summary>
+    /// Why this test cannot run on this machine — the hardware it drives is not plugged in — or null when it can. Asked
+    /// before the machine is taken or the app launched, so a test with nothing to drive costs nothing.
+    /// </summary>
+    protected virtual string? MissingPrerequisite() => null;
+
     [TestInitialize]
     public void UISetup()
     {
         // Before anything is launched or seeded: these drive the real mouse and keyboard, so ask once
         // whether the machine is free (a no-op on CI and after the first answer), then take it.
+        if (MissingPrerequisite() is { } missing) Assert.Inconclusive(missing);
         _gate = TakeMachine();
+        Mouse.MovePixelsPerMillisecond = PointerPixelsPerMillisecond;
 
         _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
@@ -214,13 +230,15 @@ public abstract class UITestBase
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed < Timeout)
         {
-            Window[] windows;
-            try { windows = App.GetAllTopLevelWindows(Automation); }
-            catch { windows = []; }
-
-            var shell = windows.FirstOrDefault(w =>
-                w.Properties.AutomationId.ValueOrDefault == "MainWindow");
-            if (shell is not null) return shell;
+            // A window still being made or already going answers its properties with a COM error: it is not the shell
+            // yet, so the next look decides.
+            try
+            {
+                var shell = App.GetAllTopLevelWindows(Automation)
+                    .FirstOrDefault(w => w.Properties.AutomationId.ValueOrDefault == "MainWindow");
+                if (shell is not null) return shell;
+            }
+            catch (COMException) { }
 
             System.Threading.Thread.Sleep(100);
         }
