@@ -921,13 +921,13 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
             "class": "ImageCutOutTests",
-            "method": "TheAssistant_CutsOutWhatItNames_IntoANewPictureBesideIt_OpenedInATabOfItsOwn"
+            "method": "TheAssistant_CutsOutWhatABoxHolds"
           },
           {
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
             "class": "ImageCutOutTests",
-            "method": "TheAssistant_CutsOutWhatABoxHolds"
+            "method": "TheAssistant_CutsOutWhatItNames_IntoADraftOpenedInATabOfItsOwn_WritingNothingBesideThePicture"
           }
         ]
       }
@@ -967,11 +967,138 @@
           }
         ]
       }
+    },
+    "ai-context-paths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/PathScope.cs",
+          "class": "PathScope"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ContextGrant.cs",
+          "class": "ContextGrant"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/IPageViewModel.cs",
+          "class": "IPageViewModel",
+          "method": "GetContextGrant"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/RunScope.cs",
+          "class": "RunScope"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellAi/OpenPageTool.cs",
+          "class": "OpenPageTool",
+          "method": "Refusal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/PageParameter.cs",
+          "class": "PageParameter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GeneratedFiles.cs",
+          "class": "GeneratedFiles",
+          "method": "Refusal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ClientTools/FsToolSupport.cs",
+          "class": "FsTool",
+          "method": "TryResolve"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/PathScopeTests.cs",
+            "class": "PathScopeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/OpenPageToolTests.cs",
+            "class": "OpenPageToolTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/AiSurfaceRulesTests.cs",
+            "class": "AiSurfaceRulesTests",
+            "method": "Pages_with_a_scope_say_what_of_the_disk_they_show"
+          }
+        ]
+      }
+    },
+    "made-file-drafts": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/DraftFile.cs",
+          "class": "DraftFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Drafts/DraftSaving.cs",
+          "class": "DraftSaving"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Drafts/DraftBanner.xaml.cs",
+          "class": "DraftBanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/DraftLocation.cs",
+          "class": "DraftLocation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ImageDraftHandler.cs",
+          "class": "ImageDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/AudioDraftHandler.cs",
+          "class": "AudioDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/VideoDraftHandler.cs",
+          "class": "VideoDraftHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/DraftSavingTests.cs",
+            "class": "DraftSavingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Drafts/DraftHandlerTests.cs",
+            "class": "DraftHandlerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesDraftJourneyTests.cs",
+            "class": "ImagesDraftJourneyTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 43,
+  "changed_sets": 47,
   "touched_nodes": [
+    "ai-context-paths",
     "ai-tools",
     "executable-dependency-viewport",
     "images-ai-act-cut-out",
@@ -986,6 +1113,7 @@
     "images-header",
     "images-read-page",
     "layout-frames",
+    "made-file-drafts",
     "markdown-package",
     "markdown-save-as",
     "mermaid-fit",

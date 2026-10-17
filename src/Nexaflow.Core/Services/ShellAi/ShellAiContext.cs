@@ -1,6 +1,7 @@
 using System.Text;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Core.Services.ShellAi;
 
@@ -40,7 +41,7 @@ public sealed class ShellAiContext(WorkspaceRuntime workspace)
     /// access to <see cref="WindowAccessOption.No"/>; on <see cref="WindowAccessOption.Prompt"/> the
     /// tool confirms with the user at invoke time.
     /// </summary>
-    public IReadOnlyList<IClientTool> BuildTools()
+    public IReadOnlyList<IClientTool> BuildTools(PathScope scope)
     {
         var shell = workspace.ShellServices;
         if (shell is null) return [];
@@ -48,7 +49,7 @@ public sealed class ShellAiContext(WorkspaceRuntime workspace)
         var tools = new List<IClientTool>
         {
             new GetRibbonButtonsTool(workspace),
-            new OpenPageTool(shell),
+            new OpenPageTool(shell, Parameters, scope),
             new GetOpenablePagesTool(workspace),
         };
 
@@ -59,4 +60,11 @@ public sealed class ShellAiContext(WorkspaceRuntime workspace)
 
         return tools;
     }
+
+    /// <summary>The parameters <paramref name="kind"/> declares, or null where the workspace has no such page.</summary>
+    private IReadOnlyList<PageParameter>? Parameters(string kind)
+        => FeatureManager.Instance.GetPageCatalog(workspace)
+                         .Where(c => string.Equals(c.PageKind, kind, StringComparison.OrdinalIgnoreCase))
+                         .Select(c => c.Parameters)
+                         .FirstOrDefault();
 }

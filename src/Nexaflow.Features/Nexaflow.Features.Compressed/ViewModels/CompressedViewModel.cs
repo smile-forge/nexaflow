@@ -484,6 +484,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     /// <summary>The archive file path — the scope this page's tools act within (aspect-4 disambiguation).</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(ArchivePath) ? null : ArchivePath;
 
+    /// <summary>The archive this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(ArchivePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // ── Read / explore (auto-run) — the manifest + entry content the model couldn't reach before ──

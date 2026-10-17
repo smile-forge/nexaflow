@@ -46,12 +46,13 @@ public partial class MainWindow : Window
             _shellServices.RegisterWindow(_vm);
             _shellServices.SetFocused(_vm);
 
-            // Ribbon-independent deep-link: --openTab <PageKind> launches straight into that page (used by
+            // Ribbon-independent deep-link: --openTab <PageKind>, with a --tabParam key=value for each of its page parameters,
+            // launches straight into that page (used by
             // UI tests to reach views off the default ribbon, and by jump-list / file-association launches).
             // When deep-linking we open ONLY that tab — the default tabs would otherwise open (deferred) on
             // top and bury it — otherwise open the workspace's saved default tabs.
             if (App.OpenTabKind is { Length: > 0 } openKind)
-                _shellServices.OpenTab(openKind, new());
+                _shellServices.OpenTab(openKind, new Dictionary<string, string>(App.OpenTabParams));
             else
                 _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
 

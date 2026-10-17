@@ -242,6 +242,9 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     /// <summary>The disk-image file path — the scope this page's tools act within (aspect-4 disambiguation).</summary>
     public string? GetSecurityContext() => string.IsNullOrEmpty(_diskPath) ? null : _diskPath;
 
+    /// <summary>The disk image this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(_diskPath);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // ── Read / explore (auto-run) — the disk's structure and file contents, without extracting ──

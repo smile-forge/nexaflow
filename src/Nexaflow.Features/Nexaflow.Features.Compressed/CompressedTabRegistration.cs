@@ -14,6 +14,11 @@ public sealed class CompressedTabRegistration(IShellServices shell) : IPageRegis
     public static string StaticPageKind => "Compressed";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the archive to open (.zip, .7z, .rar, .tar, …).", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;

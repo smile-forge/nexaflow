@@ -21,7 +21,7 @@ internal sealed class GenerateSpeechTool(ITextToSpeechProvider voice, GeneratedF
     [
         new("text", "What to read aloud, written out as it should be said."),
         new("language", "The text's language as an ISO 639-1 code (en, fr, de…), where it is not the app's own.", Required: false),
-        new("path", @"Where to save it: a folder, or a file path. Music\Nexaflow when not given.", Required: false),
+        new("path", GenerationTools.SavedWhere, Required: false),
     ];
 
     public ToolSafety Safety => ToolSafety.SafeOperation;
@@ -32,6 +32,8 @@ internal sealed class GenerateSpeechTool(ITextToSpeechProvider voice, GeneratedF
     {
         var text = ToolArgs.Str(arguments, "text");
         if (string.IsNullOrWhiteSpace(text)) return ToolResult.Error("no text", "Give the 'text' to read aloud.");
+
+        if (files.Refusal(ToolArgs.Str(arguments, "path")) is { } refused) return ToolResult.Error("not saved there", refused);
 
         var language = ToolArgs.Str(arguments, "language")?.Trim().ToLowerInvariant();
         if (language is { Length: > 0 } && !voice.Speaks(language))

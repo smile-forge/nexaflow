@@ -19,7 +19,7 @@ public sealed class Hdf5TabRegistration(IShellServices shell) : IPageRegistratio
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "The HDF5 file (.h5, .hdf5 or .he5): a full path on disk or inside an archive. A path that continues into the file, e.g. C:\\data\\run.h5\\measurements\\temperature, also selects that object."),
+        new("path", "The HDF5 file (.h5, .hdf5 or .he5): a full path on disk or inside an archive. A path that continues into the file, e.g. C:\\data\\run.h5\\measurements\\temperature, also selects that object.", OnDisk: true),
         new("node", "Absolute path of the object inside the file to select, e.g. /measurements/temperature.", Required: false, Identity: false),
     ];
 

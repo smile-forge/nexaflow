@@ -10,6 +10,11 @@ public sealed class LogTabRegistration(IShellServices shell) : IPageRegistration
     public static string StaticPageKind => "Logs";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the log file to open.", OnDisk: true),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;

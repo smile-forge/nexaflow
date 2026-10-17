@@ -6,6 +6,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
+             xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
@@ -461,6 +462,8 @@
 
         <!-- ══ Recipe notices ══ -->
         <StackPanel Grid.Row="1">
+            <!-- A picture made for the user and not saved yet: its Save as. -->
+            <drafts:DraftBanner DataContext="{Binding Draft}"/>
             <!-- The photo changed since its edits were made. -->
             <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                     Visibility="{Binding HasChangedSourceNotice, Converter={StaticResource BoolToVis}}">

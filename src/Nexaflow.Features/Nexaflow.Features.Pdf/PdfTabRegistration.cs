@@ -18,7 +18,7 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Full path to a .pdf file."),
+        new("path", "Full path to a .pdf file.", OnDisk: true),
         new("page", "1-based page to open at.", Required: false),
     ];
 

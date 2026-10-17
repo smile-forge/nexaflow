@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Images.Views;
+using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -12,7 +13,8 @@ namespace Nexaflow.Features.Images;
 /// <summary>
 /// Registers the image viewer page with <see cref="FeatureManager"/>.
 /// Accepts a "paths" page parameter containing pipe-separated image file paths, and an optional
-/// "view" param selecting the initial sub-view (carousel / album / explore / collage / edit).
+/// "view" param selecting the initial sub-view (carousel / album / explore / collage / edit). A "draft" param marks one
+/// picture made for the user and not saved yet, naming the folder its Save as starts in.
 /// </summary>
 public sealed class ImageTabRegistration : IPageRegistration
 {
@@ -45,6 +47,14 @@ public sealed class ImageTabRegistration : IPageRegistration
     public static string StaticPageKind => "Images";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("paths", "Pipe-separated full paths of the pictures to show.", OnDisk: true),
+        new("view", "How to show them: carousel (the default), album, explore, collage or edit.", Required: false),
+        new("scope", "\"folder\" when the pictures are a whole folder.", Required: false),
+        new("tool", "The image editor's tool to open on, such as \"cutout\", with view edit.", Required: false),
+    ];
+
     /// <summary>Maps a "view" page param to its sub-view (carousel is the default; "slideshow" is an alias).</summary>
     public static ImageViewMode ParseView(string? view) => view?.ToLowerInvariant() switch
     {
@@ -73,13 +83,14 @@ public sealed class ImageTabRegistration : IPageRegistration
             ? Path.GetFileName(paths[0])
             : Str.Format("Images.Page.TitleFormat", paths.Count);
 
+        var draft = Draft(pageParams, paths);
         var page = new Page
         {
             Title       = title,
             Icon        = "🖼",
             ContentFactory = () =>
             {
-                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing);
+                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing) { Draft = draft };
                 if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) viewer.Editor.Tool = tool;
                 return new ImageView(viewer);
             }
@@ -91,6 +102,23 @@ public sealed class ImageTabRegistration : IPageRegistration
         else
             page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? title : Str.Get("Images.Page.Fallback"));
 
+        // A draft kept somewhere is that file from then on: it opens there, and the draft's tab goes.
+        if (draft is not null)
+            draft.Kept += kept =>
+            {
+                _shell.OpenTab(StaticPageKind, new Dictionary<string, string> { ["paths"] = kept });
+                _shell.CloseTab(page);
+            };
+
         return page;
     }
+
+    /// <summary>The Save as of a draft — one picture made for the user in a temp folder, opened with a "draft" parameter
+    /// naming the folder its Save as starts in — or null for pictures opened where they live.</summary>
+    private DraftSaving? Draft(Dictionary<string, string>? pageParams, IReadOnlyList<string> paths)
+        => paths.Count == 1 && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
+            ? new DraftSaving(paths[0], offered is { Length: > 0 } ? offered : null,
+                              (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError,
+                              (from, to) => ImageDraftHandler.KeepAsync(_editing.Recipes, from, to))
+            : null;
 }

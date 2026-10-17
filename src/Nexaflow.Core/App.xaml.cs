@@ -90,6 +90,9 @@ public partial class App : Application
     /// </summary>
     public static string? OpenTabKind { get; private set; }
 
+    /// <summary>The page parameters the <see cref="OpenTabKind"/> page opens with: each <c>--tabParam key=value</c>.</summary>
+    public static IReadOnlyDictionary<string, string> OpenTabParams { get; private set; } = new Dictionary<string, string>();
+
     /// <summary>
     /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
     /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
@@ -118,6 +121,7 @@ public partial class App : Application
 
         var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
+        OpenTabParams = TabParams(e.Args);
 
         // Opt-in startup profiling (see StartupTimings). --timing bypasses the single-instance guard and the
         // setup wizard so a harness can cold-start repeatedly, but does NOT force the eager feature load the
@@ -193,6 +197,16 @@ public partial class App : Application
                 await Task.Delay(TimeSpan.FromSeconds(10));
                 await CheckForUpdates();
             });
+    }
+
+    /// <summary>Each <c>--tabParam key=value</c> in <paramref name="args"/>: the page parameters of the --openTab page.</summary>
+    internal static Dictionary<string, string> TabParams(IReadOnlyList<string> args)
+    {
+        var given = new Dictionary<string, string>();
+        for (var i = 0; i + 1 < args.Count; i++)
+            if (string.Equals(args[i], "--tabParam", StringComparison.OrdinalIgnoreCase) && args[i + 1].IndexOf('=') is > 0 and var equals)
+                given[args[i + 1][..equals]] = args[i + 1][(equals + 1)..];
+        return given;
     }
 
     /// <summary>

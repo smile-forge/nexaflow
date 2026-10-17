@@ -323,6 +323,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The document this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IReadOnlyList<IClientTool> GetClientTools() => MarkdownTools.For(this);
 
     public IContext? GetContextObject()

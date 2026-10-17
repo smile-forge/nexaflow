@@ -19,6 +19,12 @@ public sealed class MarkdownTabRegistration(IShellServices shell) : IPageRegistr
     public static string StaticPageKind => "Markdown";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Full path of the Markdown file or Markdown Package (.mdz) to open.", OnDisk: true),
+        new("heading", "Headings to scroll to, outermost first, joined by '>'.", Required: false),
+    ];
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";

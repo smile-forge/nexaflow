@@ -503,4 +503,21 @@ public class GraphToolTests
         Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "a file left holding only its namespace is removed");
         StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Parts", "Widget.cs")), "namespace Demo;");
     }
+
+    [TestMethod]
+    [CoversNode("ai-context-paths")]
+    public async Task Edit_NeverReachesOutsideTheProductFolder()
+    {
+        var outside = Path.Combine(Path.GetDirectoryName(_root)!, "Widget.cs");
+
+        var refused = await Run("graph_edit", new JsonObject
+        {
+            ["op"] = "move", ["node_id"] = "code:src/Widget.cs#T:Widget", ["to"] = "file:../Widget.cs",
+        });
+
+        Assert.IsTrue(refused.IsError, refused.ModelText);
+        StringAssert.Contains(refused.ModelText, "outside the product folder");
+        Assert.IsFalse(File.Exists(outside), "nothing is written above the folder the page shows");
+        Assert.IsTrue(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "nor is anything inside it changed");
+    }
 }

@@ -10,6 +10,8 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
+using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Pages;
@@ -800,6 +802,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     public string? GetSecurityContext() => CurrentPath;
 
+    /// <summary>The pictures this tab holds — never their folder.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFiles(_paths);
+
     public string? GetAiSystemPromptGuidance() =>
         "One or more images are open. To see the picture the user is looking at, call capture_image — it "
       + "returns the current image to you as a vision attachment, with any edits applied. Use next_image / "
@@ -866,8 +871,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         new DelegateClientTool(
             "cut_out",
-            "Cut something out of the picture on screen — everything 'what' names, or the thing inside 'box' — and save it as a new "
-          + "PNG beside the picture, transparent around it and cropped to it, opened for the user in a new tab; the picture "
+          "Cut something out of the picture on screen — everything 'what' names, or the thing inside 'box' — into a new PNG, "
+          + "transparent around it and cropped to it, opened for the user in a new tab to save where they choose; the picture "
           + "itself is untouched.",
             [
                 new ClientToolParameter("what", "What to cut out, in a few words: a noun phrase like \"dog\" or \"red car\". Not needed with 'box'.", Required: false),
@@ -1123,8 +1128,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     /// <summary>
     /// cut_out: what <paramref name="what"/> names, or what <paramref name="box"/> holds, picked as the editor's Cut out picks
-    /// it and saved as a PNG beside the picture on screen — transparent around it, cropped to it — then opened in a tab of its
-    /// own, as the user's Save cut-out and open would. The assistant is told only that the tab opened: the new picture is its
+    /// it and made a PNG — transparent around it, cropped to it — opened as a draft in a tab of its own, which the user saves
+    /// where they choose. The assistant is told only that the tab opened: the new picture is its
     /// to work on once the user gives it that tab.
     /// </summary>
     private async Task<ToolResult> CutOutToolAsync(string? what, string? box, CancellationToken ct)
@@ -1152,8 +1157,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (_shell is not null) await _shell.RunOnUiAsync(Start);
         else Start();
         if (photo is null) return ToolResult.Error("no picture", "No picture is open to cut out of.");
-        if (!ImageEditingServices.IsFileBacked(photo))
-            return ToolResult.Error("nowhere to save it", $"'{CurrentFileName}' is inside an archive, so there is no folder beside it to save the cut-out in; the user can save it from Cut out.");
 
         string said;
         if (finding is not null)
@@ -1181,14 +1184,17 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         }
         if (png is null) return ToolResult.Ok("found nothing to keep", "What was picked has no pixels in this picture; nothing was saved.");
 
-        var folder = Path.GetDirectoryName(photo)!;
-        var stem = Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix");
-        var saved = Path.Combine(folder, stem + ".png");
-        for (int n = 2; File.Exists(saved); n++) saved = Path.Combine(folder, $"{stem} {n}.png");
+        // A draft: the picture's tab gives the assistant the picture, never its folder, so nothing is written beside it. The user
+        // keeps the cut-out where they choose, Save as starting beside the picture.
+        var saved = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix") + ".png");
         await File.WriteAllBytesAsync(saved, png, ct);
-        _shell?.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = saved });
+        _shell?.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
+        {
+            ["paths"]                     = saved,
+            [DraftFile.PageParameterName] = ImageEditingServices.IsFileBacked(photo) ? Path.GetDirectoryName(photo) ?? "" : "",
+        });
         return ToolResult.Ok($"cut out of {CurrentFileName}",
-            $"Cut out {said} from '{CurrentFileName}' and opened it for the user in a new tab.");
+            $"Cut out {said} from '{CurrentFileName}' and opened it for the user in a new tab, not saved yet: they save it where they choose.");
     }
 
     /// <summary>Format + pixel size + byte size of the current image, best-effort (any part may be unknown).</summary>
@@ -1265,4 +1271,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }
+
+    /// <summary>The Save as of a picture made for the user and not saved yet — the tab's draft — or null for pictures opened where they live.</summary>
+    public DraftSaving? Draft { get; init; }
 }

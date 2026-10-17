@@ -23,6 +23,7 @@ using Nexaflow.Features.Video.Models;
 using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Drafts;
 
 namespace Nexaflow.Features.Video.ViewModels;
 
@@ -596,7 +597,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         Directory.CreateDirectory(FramesFolder);
         var path = Path.Combine(FramesFolder, $"{Path.GetFileNameWithoutExtension(_path)} {captured.TimeLabel.Replace(':', '.')}.png");
         await File.WriteAllBytesAsync(path, captured.Png);
-        await OnUi(() => _shell.OpenTab("Images", new Dictionary<string, string> { ["paths"] = path, ["view"] = "edit", ["tool"] = "cutout" }));
+        await OnUi(() => _shell.OpenTab("Images", new Dictionary<string, string> { ["paths"] = path, ["view"] = "edit", ["tool"] = "cutout", [DraftFile.PageParameterName] = Path.GetDirectoryName(_path) ?? "" }));
     }
 
     // ── AI: read the parsed media facts / steer the playhead ────────────────
@@ -658,6 +659,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     /// <summary>File-scoped boundary so two video tabs pinned into one conversation don't collapse
     /// first-wins in the hub's tool grouping (AI-readiness aspect 4).</summary>
     public string? GetSecurityContext() => _path;
+
+    /// <summary>The clip this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(_path);
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -820,4 +824,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             try { cts.Dispose(); }     catch { }
         });
     }
+
+    /// <summary>The Save as of a clip made for the user and not saved yet — the tab's draft — or null for a video opened where it lives.</summary>
+    public DraftSaving? Draft { get; init; }
 }

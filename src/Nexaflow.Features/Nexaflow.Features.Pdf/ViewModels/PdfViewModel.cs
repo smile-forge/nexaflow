@@ -484,6 +484,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     public string? GetSecurityContext() => $"pdf:{_path}";
 
+    /// <summary>The document this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(_path);
+
     /// <summary>A single local document the user opened themselves — tightly scoped by construction.</summary>
     public ContextSecurityRisk GetContextSecurityRisk() => ContextSecurityRisk.Low;
 

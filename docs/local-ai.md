@@ -647,11 +647,15 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 
 Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
 and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation and Video
-Generation (HQ) rows. It saves the
-result where the model asked — else under Pictures, Music or Videos, in a `Nexaflow` folder — never over a file already
-there, and opens it as a double-click would, in Nexaflow's own image, audio or video viewer. The model is told where it
-went, the conversation carries the file, and a picture made while the model waits goes back as a `ContextImage`, so the
-model sees what it drew; the existing loop, approvals and context handling apply unchanged.
+Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
+([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk)): pictures to work
+from, a mask and a first frame are files open in a tab or in a folder open in one, and `path` is a folder or file inside
+a folder open in a tab — anywhere else is refused before anything is made. Asked to save there, a tool writes the result
+never over a file already there and opens it as a double-click would; the model is told where it went and the
+conversation carries the file. Asked to save nowhere, the result is kept in a temp folder and opened as a draft
+(`DraftFile`) in Nexaflow's own image, audio or video viewer, whose Save as keeps it where the user chooses; the model is
+told only that it opened. A picture made while the model waits goes back as a `ContextImage` either way, so the model
+sees what it drew; the existing loop, approvals and context handling apply unchanged.
 
 - **Slow work runs on in the background.** A picture at high quality and a clip take minutes, so the call
   (`IClientTool.RunsInBackground`) is a job among the app's background tasks, named with its workspace, and the model is

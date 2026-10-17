@@ -102,9 +102,10 @@ decodes it beside the photo, and the render pipeline clears what it does not kee
 photo whose format holds no transparency is saved only as a copy.
 
 **For the assistant.** On an image tab, `select_in_picture` picks out everything a phrase names in the picture on screen
-and shows it in the editor's Cut out; `cut_out` picks it the same way, or what a box holds, saves it as a PNG beside the
-picture and opens that for the user in a new tab — the assistant is told only that the tab opened, and works on the new
-picture once the user gives it that tab.
+and shows it in the editor's Cut out; `cut_out` picks it the same way, or what a box holds, into a PNG opened for the
+user as a draft in a new tab, its Save as starting beside the picture — an image tab gives the assistant its pictures,
+never their folder, so nothing is written beside them. The assistant is told only that the tab opened, and works on the
+new picture once the user gives it that tab.
 
 ## Picture erasing
 

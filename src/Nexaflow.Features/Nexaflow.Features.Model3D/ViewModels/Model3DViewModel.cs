@@ -197,6 +197,9 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The model this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public string? GetAiSystemPromptGuidance() =>
         "This is a 3D model viewer. Use capture_viewport_image to see the model, orbit_model / roll_model / " +
         "zoom_model / pan_model / reset_view to change the camera, set_render_mode to toggle wireframe, and " +

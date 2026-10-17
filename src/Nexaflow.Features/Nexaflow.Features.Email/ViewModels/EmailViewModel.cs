@@ -211,6 +211,9 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     /// distinguishes two email tabs pinned together as AI context.</summary>
     public string? GetSecurityContext() => _path;
 
+    /// <summary>The message this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(_path);
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         // The Email viewer is deliberately read-only: no send / reply / forward. Every tool is a pure

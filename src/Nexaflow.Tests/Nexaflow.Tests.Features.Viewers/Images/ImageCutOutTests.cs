@@ -12,6 +12,7 @@ using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -231,26 +232,35 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public async Task TheAssistant_CutsOutWhatItNames_IntoANewPictureBesideIt_OpenedInATabOfItsOwn()
+    public async Task TheAssistant_CutsOutWhatItNames_IntoADraftOpenedInATabOfItsOwn_WritingNothingBesideThePicture()
     {
         var shell = Shell();
+        var opened = new List<Dictionary<string, string>>();
+        shell.When(s => s.OpenTab("Images", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
+             .Do(call => opened.Add(call.ArgAt<Dictionary<string, string>>(1)));
         var vm = Editing(new Patch(), shell);
         var args = new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" };
+        var suffix = Str.Get("Images.CutOut.FileSuffix");
 
         var result = await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
 
         Assert.IsFalse(result.IsError, result.ModelText);
-        var saved = Path.Combine(_dir, "mug" + Str.Get("Images.CutOut.FileSuffix") + ".png");
-        Assert.IsTrue(File.Exists(saved), "saved beside the picture");
+        var tab = opened.Single();
+        var saved = tab["paths"];
+        Assert.AreEqual("mug" + suffix + ".png", Path.GetFileName(saved), "named after the picture");
+        StringAssert.StartsWith(saved, DraftLocation.Root, "a draft, kept in a temp folder until the user saves it");
+        Assert.AreEqual(_dir, tab[DraftFile.PageParameterName], "its Save as starts beside the picture");
+        Assert.AreEqual(0, Directory.GetFiles(_dir, "*" + suffix + "*").Length, "nothing is written beside the picture: its folder was never given");
         StringAssert.Contains(result.ModelText, "opened it for the user in a new tab");
         Assert.IsFalse(result.ModelText.Contains(saved, StringComparison.OrdinalIgnoreCase), "the assistant is told the tab opened, not where the file is");
         Assert.AreEqual(0, result.Images?.Count ?? 0, "nor shown the new picture");
         using (var cut = SKBitmap.Decode(saved))
             Assert.AreEqual((Patch.Right - Patch.Left, Patch.Bottom - Patch.Top), (cut.Width, cut.Height), "cropped to what was picked");
-        shell.Received().OpenTab("Images", Arg.Is<Dictionary<string, string>>(p => p["paths"] == saved), Arg.Any<IPageView?>(), Arg.Any<bool>());
 
         await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
-        Assert.IsTrue(File.Exists(Path.Combine(_dir, Path.GetFileNameWithoutExtension(saved) + " 2.png")), "a second cut-out does not overwrite the first");
+        Assert.AreEqual(2, opened.Count);
+        Assert.IsTrue(File.Exists(opened[0]["paths"]) && File.Exists(opened[1]["paths"]) && opened[0]["paths"] != opened[1]["paths"],
+                      "a second cut-out does not overwrite the first");
     }
 
     [TestMethod]

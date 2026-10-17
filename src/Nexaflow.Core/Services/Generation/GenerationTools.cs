@@ -18,4 +18,8 @@ internal sealed class GenerationTools(IImageGenerationProvider? images, IImageGe
         .. voice  is null ? Array.Empty<IClientTool>() : [new GenerateSpeechTool(voice, files)],
         .. videos is null && highQualityVideos is null ? Array.Empty<IClientTool>() : [new GenerateVideoTool(videos, highQualityVideos, files)],
     ];
+
+    /// <summary>What each tool's 'path' says to the model: saved only into a folder open in a tab, else opened unsaved.</summary>
+    internal const string SavedWhere =
+        "Where to save it: a folder, or a file path, inside a folder open in a tab. Not given, it opens for the user unsaved, for them to save where they choose.";
 }

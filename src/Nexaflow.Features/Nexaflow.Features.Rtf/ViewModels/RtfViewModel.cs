@@ -199,6 +199,9 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
 
     public string? GetSecurityContext() => FilePath;
 
+    /// <summary>The document this tab shows.</summary>
+    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
+
     public IContext? GetContextObject()
     {
         if (BaseDirectory is not { } folder) return null;

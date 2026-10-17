@@ -20,7 +20,7 @@ public sealed class SvgTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Path to an SVG vector file (.svg or .svgz).", Required: true),
+        new("path", "Path to an SVG vector file (.svg or .svgz).", Required: true, OnDisk: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
