@@ -117,7 +117,7 @@ public class CodecConvertTests
 
     private static string NewDir()
     {
-        var d = Path.Combine(Path.GetTempPath(), "nexa-codec-" + Guid.NewGuid().ToString("N"));
+        var d = Path.Combine(TestTemp.Root, "nexa-codec-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }

@@ -195,7 +195,7 @@ public class WindowsAppsSurfaceTests
     [CoversNode("windowsapps-openlocation")]
     public void OpenLocation_OpensAFileExplorerTabThere_AndIgnoresAMissingFolder()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaapps_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaapps_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {
@@ -270,7 +270,7 @@ public class WindowsAppsSurfaceTests
         shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
              .Returns(Task.FromResult(false));
         // A healthy Win32 entry (has an uninstaller) is not a leftover — the action must refuse it.
-        var vm = BuildLoaded(shell, App("Healthy", location: Path.GetTempPath()));
+        var vm = BuildLoaded(shell, App("Healthy", location: TestTemp.Root));
         shell.ClearReceivedCalls();
 
         await vm.DeleteRecordCommand.ExecuteAsync(vm.Apps.Single());
@@ -323,7 +323,7 @@ public class WindowsAppsSurfaceTests
     [CoversNode("windowsapps-size-pass")]
     public void SizePass_MeasuresOnlyTheRowsWithAFolderAndNoReportedSize()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaapps_size_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaapps_size_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         File.WriteAllBytes(Path.Combine(dir, "payload.bin"), new byte[3000]);
         try

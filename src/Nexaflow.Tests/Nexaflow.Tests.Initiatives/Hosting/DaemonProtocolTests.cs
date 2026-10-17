@@ -191,7 +191,7 @@ public class DaemonProtocolTests
     [TestMethod]
     public void ThePipeName_IgnoresHowTheRootWasSpelled()
     {
-        var root = Path.GetTempPath();
+        var root = TestTemp.Root + Path.DirectorySeparatorChar;
         Assert.AreEqual(DaemonProtocol.PipeName(root.TrimEnd(Path.DirectorySeparatorChar), "s"),
                         DaemonProtocol.PipeName(root.ToUpperInvariant(), "s"));
     }

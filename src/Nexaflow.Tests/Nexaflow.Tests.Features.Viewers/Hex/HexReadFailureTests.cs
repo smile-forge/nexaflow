@@ -22,7 +22,7 @@ public sealed class HexReadFailureTests
 {
     private static readonly IShellServices _shell = Substitute.For<IShellServices>();
 
-    private static string TempPath() => Path.Combine(Path.GetTempPath(), $"hexfail_{Guid.NewGuid():N}.bin");
+    private static string TempPath() => Path.Combine(TestTemp.Root, $"hexfail_{Guid.NewGuid():N}.bin");
 
     [TestMethod, TestCategory("Unit")]
     public void No_file_is_not_a_failure()

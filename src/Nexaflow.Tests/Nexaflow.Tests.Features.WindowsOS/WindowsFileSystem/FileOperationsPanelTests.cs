@@ -32,7 +32,7 @@ public class FileOperationsPanelTests
     [TestInitialize]
     public void CreateScratch()
     {
-        _scratch = Path.Combine(Path.GetTempPath(), "nexa-panel-" + Guid.NewGuid().ToString("N"));
+        _scratch = Path.Combine(TestTemp.Root, "nexa-panel-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_scratch);
     }
 

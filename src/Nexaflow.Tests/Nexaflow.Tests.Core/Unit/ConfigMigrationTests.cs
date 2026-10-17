@@ -138,7 +138,7 @@ public class ConfigMigrationTests
 
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -60,7 +60,7 @@ public class SearchViewModelTests
         // A term no index will match, under a real folder. Whether the index answers "nothing" or isn't
         // running at all, the user must be offered the scan — an empty list on its own claims the file
         // isn't there, which an unindexed folder cannot support.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -91,7 +91,7 @@ public class SearchViewModelTests
     {
         // The offer is for an empty result. Showing it alongside hits would invite a slow walk over a
         // question that was already answered.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -134,7 +134,7 @@ public class SearchViewModelTests
     {
         // The index already had nothing to say about this location — that is why the scan ran. Sending the
         // narrower query back to it would answer a tighter question with an emptier list.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "needle and haystack");
@@ -169,7 +169,7 @@ public class SearchViewModelTests
         // Refining mid-scan is the case a user actually hits, and it was reported reaching the AI instead
         // of narrowing. This pins the behaviour that matters — the scan is superseded, the result narrows,
         // and neither the superseded scan's banner nor its busy flag overwrites the live one.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             // Enough files, and enough bytes each, that the walk is unambiguously still running when the
@@ -228,7 +228,7 @@ public class SearchViewModelTests
     {
         // Narrowing nothing yields nothing, so taking the query at face value answers with the same empty
         // list — which reads as having been ignored.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -247,7 +247,7 @@ public class SearchViewModelTests
     [TestMethod]
     public async Task DecliningTheNewSearch_LeavesTheResultsAlone()
     {
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -268,7 +268,7 @@ public class SearchViewModelTests
     {
         // Merging would carry forward a query that already found nothing, guaranteeing the new one finds
         // nothing too — the exact outcome the offer exists to avoid.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -288,7 +288,7 @@ public class SearchViewModelTests
     {
         // The header field is the only way to UNDO a refinement — everything else on this page narrows.
         // If an edit merged with what was already there, a term could be added but never removed.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
@@ -317,7 +317,7 @@ public class SearchViewModelTests
     public async Task EditingTheQueryDuringAScanSupersedesIt()
     {
         // Re-running from the header while a scan is walking must abandon that walk, not race it.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
@@ -347,7 +347,7 @@ public class SearchViewModelTests
     {
         // Reported: scan an unindexed folder, edit the query, and the page went back to the index — an
         // empty list and "this location is not indexed, scan?" put to someone who had already said yes.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
@@ -372,7 +372,7 @@ public class SearchViewModelTests
     [TestMethod]
     public async Task OnceScanned_RefiningDoesNotReopenTheIndexingQuestion()
     {
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle and haystack");
@@ -395,7 +395,7 @@ public class SearchViewModelTests
         // It used to be tied only to the search's token, which a NORMAL finish never cancels — so it still
         // fired three seconds later and wrote over whatever the page was showing by then, a running scan
         // included. That is the 1-in-3 "waiting for the index" on a folder nobody was asking the index about.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
@@ -482,7 +482,7 @@ public class SearchViewModelTests
     public async Task AQuickSearchNeverAnnouncesAWait()
     {
         // A banner that appears on every search is noise, and noise is what trains people to ignore it.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
@@ -500,7 +500,7 @@ public class SearchViewModelTests
     {
         // It is the one phase nothing else overwrites — every other exit writes its own banner — so a
         // search that ends while it is up must take it down, or the page claims to still be waiting.
-        var root = Directory.CreateTempSubdirectory().FullName;
+        var root = TestTemp.CreateSubdirectory().FullName;
         try
         {
             var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());

@@ -24,7 +24,7 @@ public class MarkdownPackageTests
         // The app's file system has its archive handlers from the Compressed feature; a test process registers the zip one.
         if (!VirtualFileSystem.Instance.CanCreate("a" + MarkdownPackage.Extension))
             VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
-        _dir = Directory.CreateTempSubdirectory("nexaflow-mdz-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-mdz-").FullName;
     }
 
     [TestCleanup]

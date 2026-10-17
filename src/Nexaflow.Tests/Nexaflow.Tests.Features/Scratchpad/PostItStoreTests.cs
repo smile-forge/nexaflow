@@ -15,7 +15,7 @@ public class PostItStoreTests
     [TestInitialize]
     public void Setup()
     {
-        _root  = Path.Combine(Path.GetTempPath(), $"scratchpad_{Guid.NewGuid():N}");
+        _root  = Path.Combine(TestTemp.Root, $"scratchpad_{Guid.NewGuid():N}");
         _store = new PostItStore(_root);
     }
 

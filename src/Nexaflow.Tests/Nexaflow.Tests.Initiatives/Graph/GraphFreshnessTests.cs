@@ -21,7 +21,7 @@ public class GraphFreshnessTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-freshness", Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-freshness", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "src", "Proj"));
         _graphFile = Path.Combine(_root, "graph.json");
     }

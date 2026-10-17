@@ -23,7 +23,7 @@ public class GraphRefreshTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-graph-refresh", Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-graph-refresh", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "src"));
     }
 

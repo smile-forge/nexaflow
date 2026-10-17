@@ -22,7 +22,7 @@ public class ExpandsInPlaceTests
     [ClassInitialize]
     public static void Init(TestContext _)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-expand-filemap-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-expand-filemap-" + Guid.NewGuid().ToString("N"));
         FileMapManager.Instance.Initialize(baseDir: dir);
     }
 

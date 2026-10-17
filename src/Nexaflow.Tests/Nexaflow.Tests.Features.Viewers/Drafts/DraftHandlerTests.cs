@@ -21,7 +21,7 @@ public class DraftHandlerTests
     private string _dir = "";
 
     [TestInitialize]
-    public void Setup() => _dir = Directory.CreateTempSubdirectory("nexaflow-drafts-").FullName;
+    public void Setup() => _dir = TestTemp.CreateSubdirectory("nexaflow-drafts-").FullName;
 
     [TestCleanup]
     public void Cleanup()

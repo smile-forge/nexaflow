@@ -175,7 +175,7 @@ public class LocalModelsTests
     [TestInitialize]
     public void Init()
     {
-        _root   = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        _root   = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         _server = new Server();
         _store  = new ModelAssetStore(_root, [], new HttpClient(_server));
     }

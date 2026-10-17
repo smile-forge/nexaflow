@@ -24,7 +24,7 @@ public class SuccessionTests
     private string _registry = "";
 
     [TestInitialize]
-    public void Setup() => _registry = Directory.CreateTempSubdirectory("nfi-residents-").FullName;
+    public void Setup() => _registry = TestTemp.CreateSubdirectory("nfi-residents-").FullName;
 
     [TestCleanup]
     public void Teardown() { try { Directory.Delete(_registry, recursive: true); } catch { } }

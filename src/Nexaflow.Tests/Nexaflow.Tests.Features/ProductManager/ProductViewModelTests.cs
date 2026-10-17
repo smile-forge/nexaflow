@@ -22,7 +22,7 @@ public class ProductViewModelTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"pmvm_{Guid.NewGuid():N}");
+        _root = Path.Combine(TestTemp.Root, $"pmvm_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         var store = new ProductStore(_root);
         store.Initialize("Demo");

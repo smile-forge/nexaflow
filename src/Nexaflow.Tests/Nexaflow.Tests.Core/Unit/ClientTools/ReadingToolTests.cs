@@ -56,11 +56,11 @@ public class ReadingToolTests
     /// <summary>The tool, with the temp folder the files are saved in open in a tab — or <paramref name="scope"/>.</summary>
     private static ReadingTool Tool(Reader reader, IFileTextExtractor? extractor = null, PathScope? scope = null)
         => new(reader, path => extractor is not null && extractor.CanExtract(path) ? extractor : null, _ => { },
-               scope ?? new PathScope([], [Path.GetTempPath()]));
+               scope ?? new PathScope([], [TestTemp.Root]));
 
     private static string Saved(string name, string text)
     {
-        var path = Path.Combine(Directory.CreateTempSubdirectory("nexaflow-reading-").FullName, name);
+        var path = Path.Combine(TestTemp.CreateSubdirectory("nexaflow-reading-").FullName, name);
         File.WriteAllText(path, text);
         return path;
     }
@@ -126,7 +126,7 @@ public class ReadingToolTests
     public async Task AFileThatIsNotText_IsSaidSo_AndTheRestAreRead()
     {
         var reader = new Reader(context: 8192);
-        var binary = Path.Combine(Directory.CreateTempSubdirectory("nexaflow-reading-").FullName, "image.bin");
+        var binary = Path.Combine(TestTemp.CreateSubdirectory("nexaflow-reading-").FullName, "image.bin");
         File.WriteAllBytes(binary, [0x89, 0x50, 0x00, 0x00, 0x01, 0x02]);
         var text   = Saved("notes.txt", "Kept.");
 

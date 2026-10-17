@@ -67,7 +67,7 @@ public class ConsoleEnvironmentPickerJourneyTests : UiJourneyTestBase
 
     private static string NewFolder() =>
         Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "nexaflow-envpicker-" + Guid.NewGuid().ToString("N"))).FullName;
+            Path.Combine(TestTemp.Root, "nexaflow-envpicker-" + Guid.NewGuid().ToString("N"))).FullName;
 
     /// <summary>Back to the file browser, into <paramref name="folder"/>, and its "Cmd Here" folder action.</summary>
     private bool CmdHere(string folder)

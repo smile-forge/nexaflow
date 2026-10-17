@@ -40,7 +40,7 @@ public class SetupWizardTests
         // its own, this ran straight through a declined prompt.
         _gate = UITestBase.TakeMachine();
 
-        _configDir  = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
+        _configDir  = Path.Combine(TestTemp.Root, "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
 
         _automation = new UIA3Automation();

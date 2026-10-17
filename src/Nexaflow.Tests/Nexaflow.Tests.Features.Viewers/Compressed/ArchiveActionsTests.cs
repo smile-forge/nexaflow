@@ -136,7 +136,7 @@ public class ArchiveActionsTests
 
     private sealed class Dir : IDisposable
     {
-        public string Root { get; } = Path.Combine(Path.GetTempPath(), "nexa-act-" + Guid.NewGuid().ToString("N"));
+        public string Root { get; } = Path.Combine(TestTemp.Root, "nexa-act-" + Guid.NewGuid().ToString("N"));
         public VirtualFileSystem Vfs { get; }
         public Dir()
         {

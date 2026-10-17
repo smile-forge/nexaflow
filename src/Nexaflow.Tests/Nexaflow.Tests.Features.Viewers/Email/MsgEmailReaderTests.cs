@@ -281,7 +281,7 @@ public class MsgEmailReaderTests
             .Attachment(new MsgBuilder().String(0x3707, "notes.txt").Binary(0x3701, Encoding.ASCII.GetBytes("revenue up 12%")))
             .Build();
 
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.msg");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.msg");
         File.WriteAllBytes(path, bytes);
 
         try

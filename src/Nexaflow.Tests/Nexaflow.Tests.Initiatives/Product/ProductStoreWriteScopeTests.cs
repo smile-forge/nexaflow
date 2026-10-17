@@ -36,7 +36,7 @@ public class ProductStoreWriteScopeTests
     [TestInitialize]
     public void CreateRoot()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-writescope-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-writescope-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
     }
 

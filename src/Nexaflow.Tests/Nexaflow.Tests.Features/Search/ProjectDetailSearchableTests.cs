@@ -39,7 +39,7 @@ public class ProjectDetailSearchableTests : SearchableContentConformanceTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexa-detailsearch-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexa-detailsearch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(ActiveDir);
         Directory.CreateDirectory(Path.Combine(ActiveDir, Folder));
 

@@ -22,7 +22,7 @@ public class PageConversionTests
     private string _dir = "";
 
     [TestInitialize]
-    public void Make() => _dir = Directory.CreateTempSubdirectory("nexaflow-conversion-").FullName;
+    public void Make() => _dir = TestTemp.CreateSubdirectory("nexaflow-conversion-").FullName;
 
     [TestCleanup]
     public void Clean()

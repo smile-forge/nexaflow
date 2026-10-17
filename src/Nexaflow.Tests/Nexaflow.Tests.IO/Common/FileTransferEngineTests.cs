@@ -25,7 +25,7 @@ public class FileTransferEngineTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nexaflow-transfer-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(TestTemp.Root, "nexaflow-transfer-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
     }
 

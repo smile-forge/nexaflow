@@ -25,7 +25,7 @@ public class NestedArchiveWriteBackTests
     {
         _vfs = new VirtualFileSystem();               // isolated — never the process-wide Instance
         _vfs.RegisterHandler(new ZipArchiveHandler());
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-nested-wb-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-nested-wb-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

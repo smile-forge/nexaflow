@@ -18,7 +18,7 @@ public class PdfImageExtractionTaskTests
     [TestInitialize]
     public void Setup()
     {
-        _target = Path.Combine(Path.GetTempPath(), "nexapdfimg_" + Guid.NewGuid().ToString("N"));
+        _target = Path.Combine(TestTemp.Root, "nexapdfimg_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_target);
     }
 

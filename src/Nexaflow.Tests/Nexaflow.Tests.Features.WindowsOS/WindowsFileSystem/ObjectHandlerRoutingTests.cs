@@ -25,7 +25,7 @@ public class ObjectHandlerRoutingTests
     [ClassInitialize]
     public static void Init(TestContext _)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-routing-filemap-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-routing-filemap-" + Guid.NewGuid().ToString("N"));
         FileMapManager.Instance.Initialize(baseDir: dir);
     }
 
@@ -60,7 +60,7 @@ public class ObjectHandlerRoutingTests
     [TestMethod]
     public void RealArchive_AndItsFolders_BrowseInPlace()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexa-routing-zip-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexa-routing-zip-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var zip = Path.Combine(dir, "bundle.zip");
         try

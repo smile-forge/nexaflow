@@ -23,7 +23,7 @@ public class ScratchpadViewModelTests
     [TestInitialize]
     public void Setup()
     {
-        _root   = Path.Combine(Path.GetTempPath(), $"scratchpadvm_{Guid.NewGuid():N}");
+        _root   = Path.Combine(TestTemp.Root, $"scratchpadvm_{Guid.NewGuid():N}");
         _store  = new PostItStore(_root);
         _config = new ScratchpadConfig();
     }

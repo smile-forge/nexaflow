@@ -63,7 +63,7 @@ public class ConsoleJourneyTests : UiJourneyTestBase
         // "Cmd Here" is a folder action (CmdHereAction); with no file row selected it applies to
         // the current folder and surfaces in the ActionStrip with AutomationId == its type name.
         var folder = Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "nexaflow-consolejourney-" + Guid.NewGuid().ToString("N"))).FullName;
+            Path.Combine(TestTemp.Root, "nexaflow-consolejourney-" + Guid.NewGuid().ToString("N"))).FullName;
 
         NavigateFileBrowserTo(folder);
 

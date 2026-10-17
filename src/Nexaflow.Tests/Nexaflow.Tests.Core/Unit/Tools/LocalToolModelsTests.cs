@@ -20,7 +20,7 @@ public class LocalToolModelsTests
     private string _root = "";
 
     [TestInitialize]
-    public void Setup() => _root = Directory.CreateTempSubdirectory("nexaflow-tool-models-").FullName;
+    public void Setup() => _root = TestTemp.CreateSubdirectory("nexaflow-tool-models-").FullName;
 
     [TestCleanup]
     public void Cleanup()

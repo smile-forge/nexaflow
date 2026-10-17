@@ -30,7 +30,7 @@ public class PdfWriterRoundTripTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "nexapdfrt_" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexapdfrt_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 

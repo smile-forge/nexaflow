@@ -37,7 +37,7 @@ public class RtfViewModelTests
 
     private string Written(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf");
         File.WriteAllText(path, content, Encoding.Latin1);
         _paths.Add(path);
         return path;
@@ -76,7 +76,7 @@ public class RtfViewModelTests
     {
         // A writer may leave a character of the document's code page unescaped. Read as Latin-1, the byte is kept for the
         // reader to decode in the code page the document names — here 1251, where 0xE4 is a Cyrillic de.
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf");
+        var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf");
         File.WriteAllBytes(path, [.. Encoding.ASCII.GetBytes(@"{\rtf1\ansi\ansicpg1251\pard "), 0xE4, .. Encoding.ASCII.GetBytes(@"\par}")]);
         _paths.Add(path);
 
@@ -137,7 +137,7 @@ public class RtfViewModelTests
     [CoversNode("rtf-viewer-error")]
     public async Task AFileThatCannotBeReadSaysWhy()
     {
-        using var vm = new RtfViewModel(Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.rtf"), Shell());
+        using var vm = new RtfViewModel(Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf"), Shell());
         await vm.LoadAsync();
 
         Assert.IsTrue(vm.HasError);

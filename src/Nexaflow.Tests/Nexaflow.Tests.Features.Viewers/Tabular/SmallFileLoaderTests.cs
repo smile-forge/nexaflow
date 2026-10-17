@@ -16,7 +16,7 @@ public class SmallFileLoaderTests
 {
     private static string WriteTemp(string contents)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"small-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(TestTemp.Root, $"small-{Guid.NewGuid():N}.csv");
         File.WriteAllText(path, contents, new UTF8Encoding(false));
         return path;
     }

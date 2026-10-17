@@ -34,7 +34,7 @@ public class TabularAiTests
 
     private static string WriteCsv(out string dir)
     {
-        dir = Path.Combine(Path.GetTempPath(), "nexatab_ai_" + Guid.NewGuid().ToString("N"));
+        dir = Path.Combine(TestTemp.Root, "nexatab_ai_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var csv = Path.Combine(dir, "people.csv");
         File.WriteAllText(csv, "name,age,city\nAlice,30,London\nBob,25,Paris\nCarol,41,Berlin\n");

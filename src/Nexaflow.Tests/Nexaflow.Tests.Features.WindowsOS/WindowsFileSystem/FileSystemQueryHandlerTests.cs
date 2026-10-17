@@ -31,7 +31,7 @@ public class FileSystemQueryHandlerTests
 
     private static string TempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexafsq_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexafsq_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -16,7 +16,7 @@ public class ModelPreparationTests
     private string _folder = null!;
 
     [TestInitialize]
-    public void Init() => _folder = Directory.CreateTempSubdirectory("nexaflow-model-").FullName;
+    public void Init() => _folder = TestTemp.CreateSubdirectory("nexaflow-model-").FullName;
 
     [TestCleanup]
     public void Done() => Directory.Delete(_folder, recursive: true);

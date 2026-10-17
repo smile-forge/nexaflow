@@ -41,7 +41,7 @@ public class Model3DTests
         // Round-trip the OBJ fixture through Assimp to each format, then load it back via the Assimp loader.
         foreach (var format in new[] { "fbx", "3mf" })
         {
-            var path = Path.Combine(Path.GetTempPath(), $"nexaflow_test_{System.Guid.NewGuid():N}.{format}");
+            var path = Path.Combine(TestTemp.Root, $"nexaflow_test_{System.Guid.NewGuid():N}.{format}");
             using (var context = new AssimpContext())
             {
                 var scene = context.ImportFile(Sample("tetra.obj"), PostProcessSteps.Triangulate);

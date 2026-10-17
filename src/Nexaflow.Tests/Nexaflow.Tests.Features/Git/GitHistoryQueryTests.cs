@@ -24,7 +24,7 @@ public class GitHistoryQueryTests
 
     private string InitRepo()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexagitq_" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "nexagitq_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         Repository.Init(dir);
         _temp.Add(dir);

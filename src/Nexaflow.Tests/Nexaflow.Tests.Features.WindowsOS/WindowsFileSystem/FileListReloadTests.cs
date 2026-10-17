@@ -40,7 +40,7 @@ public class FileListReloadTests
     [TestInitialize]
     public void CreateScratch()
     {
-        _scratch = Path.Combine(Path.GetTempPath(), "nexafs_reload_" + Guid.NewGuid().ToString("N"));
+        _scratch = Path.Combine(TestTemp.Root, "nexafs_reload_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_scratch);
         File.WriteAllText(Path.Combine(_scratch, "album.zip"), "zip");
         for (var i = 0; i < Photos; i++)

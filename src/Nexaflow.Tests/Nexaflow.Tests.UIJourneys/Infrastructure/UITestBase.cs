@@ -99,7 +99,7 @@ public abstract class UITestBase
         // whether the machine is free (a no-op on CI and after the first answer), then take it.
         _gate = TakeMachine();
 
-        _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
+        _configDir = Path.Combine(TestTemp.Root, "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
 
         // Let a derived test seed files/config into the isolated dir BEFORE launch (e.g. enable a

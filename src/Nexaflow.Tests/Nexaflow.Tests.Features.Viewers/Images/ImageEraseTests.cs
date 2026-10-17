@@ -44,7 +44,7 @@ public class ImageEraseTests
     [TestInitialize]
     public void Make()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-erase-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-erase-").FullName;
         _photo = Path.Combine(_dir, "wall.png");
         using (var bitmap = Flat(32, 24, Ground))
         {

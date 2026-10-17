@@ -21,7 +21,7 @@ public class DicomVfsTests
     {
         // The loader/renderer read through the process-wide VFS, so the zip handler must be on the singleton.
         VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
-        _tmp = Path.Combine(Path.GetTempPath(), "nexa-dicom-vfs-" + System.Guid.NewGuid().ToString("N"));
+        _tmp = Path.Combine(TestTemp.Root, "nexa-dicom-vfs-" + System.Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tmp);
     }
 

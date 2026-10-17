@@ -38,7 +38,7 @@ public class ImageCutOutTests
     [TestInitialize]
     public void Make()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-cut-out-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-cut-out-").FullName;
         _photo = Path.Combine(_dir, "mug.png");
         using (var bitmap = Flat(32, 24, Photo)) File.WriteAllBytes(_photo, EncodePng(bitmap));
         _ui = new ViewerUiThread();

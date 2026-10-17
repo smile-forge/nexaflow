@@ -88,7 +88,7 @@ public class EditScriptTests
     [TestMethod]
     public void AScriptThatFailsPartWay_WritesNothing()
     {
-        var root = Directory.CreateTempSubdirectory("nexa-script-").FullName;
+        var root = TestTemp.CreateSubdirectory("nexa-script-").FullName;
         try
         {
             new ProductStore(root).Initialize("P");
@@ -107,7 +107,7 @@ public class EditScriptTests
     [TestMethod]
     public void ARunWideSwitchOnOneCommand_IsRefused()
     {
-        var root = Directory.CreateTempSubdirectory("nexa-script-").FullName;
+        var root = TestTemp.CreateSubdirectory("nexa-script-").FullName;
         try
         {
             new ProductStore(root).Initialize("P");

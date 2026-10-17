@@ -49,7 +49,7 @@ public class ConsoleSurfaceTests
     [TestInitialize]
     public void Setup()
     {
-        _tmp = Path.Combine(Path.GetTempPath(), "nexa-console-" + Guid.NewGuid().ToString("N"));
+        _tmp = Path.Combine(TestTemp.Root, "nexa-console-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tmp);
     }
 

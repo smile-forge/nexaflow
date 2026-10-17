@@ -54,7 +54,7 @@ public class TarArchiveTests
 
     private sealed class Dir : IDisposable
     {
-        public string Root { get; } = Path.Combine(Path.GetTempPath(), "nexa-tar-" + Guid.NewGuid().ToString("N"));
+        public string Root { get; } = Path.Combine(TestTemp.Root, "nexa-tar-" + Guid.NewGuid().ToString("N"));
         public string Src { get; }
         public VirtualFileSystem Vfs { get; }
 

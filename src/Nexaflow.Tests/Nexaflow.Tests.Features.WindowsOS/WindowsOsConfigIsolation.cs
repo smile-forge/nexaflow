@@ -13,7 +13,7 @@ public static class WindowsOsConfigIsolation
     [AssemblyInitialize]
     public static void Init(TestContext _)
     {
-        TestConfigRoot.Redirect("windowsos");
+        TestConfigRoot.Redirect();
         Localization.EnglishStrings.Use();
     }
 

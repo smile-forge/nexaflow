@@ -27,7 +27,7 @@ public class LogAiTests
 {
     private static string WriteTemp(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"logai_{Guid.NewGuid():N}.log");
+        var path = Path.Combine(TestTemp.Root, $"logai_{Guid.NewGuid():N}.log");
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return path;
     }

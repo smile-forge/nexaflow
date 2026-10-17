@@ -23,7 +23,7 @@ public class FileSystemKeyboardHandlerTests
     [TestInitialize]
     public void CreateScratch()
     {
-        _scratch = Path.Combine(Path.GetTempPath(), $"fskeys_{Guid.NewGuid():N}");
+        _scratch = Path.Combine(TestTemp.Root, $"fskeys_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_scratch);
     }
 

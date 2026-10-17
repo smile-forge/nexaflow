@@ -24,7 +24,7 @@ public class TextLineIndexTests
     [TestInitialize]
     public void Init()
     {
-        _dir = Path.Combine(Path.GetTempPath(), $"nexa-lineindex-{Guid.NewGuid():N}");
+        _dir = Path.Combine(TestTemp.Root, $"nexa-lineindex-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dir);
     }
 

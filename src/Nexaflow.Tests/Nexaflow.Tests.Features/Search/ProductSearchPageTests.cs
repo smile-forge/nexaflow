@@ -124,7 +124,7 @@ public class ProductSearchPageTests : SearchableContentConformanceTests
     [TestMethod]
     public void WithNoGraphBuilt_SaysSo() => RunUnpumped(async () =>
     {
-        var bare = Path.Combine(Path.GetTempPath(), "nexa-nograph-page-" + Guid.NewGuid().ToString("N"));
+        var bare = Path.Combine(TestTemp.Root, "nexa-nograph-page-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bare);
         try
         {

@@ -30,7 +30,7 @@ public class TextViewModelArchiveTests
         // TextViewModel reads through the process-wide VFS, so the zip handler must be on the singleton.
         VirtualFileSystem.Instance.RegisterHandler(new ZipArchiveHandler());
 
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-textvm-zip-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-textvm-zip-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _zip = Path.Combine(_dir, "a.zip");
 

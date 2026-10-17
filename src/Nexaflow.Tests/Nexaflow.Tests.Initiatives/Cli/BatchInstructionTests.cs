@@ -206,7 +206,7 @@ public class BatchInstructionTests
 
     private static string NewRoot()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"batchgate_{Guid.NewGuid():N}");
+        var root = Path.Combine(TestTemp.Root, $"batchgate_{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         return root;
     }

@@ -22,7 +22,7 @@ public class VerifiedDownloadTests
     private string _dir = null!;
     private string Destination => Path.Combine(_dir, "models", "model.bin");
 
-    [TestInitialize] public void Init() => _dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+    [TestInitialize] public void Init() => _dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
     [TestCleanup]    public void Done() { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); }
 
     /// <summary>Serves <see cref="Body"/>, honouring a range request when <paramref name="resumes"/>.</summary>

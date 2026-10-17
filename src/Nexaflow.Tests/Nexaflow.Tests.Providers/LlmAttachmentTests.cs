@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -42,7 +43,7 @@ public class LlmAttachmentTests
     [TestMethod]
     public void ReadBytes_ReadsFromDisk_WhenNoBytes()
     {
-        var path  = Path.Combine(Path.GetTempPath(), $"attach_{System.Guid.NewGuid():N}.bin");
+        var path  = Path.Combine(TestTemp.Root, $"attach_{System.Guid.NewGuid():N}.bin");
         var bytes = new byte[] { 1, 2, 3, 4, 5 };
         File.WriteAllBytes(path, bytes);
         try

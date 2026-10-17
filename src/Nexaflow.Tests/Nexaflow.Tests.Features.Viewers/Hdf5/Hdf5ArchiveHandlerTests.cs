@@ -28,7 +28,7 @@ public sealed class Hdf5ArchiveHandlerTests
     {
         Vfs.RegisterHandler(new Hdf5ArchiveHandler());
         Vfs.RegisterHandler(new ZipArchiveHandler());
-        _dir = Path.Combine(Path.GetTempPath(), "nexa-hdf5-vfs-" + System.Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(TestTemp.Root, "nexa-hdf5-vfs-" + System.Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _h5 = Path.Combine(_dir, "experiment.h5");
         File.Copy(TestSampleData.Path("hdf5", "experiment.h5"), _h5);

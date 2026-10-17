@@ -25,7 +25,7 @@ public class CoverageManifestFreshnessTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), "nfi-freshness-" + Path.GetRandomFileName());
+        _root = Path.Combine(TestTemp.Root, "nfi-freshness-" + Path.GetRandomFileName());
         Directory.CreateDirectory(_root);
     }
 

@@ -28,7 +28,7 @@ public class GraphCacheTests
 
     private static string NewRepo()
     {
-        var root = Path.Combine(Path.GetTempPath(), "nexcache-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(TestTemp.Root, "nexcache-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         return root;
     }

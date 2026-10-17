@@ -35,7 +35,7 @@ public class JsonAiToolTests
 
     private async Task<JsonViewModel> LoadedAsync(string content = Doc)
     {
-        _path = Path.Combine(Path.GetTempPath(), $"jsonai_{Guid.NewGuid():N}.json");
+        _path = Path.Combine(TestTemp.Root, $"jsonai_{Guid.NewGuid():N}.json");
         File.WriteAllText(_path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         var vm = new JsonViewModel(_path, new JsonFileLoader(), new JsonPathEvaluator(),
                                    Substitute.For<IShellServices>());

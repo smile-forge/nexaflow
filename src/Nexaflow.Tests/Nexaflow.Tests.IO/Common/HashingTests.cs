@@ -26,7 +26,7 @@ public class HashingTests
     [TestMethod]
     public async Task FileHashes_MatchStringHashes()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexa-hash-{System.Guid.NewGuid():N}.txt");
+        var path = Path.Combine(TestTemp.Root, $"nexa-hash-{System.Guid.NewGuid():N}.txt");
         await File.WriteAllTextAsync(path, "abc"); // UTF-8, no BOM
         try
         {

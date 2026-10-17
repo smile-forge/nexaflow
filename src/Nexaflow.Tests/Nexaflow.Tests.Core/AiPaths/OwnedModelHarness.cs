@@ -10,6 +10,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.AiPaths;
 
@@ -44,7 +45,7 @@ internal static class OwnedModelHarness
             // These tests check the app's own paths through the model, not the model: it takes the likeliest token each
             // time, so a run gives the same replies as the last, whatever its sampling would draw.
             Environment.SetEnvironmentVariable("NEXAFLOW_AI_GREEDY", "1");
-            var aiDir = Directory.CreateTempSubdirectory("nexaflow-aipaths-").FullName;
+            var aiDir = TestTemp.CreateSubdirectory("nexaflow-aipaths-").FullName;
             _host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
             var store = new FolderStore(folder, Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK"));
             Setup = new HostModelSetup(_host);
@@ -68,7 +69,7 @@ internal static class OwnedModelHarness
     public static AIService Service(ILlmProvider model)
     {
         var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, Path.GetTempPath());
+        var svc = new AIService(ws, TestTemp.Root);
         Set(nameof(WorkspaceRuntime.AiService), svc);
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
         svc.Register("c1", model);

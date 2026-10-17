@@ -15,7 +15,7 @@ public class ProductCreateActionTests
     [TestInitialize]
     public void Setup()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"pmcreate_{Guid.NewGuid():N}");
+        _root = Path.Combine(TestTemp.Root, $"pmcreate_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
     }
 

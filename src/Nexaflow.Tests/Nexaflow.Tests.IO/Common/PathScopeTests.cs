@@ -112,7 +112,7 @@ public class PathScopeTests
     [TestMethod]
     public void AShortName_IsReadAsTheLongNameItStandsFor()
     {
-        var root = Directory.CreateTempSubdirectory("nexaflow-scope-").FullName;
+        var root = TestTemp.CreateSubdirectory("nexaflow-scope-").FullName;
         try
         {
             var inside = Directory.CreateDirectory(Path.Combine(root, "A long folder name here")).FullName;

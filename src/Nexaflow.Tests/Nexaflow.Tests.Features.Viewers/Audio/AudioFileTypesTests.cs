@@ -21,7 +21,7 @@ public class AudioFileTypesTests
     [TestMethod]
     public void EnumerateAudio_ReturnsOnlyAudio_OrderedByName()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "audiofiletypes_" + System.Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestTemp.Root, "audiofiletypes_" + System.Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {

@@ -41,7 +41,7 @@ public class ImagesDraftJourneyTests : UiJourneyTestBase
     /// <summary>A copy of <paramref name="sample"/> in a temp folder of its own, as a draft is kept.</summary>
     private static string Drafted(string sample)
     {
-        var folder = Directory.CreateTempSubdirectory("nexaflow-draft-journey-").FullName;
+        var folder = TestTemp.CreateSubdirectory("nexaflow-draft-journey-").FullName;
         var draft = Path.Combine(folder, Path.GetFileName(sample));
         File.Copy(sample, draft);
         return draft;

@@ -15,7 +15,7 @@ public class CommentLineTests
 {
     private static string WriteTemp(string contents)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"tabular-comments-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(TestTemp.Root, $"tabular-comments-{Guid.NewGuid():N}.csv");
         File.WriteAllText(path, contents, new UTF8Encoding(false));
         return path;
     }

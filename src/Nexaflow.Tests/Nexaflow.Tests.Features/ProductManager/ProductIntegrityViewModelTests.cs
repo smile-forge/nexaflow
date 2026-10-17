@@ -32,7 +32,7 @@ public class ProductIntegrityViewModelTests
     [TestInitialize]
     public void Setup()
     {
-        _root  = Path.Combine(Path.GetTempPath(), $"integ_vm_{Guid.NewGuid():N}");
+        _root  = Path.Combine(TestTemp.Root, $"integ_vm_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         _store = new ProductStore(_root);
         _store.Initialize("Test");

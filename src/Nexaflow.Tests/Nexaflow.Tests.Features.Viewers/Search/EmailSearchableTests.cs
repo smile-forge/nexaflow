@@ -66,7 +66,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
 
     private EmailViewModel Open(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), "nexasearch_" + Guid.NewGuid().ToString("N") + ".eml");
+        var path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".eml");
         File.WriteAllText(path, content);
         _paths.Add(path);
         return new EmailViewModel(path, Shell());
