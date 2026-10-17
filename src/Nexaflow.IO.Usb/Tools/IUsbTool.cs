@@ -101,6 +101,9 @@ public interface IUsbToolHost
     /// nothing in the app opens it.</summary>
     bool OpenFile(string path);
 
+    /// <summary>Where a file with no path on this PC is fetched to be opened (<see cref="Nexaflow.IO.Common.Stores.IStoreBrowserHost.FetchedFilesFolder"/>).</summary>
+    string FetchedFilesFolder { get; }
+
     Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions);
 
     /// <summary>One or several files, ticked in the app's picker; empty when the user cancels.</summary>

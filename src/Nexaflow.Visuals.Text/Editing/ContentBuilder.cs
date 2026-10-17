@@ -153,12 +153,8 @@ public abstract class ContentBuilder
 
     /// <summary>
     /// How this content sets raw characters — its typeface, its size — for the source it could not read.
-    /// <para>
-    /// The text is handed in rather than taken from <see cref="Source"/>, because empty source is set as
-    /// a blank so the line still has a height.
-    /// </para>
     /// </summary>
-    protected abstract FormattedText Characters(string text);
+    protected abstract CharacterSetting Characters { get; }
 
     /// <summary>
     /// The block as it is written, each part blamed standing over its own characters and why written beneath — what a builder

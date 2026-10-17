@@ -88,7 +88,7 @@ public sealed class CodeBuilder : ContentBuilder
     }
 
     /// <inheritdoc/>
-    protected override FormattedText Characters(string text) => Glyphs(text, Style.Text);
+    protected override CharacterSetting Characters => new(Style.Face(Style.MonoFont), Math.Max(1, Style.TextSize * 0.94), Style.Text);
 
     /// <summary>
     /// The pieces to set, a line at a time with a line end between (<see cref="CodeLines"/>): what a grammar found, where one
@@ -128,8 +128,5 @@ public sealed class CodeBuilder : ContentBuilder
         return found ?? Style.Text;
     }
 
-    private FormattedText Glyphs(string text, Brush ink) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            Style.Face(Style.MonoFont),
-            Math.Max(1, Style.TextSize * 0.94), ink, LayoutText.Density);
+    private FormattedText Glyphs(string text, Brush ink) => (Characters with { Ink = ink }).Set(text);
 }

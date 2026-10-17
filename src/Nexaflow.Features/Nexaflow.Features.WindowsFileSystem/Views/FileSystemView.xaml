@@ -719,7 +719,8 @@
                       PreviewMouseRightButtonUp="FileListView_PreviewMouseRightButtonUp"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      Padding="4,4,4,4">
+                      Padding="4,4,4,4"
+                      beh:ReaderPlace.IsHeld="True">
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
 

@@ -95,14 +95,9 @@ internal abstract partial class MusicBuilder : ContentBuilder
     }
 
     /// <summary>Unengraveable source is set monospaced, so a reader can count bar lines in it.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(Style.MonoFont),
-            SourceSize,
-            Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters =>
+        new(Style.Face(Style.MonoFont), SourceSize,
+            Brushes.Black);   // never used: the mark takes the theme's ink at paint time
 
     // ── What there is to draw ───────────────────────────────────────────────
 

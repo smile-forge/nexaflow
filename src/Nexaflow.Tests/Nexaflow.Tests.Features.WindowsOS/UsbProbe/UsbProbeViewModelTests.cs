@@ -31,7 +31,7 @@ public class UsbProbeViewModelTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-usbprobe-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-usbprobe-").FullName;
         _inventory = new FakeUsbInventory(UsbProbeSamples.Machine());
         _shell = Substitute.For<IShellServices>();
         _shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call =>

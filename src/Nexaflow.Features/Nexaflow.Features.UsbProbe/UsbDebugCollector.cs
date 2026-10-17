@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
+using Nexaflow.IO.Common.Stores;
 using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
@@ -108,6 +109,8 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
         public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct, string? confirmLabel = null) => Task.FromResult(false);
         public Task<string?> PromptAsync(string title, string label, string initialValue) => Task.FromResult<string?>(null);
         public bool OpenFile(string path) => false;
+
+        public string FetchedFilesFolder => IStoreBrowserHost.DefaultFetchedFilesFolder;
         public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions) => Task.FromResult<string?>(null);
         public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions) => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<string?> PickFolderAsync() => Task.FromResult<string?>(null);

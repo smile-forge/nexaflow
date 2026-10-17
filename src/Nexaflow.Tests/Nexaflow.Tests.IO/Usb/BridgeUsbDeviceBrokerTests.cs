@@ -22,7 +22,7 @@ public class BridgeUsbDeviceBrokerTests
     [TestInitialize]
     public void Setup()
     {
-        _dir = Directory.CreateTempSubdirectory("nexaflow-usb-broker-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-usb-broker-").FullName;
         _ledger = UsbBindingLedger.AtPath(Path.Combine(_dir, "usb-bindings.json"));
     }
 

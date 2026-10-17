@@ -130,14 +130,9 @@ public sealed partial class LatexBuilder : ContentBuilder
     }
 
     /// <summary>Unreadable source shown in a monospaced face, so it reads as source rather than a poorly typeset formula.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(Style.MonoFont),
-            _scale * 0.6,
-            Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters =>
+        new(Style.Face(Style.MonoFont), _scale * 0.6,
+            Brushes.Black);   // never used: the mark takes the theme's ink at paint time
 
     /// <summary>
     /// Declares which cells of a matrix read across/down, so a drag over one behaves like a spreadsheet

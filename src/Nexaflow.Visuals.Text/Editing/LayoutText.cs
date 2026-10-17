@@ -3,6 +3,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media.TextFormatting;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -31,12 +32,12 @@ public static class LayoutText
     /// </summary>
     /// <param name="lines">
     /// How the text's characters are set, where the caller has it — the builder's own setting of raw characters — so each line
-    /// can be measured on its own for where its letters stand. Measuring a letter inside a text of many lines sets every line of
-    /// it again, which for a whole block shown as written is every line for every character.
+    /// can be set once on its own and every letter on it read off that setting. Measuring a letter inside a text of many lines
+    /// sets every line of it again, and measuring it inside its own line still sets that line again for every letter.
     /// </param>
     public static int Place(LayoutBuilder into, FormattedText text, Point at, double room,
                             TextAlignment align, ISourcePart? part, string kind,
-                            IReadOnlyList<ISourcePart>? letters = null, System.Func<string, FormattedText>? lines = null)
+                            IReadOnlyList<ISourcePart>? letters = null, CharacterSetting? lines = null)
     {
         Bound(text, room, align);
 
@@ -161,15 +162,20 @@ public static class LayoutText
     }
 
     /// <summary>
-    /// A letter for each character, measured a line at a time: each line set on its own, and its letters placed a line's height
-    /// further down for every line above it — which is where a text of many lines, one high each and never broken, sets them.
+    /// A letter for each character, a line at a time: each line set once, every letter on it read off that setting, and placed a
+    /// line's height further down for every line above it — which is where a text of many lines, one high each and never broken,
+    /// sets them.
     /// </summary>
     private static void Lined(LayoutBuilder into, string source, IReadOnlyList<ISourcePart>? letters, string kind,
-                              System.Func<string, FormattedText> lines)
+                              CharacterSetting lines)
     {
         if (letters is null || letters.Count != source.Length) return;
 
-        var blank = lines(" ").Height;
+        using var formatter = TextFormatter.Create(TextFormattingMode.Ideal);
+
+        double blank;
+        using (var space = lines.Line(formatter, " ")) blank = space.Height;
+
         var top = 0.0;
 
         for (var start = 0; start <= source.Length;)
@@ -179,21 +185,34 @@ public static class LayoutText
 
             // A line's own ending is where it stops, not a letter of it.
             var shown = end > start && source[end - 1] == '\r' ? end - 1 : end;
-            var line = shown > start ? lines(source[start..shown]) : null;
+            if (shown == start)
+            {
+                top += blank;
+                start = end + 1;
+                continue;
+            }
+
+            using var line = lines.Line(formatter, source[start..shown]);
 
             for (var at = start; at < shown; at++)
             {
-                if (line!.BuildHighlightGeometry(new Point(0, top), at - start, 1) is not { } box) continue;
+                // A letter set in pieces — a run of the other direction, a cluster split across glyphs — is all of its pieces.
+                var bounds = Rect.Empty;
+                foreach (var piece in line.GetTextBounds(at - start, 1))
+                {
+                    var box = piece.Rectangle;
+                    if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) continue;
+                    bounds = bounds.IsEmpty ? box : Rect.Union(bounds, box);
+                }
 
-                var bounds = box.Bounds;
-                if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
+                if (bounds.IsEmpty) continue;
 
-                into.Open(kind + "-letter", letters[at], bounds.TopLeft);
+                into.Open(kind + "-letter", letters[at], new Point(bounds.X, bounds.Y + top));
                 into.Covers(new Rect(0, 0, bounds.Width, bounds.Height));
                 into.Close();
             }
 
-            top += line?.Height ?? blank;
+            top += line.Height;
             start = end + 1;
         }
     }

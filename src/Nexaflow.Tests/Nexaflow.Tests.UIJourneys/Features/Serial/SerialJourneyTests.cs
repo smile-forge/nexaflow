@@ -43,7 +43,7 @@ public class SerialJourneyTests : UiJourneyTestBase
         Check("times", () => SetToggle("Serial_Times", false) && SetToggle("Serial_Times", true));
         CheckInvoke("clear the transcript", "Serial_Clear");
 
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-serial-journey");
+        var dir = Path.Combine(TestTemp.Root, "nexaflow-serial-journey");
         Directory.CreateDirectory(dir);
         Capture.Element(MainWindow).ToFile(Path.Combine(dir, "serial.png"));
         global::System.Console.WriteLine($"[shot] {Path.Combine(dir, "serial")}.png");

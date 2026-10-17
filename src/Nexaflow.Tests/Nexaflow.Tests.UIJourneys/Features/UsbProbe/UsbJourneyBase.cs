@@ -9,6 +9,7 @@ using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Windows;
+using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 
 namespace Nexaflow.Tests.Features.UsbProbe.UI;
@@ -96,7 +97,7 @@ public abstract class UsbJourneyBase : UiJourneyTestBase
 
     protected void Shoot(string name)
     {
-        var dir = Path.Combine(Path.GetTempPath(), ShotFolder);
+        var dir = Path.Combine(TestTemp.Root, ShotFolder);
         Directory.CreateDirectory(dir);
         Capture.Element(MainWindow).ToFile(Path.Combine(dir, $"{name}.png"));
         global::System.Console.WriteLine($"[shot] {Path.Combine(dir, name)}.png");

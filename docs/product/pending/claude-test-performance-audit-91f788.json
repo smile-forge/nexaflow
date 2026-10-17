@@ -1,0 +1,127 @@
+{
+  "branch": "claude/test-performance-audit-91f788",
+  "nodes": {
+    "latex-fonts-read-once": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/Typesetting/TexFontTests.cs",
+            "class": "TexFontTests",
+            "method": "EveryFormulaDrawsFromTheFacesReadOnce_AtItsOwnSize"
+          }
+        ]
+      }
+    },
+    "layout-words-source-letters": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutText.cs",
+          "class": "LayoutText",
+          "method": "Lined"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/CharacterSetting.cs",
+          "class": "CharacterSetting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/SourceLettersTests.cs",
+            "class": "SourceLettersTests",
+            "method": "EveryLetterStandsWhereTheTypeEngineDrawsIt"
+          }
+        ]
+      }
+    },
+    "content-languages-lookup": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "For"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentLanguagesTests.cs",
+            "class": "ContentLanguagesTests",
+            "method": "ALanguageCanBeAddedWhileAnotherIsStillDecidingWhetherItReadsAWord"
+          }
+        ]
+      }
+    },
+    "vcommon-reader-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Behaviors/ReaderPlace.cs",
+          "class": "ReaderPlace"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Behaviors/ReaderPlaceTests.cs",
+            "class": "ReaderPlaceTests"
+          }
+        ]
+      }
+    },
+    "winfs-reload-in-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "RefreshEntriesAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Collections/RangeObservableCollection.cs",
+          "class": "RangeObservableCollection",
+          "method": "MatchTo"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileListReloadTests.cs",
+            "class": "FileListReloadTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "TakeOn_ANewReadingOfTheSameFile_IsTakenOn_AndEachChangeIsSaid"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/RangeObservableCollectionTests.cs",
+            "class": "RangeObservableCollectionTests",
+            "method": "MatchTo_SaysEachDifference_AndKeepsTheRowsItAlreadyHolds"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 9,
+  "touched_nodes": [
+    "content-languages-lookup",
+    "latex-fonts-read-once",
+    "layout-words-source-letters",
+    "vcommon-reader-place",
+    "winfs-reload-in-place"
+  ]
+}

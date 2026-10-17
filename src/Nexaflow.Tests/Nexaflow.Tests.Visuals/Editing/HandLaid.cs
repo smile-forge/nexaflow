@@ -153,7 +153,6 @@ internal static class HandLaid
     {
         protected override Laid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
 
-        protected override FormattedText Characters(string text) =>
-            new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), Style.TextSize, Brushes.Black, 1);
+        protected override CharacterSetting Characters => new(new Typeface("Segoe UI"), Style.TextSize, Brushes.Black, Culture: CultureInfo.InvariantCulture);
     }
 }

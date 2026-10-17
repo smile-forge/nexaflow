@@ -1811,7 +1811,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Linked scope so we can always unblock the producer when the consumer stops.
         using var scope = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var producer = Task.Run(() => ProduceEntriesAsync(path, channel.Writer, scope.Token), scope.Token);
+        // Reloading in place, the rows are already on screen, so there is nothing to show sooner by streaming: the folder is read
+        // and sorted whole, and only what differs from the rows shown is applied, so the list keeps what the reader is looking at.
+        var producer = Task.Run(() => ProduceEntriesAsync(path, channel.Writer, scope.Token, stream: !inPlace), scope.Token);
 
         var batches = 0;
         try
@@ -1824,7 +1826,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 // list actually pays to show what the producer found.
                 using (Timing.Measure($"Folder.applyBatch#{batches} n={batch.Items.Count} replace={batch.Replace}"))
                 {
-                    if (batch.Replace)
+                    if (batch.Replace && inPlace)
+                        Entries.MatchTo(batch.Items, entry => entry.FullPath, StringComparer.OrdinalIgnoreCase, (kept, fresh) => kept.TakeOn(fresh));
+                    else if (batch.Replace)
                         Entries.ReplaceAll(batch.Items);
                     else
                         Entries.AddRange(batch.Items);
@@ -1868,7 +1872,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// name, size, timestamps and attributes come from one enumeration pass — no second
     /// stat per entry.
     /// </summary>
-    private async Task ProduceEntriesAsync(string path, ChannelWriter<LoadBatch> writer, CancellationToken ct)
+    private async Task ProduceEntriesAsync(string path, ChannelWriter<LoadBatch> writer, CancellationToken ct, bool stream)
     {
         using var _t = Timing.Measure($"Folder.ProduceEntriesAsync {path} (background, incl. writer waits)");
         Exception? error = null;
@@ -1914,7 +1918,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
                     if (!streaming)
                     {
-                        if (buffer.Count > StreamThreshold)
+                        if (stream && buffer.Count > StreamThreshold)
                         {
                             streaming = true;
                             await writer.WriteAsync(new(buffer.ToArray(), Replace: true, folders, files), ct);

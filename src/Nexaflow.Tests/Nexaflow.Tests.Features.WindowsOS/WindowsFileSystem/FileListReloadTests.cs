@@ -10,17 +10,20 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Features.Common.Viewlets;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Visuals.Common.Behaviors;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 /// <summary>
 /// Reloading the open folder — what a delete, a paste or a refresh ends in — while the list is scrolled down a folder
-/// big enough to stream. The rows are read again into the same virtualizing list the page shows, and the list has to
-/// come back where the reader left it, with every row in its place.
+/// big enough that opening it streams. The rows are read again into the same virtualizing list the page shows, and the
+/// reader has to be left looking at what they were looking at, with every row in its place.
 /// <para>
 /// A reload that emptied the list and then streamed the folder back one row per notification left the list's panel
 /// working from the scroll position it had before the rows went: it kept hundreds of rows realized and arranged them
-/// with blank bands between, until the tab was closed.
+/// with blank bands between, until the tab was closed. A reload that replaced the rows whole left the panel to work its
+/// position out again, and under load it sometimes landed a row away. A reload in place applies only what changed, so
+/// the file deleted above the screen is one removal, and the rows on screen are the same rows.
 /// </para>
 /// <para>UI category: the list is laid out on an STA thread and the dispatcher pumped, so the load's continuations
 /// reach the list the way the page's do. No window opens.</para>
@@ -30,7 +33,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 [CoversNode("winfs-reload-in-place")]
 public class FileListReloadTests
 {
-    // Over the loader's streaming threshold (1000), so the folder arrives in batches rather than one sorted set.
+    // Over the loader's streaming threshold (1000), so opening the folder streams it; reloading it in place reads it whole.
     private const int Photos     = 1100;
     private const int ScrolledTo = 110;
     private static readonly Size Viewport = new(700, 500);
@@ -63,6 +66,7 @@ public class FileListReloadTests
         scroll.ScrollToVerticalOffset(ScrolledTo);
         Lay(list);
         Assert.AreEqual(ScrolledTo, scroll.VerticalOffset, "the list scrolled before the reload");
+        var looking = vm.Entries[ScrolledTo];
 
         // The zip sorts above the rows on screen, as the one in the report did.
         File.Delete(Path.Combine(_scratch, "album.zip"));
@@ -70,15 +74,17 @@ public class FileListReloadTests
         PumpUntil(() => !vm.IsLoadingEntries && vm.Entries.Count == Photos, "the reload to finish");
         Lay(list);
 
-        Assert.AreEqual(ScrolledTo, scroll.VerticalOffset, "a reload of the open folder keeps the reader's place");
+        var top = vm.Entries.IndexOf(looking);
+        Assert.AreNotEqual(-1, top, "the file the reader was looking at is still the same row, not one read again in its place");
+        Assert.AreEqual(top, scroll.VerticalOffset, "a reload of the open folder leaves the reader looking at the file they were");
 
         var rows = RowsOnScreen(list, scroll);
         Assert.IsTrue(rows.Count > 0, "rows are on screen after the reload");
-        Assert.AreSame(vm.Entries[ScrolledTo], rows[0].Content, "the top row is the entry the scroll position names");
+        Assert.AreSame(looking, rows[0].Content, "the top row is the file that was on top before the reload");
 
         for (var i = 1; i < rows.Count; i++)
         {
-            Assert.AreSame(vm.Entries[ScrolledTo + i], rows[i].Content, $"row {i} on screen is the next entry, none skipped");
+            Assert.AreSame(vm.Entries[top + i], rows[i].Content, $"row {i} on screen is the next entry, none skipped");
             Assert.AreEqual(LayoutInformation.GetLayoutSlot(rows[i - 1]).Bottom, LayoutInformation.GetLayoutSlot(rows[i]).Top, 0.5,
                 $"row {i} starts where the one above it ends — no blank band between them");
         }
@@ -112,6 +118,7 @@ public class FileListReloadTests
         var list = new ListView { View = view, ItemsSource = entries, SelectionMode = SelectionMode.Extended };
         VirtualizingPanel.SetIsVirtualizing(list, true);
         VirtualizingPanel.SetVirtualizationMode(list, VirtualizationMode.Recycling);
+        ReaderPlace.SetIsHeld(list, true);
         Lay(list);
         return list;
     }

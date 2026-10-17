@@ -623,12 +623,5 @@ internal abstract class MermaidBuilder : ContentBuilder
     private const double SpillSize = 11;
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Palette.Text,
-            LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Palette.Text);
 }
