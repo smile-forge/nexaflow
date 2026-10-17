@@ -18,11 +18,29 @@
           "method": "Set"
         }
       ]
+    },
+    "processes-live-source": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/Processes/LiveProcessSourceConcurrencyTests.cs",
+            "class": "LiveProcessSourceConcurrencyTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/Processes/LiveProcessSourceTests.cs",
+            "class": "LiveProcessSourceTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 2,
   "touched_nodes": [
+    "processes-live-source",
     "sysinfo-envvars-save"
   ]
 }
