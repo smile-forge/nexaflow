@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using PDFiumCore;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using WinPdf = Windows.Data.Pdf;
@@ -26,7 +28,7 @@ namespace Nexaflow.Tests.Features.Pdf;
 
 /// <summary>
 /// Every page of a corpus of real PDFs drawn the way the reader draws it, and held pixel for pixel against the same page
-/// drawn by Windows' own PDF renderer at the same size, in colour.
+/// drawn at the same size, in colour, by two other renderers: Windows' own (<c>Windows.Data.Pdf</c>) and PDFium, Chrome's.
 /// <para>
 /// PDF is a fixed format: a page has one right appearance, and two renderers that both get it right differ only where
 /// their edges are antialiased. So each page is measured three ways — the share of pixels that are <em>identical</em>,
@@ -36,13 +38,22 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// averaged away across a page of matching text.
 /// </para>
 /// <para>
+/// Either reference can be the one that is wrong — Windows draws some pages blank, or as noise where it cannot decode a
+/// picture — so a page is judged by all three: it <em>matches</em> where ours agrees with either reference (no more than
+/// <see cref="AgreeShare"/> of its pixels off), and the other is taken to be wrong; it is <em>against us</em> where the
+/// references agree with each other and ours with neither, or only one drew it and ours does not agree with that one; and
+/// it is an <em>edge</em> where no two of the three agree — a page every renderer draws its own way. Its measures are
+/// those against the reference it is nearer.
+/// </para>
+/// <para>
 /// Everything it writes goes beside the corpus in <c>pdf-fidelity\</c>, not into the repository:
 /// <list type="bullet">
-/// <item><c>reference\</c> — Windows' render of every page, kept, so a later run only redraws our side.</item>
+/// <item><c>reference\</c> and <c>reference-pdfium\</c> — Windows' and PDFium's render of every page, kept, so a later
+/// run only redraws our side.</item>
 /// <item><c>trees\</c> — every page's layout written down (<see cref="PdfLayoutSnapshot"/>), one gzipped file per
 /// document: what a page's drawing is kept as once it is accepted, for a later run to compare against exactly.</item>
-/// <item><c>review\</c> — our render and a difference map of every page with off pixels, and <c>index.html</c>, worst
-/// first.</item>
+/// <item><c>review\</c> — our render and a difference map, against the nearer reference, of every page against us or at
+/// an edge, and <c>index.html</c>: those against us worst first, then the edges.</item>
 /// <item><c>pages.csv</c> and <c>summary.txt</c> — every page's measures, and their distribution.</item>
 /// </list>
 /// </para>
@@ -50,8 +61,8 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// Opt-in, local and long: <c>NEXAFLOW_PDF_CORPUS</c> names the corpus and <c>NEXAFLOW_PDF_FIDELITY=1</c> asks for this
 /// sweep. <c>NEXAFLOW_PDF_FIDELITY_DPI</c> sets the resolution (150 when unset); <c>NEXAFLOW_PDF_CORPUS_LIMIT</c> takes
 /// only that many files. A run resumes what the same build began at the same resolution: documents it measured are
-/// skipped, so stopping it costs nothing done. What another build measured is put aside under <c>runs\</c>, and Windows'
-/// renders are kept for every run. <c>NEXAFLOW_PDF_FIDELITY_PAGES=review</c> draws again only the pages the last run's
+/// skipped, so stopping it costs nothing done. What another build measured is put aside under <c>runs\</c>, and the
+/// references' renders are kept for every run. <c>NEXAFLOW_PDF_FIDELITY_PAGES=review</c> draws again only the pages the last run's
 /// review showed, and reviews every one of them beside what it measured before — what a fix did to the pages it was for.
 /// It fails only when our reading or drawing of a page throws.
 /// </para>
@@ -69,7 +80,13 @@ public class PdfCorpusFidelityTests
     /// <summary>The side of the square a page's worst-placed difference is measured over.</summary>
     private const int Tile = 32;
 
-    /// <summary>A page with at least this share of off pixels keeps our render and a difference map for review.</summary>
+    /// <summary>
+    /// Two pictures with no more than this share of their pixels off show the same page: the pages that draw as they should
+    /// stand under it, antialiasing and a pixel's rounding at an edge all that tells them apart.
+    /// </summary>
+    private const double AgreeShare = 0.01;
+
+    /// <summary>A row of a run before references were judged together is reviewed with at least this share of off pixels.</summary>
     private const double ReviewShare = 0.002;
 
     /// <summary>The longest side a page is drawn at, whatever its size: a poster at 150 dpi is not a page anyone reads whole.</summary>
@@ -81,10 +98,32 @@ public class PdfCorpusFidelityTests
     /// <summary>How long one page of ours may take to read before it is given up on.</summary>
     private static readonly TimeSpan PageBudget = TimeSpan.FromSeconds(60);
 
-    private const string Header = "file,page,width,height,identical,near,off,mae,worsttile,ours_ms,windows_ms,unsupported,status";
+    /// <summary>What a page is judged, by <see cref="AgreeShare"/> — see the class's summary.</summary>
+    private static class Verdict
+    {
+        public const string Matches = "matches";
+        public const string Against = "against";
+        public const string Edge = "edge";
+
+        /// <param name="ours">Our page's share of off pixels against each reference, null where it did not draw the page.</param>
+        /// <param name="between">The least share of off pixels between any two references that drew it, null where fewer did.</param>
+        public static string Of(IReadOnlyList<double?> ours, double? between)
+        {
+            if (ours.Any(static o => o <= AgreeShare)) return Matches;
+            if (ours.Count(static o => o is not null) == 1) return Against;   // one reference: it is all there is to go by
+            return between <= AgreeShare ? Against : Edge;
+        }
+    }
+
+    /// <summary>The renderers a page is held against, in the order their columns are written.</summary>
+    private static readonly ReferenceRenderer[] References = [new WindowsReference(), new PdfiumReference()];
+
+    private static readonly string Header =
+        "file,page,width,height,identical,near,off,mae,worsttile,ours_ms,unsupported,status,verdict,nearer,references_off"
+        + string.Concat(References.Select(static r => $",{r.Key}_off,{r.Key}_ms")) + ",notes";
 
     [TestMethod]
-    public void EveryPage_IsDrawnAndHeldAgainstWindows()
+    public void EveryPage_IsDrawnAndHeldAgainstTheReferences()
     {
         if (Environment.GetEnvironmentVariable("NEXAFLOW_PDF_CORPUS") is not { Length: > 0 } corpus ||
             Environment.GetEnvironmentVariable("NEXAFLOW_PDF_FIDELITY") != "1")
@@ -160,7 +199,7 @@ public class PdfCorpusFidelityTests
                     {
                         if (!Revisiting.TryGetValue(row.File, out var numbers)) Revisiting[row.File] = numbers = [];
                         numbers.Add(row.Page);
-                        _before[(row.File, row.Page)] = row.Off!.Value;
+                        _before[(row.File, row.Page)] = row;
                     }
             }
 
@@ -180,15 +219,19 @@ public class PdfCorpusFidelityTests
         /// <summary>The pages a revisit draws again, by document, or null for a run over every page.</summary>
         public Dictionary<string, HashSet<int>>? Revisiting { get; }
 
-        /// <summary>What the run before a revisit measured of the pages it draws again: their share of off pixels.</summary>
-        private readonly Dictionary<(string File, int Page), double> _before = new();
+        /// <summary>What the run before a revisit measured of the pages it draws again.</summary>
+        private readonly Dictionary<(string File, int Page), Parsed> _before = new();
 
-        /// <summary>The pages a run's review shows: those with enough off pixels, worst first, as many as it holds.</summary>
+        /// <summary>The pages a run's review shows: those against us, worst first, then the edges, as many as it holds.</summary>
         private static IEnumerable<Parsed> ReviewedBy(string pages) =>
-            File.ReadLines(pages).Skip(1).Select(RowOf).Where(static r => r is { Off: >= ReviewShare }).Select(static r => r!)
-                .OrderByDescending(static r => r.Off).Take(Reviewed);
+            Rows(pages).Where(static r => r.Off is not null && Shown(r)).OrderBy(static r => r.Verdict == Verdict.Edge)
+                .ThenByDescending(static r => r.Off).Take(Reviewed);
 
-        /// <summary>Moves another run's rows, review and trees under <c>runs\</c>; Windows' renders stay, the same for every run.</summary>
+        /// <summary>Whether the review shows a page: it is against us or at an edge — or, measured before references were judged
+        /// together, it has enough off pixels against Windows.</summary>
+        private static bool Shown(Parsed row) => row.Verdict is { } verdict ? verdict != Verdict.Matches : row.Off >= ReviewShare;
+
+        /// <summary>Moves another run's rows, review and trees under <c>runs\</c>; the references' renders stay, the same for every run.</summary>
         private void PutAside()
         {
             var aside = Directory.CreateDirectory(Path.Combine(_work, "runs",
@@ -206,13 +249,13 @@ public class PdfCorpusFidelityTests
 
         public string Relative(string file) => Path.GetRelativePath(_corpus, file);
 
-        /// <summary>Every page of one document, ours and Windows', measured; its rows written once it is finished.</summary>
+        /// <summary>Every page of one document, ours and the references', measured; its rows written once it is finished.</summary>
         public void Document(string file)
         {
             var relative = Relative(file);
             var rows = new List<string>();
             var trees = new StringBuilder();
-            WinPdf.PdfDocument? windows = null;
+            var opened = new ReferenceDocument?[References.Length];
 
             try
             {
@@ -220,7 +263,7 @@ public class PdfCorpusFidelityTests
                 using var scope = PdfDocumentScope.TryOpen(file, open.Token);
                 if (scope is null)
                 {
-                    rows.Add(Row(relative, 0, default, null, 0, 0, 0, "unopenable"));
+                    rows.Add(Row(relative, 0, default, null, 0, 0, "unopenable", null));
                     return;
                 }
 
@@ -228,25 +271,26 @@ public class PdfCorpusFidelityTests
                 // for opening only, so it is disarmed once the document is open. Each page has its own.
                 open.CancelAfter(Timeout.InfiniteTimeSpan);
                 var document = scope.Pages.ReadDocument(CancellationToken.None);
-                windows = Windows(file);
+                for (var r = 0; r < References.Length; r++) opened[r] = References[r].Open(file);
 
                 var chosen = Revisiting?[relative];
                 for (var index = 0; index < document.Pages.Count; index++)
                     if (chosen is null || chosen.Contains(document.Pages[index].Number))
-                        rows.Add(Page(relative, scope, document.Pages[index], index, windows, trees));
+                        rows.Add(Page(relative, scope, document.Pages[index], index, opened, trees));
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 Escaped.Enqueue($"{relative}: {ex.GetType().Name}: {ex.Message}");
-                rows.Add(Row(relative, 0, default, null, 0, 0, 0, $"escaped: {Clean(ex.Message)}"));
+                rows.Add(Row(relative, 0, default, null, 0, 0, $"escaped: {Clean(ex.Message)}", null));
             }
             finally
             {
+                foreach (var reference in opened) reference?.Dispose();
                 Finish(relative, rows, trees);
             }
         }
 
-        private string Page(string relative, PdfDocumentScope scope, PdfPageSlot slot, int index, WinPdf.PdfDocument? windows,
+        private string Page(string relative, PdfDocumentScope scope, PdfPageSlot slot, int index, ReferenceDocument?[] opened,
             StringBuilder trees)
         {
             var number = slot.Number;
@@ -262,12 +306,12 @@ public class PdfCorpusFidelityTests
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
             {
-                return Row(relative, number, default, null, clock.ElapsedMilliseconds, 0, 0, "timeout");
+                return Row(relative, number, default, null, clock.ElapsedMilliseconds, 0, "timeout", null);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 Escaped.Enqueue($"{relative} p{number}: {ex.GetType().Name}: {ex.Message}");
-                return Row(relative, number, default, null, clock.ElapsedMilliseconds, 0, 0, $"escaped: {Clean(ex.Message)}");
+                return Row(relative, number, default, null, clock.ElapsedMilliseconds, 0, $"escaped: {Clean(ex.Message)}", null);
             }
 
             trees.Append("## page ").Append(number).Append('\n').Append(PdfLayoutSnapshot.Of(tree));
@@ -282,24 +326,46 @@ public class PdfCorpusFidelityTests
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 Escaped.Enqueue($"{relative} p{number} drawing: {ex.GetType().Name}: {ex.Message}");
-                return Row(relative, number, size, null, clock.ElapsedMilliseconds, 0, page.Unsupported.Count, $"escaped: {Clean(ex.Message)}");
+                return Row(relative, number, size, null, clock.ElapsedMilliseconds, page.Unsupported.Count, $"escaped: {Clean(ex.Message)}", null);
             }
 
             var oursMs = clock.ElapsedMilliseconds;
-            if (ours is null) return Row(relative, number, size, null, oursMs, 0, page.Unsupported.Count, "ours-drew-nothing");
+            if (ours is null) return Row(relative, number, size, null, oursMs, page.Unsupported.Count, "ours-drew-nothing", null);
 
-            clock.Restart();
-            var reference = Reference(relative, number, index, windows, size, out var why);
-            var windowsMs = clock.ElapsedMilliseconds;
-            if (reference is null) return Row(relative, number, size, null, oursMs, windowsMs, page.Unsupported.Count, $"windows: {why}");
+            var pictures = new BitmapSource?[References.Length];
+            var held = new Held[References.Length];
+            var unmeasured = new List<string>();
+            for (var r = 0; r < References.Length; r++)
+            {
+                clock.Restart();
+                pictures[r] = Reference(References[r], opened[r], relative, number, index, size, out var why);
+                var ms = clock.ElapsedMilliseconds;
+                held[r] = new Held(pictures[r] is { } picture ? Measures.Of(ours, picture) : null, ms);
+                if (why is not null) unmeasured.Add($"{References[r].Name} {why}");
+            }
 
-            var measure = Measures.Of(ours, reference);
+            if (pictures.All(static p => p is null))
+                return Row(relative, number, size, null, oursMs, page.Unsupported.Count, "no reference: " + string.Join("; ", unmeasured), null, held: held);
+
+            double? between = null;
+            for (var a = 0; a < pictures.Length; a++)
+                for (var b = a + 1; b < pictures.Length; b++)
+                    if (pictures[a] is { } first && pictures[b] is { } second)
+                        between = Math.Min(between ?? 1, Measures.Of(first, second).Off);
+
+            var nearer = Enumerable.Range(0, held.Length).Where(r => held[r].Measures is not null).MinBy(r => held[r].Measures!.Off);
+            var verdict = Verdict.Of([.. held.Select(static h => h.Measures?.Off)], between);
             // A revisited page is reviewed whatever it now measures: how far it came is the point.
-            if (measure.Off >= ReviewShare || Revisiting is not null) KeepForReview(relative, number, ours, reference);
+            if (verdict != Verdict.Matches || Revisiting is not null) KeepForReview(relative, number, ours, pictures[nearer]!);
 
-            return Row(relative, number, size, measure, oursMs, windowsMs, page.Unsupported.Count,
-                page.Unsupported.Count == 0 ? "ok" : "ok " + string.Join(';', page.Unsupported.Select(static u => u.Kind).Distinct()));
+            var status = page.Unsupported.Count == 0 ? "ok" : "ok " + string.Join(';', page.Unsupported.Select(static u => u.Kind).Distinct());
+            return Row(relative, number, size, held[nearer].Measures, oursMs, page.Unsupported.Count, status, verdict,
+                References[nearer].Key, between, held, string.Join("; ", unmeasured));
         }
+
+        /// <summary>Our page against one reference: how it measured, null where the reference did not draw it, and how long the
+        /// reference took.</summary>
+        private sealed record Held(Measures? Measures, long Ms);
 
         /// <summary>The page's size in pixels at the sweep's resolution, its longest side held to <see cref="LongestSide"/>.</summary>
         private (int Width, int Height) Pixels(Size points)
@@ -316,64 +382,38 @@ public class PdfCorpusFidelityTests
         private double PixelsPerPoint(Size points) =>
             _dpi / 72 * Math.Min(1, LongestSide / (Math.Max(points.Width, points.Height) / 72 * _dpi));
 
-        private static WinPdf.PdfDocument? Windows(string file)
-        {
-            try
-            {
-                return Task.Run(async () => await WinPdf.PdfDocument.LoadFromFileAsync(await StorageFile.GetFileFromPathAsync(file)))
-                    .GetAwaiter().GetResult();
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                return null;
-            }
-        }
-
         /// <summary>
-        /// Windows' render of the page, from the kept copy when it is there at this size, drawn and kept when not. A render
-        /// a pixel off the size asked for is the two renderers rounding the page differently and is measured over the size
-        /// they share; one further off is not this page at this size and is not measured.
+        /// The <paramref name="renderer"/>'s render of the page, from the kept copy when it is there at this size, drawn and kept
+        /// when not. A render a pixel off the size asked for is the renderers rounding the page differently and is measured
+        /// over the size they share; one further off is not this page at this size and is not measured.
         /// </summary>
-        private BitmapSource? Reference(string relative, int number, int index, WinPdf.PdfDocument? windows,
+        private BitmapSource? Reference(ReferenceRenderer renderer, ReferenceDocument? document, string relative, int number, int index,
             (int Width, int Height) size, out string? why)
         {
             why = null;
-            var kept = Path.Combine(_work, "reference", relative, $"p{number}.png");
+            var kept = Path.Combine(_work, renderer.Folder, relative, $"p{number}.png");
             if (File.Exists(kept))
             {
                 var loaded = Load(File.ReadAllBytes(kept));
                 if (Fits(loaded, size)) return loaded;
             }
 
-            if (windows is null)
+            if (document is null)
             {
                 why = "would not open the document";
                 return null;
             }
 
-            if (index >= windows.PageCount)
+            if (index >= document.PageCount)
             {
-                why = $"has {windows.PageCount} page(s)";
+                why = $"has {document.PageCount} page(s)";
                 return null;
             }
 
             try
             {
-                // Windows takes the size asked for in device-independent pixels and draws it at the scale of the display it
-                // reckons it is drawing for — which changes when a monitor sleeps or wakes. Every render is checked, and one that
-                // comes back another size gives the scale now, which this page and those after it are asked for by.
-                var scale = Volatile.Read(ref _windowsScale);
-                var asked = Requested(size, scale);
-                var png = Rendered(windows, index, asked);
+                var png = document.Render(index, size);
                 var picture = Load(png);
-                if (!Fits(picture, size))
-                {
-                    scale = (double)picture.PixelWidth / asked.Width;
-                    Volatile.Write(ref _windowsScale, scale);
-                    png = Rendered(windows, index, Requested(size, scale));
-                    picture = Load(png);
-                }
-
                 if (!Fits(picture, size))
                 {
                     why = $"drew {picture.PixelWidth}x{picture.PixelHeight} for {size.Width}x{size.Height}";
@@ -389,47 +429,6 @@ public class PdfCorpusFidelityTests
                 why = Clean(ex.Message);
                 return null;
             }
-        }
-
-        /// <summary>The display scale Windows draws a page at, as the last render that came back another size showed it.</summary>
-        private static double _windowsScale = 1;
-
-        private static (uint Width, uint Height) Requested((int Width, int Height) size, double scale) =>
-            ((uint)Math.Max(1, Math.Round(size.Width / scale)), (uint)Math.Max(1, Math.Round(size.Height / scale)));
-
-        private static bool Fits(BitmapSource picture, (int Width, int Height) size) =>
-            Math.Abs(picture.PixelWidth - size.Width) <= 1 && Math.Abs(picture.PixelHeight - size.Height) <= 1;
-
-        /// <summary>One page drawn by Windows at <paramref name="request"/>, over white, as PNG bytes.</summary>
-        private static byte[] Rendered(WinPdf.PdfDocument windows, int index, (uint Width, uint Height) request) =>
-            Task.Run(async () =>
-            {
-                using var page = windows.GetPage((uint)index);
-                using var stream = new InMemoryRandomAccessStream();
-                await page.RenderToStreamAsync(stream, new WinPdf.PdfPageRenderOptions
-                {
-                    DestinationWidth = request.Width,
-                    DestinationHeight = request.Height,
-                    BackgroundColor = global::Windows.UI.Color.FromArgb(255, 255, 255, 255),
-                });
-                var bytes = new byte[stream.Size];
-                using var reader = new DataReader(stream.GetInputStreamAt(0));
-                await reader.LoadAsync((uint)stream.Size);
-                reader.ReadBytes(bytes);
-                return bytes;
-            }).GetAwaiter().GetResult();
-
-        /// <summary>A PNG's pixels as premultiplied BGRA belonging to no thread.</summary>
-        private static BitmapSource Load(byte[] png)
-        {
-            var decoder = BitmapDecoder.Create(new MemoryStream(png), BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-            var frame = new FormatConvertedBitmap(decoder.Frames[0], PixelFormats.Pbgra32, null, 0);
-            var stride = frame.PixelWidth * 4;
-            var pixels = new byte[stride * frame.PixelHeight];
-            frame.CopyPixels(pixels, stride, 0);
-            var copy = BitmapSource.Create(frame.PixelWidth, frame.PixelHeight, 96, 96, PixelFormats.Pbgra32, null, pixels, stride);
-            copy.Freeze();
-            return copy;
         }
 
         private void KeepForReview(string relative, int number, BitmapSource ours, BitmapSource reference)
@@ -458,14 +457,18 @@ public class PdfCorpusFidelityTests
             }
         }
 
-        private static string Row(string file, int page, (int Width, int Height) size, Measures? m, long oursMs, long windowsMs,
-            int unsupported, string status) =>
+        private static string Row(string file, int page, (int Width, int Height) size, Measures? m, long oursMs, int unsupported,
+            string status, string? verdict, string? nearer = null, double? between = null, IReadOnlyList<Held>? held = null,
+            string notes = "") =>
             string.Join(',',
                 Quote(file), page, size.Width, size.Height,
                 m is null ? "" : Share(m.Identical), m is null ? "" : Share(m.Near), m is null ? "" : Share(m.Off),
                 m is null ? "" : m.MeanError.ToString("0.###", CultureInfo.InvariantCulture),
                 m is null ? "" : Share(m.WorstTile),
-                oursMs, windowsMs, unsupported, Quote(status));
+                oursMs, unsupported, Quote(status), verdict ?? "", nearer ?? "", between is { } b ? Share(b) : "",
+                string.Join(',', Enumerable.Range(0, References.Length).Select(r =>
+                    held is null ? "," : $"{(held[r].Measures is { } h ? Share(h.Off) : "")},{held[r].Ms}")),
+                Quote(notes));
 
         private static string Share(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
 
@@ -473,16 +476,23 @@ public class PdfCorpusFidelityTests
 
         private static string Clean(string message) => message.ReplaceLineEndings(" ").Trim();
 
-        /// <summary>The run's pages, as a distribution: how many draw as Windows draws them, and how far the rest are.</summary>
+        /// <summary>The run's pages, as a distribution: how many match a reference, how many are against us or at an edge, and how
+        /// far from the nearer reference they stand.</summary>
         public string Summarise(TimeSpan elapsed, int documents, int corpusDocuments)
         {
-            var rows = File.ReadLines(Path.Combine(_work, "pages.csv")).Skip(1).Select(RowOf).Where(static r => r is not null)
-                .Select(static r => r!).ToList();
+            var rows = Rows(Path.Combine(_work, "pages.csv"));
             var measured = rows.Where(static r => r.Off is not null).ToList();
             var off = measured.Select(static r => r.Off!.Value).Order().ToList();
+            string Distribution(IEnumerable<double> shares)
+            {
+                var sorted = shares.Order().ToList();
+                return $"p50 {Percent(Percentile(sorted, 0.5))}  p90 {Percent(Percentile(sorted, 0.9))}  p99 {Percent(Percentile(sorted, 0.99))}";
+            }
 
             var text = new StringBuilder();
-            text.AppendLine($"PDF fidelity sweep — {_corpus}, {_dpi:0} dpi, against Windows.Data.Pdf");
+            text.AppendLine($"PDF fidelity sweep — {_corpus}, {_dpi:0} dpi, against {string.Join(" and ", References.Select(static r => r.Name))}");
+            text.AppendLine($"  a page matches where ours agrees with either reference (off <= {Percent(AgreeShare)}); it is against us where the");
+            text.AppendLine("  references agree and ours with neither, or the one that drew it disagrees; an edge where no two of the three agree");
             text.AppendLine($"this run: {documents} document(s) in {elapsed.TotalHours:F1} h; all runs: {rows.Select(static r => r.File).Distinct().Count()} of {corpusDocuments} document(s), {rows.Count} page row(s)");
             text.AppendLine();
             text.AppendLine("Pages by outcome");
@@ -493,41 +503,66 @@ public class PdfCorpusFidelityTests
             {
                 text.AppendLine();
                 text.AppendLine($"Measured pages: {off.Count}");
-                text.AppendLine($"  off pixels (some channel > {OffLevel} from Windows):");
-                text.AppendLine($"    p50 {Percent(Percentile(off, 0.5))}  p90 {Percent(Percentile(off, 0.9))}  p99 {Percent(Percentile(off, 0.99))}  max {Percent(off[^1])}");
+                foreach (var verdict in new[] { Verdict.Matches, Verdict.Against, Verdict.Edge })
+                {
+                    var count = measured.Count(r => r.Verdict == verdict);
+                    text.AppendLine($"  {verdict,-10} {count,8} ({Percent((double)count / off.Count)})");
+                }
+
+                text.AppendLine("  of the pages that match, the reference they match:");
+                foreach (var reference in References)
+                {
+                    var only = measured.Count(r => r.Verdict == Verdict.Matches && r.OffBy.GetValueOrDefault(reference.Key) <= AgreeShare
+                                                   && References.Where(o => o != reference).All(o => !(r.OffBy.GetValueOrDefault(o.Key) <= AgreeShare)));
+                    text.AppendLine($"    {reference.Name} alone {only,8}");
+                }
+                text.AppendLine($"    every one  {measured.Count(r => r.Verdict == Verdict.Matches && References.All(o => r.OffBy.GetValueOrDefault(o.Key) <= AgreeShare)),8}");
+
+                text.AppendLine();
+                text.AppendLine($"  off pixels (some channel > {OffLevel}) from the nearer reference:");
+                text.AppendLine($"    {Distribution(off)}  max {Percent(off[^1])}");
                 foreach (var bound in new[] { 0.0, 0.001, 0.01, 0.05 })
                     text.AppendLine($"    pages with off <= {Percent(bound),7}: {off.Count(o => o <= bound),8} ({Percent((double)off.Count(o => o <= bound) / off.Count)})");
+                foreach (var reference in References)
+                    text.AppendLine($"  from {reference.Name} alone: {Distribution(measured.Select(r => r.OffBy.GetValueOrDefault(reference.Key)).OfType<double>())}");
+                text.AppendLine($"  the references from each other: {Distribution(measured.Select(static r => r.Between).OfType<double>())}");
                 text.AppendLine($"  identical pixels, mean over pages: {Percent(measured.Average(static r => r.Identical!.Value))}");
                 text.AppendLine($"  near pixels (every channel <= {NearLevel}), mean: {Percent(measured.Average(static r => r.Near!.Value))}");
                 text.AppendLine($"  mean channel error, mean over pages: {measured.Average(static r => r.MeanError!.Value):0.00} / 255");
-                text.AppendLine($"  worst {Tile}px tile off share: p50 {Percent(Percentile(measured.Select(static r => r.WorstTile!.Value).Order().ToList(), 0.5))}  p99 {Percent(Percentile(measured.Select(static r => r.WorstTile!.Value).Order().ToList(), 0.99))}");
+                text.AppendLine($"  worst {Tile}px tile off share: {Distribution(measured.Select(static r => r.WorstTile!.Value))}");
 
                 text.AppendLine();
-                text.AppendLine("Off share by what the page asked for that is not carried (pages, p50 off)");
-                text.AppendLine($"  {"(nothing)",-20} {measured.Count(static r => r.Unsupported == 0),8}  {Percent(Percentile(measured.Where(static r => r.Unsupported == 0).Select(static r => r.Off!.Value).Order().ToList(), 0.5))}");
+                text.AppendLine("Pages against us by what the page asked for that is not carried (pages, of measured pages with it)");
+                text.AppendLine($"  {"(nothing)",-20} {measured.Count(static r => r.Unsupported == 0 && r.Verdict == Verdict.Against),8} of {measured.Count(static r => r.Unsupported == 0)}");
                 foreach (var kind in measured.Where(static r => r.Status.StartsWith("ok ", StringComparison.Ordinal))
                              .SelectMany(static r => r.Status[3..].Split(';').Select(k => (k, r))).GroupBy(static x => x.k))
-                    text.AppendLine($"  {kind.Key,-20} {kind.Count(),8}  {Percent(Percentile(kind.Select(static x => x.r.Off!.Value).Order().ToList(), 0.5))}");
+                    text.AppendLine($"  {kind.Key,-20} {kind.Count(static x => x.r.Verdict == Verdict.Against),8} of {kind.Count()}");
 
                 if (Revisiting is not null)
                 {
                     var changes = measured.Select(Change).Where(static c => c is not null).Select(static c => c!.Value).ToList();
                     text.AppendLine();
-                    text.AppendLine($"Against the run before, by share of off pixels ({changes.Count} pages measured both times)");
+                    text.AppendLine($"Against the run before, by share of off pixels ({changes.Count} pages measured both times; a row measured");
+                    text.AppendLine("against Windows alone is set beside this run's off from Windows)");
                     text.AppendLine($"  better by more than 0.5 points: {changes.Count(static c => c > 0.005),6}");
                     text.AppendLine($"  within 0.5 points:              {changes.Count(static c => Math.Abs(c) <= 0.005),6}");
                     text.AppendLine($"  worse by more than 0.5 points:  {changes.Count(static c => c < -0.005),6}");
                 }
 
-                text.AppendLine();
-                text.AppendLine("Worst 50 pages");
-                foreach (var row in measured.OrderByDescending(static r => r.Off).Take(50))
-                    text.AppendLine($"  {Percent(row.Off!.Value),8} off  {row.File} p{row.Page}  {row.Status}");
+                foreach (var (verdict, title) in new[] { (Verdict.Against, "Worst 50 pages against us"), (Verdict.Edge, "Worst 50 edges") })
+                {
+                    text.AppendLine();
+                    text.AppendLine(title);
+                    foreach (var row in measured.Where(r => r.Verdict == verdict).OrderByDescending(static r => r.Off).Take(50))
+                        text.AppendLine($"  {Percent(row.Off!.Value),8} off  {row.File} p{row.Page}  {row.Status}"
+                                        + string.Concat(References.Select(r => $"  {r.Name} {(row.OffBy.GetValueOrDefault(r.Key) is { } o ? Percent(o) : "-")}"))
+                                        + $"  between {(row.Between is { } b ? Percent(b) : "-")}");
+                }
             }
 
             text.AppendLine();
             text.AppendLine("Seconds spent: ours " + (rows.Sum(static r => r.OursMs) / 1000.0).ToString("0", CultureInfo.InvariantCulture)
-                            + ", Windows " + (rows.Sum(static r => r.WindowsMs) / 1000.0).ToString("0", CultureInfo.InvariantCulture));
+                            + string.Concat(References.Select(r => $", {r.Name} " + (rows.Sum(x => x.MsBy.GetValueOrDefault(r.Key)) / 1000.0).ToString("0", CultureInfo.InvariantCulture))));
 
             WriteReview(measured);
             return text.ToString();
@@ -541,29 +576,36 @@ public class PdfCorpusFidelityTests
             var revisit = Revisiting is not null;
             var shown = revisit
                 ? measured.OrderByDescending(r => Change(r) ?? 0).ThenByDescending(static r => r.Off).ToList()
-                : measured.Where(static r => r.Off >= ReviewShare).OrderByDescending(static r => r.Off).Take(Reviewed).ToList();
+                : measured.Where(Shown).OrderBy(static r => r.Verdict == Verdict.Edge).ThenByDescending(static r => r.Off).Take(Reviewed).ToList();
 
             var html = new StringBuilder();
+            var pictures = string.Join(" · ", References.Select(static r => r.Name));
             html.AppendLine("<!doctype html><meta charset=utf-8><title>PDF fidelity review</title>");
-            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}</style>");
+            html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}.nearer{outline:3px solid #8cf}</style>");
             html.AppendLine(revisit
-                ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first — Windows · ours · difference (red off, orange past near)</h2><table>"
-                : $"<h2>Worst {Reviewed} pages by off pixels — Windows · ours · difference (red off, orange past near)</h2><table>");
+                ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first — {pictures} · ours · difference from the nearer reference, outlined (red off, orange past near)</h2><table>"
+                : $"<h2>Pages against us, worst first, then the edges — {pictures} · ours · difference from the nearer reference, outlined (red off, orange past near)</h2><table>");
             foreach (var row in shown)
             {
-                var windows = Path.Combine("..", "reference", row.File, $"p{row.Page}.png").Replace('\\', '/');
                 var ours = Path.Combine(row.File, $"p{row.Page}-ours.png").Replace('\\', '/');
                 var diff = Path.Combine(row.File, $"p{row.Page}-diff.png").Replace('\\', '/');
-                var was = _before.TryGetValue((row.File, row.Page), out var before)
-                    ? $"<br><span class={(row.Off < before ? "better" : row.Off > before ? "worse" : "same")}>was {Percent(before)}</span>"
+                var change = Change(row);
+                var was = change is { } c
+                    ? $"<br><span class={(c > 0 ? "better" : c < 0 ? "worse" : "same")}>{(c > 0 ? "better" : c < 0 ? "worse" : "the same")} by {Percent(Math.Abs(c))}</span>"
                     : "";
-                // The three pictures are shown at one scale, the page's width brought to 460 pixels, never each at one
-                // width: a picture a pixel or two wider than Windows' would otherwise be drawn smaller, and its page look
-                // shorter than it is.
+                // The pictures are shown at one scale, the page's width brought to 460 pixels, never each at one width: a picture
+                // a pixel or two wider than another would otherwise be drawn smaller, and its page look shorter than it is.
                 var zoom = (ShownWidth / Math.Max(1, row.Width)).ToString("0.####", CultureInfo.InvariantCulture);
                 var img = $"loading=lazy style=\"zoom:{zoom}\"";
-                html.AppendLine($"<tr><td>{Percent(row.Off!.Value)} off{was}<br>{WebUtility.HtmlEncode(row.File)} p{row.Page}<br>{WebUtility.HtmlEncode(row.Status)}</td>"
-                                + $"<td><img {img} src=\"{windows}\"></td><td><img {img} src=\"{ours}\"></td><td><img {img} src=\"{diff}\"></td></tr>");
+                var references = string.Concat(References.Select(r =>
+                {
+                    var source = Path.Combine("..", r.Folder, row.File, $"p{row.Page}.png").Replace('\\', '/');
+                    var measure = row.OffBy.GetValueOrDefault(r.Key) is { } o ? $"{r.Name}: {Percent(o)} off" : $"{r.Name}: not drawn";
+                    return $"<td>{WebUtility.HtmlEncode(measure)}<br><img {img} class=\"{(row.Nearer == r.Key ? "nearer" : "")}\" src=\"{source}\"></td>";
+                }));
+                html.AppendLine($"<tr><td>{WebUtility.HtmlEncode(row.Verdict ?? "")} {Percent(row.Off!.Value)} off{was}<br>{WebUtility.HtmlEncode(row.File)} p{row.Page}"
+                                + $"<br>{WebUtility.HtmlEncode(row.Status)}<br>references {(row.Between is { } b ? Percent(b) : "-")} apart</td>"
+                                + $"{references}<td>ours<br><img {img} src=\"{ours}\"></td><td>difference<br><img {img} src=\"{diff}\"></td></tr>");
             }
 
             html.AppendLine("</table>");
@@ -571,9 +613,17 @@ public class PdfCorpusFidelityTests
             File.WriteAllText(Path.Combine(_work, "review", "index.html"), html.ToString());
         }
 
-        /// <summary>How much a revisited page's share of off pixels fell since the run before, or null where it was not measured then.</summary>
-        private double? Change(Parsed row) =>
-            row.Off is { } now && _before.TryGetValue((row.File, row.Page), out var before) ? before - now : null;
+        /// <summary>
+        /// How much a revisited page's share of off pixels fell since the run before, or null where it was not measured then. A
+        /// row the run before measured against Windows alone is set beside this run's off from Windows, so that a page now judged
+        /// by both references does not seem to have improved by that alone.
+        /// </summary>
+        private double? Change(Parsed row)
+        {
+            if (!_before.TryGetValue((row.File, row.Page), out var before) || before.Off is not { } then) return null;
+            var now = before.Verdict is null ? row.OffBy.GetValueOrDefault("windows") : row.Off;
+            return now is { } value ? then - value : null;
+        }
 
         private static double Percentile(List<double> sorted, double p) =>
             sorted.Count == 0 ? double.NaN : sorted[(int)Math.Min(sorted.Count - 1, p * sorted.Count)];
@@ -581,18 +631,47 @@ public class PdfCorpusFidelityTests
         private static string Percent(double share) =>
             double.IsNaN(share) ? "-" : (share * 100).ToString("0.###", CultureInfo.InvariantCulture) + "%";
 
+        /// <param name="Verdict">What the page was judged; null in a row of a run that held pages against Windows alone.</param>
+        /// <param name="Nearer">The key of the reference its measures are against.</param>
+        /// <param name="Between">The share of off pixels between the references.</param>
+        /// <param name="OffBy">Its share of off pixels against each reference, by key, null where that one did not draw it.</param>
+        /// <param name="MsBy">How long each reference took, by key.</param>
         private sealed record Parsed(string File, int Page, int Width, double? Identical, double? Near, double? Off, double? MeanError,
-            double? WorstTile, long OursMs, long WindowsMs, int Unsupported, string Status);
+            double? WorstTile, long OursMs, int Unsupported, string Status, string? Verdict, string? Nearer, double? Between,
+            IReadOnlyDictionary<string, double?> OffBy, IReadOnlyDictionary<string, long> MsBy);
 
-        private static Parsed? RowOf(string line)
+        /// <summary>
+        /// The rows of a <c>pages.csv</c>, each read by the names its header gives its columns — so a run's rows read whichever
+        /// references it held pages against, and a run that held them against Windows alone reads as having measured its
+        /// <c>off</c> against Windows.
+        /// </summary>
+        private static List<Parsed> Rows(string pages)
         {
-            var cells = Cells(line);
-            if (cells.Count < 13) return null;
-            static double? D(string s) => s.Length == 0 ? null : double.Parse(s, CultureInfo.InvariantCulture);
-            return new Parsed(cells[0], int.Parse(cells[1], CultureInfo.InvariantCulture),
-                int.Parse(cells[2], CultureInfo.InvariantCulture), D(cells[4]), D(cells[5]), D(cells[6]),
-                D(cells[7]), D(cells[8]), long.Parse(cells[9], CultureInfo.InvariantCulture),
-                long.Parse(cells[10], CultureInfo.InvariantCulture), int.Parse(cells[11], CultureInfo.InvariantCulture), cells[12]);
+            var lines = File.ReadLines(pages).GetEnumerator();
+            if (!lines.MoveNext()) return [];
+            var columns = Cells(lines.Current).Select(static (name, at) => (name, at)).ToDictionary(static c => c.name, static c => c.at);
+            var keys = columns.Keys.Where(static c => c.EndsWith("_off", StringComparison.Ordinal) && c != "references_off")
+                .Select(static c => c[..^4]).ToList();
+            var judged = columns.ContainsKey("verdict");
+            var rows = new List<Parsed>();
+            while (lines.MoveNext())
+            {
+                var cells = Cells(lines.Current);
+                if (cells.Count < columns.Count) continue;
+                string Cell(string name) => columns.TryGetValue(name, out var at) ? cells[at] : "";
+                static double? D(string s) => s.Length == 0 ? null : double.Parse(s, CultureInfo.InvariantCulture);
+                static long L(string s) => s.Length == 0 ? 0 : long.Parse(s, CultureInfo.InvariantCulture);
+                var off = D(Cell("off"));
+                rows.Add(new Parsed(Cell("file"), int.Parse(Cell("page"), CultureInfo.InvariantCulture), int.Parse(Cell("width"), CultureInfo.InvariantCulture),
+                    D(Cell("identical")), D(Cell("near")), off, D(Cell("mae")), D(Cell("worsttile")), L(Cell("ours_ms")),
+                    int.Parse(Cell("unsupported"), CultureInfo.InvariantCulture), Cell("status"),
+                    judged && Cell("verdict").Length > 0 ? Cell("verdict") : null, Cell("nearer") is { Length: > 0 } nearer ? nearer : null,
+                    D(Cell("references_off")),
+                    judged ? keys.ToDictionary(static k => k, k => D(Cell(k + "_off"))) : new Dictionary<string, double?> { ["windows"] = off },
+                    judged ? keys.ToDictionary(static k => k, k => L(Cell(k + "_ms"))) : new Dictionary<string, long> { ["windows"] = L(Cell("windows_ms")) }));
+            }
+
+            return rows;
         }
 
         private static List<string> Cells(string line)
@@ -707,4 +786,223 @@ public class PdfCorpusFidelityTests
             return pixels;
         }
     }
+
+    /// <summary>A renderer pages are held against, its renders kept beside the corpus in a folder of its own.</summary>
+    private abstract class ReferenceRenderer
+    {
+        /// <summary>What the summary and the review call it.</summary>
+        public abstract string Name { get; }
+
+        /// <summary>What its columns in <c>pages.csv</c> are named by.</summary>
+        public abstract string Key { get; }
+
+        /// <summary>The folder under <c>pdf-fidelity\</c> its renders are kept in.</summary>
+        public abstract string Folder { get; }
+
+        /// <summary>The document as this renderer reads it, or null where it will not open it.</summary>
+        public abstract ReferenceDocument? Open(string file);
+    }
+
+    /// <summary>One document a <see cref="ReferenceRenderer"/> has open.</summary>
+    private abstract class ReferenceDocument : IDisposable
+    {
+        public abstract int PageCount { get; }
+
+        /// <summary>The page at <paramref name="index"/> drawn over white at <paramref name="size"/>, as a PNG — a pixel either
+        /// way of it is the renderer rounding the page.</summary>
+        public abstract byte[] Render(int index, (int Width, int Height) size);
+
+        public virtual void Dispose() { }
+    }
+
+    /// <summary>Windows' own renderer, <c>Windows.Data.Pdf</c>.</summary>
+    private sealed class WindowsReference : ReferenceRenderer
+    {
+        /// <summary>The display scale Windows draws a page at, as the last render that came back another size showed it.</summary>
+        private static double _scale = 1;
+
+        public override string Name => "Windows";
+
+        public override string Key => "windows";
+
+        public override string Folder => "reference";
+
+        public override ReferenceDocument? Open(string file)
+        {
+            try
+            {
+                return new Document(Task.Run(async () => await WinPdf.PdfDocument.LoadFromFileAsync(await StorageFile.GetFileFromPathAsync(file)))
+                    .GetAwaiter().GetResult());
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                return null;
+            }
+        }
+
+        private static (uint Width, uint Height) Requested((int Width, int Height) size, double scale) =>
+            ((uint)Math.Max(1, Math.Round(size.Width / scale)), (uint)Math.Max(1, Math.Round(size.Height / scale)));
+
+        private sealed class Document(WinPdf.PdfDocument document) : ReferenceDocument
+        {
+            public override int PageCount => (int)document.PageCount;
+
+            // Windows takes the size asked for in device-independent pixels and draws it at the scale of the display it reckons
+            // it is drawing for — which changes when a monitor sleeps or wakes. Every render is checked, and one that comes back
+            // another size gives the scale now, which this page and those after it are asked for by.
+            public override byte[] Render(int index, (int Width, int Height) size)
+            {
+                var asked = Requested(size, Volatile.Read(ref _scale));
+                var png = Rendered(index, asked);
+                var picture = Load(png);
+                if (Fits(picture, size)) return png;
+
+                var scale = (double)picture.PixelWidth / asked.Width;
+                Volatile.Write(ref _scale, scale);
+                return Rendered(index, Requested(size, scale));
+            }
+
+            private byte[] Rendered(int index, (uint Width, uint Height) request) =>
+                Task.Run(async () =>
+                {
+                    using var page = document.GetPage((uint)index);
+                    using var stream = new InMemoryRandomAccessStream();
+                    await page.RenderToStreamAsync(stream, new WinPdf.PdfPageRenderOptions
+                    {
+                        DestinationWidth = request.Width,
+                        DestinationHeight = request.Height,
+                        BackgroundColor = global::Windows.UI.Color.FromArgb(255, 255, 255, 255),
+                    });
+                    var bytes = new byte[stream.Size];
+                    using var reader = new DataReader(stream.GetInputStreamAt(0));
+                    await reader.LoadAsync((uint)stream.Size);
+                    reader.ReadBytes(bytes);
+                    return bytes;
+                }).GetAwaiter().GetResult();
+        }
+    }
+
+    /// <summary>PDFium, Chrome's renderer, drawing a page as Chrome shows it: its annotations and form fields with it.</summary>
+    private sealed class PdfiumReference : ReferenceRenderer
+    {
+        /// <summary>PDFium keeps state of its own across documents: one call into it at a time.</summary>
+        private static readonly object Gate = new();
+
+        /// <summary>Annotations drawn, as a viewer draws them (<c>FPDF_ANNOT</c>).</summary>
+        private const int Annotations = 0x01;
+
+        /// <summary>A bitmap of blue, green, red and alpha bytes (<c>FPDFBitmap_BGRA</c>).</summary>
+        private const int Bgra = 4;
+
+        private static bool _started;
+
+        public override string Name => "PDFium";
+
+        public override string Key => "pdfium";
+
+        public override string Folder => "reference-pdfium";
+
+        public override ReferenceDocument? Open(string file)
+        {
+            lock (Gate)
+            {
+                if (!_started)
+                {
+                    fpdfview.FPDF_InitLibrary();
+                    _started = true;
+                }
+
+                var document = fpdfview.FPDF_LoadDocument(file, null);
+                return document is null || document.__Instance == IntPtr.Zero ? null : new Document(document);
+            }
+        }
+
+        private sealed class Document : ReferenceDocument
+        {
+            private readonly FpdfDocumentT _document;
+
+            // Held for as long as the form environment it is given to, which keeps a pointer to it.
+            private readonly FPDF_FORMFILLINFO _formInfo = new() { Version = 1 };
+            private readonly FpdfFormHandleT? _form;
+
+            public Document(FpdfDocumentT document)
+            {
+                _document = document;
+                _form = fpdf_formfill.FPDFDOC_InitFormFillEnvironment(document, _formInfo);
+                PageCount = fpdfview.FPDF_GetPageCount(document);
+            }
+
+            public override int PageCount { get; }
+
+            private bool HasForm => _form is not null && _form.__Instance != IntPtr.Zero;
+
+            public override byte[] Render(int index, (int Width, int Height) size)
+            {
+                BitmapSource picture;
+                lock (Gate)
+                {
+                    var page = fpdfview.FPDF_LoadPage(_document, index);
+                    if (page is null || page.__Instance == IntPtr.Zero) throw new InvalidOperationException("PDFium could not load the page.");
+                    try
+                    {
+                        if (HasForm) fpdf_formfill.FORM_OnAfterLoadPage(page, _form);
+                        var bitmap = fpdfview.FPDFBitmapCreateEx(size.Width, size.Height, Bgra, IntPtr.Zero, 0);
+                        if (bitmap is null || bitmap.__Instance == IntPtr.Zero)
+                            throw new InvalidOperationException($"PDFium could not make a {size.Width}x{size.Height} bitmap.");
+                        try
+                        {
+                            fpdfview.FPDFBitmapFillRect(bitmap, 0, 0, size.Width, size.Height, 0xFFFFFFFF);
+                            fpdfview.FPDF_RenderPageBitmap(bitmap, page, 0, 0, size.Width, size.Height, 0, Annotations);
+                            if (HasForm) fpdf_formfill.FPDF_FFLDraw(_form, bitmap, page, 0, 0, size.Width, size.Height, 0, Annotations);
+                            var stride = fpdfview.FPDFBitmapGetStride(bitmap);
+                            var pixels = new byte[stride * size.Height];
+                            Marshal.Copy(fpdfview.FPDFBitmapGetBuffer(bitmap), pixels, 0, pixels.Length);
+                            picture = BitmapSource.Create(size.Width, size.Height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+                        }
+                        finally
+                        {
+                            fpdfview.FPDFBitmapDestroy(bitmap);
+                        }
+
+                        if (HasForm) fpdf_formfill.FORM_OnBeforeClosePage(page, _form);
+                    }
+                    finally
+                    {
+                        fpdfview.FPDF_ClosePage(page);
+                    }
+                }
+
+                picture.Freeze();
+                return LayoutPictures.Png(picture);
+            }
+
+            public override void Dispose()
+            {
+                lock (Gate)
+                {
+                    if (HasForm) fpdf_formfill.FPDFDOC_ExitFormFillEnvironment(_form);
+                    fpdfview.FPDF_CloseDocument(_document);
+                }
+
+                _formInfo.Dispose();
+            }
+        }
+    }
+
+    /// <summary>A PNG's pixels as premultiplied BGRA belonging to no thread.</summary>
+    private static BitmapSource Load(byte[] png)
+    {
+        var decoder = BitmapDecoder.Create(new MemoryStream(png), BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+        var frame = new FormatConvertedBitmap(decoder.Frames[0], PixelFormats.Pbgra32, null, 0);
+        var stride = frame.PixelWidth * 4;
+        var pixels = new byte[stride * frame.PixelHeight];
+        frame.CopyPixels(pixels, stride, 0);
+        var copy = BitmapSource.Create(frame.PixelWidth, frame.PixelHeight, 96, 96, PixelFormats.Pbgra32, null, pixels, stride);
+        copy.Freeze();
+        return copy;
+    }
+
+    /// <summary>Whether a render is the page at <paramref name="size"/>, a pixel either way for the renderer's rounding.</summary>
+    private static bool Fits(BitmapSource picture, (int Width, int Height) size) =>
+        Math.Abs(picture.PixelWidth - size.Width) <= 1 && Math.Abs(picture.PixelHeight - size.Height) <= 1;
 }
