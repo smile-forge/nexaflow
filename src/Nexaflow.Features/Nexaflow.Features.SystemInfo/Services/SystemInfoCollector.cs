@@ -15,7 +15,7 @@ namespace Nexaflow.Features.SystemInfo.Services;
 /// background thread (it does blocking WMI work). Every probe is independently fault-tolerant, so a
 /// section degrades to "—"/"Unknown" rather than failing the whole snapshot.
 /// </summary>
-public sealed class SystemInfoCollector
+public sealed class SystemInfoCollector : ISystemInfoCollector
 {
     /// <param name="localAi">Where the workspace's models of Nexaflow's own run, for the Local AI card; null when it uses none.</param>
     public SystemInfoSnapshot Collect(LocalAiSetup? localAi = null)

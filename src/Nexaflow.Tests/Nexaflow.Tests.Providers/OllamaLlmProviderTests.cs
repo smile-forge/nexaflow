@@ -8,11 +8,15 @@ namespace Nexaflow.Tests.Providers;
 [TestClass]
 public class OllamaLlmProviderTests
 {
-    // Discard port on loopback → connection refused immediately, so the catch-all returns [] fast.
+    private readonly DeadBackend _backend = new();
+
+    [TestCleanup]
+    public void StopBackend() => _backend.Dispose();
+
     // Typed as ILlmProvider so default-interface members (SupportsImages) resolve.
-    private static ILlmProvider Unreachable(string model = "")
+    private ILlmProvider Unreachable(string model = "")
         => new OllamaLlmProvider(new FakeActivityManager(),
-               new OllamaConfig { Url = "http://127.0.0.1:9" },
+               new OllamaConfig { Url = _backend.Url },
                new ProviderModel(model));
 
     [TestMethod]

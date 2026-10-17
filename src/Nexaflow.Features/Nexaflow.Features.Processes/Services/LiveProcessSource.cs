@@ -7,8 +7,8 @@ namespace Nexaflow.Features.Processes.Services;
 /// <summary>
 /// The real <see cref="IProcessSource"/>. Enumerates processes via a cheap Toolhelp snapshot (the only
 /// source of parent-PID), derives CPU% from <see cref="Process.TotalProcessorTime"/> deltas between
-/// samples, and reads memory off cached <see cref="Process"/> handles. Image metadata (description /
-/// company / path / version) is read once per PID and cached — it never changes for a live process.
+/// samples, and reads every process's memory from one system-wide listing per snapshot. Image metadata
+/// (description / company / path / version) is read once per PID and cached — it never changes for a live process.
 /// All per-process reads are wrapped: a protected or cross-bitness process degrades to blanks +
 /// <see cref="ProcessSample.AccessDenied"/> rather than throwing.
 /// </summary>
@@ -28,6 +28,7 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
         long now = Stopwatch.GetTimestamp();
         int cores = Math.Max(1, Environment.ProcessorCount);
         var entries = NativeMethods.SnapshotProcesses();
+        var memory = ReadMemoryCounters();
         var live = new HashSet<int>(entries.Count);
         var samples = new List<ProcessSample>(entries.Count);
 
@@ -38,6 +39,8 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
             long priv = 0, ws = 0;
             bool denied = false;
 
+            if (memory.TryGetValue(pid, out var counters)) (priv, ws) = counters;
+
             var proc = GetOrOpen(pid);
             if (proc is null)
             {
@@ -45,8 +48,6 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
             }
             else
             {
-                try { proc.Refresh(); priv = proc.PrivateMemorySize64; ws = proc.WorkingSet64; }
-                catch { denied = true; }
                 try { cpu = CpuDelta(pid, proc.TotalProcessorTime, now, cores); }
                 catch { denied = true; }
             }
@@ -80,6 +81,23 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
             UsedPhysicalBytes  = total - avail,
             ProcessorCount     = cores,
         };
+    }
+
+    /// <summary>
+    /// Every process's private bytes and working set, from one system-wide listing. Read per process instead —
+    /// <see cref="Process.Refresh"/> then <see cref="Process.PrivateMemorySize64"/> — .NET lists every process on the
+    /// machine again for each one, which makes a snapshot cost the square of the process count.
+    /// </summary>
+    private static Dictionary<int, (long Private, long WorkingSet)> ReadMemoryCounters()
+    {
+        var listing = Process.GetProcesses();
+        var counters = new Dictionary<int, (long, long)>(listing.Length);
+        foreach (var p in listing)
+        {
+            // The listing carries each process's counters, so reading them opens nothing and asks the system nothing.
+            using (p) counters[p.Id] = (p.PrivateMemorySize64, p.WorkingSet64);
+        }
+        return counters;
     }
 
     public ProcessDetail? ReadDetail(int pid)
