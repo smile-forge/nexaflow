@@ -17,8 +17,8 @@
          Each depends on PdfPig alone. Without them TryGetPng declines those images and "extract
          images" quietly skips most of a scanned document. -->
     <PackageReference Include="PdfPig.Filters.Dct.JpegLibrary" Version="0.1.16.1" />
-    <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.16.1" />
-    <PackageReference Include="PdfPig.Filters.Jpx.OpenJpeg" Version="0.1.16" />
+    <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.16.2" />
+    <PackageReference Include="PdfPig.Filters.Jpx.OpenJpeg" Version="0.1.16.1" />
   </ItemGroup>
 
   <ItemGroup>

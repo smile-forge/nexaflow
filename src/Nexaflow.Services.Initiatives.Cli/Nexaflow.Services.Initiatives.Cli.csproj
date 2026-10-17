@@ -25,7 +25,7 @@
   <ItemGroup>
     <!-- Metadata-only reflection over the built test DLLs for `scan-tests` — never executes them, so a
          net10.0-windows test assembly's WPF/WinRT deps are not loaded into this net10.0 host. -->
-    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.11" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,9 +56,7 @@
     alone. NfiPublishingViaScript breaks the recursion — the script's own publish sets it, and this target
     then stands aside so the inner publish is an ordinary one.
   -->
-  <Target Name="NfiPublishViaScript"
-          AfterTargets="Publish"
-          Condition="'$(NfiPublishingViaScript)' != 'true' And '$(BuildingInsideVisualStudio)' == 'true'">
+  <Target Name="NfiPublishViaScript" AfterTargets="Publish" Condition="'$(NfiPublishingViaScript)' != 'true' And '$(BuildingInsideVisualStudio)' == 'true'">
     <Message Importance="high" Text="Publishing the graph CLI through tools/publish-graph-cli.ps1 ..." />
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\publish-graph-cli.ps1&quot;" />
   </Target>
@@ -75,15 +73,12 @@
     The publish itself is not blocked, only its destination: point the profile anywhere scratch (its output
     is discarded) and the target above republishes properly through the script.
   -->
-  <Target Name="NfiRefusePublishOverLiveTools"
-          BeforeTargets="Publish"
-          Condition="'$(NfiPublishingViaScript)' != 'true' And '$(PublishDir)' != ''">
+  <Target Name="NfiRefusePublishOverLiveTools" BeforeTargets="Publish" Condition="'$(NfiPublishingViaScript)' != 'true' And '$(PublishDir)' != ''">
     <PropertyGroup>
       <_NfiLiveTools>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\tools\graph-cli'))</_NfiLiveTools>
       <_NfiPublishDir>$([MSBuild]::NormalizeDirectory('$(PublishDir)'))</_NfiPublishDir>
     </PropertyGroup>
-    <Error Condition="'$(_NfiPublishDir)' == '$(_NfiLiveTools)'"
-           Text="This profile publishes straight into $(_NfiLiveTools), which is the exe everyone runs. A partial copy there leaves a working-looking nfi.exe running stale code. Point PublishDir at a scratch folder (bin\vs-publish) — the Publish button then republishes properly via tools/publish-graph-cli.ps1 — or run that script directly." />
+    <Error Condition="'$(_NfiPublishDir)' == '$(_NfiLiveTools)'" Text="This profile publishes straight into $(_NfiLiveTools), which is the exe everyone runs. A partial copy there leaves a working-looking nfi.exe running stale code. Point PublishDir at a scratch folder (bin\vs-publish) — the Publish button then republishes properly via tools/publish-graph-cli.ps1 — or run that script directly." />
   </Target>
 
 </Project>

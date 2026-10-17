@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.GenAI" Version="1.21.0" />
+    <PackageReference Include="Google.GenAI" Version="1.26.1" />
   </ItemGroup>
 
   <ItemGroup>
