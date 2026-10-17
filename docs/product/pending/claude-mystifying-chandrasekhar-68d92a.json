@@ -1,0 +1,28 @@
+{
+  "branch": "claude/mystifying-chandrasekhar-68d92a",
+  "nodes": {
+    "sysinfo-envvars-save": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/ViewModels/EnvironmentVariablesViewModel.cs",
+          "class": "EnvironmentVariablesViewModel",
+          "method": "SetVariableAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Services/UserEnvVarWriter.cs",
+          "class": "UserEnvVarWriter",
+          "method": "Set"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "sysinfo-envvars-save"
+  ]
+}

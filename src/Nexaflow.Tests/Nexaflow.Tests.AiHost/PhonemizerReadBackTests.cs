@@ -19,6 +19,7 @@ namespace Nexaflow.Tests.AiHost;
 /// espeak-ng's readings); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> runs Whisper on the GPU.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 [TestCategory("OwnedModel")]
 [CoversNode("owned-speech")]
 public class PhonemizerReadBackTests

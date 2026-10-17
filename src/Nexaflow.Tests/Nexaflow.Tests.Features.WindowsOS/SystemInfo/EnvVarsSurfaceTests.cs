@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
+using Nexaflow.Features.SystemInfo.Services;
 using Nexaflow.Features.SystemInfo.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -23,12 +24,15 @@ namespace Nexaflow.Tests.Features.SystemInfo;
 [TestClass]
 public class EnvVarsSurfaceTests
 {
-    private static EnvironmentVariablesViewModel Build(out IShellServices shell)
+    private static EnvironmentVariablesViewModel Build(out IShellServices shell) => Build(out shell, out _);
+
+    private static EnvironmentVariablesViewModel Build(out IShellServices shell, out IUserEnvVarWriter userWriter)
     {
         shell = Substitute.For<IShellServices>();
         shell.RunElevatedAsync(Arg.Any<ElevatedRequest>(), Arg.Any<CancellationToken>())
              .Returns(Task.FromResult(ElevatedResult.Declined()));
-        return new EnvironmentVariablesViewModel(shell);
+        userWriter = Substitute.For<IUserEnvVarWriter>();
+        return new EnvironmentVariablesViewModel(shell, new EnvVarsCollector(), userWriter);
     }
 
     private static EnvVarRow Var(string name, string value, EnvScope scope = EnvScope.User)
@@ -101,12 +105,13 @@ public class EnvVarsSurfaceTests
     [CoversNode("sysinfo-envvars-save")]
     public async Task Save_AUserVariable_GoesInProcess_WithNoUacPrompt()
     {
-        var vm = Build(out var shell);
+        var vm = Build(out var shell, out var userWriter);
         vm.SelectedVariable = Var("NEXAFLOW_TEST_UNUSED", "old", EnvScope.User);
         vm.EditValue = "new";
 
         await vm.SaveCommand.ExecuteAsync(null);
 
+        userWriter.Received(1).Set("NEXAFLOW_TEST_UNUSED", "new");
         await shell.DidNotReceiveWithAnyArgs().RunElevatedAsync(default!, default);
     }
 
@@ -114,7 +119,7 @@ public class EnvVarsSurfaceTests
     [CoversNode("sysinfo-envvars-save")]
     public async Task Save_AMachineVariable_GoesThroughTheElevationBridge()
     {
-        var vm = Build(out var shell);
+        var vm = Build(out var shell, out var userWriter);
         vm.SelectedVariable = Var("SOME_MACHINE_VAR", "old", EnvScope.Machine);
         vm.EditValue = "new value";
 
@@ -127,6 +132,7 @@ public class EnvVarsSurfaceTests
                   && o.Args[ElevatedArgs.EnvValue] == "new value"
                   && o.Args[ElevatedArgs.EnvTarget] == "Machine")),
             Arg.Any<CancellationToken>());
+        userWriter.DidNotReceiveWithAnyArgs().Set(default!, default);
     }
 
     [TestMethod]
