@@ -1607,6 +1607,34 @@
           "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
         }
       ]
+    },
+    {
+      "id": "big-lama",
+      "displayName": "LaMa",
+      "kind": "pictureErasing",
+      "parts": [
+        {
+          "role": "inpainter",
+          "runner": "lama-inpainter",
+          "folder": "tools/big-lama/inpainter",
+          "file": "inpainter.onnx",
+          "memoryBytes": 4222615552
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/big-lama/inpainter/inpainter.onnx",
+          "url": "https://huggingface.co/smile-forge/big-lama-onnx/resolve/4211d2c742f0e3c1076f7e53fcea6cc374addbe8/inpainter/inpainter.onnx",
+          "size": 208851664,
+          "sha256": "ef85edd865769c03c753b5faa066be713a46a9c80c8f77954c67c0bb3a4ba2ff"
+        },
+        {
+          "path": "tools/big-lama/inpainter/LICENSE",
+          "url": "https://huggingface.co/smile-forge/big-lama-onnx/resolve/4211d2c742f0e3c1076f7e53fcea6cc374addbe8/LICENSE",
+          "size": 11549,
+          "sha256": "99820be3ed3693f7726e7cda8baddbee9961137b4a402b3c4b2d539a3e234161"
+        }
+      ]
     }
   ]
 }

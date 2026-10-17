@@ -123,6 +123,26 @@ public interface IPictureSelectionSession : IAsyncDisposable
     Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct);
 }
 
+/// <summary>What to erase from a picture, by file.</summary>
+/// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
+/// <param name="Mask">The file the mask is in: one byte a pixel, row by row, erased where it is not 0.</param>
+/// <param name="Into">The file the erased picture is written to, in the picture's form; replaced if it is there.</param>
+public sealed record PictureEraseRequest(string Pixels, string Mask, int Width, int Height, string Into);
+
+/// <summary>An erased picture, in the request's file, filled in <see cref="Regions"/> regions of its surroundings.</summary>
+public sealed record PictureErasure(int Regions);
+
+/// <summary>
+/// What a mask covers erased from a picture by a neural network Nexaflow runs on this machine, and filled from what is
+/// round it: scratches, dust, wires, a person or a sign rubbed out of a photo. Only the mask's pixels change.
+/// </summary>
+public interface IPictureErasing : IToolModels
+{
+    /// <summary>Erases what the request's mask covers, reporting how far it has got from 0 to 1.</summary>
+    /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture could not be erased.</exception>
+    Task<PictureErasure> EraseAsync(PictureEraseRequest request, IProgress<double>? progress, CancellationToken ct);
+}
+
 /// <summary>What a block of a page is, as the page reader marks it.</summary>
 public enum PageBlockKind
 {

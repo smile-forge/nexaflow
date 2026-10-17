@@ -53,6 +53,7 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
     new Selecting.ExemplarEncoderRunner(),
     new Selecting.FinderRunner(),
     new Reading.TextFinderRunner(),
+    new Erasing.PictureInpainterRunner(),
     ]);
 
     /// <exception cref="HostRequestException">This host has no runner of that name.</exception>

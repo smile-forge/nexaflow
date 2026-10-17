@@ -60,6 +60,7 @@ internal static class HostProgram
                 new RestoreHandler(models, scheduler),
                 new SelectHandler(models, scheduler),
                 new FindTextHandler(models),
+                new Erasing.EraseHandler(models, scheduler),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

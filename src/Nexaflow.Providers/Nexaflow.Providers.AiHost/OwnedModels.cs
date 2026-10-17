@@ -52,6 +52,7 @@ internal static class OwnedRoles
     public const string Finder          = SelectingParts.Finder;
     public const string Reader          = ReadingParts.Reader;
     public const string TextFinder      = ReadingParts.TextFinder;
+    public const string Inpainter       = ErasingParts.Inpainter;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -71,6 +72,7 @@ internal static class OwnedRoles
         OwnedToolKind.PictureRestoration => [UpscalerX2, UpscalerX4, FaceDetector, FaceRestorer, FaceParser],
         OwnedToolKind.PictureSelection   => [ImageEncoder, ClickDecoder, TextEncoder, ExemplarEncoder, Finder],
         OwnedToolKind.PageReading        => [Reader, TextFinder],
+        OwnedToolKind.PictureErasing     => [Inpainter],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
     };
 
@@ -124,6 +126,9 @@ internal enum OwnedToolKind
 
     /// <summary>Reads pages of writing: Unlimited-OCR, and PP-OCRv5's text detector, which finds where a picture holds writing.</summary>
     PageReading,
+
+    /// <summary>Erases from a picture what a mask covers, filling it from what is round it: LaMa's big-lama inpainter.</summary>
+    PictureErasing,
 }
 
 /// <summary>

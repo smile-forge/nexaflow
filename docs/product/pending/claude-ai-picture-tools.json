@@ -770,16 +770,119 @@
           "method": "UnlimitedWidth"
         }
       ]
+    },
+    "picture-erasing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ErasingMessages.cs",
+          "class": "ErasePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/EraseHandler.cs",
+          "class": "EraseHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/ErasingHandover.cs",
+          "class": "ErasingHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/PictureInpainter.cs",
+          "class": "PictureInpainter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/InpaintRegions.cs",
+          "class": "InpaintRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureErasing.cs",
+          "class": "OwnedPictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureErasing.cs",
+          "class": "PictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureErasing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/big-lama/README.md",
+          "title_path": [
+            "big-lama for ONNX Runtime"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingTests.cs",
+            "class": "PictureErasingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingHandoverTests.cs",
+            "class": "PictureErasingHandoverTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/InpaintRegionsTests.cs",
+            "class": "InpaintRegionsTests"
+          }
+        ]
+      }
+    },
+    "images-edit-erase": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/ContentAwareFill.cs",
+          "class": "ContentAwareFill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/HealingBrush.cs",
+          "class": "HealingBrush"
+        },
+        {
+          "type": "node",
+          "target": "picture-erasing"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/ContentAwareFillTests.cs",
+            "class": "ContentAwareFillTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/HealingBrushTests.cs",
+            "class": "HealingBrushTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 38,
   "touched_nodes": [
     "ai-tools",
     "executable-dependency-viewport",
     "images-ai-act-read-page",
     "images-ai-act-select-in-picture",
     "images-edit-cutout",
+    "images-edit-erase",
     "images-edit-remove-background",
     "images-edit-restore",
     "images-header",
@@ -793,6 +896,7 @@
     "pdf-ai-act-read-scans",
     "pdf-panel-text",
     "pdf-scan-reading",
+    "picture-erasing",
     "picture-selection",
     "picture-tools",
     "video-cutout-frame"
