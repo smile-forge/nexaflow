@@ -574,19 +574,29 @@ public class PdfCorpusFidelityTests
         private void WriteReview(List<Parsed> measured)
         {
             var revisit = Revisiting is not null;
-            var shown = revisit
-                ? measured.OrderByDescending(r => Change(r) ?? 0).ThenByDescending(static r => r.Off).ToList()
-                : measured.Where(Shown).OrderBy(static r => r.Verdict == Verdict.Edge).ThenByDescending(static r => r.Off).Take(Reviewed).ToList();
+            // Those against us first, then the edges, then — a revisit shows every page it drew again — those that match; worst
+            // first within each, or in a revisit most improved first.
+            static int Group(Parsed row) => row.Verdict switch { Verdict.Against => 0, Verdict.Edge => 1, Verdict.Matches => 2, _ => 0 };
+            var shown = (revisit ? measured : measured.Where(Shown).Take(Reviewed)).OrderBy(Group)
+                .ThenByDescending(r => revisit ? Change(r) ?? 0 : 0).ThenByDescending(static r => r.Off).ToList();
+            var headings = new Dictionary<int, string> { [0] = "against us", [1] = "edges: no two renderers agree", [2] = "matching a reference" };
 
             var html = new StringBuilder();
             var pictures = string.Join(" · ", References.Select(static r => r.Name));
             html.AppendLine("<!doctype html><meta charset=utf-8><title>PDF fidelity review</title>");
             html.AppendLine("<style>body{font:13px sans-serif;background:#777}td{vertical-align:top;padding:6px}img{background:#fff;box-shadow:0 0 4px #222}.better{color:#cfc}.worse{color:#fcc}.nearer{outline:3px solid #8cf}</style>");
             html.AppendLine(revisit
-                ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first — {pictures} · ours · difference from the nearer reference, outlined (red off, orange past near)</h2><table>"
+                ? $"<h2>The {shown.Count} pages the last review showed, drawn again, most improved first in each group — {pictures} · ours · difference from the nearer reference, outlined (red off, orange past near)</h2><table>"
                 : $"<h2>Pages against us, worst first, then the edges — {pictures} · ours · difference from the nearer reference, outlined (red off, orange past near)</h2><table>");
+            var group = -1;
             foreach (var row in shown)
             {
+                if (Group(row) != group)
+                {
+                    group = Group(row);
+                    html.AppendLine($"<tr><th colspan={References.Length + 3} style=\"text-align:left;font-size:18px;padding-top:24px\">"
+                                    + $"{shown.Count(r => Group(r) == group)} {headings[group]}</th></tr>");
+                }
                 var ours = Path.Combine(row.File, $"p{row.Page}-ours.png").Replace('\\', '/');
                 var diff = Path.Combine(row.File, $"p{row.Page}-diff.png").Replace('\\', '/');
                 var change = Change(row);
