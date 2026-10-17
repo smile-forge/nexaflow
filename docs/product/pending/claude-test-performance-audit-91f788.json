@@ -1,0 +1,22 @@
+{
+  "branch": "claude/test-performance-audit-91f788",
+  "nodes": {
+    "latex-fonts-read-once": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/Typesetting/TexFontTests.cs",
+            "class": "TexFontTests",
+            "method": "EveryFormulaDrawsFromTheFacesReadOnce_AtItsOwnSize"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "latex-fonts-read-once"
+  ]
+}

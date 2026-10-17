@@ -7,7 +7,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
-/// <summary>Default implementation of ITeXFont that reads all font information from XML file.</summary>
+/// <summary>Default implementation of ITeXFont: the font information read from XML (<see cref="DefaultTexFontData"/>), set at one size.</summary>
 internal sealed class DefaultTexFont : ITeXFont
 {
     private readonly IReadOnlyDictionary<string, double> parameters;
@@ -32,19 +32,15 @@ internal sealed class DefaultTexFont : ITeXFont
             return (double)generalSettings["scriptscriptfactor"];
     }
 
-    public DefaultTexFont(IFontProvider fontProvider, double size)
+    /// <summary>The maths fonts as <paramref name="data"/> describes them, set at <paramref name="size"/>.</summary>
+    public DefaultTexFont(DefaultTexFontData data, double size)
     {
-        var parser = new DefaultTexFontParser(fontProvider);
-        parameters = parser.GetParameters();
-        generalSettings = parser.GetGeneralSettings();
-        textStyleMappings = parser.GetTextStyleMappings();
-        defaultTextStyleMappings = parser.GetDefaultTextStyleMappings();
-        symbolMappings = parser.GetSymbolMappings();
-        fontInfoList = parser.GetFontDescriptions();
-        // Check that Mu font exists.
-        var muFontId = (int)generalSettings["mufontid"];
-        if (muFontId < 0 || muFontId >= fontInfoList.Count || fontInfoList[muFontId] == null)
-            throw new InvalidOperationException("ID of Mu font is invalid.");
+        parameters = data.Parameters;
+        generalSettings = data.GeneralSettings;
+        textStyleMappings = data.TextStyleMappings;
+        defaultTextStyleMappings = data.DefaultTextStyleMappings;
+        symbolMappings = data.SymbolMappings;
+        fontInfoList = data.FontInfoList;
 
         this.Size = size;
     }

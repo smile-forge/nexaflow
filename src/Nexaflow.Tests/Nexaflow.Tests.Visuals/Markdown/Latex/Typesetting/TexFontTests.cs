@@ -8,6 +8,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 using Nexaflow.Markdown.Latex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -20,7 +21,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 [CoversNode("maths-typesetting")]
 public class TexFontTests
 {
-    private static DefaultTexFont Font() => new(WpfMathFontProvider.Instance, 1.0);
+    private static DefaultTexFont Font() => new(DefaultTexFontData.Read(WpfMathFontProvider.Instance), 1.0);
 
     [TestMethod]
     public void ACharacterInATextStyleHasCharInfo() => UiThread.Run(() =>
@@ -50,6 +51,23 @@ public class TexFontTests
     public void AnUnsupportedMathsCharacterIsACharacterMappingNotFound() => UiThread.Run(() =>
         Assert.IsInstanceOfType<TexCharacterMappingNotFoundException>(
             Environment().MathFont.GetDefaultCharInfo('Å', TexStyle.Display).Error));
+
+    /// <summary>
+    /// Reading the maths fonts opens every face they list, so it happens once rather than for each formula: two formulae set
+    /// at different sizes draw from the very same faces, and each is still set at its own size.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-fonts-read-once")]
+    public void EveryFormulaDrawsFromTheFacesReadOnce_AtItsOwnSize() => UiThread.Run(() =>
+    {
+        var small = WpfTeXEnvironment.Create(scale: 10.0).MathFont;
+        var large = WpfTeXEnvironment.Create(scale: 30.0).MathFont;
+
+        Assert.AreSame(small.GetCharInfo('x', "text", TexStyle.Text).Value.Font, large.GetCharInfo('x', "text", TexStyle.Text).Value.Font,
+                       "the second formula opened the faces again");
+        Assert.AreEqual(10.0, small.Size, "a formula is set at its own size");
+        Assert.AreEqual(30.0, large.Size, "a formula is set at its own size");
+    });
 
     [TestMethod]
     public void ACharacterTheTextFontLacksSaysSoWhenItIsDrawn() => UiThread.Run(() =>
