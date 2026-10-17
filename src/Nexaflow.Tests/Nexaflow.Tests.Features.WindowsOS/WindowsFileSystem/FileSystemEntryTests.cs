@@ -150,4 +150,31 @@ public class FileSystemEntryTests
 
         CollectionAssert.Contains(fired, nameof(FileSystemEntry.TypeLabel));
     }
+
+    // ── TakeOn ────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("winfs-reload-in-place")]
+    public void TakeOn_ANewReadingOfTheSameFile_IsTakenOn_AndEachChangeIsSaid()
+    {
+        var entry = new FileSystemEntry { Name = "notes.txt", FullPath = @"C:\d\notes.txt", SizeBytes = 10, Modified = new DateTime(2026, 1, 1) };
+        var said = new List<string?>();
+        entry.PropertyChanged += (_, e) => said.Add(e.PropertyName);
+
+        var took = entry.TakeOn(new FileSystemEntry { Name = "Notes.txt", FullPath = @"C:\d\Notes.txt", SizeBytes = 2048, Modified = new DateTime(2026, 2, 2) });
+
+        Assert.IsTrue(took);
+        Assert.AreEqual(("Notes.txt", 2048L, new DateTime(2026, 2, 2)), (entry.Name, entry.SizeBytes, entry.Modified));
+        CollectionAssert.IsSubsetOf(new[] { nameof(FileSystemEntry.Name), nameof(FileSystemEntry.SizeLabel), nameof(FileSystemEntry.ModifiedLabel) }, said);
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-reload-in-place")]
+    public void TakeOn_AFolderWhereAFileWas_CannotStandForIt()
+    {
+        var entry = new FileSystemEntry { Name = "build", FullPath = @"C:\d\build", SizeBytes = 10 };
+
+        Assert.IsFalse(entry.TakeOn(new FileSystemEntry { Name = "build", FullPath = @"C:\d\build", IsDirectory = true }));
+        Assert.AreEqual(10, entry.SizeBytes, "and it is left as it was");
+    }
 }

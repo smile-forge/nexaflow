@@ -19,11 +19,14 @@ public class FileSystemEntry : INotifyPropertyChanged
     private string        _driveKindLabel = string.Empty;
     private FileCompanionKind? _companion;
 
+    private long          _sizeBytes;
+    private DateTime      _modified;
+
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
     public bool     IsDirectory { get; init; }
-    public long     SizeBytes   { get; init; }
-    public DateTime Modified    { get; init; }
+    public long     SizeBytes   { get => _sizeBytes; init => _sizeBytes = value; }
+    public DateTime Modified    { get => _modified;  init => _modified = value; }
 
     /// <summary>A top-level row of "This PC" — a physical drive, or a location contributed by an
     /// <c>IThisPcItemProvider</c>. Not "a Windows volume": the whole feature keys the This PC
@@ -109,6 +112,38 @@ public class FileSystemEntry : INotifyPropertyChanged
     public string ModifiedLabel => IsThisPcItem || Modified == DateTime.MinValue
         ? string.Empty
         : Modified.ToString("yyyy-MM-dd HH:mm");
+
+    /// <summary>
+    /// Takes on what <paramref name="fresh"/> — a new reading of the same path — says: its name (a rename that only changed
+    /// case keeps the path), size, time and companion, telling the view about each that changed. False where it is no longer
+    /// the same kind of thing, a folder where there was a file or a different row of This PC, and cannot stand for it.
+    /// </summary>
+    public bool TakeOn(FileSystemEntry fresh)
+    {
+        if (fresh.IsDirectory != IsDirectory || fresh.IsThisPcItem != IsThisPcItem || fresh.ProviderId != ProviderId) return false;
+
+        if (fresh.Name != Name)
+        {
+            Name = fresh.Name;
+            OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(TypeLabel));
+        }
+        if (fresh.SizeBytes != _sizeBytes)
+        {
+            _sizeBytes = fresh.SizeBytes;
+            OnPropertyChanged(nameof(SizeBytes));
+            OnPropertyChanged(nameof(SizeLabel));
+        }
+        if (fresh.Modified != _modified)
+        {
+            _modified = fresh.Modified;
+            OnPropertyChanged(nameof(Modified));
+            OnPropertyChanged(nameof(ModifiedLabel));
+        }
+        if (fresh.Companion != Companion) Companion = fresh.Companion;
+
+        return true;
+    }
 
     private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
