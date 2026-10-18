@@ -54,7 +54,7 @@ public class ExecutableJourneyTests : UiJourneyTestBase
         string folder = Path.Combine(TestTemp.Root, "nexaflow-pe-journey");
         Directory.CreateDirectory(folder);
 
-        string source = Path.Combine(Path.GetDirectoryName(UITestBase.FindAppExe())!, SampleBinary);
+        string source = Path.Combine(Path.GetDirectoryName(BuiltOutput.App)!, SampleBinary);
         Assert.IsTrue(File.Exists(source),
             $"'{SampleBinary}' should ship beside Nexaflow.exe; the journey needs a real PE to open.");
 

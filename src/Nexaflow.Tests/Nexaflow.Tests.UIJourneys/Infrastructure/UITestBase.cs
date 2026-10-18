@@ -124,24 +124,7 @@ public abstract class UITestBase
 
         Automation = new UIA3Automation();
 
-        var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
-        // "A journey is driving this window": no first-run wizard, eager feature activation rather than
-        // lazy warm-up, and none of the background work that would otherwise talk over the test.
-        psi.ArgumentList.Add("--uiTest");
-        if (LaunchTabKind is { Length: > 0 } kind)
-        {
-            psi.ArgumentList.Add("--openTab");
-            psi.ArgumentList.Add(kind);
-            foreach (var (name, value) in LaunchTabParams)
-            {
-                psi.ArgumentList.Add("--tabParam");
-                psi.ArgumentList.Add($"{name}={value}");
-            }
-        }
-        psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
-        foreach (var (name, value) in LaunchEnvironment) psi.EnvironmentVariables[name] = value;
-
-        App = Application.Launch(psi);
+        App = Application.Launch(AppLaunchRecipe.StartInfo(_configDir, LaunchTabKind, LaunchTabParams, LaunchEnvironment));
 
         MainWindow = ResolveShellWindow();
         BringShellToFront();
@@ -177,30 +160,13 @@ public abstract class UITestBase
         // The app writes any unhandled exception to a dated crash log in its (isolated) config dir; the
         // handler marks it handled so the app stays up, making the log the only trail. Opening/clicking
         // around the app must not trigger one — surface it as a test failure rather than a silent log.
-        var crash = ReadCrashLogs(_configDir);
+        var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
         if (!string.IsNullOrWhiteSpace(crash))
             Assert.Fail("The app logged an unhandled exception during this UI test — opening/clicking " +
                         $"triggered a crash:{Environment.NewLine}{crash}");
-    }
-
-    /// <summary>
-    /// Everything the app recorded under <paramref name="configDir"/>, or null if it recorded nothing. The
-    /// log is one file per day (<c>crash-yyyy-MM-dd.log</c>), so a run spanning midnight leaves two — read
-    /// them all rather than the one whose name today happens to be.
-    /// </summary>
-    internal static string? ReadCrashLogs(string configDir)
-    {
-        try
-        {
-            if (!Directory.Exists(configDir)) return null;
-            var logs = Directory.GetFiles(configDir, "crash*.log").OrderBy(p => p).ToList();
-            if (logs.Count == 0) return null;
-            return string.Join(Environment.NewLine, logs.Select(File.ReadAllText));
-        }
-        catch { return null; }
     }
 
     /// <summary>
@@ -309,36 +275,5 @@ public abstract class UITestBase
         }
 
         return null;
-    }
-
-    internal static string FindAppExe()
-    {
-        // Walk up to the folder that holds Nexaflow.Core (the src dir), independent of how deep the test
-        // binary's own output path is (e.g. bin\x64\Debug\<tfm> vs bin\Debug\<tfm>).
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "Nexaflow.Core")))
-            dir = dir.Parent;
-        if (dir is null)
-            throw new FileNotFoundException(
-                $"Could not locate the src dir containing 'Nexaflow.Core' above '{AppContext.BaseDirectory}'.");
-
-        // Match this test run's configuration (Debug/Release) — the folder just above the TFM in our path.
-        var config = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var coreBin = Path.Combine(dir.FullName, "Nexaflow.Core", "bin");
-        if (!Directory.Exists(coreBin))
-            throw new FileNotFoundException($"Core output not found at '{coreBin}'. Build the solution first.");
-
-        // The app is Nexaflow.exe under …\bin\[<Platform>\]<Config>\<tfm>\win-x64\. Prefer the one matching
-        // our config; take the most recently built to avoid a stale sibling.
-        var exe = Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
-            .Where(p => p.Split(Path.DirectorySeparatorChar).Contains(config))
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault()
-            ?? Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .FirstOrDefault();
-
-        return exe ?? throw new FileNotFoundException(
-            $"Could not locate Nexaflow.exe under '{coreBin}'. Build the solution first.");
     }
 }

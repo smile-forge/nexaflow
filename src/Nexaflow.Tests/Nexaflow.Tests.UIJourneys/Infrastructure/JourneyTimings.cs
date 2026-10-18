@@ -4,6 +4,7 @@ using System.Linq;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -120,7 +121,7 @@ internal static class JourneyTimings
     /// <summary>The FileVersion of the exe the journeys drive — the release a row's numbers belong to.</summary>
     private static string ResolveAppVersion()
     {
-        try { return FileVersionInfo.GetVersionInfo(UITestBase.FindAppExe()).FileVersion ?? "unknown"; }
+        try { return FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "unknown"; }
         catch { return "unknown"; }
     }
 }
