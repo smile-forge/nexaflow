@@ -47,7 +47,7 @@ public class ImagesMakeVideoJourneyTests : UiJourneyTestBase
         }
         _aiDir = aiDir;
 
-        var version = FileVersionInfo.GetVersionInfo(FindAppExe()).FileVersion ?? "1.0.0.0";
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var workspaces = Path.Combine(configDir, "workcontexts");
         Directory.CreateDirectory(workspaces);
         File.WriteAllText(Path.Combine(workspaces, $"config_{version}.json"), $$"""

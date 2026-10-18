@@ -45,8 +45,8 @@ public class SetupWizardTests
 
         _automation = new UIA3Automation();
 
-        var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
-        psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh => first-run wizard
+        var psi = new ProcessStartInfo(BuiltOutput.App) { UseShellExecute = false };
+        psi.EnvironmentVariables[AppLaunchRecipe.ConfigDirVariable] = _configDir;   // isolated, fresh => first-run wizard
         _app = Application.Launch(psi);
     }
 
@@ -59,7 +59,7 @@ public class SetupWizardTests
         _gate = null;
 
         // Surface any unhandled exception the wizard logged (the dated crash logs live in the isolated dir).
-        var crash = UITestBase.ReadCrashLogs(_configDir);
+        var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
@@ -267,8 +267,4 @@ public class SetupWizardTests
         using var doc = JsonDocument.Parse(File.ReadAllText(file!));
         return doc.RootElement.Clone();
     }
-
-    /// <summary>Resolves Nexaflow.exe via the shared harness locator (layout-independent walk-up —
-    /// this class had its own fixed-depth copy that broke when the x64 pin added a path level).</summary>
-    private static string FindAppExe() => UITestBase.FindAppExe();
 }
