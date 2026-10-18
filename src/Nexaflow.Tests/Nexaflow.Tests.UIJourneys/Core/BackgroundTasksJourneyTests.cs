@@ -84,7 +84,7 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
                 { "Id": "draw", "ProviderName": "Nexaflow", "Model": "z-image-turbo",  "Kind": "ImageGeneration", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
               "Assignments": {
-                "Conversation":               [ "chat" ],
+                "GeneralIntelligence":        [ "chat" ],
                 "Disambiguation":             [ "chat" ],
                 "HighQualityImageGeneration": [ "draw" ]
               }

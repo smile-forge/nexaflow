@@ -828,9 +828,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
                 return Task.FromResult(ToolResult.Ok(
                         $"Captured '{CurrentFileName}'.",
                         $"The image \"{CurrentFileName}\" is attached for you to look at.")
-                    with { Images = [new ContextImage(png, "image/png", CurrentFileName)] });
+                with { Images = [new ContextImage(png, "image/png", CurrentFileName)] });
             },
-            exemptFromRepeatGuard: true),
+            exemptFromRepeatGuard: true) { Needs = [AiAbility.ImageRecognition] },
 
         // ── Metadata (text only) ──
         new DelegateClientTool(
@@ -1268,6 +1268,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (CurrentSession is { } current) CloseSession(current.Path);
         _sessions.Dispose();
         _display.Dispose();
+        MakeVideo.Dispose();
         if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }

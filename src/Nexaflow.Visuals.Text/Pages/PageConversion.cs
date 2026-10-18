@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -47,6 +48,12 @@ public sealed partial class PageConversion : ObservableObject
     private (PageSource Source, IPageView? Caller)? _waiting;
     private bool _offering;
 
+    /// <summary>The reading whose reader asked to see what it had read when it was stopped, until that reading ends.</summary>
+    private CancellationTokenSource? _keepSoFar;
+
+    /// <summary>How long the reading under way has taken, for how long the rest of it should take.</summary>
+    private readonly Stopwatch _clock = new();
+
     /// <param name="reading">Page reading, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws diagrams again; none leaves figures as pictures.</param>
     public PageConversion(IPageReading? reading, IAIService? ai, IShellServices shell)
@@ -73,7 +80,24 @@ public sealed partial class PageConversion : ObservableObject
     /// <summary>Pages are being read.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
+    [NotifyPropertyChangedFor(nameof(Heading))]
     private bool _isReading;
+
+    /// <summary>What the banner leads with while pages are read, so what it says is plainly a conversion under way.</summary>
+    public string? Heading => IsReading ? Str.Get("Text.PageReading.Converting") : null;
+
+    /// <summary>About how long the reading has left, at the pace of the pages read so far; null until a page is read.</summary>
+    [ObservableProperty]
+    private string? _remaining;
+
+    /// <summary>Stop was asked, and the banner is asking whether to show what has been read or let it go.</summary>
+    [ObservableProperty]
+    private bool _isAskingToStop;
+
+    /// <summary>Something has been read that a stop could show.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ShowReadSoFarCommand))]
+    private bool _hasSoFar;
 
     /// <summary>Page reading is not here, and can be fetched.</summary>
     [ObservableProperty]
@@ -116,15 +140,20 @@ public sealed partial class PageConversion : ObservableObject
 
     /// <summary>
     /// <paramref name="source"/>'s pages read — found read before, or read now — or null where they cannot be read now:
-    /// page reading is not here (<see cref="Status"/> offers it), or the reading failed or was stopped. Called on the UI
+    /// page reading is not here (<see cref="Status"/> offers it), or the reading failed or was stopped, even where what it
+    /// had read was shown. Called on the UI
     /// thread.
     /// </summary>
     public async Task<PagesRead?> ReadAsync(PageSource source, CancellationToken ct = default)
-        => (await ReadKeptAsync(source, ct))?.Read;
+        => (await ReadKeptAsync(source, ct)) is { Whole: true } read ? read.Read : null;
 
-    private async Task<(PagesRead Read, string Folder)?> ReadKeptAsync(PageSource source, CancellationToken ct)
+    /// <summary>
+    /// <paramref name="source"/>'s pages read and the folder they are kept in, or null where they cannot be read now. A
+    /// reading stopped by a reader who asked to see what it had read comes back as that, not <c>Whole</c>, and is not kept.
+    /// </summary>
+    private async Task<(PagesRead Read, string Folder, bool Whole)?> ReadKeptAsync(PageSource source, CancellationToken ct)
     {
-        Stop();
+        Halt();
         _waiting = null;
         _offering = false;
         CanDownload = false;
@@ -137,7 +166,7 @@ public sealed partial class PageConversion : ObservableObject
         if (Kept(folder) is { } kept)
         {
             Found(kept);
-            return (kept, folder);
+            return (kept, folder, true);
         }
         if (reading.State != ToolModelsState.Ready)
         {
@@ -149,6 +178,8 @@ public sealed partial class PageConversion : ObservableObject
         _cts = cts;
         IsReading = true;
         Status = Str.Get("Text.PageReading.Preparing");
+        string soFar = "";
+        _clock.Restart();
         try
         {
             if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
@@ -156,9 +187,14 @@ public sealed partial class PageConversion : ObservableObject
             var shown = new Shown(so => _ = _shell.RunOnUiAsync(() =>
             {
                 if (cts.IsCancellationRequested) return;
+                soFar = so.Markdown;
+                HasSoFar = soFar.Trim().Length > 0;
                 Status = so.DrawingFigure is { } figure
                     ? Str.Format("Text.PageReading.Drawing", figure)
                     : Str.Format("Text.PageReading.Reading", so.Page, so.Pages);
+                Remaining = TimeLeft(_clock.Elapsed, so.Page - 1, so.Pages) is { } left
+                    ? Str.Format("Text.PageReading.Left", DurationFormatter.FormatEta(left))
+                    : null;
             }));
             var reader = new PageReader(reading, _ai);
             var read = await Task.Run(() => reader.ReadAsync(source, System.IO.Path.Combine(folder, Figures), Figures, shown, cts.Token), cts.Token);
@@ -166,10 +202,12 @@ public sealed partial class PageConversion : ObservableObject
             await File.WriteAllTextAsync(System.IO.Path.Combine(folder, KeptMarkdown), read.Markdown, cts.Token);
             if (cts.IsCancellationRequested) return null;
             Found(read);
-            return (read, folder);
+            return (read, folder, true);
         }
         catch (OperationCanceledException)
         {
+            // Stopped to see what was read: that much opens, its figures beside it, but is not kept as the reading.
+            if (ReferenceEquals(_keepSoFar, cts) && soFar.Trim().Length > 0) return (new PagesRead(soFar, []), folder, false);
             if (ReferenceEquals(_cts, cts)) Status = null;
             return null;
         }
@@ -180,10 +218,14 @@ public sealed partial class PageConversion : ObservableObject
         }
         finally
         {
+            if (ReferenceEquals(_keepSoFar, cts)) _keepSoFar = null;
             if (ReferenceEquals(_cts, cts))
             {
                 _cts = null;
                 IsReading = false;
+                IsAskingToStop = false;
+                Remaining = null;
+                HasSoFar = false;
             }
         }
     }
@@ -263,7 +305,7 @@ public sealed partial class PageConversion : ObservableObject
     /// <summary>Forgets what was asked and what was said about it — the pages it was for are no longer shown.</summary>
     public void Forget()
     {
-        Stop();
+        Halt();
         _waiting = null;
         _offering = false;
         CanDownload = false;
@@ -274,14 +316,46 @@ public sealed partial class PageConversion : ObservableObject
     [RelayCommand(CanExecute = nameof(CanDownload))]
     private void Download() => _reading?.Download();
 
-    /// <summary>Stops the reading under way; what was read of it is not kept.</summary>
+    /// <summary>Asks, in the banner, whether to stop the reading under way — the reading goes on while it asks.</summary>
     [RelayCommand(CanExecute = nameof(IsReading))]
-    private void Stop()
+    private void Stop() => IsAskingToStop = true;
+
+    /// <summary>Takes back the stop asked for: the reading goes on as it was.</summary>
+    [RelayCommand]
+    private void KeepReading() => IsAskingToStop = false;
+
+    /// <summary>Stops the reading under way and lets go of what it had read.</summary>
+    [RelayCommand]
+    private void DiscardReading() => Halt();
+
+    /// <summary>Stops the reading under way and opens what it had read as a draft, as a finished reading opens.</summary>
+    [RelayCommand(CanExecute = nameof(HasSoFar))]
+    private void ShowReadSoFar() => Halt(keepSoFar: true);
+
+    /// <summary>
+    /// Stops the reading under way, if one is, and clears what the banner said of it; <paramref name="keepSoFar"/> has what
+    /// it had read come back to be shown rather than let go. What was read is never kept as the reading.
+    /// </summary>
+    private void Halt(bool keepSoFar = false)
     {
+        if (keepSoFar) _keepSoFar = _cts;
+        bool reading = _cts is not null;
         _cts?.Cancel();
         _cts = null;
         IsReading = false;
+        IsAskingToStop = false;
+        Remaining = null;
+        HasSoFar = false;
+        if (reading) Status = null;
     }
+
+    /// <summary>
+    /// How long the pages still to read should take at the pace of those read: <paramref name="elapsed"/> over the
+    /// <paramref name="done"/> pages read, for each of the rest of <paramref name="pages"/>; null before a page is read, or
+    /// once all are.
+    /// </summary>
+    public static TimeSpan? TimeLeft(TimeSpan elapsed, int done, int pages)
+        => done <= 0 || done >= pages ? null : elapsed / done * (pages - done);
 
     /// <summary>Where the reading of <paramref name="key"/> by these models is kept.</summary>
     private static string KeptFolder(string key, string modelsVersion)

@@ -27,6 +27,12 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     /// <summary>The workspace config — child VMs resolve statuses through it.</summary>
     public ProjectsConfig Config => _config;
 
+    /// <summary>Whether the workspace has a model to take a task or plan one: General Intelligence. Null without an AI service.</summary>
+    public IAiAbilityGate? Answering { get; }
+
+    /// <summary>Lets go of <see cref="Answering"/>, which follows the workspace's models, when the tab closes.</summary>
+    public void Release() => Answering?.Dispose();
+
     // ── Project header ──
     [ObservableProperty] private string  _projectName  = string.Empty;
     [ObservableProperty] private string  _description  = string.Empty;   // markdown
@@ -62,6 +68,7 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
         FolderName   = folderName;
         _shell       = shell;
         _ai          = ai;
+        Answering    = ai?.Gate(AiAbility.GeneralIntelligence);
         _projectPath = System.IO.Path.Combine(ops.RootPath, folderName);
         Load();
     }

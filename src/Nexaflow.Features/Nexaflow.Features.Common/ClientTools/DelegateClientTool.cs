@@ -23,6 +23,8 @@ public sealed class DelegateClientTool(
     public bool Parallelizable { get; } = parallelizable;
     public bool ExemptFromRepeatGuard { get; } = exemptFromRepeatGuard;
 
+    public IReadOnlyList<AiAbility> Needs { get; init; } = [];
+
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) =>
         invoke(arguments, ct);
 }

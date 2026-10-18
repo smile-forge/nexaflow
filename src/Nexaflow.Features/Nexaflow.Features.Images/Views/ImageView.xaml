@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
              xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ImageView"
@@ -333,9 +334,11 @@
                             <TextBlock Text="{loc:Str Images.Toolbar.Edit}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <!-- Make a video from this picture: shown where the workspace has a model that carries a picture on -->
-                    <Grid Margin="0,0,8,0" Visibility="{Binding MakeVideo.CanMake, Converter={StaticResource BoolToVis}}">
+                    <!-- Make a video from this picture: enabled where the workspace has a model that carries a picture on, and saying how to
+                         enable it where it has none -->
+                    <Grid Margin="0,0,8,0">
                         <Button x:Name="MakeVideoButton" Command="{Binding MakeVideo.OpenCommand}" ToolTip="{loc:Str Images.Toolbar.VideoTip}"
+                                vcc:AiAbilityGating.Gate="{Binding MakeVideo}"
                                 Style="{StaticResource ToolbarButtonStyle}" AutomationProperties.AutomationId="Image_MakeVideo">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🎬" FontSize="12" VerticalAlignment="Center"/>

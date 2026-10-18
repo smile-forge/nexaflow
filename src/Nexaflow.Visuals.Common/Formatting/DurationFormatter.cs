@@ -30,8 +30,10 @@ public static class DurationFormatter
     public static string FormatEta(TimeSpan left)
     {
         if (left < TimeSpan.FromMinutes(1)) return "less than a minute";
-        if (left < TimeSpan.FromHours(1))   return $"about {(int)Math.Round(left.TotalMinutes)} minutes";
-        if (left < TimeSpan.FromDays(1))    return $"about {(int)Math.Round(left.TotalHours)} hours";
+        if (left < TimeSpan.FromHours(1))
+            return Math.Round(left.TotalMinutes) is var minutes && minutes <= 1 ? "about a minute" : $"about {(int)minutes} minutes";
+        if (left < TimeSpan.FromDays(1))
+            return Math.Round(left.TotalHours) is var hours && hours <= 1 ? "about an hour" : $"about {(int)hours} hours";
         return "over a day";
     }
 }

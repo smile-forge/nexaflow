@@ -146,7 +146,9 @@ public static class LocalColumns
     /// <summary>
     /// Turns the Local column on for a grid that has never had it: each job this machine runs a model for, and none is chosen
     /// for, gets its first model — one made for the job before any other, and of those one already here — and every row of
-    /// the job uses it. Nothing is downloaded: a model not here is the grid's to offer. Returns whether anything changed.
+    /// the job uses it — except a job the workspace's setup gave other models (<see cref="AiConfig.LocalDeclined"/>), whose
+    /// model is chosen and whose rows are left as they are. Nothing is downloaded: a model not here is the grid's to offer.
+    /// Returns whether anything changed.
     /// </summary>
     /// <param name="options">The models each job can hold; whether this machine runs each, whether it is here, and whether it
     /// is made for the job (<see cref="TierOf"/>).</param>
@@ -155,8 +157,9 @@ public static class LocalColumns
         if (config.LocalSeeded) return false;
         foreach (var slot in Enum.GetValues<LocalSlot>())
         {
-            if (config.Columns.Any(c => c.Id == IdOf(slot))) continue;
-            if (FirstOf(options(slot)) is { } first) Use(config, slot, first);
+            if (config.Columns.Any(c => c.Id == IdOf(slot)) || FirstOf(options(slot)) is not { } first) continue;
+            if (config.LocalDeclined.Contains(slot)) Choose(config, slot, first);
+            else Use(config, slot, first);
         }
         config.LocalSeeded = true;
         return true;

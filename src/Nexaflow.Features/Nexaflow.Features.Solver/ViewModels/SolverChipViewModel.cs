@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Solver.Solving;
 
 namespace Nexaflow.Features.Solver.ViewModels;
@@ -9,12 +10,17 @@ public sealed partial class SolverChipViewModel : ObservableObject
 {
     private readonly Func<SolverChip, Task> _run;
 
-    /// <summary>Wraps <paramref name="chip"/> with the action that runs it.</summary>
-    public SolverChipViewModel(SolverChip chip, Func<SolverChip, Task> run)
+    /// <summary>Wraps <paramref name="chip"/> with the action that runs it, behind <paramref name="gate"/> where its solver needs
+    /// a model.</summary>
+    public SolverChipViewModel(SolverChip chip, Func<SolverChip, Task> run, IAiAbilityGate? gate = null)
     {
         Chip = chip;
         _run = run;
+        Gate = gate;
     }
+
+    /// <summary>Whether the abilities the chip's solver needs have a model; null for a solver that needs none.</summary>
+    public IAiAbilityGate? Gate { get; }
 
     /// <summary>The offer this chip represents.</summary>
     public SolverChip Chip { get; }

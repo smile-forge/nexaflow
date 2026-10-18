@@ -23,6 +23,8 @@ public sealed class FontRenderTool(FontViewModel vm) : IClientTool
 {
     public string Name => "render_font_preview";
 
+    public IReadOnlyList<AiAbility> Needs => [AiAbility.ImageRecognition];
+
     public string Description =>
         "Render a font from the compare list to an image you can look at (the sample text plus a small " +
         "alphabet/digits/symbols specimen, in that font). Use it to judge or describe how a font looks. " +

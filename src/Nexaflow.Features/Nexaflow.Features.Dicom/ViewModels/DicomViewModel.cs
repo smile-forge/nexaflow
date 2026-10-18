@@ -511,7 +511,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
         new DelegateClientTool("dicom_capture_image",
             "Capture the current image at its present window/level as a PNG for you to look at.",
-            [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(CaptureImageResult())),
+            [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(CaptureImageResult())) { Needs = [AiAbility.ImageRecognition] },
     ];
 
     public ContextSecurityRisk GetContextSecurityRisk() => ContextSecurityRisk.Medium;

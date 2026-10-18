@@ -1,3 +1,5 @@
+using Nexaflow.Features.Common;
+
 namespace Nexaflow.Features.Solver.Solving;
 
 /// <summary>Which editor the definition area is showing, and therefore how its text should be read.</summary>
@@ -95,6 +97,10 @@ public interface ISolver
 
     /// <summary>Where this solver's chips sit in the strip. Lower is further left.</summary>
     int Order { get; }
+
+    /// <summary>The abilities this solver needs a model for: its chips are disabled, saying how to enable them, while any has
+    /// none. Default: none.</summary>
+    IReadOnlyList<AiAbility> Needs => [];
 
     /// <summary>
     /// The chips this solver offers for <paramref name="input"/>, or empty when it has nothing to

@@ -25,7 +25,7 @@ internal static class Model3DTools
             [],
             ToolSafety.SafeOperation,
             (_, ct) => Capture(vm, ct),
-            exemptFromRepeatGuard: true),
+            exemptFromRepeatGuard: true) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "get_model_info",

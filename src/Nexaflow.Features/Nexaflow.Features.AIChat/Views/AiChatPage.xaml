@@ -119,6 +119,7 @@
                 <vcc:SearchStatusChip PagePrefix="AiChat" Margin="16,0,0,0"/>
             </StackPanel>
             <Button AutomationProperties.AutomationId="AiChat_NewConversation" Grid.Column="1"
+                    vcc:AiAbilityGating.Gate="{Binding Answering}"
                     Style="{StaticResource RibbonButton}" Padding="12,6"
                     ToolTip="Start a new conversation"
                     Command="{Binding NewConversationCommand}">

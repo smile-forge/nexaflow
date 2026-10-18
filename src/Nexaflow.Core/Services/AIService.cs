@@ -101,11 +101,11 @@ public sealed class AIService : IAIService
     /// </summary>
     public bool CanConverse(string language)
         => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
-           && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
+           && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.GeneralIntelligence) is not null;
 
     /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply
     /// waits for it until the picture is done.</summary>
-    public bool ConversationMakingWay => GetProvider(AiAbility.Conversation) is { IsMakingWay: true };
+    public bool ConversationMakingWay => GetProvider(AiAbility.GeneralIntelligence) is { IsMakingWay: true };
 
     /// <summary>Raised, on whichever thread it happened, when the workspace's models change, or one becomes available,
     /// stops being, or makes way for a picture.</summary>
@@ -114,6 +114,18 @@ public sealed class AIService : IAIService
         add => _workspace.ProvidersChanged += value;
         remove => _workspace.ProvidersChanged -= value;
     }
+
+    public AiAbilityStatus StatusOf(AiAbility ability) => _readiness.StatusOf(ability);
+
+    public event EventHandler? AbilitiesChanged
+    {
+        add => _workspace.ProvidersChanged += value;
+        remove => _workspace.ProvidersChanged -= value;
+    }
+
+    public Task<bool> MakeReadyAsync(AiAbility ability, CancellationToken ct = default) => _readiness.MakeReadyAsync(ability, ct);
+
+    public IAiAbilityGate Gate(params AiAbility[] abilities) => new AiAbilityGate(this, abilities);
 
     /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
@@ -196,12 +208,14 @@ public sealed class AIService : IAIService
         var shellCtx = new ShellAi.ShellAiContext(_workspace);
         tools.AddRange(shellCtx.BuildTools(scope));
 
-        // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now.
+        // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now, or one of
+        // Nexaflow's own waiting on its download.
         if (_workspace.ShellServices is { } shell)
         {
             var made = Generation.GeneratedFiles.For(shell, scope);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
                                                           HighQualityVideoGenerator, made).Tools);
+            tools.AddRange(AwaitingMakingTools(made));
         }
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
@@ -215,16 +229,76 @@ public sealed class AIService : IAIService
         }
 
         // The page first — it is what the request is about — then where it sits.
-        return (pageContext + "\n\n" + shellCtx.BuildContext(), tools, scope);
+        return (pageContext + "\n\n" + shellCtx.BuildContext(), [.. tools.Select(Offered).OfType<IClientTool>()], scope);
     }
 
     /// <summary>
-    /// Context window (in tokens) for the model assigned to the Conversation ability,
+    /// <paramref name="tool"/> as it is offered: left out where an ability it needs has no model to serve it, offering the
+    /// download first where one waits on it (<see cref="DownloadFirstTool"/>), and as it is otherwise.
+    /// </summary>
+    private IClientTool? Offered(IClientTool tool)
+    {
+        if (tool.Needs.Count == 0) return tool;
+        var waiting = tool.Needs.Where(a => !ServedNow(a)).ToList();
+        if (waiting.Count == 0) return tool;
+        if (!waiting.All(a => StatusOf(a).IsUsable)) return null;
+        return new DownloadFirstTool(tool, waiting, MakeReadyAsync);
+    }
+
+    /// <summary>
+    /// Whether a model serves <paramref name="ability"/> now, as a tool needs it: Image Recognition is met too by a General
+    /// Intelligence model that sees pictures itself, and Speech In by one that hears — a tool's picture or recording reaches the
+    /// model either way (<see cref="ResolveToolImagesAsync"/>, <see cref="ResolveToolAudioAsync"/>).
+    /// </summary>
+    private bool ServedNow(AiAbility ability) => ability switch
+    {
+        AiAbility.ImageRecognition when GetProvider(AiAbility.GeneralIntelligence) is { SupportsImages: true } => true,
+        AiAbility.SpeechIn when GetProvider(AiAbility.GeneralIntelligence) is { SupportsAudio: true } => true,
+        _ => StatusOf(ability).State == AiAbilityState.Ready,
+    };
+
+    /// <summary>
+    /// The making tools of rows that no model serves now but whose model of Nexaflow's own waits on its download: each made from
+    /// the waiting model, and offering its download when called. One family at a time, so a call offers only its own downloads.
+    /// </summary>
+    private IEnumerable<IClientTool> AwaitingMakingTools(Generation.GeneratedFiles made)
+    {
+        if (ImageGenerator is null && HighQualityImageGenerator is null)
+            foreach (var tool in Awaiting(made, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration],
+                                          p => new(p[0] as IImageGenerationProvider, p[1] as IImageGenerationProvider, null, null, null, made)))
+                yield return tool;
+        if (TextToSpeech is null)
+            foreach (var tool in Awaiting(made, [AiAbility.SpeechOut], p => new(null, null, p[0] as ITextToSpeechProvider, null, null, made)))
+                yield return tool;
+        if (VideoGenerator is null && HighQualityVideoGenerator is null)
+            foreach (var tool in Awaiting(made, [AiAbility.VideoGeneration, AiAbility.HighQualityVideoGeneration],
+                                          p => new(null, null, null, p[0] as IVideoGenerationProvider, p[1] as IVideoGenerationProvider, made)))
+                yield return tool;
+    }
+
+    /// <summary>The tools <paramref name="build"/> makes from the waiting models of <paramref name="rows"/>, each offering their
+    /// downloads first; none where no row waits on one.</summary>
+    private IEnumerable<IClientTool> Awaiting(Generation.GeneratedFiles made, AiAbility[] rows, Func<IAiProvider?[], Generation.GenerationTools> build)
+    {
+        var waiting = rows.Where(r => StatusOf(r).State is AiAbilityState.NeedsDownload or AiAbilityState.Downloading).ToList();
+        if (waiting.Count == 0) return [];
+        var providers = rows.Select(r => waiting.Contains(r) ? Registered(r) : null).ToArray();
+        return build(providers).Tools.Select(t => new DownloadFirstTool(t, waiting, MakeReadyAsync));
+    }
+
+    /// <summary>The first provider registered for a column of <paramref name="ability"/>'s chain, available or not.</summary>
+    private IAiProvider? Registered(AiAbility ability)
+        => _abilityConfig?.Assignments.GetValueOrDefault(ability.ToString()) is { } chain
+            ? chain.ColumnIds.Select(id => _providers.GetValueOrDefault(id)).FirstOrDefault(p => p is not null)
+            : null;
+
+    /// <summary>
+    /// Context window (in tokens) for the model assigned to General Intelligence,
     /// or null if no provider is configured or the provider doesn't expose model info.
     /// </summary>
     public async Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default)
     {
-        var provider = GetProvider(AiAbility.Conversation);
+        var provider = GetProvider(AiAbility.GeneralIntelligence);
         if (provider is null) return null;
         try
         {
@@ -271,6 +345,9 @@ public sealed class AIService : IAIService
     /// <summary>Where calls that run on in the background are set going; null where there is no list of them to show.</summary>
     private readonly BackgroundJobs? _jobs;
 
+    /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
+    private readonly AbilityReadiness _readiness;
+
     private List<ConversationRecord> _conversations = [];
 
     public ConversationRecord? ActiveConversation { get; }
@@ -283,6 +360,7 @@ public sealed class AIService : IAIService
         _workspace = workspace;
         _baseDir   = conversationsDir;
         _jobs      = jobs;
+        _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, () => workspace.ShellServices);
     }
 
     public IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation)
@@ -474,7 +552,7 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        if (await RouteAsync(AiAbility.Analysis, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider }) return null;
+        if (await RouteAsync(AiAbility.GeneralIntelligence, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider }) return null;
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
@@ -516,7 +594,7 @@ public sealed class AIService : IAIService
     public async Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default)
     {
         if (messages.Count == 0) return earlier;
-        if ((GetProvider(AiAbility.Analysis) ?? GetProvider(AiAbility.Conversation)) is not { } model) return null;
+        if (GetProvider(AiAbility.GeneralIntelligence) is not { } model) return null;
 
         // A part at a time, each half of what the model reads, the notes so far carried into the next.
         int window = await ContextOfAsync(model, ct) ?? OwnedFallbackContext;
@@ -609,12 +687,11 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        // Falling back to Analysis rather than returning null keeps the Solver working out of the
-        // box: Problem Solving is a new column in the ability grid, so on an existing workspace it
-        // is unassigned until someone chooses to point it somewhere better.
-        var request = systemPrompt + "\n\n" + userPrompt;
-        if ((await RouteAsync(AiAbility.ProblemSolving, request, [], ct) ?? await RouteAsync(AiAbility.Analysis, request, [], ct)) is not { Model: var provider })
+        if (await RouteAsync(AiAbility.GeneralIntelligence, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider })
+        {
+            await MakeReadyAsync(AiAbility.GeneralIntelligence, ct);   // the user asked: a model waiting on its download offers it
             return null;
+        }
 
         var response = await provider.CompleteAsync(
             [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
@@ -636,8 +713,9 @@ public sealed class AIService : IAIService
 
     /// <summary>
     /// Runs a request through the agent loop on the model its row routes it to (<see cref="RouteAsync"/>). The machine's model,
-    /// stuck on a request — repeating itself, or out of steps — hands it over to the larger model, which carries it on from where
-    /// it stands with what was done before it; the larger model may hand reading to the machine's (<see cref="ReadingTool"/>).
+    /// stuck on a request — repeating itself, or out of steps — or failing outright, hands it over to the larger model, which
+    /// carries it on from where it stands with what was done before it; the larger model may hand reading to the machine's
+    /// (<see cref="ReadingTool"/>). The larger model failing reaches the caller as its exception.
     /// </summary>
     public async Task<AiResponse?> RunAgentAsync(
         IPageViewModel? page, string input, bool includeContext,
@@ -647,16 +725,31 @@ public sealed class AIService : IAIService
         var (context, pageTools, scope) = GatherContext(page, includeContext);
 
         ModelRoute? route;
-        try { route = await RouteAsync(AiAbility.Conversation, input, options.History, ct); }
+        try { route = await RouteAsync(AiAbility.GeneralIntelligence, input, options.History, ct); }
         catch (OperationCanceledException) { return null; }
-        if (route is null) return null;
+        if (route is null)
+        {
+            // Nothing answers now: where General Intelligence waits on a download, this is its first use, and offers it.
+            await MakeReadyAsync(AiAbility.GeneralIntelligence, ct);
+            return null;
+        }
         try { options = await CondensedAsync(route.Model, options, input, ct); }
         catch (OperationCanceledException) { return null; }
         var ran = new List<LlmMessage>();
         try
         {
-            var run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
+            StepsEnded run;
+            try
+            {
+                run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
                                           Delegates(route.Reader, approval, scope), ran, ct);
+            }
+            catch (LlmProviderException failed) when (route.HandOverTo is not null)
+            {
+                // The machine's model failed outright: the larger one takes the request over, as it does one that got stuck. The
+                // larger model failing is the user's to hear about — a request is never handed down to the smaller one.
+                run = new StepsEnded(null, [], new StepsStuck(failed.Message, $"it failed: {failed.Message}"));
+            }
 
             if (run.Stuck is { } stuck && route.HandOverTo is { } larger)
             {
