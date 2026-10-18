@@ -1,6 +1,7 @@
 using Nexaflow.Core;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 
@@ -17,7 +18,7 @@ public class AiAbilityGridViewModelTests
         => new() { Id = id, ProviderName = provider, Model = "m" };
 
     private static AiAbilityRowViewModel Conversation(AiAbilityGridViewModel grid)
-        => grid.Rows.Single(r => r.Ability == AiAbility.Conversation);
+        => grid.Rows.Single(r => r.Ability == AiAbility.GeneralIntelligence);
 
     private static AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, string columnId)
         => row.Cells.Single(c => c.Column.Id == columnId);
@@ -38,7 +39,7 @@ public class AiAbilityGridViewModelTests
 
         grid.Apply();
 
-        CollectionAssert.AreEqual(new[] { "b", "a" }, config.Assignments["Conversation"].ColumnIds.ToArray());
+        CollectionAssert.AreEqual(new[] { "b", "a" }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
         Assert.IsFalse(grid.HasChanges, "the grid now matches what it saved");
     }
 
@@ -48,7 +49,7 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("a"), Column("b"), Column("c")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("a", "b", "c") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("a", "b", "c") },
         };
         var row = Conversation(new AiAbilityGridViewModel(config));
 
@@ -65,15 +66,15 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("a"), Column("b")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("a", "b"), ["Analysis"] = AbilityChain.Of("a") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("a", "b"), ["ImageRecognition"] = AbilityChain.Of("a") },
         };
         var grid = new AiAbilityGridViewModel(config);
 
         grid.RemoveColumnCommand.Execute(grid.Columns.Single(c => c.Id == "a"));
         grid.Apply();
 
-        CollectionAssert.AreEqual(new[] { "b" }, config.Assignments["Conversation"].ColumnIds.ToArray());
-        Assert.IsTrue(config.Assignments["Analysis"].IsEmpty);
+        CollectionAssert.AreEqual(new[] { "b" }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
+        Assert.IsTrue(config.Assignments["ImageRecognition"].IsEmpty);
     }
 
     [TestMethod]
@@ -82,7 +83,7 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("b")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("gone", "b") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("gone", "b") },
         };
         var row = Conversation(new AiAbilityGridViewModel(config));
 

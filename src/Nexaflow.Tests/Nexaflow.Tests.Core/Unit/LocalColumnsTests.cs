@@ -1,4 +1,5 @@
 using Nexaflow.Core.AI;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 
@@ -31,7 +32,7 @@ public class LocalColumnsTests
             ],
             Assignments =
             {
-                ["Conversation"]   = AbilityChain.Of("claude", "gemma"),
+                ["GeneralIntelligence"]   = AbilityChain.Of("claude", "gemma"),
                 ["Disambiguation"] = AbilityChain.Of("gemma", "claude"),
                 ["SpeechIn"]       = AbilityChain.Of("nemotron", "whisper"),
             },
@@ -42,7 +43,7 @@ public class LocalColumnsTests
         var language = LocalColumns.IdOf(LocalSlot.Language);
         var speech   = LocalColumns.IdOf(LocalSlot.SpeechToText);
         CollectionAssert.AreEquivalent(new[] { "claude", language, speech }, config.Columns.Select(c => c.Id).ToArray());
-        CollectionAssert.AreEqual(new[] { "claude", language }, config.Assignments["Conversation"].ColumnIds.ToArray());
+        CollectionAssert.AreEqual(new[] { "claude", language }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
         CollectionAssert.AreEqual(new[] { language, "claude" }, config.Assignments["Disambiguation"].ColumnIds.ToArray());
         CollectionAssert.AreEqual(new[] { speech }, config.Assignments["SpeechIn"].ColumnIds.ToArray(), "a job holds one model here");
         Assert.AreEqual("nemotron", config.Columns.Single(c => c.Id == speech).Model, "the first of them");
@@ -67,7 +68,7 @@ public class LocalColumnsTests
     {
         var gemma  = Column("x", "Nexaflow", "gemma", ModelKind.Language);
         var qwen   = Column("x", "Nexaflow", "qwen", ModelKind.Language);
-        var config = new AiConfig { Columns = [Column("claude", "Claude", "sonnet", ModelKind.Language)], Assignments = { ["Conversation"] = AbilityChain.Of("claude") } };
+        var config = new AiConfig { Columns = [Column("claude", "Claude", "sonnet", ModelKind.Language)], Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("claude") } };
 
         var changed = LocalColumns.Seed(config, slot => slot == LocalSlot.Language ? [(gemma, true, false, true), (qwen, true, true, true)] : []);
 
@@ -75,11 +76,11 @@ public class LocalColumnsTests
         Assert.IsTrue(config.LocalSeeded);
         var language = LocalColumns.IdOf(LocalSlot.Language);
         Assert.AreEqual("qwen", config.Columns.Single(c => c.Id == language).Model, "one already here first");
-        CollectionAssert.AreEqual(new[] { "claude", language }, config.Assignments["Conversation"].ColumnIds.ToArray(), "ticked after what the row had");
+        CollectionAssert.AreEqual(new[] { "claude", language }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray(), "ticked after what the row had");
         CollectionAssert.AreEqual(new[] { language }, config.Assignments["Disambiguation"].ColumnIds.ToArray());
         Assert.IsFalse(config.Assignments.ContainsKey("SpeechIn"), "a job this machine runs nothing for is left alone");
 
-        config.Assignments["Conversation"] = AbilityChain.Of("claude");   // the user takes it out of a row
+        config.Assignments["GeneralIntelligence"] = AbilityChain.Of("claude");   // the user takes it out of a row
         Assert.IsFalse(LocalColumns.Seed(config, _ => [(gemma, true, true, true)]), "and it stays out");
     }
 
@@ -155,7 +156,7 @@ public class LocalColumnsTests
         var config   = new AiConfig
         {
             Columns     = [gemma],
-            Assignments = { ["SpeechIn"] = AbilityChain.Of(speech), ["Conversation"] = AbilityChain.Of(language) },
+            Assignments = { ["SpeechIn"] = AbilityChain.Of(speech), ["GeneralIntelligence"] = AbilityChain.Of(language) },
         };
         var turbo = Column("", "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText);
         var qwen  = Column("", "Nexaflow", "qwen-3.5-9b", ModelKind.Language);

@@ -20,18 +20,20 @@ public sealed record OwnedColumns(ProviderModelPair Language, ProviderModelPair?
 internal static class WorkspaceAiDefaults
 {
     /// <summary>
-    /// The roles called most and needing least — routing a request, analysing a page, describing an image — which
-    /// a mixed workspace gives to the model on this machine first: that is where API cost actually goes. The
-    /// conversation itself stays with the chosen provider, the stronger model, and falls back to the owned one.
+    /// The roles called most and needing least — routing a request, describing an image — which a mixed workspace gives to
+    /// the model on this machine first: that is where API cost actually goes. General Intelligence holds both models with
+    /// the chosen provider first; each request is judged, so light work still runs on this machine.
     /// </summary>
     internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
-        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition };
+        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.ImageRecognition };
 
     /// <summary>
     /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;
     /// Speech In on the Local column — Nexaflow's own speech model where there is one, otherwise the one the workspace settles
     /// on when it loads (<see cref="LocalColumns.Settle"/>), which is all a bridged workspace listens with; and Speech Out on
-    /// Nexaflow's own voice where there is one. At least one language model must be given.
+    /// Nexaflow's own voice where there is one. A workspace given no language model of Nexaflow's own keeps its reasoning
+    /// rows on the provider chosen: the Local column offers its model in them, unticked. At least one language model must be
+    /// given.
     /// </summary>
     public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned)
     {
@@ -40,6 +42,7 @@ internal static class WorkspaceAiDefaults
 
         config.Columns = [.. new[] { bridged }.OfType<ProviderModelPair>()];
         if (ownedLanguage is not null) LocalColumns.Choose(config, LocalSlot.Language, ownedLanguage);
+        config.LocalDeclined = ownedLanguage is null ? [LocalSlot.Language] : [];
         var local = LocalColumns.IdOf(LocalSlot.Language);
         config.Assignments.Clear();
         foreach (var ability in Enum.GetValues<AiAbility>())

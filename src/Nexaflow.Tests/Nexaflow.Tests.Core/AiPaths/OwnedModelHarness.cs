@@ -78,10 +78,8 @@ internal static class OwnedModelHarness
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = model.Name, Model = "gemma-4-e4b-it" }],
             Assignments =
             {
-                ["Conversation"]     = AbilityChain.Of("c1"),
+                ["GeneralIntelligence"] = AbilityChain.Of("c1"),
                 ["Disambiguation"]   = AbilityChain.Of("c1"),
-                ["ProblemSolving"]   = AbilityChain.Of("c1"),
-                ["Analysis"]         = AbilityChain.Of("c1"),
                 ["ImageRecognition"] = AbilityChain.Of("c1"),
             },
         });

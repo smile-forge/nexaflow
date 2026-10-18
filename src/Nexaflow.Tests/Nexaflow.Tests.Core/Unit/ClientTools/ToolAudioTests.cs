@@ -104,7 +104,7 @@ public class ToolAudioTests
         var config = new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "model", Model = "m" }],
-            Assignments = { ["Conversation"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
         };
         if (transcriber is not null)
         {

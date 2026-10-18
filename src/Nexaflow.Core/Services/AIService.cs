@@ -101,11 +101,11 @@ public sealed class AIService : IAIService
     /// </summary>
     public bool CanConverse(string language)
         => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
-           && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.Conversation) is not null;
+           && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.GeneralIntelligence) is not null;
 
     /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply
     /// waits for it until the picture is done.</summary>
-    public bool ConversationMakingWay => GetProvider(AiAbility.Conversation) is { IsMakingWay: true };
+    public bool ConversationMakingWay => GetProvider(AiAbility.GeneralIntelligence) is { IsMakingWay: true };
 
     /// <summary>Raised, on whichever thread it happened, when the workspace's models change, or one becomes available,
     /// stops being, or makes way for a picture.</summary>
@@ -219,12 +219,12 @@ public sealed class AIService : IAIService
     }
 
     /// <summary>
-    /// Context window (in tokens) for the model assigned to the Conversation ability,
+    /// Context window (in tokens) for the model assigned to General Intelligence,
     /// or null if no provider is configured or the provider doesn't expose model info.
     /// </summary>
     public async Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default)
     {
-        var provider = GetProvider(AiAbility.Conversation);
+        var provider = GetProvider(AiAbility.GeneralIntelligence);
         if (provider is null) return null;
         try
         {
@@ -474,7 +474,7 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        if (await RouteAsync(AiAbility.Analysis, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider }) return null;
+        if (await RouteAsync(AiAbility.GeneralIntelligence, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider }) return null;
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
@@ -516,7 +516,7 @@ public sealed class AIService : IAIService
     public async Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default)
     {
         if (messages.Count == 0) return earlier;
-        if ((GetProvider(AiAbility.Analysis) ?? GetProvider(AiAbility.Conversation)) is not { } model) return null;
+        if (GetProvider(AiAbility.GeneralIntelligence) is not { } model) return null;
 
         // A part at a time, each half of what the model reads, the notes so far carried into the next.
         int window = await ContextOfAsync(model, ct) ?? OwnedFallbackContext;
@@ -609,11 +609,7 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        // Falling back to Analysis rather than returning null keeps the Solver working out of the
-        // box: Problem Solving is a new column in the ability grid, so on an existing workspace it
-        // is unassigned until someone chooses to point it somewhere better.
-        var request = systemPrompt + "\n\n" + userPrompt;
-        if ((await RouteAsync(AiAbility.ProblemSolving, request, [], ct) ?? await RouteAsync(AiAbility.Analysis, request, [], ct)) is not { Model: var provider })
+        if (await RouteAsync(AiAbility.GeneralIntelligence, systemPrompt + "\n\n" + userPrompt, [], ct) is not { Model: var provider })
             return null;
 
         var response = await provider.CompleteAsync(
@@ -636,8 +632,9 @@ public sealed class AIService : IAIService
 
     /// <summary>
     /// Runs a request through the agent loop on the model its row routes it to (<see cref="RouteAsync"/>). The machine's model,
-    /// stuck on a request — repeating itself, or out of steps — hands it over to the larger model, which carries it on from where
-    /// it stands with what was done before it; the larger model may hand reading to the machine's (<see cref="ReadingTool"/>).
+    /// stuck on a request — repeating itself, or out of steps — or failing outright, hands it over to the larger model, which
+    /// carries it on from where it stands with what was done before it; the larger model may hand reading to the machine's
+    /// (<see cref="ReadingTool"/>). The larger model failing reaches the caller as its exception.
     /// </summary>
     public async Task<AiResponse?> RunAgentAsync(
         IPageViewModel? page, string input, bool includeContext,
@@ -647,7 +644,7 @@ public sealed class AIService : IAIService
         var (context, pageTools, scope) = GatherContext(page, includeContext);
 
         ModelRoute? route;
-        try { route = await RouteAsync(AiAbility.Conversation, input, options.History, ct); }
+        try { route = await RouteAsync(AiAbility.GeneralIntelligence, input, options.History, ct); }
         catch (OperationCanceledException) { return null; }
         if (route is null) return null;
         try { options = await CondensedAsync(route.Model, options, input, ct); }
@@ -655,8 +652,18 @@ public sealed class AIService : IAIService
         var ran = new List<LlmMessage>();
         try
         {
-            var run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
+            StepsEnded run;
+            try
+            {
+                run = await RunStepsAsync(route.Model, page, context, includeContext, pageTools, input, null, approval, options,
                                           Delegates(route.Reader, approval, scope), ran, ct);
+            }
+            catch (LlmProviderException failed) when (route.HandOverTo is not null)
+            {
+                // The machine's model failed outright: the larger one takes the request over, as it does one that got stuck. The
+                // larger model failing is the user's to hear about — a request is never handed down to the smaller one.
+                run = new StepsEnded(null, [], new StepsStuck(failed.Message, $"it failed: {failed.Message}"));
+            }
 
             if (run.Stuck is { } stuck && route.HandOverTo is { } larger)
             {

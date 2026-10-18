@@ -241,7 +241,7 @@ public class AgentLoopTests
                        new ProviderModelPair { Id = "c2", ProviderName = "img",  Model = "v" }],
             Assignments =
             {
-                ["Conversation"]     = AbilityChain.Of("c1"),
+                ["GeneralIntelligence"]     = AbilityChain.Of("c1"),
                 ["Disambiguation"]   = AbilityChain.Of("c1"),
                 ["ImageRecognition"] = AbilityChain.Of("c2"),
             }
@@ -256,7 +256,7 @@ public class AgentLoopTests
         svc.LoadAbilityConfig(new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "fake", Model = "m" }],
-            Assignments = { ["Conversation"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") }
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") }
         });
         return svc;
     }
@@ -272,7 +272,7 @@ public class AgentLoopTests
         svc.LoadAbilityConfig(new AiConfig
         {
             Columns     = [.. chain.Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.Provider.Name, Model = "m" })],
-            Assignments = { ["Conversation"] = AbilityChain.Of(ids), ["Disambiguation"] = AbilityChain.Of(ids) }
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of(ids), ["Disambiguation"] = AbilityChain.Of(ids) }
         });
         return svc;
     }

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 
@@ -49,9 +50,9 @@ public class WorkspaceHarnessTests
 
         WorkspaceAiDefaults.Assign(config, Claude, Owned);
 
-        foreach (var ability in new[] { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition })
+        foreach (var ability in new[] { AiAbility.Disambiguation, AiAbility.ImageRecognition })
             CollectionAssert.AreEqual(new[] { Local(LocalSlot.Language), Claude.Id }, Chain(config, ability), ability.ToString());
-        foreach (var ability in new[] { AiAbility.Conversation, AiAbility.ProblemSolving })
+        foreach (var ability in new[] { AiAbility.GeneralIntelligence })
             CollectionAssert.AreEqual(new[] { Claude.Id, Local(LocalSlot.Language) }, Chain(config, ability), $"{ability}: the stronger model first, the owned one standing in");
     }
 
@@ -63,9 +64,24 @@ public class WorkspaceHarnessTests
         WorkspaceAiDefaults.Assign(config, Claude, owned: null);
 
         Assert.AreEqual(1, config.Columns.Count(c => c.Kind == ModelKind.Language));
-        CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.Conversation));
+        CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.GeneralIntelligence));
         CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn),
                                   "the workspace settles on the speech model it offers here when it loads");
+
+        var gemma = new ProviderModelPair { ProviderName = "Nexaflow", Model = "gemma", Kind = ModelKind.Language };
+        var image = new ProviderModelPair { ProviderName = "Nexaflow", Model = "z-image-turbo", Kind = ModelKind.ImageGeneration };
+        LocalColumns.Seed(config, slot => slot switch
+        {
+            LocalSlot.Language        => [(gemma, true, true, true)],
+            LocalSlot.ImageGeneration => [(image, true, true, true)],
+            _                         => [],
+        });
+        CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.GeneralIntelligence), "the reasoning rows stay on the provider chosen");
+        Assert.AreEqual("gemma", config.Columns.Single(c => c.Id == Local(LocalSlot.Language)).Model,
+                        "the Local column still offers its model there, to be ticked");
+        Assert.IsFalse(config.AssignedColumnIds().Contains(Local(LocalSlot.Language)), "ticked in no row");
+        CollectionAssert.AreEqual(new[] { Local(LocalSlot.ImageGeneration) }, Chain(config, AiAbility.ImageGeneration),
+                                  "a job the setup said nothing about still starts on the Local column");
     }
 
     /// <summary>A step that applies or not as the test says.</summary>

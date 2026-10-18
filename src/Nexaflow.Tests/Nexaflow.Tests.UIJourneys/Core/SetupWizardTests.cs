@@ -174,15 +174,23 @@ public class SetupWizardTests
         Assert.AreEqual(baseUrl, claude.GetProperty("BaseUrl").GetString(), "Claude BaseUrl not persisted.");
 
         var ai = ReadConfig(defaultDir, "ai-abilities");
-        var column = ai.GetProperty("Columns").EnumerateArray().Single();
+        // The provider chosen is the workspace's only language model: a setup that takes a provider alone leaves the Local column
+        // off its reasoning rows. Jobs the setup says nothing about — listening, speaking, pictures — keep the Local column's
+        // models where this machine runs them, so those columns are all Nexaflow's own.
+        var columns = ai.GetProperty("Columns").EnumerateArray().ToList();
+        var column = columns.Single(c => c.GetProperty("Kind").GetString() == "Language");
+        Assert.IsTrue(columns.Where(c => c.GetProperty("Kind").GetString() != "Language")
+                             .All(c => c.GetProperty("Id").GetString()!.StartsWith("local-", StringComparison.Ordinal)),
+                      "Every other column is the Local column's.");
         Assert.AreEqual("Claude",     column.GetProperty("ProviderName").GetString(), "AI column provider wrong.");
         Assert.AreEqual(chosenModel,  column.GetProperty("Model").GetString(),        "AI column model wrong.");
         var columnId = column.GetProperty("Id").GetString();
         var assignments = ai.GetProperty("Assignments");
         Assert.IsTrue(assignments.EnumerateObject().Any(), "No ability assignments written.");
-        foreach (var a in assignments.EnumerateObject())
-            CollectionAssert.AreEqual(new[] { columnId }, a.Value.EnumerateArray().Select(id => id.GetString()).ToArray(),
-                $"Ability '{a.Name}' not assigned to the chosen model alone.");
+        string[] languageRoles = ["Disambiguation", "GeneralIntelligence", "ImageRecognition"];
+        foreach (var role in languageRoles)
+            CollectionAssert.AreEqual(new[] { columnId }, assignments.GetProperty(role).EnumerateArray().Select(id => id.GetString()).ToArray(),
+                $"Ability '{role}' not assigned to the chosen model alone.");
 
         var persona = ReadConfig(defaultDir, "ai-persona");
         Assert.AreEqual(personaName,   persona.GetProperty("Name").GetString(),         "Persona name not persisted.");
