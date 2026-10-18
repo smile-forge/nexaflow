@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
@@ -178,6 +179,9 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             Check("Brushing", () => SelectRadio("Image_EraseMarkBrush") && WaitForFs(() => Exists("Image_EraseBrushSize"), 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));
             Check("Heal, which asks where to copy from", () => SelectRadio("Image_EraseFillHeal"));
+            // A brush stroke has to start on the photo, and the edits above leave the small sample wherever they left the view: fit
+            // it to the canvas first, so the canvas's centre is on the photo.
+            Check("Fit the photo to the canvas", FitCanvas);
             Check("AI fill, a stroke brushed and erased: the banner offers picture erasing",
                   () => SelectRadio("Image_EraseFillAi") && DragOnCanvas(-10, 0, 10, 0)
                         && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
@@ -238,6 +242,17 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
         if (CanvasCentre() is not { } centre) return false;
         Mouse.MoveTo(centre);
         Mouse.Click(MouseButton.Left);
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(200);
+        return true;
+    }
+
+    /// <summary>Presses the canvas's own Fit, which centres the photo in it.</summary>
+    private bool FitCanvas()
+    {
+        var canvas = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditCanvas"));
+        if (canvas?.FindFirstDescendant(cf => cf.ByName("Fit").And(cf.ByControlType(ControlType.Button)))?.AsButton() is not { } fit) return false;
+        fit.Invoke();
         Wait.UntilInputIsProcessed();
         Thread.Sleep(200);
         return true;

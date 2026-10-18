@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -877,4 +878,8 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         _offset.X = Math.Max(0, Math.Min(_offset.X, _extent.Width - _viewport.Width));
         _offset.Y = Math.Max(0, Math.Min(_offset.Y, _extent.Height - _viewport.Height));
     }
+
+    /// <summary>The pages as one element to UI Automation, so the id a view gives them reaches the accessibility tree — a
+    /// bare <see cref="FrameworkElement"/> has no peer, and with none it is not there to find.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
 }

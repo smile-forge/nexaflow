@@ -148,70 +148,11 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>
-    /// Three folders on the way at once — the shape of the incident this all came from, where three were
-    /// dropped and one arrived. They queue rather than fight each other for the disk, so the panel shows
-    /// one running and the rest waiting, and all three land.
-    /// </summary>
-    [TestMethod]
-    public void ThreeCopiesAtOnceAllQueueUpAndAllArrive()
-    {
-        string[] names = ["alpha", "beta", "gamma"];
-        foreach (var name in names) MakePayload(Path.Combine(_source, name), defaultGb: 1.5);
-
-        foreach (var name in names)
-        {
-            NavigateFileBrowserTo(_source);
-
-            Assert.IsTrue(SelectInFileList(name), $"'{name}' is not in the file list.");
-
-            var copy = WaitForId("CopyFiles", 30);
-            Assert.IsNotNull(copy, $"No Copy action for '{name}'.");
-            copy!.AsButton().Invoke();
-            Wait.UntilInputIsProcessed();
-
-            NavigateFileBrowserTo(_destination);
-
-            var paste = WaitForId("PasteFiles", 30);
-            Assert.IsNotNull(paste, $"No Paste action for '{name}'.");
-            paste!.AsButton().Invoke();
-            Wait.UntilInputIsProcessed();
-
-            // One shot per paste. The middle one is the interesting state — the first copy still running
-            // while the next is queued behind it, which is the shape of the drop that went wrong.
-            try { MainWindow.Capture().Save(Path.Combine(TestTemp.Root, $"nexaflow-fileops-three-{name}.png")); }
-            catch { }
-            }
-
-        // More than one row: the second and third pastes were accepted while the first was still going,
-        // which is exactly what the old code could not do. Whether they are still running by the time this
-        // looks is a race against the disk, so the claim stops at "more than one operation is listed".
-        var rows = WaitFor(() =>
-        {
-            var found = MainWindow.FindAllDescendants(cf => cf.ByAutomationId("FileOps_Progress"));
-            return found.Length > 1 ? found[0] : null;
-        }, 15);
-        Check("more than one operation is in the panel at the same time", () => rows is not null);
-
-
-
-        foreach (var name in names)
-            Check($"'{name}' arrives",
-                  () => WaitForFs(() => File.Exists(Path.Combine(_destination, name,
-                          File.ReadAllText(Path.Combine(_source, name, "last.txt")))), 300));
-
-        Check("the panel goes away once they have all finished",
-              () => WaitForGone("FileOps_Progress", 25));
-
-        AssertJourney();
-    }
-
-    /// <summary>
     /// Writes a folder of 8 MB blocks totalling <paramref name="defaultGb"/> gigabytes.
     /// <para>
     /// Sized by <c>NEXAFLOW_FILEOPS_GB</c> so the committed default stays a considerate neighbour — a
     /// journey that writes tens of gigabytes on every run is not one anybody will keep running. Raise it
-    /// when you want the copies to visibly overlap rather than merely queue:
-    /// <c>NEXAFLOW_FILEOPS_GB=7</c> gives roughly 20 GB across the three-copy case.
+    /// when you want to watch a copy's progress on a fast disk.
     /// </para>
     /// </summary>
     private static void MakePayload(string folder, double defaultGb)

@@ -203,6 +203,9 @@ public class PdfJourneyTests : UiJourneyTestBase
         }
         if (WaitForId("Pdf_ConvertScans", 10) is not null)
         {
+            // A stopped reading lets go of the page it was on before the conversion is free again — until then both convert
+            // buttons stand disabled, so a stop above is waited out here rather than taken for a button that does nothing.
+            WaitForFs(() => WaitForId("Pdf_ConvertScans", 1)?.IsEnabled == true, 30);
             // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
             CheckDoes("Convert the scanned pages to Markdown", "Pdf_ConvertScans",
                       () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
