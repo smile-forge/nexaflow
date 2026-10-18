@@ -166,6 +166,28 @@ namespace Nexaflow.Features.Common
         /// </summary>
         /// <exception cref="InvalidOperationException">The workspace has no model that makes a clip from a picture.</exception>
         void MakeClipFromPicture(ClipFromPicture clip);
+
+        /// <summary>
+        /// Where <paramref name="ability"/> stands in the workspace now: no model assigned, assigned but unreachable, waiting on a
+        /// download of a model Nexaflow runs itself, or served. What needs it is enabled while
+        /// <see cref="AiAbilityStatus.IsUsable"/> — <see cref="Gate"/> keeps a control so.
+        /// </summary>
+        AiAbilityStatus StatusOf(AiAbility ability);
+
+        /// <summary>Raised, on whichever thread it happened, when an ability's status may have changed: the workspace's models were
+        /// reassigned, or one became available or stopped being.</summary>
+        event EventHandler? AbilitiesChanged;
+
+        /// <summary>
+        /// Gets <paramref name="ability"/> ready for a use the user asked for: true when a model serves it now. Where it waits on
+        /// the download of a model Nexaflow runs itself, the user is asked whether to download it, and it downloads in the
+        /// background if they agree — the use stops there, to be made again once it lands (false). False too while it downloads,
+        /// and when nothing serves it.
+        /// </summary>
+        Task<bool> MakeReadyAsync(AiAbility ability, CancellationToken ct = default);
+
+        /// <summary>A gate on <paramref name="abilities"/> for a control to bind, made on the UI thread and kept current on it.</summary>
+        IAiAbilityGate Gate(params AiAbility[] abilities);
     }
 
     /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>
