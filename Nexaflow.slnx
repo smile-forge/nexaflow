@@ -516,6 +516,9 @@
     <Project Path="external/DiscUtils/Library/DiscUtils.Xva/DiscUtils.Xva.csproj">
       <Platform Project="AnyCPU" />
     </Project>
+    <Project Path="external/DiscUtils/SourceGenerators/DiscUtils.SourceGenerator/DiscUtils.SourceGenerator.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
     <Project Path="external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj">
       <Platform Project="AnyCPU" />
     </Project>

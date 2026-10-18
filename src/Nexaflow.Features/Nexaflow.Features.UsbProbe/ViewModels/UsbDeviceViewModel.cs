@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
+using Nexaflow.IO.Common.Stores;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.IO.Usb.Inventory;
@@ -509,6 +510,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         }
 
         public bool OpenFile(string path) => page._shell.HandleObject(path);
+
+        public string FetchedFilesFolder => IStoreBrowserHost.DefaultFetchedFilesFolder;
 
         public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions) => page._shell.PickOpenFileAsync(extensions);
 

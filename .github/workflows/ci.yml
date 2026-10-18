@@ -28,9 +28,12 @@ jobs:
       # submodules: the build ProjectReferences third-party source under external/ (DiscUtils, AngouriMath,
       # tree-sitter — public smile-forge forks), so without this the restore/build can't resolve them.
       # See docs/externals.md.
+      # persist-credentials: false, because nothing here pushes and the submodules are public. Left on,
+      # checkout writes the token into .git/config and adds a post-job step, after the tests, to take it out.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -38,18 +41,38 @@ jobs:
           dotnet-version: '10.0.x'
 
       # The runner is a fresh VM every time, so nothing survives on the machine — but the cache does not live
-      # there. actions/cache keeps the archive in GitHub's own repo-scoped cache service and unpacks it onto
-      # the new VM, which turns Restore's hundreds of nuget.org round-trips into one download. Restore is
-      # resolution AND download; this removes only the second, so it takes back part of the step, not all.
-      # The key is every file that can change which packages are wanted. On a miss, restore-keys still
-      # recovers the newest earlier archive and restore fetches only the delta — so a version bump costs the
-      # bump, not the whole graph. Caches written on main are readable from every PR branch (a PR's own are
-      # not shared back), so main populates it and the PRs live off it.
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      # there. GitHub keeps the archive in its repo-scoped cache service and it is unpacked onto the new VM,
+      # which turns Restore's hundreds of nuget.org round-trips into one download. Restore is resolution AND
+      # download; this removes only the second, so it takes back part of the step, not all.
+      #
+      # The key is what decides which packages are wanted, and nothing else: every PackageReference,
+      # PackageVersion and PackageDownload line and every pinned SDK across the tree (submodules included),
+      # plus the feed config and global.json. An edit to a project that does not touch its packages keeps
+      # the key. On a miss, restore-keys still recovers the newest earlier archive and restore fetches only
+      # the delta, so a version bump costs the bump, not the whole graph.
+      - name: Key the NuGet cache
+        id: nuget-key
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem -Recurse -File -Include *.csproj, *.fsproj, *.wixproj, *.props, *.targets |
+            Where-Object FullName -notmatch '[\\/](bin|obj)[\\/]' |
+            Select-String -Pattern '<Package(Reference|Version|Download)\b[^>]*>|Sdk="[^"]+/[^"]+"' -AllMatches |
+            ForEach-Object { $_.Matches.Value -replace '\s+', ' ' } |
+            Sort-Object -Unique
+          $lines += Get-Content NuGet.config, global.json -ErrorAction SilentlyContinue
+          $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($lines -join "`n")))
+          "key=${{ runner.os }}-nuget-$hash" >> $env:GITHUB_OUTPUT
+
+      # Restore only. The combined actions/cache also adds a post-job step that, whenever the key missed,
+      # compresses all of ~/.nuget/packages (over 2 GB) and uploads it — after the tests, on every PR that
+      # changed a package. A cache a PR saves is readable only by that PR's own later runs, and every one
+      # pushes others out of the repo's 10 GB, main's included. So every run reads, and only main writes.
+      - name: Restore cached NuGet packages
+        id: nuget-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.props', 'NuGet.config') }}
+          key: ${{ steps.nuget-key.outputs.key }}
           restore-keys: ${{ runner.os }}-nuget-
 
       # Restores nuget.org + the VideoLAN preview feed (libVLC) per NuGet.config. The installer lives in its
@@ -58,6 +81,40 @@ jobs:
         run: |
           dotnet restore Nexaflow.slnx
           dotnet restore NexaflowSetup.slnx
+
+      # Main writes the cache, once per set of packages, as soon as Restore has filled the folder: not at the
+      # end of the job, so a failing test does not throw away a good cache and nothing is compressed while the
+      # build waits. A miss starts from the newest earlier archive (restore-keys), so before it is saved the
+      # folder is cut back to exactly what this restore used — the packages every project's assets file names,
+      # and the SDKs the projects pin, which no assets file lists — or every version ever bumped past would
+      # ride along in the archive for ever.
+      - name: Keep only the packages this restore used
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $used = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          foreach ($assets in Get-ChildItem -Recurse -File -Filter project.assets.json) {
+            foreach ($library in (Get-Content $assets.FullName -Raw | ConvertFrom-Json).libraries.PSObject.Properties) {
+              if ($library.Value.type -eq 'package') { [void]$used.Add($library.Name) }
+            }
+          }
+          Get-ChildItem -Recurse -File -Include *.csproj, *.wixproj, *.props, *.targets |
+            Select-String -Pattern 'Sdk="([^"/]+)/([^"]+)"' -AllMatches |
+            ForEach-Object { $_.Matches } | ForEach-Object { [void]$used.Add("$($_.Groups[1].Value)/$($_.Groups[2].Value)") }
+          $root = Join-Path $HOME '.nuget/packages'
+          foreach ($package in Get-ChildItem $root -Directory) {
+            foreach ($version in Get-ChildItem $package.FullName -Directory) {
+              if (-not $used.Contains("$($package.Name)/$($version.Name)")) { Remove-Item $version.FullName -Recurse -Force }
+            }
+            if (-not (Get-ChildItem $package.FullName)) { Remove-Item $package.FullName -Force }
+          }
+
+      - name: Save NuGet packages for later runs
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget-key.outputs.key }}
 
       # The point of this step is the payload-completeness GUARDS, not the MSI. Building the installer builds
       # Core -> every feature/provider/shared project, then asserts every provider DLL, every feature DLL and

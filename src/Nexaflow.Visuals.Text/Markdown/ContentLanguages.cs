@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
@@ -21,7 +23,13 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public static class ContentLanguages
 {
-    private static readonly List<ContentLanguage> Known =
+    /// <summary>
+    /// The table as it stands, and what each word was found to name in it. Replaced whole when a language is added and never
+    /// changed after: a language's <see cref="ContentLanguage.Reads"/> is code from wherever it was registered, so asking it while
+    /// holding a lock deadlocks the moment that code waits on something that is itself waiting for the lock — a type initialiser
+    /// registering languages, say. A lookup reads whichever table is current and asks it with nothing held.
+    /// </summary>
+    private static volatile LanguageTable Table = new(
     [
         Shipped.Mermaid,
         Shipped.Rtf,
@@ -45,8 +53,16 @@ public static class ContentLanguages
         // Last, and deliberately. Code answers to dozens of words, so a fence calling itself something a language of its own
         // already claims must reach that one first.
         .. Shipped.Codes,
-    ];
+    ]);
 
+    /// <summary>The languages in the order they are asked, and what each word was found to name among them.</summary>
+    private sealed record LanguageTable(ImmutableArray<ContentLanguage> Known)
+    {
+        /// <summary>What each word was found to name, so a word is looked for in the table once — until a language is added.</summary>
+        public ConcurrentDictionary<string, ContentLanguage?> Answered { get; } = new(StringComparer.Ordinal);
+    }
+
+    /// <summary>Taken only to replace the table, so two languages added at once are both kept.</summary>
     private static readonly Lock Adding = new();
 
     /// <summary>What content is written in where nothing names a language.</summary>
@@ -63,11 +79,7 @@ public static class ContentLanguages
     {
         ArgumentNullException.ThrowIfNull(language);
 
-        lock (Adding)
-        {
-            Known.Insert(0, language);
-            Answered.Clear();
-        }
+        lock (Adding) Table = new([language, .. Table.Known]);
     }
 
     /// <summary>Whether anything here reads content calling itself <paramref name="language"/>.</summary>
@@ -78,29 +90,16 @@ public static class ContentLanguages
     {
         if (string.IsNullOrWhiteSpace(language)) return null;
 
-        lock (Adding)
-        {
-            if (Answered.TryGetValue(language, out var known)) return known;
-
-            return Answered[language] = Known.FirstOrDefault(known => known.Reads(language));
-        }
+        var table = Table;
+        return table.Answered.GetOrAdd(language, static (word, known) => known.FirstOrDefault(each => each.Reads(word)), table.Known);
     }
 
     /// <summary>
     /// Every language a block can be started in (<see cref="ContentLanguage.DefaultBlock"/>), in the table's order, each once: where a
     /// host has put one in place of one that ships, only the host's.
     /// </summary>
-    public static IReadOnlyList<ContentLanguage> Insertable
-    {
-        get
-        {
-            lock (Adding)
-                return [.. Known.Where(known => known.DefaultBlock is not null).DistinctBy(known => known.DisplayName)];
-        }
-    }
-
-    /// <summary>What each word was found to name, so a word is looked for in the table once — until a language is added.</summary>
-    private static readonly Dictionary<string, ContentLanguage?> Answered = new(StringComparer.Ordinal);
+    public static IReadOnlyList<ContentLanguage> Insertable =>
+        [.. Table.Known.Where(known => known.DefaultBlock is not null).DistinctBy(known => known.DisplayName)];
 
     /// <summary>
     /// The language <paramref name="part"/> holds content written in, where it holds content in one anything reads — a fence,

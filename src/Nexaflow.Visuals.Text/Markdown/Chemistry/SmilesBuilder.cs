@@ -725,12 +725,5 @@ internal sealed class SmilesBuilder : ContentBuilder
     private const double SourceSize = 13;
 
     /// <summary>How a block sets the source it could not lay out at all: as the lines it was written as.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Style.Text,
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Style.Text);
 }

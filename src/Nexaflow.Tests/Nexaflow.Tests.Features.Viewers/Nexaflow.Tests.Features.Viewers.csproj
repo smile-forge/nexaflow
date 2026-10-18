@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.4.0" />
+    <PackageReference Include="MSTest" Version="4.5.1" />
     <PackageReference Include="NSubstitute" Version="6.2.0" />
     <!-- PDFium, Chrome's PDF renderer, as the fidelity sweep's second reference beside Windows' own. -->
     <PackageReference Include="PDFiumCore" Version="157.0.8100" />

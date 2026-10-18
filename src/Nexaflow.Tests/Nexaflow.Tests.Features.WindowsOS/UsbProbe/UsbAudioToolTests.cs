@@ -61,7 +61,7 @@ public class UsbAudioToolTests
     public void Setup()
     {
         _host = new RecordingHost();
-        _dir = Directory.CreateTempSubdirectory("nexaflow-usbaudio-").FullName;
+        _dir = TestTemp.CreateSubdirectory("nexaflow-usbaudio-").FullName;
     }
 
     [TestCleanup]

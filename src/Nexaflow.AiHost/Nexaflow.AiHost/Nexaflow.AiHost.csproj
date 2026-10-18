@@ -29,10 +29,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.17.1" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.18.0" />
 
     <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
-    <PackageReference Include="MisakiSharp" Version="2.1.1" />
+    <PackageReference Include="MisakiSharp" Version="2.2.0" />
     <!-- Qwen3's byte-level BPE, for the prompts the image model reads (MIT). -->
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
   </ItemGroup>
@@ -55,8 +55,7 @@
 
   <Target Name="ExcludeCudaPackAssets" AfterTargets="ResolvePackageAssets">
     <ItemGroup>
-      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)"
-                            Condition="'%(Extension)' == '.lib' or $(_CudaPackFiles.Contains(';%(Filename);'))" />
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(Extension)' == '.lib' or $(_CudaPackFiles.Contains(';%(Filename);'))" />
     </ItemGroup>
   </Target>
 
@@ -79,16 +78,13 @@
   </PropertyGroup>
 
   <Target Name="FetchLlamaCpp" Condition="!Exists('$(LlamaCppFolder)llama.dll')">
-    <DownloadFile SourceUrl="https://github.com/ggml-org/llama.cpp/releases/download/$(LlamaCppBuild)/$(LlamaCppArchive)"
-                  DestinationFolder="$(LlamaCppFolder)" Retries="3" />
+    <DownloadFile SourceUrl="https://github.com/ggml-org/llama.cpp/releases/download/$(LlamaCppBuild)/$(LlamaCppArchive)" DestinationFolder="$(LlamaCppFolder)" Retries="3" />
     <GetFileHash Files="$(LlamaCppFolder)$(LlamaCppArchive)" Algorithm="SHA256">
       <Output TaskParameter="Hash" PropertyName="_LlamaCppHash" />
     </GetFileHash>
     <Delete Files="$(LlamaCppFolder)$(LlamaCppArchive)" Condition="'$(_LlamaCppHash)' != '$(LlamaCppSha256)'" />
-    <Error Condition="'$(_LlamaCppHash)' != '$(LlamaCppSha256)'"
-           Text="$(LlamaCppArchive) has SHA-256 $(_LlamaCppHash), not the pinned $(LlamaCppSha256)." />
-    <Unzip SourceFiles="$(LlamaCppFolder)$(LlamaCppArchive)" DestinationFolder="$(LlamaCppFolder)"
-           Include="llama.dll;mtmd.dll;ggml.dll;ggml-base.dll;ggml-cpu-*.dll;libomp.dll;LICENSE-LLVM-OpenMP" />
+    <Error Condition="'$(_LlamaCppHash)' != '$(LlamaCppSha256)'" Text="$(LlamaCppArchive) has SHA-256 $(_LlamaCppHash), not the pinned $(LlamaCppSha256)." />
+    <Unzip SourceFiles="$(LlamaCppFolder)$(LlamaCppArchive)" DestinationFolder="$(LlamaCppFolder)" Include="llama.dll;mtmd.dll;ggml.dll;ggml-base.dll;ggml-cpu-*.dll;libomp.dll;LICENSE-LLVM-OpenMP" />
     <WriteLinesToFile File="$(LlamaCppFolder)llama-cpp.build" Lines="$(LlamaCppBuild)" Overwrite="true" />
     <Delete Files="$(LlamaCppFolder)$(LlamaCppArchive)" />
   </Target>

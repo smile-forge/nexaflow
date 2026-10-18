@@ -143,14 +143,7 @@ internal sealed class MatrixBuilder : ContentBuilder
     }
 
     /// <summary>How a code sets the source it could not lay out at all: as the fields it was written as.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Style.Text,
-            Editing.LayoutText.Density);
+    protected override CharacterSetting Characters => new(Style.Face(SourceFont), SourceSize, Style.Text);
 
     /// <summary>How big the characters of a block shown as written are set.</summary>
     private const double SourceSize = 13;

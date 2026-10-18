@@ -79,7 +79,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>Unreadable source shown in a monospaced face, so it reads as the source it is.</summary>
-    protected override FormattedText Characters(string text) => Glyphs(text, Face.Plain with { Mono = true });
+    protected override CharacterSetting Characters => CharactersIn(Face.Plain with { Mono = true });
 
     // ── Blocks ──────────────────────────────────────────────────────────────
 
@@ -696,7 +696,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
     // The whole of what the language is written in: from its body up to the part holding it, delimiters and all.
         var block = ContentNested.Holders(part.Part(Roles.Body) ?? part).FirstOrDefault() ?? part;
-        var shown = SourceShown.Lay(block, why, text => Glyphs(text, Face.Plain with { Mono = true, Scale = 0.94 }), Style, Fits(room));
+        var shown = SourceShown.Lay(block, why, CharactersIn(Face.Plain with { Mono = true, Scale = 0.94 }), Style, Fits(room));
         _borrowed.AddRange(shown.Trouble);
 
     // Standing for the block, as every block's piece does, so what is pressed in it and what is said of it are the block's.

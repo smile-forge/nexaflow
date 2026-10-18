@@ -3,6 +3,7 @@ using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using Nexaflow.Markdown.Latex;
+using System;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
@@ -21,7 +22,7 @@ public static class WpfTeXEnvironment
         Brush? foreground = null,
         Brush? background = null)
     {
-        var mathFont = new DefaultTexFont(WpfMathFontProvider.Instance, scale);
+        var mathFont = new DefaultTexFont(MathFonts.Value, scale);
         var textFont = GetSystemFont(systemTextFontName, scale);
 
         return new TexEnvironment(
@@ -31,6 +32,13 @@ public static class WpfTeXEnvironment
             background.ToPlatform(),
             foreground.ToPlatform());
     }
+
+    /// <summary>
+    /// The maths fonts, read once rather than once per formula (see <see cref="DefaultTexFontData"/>). Each formula still gets
+    /// its own <see cref="DefaultTexFont"/> at its own size, and its own <see cref="TexEnvironment"/>, which carries the state of
+    /// the typesetting under way; only what was read from the font description and its faces is shared.
+    /// </summary>
+    private static readonly Lazy<DefaultTexFontData> MathFonts = new(() => DefaultTexFontData.Read(WpfMathFontProvider.Instance));
 
     /// <summary>
     /// The installed family of that name, looked up once per name rather than once per formula.

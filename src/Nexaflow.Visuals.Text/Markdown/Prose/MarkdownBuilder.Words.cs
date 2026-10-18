@@ -377,7 +377,7 @@ public sealed partial class MarkdownBuilder
 
         if (nested is { Laid.Trouble.Count: > 0 } unread)
         {
-            var shown = SourceShown.Lay(part, unread.Laid.Trouble, text => Glyphs(text, mono), Style);
+            var shown = SourceShown.Lay(part, unread.Laid.Trouble, CharactersIn(mono), Style);
             _borrowed.AddRange(shown.Trouble);
             runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: new ContentInset(shown)));
 
@@ -782,15 +782,10 @@ public sealed partial class MarkdownBuilder
 
     // ── Type ────────────────────────────────────────────────────────────────
 
-    private FormattedText Glyphs(string text, Face face)
-    {
-        var glyphs = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface(face), Size(face),
-                                       face.Ink ?? Style.Text, LayoutText.Density);
+    private FormattedText Glyphs(string text, Face face) => CharactersIn(face).Set(text);
 
-        if (Decorations(face) is { } decorations) glyphs.SetTextDecorations(decorations);
-
-        return glyphs;
-    }
+    /// <summary>How characters in <paramref name="face"/> are set: its typeface, size, ink and rules.</summary>
+    private CharacterSetting CharactersIn(Face face) => new(Typeface(face), Size(face), face.Ink ?? Style.Text, Decorations(face));
 
     /// <summary>
     /// The rules drawn through or under a face, made once for each way of ruling rather than once for every run ruled:

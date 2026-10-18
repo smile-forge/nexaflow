@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.IO;
 using FlaUI.Core.Capturing;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -447,13 +448,13 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     }
 
     /// <summary>
-    /// The window's part of the screen, saved under %TEMP%\<paramref name="folder"/> — for what opens over the window, which
+    /// The window's part of the screen, saved under the run's own folder (TestTemp), in <paramref name="folder"/> — for what opens over the window, which
     /// a capture of the window leaves out: a context menu is a popup of its own. Only the window's own area is taken, never
     /// the rest of the desktop.
     /// </summary>
     protected void ShootWindowArea(string folder, string name)
     {
-        var dir = Path.Combine(Path.GetTempPath(), folder);
+        var dir = Path.Combine(TestTemp.Root, folder);
         Directory.CreateDirectory(dir);
         Capture.Rectangle(MainWindow.BoundingRectangle).ToFile(Path.Combine(dir, $"{name}.png"));
         Console.WriteLine($"[shot] {Path.Combine(dir, name)}.png");
