@@ -63,6 +63,7 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
             var ops  = new ProjectOperations(_config, root);
             var vm   = new ProjectDetailViewModel(ops, _config, folder, _shellServices, _aiService);
             var page = new ProjectDetailView(vm);
+            tab.Closed += (_, _) => vm.Release();
             vm.OpenFilesRequested += p =>
                 _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = p }, page);
             return page;

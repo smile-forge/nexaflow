@@ -280,10 +280,24 @@ ships (`ModelCatalog`); the store fetches them. A provider that exposes its cata
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
 kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
 on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
-Speech In starts on the Local column when a workspace's grid has never had that row; the workspace settles its model
-as it loads — one of Nexaflow's own speech models, or whisper.cpp's base where the machine runs none
-(`LocalColumns.Settle`). The mic holds a conversation on any speech model but that one; on it, `DictationService`
-streams the microphone into the box.
+The grid's rows are the abilities (`AiAbility`, in Features.Common so features can name one): General Intelligence —
+the conversation and every one-shot piece of thinking — Disambiguation, Image Recognition, Speech In and Out, and the
+picture and video rows. Setup fills them by who runs the AI (`WorkspaceAiDefaults`): Nexaflow alone puts the Local
+column wherever it serves; a provider alone puts its language model in the reasoning rows and the models of its other
+kinds the user picked (`ModelKindsStep`) in theirs, the Local column keeping a model chosen for each job, ticked
+nowhere; both chain the two in the reasoning rows and give the Local column the rest. A grid saved by an earlier version
+is brought up to date as it is read (`AiConfig.BringUpToDate`): its Conversation row becomes General Intelligence, and
+Speech In starts on the Local column where it never had the row; the workspace settles that model as it loads — one of
+Nexaflow's own speech models, or whisper.cpp's base where the machine runs none (`LocalColumns.Settle`). The mic holds a
+conversation on any speech model but that one; on it, `DictationService` streams the microphone into the box.
+
+**What needs an ability.** `IAIService.StatusOf` says where an ability stands — unassigned, assigned but unreachable,
+waiting on the download of a model Nexaflow runs itself, downloading, or ready (`AbilityReadiness`) — and
+`AbilitiesChanged` says when that may have moved. A control that needs one binds a gate (`IAIService.Gate`, attached
+with `AiAbilityGating.Gate`): disabled while nothing serves the ability, its tooltip saying where to assign a model, and
+enabled while a model waits on its download, whose first use offers it (`MakeReadyAsync`) and stops there. A client tool
+declares what it needs (`IClientTool.Needs`): the agent loop leaves it out where nothing serves that, and one waiting on a
+download is offered behind `DownloadFirstTool`.
 
 All providers implement `IAiProvider` through their kind's contract (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 

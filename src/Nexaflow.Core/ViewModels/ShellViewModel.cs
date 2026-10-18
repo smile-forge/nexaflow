@@ -809,7 +809,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeVoiceAvailable()
     {
         var ai = CurrentRuntime.AiService;
-        VoiceAvailable = ai?.SpeechToText is not null;
+        VoiceAvailable = ai?.StatusOf(AiAbility.SpeechIn).IsUsable == true;
         VoiceConverses = ai?.CanConverse(SpokenLanguage()) == true;
     }
 
@@ -1563,6 +1563,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
             if (response is null)
             {
+                // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
+                if (!sendToken.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
+                {
+                    handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
+                    return TurnOutcome.Completed;
+                }
                 handler.Abort();
                 return sendToken.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
             }
@@ -1617,8 +1623,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [RelayCommand]
     private void ClearAiInput() => AiInputText = string.Empty;
 
-    // Mic is usable when the host can run Whisper and no AI request is processing.
-    // While recording, AiIsBusy stays false so this remains true (to allow stop).
+    // Mic is usable when Speech In has a model — one still to download counts, the first press offering it — and no AI
+    // request is processing. While recording, AiIsBusy stays false so this remains true (to allow stop).
     private bool CanToggleVoice => Voice.IsActive || (VoiceAvailable && !AiIsBusy);
 
     /// <summary>
@@ -1632,6 +1638,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (_dictation.IsRecording) { await _dictation.StopAsync(); return; }   // manual early stop; it also stops by itself after a silence
 
         var ai = CurrentRuntime.AiService;
+        if (ai is null || !await ai.MakeReadyAsync(AiAbility.SpeechIn)) return;   // a model still to download offers it, and stops here
         string language = SpokenLanguage();
         if (ai is not null && ai.CanConverse(language))
         {

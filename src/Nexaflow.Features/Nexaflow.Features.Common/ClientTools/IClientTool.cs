@@ -39,6 +39,14 @@ public interface IClientTool
     bool ExemptFromRepeatGuard => false;
 
     /// <summary>
+    /// The abilities the tool needs a model for: one any of whose abilities has no model to serve it is not offered. One waiting
+    /// on a download is offered, and its first use offers the download. A tool whose result is a picture needs
+    /// <see cref="AiAbility.ImageRecognition"/>, which a General Intelligence model that sees pictures itself meets too; one whose
+    /// result is a recording needs <see cref="AiAbility.SpeechIn"/>, met too by one that hears. Default: none.
+    /// </summary>
+    IReadOnlyList<AiAbility> Needs => [];
+
+    /// <summary>
     /// How a call of this tool is announced where it is not shown for approval — in a voice conversation, which says
     /// it, then does it unless told to stop. Null leaves the announcement to the tool's name. Worth giving for a tool
     /// that <see cref="ToolSafety.RequiresApproval"/>. Default: null.

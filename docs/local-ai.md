@@ -418,9 +418,11 @@ to the owned model, which is where API cost actually goes.
 
 ### Light work here, heavy work elsewhere
 
-A Conversation, Problem Solving or Analysis row holding both a model on this machine and one elsewhere is not a fallback
-chain: each request goes to the model that suits it (`RequestTriage`). A row of one kind — only models here, or only
-models elsewhere — always uses its first available model.
+A General Intelligence row holding both a model on this machine and one elsewhere is not a fallback chain: each request
+goes to the model that suits it (`RequestTriage`), the Disambiguation model judging it. Light work runs here, and should
+the model here get stuck the one elsewhere takes the request over; heavy work goes elsewhere, and should that model fail
+the user is told — it is never handed down. A row of one kind — only models here, or only models elsewhere — always uses
+its first available model.
 
 **How long a reply may be, and how it ends.** A reply has no fixed limit: it may be as long as the model's context leaves
 room for, its reasoning included. What stops one that has stopped going anywhere is the host's `CircleWatch`: the same
@@ -450,7 +452,7 @@ about that." straight away and reasoned over. Typed requests always reason.
 Every judgement — routing, weighing, a spoken yes or no — is asked without reasoning.
 
 **Long conversations are condensed, not cut.** When the conversation a run continues outgrows half the model's context,
-its older part is condensed by the Analysis model into notes (`IAIService.CondenseConversationAsync`, a part at a time
+its older part is condensed by the General Intelligence model into notes (`IAIService.CondenseConversationAsync`, a part at a time
 where it is longer than the model reads at once); the newest quarter is kept word for word, the notes before it, and the
 AI bar's and the voice conversation's history keep the condensed form. The Conversation page keeps two histories apart:
 earlier sessions are the analysis made when they closed, and this session's older messages, once they outgrow half the
@@ -484,7 +486,7 @@ The harness hands the model what it needs to act and nothing it has to dig for:
 - **The tools follow the work.** A page with more than four tools has the Disambiguation model pick the few the next
   step needs — again whenever an instruction is added or a step's calls are answered, from everything asked and what
   the calls did. Tools the model had listed with `get_client_commands` stay offered.
-- **A call that cannot be read is rewound, not argued with.** It is written again by the Conversation model in a small
+- **A call that cannot be read is rewound, not argued with.** It is written again by the General Intelligence model in a small
   context of its own — the call as written, why it did not read, and an example built from the tool's definition — and
   the call written again takes the attempt's place, so the conversation only ever holds calls that read. Only when that
   fails is the model told why. JSON the model reads is written unescaped (`café`, not `caf\u00E9`).

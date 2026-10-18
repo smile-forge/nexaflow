@@ -11,14 +11,6 @@
         <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
         <cv:NullToVisibilityConverter x:Key="NullToVis"/>
 
-        <Style x:Key="AbilityNameText" TargetType="TextBlock">
-            <Setter Property="Width"              Value="170"/>
-            <Setter Property="Foreground"         Value="{StaticResource TextBrush}"/>
-            <Setter Property="FontSize"           Value="12"/>
-            <Setter Property="VerticalAlignment"  Value="Center"/>
-            <Setter Property="Padding"            Value="0,0,12,0"/>
-        </Style>
-
         <!-- Cell button: selectable column item per row -->
         <Style x:Key="CellButton" TargetType="Button">
             <Setter Property="Width"       Value="130"/>
@@ -84,27 +76,29 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <Grid>
-                    <TextBlock Text="–" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding IsGreyed, Converter={StaticResource BoolVis}}"/>
-                    <Grid Width="20" Height="20"
-                          Visibility="{Binding IsUsable, Converter={StaticResource BoolVis}}">
-                        <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
-                                 Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
-                        <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
-                            <Ellipse Fill="{StaticResource AccentBrush}"/>
-                            <TextBlock Text="{Binding Position}"
-                                       FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{StaticResource OnAccentBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Grid>
+                        <TextBlock Text="–" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding IsGreyed, Converter={StaticResource BoolVis}}"/>
+                        <Grid Width="20" Height="20"
+                              Visibility="{Binding IsUsable, Converter={StaticResource BoolVis}}">
+                            <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"
+                                     Visibility="{Binding IsInChain, Converter={StaticResource InverseBoolVis}}"/>
+                            <Grid Visibility="{Binding IsInChain, Converter={StaticResource BoolVis}}">
+                                <Ellipse Fill="{StaticResource AccentBrush}"/>
+                                <TextBlock Text="{Binding Position}"
+                                           FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource OnAccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
                         </Grid>
                     </Grid>
-                    <!-- A Local model chosen but not downloaded yet: marked beside its place in the chain. -->
-                    <TextBlock Text="⬇" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="34,0,0,0"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding NeedsDownload, Converter={StaticResource BoolVis}}"/>
-                </Grid>
+                    <!-- A Local model the row uses that is not downloaded yet: a warning beside its place in the chain. -->
+                    <TextBlock Text="{loc:Str Shell.Config.AiGrid.Local.RequiresDownload}" FontSize="10" Margin="6,0,0,0"
+                               Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center"
+                               Visibility="{Binding RequiresDownload, Converter={StaticResource BoolVis}}"/>
+                </StackPanel>
             </Button>
         </DataTemplate>
 
@@ -112,7 +106,25 @@
         <DataTemplate x:Key="RowTemplate" DataType="{x:Type vm:AiAbilityRowViewModel}">
             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Height="40">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding AbilityName}" Style="{StaticResource AbilityNameText}"/>
+                    <!-- A row with nothing assigned: marked, in the warning colour, as disabled. -->
+                    <StackPanel Width="170" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding AbilityName}" FontSize="12" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsUnassigned}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{loc:Str Shell.Config.AiGrid.Disabled}" ToolTip="{loc:Str Shell.Config.AiGrid.DisabledTip}"
+                                   FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   Visibility="{Binding IsUnassigned, Converter={StaticResource BoolVis}}"/>
+                    </StackPanel>
                     <ItemsControl ItemsSource="{Binding Cells}"
                                   ItemTemplate="{StaticResource CellTemplate}">
                         <ItemsControl.ItemsPanel>

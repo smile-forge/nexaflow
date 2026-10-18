@@ -2,33 +2,13 @@ using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core.AI;
 
-/// <summary>What the workspace asks of a model. Each takes models of one <see cref="ModelKind"/>
-/// (<see cref="AiAbilityNames.Kind"/>): the reasoning roles a language model, Speech In a speech-to-text one, Speech
-/// Out a text-to-speech one, and the generation rows a model that makes pictures or videos.</summary>
-public enum AiAbility
-{
-    Disambiguation,
-    Conversation,
-    ProblemSolving,
-    ImageRecognition,
-    Analysis,
-    SpeechIn,
-    SpeechOut,
-    ImageGeneration,
-    HighQualityImageGeneration,
-    VideoGeneration,
-    HighQualityVideoGeneration,
-}
-
 internal static class AiAbilityNames
 {
     public static string Friendly(AiAbility a) => a switch
     {
         AiAbility.Disambiguation   => "Disambiguation",
-        AiAbility.Conversation     => "Conversation",
-        AiAbility.ProblemSolving   => "Problem Solving",
+        AiAbility.GeneralIntelligence => "General Intelligence",
         AiAbility.ImageRecognition => "Image Recognition",
-        AiAbility.Analysis         => "Analysis",
         AiAbility.SpeechIn         => "Speech In",
         AiAbility.SpeechOut        => "Speech Out",
         AiAbility.ImageGeneration            => "Image Generation",

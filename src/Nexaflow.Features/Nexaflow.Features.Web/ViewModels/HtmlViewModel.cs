@@ -155,7 +155,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
             [],
             ToolSafety.SafeOperation,
             (_, ct) => BuildCaptureResultAsync(ct),
-            parallelizable: false),
+            parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "scroll_web_page",

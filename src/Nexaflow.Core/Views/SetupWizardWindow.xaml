@@ -84,10 +84,41 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- The provider's other kinds of model: one chosen for each, or none. -->
+        <DataTemplate DataType="{x:Type vm:WizardModelKindsContent}">
+            <StackPanel>
+                <TextBlock Text="The provider offers these kinds of model too. Choose one for each you want it to do; anything left at None stays disabled until you assign a model in Configure."
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,10" TextWrapping="Wrap"/>
+                <TextBlock Text="Loading models…"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="13"
+                           Margin="0,0,0,8"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
+                <ItemsControl ItemsSource="{Binding Kinds}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource TextBrush}"/>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding Models}"
+                                          SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="{Binding AutomationId}"
+                                          AutomationProperties.Name="{Binding Label}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Model picker. -->
         <DataTemplate DataType="{x:Type vm:WizardModelPickContent}">
             <StackPanel>
-                <TextBlock Text="Choose the model to use for every ability (you can fine-tune this later in Configure)."
+                <TextBlock Text="Choose the language model: it holds the conversation, reasons, and routes requests (you can fine-tune this later in Configure)."
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
                 <!-- Shown only while fetching; the list below is empty until it arrives, so they never overlap. -->

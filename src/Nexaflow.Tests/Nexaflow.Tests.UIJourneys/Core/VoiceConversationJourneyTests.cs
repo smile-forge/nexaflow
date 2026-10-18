@@ -97,10 +97,8 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
                 { "Id": "speak",  "ProviderName": "Nexaflow", "Model": "kokoro-82m",             "Kind": "TextToSpeech", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
               "Assignments": {
-                "Conversation":     [ "chat" ],
+                "GeneralIntelligence": [ "chat" ],
                 "Disambiguation":   [ "chat" ],
-                "ProblemSolving":   [ "chat" ],
-                "Analysis":         [ "chat" ],
                 "ImageRecognition": [ "chat" ],
                 "SpeechIn":         [ "local-speech-to-text" ],
                 "SpeechOut":        [ "speak" ]

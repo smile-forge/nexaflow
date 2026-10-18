@@ -200,7 +200,7 @@ public class LocalModelsTests
                 new ProviderModelPair { Id = "c", ProviderName = "Claude", Model = "sonnet", Kind = ModelKind.Language },
                 new ProviderModelPair { Id = SpeechIn, ProviderName = "Nexaflow", Model = "small", Kind = ModelKind.SpeechToText },
             ],
-            Assignments = { ["Conversation"] = AbilityChain.Of("c"), ["SpeechIn"] = AbilityChain.Of(SpeechIn) },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("c"), ["SpeechIn"] = AbilityChain.Of(SpeechIn) },
             LocalSeeded = true,
         };
         var shelf = new LocalModelShelf(providers, _store);
@@ -244,7 +244,7 @@ public class LocalModelsTests
         Assert.IsTrue(video.IsGreyed, "no model for video runs here");
         Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.None"), video.Note);
 
-        var conversation = LocalCell(grid, AiAbility.Conversation);
+        var conversation = LocalCell(grid, AiAbility.GeneralIntelligence);
         Assert.IsTrue(conversation.IsGreyed, "a model runs here, but none is chosen");
         Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.Choose"), conversation.Note);
     }
@@ -381,7 +381,7 @@ public class LocalModelsTests
         Assert.IsNotNull(_store.Locate(Cuda.Files[0]), "with the runtime it needs");
         CollectionAssert.Contains(_used, (LocalSlot.Language, "e4b"), "the downloads made the choice good");
         await Until(() => setup.Grid.LocalModelFor(LocalSlot.Language)?.Model == "e4b");
-        CollectionAssert.AreEqual(new[] { "c", Language }, setup.Config.Assignments["Conversation"].ColumnIds.ToArray(),
+        CollectionAssert.AreEqual(new[] { "c", Language }, setup.Config.Assignments["GeneralIntelligence"].ColumnIds.ToArray(),
             "a job no row used the Local column for starts using it, after what each row had");
     });
 
