@@ -661,7 +661,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             ],
             ToolSafety.SafeOperation,
             GetImageToolAsync,
-            parallelizable: false),
+            parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "pdf_page_image",
@@ -670,7 +670,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             [new ClientToolParameter("page", "Page to look at, 1-based.", Type: "number")],
             ToolSafety.SafeOperation,
             PageImageToolAsync,
-            parallelizable: false),
+            parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "pdf_view_page",
