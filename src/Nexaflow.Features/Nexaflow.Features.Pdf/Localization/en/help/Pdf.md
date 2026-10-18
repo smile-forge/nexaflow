@@ -39,8 +39,10 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 ## Converting to Markdown
 - [Convert to Markdown](locate:Pdf_ConvertDocument) reads the whole document on this PC with page reading, a few pages at a time, saying how far it has got, and opens the Markdown in the Markdown editor in the right-hand pane: each page's columns as one text, its headings, formulas as LaTeX, tables, and its figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one. [Show me](locate:Pdf_ConvertDocument)
 - Each page is read as the reader draws it, so a scan is read in its own colours however it is stored, and a page with text of its own is read with its layout.
-- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and offers the same conversion. ✕ puts it away for the document.
-- Reading takes a few seconds a page, so a long document takes a while; Stop ends it. The reading is kept, so converting the document again opens at once. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
+- [A line above the document](locate:Pdf_ConvertScans) says when pages of it are scans — pictures, with no text in them to search or copy — and offers the same conversion. ✕ puts it away for the document; while a conversion is under way it steps aside for the conversion's own line.
+- While it reads, a tinted line above the document says **Converting to Markdown**, the page it is on, and about how long the rest should take, worked out from the pages read so far. Reading takes a few seconds a page, so a long document takes a while.
+- **Stop** asks first, and the reading goes on while it does: **Show what's converted** stops and opens what has been read so far as a draft, **Discard** stops and lets it go, and **Keep converting** carries on. [Show me](locate:PageConversion_Stop)
+- A finished reading is kept, so converting the document again opens at once; one stopped part-way is not. The Markdown is a draft: its first save asks where to keep it, as a Markdown Package unless you pick a Markdown file.
 - The first time, page reading is a download of about 4 GB, offered above the document.
 
 ## The panel

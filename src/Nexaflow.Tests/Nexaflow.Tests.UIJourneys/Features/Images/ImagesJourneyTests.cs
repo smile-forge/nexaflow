@@ -46,7 +46,10 @@ public class ImagesJourneyTests : UiJourneyTestBase
                       () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
             if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
             if (WaitForId("PageConversion_Stop", 1) is not null)
-                CheckDoes("Stop reading the page", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
+            {
+                CheckDoes("Ask to stop reading the page", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
+                CheckDoes("Discard what was read", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
+            }
         }
 
         AssertJourney();
