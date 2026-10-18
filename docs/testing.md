@@ -299,8 +299,12 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   (`runs\`), the screenshots (`shots\`) and the agent's log. Drive it through the verbs, never by writing those files.
 - **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from your build and
   write `test-samples` and their results back exactly as on the host; your .NET, read-only; and the host's Visual C++
-  runtime, which the clean image lacks. Not the clipboard, printers or camera — and the microphone only with
-  `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+    runtime, which the clean image lacks. Not the clipboard, printers or camera — and the microphone only with
+    `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+  - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
+    finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
+    value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed
+    as it is.
 - **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
   `shot`, `tree` and `status` still answer, so a running journey can be watched.
 - **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox

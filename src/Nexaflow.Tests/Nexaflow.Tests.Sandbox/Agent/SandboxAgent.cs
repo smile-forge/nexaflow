@@ -131,7 +131,8 @@ internal sealed class SandboxAgent : IDisposable
         // The journeys launch their own app, and two on one desktop take each other's clicks.
         var closed = _app.IsRunning ? _app.Close() : null;
 
-        var run = new JourneyRun(request.Id, arguments.Positional(0), _session.RunFolder(request.Id));
+        var environment = SessionFolder.ReadJson<Dictionary<string, string>>(_session.EnvironmentFile) ?? [];
+        var run = new JourneyRun(request.Id, arguments.Positional(0), _session.RunFolder(request.Id), environment);
         lock (_gate) _run = run;
         Log($"run {run.Id} started ({run.Filter ?? "every journey"})");
         run.Begin(exitCode =>

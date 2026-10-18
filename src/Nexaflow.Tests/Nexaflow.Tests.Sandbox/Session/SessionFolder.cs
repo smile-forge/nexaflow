@@ -28,6 +28,9 @@ internal sealed class SessionFolder(string root)
     public string HostRecordFile => Path.Combine(Root, "session.json");
     public string AgentLog => Path.Combine(Root, "agent.log");
 
+    /// <summary>The host's <c>NEXAFLOW_TEST_*</c> variables as the sandbox reads them, which every journey run is given.</summary>
+    public string EnvironmentFile => Path.Combine(Root, "environment.json");
+
     /// <summary>The configuration the sandbox was started with, kept for reading — <c>wsb</c> is handed the text.</summary>
     public string ConfigurationFile => Path.Combine(Root, "sandbox.wsb");
 

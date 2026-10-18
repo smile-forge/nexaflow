@@ -7,9 +7,10 @@ namespace Nexaflow.Tests.Sandbox.Agent;
 
 /// <summary>
 /// One run of the journey suite inside the sandbox: the built runner, filtered as asked, its console written to the run's
-/// folder line by line — the host follows it from there — and its TRX report beside it.
+/// folder line by line — the host follows it from there — and its TRX report beside it. It is given the host's
+/// <c>NEXAFLOW_TEST_*</c> variables, rewritten to where the sandbox sees what they name.
 /// </summary>
-internal sealed class JourneyRun(string id, string? filter, string folder)
+internal sealed class JourneyRun(string id, string? filter, string folder, IReadOnlyDictionary<string, string> environment)
 {
     public const string ConsoleLogName = "console.log";
     private const string ReportName = "journeys.trx";
@@ -52,6 +53,7 @@ internal sealed class JourneyRun(string id, string? filter, string folder)
             start.ArgumentList.Add("--filter");
             start.ArgumentList.Add(Filter);
         }
+        foreach (var (name, value) in environment) start.EnvironmentVariables[name] = value;
         start.EnvironmentVariables[NoPromptVariable] = "1";
         start.EnvironmentVariables[TelemetryOptOutVariable] = "1";
 

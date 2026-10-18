@@ -6,9 +6,10 @@ namespace Nexaflow.Tests.Sandbox.Host;
 /// The sandbox a session runs in, as Windows Sandbox configuration XML. The checkout is mapped writable at
 /// <see cref="Checkout"/>, so the agent, the app and the journeys run from the build the host made and write their results
 /// back into it, exactly as a run on the host would; the host's .NET is mapped read-only where an app looks for it by
-/// default, so nothing has to be installed.
+/// default, so nothing has to be installed; and the folders the forwarded variables name are mapped read-only too.
 /// </summary>
-internal sealed record SandboxConfiguration(string HostCheckout, string HostDotnet, int MemoryMB, bool Networking, bool AudioInput)
+internal sealed record SandboxConfiguration(
+    string HostCheckout, string HostDotnet, int MemoryMB, bool Networking, bool AudioInput, IReadOnlyList<SharedFolder> Shared)
 {
     /// <summary>Where the checkout appears inside the sandbox, which has only a C: drive.</summary>
     public const string Checkout = @"C:\nexaflow";
@@ -29,8 +30,11 @@ internal sealed record SandboxConfiguration(string HostCheckout, string HostDotn
         new XElement("VideoInput", "Disable"),
         new XElement("PrinterRedirection", "Disable"),
         new XElement("MappedFolders",
-            MappedFolder(HostCheckout, Checkout, readOnly: false),
-            MappedFolder(HostDotnet, Dotnet, readOnly: true)),
+            [
+                MappedFolder(HostCheckout, Checkout, readOnly: false),
+                MappedFolder(HostDotnet, Dotnet, readOnly: true),
+                .. Shared.Select(s => MappedFolder(s.Host, s.Sandbox, readOnly: true)),
+            ]),
         new XElement("LogonCommand", new XElement("Command", logonCommand)))
         .ToString(SaveOptions.DisableFormatting);
 

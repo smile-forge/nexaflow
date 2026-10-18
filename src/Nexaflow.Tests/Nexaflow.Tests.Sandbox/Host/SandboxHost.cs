@@ -71,11 +71,14 @@ internal static class SandboxHost
             throw new SandboxException($"Run the copy of this exe built in the checkout ({Checkout}); the sandbox only sees the checkout.");
 
         var monitor = MonitorDirectory.Choose(arguments.Value("monitor"));
+        var forwarded = ForwardedEnvironment.FromHost(Checkout);
         var configuration = new SandboxConfiguration(
-            Checkout, HostDotnet(), arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"));
+            Checkout, HostDotnet(), arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"),
+            forwarded.Folders);
 
         var session = SessionFolder.CreateNew(Checkout);
         VisualCppRuntime.Stage(session.Redist);
+        SessionFolder.WriteJson(session.EnvironmentFile, forwarded.Variables);
 
         // Started minimised, so its console never sits over the app it is driving.
         var logon = $"cmd.exe /c start \"Nexaflow sandbox agent\" /min \"{configuration.InSandbox(agent)}\" "
@@ -84,6 +87,8 @@ internal static class SandboxHost
         File.WriteAllText(session.ConfigurationFile, xml);
 
         Console.WriteLine($"Starting Windows Sandbox with {configuration.MemoryMB} MB; session {session.Root}");
+        if (forwarded.Variables.Count > 0)
+            Console.WriteLine($"Forwarding {string.Join(", ", forwarded.Variables.Keys)} ({forwarded.Folders.Count} folder(s) shared read-only).");
         var id = WsbCli.Start(xml);
         SessionFolder.WriteJson(session.HostRecordFile, new HostRecord(id, DateTimeOffset.Now, monitor.Device));
 
