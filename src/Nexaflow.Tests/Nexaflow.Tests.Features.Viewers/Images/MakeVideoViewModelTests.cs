@@ -32,6 +32,7 @@ public class MakeVideoViewModelTests
 
         Assert.IsFalse(box.CanMake);
         Assert.IsFalse(box.IsOpen);
+        Assert.IsFalse(box.IsEnabled, "the button stays, disabled, its tooltip saying how to enable it");
         Assert.IsFalse(new MakeVideoViewModel(null, () => false, () => Png).CanMake, "no AI at all, no video either");
     }
 
@@ -70,7 +71,7 @@ public class MakeVideoViewModelTests
     }
 
     [TestMethod]
-    public void WhereTheWorkspaceNoLongerMakesClipsFromAPicture_TheButtonGoes()
+    public void WhereTheWorkspaceNoLongerMakesClipsFromAPicture_TheBoxClosesAndTheButtonIsDisabled()
     {
         var ai  = Ai(5);
         var box = new MakeVideoViewModel(ai, () => false, () => Png);
@@ -83,5 +84,21 @@ public class MakeVideoViewModelTests
 
         Assert.IsFalse(box.CanMake);
         Assert.IsFalse(box.IsOpen);
+        Assert.IsFalse(box.IsEnabled);
+    }
+
+    [TestMethod]
+    public async Task AModelWaitingOnItsDownload_EnablesTheButton_WhichOffersTheDownload()
+    {
+        var ai = Ai();
+        ai.StatusOf(AiAbility.HighQualityVideoGeneration).Returns(new AiAbilityStatus(AiAbilityState.NeedsDownload, 20_000_000_000));
+        ai.MakeReadyAsync(AiAbility.HighQualityVideoGeneration, Arg.Any<CancellationToken>()).Returns(false);
+        var box = new MakeVideoViewModel(ai, () => false, () => Png);
+
+        Assert.IsTrue(box.IsEnabled);
+        await box.OpenCommand.ExecuteAsync(null);
+
+        await ai.Received(1).MakeReadyAsync(AiAbility.HighQualityVideoGeneration, Arg.Any<CancellationToken>());
+        Assert.IsFalse(box.IsOpen, "the download is offered, and the press stops there");
     }
 }

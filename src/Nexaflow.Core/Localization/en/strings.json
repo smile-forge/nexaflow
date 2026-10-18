@@ -43,6 +43,7 @@
   "Shell.Prompt.Confirm": "Confirm",
   "Shell.Prompt.Cancel": "Cancel",
   "Shell.Ai.AbilityDisabled": "Disabled: Assign a different provider in the workspace configuration to enable",
+  "Shell.Ai.AbilityDisabledFor": "{0} — Disabled: Assign a different provider in the workspace configuration to enable",
   "Shell.Ai.DownloadTitle": "Download a model",
   "Shell.Ai.DownloadAsk": "{0} uses {1}, which isn't downloaded yet ({2}). Download it now? It downloads in the background — try again once it's done.",
   "Shell.Ai.DownloadConfirm": "Download",

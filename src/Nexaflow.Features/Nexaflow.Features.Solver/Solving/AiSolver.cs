@@ -61,6 +61,9 @@ public sealed class AiSolver(IAIService ai) : ISolver
     public int Order => 90;
 
     /// <inheritdoc/>
+    public IReadOnlyList<AiAbility> Needs => [AiAbility.GeneralIntelligence];
+
+    /// <inheritdoc/>
     public IReadOnlyList<SolverChip> CanSolve(SolverInput input)
     {
         if (input.IsEmpty) return [];

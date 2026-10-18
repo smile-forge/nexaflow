@@ -15,8 +15,8 @@ public interface IAiAbilityGate : INotifyPropertyChanged, IDisposable
 
     bool IsEnabled { get; }
 
-    /// <summary>What a disabled control's tooltip says — that a provider has to be assigned in the workspace configuration;
-    /// null while enabled, so the control keeps its own.</summary>
+    /// <summary>What a disabled control's tooltip says — that a provider has to be assigned in the workspace configuration. A
+    /// control shows it only while <see cref="IsEnabled"/> is false, keeping its own otherwise.</summary>
     string? DisabledTip { get; }
 
     /// <summary>Gets every ability ready for a use the user asked for, as <see cref="IAIService.MakeReadyAsync"/> does each:

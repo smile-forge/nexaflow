@@ -398,6 +398,7 @@
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                             <Button Style="{StaticResource GhostButton}" Margin="0,0,10,0"
                                                     AutomationProperties.AutomationId="Projects_Detail_TaskToAi"
+                                                    vcc:AiAbilityGating.Gate="{Binding DataContext.Answering, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     Command="{Binding DataContext.TaskToAiCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel Orientation="Horizontal">
@@ -407,6 +408,7 @@
                                             </Button>
                                             <Button Style="{StaticResource GhostButton}"
                                                     AutomationProperties.AutomationId="Projects_Detail_PlanWithAi"
+                                                    vcc:AiAbilityGating.Gate="{Binding DataContext.Answering, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     Command="{Binding DataContext.PlanWithAiCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel Orientation="Horizontal">

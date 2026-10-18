@@ -40,6 +40,9 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
 
     public bool IsAnalysisOverlayOpen => AnalysisOverlayItem is not null;
 
+    /// <summary>Whether the workspace has a model to hold a conversation and summarise one: General Intelligence.</summary>
+    public IAiAbilityGate Answering { get; }
+
     public AiChatViewModel(IAIService aiService, IShellServices shell, AiChatConfig config, Page ownerPage)
     {
         _aiService = aiService;
@@ -49,6 +52,11 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         // Live-update a row when its background analysis finishes (no manual refresh needed).
         _aiService.ConversationArtifactSaved += OnArtifactSaved;
         ownerPage.Closed += (_, _) => _aiService.ConversationArtifactSaved -= OnArtifactSaved;
+
+        // A model assigned or taken away changes what a row with no summary says of it.
+        Answering = _aiService.Gate(AiAbility.GeneralIntelligence);
+        Answering.PropertyChanged += (_, _) => { foreach (var row in Items) _ = row.LoadAsync(); };
+        ownerPage.Closed += (_, _) => Answering.Dispose();
 
         // Purge conversations past the retention window, then reflect the result in the list.
         if (_config.RetentionCutoff() is { } cutoff)
@@ -133,7 +141,7 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         Items.Clear();
         foreach (var r in RecordsToList().OrderByDescending(ConversationPurgeTask.LastActivity))
         {
-            var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled);
+            var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled, () => Answering.IsEnabled ? null : Answering.DisabledTip);
             Items.Add(row);
             _ = row.LoadAsync();
         }

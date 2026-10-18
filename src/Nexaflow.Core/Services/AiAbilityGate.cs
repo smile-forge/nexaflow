@@ -24,11 +24,9 @@ internal sealed partial class AiAbilityGate : ObservableObject, IAiAbilityGate
 
     public IReadOnlyList<AiAbility> Abilities { get; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisabledTip))]
-    private bool _isEnabled;
+    [ObservableProperty] private bool _isEnabled;
 
-    public string? DisabledTip => IsEnabled ? null : Str.Get("Shell.Ai.AbilityDisabled");
+    public string? DisabledTip => Str.Get("Shell.Ai.AbilityDisabled");
 
     public async Task<bool> MakeReadyAsync(CancellationToken ct = default)
     {

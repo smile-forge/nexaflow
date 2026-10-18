@@ -11,6 +11,7 @@
   "Shell.Prompt.Confirm": "Confirmer",
   "Shell.Prompt.Cancel": "Annuler",
   "Shell.Ai.AbilityDisabled": "Désactivé : attribuez un autre fournisseur dans la configuration de l'espace de travail pour l'activer",
+  "Shell.Ai.AbilityDisabledFor": "{0} — Désactivé : attribuez un autre fournisseur dans la configuration de l'espace de travail pour l'activer",
   "Shell.Ai.DownloadTitle": "Télécharger un modèle",
   "Shell.Ai.DownloadAsk": "{0} utilise {1}, qui n'est pas encore téléchargé ({2}). Le télécharger maintenant ? Il se télécharge en arrière-plan — réessayez une fois terminé.",
   "Shell.Ai.DownloadConfirm": "Télécharger",

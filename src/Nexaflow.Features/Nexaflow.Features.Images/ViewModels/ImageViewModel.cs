@@ -1268,6 +1268,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (CurrentSession is { } current) CloseSession(current.Path);
         _sessions.Dispose();
         _display.Dispose();
+        MakeVideo.Dispose();
         if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }

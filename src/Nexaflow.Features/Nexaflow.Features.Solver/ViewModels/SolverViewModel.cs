@@ -28,6 +28,11 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     private readonly IShellServices _shell;
     private readonly SolverRegistry _registry;
 
+    private readonly IAIService _ai;
+
+    /// <summary>One gate for each solver that needs a model, shared by its chips as they come and go.</summary>
+    private readonly Dictionary<string, IAiAbilityGate> _gates = [];
+
     /// <summary>
     /// One text buffer per tab, so switching editors never destroys what is in the other two.
     /// <para>
@@ -56,6 +61,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     {
         _config = config;
         _shell = shell;
+        _ai = ai;
         _registry = SolverRegistry.CreateDefault(ai);
 
         _mode = config.GetStartMode();
@@ -618,7 +624,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
 
             Chips.Clear();
             foreach (var chip in chips)
-                Chips.Add(new SolverChipViewModel(chip, RunChipAsync));
+                Chips.Add(new SolverChipViewModel(chip, RunChipAsync, GateFor(chip)));
 
             OnPropertyChanged(nameof(HasNoChips));
         }).ConfigureAwait(false);
@@ -851,6 +857,14 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         return ToolResult.Ok($"Ran '{match.Label}'.", produced?.Markdown ?? "(no output)");
     }
 
+    /// <summary>The gate of the solver that offers <paramref name="chip"/>, where it needs a model.</summary>
+    private IAiAbilityGate? GateFor(SolverChip chip)
+    {
+        if (_registry.Solvers.FirstOrDefault(s => s.Id == chip.SolverId) is not { Needs.Count: > 0 } solver) return null;
+        if (!_gates.TryGetValue(solver.Id, out var gate)) _gates[solver.Id] = gate = _ai.Gate([.. solver.Needs]);
+        return gate;
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -863,6 +877,9 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
 
         foreach (var result in Results) result.Dispose();
         Results.Clear();
+
+        foreach (var gate in _gates.Values) gate.Dispose();
+        _gates.Clear();
 
         // Flushes the recency stamps a re-use only moved in memory — see Remember.
         if (RecentKeys.Count > 0) SaveRecent();
