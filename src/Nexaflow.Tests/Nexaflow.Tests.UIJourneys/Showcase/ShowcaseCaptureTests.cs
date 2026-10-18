@@ -54,7 +54,7 @@ public class ShowcaseCaptureTests : FileSystemUiTestBase
     /// </summary>
     protected override void SeedConfig(string configDir)
     {
-        var version = FileVersionInfo.GetVersionInfo(FindAppExe()).FileVersion ?? "1.0.0.0";
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
 
         Write(configDir, "shell", version, $$"""
             {

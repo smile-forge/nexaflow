@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The UI journeys, and the app itself, run inside Windows Sandbox: the real mouse and keyboard input they send lands
+       on the sandbox's desktop instead of the developer's. One exe is both ends of a session — on the host it starts,
+       shows, stops and talks to the sandbox; inside it, `agent` serves those requests on the sandbox's own desktop.
+
+       Like the journeys it knows the app only as a running process, so its one project reference is the fixtures
+       library the journeys share: where the build put the app, and how a journey starts it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+  </ItemGroup>
+
+</Project>

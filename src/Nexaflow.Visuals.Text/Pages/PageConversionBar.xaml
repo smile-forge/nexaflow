@@ -1,27 +1,66 @@
 <UserControl x:Class="Nexaflow.Visuals.Text.Pages.PageConversionBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
     </UserControl.Resources>
-    <!-- What converting pages to Markdown (PageConversion) is doing: reading, waiting on its download, or why it could not. -->
-    <Border Background="{StaticResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+    <!-- What converting pages to Markdown (PageConversion) is doing: reading, waiting on its download, or why it could not.
+         While it reads, the bar is tinted with the accent, so it reads as something under way rather than part of the
+         page; Stop asks here, in the bar, whether to show what has been read or let it go, and the reading goes on
+         while it asks. -->
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
             Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
-        <DockPanel>
-            <Button DockPanel.Dock="Right" Command="{Binding StopCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
-                    ToolTip="{loc:Str Text.PageReading.StopTip}"
-                    Visibility="{Binding IsReading, Converter={StaticResource BoolToVis}}"
-                    AutomationProperties.AutomationId="PageConversion_Stop">
-                <TextBlock Text="{loc:Str Text.PageReading.Stop}"/>
-            </Button>
-            <Button DockPanel.Dock="Right" Command="{Binding DownloadCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
-                    Visibility="{Binding CanDownload, Converter={StaticResource BoolToVis}}"
-                    AutomationProperties.AutomationId="PageConversion_Download">
-                <TextBlock Text="{loc:Str Text.PageReading.Download}"/>
-            </Button>
-            <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"
-                       AutomationProperties.AutomationId="PageConversion_Status"/>
-        </DockPanel>
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsReading}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <DockPanel Visibility="{Binding IsAskingToStop, Converter={StaticResource InvBoolVis}}">
+                <Button DockPanel.Dock="Right" Command="{Binding StopCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                        ToolTip="{loc:Str Text.PageReading.StopTip}"
+                        Visibility="{Binding IsReading, Converter={StaticResource BoolToVis}}"
+                        AutomationProperties.AutomationId="PageConversion_Stop">
+                    <TextBlock Text="{loc:Str Text.PageReading.Stop}"/>
+                </Button>
+                <Button DockPanel.Dock="Right" Command="{Binding DownloadCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                        Visibility="{Binding CanDownload, Converter={StaticResource BoolToVis}}"
+                        AutomationProperties.AutomationId="PageConversion_Download">
+                    <TextBlock Text="{loc:Str Text.PageReading.Download}"/>
+                </Button>
+                <TextBlock Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="PageConversion_Status">
+                    <Run Text="{Binding Heading, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="{Binding Status, Mode=OneWay}"/><Run Text="{Binding Remaining, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}"/>
+                </TextBlock>
+            </DockPanel>
+            <DockPanel Visibility="{Binding IsAskingToStop, Converter={StaticResource BoolToVis}}">
+                <Button DockPanel.Dock="Right" Command="{Binding KeepReadingCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                        AutomationProperties.AutomationId="PageConversion_KeepReading">
+                    <TextBlock Text="{loc:Str Text.PageReading.KeepReading}"/>
+                </Button>
+                <Button DockPanel.Dock="Right" Command="{Binding DiscardReadingCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                        ToolTip="{loc:Str Text.PageReading.DiscardTip}"
+                        AutomationProperties.AutomationId="PageConversion_Discard">
+                    <TextBlock Text="{loc:Str Text.PageReading.Discard}"/>
+                </Button>
+                <Button DockPanel.Dock="Right" Command="{Binding ShowReadSoFarCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                        ToolTip="{loc:Str Text.PageReading.ShowSoFarTip}"
+                        Visibility="{Binding HasSoFar, Converter={StaticResource BoolToVis}}"
+                        AutomationProperties.AutomationId="PageConversion_ShowSoFar">
+                    <TextBlock Text="{loc:Str Text.PageReading.ShowSoFar}"/>
+                </Button>
+                <TextBlock Text="{loc:Str Text.PageReading.StopAsk}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
+                           TextWrapping="Wrap" VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="PageConversion_StopAsk"/>
+            </DockPanel>
+        </Grid>
     </Border>
 </UserControl>

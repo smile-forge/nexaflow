@@ -61,6 +61,9 @@ public sealed class AiSolver(IAIService ai) : ISolver
     public int Order => 90;
 
     /// <inheritdoc/>
+    public IReadOnlyList<AiAbility> Needs => [AiAbility.GeneralIntelligence];
+
+    /// <inheritdoc/>
     public IReadOnlyList<SolverChip> CanSolve(SolverInput input)
     {
         if (input.IsEmpty) return [];
@@ -83,8 +86,7 @@ public sealed class AiSolver(IAIService ai) : ISolver
 
             if (string.IsNullOrWhiteSpace(answer))
                 return SolverResult.Error(
-                    "No answer came back. Check that a model is assigned to **Problem Solving** or " +
-                    "**Analysis** in Manage AI.");
+                    "No answer came back. Check that a model is assigned to **General Intelligence** in Manage AI.");
 
             return new SolverResult(answer.Trim());
         }

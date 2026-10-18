@@ -76,7 +76,7 @@ namespace Nexaflow.Features.Common
             CancellationToken ct = default);
 
         /// <summary>
-        /// Context window (in tokens) for the model assigned to the Conversation ability,
+        /// Context window (in tokens) for the model assigned to General Intelligence,
         /// or null if the provider doesn't know or no provider is configured.
         /// </summary>
         Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default);
@@ -107,9 +107,8 @@ namespace Nexaflow.Features.Common
             CancellationToken ct = default);
 
         /// <summary>
-        /// Runs a one-shot completion on the model assigned to the Analysis ability and returns its
-        /// raw text. Returns null when no Analysis provider is configured. Used by background
-        /// conversation analysis.
+        /// Runs a one-shot completion in the background on the General Intelligence model and returns its raw text. Returns
+        /// null when no model serves it. Used by background conversation analysis.
         /// </summary>
         Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 
@@ -123,7 +122,7 @@ namespace Nexaflow.Features.Common
         /// <summary>
         /// Notes on a stretch of conversation, for the assistant to carry on from in place of the conversation itself: what
         /// was asked and decided, the facts, names and numbers that came up, what was acted on and how, and what is left open.
-        /// Condensed by the Analysis model without reasoning, a part at a time where the stretch is longer than it reads at
+        /// Condensed by the General Intelligence model without reasoning, a part at a time where the stretch is longer than it reads at
         /// once. <paramref name="earlier"/>, notes condensed before it, are carried into them. Null when there is no model to
         /// condense with, or it could not.
         /// </summary>
@@ -131,15 +130,8 @@ namespace Nexaflow.Features.Common
         Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default);
 
         /// <summary>
-        /// Runs a one-shot completion on the model assigned to the Problem Solving ability and
-        /// returns its raw text. Falls back to the Analysis model when Problem Solving has not been
-        /// assigned, and returns null when neither is configured.
-        /// <para>
-        /// Separate from <see cref="RunAnalysisAsync"/> because the work is different in kind:
-        /// showing the working for an integral rewards a reasoning model, where summarising a
-        /// transcript does not. Having its own ability lets that be chosen per workspace instead of
-        /// being tied to whatever Analysis happens to point at.
-        /// </para>
+        /// Runs a one-shot completion on the General Intelligence model, as one the user waits for, and returns its raw text;
+        /// null when no model serves it. Separate from <see cref="RunAnalysisAsync"/>, which runs behind everything else.
         /// </summary>
         Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 
@@ -174,6 +166,28 @@ namespace Nexaflow.Features.Common
         /// </summary>
         /// <exception cref="InvalidOperationException">The workspace has no model that makes a clip from a picture.</exception>
         void MakeClipFromPicture(ClipFromPicture clip);
+
+        /// <summary>
+        /// Where <paramref name="ability"/> stands in the workspace now: no model assigned, assigned but unreachable, waiting on a
+        /// download of a model Nexaflow runs itself, or served. What needs it is enabled while
+        /// <see cref="AiAbilityStatus.IsUsable"/> — <see cref="Gate"/> keeps a control so.
+        /// </summary>
+        AiAbilityStatus StatusOf(AiAbility ability);
+
+        /// <summary>Raised, on whichever thread it happened, when an ability's status may have changed: the workspace's models were
+        /// reassigned, or one became available or stopped being.</summary>
+        event EventHandler? AbilitiesChanged;
+
+        /// <summary>
+        /// Gets <paramref name="ability"/> ready for a use the user asked for: true when a model serves it now. Where it waits on
+        /// the download of a model Nexaflow runs itself, the user is asked whether to download it, and it downloads in the
+        /// background if they agree — the use stops there, to be made again once it lands (false). False too while it downloads,
+        /// and when nothing serves it.
+        /// </summary>
+        Task<bool> MakeReadyAsync(AiAbility ability, CancellationToken ct = default);
+
+        /// <summary>A gate on <paramref name="abilities"/> for a control to bind, made on the UI thread and kept current on it.</summary>
+        IAiAbilityGate Gate(params AiAbility[] abilities);
     }
 
     /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>

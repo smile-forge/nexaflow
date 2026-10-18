@@ -45,8 +45,8 @@ public class SetupWizardTests
 
         _automation = new UIA3Automation();
 
-        var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
-        psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh => first-run wizard
+        var psi = new ProcessStartInfo(BuiltOutput.App) { UseShellExecute = false };
+        psi.EnvironmentVariables[AppLaunchRecipe.ConfigDirVariable] = _configDir;   // isolated, fresh => first-run wizard
         _app = Application.Launch(psi);
     }
 
@@ -59,7 +59,7 @@ public class SetupWizardTests
         _gate = null;
 
         // Surface any unhandled exception the wizard logged (the dated crash logs live in the isolated dir).
-        var crash = UITestBase.ReadCrashLogs(_configDir);
+        var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
@@ -174,15 +174,22 @@ public class SetupWizardTests
         Assert.AreEqual(baseUrl, claude.GetProperty("BaseUrl").GetString(), "Claude BaseUrl not persisted.");
 
         var ai = ReadConfig(defaultDir, "ai-abilities");
-        var column = ai.GetProperty("Columns").EnumerateArray().Single();
+        // A setup that takes a provider alone gives it every reasoning row and nothing else: Claude offers no other kind of
+        // model, so no other row is filled. The Local column keeps a model chosen for each job this machine runs, ticked in no row.
+        var columns = ai.GetProperty("Columns").EnumerateArray().ToList();
+        static bool IsLocal(string? id) => id!.StartsWith("local-", StringComparison.Ordinal);
+        var column = columns.Single(c => !IsLocal(c.GetProperty("Id").GetString()));
         Assert.AreEqual("Claude",     column.GetProperty("ProviderName").GetString(), "AI column provider wrong.");
         Assert.AreEqual(chosenModel,  column.GetProperty("Model").GetString(),        "AI column model wrong.");
         var columnId = column.GetProperty("Id").GetString();
         var assignments = ai.GetProperty("Assignments");
         Assert.IsTrue(assignments.EnumerateObject().Any(), "No ability assignments written.");
-        foreach (var a in assignments.EnumerateObject())
-            CollectionAssert.AreEqual(new[] { columnId }, a.Value.EnumerateArray().Select(id => id.GetString()).ToArray(),
-                $"Ability '{a.Name}' not assigned to the chosen model alone.");
+        string[] languageRoles = ["Disambiguation", "GeneralIntelligence", "ImageRecognition"];
+        foreach (var role in languageRoles)
+            CollectionAssert.AreEqual(new[] { columnId }, assignments.GetProperty(role).EnumerateArray().Select(id => id.GetString()).ToArray(),
+                $"Ability '{role}' not assigned to the chosen model alone.");
+        Assert.IsFalse(assignments.EnumerateObject().SelectMany(a => a.Value.EnumerateArray()).Any(id => IsLocal(id.GetString())),
+                       "The Local column is ticked in no row.");
 
         var persona = ReadConfig(defaultDir, "ai-persona");
         Assert.AreEqual(personaName,   persona.GetProperty("Name").GetString(),         "Persona name not persisted.");
@@ -267,8 +274,4 @@ public class SetupWizardTests
         using var doc = JsonDocument.Parse(File.ReadAllText(file!));
         return doc.RootElement.Clone();
     }
-
-    /// <summary>Resolves Nexaflow.exe via the shared harness locator (layout-independent walk-up —
-    /// this class had its own fixed-depth copy that broke when the x64 pin added a path level).</summary>
-    private static string FindAppExe() => UITestBase.FindAppExe();
 }

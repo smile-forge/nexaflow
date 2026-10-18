@@ -735,6 +735,7 @@
                      confirmed; False: dictation — so automation can wait for the models rather than guess. -->
                 <Button Grid.Row="1" Grid.Column="0" AutomationProperties.AutomationId="AiBar_Mic"
                         AutomationProperties.ItemStatus="{Binding VoiceConverses}"
+                        ToolTipService.ShowOnDisabled="True"
                         Command="{Binding ToggleVoiceCommand}"
                         Width="Auto" Height="Auto" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Button.Style>
@@ -743,6 +744,10 @@
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding VoiceConverses}" Value="True">
                                     <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Converse}"/>
+                                </DataTrigger>
+                                <!-- Nothing assigned to Speech In: disabled, and saying where to enable it. -->
+                                <DataTrigger Binding="{Binding VoiceAvailable}" Value="False">
+                                    <Setter Property="ToolTip" Value="{loc:Str Shell.Ai.AbilityDisabled}"/>
                                 </DataTrigger>
                                 <!-- Live — dictating or in a conversation: filled red, the sign of a microphone that is on. -->
                                 <DataTrigger Binding="{Binding IsRecording}" Value="True">

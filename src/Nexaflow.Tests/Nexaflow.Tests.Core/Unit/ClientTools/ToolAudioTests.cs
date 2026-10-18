@@ -29,8 +29,13 @@ public class ToolAudioTests
         public IReadOnlyList<ClientToolParameter> Parameters => [];
         public ToolSafety Safety => ToolSafety.SafeOperation;
         public bool Parallelizable => false;
+        public IReadOnlyList<AiAbility> Needs { get; init; } = [];
+        public int Calls { get; private set; }
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
-            => Task.FromResult(ToolResult.Ok("listened", "recording attached") with { Audio = [new ContextAudio(Clip, "the track")] });
+        {
+            Calls++;
+            return Task.FromResult(ToolResult.Ok("listened", "recording attached") with { Audio = [new ContextAudio(Clip, "the track")] });
+        }
     }
 
     private sealed class Page(IClientTool tool) : IPageViewModel
@@ -66,6 +71,7 @@ public class ToolAudioTests
         public int BytesHeard;
         public string Name => "speech";
         public DataResidency Residency => DataResidency.StaysOnMachine;
+        public bool IsAvailable { get; init; } = true;
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["s"]);
         public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default)
             => Task.FromResult<ISpeechToTextSession>(new Session(this));
@@ -104,7 +110,7 @@ public class ToolAudioTests
         var config = new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "model", Model = "m" }],
-            Assignments = { ["Conversation"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
         };
         if (transcriber is not null)
         {
@@ -149,5 +155,36 @@ public class ToolAudioTests
         await Service(model, transcriber: null).RunAgentAsync(new Page(new ListenTool()), "what is playing?", true, new Approver(), default);
 
         StringAssert.Contains(model.Turns[1].Text, "can't hear audio");
+    }
+
+    [TestMethod]
+    public async Task AToolNeedingSpeechIn_IsNotOffered_WhereNothingHears()
+    {
+        var tool = new ListenTool { Needs = [AiAbility.SpeechIn] };
+
+        await Service(new Model(hears: false), transcriber: null).RunAgentAsync(new Page(tool), "what is playing?", true, new Approver(), default);
+
+        Assert.AreEqual(0, tool.Calls, "a tool whose ability no model serves is left out");
+    }
+
+    [TestMethod]
+    public async Task AToolNeedingSpeechIn_IsOffered_ToAModelThatHearsItself()
+    {
+        var tool = new ListenTool { Needs = [AiAbility.SpeechIn] };
+
+        await Service(new Model(hears: true), transcriber: null).RunAgentAsync(new Page(tool), "what is playing?", true, new Approver(), default);
+
+        Assert.AreEqual(1, tool.Calls, "General Intelligence that hears meets Speech In for a tool");
+    }
+
+    [TestMethod]
+    public void SpeechIn_IsUnassigned_Ready_OrUnavailable_AsItsRowHasIt()
+    {
+        Assert.AreEqual(AiAbilityState.Unassigned, Service(new Model(hears: false), transcriber: null).StatusOf(AiAbility.SpeechIn).State);
+        Assert.AreEqual(AiAbilityState.Ready, Service(new Model(hears: false), new Transcriber()).StatusOf(AiAbility.SpeechIn).State);
+
+        var unreachable = Service(new Model(hears: false), new Transcriber { IsAvailable = false }).StatusOf(AiAbility.SpeechIn);
+        Assert.AreEqual(AiAbilityState.Unavailable, unreachable.State, "assigned, but no model of it can be reached");
+        Assert.IsFalse(unreachable.IsUsable);
     }
 }

@@ -112,7 +112,7 @@ public class BackgroundJobsTests
         Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
         svc.Register("c1", model);
         var config = new AiConfig { Columns = [new ProviderModelPair { Id = "c1", ProviderName = "Claude", Model = "m" }] };
-        config.Assignments["Conversation"] = AbilityChain.Of("c1");
+        config.Assignments["GeneralIntelligence"] = AbilityChain.Of("c1");
         svc.LoadAbilityConfig(config);
         return (svc, ws);
 

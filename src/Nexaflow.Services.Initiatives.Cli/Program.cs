@@ -1204,9 +1204,12 @@ internal static class Program
     internal static void PrintJourneys(TestSelection.Selection selection)
     {
         foreach (var journey in selection.Journeys)
+        {
+            var filter = string.Join("|", journey.Filters.Select(f => $"FullyQualifiedName~{f}"));
             Console.WriteLine($"journeys: {journey.Project} has {journey.Filters.Count} test(s) that use it. They take over the "
-                            + "mouse and keyboard, so they are yours to run, on a machine nobody is using: --filter \""
-                            + string.Join("|", journey.Filters.Select(f => $"FullyQualifiedName~{f}")) + "\"");
+                            + $"mouse and keyboard, so they are yours to run: in Windows Sandbox (Nexaflow.Tests.Sandbox start, then "
+                            + $"run \"{filter}\"), or on a machine nobody is using with --filter \"{filter}\"");
+        }
     }
 
     /// <summary>

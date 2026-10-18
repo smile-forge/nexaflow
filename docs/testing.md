@@ -179,6 +179,7 @@ All under `src/Nexaflow.Tests/`:
 | Project | Target | Covers | References |
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.UIJourneys` | `net10.0-windows10.0.19041.0`, MSTest exe | **Every test that launches the app.** `Core\` for the shell, `Features\<Feature>\` for the rest | `Nexaflow.Tests.Fixtures` **and nothing else** — a journey knows the app as a running process, never as an assembly |
+| `Nexaflow.Tests.Sandbox` | `net10.0-windows` exe | Not a test project: [runs the journeys in Windows Sandbox](#running-journeys-in-windows-sandbox) and drives the app there | FlaUI + `Nexaflow.Tests.Fixtures` **and nothing else** — like the journeys, it knows the app as a running process |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
@@ -192,7 +193,7 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.AiHost` | `net10.0-windows`, MSTest exe | The AI host — its pipe protocol, the client's lifecycle and watchdogs against a host faked in-process, and the real `Nexaflow.AiHost.exe`, copied into `AiHost\` beside the tests as it sits beside the app | `AiHost.Contracts`, `AiHost.Client`, the host exe (`HelperFolder`), `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open), `ViewerMap`, and [`TestTemp`](#files-a-test-writes-testtemp) (where every test's files go). Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
+| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open), `ViewerMap`, [`TestTemp`](#files-a-test-writes-testtemp) (where every test's files go), and how the built app is found and started for a journey (`BuiltOutput`, `AppLaunchRecipe`). Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 **TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`** — where an
 integral's limits go, which face a letter comes from, how far a sized delimiter grows — measured on what the builder
@@ -262,12 +263,53 @@ dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
-UI journeys are never part of the inner loop — they take over the mouse and keyboard. Run them last, on a machine you
-are not using, and after the other suites (which build the fixtures they open):
+UI journeys are never part of the inner loop — they take over the mouse and keyboard. Run them last, after the other
+suites (which build the fixtures they open), either [in Windows Sandbox](#running-journeys-in-windows-sandbox) or on a
+machine you are not using:
 
 ```powershell
 src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
 ```
+
+### Running journeys in Windows Sandbox
+
+`Nexaflow.Tests.Sandbox` runs the journeys inside Windows Sandbox, so the real mouse and keyboard input they send lands
+on the sandbox's desktop instead of yours. It also launches the app there to look at and drive — by hand in the
+sandbox's window, or through its verbs, which is how an assistant takes a screenshot or clicks while debugging a
+journey. Build the solution, then:
+
+```powershell
+$sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/Nexaflow.Tests.Sandbox.exe'
+& $sbx start                                  # boot it; its window opens maximised beside your work
+& $sbx run "FullyQualifiedName~HelpJourney"   # follow the console; the exit code is the runner's
+& $sbx launch --tab SystemInfo                # the app, started exactly as a journey starts it
+& $sbx shot --window                          # prints the PNG's path
+& $sbx tree RibbonBarControl --depth 2        # control type, name, #AutomationId, bounds
+& $sbx click Ribbon_Processes                 # a target is an AutomationId, name:<text>, or x,y
+& $sbx type "hello" --into AiInputBox
+& $sbx key ctrl+a
+& $sbx stop
+```
+
+- **The window stays open.** The sandbox has a desktop only while its window is connected: closed, there is nothing
+  to capture or drive, and `show` reopens it. `start` puts it on the first monitor that is not the primary
+  (`--monitor DELL` names one) and hands the foreground back, so your typing stays on your desktop.
+- **One exe is both ends.** On the host it starts and stops the sandbox through `wsb`; inside, `agent` serves the verbs
+  from the session folder, `TestResults\sandbox\<started>\` (git-ignored), which also holds each run's console and TRX
+  (`runs\`), the screenshots (`shots\`) and the agent's log. Drive it through the verbs, never by writing those files.
+- **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from your build and
+  write `test-samples` and their results back exactly as on the host; your .NET, read-only; and the host's Visual C++
+    runtime, which the clean image lacks. Not the clipboard, printers or camera — and the microphone only with
+    `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+  - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
+    finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
+    value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed
+    as it is.
+- **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
+  `shot`, `tree` and `status` still answer, so a running journey can be watched.
+- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox
+  user is an administrator with UAC off, so an elevation never prompts.
+- It needs the Windows Sandbox feature and its app's `wsb` command.
 
 ### Files a test writes (`TestTemp`)
 
@@ -862,6 +904,8 @@ feature projects, and the desktop-heap hazard above is worst there. Mutation tes
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
 | Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
 | UI test base (app launch, isolated config) | `Nexaflow.Tests.UIJourneys/Infrastructure/UITestBase.cs` |
+| How the app is found and started for a journey | `Nexaflow.Tests.Fixtures/BuiltOutput.cs` + `AppLaunchRecipe.cs` |
+| Journeys and the app in Windows Sandbox | `Nexaflow.Tests.Sandbox/` |
 | File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.UIJourneys/Infrastructure/FileSystemUiTestBase.cs` |
 | Machine-wide UI gate (semaphore, consent, DPI, foreground) | `Nexaflow.Tests.Fixtures/UiTestGate.cs` |
 | Fixtures the journeys open | `Nexaflow.Tests.Fixtures/UiFixtures.cs` + `RequiredFixture.cs` |

@@ -642,7 +642,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
                  new ClientToolParameter("seconds", "How much to hear, up to 30. Omit for 30.", Required: false)],
                 ToolSafety.SafeOperation,
                 (args, ct) => ListenAsync(ToolArgs.Str(args, "start"), ToolArgs.Str(args, "seconds"), ct),
-                parallelizable: true),
+                parallelizable: true) { Needs = [AiAbility.SpeechIn] },
 
         // ── Transport control (reversible; marshalled to the UI thread) ──
         new DelegateClientTool(

@@ -275,6 +275,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/Nexaflow.Tests.Sandbox.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Nexaflow.Tests.Visuals.csproj">
       <Platform Project="x64" />
     </Project>

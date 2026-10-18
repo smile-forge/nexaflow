@@ -11,8 +11,9 @@ public partial class ConversationRowViewModel : ObservableObject
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    private readonly IAIService _ai;
-    private readonly bool       _analysisEnabled;
+    private readonly IAIService    _ai;
+    private readonly bool          _analysisEnabled;
+    private readonly Func<string?> _disabledTip;
 
     public ConversationRecord Record { get; }
 
@@ -22,11 +23,13 @@ public partial class ConversationRowViewModel : ObservableObject
 
     [ObservableProperty] private string _summaryText = "Loading…";
 
-    public ConversationRowViewModel(ConversationRecord record, IAIService ai, bool analysisEnabled)
+    /// <param name="disabledTip">Why no conversation is summarised now — no model to do it — or null when one is.</param>
+    public ConversationRowViewModel(ConversationRecord record, IAIService ai, bool analysisEnabled, Func<string?> disabledTip)
     {
         Record           = record;
         _ai              = ai;
         _analysisEnabled = analysisEnabled;
+        _disabledTip     = disabledTip;
     }
 
     public string Title        => Record.Title;
@@ -54,8 +57,8 @@ public partial class ConversationRowViewModel : ObservableObject
         }
         catch { Analysis = null; }
 
-        SummaryText = Analysis is { Summary.Length: > 0 } a
-            ? a.Summary
-            : "No summary yet — open the conversation, chat, then close it to analyze.";
+        SummaryText = Analysis is { Summary.Length: > 0 } a ? a.Summary
+                    : _disabledTip() is { } disabled      ? disabled
+                    : "No summary yet — open the conversation, chat, then close it to analyze.";
     }
 }

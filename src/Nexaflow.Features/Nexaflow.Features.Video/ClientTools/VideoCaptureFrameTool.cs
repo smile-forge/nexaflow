@@ -17,6 +17,8 @@ public sealed class VideoCaptureFrameTool(VideoViewModel vm) : IClientTool
 {
     public string Name => "video_capture_frame";
 
+    public IReadOnlyList<AiAbility> Needs => [AiAbility.ImageRecognition];
+
     public string Description =>
         "Capture the frame the user is currently looking at (the video's current playback position) and " +
         "return it as an image you can see. Use it to answer questions about what is on screen.";

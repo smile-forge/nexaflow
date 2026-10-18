@@ -24,7 +24,7 @@ Works out a maths problem you type in, and keeps each answer below it.
 - `simplify` collects like terms, `steps` shows each identity used to do it, and `factor` writes a one-variable expression as a product of factors — or a whole number as its primes.
 - Calculus gives one `d/d` chip and one `∫ d` chip per variable in the expression, each labelled with that variable.
 - A list of numbers separated by commas, spaces or new lines offers `stats`, `sum`, `avg`, `median` and `σ`.
-- `Solve` and `Solve by steps` hand the whole definition to the AI. They need a model assigned to Problem Solving or Analysis in Manage AI.
+- `Solve` and `Solve by steps` hand the whole definition to the AI. They need a model assigned to General Intelligence in Manage AI.
 
 ## Answers
 - Each answer is a cell carrying the chip it came from, the definition it was asked, and the result as markdown with the maths typeset. [Show me](locate:Solver_Results,Solver_ResultBody)

@@ -198,7 +198,9 @@ overload's position, so an edit that adds or removes an overload says so — lat
 
 `test <id>` builds and runs the tests that use the node, the tests of what uses it (three steps out, by the
 compiler's binding) and the tests declaring `[CoversNode]` of its feature. `--list` shows the choice and why without
-building; `test --failed` reruns exactly what failed. UI journey suites are named with their filter, never run for you.
+building; `test --failed` reruns exactly what failed. UI journey suites are named with their filter, never run for you —
+run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also screenshot and drive the app there
+([testing.md](docs/testing.md#running-journeys-in-windows-sandbox)).
 
 ## Hard Rules
 

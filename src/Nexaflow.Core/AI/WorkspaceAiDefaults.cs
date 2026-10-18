@@ -20,18 +20,21 @@ public sealed record OwnedColumns(ProviderModelPair Language, ProviderModelPair?
 internal static class WorkspaceAiDefaults
 {
     /// <summary>
-    /// The roles called most and needing least — routing a request, analysing a page, describing an image — which
-    /// a mixed workspace gives to the model on this machine first: that is where API cost actually goes. The
-    /// conversation itself stays with the chosen provider, the stronger model, and falls back to the owned one.
+    /// The roles called most and needing least — routing a request, describing an image — which a mixed workspace gives to
+    /// the model on this machine first: that is where API cost actually goes. General Intelligence holds both models with
+    /// the chosen provider first; each request is judged, so light work still runs on this machine.
     /// </summary>
     internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
-        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition };
+        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.ImageRecognition };
 
     /// <summary>
-    /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;
-    /// Speech In on the Local column — Nexaflow's own speech model where there is one, otherwise the one the workspace settles
-    /// on when it loads (<see cref="LocalColumns.Settle"/>), which is all a bridged workspace listens with; and Speech Out on
-    /// Nexaflow's own voice where there is one. At least one language model must be given.
+    /// The grid a setup chooses. Nexaflow alone: the Local column in every row it serves. A provider alone: the provider's
+    /// language model in every reasoning row and nothing else — the rows its other models take are filled by
+    /// <see cref="AssignKinds"/> — with the Local column keeping a model chosen for each job, ticked in none. Both: the
+    /// reasoning rows hold both, Disambiguation and Image Recognition this machine's model first and General Intelligence the
+    /// provider's first, each request judged; the Local column takes every other row it serves. Speech In and Speech Out start
+    /// on Nexaflow's own speech models where there are some. The Local column is turned on afresh for the grid this makes
+    /// (<see cref="LocalColumns.Seed"/>). At least one language model must be given.
     /// </summary>
     public static void Assign(AiConfig config, ProviderModelPair? bridged, OwnedColumns? owned)
     {
@@ -40,6 +43,8 @@ internal static class WorkspaceAiDefaults
 
         config.Columns = [.. new[] { bridged }.OfType<ProviderModelPair>()];
         if (ownedLanguage is not null) LocalColumns.Choose(config, LocalSlot.Language, ownedLanguage);
+        config.LocalSeeded   = false;
+        config.LocalDeclined = ownedLanguage is null ? [.. Enum.GetValues<LocalSlot>()] : [];
         var local = LocalColumns.IdOf(LocalSlot.Language);
         config.Assignments.Clear();
         foreach (var ability in Enum.GetValues<AiAbility>())
@@ -53,12 +58,34 @@ internal static class WorkspaceAiDefaults
             };
         }
 
-        config.AddDefaultSpeechIn();
-        if (owned?.SpeechIn is { } speechIn) LocalColumns.Choose(config, LocalSlot.SpeechToText, speechIn);
+        // Speech In holds what the setup gives it, or nothing: a grid with the row is not given the default later.
+        config.Assignments[nameof(AiAbility.SpeechIn)] = AbilityChain.Empty;
+        if (owned?.SpeechIn is { } speechIn)
+        {
+            LocalColumns.Choose(config, LocalSlot.SpeechToText, speechIn);
+            config.Assignments[nameof(AiAbility.SpeechIn)] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.SpeechToText));
+        }
         if (owned?.SpeechOut is { } speechOut)
         {
             LocalColumns.Choose(config, LocalSlot.TextToSpeech, speechOut);
             config.Assignments[nameof(AiAbility.SpeechOut)] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.TextToSpeech));
+        }
+    }
+
+    /// <summary>
+    /// The provider's other models a setup chose — speech in and out, pictures, video — each a column of its own, first in
+    /// every row that takes its kind.
+    /// </summary>
+    public static void AssignKinds(AiConfig config, IEnumerable<ProviderModelPair> chosen)
+    {
+        foreach (var column in chosen)
+        {
+            config.Columns.Add(column);
+            foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == column.Kind))
+            {
+                var key = ability.ToString();
+                config.Assignments[key] = AbilityChain.Of([column.Id, .. config.Assignments.GetValueOrDefault(key)?.ColumnIds ?? []]);
+            }
         }
     }
 }

@@ -106,6 +106,35 @@ public class PdfViewModelAiTests
         }
     }
 
+    /// <summary>Once a conversion is asked for, its banner says how it is getting on and the scans notice offering it gives
+    /// way, coming back when the banner has nothing left to say.</summary>
+    [TestMethod]
+    [CoversNode("pdf-scans-notice")]
+    public async Task TheScansNotice_GivesWayToTheConversionsBanner()
+    {
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
+        try
+        {
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
+            Assert.IsTrue(vm.ShowsScansNotice);
+            var told = new List<string?>();
+            vm.PropertyChanged += (_, e) => told.Add(e.PropertyName);
+
+            await vm.ConvertDocumentCommand.ExecuteAsync(null);
+
+            Assert.IsTrue(vm.Conversion.HasStatus, "the banner offers page reading's download");
+            Assert.IsFalse(vm.ShowsScansNotice, "the offer gives way to the banner");
+            CollectionAssert.Contains(told, nameof(PdfViewModel.ShowsScansNotice));
+
+            vm.Conversion.Forget();
+            Assert.IsTrue(vm.ShowsScansNotice, "back once the banner has nothing to say");
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
     [TestMethod]
     [CoversNode("pdf-ai-act-read-scans")]
     public async Task ReadScans_ReadsThemWithPageReading_AndReadTextThenIncludesTheirText()

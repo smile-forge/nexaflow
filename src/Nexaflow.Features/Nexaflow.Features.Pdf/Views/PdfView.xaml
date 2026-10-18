@@ -364,8 +364,9 @@
                             <TextBlock Text="‹" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
                         </Button>
                         <TextBox x:Name="PageBox"
+                                 Style="{StaticResource DarkTextBox}"
                                  AutomationProperties.AutomationId="Pdf_PageNumber"
-                                 Width="44" Margin="4,0" VerticalAlignment="Center"
+                                 Width="44" Margin="4,0" Padding="4,2" VerticalAlignment="Center"
                                  HorizontalContentAlignment="Center" FontSize="12"
                                  Text="{Binding CurrentPage, Mode=OneWay}"
                                  ToolTip="{loc:Str Pdf.Toolbar.PageTip}"
@@ -417,8 +418,9 @@
                     <!-- Find: Enter for the next hit, Shift+Enter the previous, Escape to clear. -->
                     <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="6,0">
                         <TextBox x:Name="FindBox"
+                                 Style="{StaticResource DarkTextBox}"
                                  AutomationProperties.AutomationId="Pdf_Find"
-                                 Width="160" VerticalAlignment="Center" FontSize="12"
+                                 Width="160" Padding="6,2" VerticalAlignment="Center" FontSize="12"
                                  Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}"
                                  ToolTip="{loc:Str Pdf.Find.Tip}"
                                  KeyDown="FindBox_KeyDown"/>

@@ -88,8 +88,13 @@ public partial class AiAbilityCellViewModel : ObservableObject
     /// <summary>Why a Local cell cannot be used, or what it holds; null elsewhere.</summary>
     [ObservableProperty] private string? _note;
 
-    /// <summary>A Local cell whose model is chosen but not downloaded yet: it is marked so beside its place in the chain.</summary>
-    [ObservableProperty] private bool _needsDownload;
+    /// <summary>A Local cell whose model is chosen but not downloaded yet.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RequiresDownload))]
+    private bool _needsDownload;
+
+    /// <summary>The row uses this Local cell, whose model is not downloaded yet: marked with a warning that it needs downloading.</summary>
+    public bool RequiresDownload => NeedsDownload && IsInChain;
 
     /// <summary>Where this column stands in the row's chain, from 1; 0 when the row does not use it.</summary>
     public int Position => _row.Chain.IndexOf(ChainId) + 1;
@@ -116,6 +121,7 @@ public partial class AiAbilityCellViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(Position));
             OnPropertyChanged(nameof(IsInChain));
+            OnPropertyChanged(nameof(RequiresDownload));
         };
     }
 
@@ -146,6 +152,9 @@ public partial class AiAbilityRowViewModel : ObservableObject
     /// <summary>The columns that serve this ability, in order of preference.</summary>
     public ObservableCollection<string> Chain { get; } = [];
 
+    /// <summary>No model serves this ability: what needs it is disabled, and the row is marked so.</summary>
+    public bool IsUnassigned => Chain.Count == 0;
+
     public ObservableCollection<AiAbilityCellViewModel> Cells { get; } = [];
 
     public AiAbilityRowViewModel(AiAbility ability, AbilityChain saved)
@@ -153,6 +162,7 @@ public partial class AiAbilityRowViewModel : ObservableObject
         Ability     = ability;
         AbilityName = AiAbilityNames.Friendly(ability);
         foreach (var id in saved.ColumnIds) Chain.Add(id);
+        Chain.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsUnassigned));
     }
 
     /// <summary>A column not in the chain joins it at the end; one already in it leaves, and those after it
