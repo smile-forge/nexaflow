@@ -111,8 +111,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     [NotifyPropertyChangedFor(nameof(ShowsScansNotice))]
     private bool _scansNoticeDismissed;
 
-    /// <summary>The notice above the document that its scanned pages have no text, and can be converted to Markdown.</summary>
-    public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed;
+    /// <summary>
+    /// The notice above the document that its scanned pages have no text, and can be converted to Markdown — put away
+    /// while the conversion's own banner says how it is getting on, so the offer and its progress are never shown together.
+    /// </summary>
+    public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed && !Conversion.HasStatus;
 
     /// <summary>The tab showing the document, set by its view: what opens beside it opens in its window.</summary>
     public IPageView? Host { get; set; }
@@ -193,6 +196,10 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         FileName = Path.GetFileName(path);
         Conversion = new PageConversion(reading, ai, shell);
         Conversion.TextRead += () => _readPages = _askedPages;
+        Conversion.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PageConversion.HasStatus)) OnPropertyChanged(nameof(ShowsScansNotice));
+        };
 
         // A PDF inside an archive is virtual and the default PDF application can't open it; materialise a real copy
         // and remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
