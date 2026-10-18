@@ -256,12 +256,15 @@ public sealed record PictureMark(ImageSource Picture, Rect Bounds) : LayoutMark
     /// <summary>
     /// The picture into <paramref name="box"/>, resampled by area: drawn smaller than its pixels, each pixel shown averages
     /// the pixels it covers — what a scanned page's dither or a photograph fitted to a column must look like — where WPF's
-    /// default samples between neighbours and aliases. Software rendering resamples by Fant, hardware by mipmap.
+    /// default samples between neighbours and aliases. Software rendering resamples by Fant, hardware by mipmap. Its edges
+    /// fall on whole device pixels, unblended: they are its pixels' edges, and pictures laid edge to edge — a formula
+    /// exported as a strip of pictures a pixel tall — meet with no seam of the background showing through.
     /// </summary>
     private void Draw(DrawingContext dc, Rect box)
     {
         var drawing = new DrawingGroup();
         RenderOptions.SetBitmapScalingMode(drawing, BitmapScalingMode.HighQuality);
+        RenderOptions.SetEdgeMode(drawing, EdgeMode.Aliased);
         drawing.Children.Add(new ImageDrawing(Picture, box));
         if (drawing.CanFreeze) drawing.Freeze();
         dc.DrawDrawing(drawing);

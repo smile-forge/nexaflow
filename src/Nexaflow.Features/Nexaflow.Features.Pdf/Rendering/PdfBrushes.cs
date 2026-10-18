@@ -252,7 +252,7 @@ internal sealed class PdfBrushes(Rect page)
         var step = new Vector(Math.Abs(tiling.Step.X), Math.Abs(tiling.Step.Y));
         if (step.X <= 0 || step.Y <= 0) return null;
 
-        var cell = Drawing(tiling.Cell);
+        var cell = tiling.Tint is { } tint ? Tinted(Drawing(tiling.Cell), tint) : Drawing(tiling.Cell);
         var bounds = PdfSpace.Transform(tiling.Bounds, Scale);
         var stride = step * PdfPageLayout.DipsPerPoint;
         var tile = new Rect(bounds.Left, bounds.Top, stride.X, stride.Y);
@@ -305,6 +305,27 @@ internal sealed class PdfBrushes(Rect page)
         brush.Opacity = tiling.Alpha;
         brush.Freeze();
         return brush;
+    }
+
+    /// <summary>An uncoloured pattern's cell in its <paramref name="tint"/>: the colour shown wherever the cell paints, by
+    /// how much it paints there, whatever colours its drawing was made in.</summary>
+    private Drawing Tinted(Drawing cell, Color tint)
+    {
+        var area = cell.Bounds;
+        if (area.IsEmpty) return cell;
+
+        var shapes = new DrawingBrush(cell)
+        {
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = area,
+            ViewportUnits = BrushMappingMode.Absolute,
+            Viewport = area,
+        };
+        var tinted = new DrawingGroup { OpacityMask = shapes };
+        tinted.Children.Add(new GeometryDrawing(Solid(tint), null, new RectangleGeometry(area)));
+        tinted.Freeze();
+        return tinted;
     }
 
     /// <summary>

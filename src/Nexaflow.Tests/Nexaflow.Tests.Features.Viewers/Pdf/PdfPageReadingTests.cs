@@ -613,6 +613,42 @@ public class PdfPageReadingTests
         Assert.IsTrue(darkest < 160, $"the line shows: its darkest is {darkest}, not near white");
     }
 
+    /// <summary>An uncoloured tiling pattern (<c>/PaintType 2</c>) gives only shapes: it is painted in the colour the
+    /// operands beside its name choose, here green, whatever its cell was drawn in.</summary>
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AnUncolouredPattern_IsPaintedInTheColourItsOperandsChoose()
+    {
+        const string cell = "0 0 20 20 re f";
+        var page = Read("/Cs cs 0 1 0 /P scn 0 0 200 200 re f",
+            resources: "/ColorSpace << /Cs [/Pattern /DeviceRGB] >> /Pattern << /P 5 0 R >>",
+            extra: [(5, $"<< /PatternType 1 /PaintType 2 /TilingType 1 /BBox [0 0 20 20] /XStep 40 /YStep 40 /Resources << >> "
+                        + $"/Length {cell.Length} >>\nstream\n{cell}\nendstream")]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        Assert.IsFalse(page.Unsupported.Any(), "an uncoloured pattern is drawn, not reported");
+        var inCell = Pixel(picture, 10, 189);
+        var between = Pixel(picture, 30, 169);
+        Assert.IsTrue(inCell.G > 240 && inCell.R < 15 && inCell.B < 15, $"the cell is green, not {inCell}");
+        Assert.IsTrue(between.R > 240 && between.G > 240 && between.B > 240, $"between cells the page shows, not {between}");
+    }
+
+    /// <summary>Pictures laid edge to edge — a formula exported as strips of pictures a pixel tall, set between pixels — meet
+    /// with no seam: their edges are their pixels', and the paper does not show through between them.</summary>
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void PicturesLaidEdgeToEdge_MeetWithNoSeam()
+    {
+        var strips = string.Concat(Enumerable.Range(0, 10).Select(i =>
+            FormattableString.Invariant($"q 100 0 0 1 50 {100.5 + i} cm /Im Do Q ")));
+        var page = Read(strips, resources: "/XObject << /Im 5 0 R >>",
+            extra: [(5, Stream("/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8", "00>"))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        for (var y = 92; y <= 97; y++)
+            Assert.IsTrue(Pixel(picture, 100, y).R < 20, $"row {y} is the strips' black, not {Pixel(picture, 100, y)}");
+    }
+
     /// <summary>How the test meshes write their vertices: 16-bit coordinates across the page, 8-bit RGB.</summary>
     private static readonly string MeshFormat =
         $"/ColorSpace /DeviceRGB /BitsPerCoordinate 16 /BitsPerComponent 8 /Decode [0 {Side} 0 {Side} 0 1 0 1 0 1]";

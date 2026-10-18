@@ -185,7 +185,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
 
     public override void PopState()
     {
-        if (StackSize <= 1 || _frames.Count <= 1) return;
+        if (!CanPopState || _frames.Count <= 1) return;
         if (_glyphProcedures == 0) FlushRun();
         base.PopState();
         _frames.Pop();
@@ -373,14 +373,20 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
                 return new PdfShadingPaint(shading, PatternToOutput(shadingPattern.Matrix), alpha);
 
             case TilingPatternColor tiling:
+                Color? tint = null;
                 if (tiling.PaintType == PatternPaintType.Uncoloured)
-                    Unsupported(PdfUnsupportedKind.UncolouredPattern, stroking ? "stroke" : "fill");
+                {
+                    var state = GetCurrentState();
+                    var underlying = stroking ? state.CurrentStrokingUnderlyingColor : state.CurrentNonStrokingUnderlyingColor;
+                    if (underlying is null) Unsupported(PdfUnsupportedKind.UncolouredPattern, stroking ? "stroke" : "fill");
+                    else tint = PdfColours.ToColour(underlying, 1, state.RenderingIntent);
+                }
 
                 var cell = _caches.Cell(tiling.PatternStream, () => ReadCell(tiling));
                 var box = tiling.BBox;
                 return new PdfTilingPaint(
                     cell, new Rect(new Point(box.Left, box.Bottom), new Point(box.Right, box.Top)),
-                    new Vector(tiling.XStep, tiling.YStep), PatternToOutput(tiling.Matrix), alpha);
+                    new Vector(tiling.XStep, tiling.YStep), PatternToOutput(tiling.Matrix), alpha, tint);
 
             default:
                 return new PdfSolidPaint(PdfColours.ToColour(colour, alpha, GetCurrentState().RenderingIntent));

@@ -38,7 +38,11 @@ internal sealed record PdfShadingPaint(PdfShading Shading, Matrix ToPage, double
 /// <param name="Step">How far apart repetitions are, in pattern space.</param>
 /// <param name="ToPage">From pattern space to page space.</param>
 /// <param name="Alpha">The graphics state's constant alpha when the paint was set.</param>
-internal sealed record PdfTilingPaint(PdfGroupNode Cell, Rect Bounds, Vector Step, Matrix ToPage, double Alpha) : PdfPaint
+/// <param name="Tint">
+/// For an uncoloured pattern (<c>/PaintType 2</c>), the colour its cell is painted in, chosen by the operands beside the
+/// pattern's name (8.7.3.3): the cell gives only shapes. Null for a coloured pattern, whose cell carries its own colours.
+/// </param>
+internal sealed record PdfTilingPaint(PdfGroupNode Cell, Rect Bounds, Vector Step, Matrix ToPage, double Alpha, Color? Tint = null) : PdfPaint
 {
     public override double Alpha { get; } = Alpha;
 }
