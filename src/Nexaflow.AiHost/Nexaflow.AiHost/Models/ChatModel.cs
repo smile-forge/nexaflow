@@ -19,6 +19,7 @@ internal sealed class ChatModel : IHostModel
         Projector = projector;
         Template  = template;
         Context   = new LlamaContext(model, spec.ContextTokens, ConversationLog.Sequences);
+        Rounds    = new TokenRounds(Context);
         ToolCalls = ToolCallSyntax.Of(model.SpecialToken, templateSource);
         Thinking  = ThinkingSyntax.Of(model.SpecialToken);
         Conversations = new ConversationLog(this);
@@ -29,6 +30,9 @@ internal sealed class ChatModel : IHostModel
     public LlamaModel Model { get; }
 
     public LlamaContext Context { get; }
+
+    /// <summary>The replies being written in its conversations, each token of every one read together.</summary>
+    public TokenRounds Rounds { get; }
 
     /// <summary>What reads its pictures and recordings; null for a model of text alone.</summary>
     public MediaProjector? Projector { get; }

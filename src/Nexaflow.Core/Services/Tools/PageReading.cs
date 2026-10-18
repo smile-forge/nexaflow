@@ -34,6 +34,8 @@ public sealed partial class PageReading : LocalToolModels, IPageReading
 
     public override string About => Str.Get("Shell.Tools.Reading.About");
 
+    public int PagesAtOnce => OwnedPageReading.PagesAtOnce;
+
     /// <summary>Whether text found over <paramref name="regions"/> — in fractions of a picture — makes it a page of
     /// writing rather than a picture with a few words in it.</summary>
     public static bool IsPage(IReadOnlyList<TextRegion> regions)

@@ -59,7 +59,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// <c>View.CoreWebView2</c> throws <see cref="ObjectDisposedException"/> rather than answering.
     /// <para>
     /// Every operation below already treats "no CoreWebView2" as "not ready, say so and return", which is the
-    /// contract a host depends on: the Web tab and the PDF reader both call in while the browser is still
+    /// contract a host depends on: the Web tab calls in while the browser is still
     /// starting, or on a machine where it never will. A disposed surface is the same situation — a tab closed
     /// while something was still reading it — so it has to answer the same way instead of throwing from the
     /// guard meant to prevent exactly that.

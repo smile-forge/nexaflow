@@ -4,12 +4,12 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// How a piece is painted, beyond the marks it holds: turned, scaled, snapped to a pixel grid, and kept as a picture once painted.
-///
+/// How a piece is painted, beyond the marks it holds: turned, scaled, snapped to a pixel grid, clipped, faded, masked, and
+/// kept as a picture once painted.///
 /// <para>
 /// Each is a scope rather than a drawing — it applies to everything inside the piece as well as to its own marks — which
 /// is why they are here and not a kind of <see cref="LayoutMark"/>. A mark says what was drawn; this says what frame it
-/// was drawn in, and whether what was drawn there is kept.
+/// was drawn in, how much of it shows, and whether what was drawn there is kept.
 /// </para>
 /// <para>
 /// None of them is content-specific, whatever their first user is. A turned label, a turned diagram node and a typeset
@@ -17,7 +17,9 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// the room it was given once it has reshaped itself to that room as far as it can — and only the content can say that it
 /// has, so a piece is scaled because its builder asked, never because the layout decided. Snapping edges to device pixels is what any
 /// content drawing hairlines wants — a stem or a fraction bar half a pixel wide is the difference between a crisp line
-/// and a grey smudge. And a picture kept is what any piece holding a great deal that does not change wants.
+/// and a grey smudge. A clip, a fade and a mask are what any content drawn in layers wants — a page whose paths are cut to
+/// a shape, a group laid over the rest at half strength. And a picture kept is what any piece holding a great deal that
+/// does not change wants.
 /// </para>
 /// <para>
 /// Hardly anything carries one. It is a side table, null for every piece of every tune and every barcode and for all
@@ -37,10 +39,23 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// How much larger than it was laid out the piece and everything in it is drawn, about the piece's own anchor — 1, the size it
 /// was laid out at, for nearly everything. Applied inside any turn.
 /// </param>
-public sealed record LayoutPaint(IReadOnlyList<Transform>? Turn = null, GuidelineSet? Snap = null, LayoutKept? Kept = null, double Scale = 1)
+/// <param name="Clip">
+/// The only part of the piece that shows, in the piece's own frame — measured from its anchor, inside however it is
+/// turned and scaled. What it cuts away is neither painted nor pressed. Frozen, as everything a tree holds is, and a plain
+/// path rather than a combination of shapes: a press asks whether it is inside, and a combination is worked out again on
+/// every ask.
+/// </param>
+/// <param name="Opacity">How strongly the piece shows over whatever is under it, from 0 (not at all) to 1 (wholly).</param>
+/// <param name="Mask">
+/// How strongly each part of the piece shows, as the alpha of a brush laid over it — a gradient fading it out, a picture
+/// letting it through in places. In the piece's own frame, as <paramref name="Clip"/> is; frozen.
+/// </param>
+public sealed record LayoutPaint(IReadOnlyList<Transform>? Turn = null, GuidelineSet? Snap = null, LayoutKept? Kept = null,
+                                 double Scale = 1, Geometry? Clip = null, double Opacity = 1, Brush? Mask = null)
 {
     /// <summary>Whether it says anything at all — a piece with none of it need not be scoped.</summary>
-    public bool Matters => Turn is { Count: > 0 } || Snap is not null || Kept is not null || Scale != 1;
+    public bool Matters => Turn is { Count: > 0 } || Snap is not null || Kept is not null || Scale != 1 || Clip is not null
+                           || Opacity < 1 || Mask is not null;
 
     /// <summary>Whether it turns or scales what the piece holds — whether there is anything <see cref="Applied"/> to it.</summary>
     public bool Applies => Turn is { Count: > 0 } || Scale != 1;
@@ -65,5 +80,4 @@ public sealed record LayoutPaint(IReadOnlyList<Transform>? Turn = null, Guidelin
 
             return applied;
         }
-    }
-}
+    }}

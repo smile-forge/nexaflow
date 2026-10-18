@@ -190,6 +190,10 @@ public interface IPageReading : IToolModels
     /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture could not be read.</exception>
     Task<TextOnPicture> FindTextAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
 
+    /// <summary>How many pages it reads at once to read many fastest: pages read together share each of the reader's steps,
+    /// so several take little longer a step than one. One where pages would only take turns.</summary>
+    int PagesAtOnce { get; }
+
     /// <summary>Reads the page in <paramref name="picture"/> — a PNG or JPEG file, at the resolution it was scanned or
     /// photographed at — into its blocks in reading order, each reported to <paramref name="read"/> as it is read.</summary>
     /// <exception cref="InvalidOperationException">The tool is not ready here, or the page could not be read.</exception>

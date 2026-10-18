@@ -17,8 +17,8 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// Descended rather than flattened, because a mark is recorded relative to its own piece's anchor and an
 /// anchor is relative to its parent's. That is what makes a subtree drawable wherever it is put down. Where each
 /// piece stands is carried down the descent and handed to its marks rather than pushed as a transform, so a picture
-/// being kept is marks rather than a group for every piece; only a piece drawn in a frame of its own — turned, or
-/// snapped to a pixel grid — pushes one.
+/// being kept is marks rather than a group for every piece; only a piece drawn in a frame of its own — turned, snapped to
+/// a pixel grid, clipped or masked — pushes one.
 /// </para>
 /// <para>
 /// The same relationship that answers a hit test, so the picture and the answers cannot disagree about
@@ -85,15 +85,27 @@ public static class LayoutPainter
     private static void Descend(DrawingContext dc, Piece piece, Brush foreground, bool washes, Vector offset,
                                 Rect? near = null, Rect? far = null)
     {
-        offset += piece.Offset;
-        var pushed = Enter(dc, piece, ref offset);
+        var painting = piece.Painting;
 
-        // Inside a frame of its own the offset is no longer where on the page anything is, so nothing inside is left out.
-        if (pushed > 0) near = far = null;
+        // A piece that does not show at all is not painted, nor anything inside it.
+        if (painting is { Opacity: <= 0 }) return;
+
+        offset += piece.Offset;
+        var standing = offset;
+        var pushed = Enter(dc, painting, ref offset);
+
+        // Inside a turned frame the offset is no longer where on the page anything is, so nothing inside is left out. A frame
+        // only moved to where the piece stands is the page moved by as much, and what is near the screen moves with it.
+        if (painting?.Turn is { Count: > 0 }) near = far = null;
+        else if (offset != standing)
+        {
+            near = Moved(near, offset - standing);
+            far = Moved(far, offset - standing);
+        }
 
         // A piece that keeps its picture is painted whole, both layers, when the washes go down: what keeps a picture is a
         // block, and nothing of any other block is between its washes and its ink.
-        if (piece.Painting?.Kept is { } kept)
+        if (painting?.Kept is { } kept)
         {
             if (washes)
             {
@@ -168,7 +180,7 @@ public static class LayoutPainter
         for (var at = above.Count - 1; at >= 0; at--)
         {
             offset += above[at].Offset;
-            pushed += Enter(dc, above[at], ref offset);
+            pushed += Enter(dc, above[at].Painting, ref offset);
         }
 
         Descend(dc, piece, foreground, washes: true, offset);
@@ -178,23 +190,24 @@ public static class LayoutPainter
     }
 
     /// <summary>
-    /// Puts the drawing context into a piece's own frame where it is drawn in one — turned, scaled, or snapped to a pixel grid — and
-    /// says how many pushes to undo.
-    ///
+/// Puts the drawing context into a piece's own frame where it is drawn in one — turned, scaled, snapped to a pixel grid,
+/// clipped or masked — scopes how much of it shows, and says how many pushes to undo.    ///
     /// <para>
     /// Where it sits first, then how it is drawn: a piece turned inside whatever holds it is turned about its own anchor,
     /// which is what makes the turn part of the piece rather than of the page. So what has built up of where it stands is
-    /// pushed before the turn, and inside it everything is measured from nothing again. Any other piece pushes nothing:
-    /// where it stands is carried down to its marks.
+    /// pushed before the turn, and inside it everything is measured from nothing again; a drawing set smaller is scaled inside
+    /// the turn, so it turns as a whole. A clip and a mask are said in the piece's own frame as well, inside however it is
+    /// turned and scaled, so they go on after both; a fade is the same in any frame,
+    /// and on its own moves nothing. Any other piece pushes nothing: where it stands is carried down to its marks.
     /// </para>
     /// </summary>
-    private static int Enter(DrawingContext dc, Piece piece, ref Vector offset)
+    private static int Enter(DrawingContext dc, LayoutPaint? painting, ref Vector offset)
     {
-        if (piece.Painting is not { } painting || (painting.Turn is not { Count: > 0 } && painting.Scale == 1 && painting.Snap is null)) return 0;
+        if (painting is null) return 0;
 
         var pushed = 0;
 
-        if (offset is not { X: 0, Y: 0 })
+        if (Framed(painting) && offset is not { X: 0, Y: 0 })
         {
             dc.PushTransform(new TranslateTransform(offset.X, offset.Y));
             pushed++;
@@ -221,6 +234,34 @@ public static class LayoutPainter
             pushed++;
         }
 
+        if (painting.Clip is { } clip)
+        {
+            dc.PushClip(clip);
+            pushed++;
+        }
+
+        if (painting.Opacity < 1)
+        {
+            dc.PushOpacity(painting.Opacity);
+            pushed++;
+        }
+
+        if (painting.Mask is { } mask)
+        {
+            dc.PushOpacityMask(mask);
+            pushed++;
+        }
+
         return pushed;
     }
+
+    /// <summary>
+    /// Whether what a piece holds is painted measured from its own anchor rather than carried down to it — whether anything it
+    /// is painted with is said in its own frame, or is drawn about its anchor.
+    /// </summary>
+    private static bool Framed(LayoutPaint painting) =>
+        painting.Applies || painting.Snap is not null || painting.Clip is not null || painting.Mask is not null;
+
+    /// <summary>A stretch of the page, said in a frame standing <paramref name="by"/> from the one it was said in.</summary>
+    private static Rect? Moved(Rect? area, Vector by) => area is { } rect ? Rect.Offset(rect, by) : null;
 }

@@ -25,10 +25,9 @@ namespace Nexaflow.Tests.Features.Pdf.UI;
 /// </para>
 /// <para>
 /// Each panel assertion is on <em>content</em>, not on a control existing: the Properties tab has to show the
-/// document's real title, and the Contents tab has to list its real bookmarks. Clicking a Contents row is
-/// asserted only when the renderer accepts page navigation at all — the embedded PDF viewer is Edge's and its
-/// handling of a page fragment isn't contractual, so the journey records that it couldn't be checked rather
-/// than failing a build over someone else's renderer.
+/// document's real title, and the Contents tab has to list its real bookmarks. The pages are Nexaflow's own drawing,
+/// so every reader control is asserted on what it did: a Contents row and the page buttons move the page number,
+/// the zoom buttons change the zoom, and a search for a word the page carries reports its hit.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
 /// </summary>
@@ -138,6 +137,31 @@ public class PdfJourneyTests : UiJourneyTestBase
         CheckDoes("Panel toggle", "Pdf_TogglePanel", () => WaitForId(PanelProxy, 2) is null);
         CheckDoes("Panel toggle (restore)", "Pdf_TogglePanel", () => WaitForId(PanelProxy, 4) is not null);
 
+        // ── The pages: drawn here, and sized and searched here ──────────────────────────
+        CheckPresent("Pages", "Pdf_Pages");
+        Check("Page count says the document has one page",
+              () => WaitForId("Pdf_PageCount", 6) is { } count && count.Name.Contains('1'));
+
+        var zoomBefore = WaitForId("Pdf_Zoom", 4)?.Name ?? string.Empty;
+        CheckDoes("Zoom in", "Pdf_ZoomIn", () => WaitForId("Pdf_Zoom", 2)?.Name is { } now && now != zoomBefore);
+        CheckDoes("Zoom out", "Pdf_ZoomOut", () => WaitForId("Pdf_Zoom", 2)?.Name == zoomBefore);
+        CheckDoes("Fit width", "Pdf_FitWidth", () => WaitForId("Pdf_Zoom", 2)?.Name is { Length: > 0 });
+        CheckDoes("Fit page", "Pdf_FitPage", () => WaitForId("Pdf_Zoom", 2)?.Name is { Length: > 0 });
+        CheckPresent("Print", "Pdf_Print");
+
+        var find = CheckPresent("Find box", "Pdf_Find");
+        if (find is not null)
+        {
+            find.AsTextBox().Text = PdfSamples.BodyNeedle;
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+            Wait.UntilInputIsProcessed();
+            Check("Find reports the word the page carries",
+                  () => WaitForId("Pdf_FindStatus", 8) is { } status && status.Name.Contains('1'));
+        }
+
+        CheckDoes("Find next", "Pdf_FindNext", () => WaitForId("Pdf_FindStatus", 4)?.Name is { Length: > 0 });
+        CheckDoes("Find previous", "Pdf_FindPrevious", () => WaitForId("Pdf_FindStatus", 4)?.Name is { Length: > 0 });
+
         // ── An outlined document: the contents tree ─────────────────────────────────────
         Assert.IsNotNull(DoubleClickOpen("outline.pdf"), "The reader did not open for outline.pdf.");
 
@@ -153,19 +177,30 @@ public class PdfJourneyTests : UiJourneyTestBase
         Check("Contents lists the nested bookmark",
               () => WaitForName(PdfSamples.OutlineChildTitle, 6) is not null);
 
-        // Clicking a row can only be asserted where the renderer honours page navigation. When it doesn't the
-        // rows are deliberately inert, and the journey says so instead of failing over it.
+        // A contents row goes to its page, and the page buttons step from there.
         var row = WaitForName(PdfSamples.OutlineSecondTitle, 6);
-        if (row is not null && row.IsEnabled)
+        Check("Contents lists the second chapter", () => row is not null);
+        if (row is not null)
         {
             row.Click();
             Wait.UntilInputIsProcessed();
-            Check("Clicking a contents row leaves the reader intact",
-                  () => WaitForId("PdfView", 6) is not null && !App.HasExited);
+            Check("Clicking a contents row goes to its page", () => PageNumberIs("3", 6));
         }
+
+        CheckDoes("Previous page", "Pdf_PreviousPage", () => PageNumberIs("2", 4));
+        CheckDoes("Next page", "Pdf_NextPage", () => PageNumberIs("3", 4));
 
         // ── A scanned document: the notice above it, where this machine can read pages ─────────
         Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
+
+        // Any document converts to Markdown, every page of it read, where this machine can read pages.
+        if (WaitForId("Pdf_ConvertDocument", 2) is not null)
+        {
+            CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
+                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+            if (WaitForId("PageConversion_Stop", 1) is not null)
+                CheckDoes("Stop reading the document", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
+        }
         if (WaitForId("Pdf_ConvertScans", 10) is not null)
         {
             // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
@@ -186,5 +221,19 @@ public class PdfJourneyTests : UiJourneyTestBase
               () => WaitForId("Pdf_PanelStatus", 10) is { } status && ValueOf(status).Length > 0);
 
         AssertJourney();
+    }
+
+    /// <summary>Whether the reader's page box shows <paramref name="page"/> within <paramref name="seconds"/>.</summary>
+    private bool PageNumberIs(string page, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            if (WaitForId("Pdf_PageNumber", 1) is { } box && ValueOf(box) == page) return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
     }
 }

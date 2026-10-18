@@ -26,7 +26,7 @@ public class PdfViewModelAiTests
     private static PdfViewModel LoadedVm(string sample = "outline.pdf")
     {
         var vm = new PdfViewModel(Sample(sample), Substitute.For<IShellServices>(), new PdfConfig());
-        vm.LoadAsync().GetAwaiter().GetResult();
+        vm.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
         return vm;
     }
 
@@ -92,8 +92,8 @@ public class PdfViewModelAiTests
         var none = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig());
         try
         {
-            offered.LoadAsync().GetAwaiter().GetResult();
-            none.LoadAsync().GetAwaiter().GetResult();
+            offered.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
+            none.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
 
             Assert.IsTrue(offered.HasScans);
             Assert.IsFalse(string.IsNullOrEmpty(offered.ScansSummary));
@@ -113,7 +113,7 @@ public class PdfViewModelAiTests
         var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
-            await vm.LoadAsync();
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
 
             var scans = await Invoke(vm, "pdf_read_scans");
             var text = await Invoke(vm, "pdf_read_text", new JsonObject { ["page_from"] = 1 });
@@ -129,13 +129,44 @@ public class PdfViewModelAiTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-convert-markdown")]
+    public async Task ConvertingTheDocument_ReadsEveryPage_DrawnAsTheReaderDrawsIt()
+    {
+        // A document whose pages carry text of their own: none is a scan, and every one is read, each as a picture the
+        // reader drew at the resolution page reading reads at.
+        var reading = Reading(ToolModelsState.Ready);
+        var pictures = new List<(int Width, int Height)>();
+        reading.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var frame = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri(call.Arg<string>()),
+                System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+            pictures.Add((frame.PixelWidth, frame.PixelHeight));
+            return Task.FromResult<IReadOnlyList<PageBlock>>([new PageBlock(PageBlockKind.Text, 0, 0, 1, 1, "A page of its own.")]);
+        });
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), reading);
+        try
+        {
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
+            Assert.IsTrue(vm.PageCount > 1, "a document of several pages");
+
+            await vm.ConvertDocumentCommand.ExecuteAsync(null);
+
+            Assert.AreEqual(vm.PageCount, pictures.Count, "every page read, though none is a scan");
+            var size = vm.Pages!.PageSize(0);
+            Assert.AreEqual(Math.Round(size.Width * 0.75 * 200 / 72), pictures[0].Width, 1, "drawn at 200 dots an inch");
+            Assert.IsNull(vm.Conversion.Status, vm.Conversion.Status);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
     [CoversNode("pdf-scan-reading")]
     public async Task AScannedDocument_SaysSoAboveIt_UntilTheReaderPutsTheNoticeAway()
     {
         var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
-            await vm.LoadAsync();
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
 
             Assert.IsTrue(vm.ShowsScansNotice, "a document of scans says so above it");
             StringAssert.Contains(vm.ScansSummary, "1");
@@ -152,7 +183,7 @@ public class PdfViewModelAiTests
         var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
-            await vm.LoadAsync();
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
             Assert.IsFalse(vm.ShowsScansNotice);
         }
         finally { vm.Dispose(); }
@@ -165,7 +196,7 @@ public class PdfViewModelAiTests
         var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
-            await vm.LoadAsync();
+            await vm.LoadAsync(System.Windows.Media.Brushes.White);
 
             var result = await Invoke(vm, "pdf_read_scans");
 
@@ -372,14 +403,32 @@ public class PdfViewModelAiTests
 
     [TestMethod]
     [CoversNode("pdf-ai-act-page-image")]
-    public async Task PageImage_SaysWhatToTryInstead_WhenThereIsNothingToShow()
+    public async Task PageImage_DrawsATextPage_AsTheReaderShowsIt()
     {
         var vm = LoadedVm("text.pdf");
         try
         {
             var result = await Invoke(vm, "pdf_page_image", new JsonObject { ["page"] = 1 });
 
-            Assert.IsFalse(result.Success, "a text page with no renderer attached can't be pictured");
+            Assert.IsTrue(result.Success, "a page with text and no picture is drawn, as the reader draws it");
+            Assert.IsNotNull(result.Images);
+            Assert.AreEqual(1, result.Images.Count);
+            Assert.AreEqual("image/png", result.Images[0].MimeType);
+            Assert.IsTrue(result.Images[0].Bytes.Length > 0);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-page-image")]
+    public async Task PageImage_SaysWhatToTryInstead_ForAPageTheDocumentLacks()
+    {
+        var vm = LoadedVm("text.pdf");
+        try
+        {
+            var result = await Invoke(vm, "pdf_page_image", new JsonObject { ["page"] = 99 });
+
+            Assert.IsFalse(result.Success, "a page past the end can't be pictured");
             StringAssert.Contains(result.ModelText, "pdf_read_text");
         }
         finally { vm.Dispose(); }
@@ -451,19 +500,23 @@ public class PdfViewModelAiTests
 
     [TestMethod]
     [CoversNode("pdf-ai-act-view-page")]
-    public async Task ViewPage_StopsOfferingToJump_OnceTheRendererRefusesOnce()
+    public async Task ViewPage_MovesTheReader_AndRefusesAPageTheDocumentLacks()
     {
         var vm = LoadedVm();
         try
         {
-            vm.NavigateToPageAsync = (_, _, _) => Task.FromResult(false);   // a renderer that ignores page fragments
+            int? shown = null;
+            vm.NavigateToPage = (page, _) => shown = page;
 
-            var first = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = 2 });
-            Assert.IsFalse(first.Success);
+            var moved = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = 2 });
+            Assert.IsTrue(moved.Success);
+            Assert.AreEqual(2, shown);
 
-            // Latched off, so the contents rows stop pretending to be links and the model stops retrying.
-            Assert.IsFalse(vm.CanNavigateToPage);
-            Assert.IsTrue(vm.Contents.All(c => !c.CanJump));
+            shown = null;
+            var past = await Invoke(vm, "pdf_view_page", new JsonObject { ["page"] = vm.PageCount + 1 });
+            Assert.IsFalse(past.Success);
+            Assert.IsNull(shown, "a page that isn't there is not scrolled to");
+            StringAssert.Contains(past.ModelText, vm.PageCount.ToString());
         }
         finally { vm.Dispose(); }
     }

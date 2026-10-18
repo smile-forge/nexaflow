@@ -12,11 +12,12 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Visuals.Text.Pages;
 
 /// <summary>
-/// Pages to read: what names them — the same key, the same reading, kept from before — the file they come from, their
-/// pictures as files (PNG or JPEG) when they are read, deleted once they have been, and the tab showing them, which the
-/// Markdown they make leads back to.
+/// Pages to read: what names them — the same key, the same reading, kept from before — the file they come from, how many
+/// there are, each one's picture (PNG or JPEG) made as a file when the reading reaches it and deleted once it has been
+/// read, and the tab showing them, which the Markdown they make leads back to. A page whose picture cannot be made is
+/// <see langword="null"/>, and read as blank.
 /// </summary>
-public sealed record PageSource(string Key, string Path, Func<CancellationToken, Task<IReadOnlyList<string>>> Pictures,
+public sealed record PageSource(string Key, string Path, int Pages, Func<int, CancellationToken, Task<string?>> Picture,
                                 string OriginKind, IReadOnlyDictionary<string, string> OriginParams);
 
 /// <summary>
@@ -148,10 +149,8 @@ public sealed partial class PageConversion : ObservableObject
         _cts = cts;
         IsReading = true;
         Status = Str.Get("Text.PageReading.Preparing");
-        IReadOnlyList<string> pictures = [];
         try
         {
-            pictures = await source.Pictures(cts.Token);
             if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
             Directory.CreateDirectory(folder);
             var shown = new Shown(so => _ = _shell.RunOnUiAsync(() =>
@@ -162,7 +161,7 @@ public sealed partial class PageConversion : ObservableObject
                     : Str.Format("Text.PageReading.Reading", so.Page, so.Pages);
             }));
             var reader = new PageReader(reading, _ai);
-            var read = await Task.Run(() => reader.ReadAsync(pictures, System.IO.Path.Combine(folder, Figures), Figures, shown, cts.Token), cts.Token);
+            var read = await Task.Run(() => reader.ReadAsync(source, System.IO.Path.Combine(folder, Figures), Figures, shown, cts.Token), cts.Token);
             await File.WriteAllTextAsync(System.IO.Path.Combine(folder, PagesFile), JsonSerializer.Serialize(read.Pages), cts.Token);
             await File.WriteAllTextAsync(System.IO.Path.Combine(folder, KeptMarkdown), read.Markdown, cts.Token);
             if (cts.IsCancellationRequested) return null;
@@ -181,8 +180,6 @@ public sealed partial class PageConversion : ObservableObject
         }
         finally
         {
-            foreach (var picture in pictures)
-                try { File.Delete(picture); } catch (IOException) { }
             if (ReferenceEquals(_cts, cts))
             {
                 _cts = null;

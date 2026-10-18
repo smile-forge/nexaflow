@@ -1,7 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Pdf.Views.PdfView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vw="clr-namespace:Nexaflow.Visuals.Web.Controls;assembly=Nexaflow.Visuals.Web"
+             xmlns:paged="clr-namespace:Nexaflow.Visuals.Text.Editing.Paged;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
              AutomationProperties.AutomationId="PdfView"
@@ -321,10 +321,8 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Deliberately slim: no back/forward, no address bar. Edge's own PDF toolbar sits inside the
-                 surface below and already carries page selection, search, zoom and print — a second set of
-                 the same controls would be noise, and a page indicator here would go stale the moment the
-                 user scrolled (there's no API to observe the renderer's current page). -->
+            <!-- The reader's own controls: where you are, how large, what to find, and out to print or another
+                 application. The pages below are drawn here, so every one of these knows the page being read. -->
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -333,6 +331,9 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
@@ -354,50 +355,157 @@
                              Foreground="{DynamicResource TextMutedBrush}"
                              Text="{Binding FileName, Mode=OneWay}"/>
 
-                    <Button Grid.Column="2"
-                            Style="{StaticResource PdfToolbarBtn}"
-                            AutomationProperties.AutomationId="Pdf_OpenExternal"
-                            Click="OpenExternal_Click"
-                            ToolTip="{loc:Str Pdf.Toolbar.OpenExternalTip}">
-                        <TextBlock Text="↗" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
-                    </Button>
+                    <!-- Pages: back, the page being read (type a number and press Enter to go there), forward. -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0">
+                        <Button Style="{StaticResource PdfToolbarBtn}"
+                                AutomationProperties.AutomationId="Pdf_PreviousPage"
+                                Click="PreviousPage_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.PreviousPageTip}">
+                            <TextBlock Text="‹" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <TextBox x:Name="PageBox"
+                                 AutomationProperties.AutomationId="Pdf_PageNumber"
+                                 Width="44" Margin="4,0" VerticalAlignment="Center"
+                                 HorizontalContentAlignment="Center" FontSize="12"
+                                 Text="{Binding CurrentPage, Mode=OneWay}"
+                                 ToolTip="{loc:Str Pdf.Toolbar.PageTip}"
+                                 KeyDown="PageBox_KeyDown"/>
+                        <TextBlock AutomationProperties.AutomationId="Pdf_PageCount"
+                                   VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Text="{Binding PageCountText}"/>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_NextPage"
+                                Click="NextPage_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.NextPageTip}">
+                            <TextBlock Text="›" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Size: smaller, how large, larger, then fitted to the width or to the whole page. -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="6,0">
+                        <Button Style="{StaticResource PdfToolbarBtn}"
+                                AutomationProperties.AutomationId="Pdf_ZoomOut"
+                                Click="ZoomOut_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.ZoomOutTip}">
+                            <TextBlock Text="−" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <TextBlock AutomationProperties.AutomationId="Pdf_Zoom"
+                                   Width="44" TextAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Text="{Binding Zoom, ElementName=Pages, StringFormat={}{0:P0}}"/>
+                        <Button Style="{StaticResource PdfToolbarBtn}"
+                                AutomationProperties.AutomationId="Pdf_ZoomIn"
+                                Click="ZoomIn_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.ZoomInTip}">
+                            <TextBlock Text="+" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_FitWidth"
+                                Click="FitWidth_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.FitWidthTip}">
+                            <TextBlock Text="↔" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_FitPage"
+                                Click="FitPage_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.FitPageTip}">
+                            <TextBlock Text="⤢" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Find: Enter for the next hit, Shift+Enter the previous, Escape to clear. -->
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="6,0">
+                        <TextBox x:Name="FindBox"
+                                 AutomationProperties.AutomationId="Pdf_Find"
+                                 Width="160" VerticalAlignment="Center" FontSize="12"
+                                 Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="{loc:Str Pdf.Find.Tip}"
+                                 KeyDown="FindBox_KeyDown"/>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_FindPrevious"
+                                Command="{Binding FindPreviousCommand}"
+                                ToolTip="{loc:Str Pdf.Find.PreviousTip}">
+                            <TextBlock Text="↑" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_FindNext"
+                                Command="{Binding FindNextCommand}"
+                                ToolTip="{loc:Str Pdf.Find.NextTip}">
+                            <TextBlock Text="↓" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <TextBlock AutomationProperties.AutomationId="Pdf_FindStatus"
+                                   Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Text="{Binding FindStatus}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="5" Orientation="Horizontal">
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_ConvertDocument"
+                                Command="{Binding ConvertDocumentCommand}"
+                                Visibility="{Binding Conversion.Available, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{loc:Str Pdf.Toolbar.ConvertTip}">
+                            <TextBlock Text="M↓" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}"
+                                AutomationProperties.AutomationId="Pdf_Print"
+                                Click="Print_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.PrintTip}">
+                            <TextBlock Text="⎙" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="4,0,0,0"
+                                AutomationProperties.AutomationId="Pdf_OpenExternal"
+                                Click="OpenExternal_Click"
+                                ToolTip="{loc:Str Pdf.Toolbar.OpenExternalTip}">
+                            <TextBlock Text="↗" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- Scanned pages: that their text can't be searched or copied, and converting them to Markdown; then how
-                 the conversion is getting on. In a row of their own, above the browser host's HWND. -->
-            <StackPanel Grid.Row="1">
-                <Border Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-                        Padding="12,6" Visibility="{Binding ShowsScansNotice, Converter={StaticResource BoolToVis}}">
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Command="{Binding DismissScansNoticeCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
-                                ToolTip="{loc:Str Pdf.Scans.DismissTip}" AutomationProperties.Name="{loc:Str Pdf.Scans.DismissTip}"
-                                AutomationProperties.AutomationId="Pdf_ScansNoticeDismiss">
-                            <TextBlock Text="✕" FontSize="11"/>
-                        </Button>
-                        <Button DockPanel.Dock="Right" Command="{Binding ConvertScansCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
-                                ToolTip="{loc:Str Pdf.Scans.ConvertTip}" AutomationProperties.AutomationId="Pdf_ConvertScans">
-                            <TextBlock Text="{loc:Str Pdf.Scans.Convert}"/>
-                        </Button>
-                        <TextBlock Text="{Binding ScansSummary}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                    </DockPanel>
-                </Border>
-                <pages:PageConversionBar DataContext="{Binding Conversion}"/>
-            </StackPanel>
+<!-- Scanned pages: that their text can't be searched or copied, and converting the document to Markdown; then how
+     the conversion is getting on. -->
+<StackPanel Grid.Row="1">
+    <Border Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+            Padding="12,6" Visibility="{Binding ShowsScansNotice, Converter={StaticResource BoolToVis}}">
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Command="{Binding DismissScansNoticeCommand}" Style="{StaticResource RowButton}" Margin="8,0,0,0"
+                    ToolTip="{loc:Str Pdf.Scans.DismissTip}" AutomationProperties.Name="{loc:Str Pdf.Scans.DismissTip}"
+                    AutomationProperties.AutomationId="Pdf_ScansNoticeDismiss">
+                <TextBlock Text="✕" FontSize="11"/>
+            </Button>
+            <Button DockPanel.Dock="Right" Command="{Binding ConvertDocumentCommand}" Style="{StaticResource RowButton}" Margin="12,0,0,0"
+                    ToolTip="{loc:Str Pdf.Scans.ConvertTip}" AutomationProperties.AutomationId="Pdf_ConvertScans">
+                <TextBlock Text="{loc:Str Pdf.Scans.Convert}"/>
+            </Button>
+            <TextBlock Text="{Binding ScansSummary}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+    </Border>
+    <pages:PageConversionBar DataContext="{Binding Conversion}"/>
+</StackPanel>
 
-            <!-- The shared chrome-free browser host. Collapses while a shell overlay covers the page: its
-                 native HWND draws above all WPF content, so the overlay would otherwise be hidden behind it.
-                 The right margin keeps that HWND clear of the window's WindowChrome resize border. -->
-            <vw:WebSurface x:Name="Surface"
-                           Grid.Row="2"
-                           Margin="0,0,8,0"
-                           Visibility="{Binding SurfaceVisible, Converter={StaticResource BoolToVis}}"/>
-
+<!-- The pages, drawn natively from the document: a paged host over the shared layout tree, scrolling itself
+     so only the pages near the viewport are read and laid. -->
+<ScrollViewer Grid.Row="2"
+              CanContentScroll="True"
+              Focusable="False"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto">
+    <paged:PagedLayoutElement x:Name="Pages"
+                              AutomationProperties.AutomationId="Pdf_Pages"
+                              Source="{Binding Pages}"
+                              Background="{DynamicResource BgBrush}"
+                              Paper="{DynamicResource Pdf.Paper}"
+                              Selection="{DynamicResource Pdf.Selection}"
+                              Highlight="{DynamicResource Pdf.FindHit}"
+                              CurrentHighlight="{DynamicResource Pdf.FindCurrent}"/>
+</ScrollViewer>
             <Border Grid.Row="2"
                     AutomationProperties.AutomationId="Pdf_FallbackPanel"
                     Background="{DynamicResource BgBrush}"
                     Panel.ZIndex="20"
-                    Visibility="{Binding SurfaceAvailable, Converter={StaticResource InvBoolVis}}">
+                    Visibility="{Binding IsUnreadable, Converter={StaticResource BoolToVis}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
                     <TextBlock Text="📕" FontSize="40" HorizontalAlignment="Center"
                                Opacity="0.6" Margin="0,0,0,12"/>
@@ -415,15 +523,6 @@
                             HorizontalAlignment="Center"
                             Click="OpenExternal_Click"
                             Content="{loc:Str Pdf.Fallback.OpenExternal}"/>
-                    <TextBlock HorizontalAlignment="Center" FontSize="12" Margin="0,16,0,0"
-                               Foreground="{DynamicResource TextMutedBrush}"
-                               Visibility="{Binding RuntimeMissing, Converter={StaticResource BoolToVis}}">
-                        <Hyperlink NavigateUri="https://developer.microsoft.com/en-us/microsoft-edge/webview2/consumer/"
-                                   Foreground="{DynamicResource AccentBrush}"
-                        RequestNavigate="InstallRuntime_RequestNavigate">
-                            <Run Text="{loc:Str Pdf.Fallback.InstallRuntime}"/>
-                        </Hyperlink>
-                    </TextBlock>
                 </StackPanel>
             </Border>
         </Grid>

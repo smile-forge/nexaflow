@@ -131,17 +131,17 @@ public sealed partial class ReadPageViewModel : ObservableObject
         if (_session is not { } session) return null;
         string path = session.Path;
         var recipe = session.Recipe;
-        return new PageSource(Key(path, recipe), path, ct => Task.Run(() => Page(path, recipe, ct), ct),
+        return new PageSource(Key(path, recipe), path, 1, (_, ct) => Task.Run<string?>(() => Page(path, recipe, ct), ct),
                               ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = path });
     }
 
     /// <summary>The page as shown, edits and all, at full size, in a PNG file of its own.</summary>
-    private IReadOnlyList<string> Page(string path, ImageRecipe recipe, CancellationToken ct)
+    private string Page(string path, ImageRecipe recipe, CancellationToken ct)
     {
         var png = new ImageExporter(_editing).Export(path, recipe, ImageContainer.Png, ct, _made(path, recipe));
         string file = Path.Combine(Path.GetTempPath(), $"nexaflow-page-{Guid.NewGuid():N}.png");
         File.WriteAllBytes(file, png);
-        return [file];
+        return file;
     }
 
     /// <summary>What names a picture's text: the file as it is now, and the edits it is shown with.</summary>

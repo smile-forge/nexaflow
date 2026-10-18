@@ -11,25 +11,32 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="PdfPig" Version="0.1.16" />
-    <!-- Optional image codecs the base package leaves unhandled: DCTDecode (JPEG, by far the most
-         common), JBIG2Decode (what document scanners emit) and JPXDecode (JPEG 2000, archival scans).
-         Each depends on PdfPig alone. Without them TryGetPng declines those images and "extract
-         images" quietly skips most of a scanned document. -->
-    <PackageReference Include="PdfPig.Filters.Dct.JpegLibrary" Version="0.1.16.1" />
-    <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.16.2" />
-    <PackageReference Include="PdfPig.Filters.Jpx.OpenJpeg" Version="0.1.16.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PdfPig is built from its smile-forge fork (docs/externals.md): the published package draws an embedded
+         TrueType font whose Unicode cmap is not the Windows (3,1) one with the wrong glyphs, and the fix lives on
+         the fork's nexaflow branch until upstream takes it. DocumentLayoutAnalysis is the reading order. -->
+    <ProjectReference Include="..\..\..\external\PdfPig\src\UglyToad.PdfPig\UglyToad.PdfPig.csproj" />
+    <ProjectReference Include="..\..\..\external\PdfPig\src\UglyToad.PdfPig.DocumentLayoutAnalysis\UglyToad.PdfPig.DocumentLayoutAnalysis.csproj" />
+    <!-- Optional image codecs PdfPig leaves unhandled: DCTDecode (JPEG, by far the most common), JBIG2Decode (what
+         document scanners emit) and JPXDecode (JPEG 2000, archival scans). Each depends on PdfPig alone, so each is
+         built from its own fork against the PdfPig above rather than the package - two PdfPig assemblies in one app
+         would not be one PdfPig. Without them TryGetPng declines those images and "extract images" quietly skips
+         most of a scanned document. -->
+    <ProjectReference Include="..\..\..\external\PdfPig.Filters.Dct.JpegLibrary\UglyToad.PdfPig.Filters.Dct.JpegLibrary\UglyToad.PdfPig.Filters.Dct.JpegLibrary.csproj" />
+    <ProjectReference Include="..\..\..\external\PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2.csproj" />
+    <ProjectReference Include="..\..\..\external\PdfPig.Filters.Jpx.OpenJpeg\UglyToad.PdfPig.Filters.Jpx.OpenJpeg\UglyToad.PdfPig.Filters.Jpx.OpenJpeg.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
-    <!-- Scanned pages converted to Markdown, the conversion page reading shares with the image viewer. -->
-    <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
-    <!-- The reader renders the document with the same chrome-free browser host the Web tab uses. -->
-    <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
-  </ItemGroup>
+
+<!-- Pages are laid as the shared layout tree every document is drawn from and shown by its paged host; scanned
+     pages are converted to Markdown by the page reading the image viewer shares. -->
+<ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
