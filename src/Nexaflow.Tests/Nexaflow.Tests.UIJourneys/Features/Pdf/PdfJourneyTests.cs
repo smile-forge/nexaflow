@@ -216,19 +216,22 @@ public class PdfJourneyTests : UiJourneyTestBase
 
         // Any document converts to Markdown, every page of it read, where this machine can read pages; stopped part-way,
         // what was read so far can open as a draft.
-        if (WaitForId("Pdf_ConvertDocument", 2) is not null)
-        {
-            CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
-                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
-            if (WaitForId("PageConversion_Stop", 1) is not null)
-            {
-                CheckDoes("Ask to stop reading the document", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
-                if (WaitForId("PageConversion_ShowSoFar", 1) is not null)
-                    CheckDoes("Show what is converted so far", "PageConversion_ShowSoFar", () => WaitForId("Markdown_Save", 8) is not null);
-                else
-                    CheckDoes("Discard the reading", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
-            }
-        }
+if (WaitForId("Pdf_ConvertDocument", 2) is not null)
+{
+    // A stopped reading lets go of the page it was on before the conversion is free again — until then both convert
+    // buttons stand disabled, so a stop above is waited out here rather than taken for a button that does nothing.
+    WaitForFs(() => WaitForId("Pdf_ConvertDocument", 1)?.IsEnabled == true, 30);
+    CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
+              () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+    if (WaitForId("PageConversion_Stop", 1) is not null)
+    {
+        CheckDoes("Ask to stop reading the document", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
+        if (WaitForId("PageConversion_ShowSoFar", 1) is not null)
+            CheckDoes("Show what is converted so far", "PageConversion_ShowSoFar", () => WaitForId("Markdown_Save", 8) is not null);
+        else
+            CheckDoes("Discard the reading", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
+    }
+}
 
         // ── A corrupt document: the panel still opens, and says why it is empty ─────────
         // The bar the ViewerMap entry sets: corrupt.pdf must reach a PdfView, because a document PdfPig can't

@@ -191,7 +191,7 @@ public class SampleFileViewerTests : FileSystemUiTestBase
     /// IKeyboardHandler entirely while any TextBox is focused.</summary>
     private void OpenFile(string fileName)
     {
-        var cell = WaitForName(fileName, 8);
+        var cell = FindInFileList(fileName, 8);
         Assert.IsNotNull(cell, $"File '{fileName}' not found in the file list.");
 
         // ByName matches the row's text cell; the selectable unit is its DataItem ancestor (a WPF

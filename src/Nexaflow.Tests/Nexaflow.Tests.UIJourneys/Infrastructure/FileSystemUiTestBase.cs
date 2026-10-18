@@ -95,27 +95,43 @@ public abstract class FileSystemUiTestBase : UITestBase
         return condition();
     }
 
-    /// <summary>
-    /// Selects <paramref name="name"/> in the file list and returns once the ActionStrip has caught up.
-    /// <para>
-    /// Scoped to the list on purpose. A window-wide search by name also matches the folder tree, whose
-    /// node may be scrolled out of view — FlaUI then clicks the centre of an off-screen rectangle, which
-    /// lands on the desktop, selects nothing, and leaves the next step waiting for an action that never
-    /// appears.
-    /// </para>
-    /// </summary>
     /// <summary>Clicks <paramref name="name"/>'s row in the file list, scrolled into view — the selection a page acts on.</summary>
     protected bool SelectInFileList(string name, int seconds = 30)
     {
-        var list = WaitForId("FileListView", seconds);
-        if (list is null) return false;
-
-        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByName(name)), seconds);
+        var row = FindInFileList(name, seconds);
         if (row is null) return false;
 
-        row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
         row.Click();
         Wait.UntilInputIsProcessed();
         return true;
+    }
+
+    /// <summary>
+    /// <paramref name="name"/>'s cell in the file list, on screen. The list virtualises its rows, so a folder longer than the
+    /// window holds only the rows near its scroll position: when the name is not among them, the list is scrolled from the
+    /// top a page at a time until it is. How many rows fit depends on the screen the journey runs on, never on the folder. Scoped to the list on purpose: a window-wide search by name also matches the folder tree, whose node may be off screen, where a click lands on the desktop.
+    /// </summary>
+    protected AutomationElement? FindInFileList(string name, int seconds = 30)
+    {
+        var list = WaitForId("FileListView", seconds);
+        if (list is null) return null;
+
+        AutomationElement? Shown(int wait) => WaitFor(() => list.FindFirstDescendant(cf => cf.ByName(name)), wait);
+
+        var cell = Shown(Math.Min(seconds, 3));
+        if (cell is null && list.Patterns.Scroll.PatternOrDefault is { } scroll && scroll.VerticallyScrollable.Value)
+        {
+            scroll.SetScrollPercent(-1, 0);   // -1: leave the horizontal position as it is
+            Wait.UntilInputIsProcessed();
+            cell = Shown(1);
+            while (cell is null && scroll.VerticalScrollPercent.Value < 99.0)
+            {
+                scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
+                Wait.UntilInputIsProcessed();
+                cell = Shown(1);
+            }
+        }
+        cell?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+        return cell;
     }
 }
