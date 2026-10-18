@@ -80,6 +80,11 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             CheckDoes("Discard the edits made against an earlier file", "Image_EditDiscardChanged", () => WaitForFs(() => !Exists("Image_EditDiscardChanged"), 3));
             CheckInvoke("Back to the first photo", "Image_Previous");
 
+            // ── Details: what the picture's file says, in a panel beside it ──
+            Check("Details opens beside the picture", () => SetToggle("Image_Details", true) && WaitForFs(() => Exists("Image_DetailsPanel"), 3));
+            Check("It reads the camera from the photo's EXIF", () => WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByName(OrientedPhotoSample.Make)) is not null, 5));
+            CheckDoes("Its close button puts it away", "Image_DetailsClose", () => WaitForGone("Image_DetailsPanel", 3));
+
             // ── Floating tools: flips are remembered edits like turns ──
             CheckInvoke("Flip horizontally", "Image_FlipHorizontal");
             CheckInvoke("Flip vertically", "Image_FlipVertical");
@@ -167,9 +172,9 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             CheckDoes("Keep background puts it back, and the banner goes", "Image_CutOutKeepBackground",
                       () => WaitForGone("Image_RemoveBackgroundAction", 3));
 
-            // Erase: picking waits for picture selection and AI for picture erasing, neither of which the journey's AI folder
+            // Retouch: picking waits for picture selection and AI for picture erasing, neither of which the journey's AI folder
             // has; content-aware fill needs nothing, so a brushed step erases at once.
-            Check("Erase panel", () => SelectRadio("Image_EditToolErase") && WaitForFs(() => Exists("Image_EraseMarkPick"), 3));
+            Check("Retouch panel", () => SelectRadio("Image_EditToolRetouch") && WaitForFs(() => Exists("Image_EraseMarkPick"), 3));
             Check("Picking: a click on the photo asks for picture selection",
                   () => SelectRadio("Image_EraseMarkPick") && ClickCanvas() && WaitForFs(() => WaitForId("Image_ErasePickAction", 1)?.IsEnabled == true, 5));
             Check("A phrase is typed, and Find takes it", () => TypeInto("Image_ErasePhrase", "mug")
@@ -192,11 +197,12 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
                         && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
                         && WaitForGone("Image_EraseAction", 5));
 
-            // Export options
-            Check("Export panel", () => SelectRadio("Image_EditToolExport"));
-            Check("Strip metadata toggles", () => SetToggle("Image_EditStripMetadata", true) && SetToggle("Image_EditStripMetadata", false));
-            Check("Quality slider moves", () => MoveSlider("Image_EditQuality"));
+            // Save options: beside Save rather than among the tools, in a popup
             Check("Back to the crop panel", () => SelectRadio("Image_EditToolCrop"));
+            CheckDoes("Save options open beside Save", "Image_EditSaveOptions", () => WaitFor(() => FindInAppWindows("Image_EditStripMetadata"), 3) is not null);
+            Check("Strip metadata toggles", () => ToggleAndBack("Image_EditStripMetadata"));
+            Check("Quality slider moves", () => MoveSlider("Image_EditQuality"));
+            Check("A click on the picture puts them away", () => ClickCanvas() && WaitForFs(() => FindInAppWindows("Image_EditStripMetadata") is null, 3));
 
             // History and compare
             CheckInvoke("Undo", "Image_EditUndo");
@@ -267,14 +273,25 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
         return true;
     }
 
-    /// <summary>Moves a slider to whichever end it is not already at.</summary>
+    /// <summary>Moves a slider to whichever end it is not at — in the main window or a popup over it.</summary>
     private bool MoveSlider(string automationId)
     {
-        var element = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+        var element = FindInAppWindows(automationId);
         try { element?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView(); } catch { /* not in a scroller */ }
         if (element?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
         var target = range.Value.Value >= range.Maximum.Value ? range.Minimum.Value : range.Maximum.Value;
         range.SetValue(target);
         return WaitForFs(() => Math.Abs(range.Value.Value - target) < 0.01, 2);
+    }
+
+    /// <summary>Turns a check box over and back — in the main window or a popup over it.</summary>
+    private bool ToggleAndBack(string automationId)
+    {
+        if (FindInAppWindows(automationId)?.Patterns.Toggle.PatternOrDefault is not { } toggle) return false;
+        var before = toggle.ToggleState.Value;
+        toggle.Toggle();
+        if (!WaitForFs(() => toggle.ToggleState.Value != before, 2)) return false;
+        toggle.Toggle();
+        return WaitForFs(() => toggle.ToggleState.Value == before, 2);
     }
 }

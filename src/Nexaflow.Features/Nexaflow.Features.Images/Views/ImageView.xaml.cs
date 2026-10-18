@@ -77,6 +77,9 @@ public partial class ImageView : UserControl, IPageView
             case Key.E when Keyboard.Modifiers == ModifierKeys.None && (ViewModel.IsCarousel || ViewModel.IsExplore):
                 ViewModel.EnterEditModeCommand.Execute(null);
                 break;
+            case Key.I when Keyboard.Modifiers == ModifierKeys.None:
+                ViewModel.Details.IsOpen = !ViewModel.Details.IsOpen;
+                break;
             case Key.Delete when ViewModel.IsEditing && editor.IsMarkupTool:
                 editor.DeleteSelectedCommand.Execute(null);
                 break;
@@ -100,6 +103,12 @@ public partial class ImageView : UserControl, IPageView
         }
         e.Handled = true;
     }
+
+    // ── The save options' quality slider: a drag is one undo step, as in the tool panel ──
+
+    private void SaveOptions_DragStarted(object sender, DragStartedEventArgs e) => ViewModel.Editor.BeginGesture();
+
+    private void SaveOptions_DragCompleted(object sender, DragCompletedEventArgs e) => ViewModel.Editor.EndGesture();
 
     // ── The featured image's surface reports its size, so it is rendered for the screen ──
 

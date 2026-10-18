@@ -291,6 +291,8 @@ public class ImageCutOutTests
     [DataRow("cutout", EditTool.CutOut)]
     [DataRow("CutOut", EditTool.CutOut)]
     [DataRow("crop", EditTool.Crop)]
+    [DataRow("retouch", EditTool.Retouch)]
+    [DataRow("resize", EditTool.Resize)]
     public void ATabAskedToOpenOnATool_OpensTheEditorThere(string asked, EditTool tool)
         => Assert.AreEqual(tool, Nexaflow.Features.Images.ImageTabRegistration.ParseTool(asked));
 

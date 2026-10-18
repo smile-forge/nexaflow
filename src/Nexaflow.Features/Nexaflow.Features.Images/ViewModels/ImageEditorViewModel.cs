@@ -151,22 +151,19 @@ public partial class ImageEditorViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCropTool))]
     [NotifyPropertyChangedFor(nameof(IsAdjustTool))]
-    [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
+    [NotifyPropertyChangedFor(nameof(IsRetouchTool))]
     [NotifyPropertyChangedFor(nameof(IsCutOutTool))]
-    [NotifyPropertyChangedFor(nameof(IsEraseTool))]
+    [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
-    [NotifyPropertyChangedFor(nameof(IsExportTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
     private EditTool _tool = EditTool.Crop;
 
-    public bool IsCropTool   => Tool == EditTool.Crop;
-    public bool IsAdjustTool => Tool == EditTool.Adjust;
-    public bool IsMarkupTool => Tool == EditTool.Markup;
-    public bool IsCutOutTool => Tool == EditTool.CutOut;
-    public bool IsEraseTool  => Tool == EditTool.Erase;
-    public bool IsResizeTool => Tool == EditTool.Resize;
-    public bool IsExportTool => Tool == EditTool.Export;
-
+    public bool IsCropTool    => Tool == EditTool.Crop;
+    public bool IsAdjustTool  => Tool == EditTool.Adjust;
+    public bool IsRetouchTool => Tool == EditTool.Retouch;
+    public bool IsCutOutTool  => Tool == EditTool.CutOut;
+    public bool IsMarkupTool  => Tool == EditTool.Markup;
+    public bool IsResizeTool  => Tool == EditTool.Resize;
     /// <summary>What the canvas shows: the uncropped picture while cropping, so the frame can be dragged over all of it.</summary>
     public RenderFrame Frame => IsCropTool ? RenderFrame.CropEditing : RenderFrame.Output;
 
@@ -203,6 +200,7 @@ public partial class ImageEditorViewModel : ObservableObject
         ShowOriginal = false;
         IsLevelTool  = false;
         SelectedId   = null;
+        IsSaveOptionsOpen = false;
     }
 
     internal void OnSessionChanged()
@@ -827,6 +825,12 @@ public partial class ImageEditorViewModel : ObservableObject
     private void ResetResize() => Commit(r => r with { Resize = null });
 
     // ── Export ────────────────────────────────────────────────────────────
+
+    /// <summary>The save options — what a save keeps of the picture's metadata, and the quality it is written at — are showing beside Save.</summary>
+    [ObservableProperty] private bool _isSaveOptionsOpen;
+
+    [RelayCommand]
+    private void OpenSaveOptions() => IsSaveOptionsOpen = true;
 
     public bool StripMetadata
     {

@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <!-- A picture of a page read into Markdown, in the panel page reading shares with the PDF viewer. -->
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
   </ItemGroup>
 
 </Project>
