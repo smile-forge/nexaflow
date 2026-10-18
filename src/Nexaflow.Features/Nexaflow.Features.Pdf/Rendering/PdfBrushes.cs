@@ -31,10 +31,13 @@ internal sealed class PdfBrushes(Rect page)
     private readonly Dictionary<PdfSoftMask, Brush?> _masks = new(ReferenceEqualityComparer.Instance);
     private readonly ConditionalWeakTable<PdfPicture, Dictionary<Color, BitmapSource>> _stencils = new();
 
+    private readonly Dictionary<PdfShadingPaint, Brush?> _meshes = new(ReferenceEqualityComparer.Instance);
+
     /// <summary>What <paramref name="paint"/> paints with; null when it paints nothing drawing can give.</summary>
     public Brush? Paint(PdfPaint paint) => paint switch
     {
         PdfSolidPaint solid     => Solid(solid.Colour),
+        PdfShadingPaint { Shading.Mesh: not null } mesh => Meshed(mesh),
         PdfShadingPaint shading => Gradient(shading.Shading, shading.ToPage * Scale, shading.Alpha),
         PdfTilingPaint tiling   => Tiling(tiling),
         _                       => null,
@@ -94,6 +97,57 @@ internal sealed class PdfBrushes(Rect page)
         brush.Transform = new MatrixTransform(toDips);
         brush.Opacity = alpha;
         brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// A mesh shading used as a paint: its triangles painted into a picture (<see cref="PdfMeshPictures"/>) over the part of
+    /// the page they reach, at the resolution a mask is sampled at, over the shading's background where it names one — the
+    /// colour a pattern fills with outside the mesh. Made once however many times the paint is used.
+    /// </summary>
+    private Brush? Meshed(PdfShadingPaint paint)
+    {
+        if (_meshes.TryGetValue(paint, out var known)) return known;
+
+        Brush? brush = null;
+        var mesh = paint.Shading.Mesh!;
+        var toDips = paint.ToPage * Scale;
+        var region = PdfSpace.Transform(mesh.Bounds, toDips);
+        region.Intersect(page);
+        if (mesh.Triangles > 0 && !region.IsEmpty && region.Width > 0 && region.Height > 0)
+        {
+            var resolution = Math.Min(MaskResolution, Math.Sqrt(MaskPixels / (region.Width * region.Height)));
+            var width = (int)Math.Ceiling(region.Width * resolution);
+            var height = (int)Math.Ceiling(region.Height * resolution);
+            var toPixels = toDips;
+            toPixels.Translate(-region.X, -region.Y);
+            toPixels.Scale(resolution, resolution);
+            if (PdfMeshPictures.Paint(mesh, toPixels, width, height, paint.Alpha) is { } picture)
+            {
+                var drawing = new DrawingGroup();
+                if (paint.Shading.Background is { } background)
+                {
+                    var under = Color.FromArgb((byte)Math.Round(paint.Alpha * 255), background.R, background.G, background.B);
+                    drawing.Children.Add(new GeometryDrawing(Solid(under), null, new RectangleGeometry(page)));
+                }
+
+                drawing.Children.Add(new ImageDrawing(picture, new Rect(region.X, region.Y, width / resolution, height / resolution)));
+                drawing.Freeze();
+                var meshed = new DrawingBrush(drawing)
+                {
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = page,
+                    ViewportUnits = BrushMappingMode.Absolute,
+                    Viewport = page,
+                    Stretch = Stretch.Fill,
+                    TileMode = TileMode.None,
+                };
+                meshed.Freeze();
+                brush = meshed;
+            }
+        }
+
+        _meshes[paint] = brush;
         return brush;
     }
 

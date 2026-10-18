@@ -64,21 +64,24 @@ internal enum PdfShadingKind
     Axial,
     /// <summary>Type 3: colour varies between two circles.</summary>
     Radial,
+    /// <summary>Types 4 to 7: triangles, given or made from patches, their colour varying across each (<see cref="PdfMesh"/>).</summary>
+    Mesh,
 }
 
-/// <summary>A smooth shading, sampled into colour stops so it no longer needs the document to be drawn.</summary>
-/// <param name="Kind">Axial or radial.</param>
+/// <summary>A smooth shading, sampled into colour stops — or, a mesh, into triangles — so it no longer needs the document to be drawn.</summary>
+/// <param name="Kind">Axial, radial or a mesh.</param>
 /// <param name="Coordinates">
-/// Axial: <c>x0 y0 x1 y1</c>. Radial: <c>x0 y0 r0 x1 y1 r1</c>. In the shading's own space.
+/// Axial: <c>x0 y0 x1 y1</c>. Radial: <c>x0 y0 r0 x1 y1 r1</c>. In the shading's own space. A mesh: none.
 /// </param>
-/// <param name="Stops">Colours along the shading, at offsets 0..1 across its domain.</param>
+/// <param name="Stops">Colours along the shading, at offsets 0..1 across its domain; none for a mesh.</param>
 /// <param name="ExtendStart">Whether the first colour carries on before the start.</param>
 /// <param name="ExtendEnd">Whether the last colour carries on past the end.</param>
 /// <param name="Background">What fills outside the shading's extent, when the shading names one.</param>
 /// <param name="Bounds">The shading's own bounding box, when it names one, in its own space.</param>
+/// <param name="Mesh">A mesh shading's triangles; null for an axial or radial shading.</param>
 internal sealed record PdfShading(
     PdfShadingKind Kind, IReadOnlyList<double> Coordinates, IReadOnlyList<PdfColourStop> Stops,
-    bool ExtendStart, bool ExtendEnd, Color? Background, Rect? Bounds);
+    bool ExtendStart, bool ExtendEnd, Color? Background, Rect? Bounds, PdfMesh? Mesh = null);
 
 /// <summary>One colour along a shading.</summary>
 /// <param name="Offset">Where, 0 at the shading's start and 1 at its end.</param>

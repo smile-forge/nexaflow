@@ -81,6 +81,13 @@ internal sealed class PdfLaying
     /// <summary>What lies wholly beneath what is being laid: the page's content, under an annotation's appearance.</summary>
     private PdfGroupNode? _beneath;
 
+    /// <summary>
+    /// Where a backdrop's laying is painted, in page space: all of it a blend reads. A mesh shading in it is painted that far
+    /// and no further — a blend's backdrop is a small part of the page, and a page of many blends over one mesh would otherwise
+    /// paint the whole mesh again for each.
+    /// </summary>
+    private Rect? _within;
+
     /// <summary>The groups being laid, outermost first: the way down to the node at hand.</summary>
     private readonly List<PdfGroupNode> _chain = [];
 
@@ -302,7 +309,7 @@ internal sealed class PdfLaying
         var before = Before(_chain[0], 1, group, reach);
         if (_beneath is not null) before = new PdfGroupNode(PdfGroupRole.Root, [_beneath, before]);
 
-        var ground = new PdfLaying(_brushes, _composited, false, _cancel).Ground(page, before);
+        var ground = new PdfLaying(_brushes, _composited, false, _cancel) { _within = reach }.Ground(page, before);
         var backdrop = LayoutPictures.Painted(ground.Root, region, resolution, Brushes.Black, null);
 
         var alone = new PdfGroupNode(group.Role, group.Children, group.Clip, group.ClipRule, group.Opacity, group.Mask,
@@ -370,14 +377,15 @@ internal sealed class PdfLaying
             return;
         }
 
-        if (PdfSpace.IsUniform(toDips) || path.Pen.Width <= 0)
+        var scale = PdfSpace.MeanScale(toDips);
+        var pen = Thinnest(path.Pen, scale);
+        if (PdfSpace.IsUniform(toDips))
         {
             var geometry = path.Shape.ToGeometry(toDips, path.Rule);
             if (fill is not null) Fill(geometry, fill, path.Fill!);
-            var scale = PdfSpace.MeanScale(toDips);
-            Draw(Bevelled(path.Shape, toDips, path.Pen, scale) is { } restored
-                ? GeometryMark.Filled(Outlined(geometry, path.Pen, scale, restored).Frozen(), stroke)
-                : Stroked(geometry, stroke, path.Pen, scale));
+            Draw(Bevelled(path.Shape, toDips, pen, scale) is { } restored
+                ? GeometryMark.Filled(Outlined(geometry, pen, scale, restored).Frozen(), stroke)
+                : Stroked(geometry, stroke, pen, scale));
             return;
         }
 
@@ -386,12 +394,21 @@ internal sealed class PdfLaying
         // where the pen is round, and that outline is filled through the transform.
         if (fill is not null) Fill(path.Shape.ToGeometry(toDips, path.Rule), fill, path.Fill!);
         var user = path.Shape.ToGeometry(Matrix.Identity, path.Rule);
-        var widened = Bevelled(path.Shape, Matrix.Identity, path.Pen, 1) is { } miters
-            ? Outlined(user, path.Pen, 1, miters)
-            : user.GetWidenedPathGeometry(Pen(path.Pen, 1, Brushes.Black));
+        var widened = Bevelled(path.Shape, Matrix.Identity, pen, 1) is { } miters
+            ? Outlined(user, pen, 1, miters)
+            : user.GetWidenedPathGeometry(Pen(pen, 1, Brushes.Black));
         widened.Transform = new MatrixTransform(toDips);
         Draw(GeometryMark.Filled(widened.Frozen(), stroke));
     }
+
+    /// <summary>
+    /// <paramref name="pen"/> no thinner than the thinnest line a page laid once for every zoom can promise: a
+    /// device-independent pixel, at <paramref name="scale"/> of them to the pen's unit. PDF draws a width of zero that thin,
+    /// and renderers draw any line finer than a pixel a pixel wide, so a drawing scaled down to fit its page — a circuit
+    /// diagram at a twentieth of its size — keeps its lines rather than fading them to grey.
+    /// </summary>
+    private static PdfPen Thinnest(PdfPen pen, double scale) =>
+        scale <= 0 || pen.Width * scale >= 1 ? pen : pen with { Width = 1 / scale };
 
     /// <summary>
     /// A fill, cut to where its paint paints: a shading that does not extend past its ends leaves the rest of the shape
@@ -407,10 +424,7 @@ internal sealed class PdfLaying
 
     private static GeometryMark Stroked(Geometry shape, Brush stroke, PdfPen pen, double scale)
     {
-        // Zero is PDF's "the thinnest line the device draws"; a device-independent pixel is the thinnest a page laid once
-        // for every zoom can promise.
-        var width = pen.Width * scale;
-        var thickness = width > 0 ? width : 1;
+        var thickness = pen.Width * scale;   // never under a device-independent pixel: see Thinnest
         var thicknessInUser = thickness / Math.Max(scale, 1e-9);
         return new GeometryMark(shape, null, stroke, thickness)
         {
@@ -636,6 +650,12 @@ internal sealed class PdfLaying
     /// <summary>A shading painted over its clip: as far as the shading reaches, or everywhere when it extends.</summary>
     private void Shading(PdfShadingNode node)
     {
+        if (node.Shading.Mesh is { } mesh)
+        {
+            Mesh(node, mesh);
+            return;
+        }
+
         var toDips = node.ToPage * Scale;
         if (_brushes.Gradient(node.Shading, toDips, node.Opacity) is not { } brush) return;
 
@@ -646,6 +666,43 @@ internal sealed class PdfLaying
         if (reach is not null) area = new CombinedGeometry(GeometryCombineMode.Intersect, area, reach).Frozen();
 
         Draw(GeometryMark.Filled(area, brush));
+    }
+
+    /// <summary>
+    /// A mesh shading painted into a picture (<see cref="PdfMeshPictures"/>) as far as it reaches on the page and inside the
+    /// clips around it, at the resolution a blend is composited at, and laid where it stands; its own bounding box clips it.
+    /// </summary>
+    private void Mesh(PdfShadingNode node, PdfMesh mesh)
+    {
+        if (mesh.Triangles == 0) return;
+
+        var reach = PdfSpace.Transform(mesh.Bounds, node.ToPage);
+    if (_page is { } page) reach.Intersect(new Rect(page.Size));
+        if (_within is { } within) reach.Intersect(within);
+        foreach (var around in _chain)
+            if (around.Clip is { } clip) reach.Intersect(clip.Bounds(Matrix.Identity));
+        if (reach.IsEmpty || reach.Width <= 0 || reach.Height <= 0) return;
+
+        var region = PdfSpace.Transform(reach, Scale);
+        var resolution = Math.Min(BlendResolution, Math.Sqrt(BlendPixels / (region.Width * region.Height)));
+        var width = (int)Math.Ceiling(region.Width * resolution);
+        var height = (int)Math.Ceiling(region.Height * resolution);
+        var toPixels = node.ToPage * Scale;
+        toPixels.Translate(-region.X, -region.Y);
+        toPixels.Scale(resolution, resolution);
+        if (PdfMeshPictures.Paint(mesh, toPixels, width, height, node.Opacity) is not { } picture) return;
+
+        var placed = new PictureMark(picture, new Rect(region.X, region.Y, width / resolution, height / resolution));
+        if (node.Shading.Bounds is not { } box)
+        {
+            Draw(placed);
+            return;
+        }
+
+        var clipped = new RectangleGeometry(box) { Transform = new MatrixTransform(node.ToPage * Scale) }.Frozen();
+        Open(PdfPieces.Group, paints: new LayoutPaint(Clip: clipped));
+        Draw(placed);
+        Close();
     }
 
     /// <summary>

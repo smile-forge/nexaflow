@@ -241,7 +241,9 @@ internal sealed class PdfShadingNode : PdfContentNode
         Shading = shading;
         ToPage  = toPage;
         Opacity = opacity;
-        Bounds  = shading.Bounds is { } box ? PdfSpace.Transform(box, toPage) : PdfSpace.Everywhere;
+        Bounds  = shading.Bounds is { } box ? PdfSpace.Transform(box, toPage)
+                : shading.Mesh is { } mesh ? PdfSpace.Transform(mesh.Bounds, toPage)
+                : PdfSpace.Everywhere;
     }
 
     public PdfShading Shading { get; }

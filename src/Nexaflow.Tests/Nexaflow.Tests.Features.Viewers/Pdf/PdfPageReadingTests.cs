@@ -549,6 +549,100 @@ public class PdfPageReadingTests
         Assert.AreEqual(119, drawn.B, 2);
     }
 
+    /// <summary>
+    /// A triangle mesh (type 4) — two triangles making the page, red along its foot and blue along its head — is drawn with
+    /// each triangle's colour varying between its corners: red at the foot, blue at the head, purple between.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ATriangleMesh_IsShadedBetweenItsCorners()
+    {
+        var data = new List<byte>();
+        void Vertex(int flag, double x, double y, byte r, byte b)
+        {
+            data.Add((byte)flag);
+            data.AddRange(Coordinate(x));
+            data.AddRange(Coordinate(y));
+            data.AddRange([r, 0, b]);
+        }
+
+        Vertex(0, 0, 0, 255, 0);
+        Vertex(0, Side, 0, 255, 0);
+        Vertex(0, 0, Side, 0, 255);
+        Vertex(1, Side, Side, 0, 255);
+
+        AssertShadedFootToHead(Meshed($"/ShadingType 4 /BitsPerFlag 8 {MeshFormat}", data));
+    }
+
+    /// <summary>
+    /// A Coons patch mesh (type 6) — one patch the page's square, red at its two foot corners and blue at its two head
+    /// corners — is drawn as the gradient between them, as the triangle mesh of the same corners is.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ACoonsPatch_IsShadedBetweenItsCorners()
+    {
+        var data = new List<byte> { 0 };
+        // The boundary from the first corner, up its left edge, along its head, down its right edge and back along its foot.
+        (double X, double Y)[] boundary =
+        [
+            (0, 0), (0, Side / 3), (0, Side * 2 / 3), (0, Side), (Side / 3, Side), (Side * 2 / 3, Side),
+            (Side, Side), (Side, Side * 2 / 3), (Side, Side / 3), (Side, 0), (Side * 2 / 3, 0), (Side / 3, 0),
+        ];
+        foreach (var (x, y) in boundary)
+        {
+            data.AddRange(Coordinate(x));
+            data.AddRange(Coordinate(y));
+        }
+
+        data.AddRange([255, 0, 0, 0, 0, 255, 0, 0, 255, 255, 0, 0]);   // the corners at (0, 0), (0, 1), (1, 1) and (1, 0)
+
+        AssertShadedFootToHead(Meshed($"/ShadingType 6 /BitsPerFlag 8 {MeshFormat}", data));
+    }
+
+    /// <summary>A line drawn far thinner than a pixel — a diagram scaled down to fit its page, its lines a hundredth of a point
+    /// wide — is drawn no thinner than a device-independent pixel, as renderers draw a hairline, rather than fading to white.</summary>
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ALineThinnerThanAPixel_IsDrawnAPixelWide()
+    {
+        var page = Read("q 0.01 0 0 0.01 0 0 cm 1 w 0 0 0 RG 1000 10000 m 19000 10000 l S Q");
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var darkest = Enumerable.Range(97, 6).Min(y => (int)Pixel(picture, 100, y).R);
+        Assert.IsTrue(darkest < 160, $"the line shows: its darkest is {darkest}, not near white");
+    }
+
+    /// <summary>How the test meshes write their vertices: 16-bit coordinates across the page, 8-bit RGB.</summary>
+    private static readonly string MeshFormat =
+        $"/ColorSpace /DeviceRGB /BitsPerCoordinate 16 /BitsPerComponent 8 /Decode [0 {Side} 0 {Side} 0 1 0 1 0 1]";
+
+    private static byte[] Coordinate(double value)
+    {
+        var raw = (ushort)Math.Round(value / Side * ushort.MaxValue);
+        return [(byte)(raw >> 8), (byte)raw];
+    }
+
+    /// <summary>A page that is nothing but the mesh shading of <paramref name="dictionary"/> and <paramref name="data"/>.</summary>
+    private static PdfPageNode Meshed(string dictionary, List<byte> data) =>
+        Read("/Sh sh", resources: "/Shading << /Sh 5 0 R >>",
+            extra: [(5, Stream(dictionary, Convert.ToHexString([.. data]) + ">"))]);
+
+    private static void AssertShadedFootToHead(PdfPageNode page)
+    {
+        Assert.IsFalse(page.Unsupported.Any(), "a mesh is drawn, not reported");
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var foot = Pixel(picture, 100, 197);
+        var middle = Pixel(picture, 100, 100);
+        var head = Pixel(picture, 100, 2);
+        Assert.IsTrue(foot.R > 240 && foot.B < 15, $"red at the foot, not {foot}");
+        Assert.IsTrue(head.B > 240 && head.R < 15, $"blue at the head, not {head}");
+        Assert.AreEqual(128, middle.R, 6, $"half red half way, not {middle}");
+        Assert.AreEqual(128, middle.B, 6, $"half blue half way, not {middle}");
+        Assert.AreEqual(0, middle.G, 2);
+    }
+
     [TestMethod]
     [CoversNode("pdf-render")]
     public void ALuminosityMasksBackdrop_IsInItsGroupsColourSpace()

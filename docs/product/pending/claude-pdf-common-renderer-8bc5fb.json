@@ -44,6 +44,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfFaceKinds.cs",
           "class": "PdfFaceKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfMeshes.cs",
+          "class": "PdfMeshes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfMeshPictures.cs",
+          "class": "PdfMeshPictures"
         }
       ],
       "concerns": {

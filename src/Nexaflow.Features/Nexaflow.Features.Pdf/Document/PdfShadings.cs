@@ -20,7 +20,7 @@ internal static class PdfShadings
 
     /// <summary>
     /// <paramref name="shading"/> as a <see cref="PdfShading"/>, or null with the unsupported kind it is when it is
-    /// not an axial or radial shading. Its colours are converted under <paramref name="intent"/>.
+    /// not an axial, radial or mesh shading. Its colours are converted under <paramref name="intent"/>.
     /// </summary>
     public static PdfShading? TryRead(Shading shading, RenderingIntent intent, out PdfUnsupported? unsupported)
     {
@@ -36,6 +36,10 @@ internal static class PdfShadings
                 return new PdfShading(
                     PdfShadingKind.Radial, radial.Coords[..6], Stops(shading, radial.Domain, radial.Functions, intent),
                     Extends(radial.Extend, 0), Extends(radial.Extend, 1), Background(shading, intent), Box(shading));
+
+            case FreeFormGouraudShading or LatticeFormGouraudShading or CoonsPatchMeshesShading or TensorProductPatchMeshesShading:
+                return new PdfShading(PdfShadingKind.Mesh, [], [], false, false, Background(shading, intent), Box(shading),
+                    PdfMeshes.Read(shading, intent));
 
             case { ShadingType: ShadingType.FunctionBased }:
                 unsupported = new PdfUnsupported(PdfUnsupportedKind.FunctionShading, "type 1");
