@@ -77,6 +77,41 @@ public sealed partial class WizardModelPickContent : ObservableObject
     [ObservableProperty] private bool    _isLoading;
 }
 
+/// <summary>One kind of model the chosen provider offers beside language: its models, and the one chosen — none until the
+/// user picks one.</summary>
+public sealed partial class WizardModelKindChoice : ObservableObject
+{
+    /// <summary>The entry that leaves the kind's rows without a model of the provider's.</summary>
+    public const string None = "None";
+
+    public WizardModelKindChoice(ModelKind kind, string label)
+    {
+        Kind  = kind;
+        Label = label;
+    }
+
+    public ModelKind Kind { get; }
+
+    /// <summary>The rows it fills, as the ability grid names them.</summary>
+    public string Label { get; }
+
+    public string AutomationId => "WizardKind_" + Kind;
+
+    public ObservableCollection<string> Models { get; } = [None];
+
+    [ObservableProperty] private string _selectedModel = None;
+
+    /// <summary>The model chosen; null for none.</summary>
+    public string? Chosen => SelectedModel == None ? null : SelectedModel;
+}
+
+/// <summary>The provider's other kinds of model, each with its choice.</summary>
+public sealed partial class WizardModelKindsContent : ObservableObject
+{
+    public ObservableCollection<WizardModelKindChoice> Kinds { get; } = [];
+    [ObservableProperty] private bool _isLoading;
+}
+
 // ── Shared state for the first-workspace sub-flow ────────────────────────────────
 
 internal sealed class WorkspaceSetupContext
@@ -316,7 +351,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     }
 }
 
-/// <summary>Pick a model, then assign it to every AI ability.</summary>
+/// <summary>Pick a language model, then put it in every reasoning row of the ability grid.</summary>
 internal sealed class ModelPickStep : ObservableObject, IWizardStep
 {
     private readonly WorkspaceSetupContext _ctx;
@@ -385,6 +420,86 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
         if (_ctx.Harness == WorkspaceHarness.Mixed) _ctx.Owned?.Fetch();
+    }
+}
+
+/// <summary>
+/// The chosen provider's other kinds of model — speech in and out, pictures, video — as the provider lists them, one chosen
+/// for each or none, and each put in the rows of the ability grid that take its kind. Applies where the provider offers
+/// any beside language.
+/// </summary>
+internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObject, IWizardStep
+{
+    /// <summary>The kinds asked for, in the order they are shown, and the rows each fills.</summary>
+    private static readonly (ModelKind Kind, AiAbility[] Rows)[] OtherKinds =
+    [
+        (ModelKind.SpeechToText,    [AiAbility.SpeechIn]),
+        (ModelKind.TextToSpeech,    [AiAbility.SpeechOut]),
+        (ModelKind.ImageGeneration, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration]),
+        (ModelKind.VideoGeneration, [AiAbility.VideoGeneration, AiAbility.HighQualityVideoGeneration]),
+    ];
+
+    private readonly WizardModelKindsContent _content = new();
+
+    public string Title      => "Choose its other models";
+    public bool   Applies    => ctx.Harness != WorkspaceHarness.Owned && Offered().Any();
+    public object Content    => _content;
+    public bool   IsComplete => !_content.IsLoading;
+
+    public void OnEnter()
+    {
+        _content.Kinds.Clear();
+        _ = LoadModelsAsync();
+    }
+
+    /// <summary>The provider's own instance for each other kind it offers.</summary>
+    private IEnumerable<(ModelKind Kind, AiAbility[] Rows, IAiProvider Provider)> Offered()
+    {
+        if (ctx.ChosenProvider?.FriendlyName is not { } name || ctx.ProviderSet is not { } set) yield break;
+        foreach (var (kind, rows) in OtherKinds)
+            if (set.Find(name, kind) is { } provider) yield return (kind, rows, provider);
+    }
+
+    private async Task LoadModelsAsync()
+    {
+        _content.IsLoading = true;
+        OnPropertyChanged(nameof(IsComplete));
+        try
+        {
+            foreach (var (kind, rows, provider) in Offered().ToList())
+            {
+                var choice = new WizardModelKindChoice(kind, string.Join(" · ", rows.Select(AiAbilityNames.Friendly)));
+                try
+                {
+                    foreach (var model in await provider.GetAvailableModelsAsync()) choice.Models.Add(model);
+                }
+                catch (Exception) { /* a kind whose models cannot be listed is not offered */ }
+                if (choice.Models.Count > 1) _content.Kinds.Add(choice);
+            }
+        }
+        finally
+        {
+            _content.IsLoading = false;
+            OnPropertyChanged(nameof(IsComplete));
+        }
+    }
+
+    public void Commit()
+    {
+        if (ctx.ProviderSet is not { } set || ctx.ChosenProvider?.FriendlyName is not { } name) return;
+        var chosen = _content.Kinds.Where(k => k.Chosen is not null).Select(k =>
+        {
+            var provider = set.Find(name, k.Kind)!;
+            return new ProviderModelPair
+            {
+                ProviderName = provider.Name, Model = k.Chosen!, Kind = k.Kind, AssemblyFileName = set.GetAssemblyFileName(provider.Name),
+            };
+        }).ToList();
+        if (chosen.Count == 0) return;
+
+        WorkspaceAiDefaults.AssignKinds(ctx.Workspace.AiConfig, chosen);
+        WorkspaceManager.Instance.SaveWorkspaceAiConfig(ctx.Workspace);
+        WorkspaceManager.Instance.SaveWorkspaces();
     }
 }
 
@@ -611,6 +726,7 @@ public partial class SetupWizardViewModel : ObservableObject
         steps.Add(new ProviderPickStep(ctx));
         steps.Add(new ProviderConfigStep(ctx));
         steps.Add(new ModelPickStep(ctx));
+        steps.Add(new ModelKindsStep(ctx));
 
         // Persona + per-workspace feature configs only when they opt in via [MandatorySetup].
         var persona = workspace.Persona;

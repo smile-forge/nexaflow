@@ -57,7 +57,7 @@ public class WorkspaceHarnessTests
     }
 
     [TestMethod]
-    public void AProviderAlone_AnswersEveryLanguageRole_AndListensOnTheLocalColumn()
+    public void AProviderAlone_AnswersEveryLanguageRole_AndLeavesTheLocalColumnChosenButUnticked()
     {
         var config = new AiConfig();
 
@@ -65,8 +65,8 @@ public class WorkspaceHarnessTests
 
         Assert.AreEqual(1, config.Columns.Count(c => c.Kind == ModelKind.Language));
         CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.GeneralIntelligence));
-        CollectionAssert.AreEqual(new[] { Local(LocalSlot.SpeechToText) }, Chain(config, AiAbility.SpeechIn),
-                                  "the workspace settles on the speech model it offers here when it loads");
+        Assert.AreEqual(0, Chain(config, AiAbility.SpeechIn).Length, "nothing listens until a model is chosen for it");
+        Assert.IsFalse(config.BringUpToDate(), "an emptied Speech In is a choice, not a row to fill");
 
         var gemma = new ProviderModelPair { ProviderName = "Nexaflow", Model = "gemma", Kind = ModelKind.Language };
         var image = new ProviderModelPair { ProviderName = "Nexaflow", Model = "z-image-turbo", Kind = ModelKind.ImageGeneration };
@@ -76,12 +76,27 @@ public class WorkspaceHarnessTests
             LocalSlot.ImageGeneration => [(image, true, true, true)],
             _                         => [],
         });
+
         CollectionAssert.AreEqual(new[] { Claude.Id }, Chain(config, AiAbility.GeneralIntelligence), "the reasoning rows stay on the provider chosen");
-        Assert.AreEqual("gemma", config.Columns.Single(c => c.Id == Local(LocalSlot.Language)).Model,
-                        "the Local column still offers its model there, to be ticked");
-        Assert.IsFalse(config.AssignedColumnIds().Contains(Local(LocalSlot.Language)), "ticked in no row");
-        CollectionAssert.AreEqual(new[] { Local(LocalSlot.ImageGeneration) }, Chain(config, AiAbility.ImageGeneration),
-                                  "a job the setup said nothing about still starts on the Local column");
+        Assert.AreEqual("gemma", config.Columns.Single(c => c.Id == Local(LocalSlot.Language)).Model, "the Local column still has its model, to be ticked");
+        Assert.AreEqual("z-image-turbo", config.Columns.Single(c => c.Id == Local(LocalSlot.ImageGeneration)).Model);
+        Assert.IsFalse(config.AssignedColumnIds().Any(LocalColumns.IsLocal), "ticked in no row");
+    }
+
+    [TestMethod]
+    public void TheProvidersOtherModels_FillTheRowsOfTheirKind_FirstInEach()
+    {
+        var config = new AiConfig();
+        WorkspaceAiDefaults.Assign(config, Claude, owned: null);
+        var voice   = new ProviderModelPair { ProviderName = "OpenAI", Model = "gpt-4o-mini-tts", Kind = ModelKind.TextToSpeech };
+        var picture = new ProviderModelPair { ProviderName = "OpenAI", Model = "gpt-image-1", Kind = ModelKind.ImageGeneration };
+
+        WorkspaceAiDefaults.AssignKinds(config, [voice, picture]);
+
+        CollectionAssert.AreEqual(new[] { voice.Id }, Chain(config, AiAbility.SpeechOut));
+        CollectionAssert.AreEqual(new[] { picture.Id }, Chain(config, AiAbility.ImageGeneration));
+        CollectionAssert.AreEqual(new[] { picture.Id }, Chain(config, AiAbility.HighQualityImageGeneration), "one picture model fills both picture rows");
+        Assert.IsFalse(config.Assignments.ContainsKey(nameof(AiAbility.VideoGeneration)), "a kind left at None stays unassigned");
     }
 
     /// <summary>A step that applies or not as the test says.</summary>

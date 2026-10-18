@@ -174,14 +174,11 @@ public class SetupWizardTests
         Assert.AreEqual(baseUrl, claude.GetProperty("BaseUrl").GetString(), "Claude BaseUrl not persisted.");
 
         var ai = ReadConfig(defaultDir, "ai-abilities");
-        // The provider chosen is the workspace's only language model: a setup that takes a provider alone leaves the Local column
-        // off its reasoning rows. Jobs the setup says nothing about — listening, speaking, pictures — keep the Local column's
-        // models where this machine runs them, so those columns are all Nexaflow's own.
+        // A setup that takes a provider alone gives it every reasoning row and nothing else: Claude offers no other kind of
+        // model, so no other row is filled. The Local column keeps a model chosen for each job this machine runs, ticked in no row.
         var columns = ai.GetProperty("Columns").EnumerateArray().ToList();
-        var column = columns.Single(c => c.GetProperty("Kind").GetString() == "Language");
-        Assert.IsTrue(columns.Where(c => c.GetProperty("Kind").GetString() != "Language")
-                             .All(c => c.GetProperty("Id").GetString()!.StartsWith("local-", StringComparison.Ordinal)),
-                      "Every other column is the Local column's.");
+        static bool IsLocal(string? id) => id!.StartsWith("local-", StringComparison.Ordinal);
+        var column = columns.Single(c => !IsLocal(c.GetProperty("Id").GetString()));
         Assert.AreEqual("Claude",     column.GetProperty("ProviderName").GetString(), "AI column provider wrong.");
         Assert.AreEqual(chosenModel,  column.GetProperty("Model").GetString(),        "AI column model wrong.");
         var columnId = column.GetProperty("Id").GetString();
@@ -191,6 +188,8 @@ public class SetupWizardTests
         foreach (var role in languageRoles)
             CollectionAssert.AreEqual(new[] { columnId }, assignments.GetProperty(role).EnumerateArray().Select(id => id.GetString()).ToArray(),
                 $"Ability '{role}' not assigned to the chosen model alone.");
+        Assert.IsFalse(assignments.EnumerateObject().SelectMany(a => a.Value.EnumerateArray()).Any(id => IsLocal(id.GetString())),
+                       "The Local column is ticked in no row.");
 
         var persona = ReadConfig(defaultDir, "ai-persona");
         Assert.AreEqual(personaName,   persona.GetProperty("Name").GetString(),         "Persona name not persisted.");
