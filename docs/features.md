@@ -268,8 +268,13 @@ one-liners, or derive from `ClientToolBase` for richer ones (abstract `Name`/`De
 no parameters, `SafeOperation`, non-parallelizable — override what differs). `ToolSafety.SafeOperation` tools auto-run
 (even ones that mutate visible or not-yet-committed state); `ToolSafety.RequiresApproval` ones are
 approved via `IToolApprovalCoordinator` before running, and each `ToolResult` is fed back to the model. Return
-an error `ToolResult` (don't throw) for an expected failure. Canonical example:
-`Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
+an error `ToolResult` (don't throw) for an expected failure. A tool whose result needs a model to take it in declares
+it in `Needs` — a picture needs `AiAbility.ImageRecognition`, a recording `AiAbility.SpeechIn` — and is left out where
+nothing serves it. Canonical example: `Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
+
+A control that needs an ability — a button that asks a model something — binds a gate from `IAIService.Gate(…)` with
+`vcc:AiAbilityGating.Gate="{Binding …}"`: it is disabled, saying where to assign a model, while the workspace has none,
+and its first press offers a download its model waits on (`IAiAbilityGate.MakeReadyAsync`). Dispose the gate with the page.
 
 ---
 
