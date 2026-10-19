@@ -1,0 +1,43 @@
+{
+  "branch": "claude/openjpeg-csharp-port-9880d1",
+  "nodes": {
+    "pdf-image-filters": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfFilterProvider.cs",
+          "class": "PdfFilterProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfJpxFilter.cs",
+          "class": "PdfJpxFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Jpeg2000Decoder.cs",
+          "class": "Jpeg2000Decoder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfImageReaderTests.cs",
+            "class": "PdfFilterProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfJpxFilterTests.cs",
+            "class": "PdfJpxFilterTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "pdf-image-filters"
+  ]
+}

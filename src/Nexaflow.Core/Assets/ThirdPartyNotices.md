@@ -38,10 +38,11 @@ under the license noted below.
 | [Octokit](https://github.com/octokit/octokit.net) (via Updatum) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) (+ System.ClientModel) | MIT |
+| [OpenJPEG.net](https://github.com/notBald/OpenJPEG.net), a C# port of [OpenJPEG](https://github.com/uclouvain/openjpeg) (carried as source: `Nexaflow.Media/Jpeg2000`) | BSD-2-Clause |
 | [PdfPig](https://github.com/UglyToad/PdfPig) | Apache-2.0 |
 | [PdfPig.Filters.Dct.JpegLibrary](https://github.com/BobLd/UglyToad.PdfPig.Filters.Dct.JpegLibrary) | Apache-2.0 |
 | [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2) | Apache-2.0 |
-| [PdfPig.Filters.Jpx.OpenJpeg](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jpx.OpenJpeg) (bundled OpenJPEG) | BSD-2-Clause |
+
 | [PeterO.Numbers](https://github.com/peteroupc/Numbers) (via AngouriMath) | CC0-1.0 |
 | [PureHDF](https://github.com/Apollo3zehn/PureHDF) | MIT |
 | [SharpAssimp](https://github.com/JeremyAnsel/SharpAssimp) | MIT (bundled native Assimp: BSD-3-Clause) |

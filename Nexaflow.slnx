@@ -315,6 +315,11 @@
   <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
     <Platform Project="x64" />
   </Project>
+  <!-- WPF-free media codecs carried as Nexaflow's own memory-safe source, each in a folder with its licence:
+       Jpeg2000 decodes the JPXDecode images Nexaflow.Features.Pdf reads. -->
+  <Project Path="src/Nexaflow.Media/Nexaflow.Media.csproj">
+    <Platform Project="x64" />
+  </Project>
   <!-- WPF-free compound file (MS-CFB) reader and writer — the container a .msg, a pre-2007 Office file and an .msi are
        written in. Reaches the app through Nexaflow.Features.Email. -->
   <Project Path="src/Nexaflow.IO.CompoundFile/Nexaflow.IO.CompoundFile.csproj">
@@ -435,9 +440,7 @@
     <Project Path="external/PdfPig.Filters.Jbig2.PdfboxJbig2/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2.csproj">
       <Platform Project="AnyCPU" />
     </Project>
-    <Project Path="external/PdfPig.Filters.Jpx.OpenJpeg/UglyToad.PdfPig.Filters.Jpx.OpenJpeg/UglyToad.PdfPig.Filters.Jpx.OpenJpeg.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
+
     <Project Path="external/DiscUtils/Library/DiscUtils.Btrfs/DiscUtils.Btrfs.csproj">
       <Platform Project="AnyCPU" />
     </Project>

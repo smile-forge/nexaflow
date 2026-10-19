@@ -488,6 +488,39 @@ tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept
 Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the
 default because a Debug build checks every pipeline stage's output against its input, which a user never pays for.
 
+### Measuring JPEG 2000 decoding (opt-in, by hand)
+
+`JpxDecodeBench` measures the JPEG 2000 images in PDFs, sampled to a fixed few of each size (`-PerSize`, six by
+default), with `Nexaflow.Media`'s decoder — OpenJPEG.net, a managed port of OpenJPEG, which the PDF reader decodes
+them with — beside libopenjp2, the C library it was ported from, called in process from the same bytes. The PDFs are
+the 151 JPX test documents of the PDF filter Nexaflow used to build, which the script fetches at a pinned commit,
+and the baseline PDF corpus `NEXAFLOW_PDF_CORPUS` names (`-PdfCorpus`) when it is set; `-Corpus` names other
+folders instead. Every PDF is scanned for its JPEG 2000 images first, keeping only where each is, and only the
+sample's bytes are read, so a corpus of any size costs little memory. It is two measurements, each a process of
+its own:
+
+- **Timing** sets both decodes side by side sample for sample first, and times only an image both decode alike:
+  the managed decode serially and with its own threading, the reader's whole `JPXDecode` filter, and libopenjp2 on
+  one thread and on one per processor, with totals per size of image so a fixed cost and a per-pixel cost show
+  apart. The managed decoder hands every code block to the thread pool even when told not to thread; serially it
+  hands out one at a time, so its serial figure is one job at a time, not one thread.
+- **Profiling** samples the managed decode through EventPipe and puts each sample to a stage — tier-1 code blocks,
+  tier-2 packets, the inverse wavelet, the inverse colour transform, the tile coder, codestream parsing, image
+  output — on every thread, with a thread waiting on the jobs it handed out told apart from one working: once for
+  the filter as the reader runs it, once for the serial decode. It runs with `DOTNET_ReadyToRun=0`, because a
+  precompiled framework method (a wait, a copy, an allocation) carries no name in a sample, and its time would be
+  counted to the code that called it.
+
+Each writes one JSON file, and a log of how far it has got, and asserts nothing.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jpx-bench
+```
+
+`-OpenJpeg` is an OpenJPEG checkout outside the repository: cloned at `-Tag` when it is absent and built with MSVC
+when it has no `openjp2.dll`, so the baseline is a release build of the library a run names. As with the markdown bench, compare
+runs taken on one machine in one configuration.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
