@@ -446,6 +446,31 @@ public class PdfPageReadingTests
         Assert.IsTrue(hidden is { R: > 249, G: > 249, B: > 249 }, $"where the mask hides it: {hidden}");
     }
 
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    [DataRow("/DeviceRGB", "[0 0 0]", "000080" + "0000FF", 127, 127, 255, DisplayName = "blue, preblended with black")]
+    [DataRow("/DeviceRGB", "[1 0 0]", "7F0080" + "0000FF", 127, 127, 255, DisplayName = "blue, preblended with red")]
+    [DataRow("/DeviceGray", "[1]", "7F" + "00", 127, 127, 127, DisplayName = "black, preblended with white")]
+    public void AnImagePreblendedWithItsMatte_DrawsItsTrueColourAtItsOpacity(string colourSpace, string matte, string hex, int r, int g, int b)
+    {
+        // The left sample is half opaque and was written mixed with the soft mask's matte by that half; the right is opaque.
+        // Drawn as written over white paper, the left half would carry the matte as a fringe — blue over black, (127, 127, 191).
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra:
+            [
+                (5, Stream($"/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace {colourSpace} /BitsPerComponent 8 /SMask 6 0 R",
+                    hex + ">")),
+                (6, Stream($"/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Matte {matte}",
+                    "80FF>")),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb((byte)r, (byte)g, (byte)b), Pixel(picture, 40, 100), "the half-opaque sample, its matte taken out");
+        var opaque = colourSpace == "/DeviceGray" ? Colors.Black : Color.FromRgb(0, 0, 255);
+        AssertNear(opaque, Pixel(picture, 160, 100), "the opaque sample, which no matte is mixed into");
+    }
+
     private const string JpxImage = "/Type /XObject /Subtype /Image /Width 2 /Height 2";
 
     [TestMethod]

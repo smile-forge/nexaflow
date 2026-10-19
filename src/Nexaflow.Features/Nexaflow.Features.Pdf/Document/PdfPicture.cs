@@ -75,8 +75,19 @@ internal sealed class PdfPicture
                 return null;
             }
 
+            // The soft mask is read before the samples: an image preblended with its matte colour has the matte taken back out
+            // of it by its opacity, after its Decode array and before its colour space (ISO 32000-2, 11.6.5.3).
+            var softMask = SoftMaskAlpha(image);
+            IReadOnlyList<double>? matte = null;
+            ReadOnlySpan<byte> opacity = default;
+            if (softMask is { } soft && image.MaskImage!.GetMatte() is { } colour)
+            {
+                matte = colour;
+                opacity = OnImageGrid(soft, width, height);
+            }
+
             var samples = ColorSpaceDetailsByteConverter.Convert(
-                details, memory.Span, image.BitsPerComponent, width, height, image.Decode, image.RenderingIntent);
+                details, memory.Span, image.BitsPerComponent, width, height, image.Decode, image.RenderingIntent, matte, opacity);
             var components = details.BaseNumberOfColorComponents;
             if (components is not (1 or 3 or 4))
             {
@@ -90,7 +101,7 @@ internal sealed class PdfPicture
                 return null;
             }
 
-            var alpha = Alpha(image, width, height, components, samples, embedded);
+            var alpha = Alpha(image, width, height, components, samples, softMask, embedded);
 
             // CMYK goes through Windows' colour management a whole image at a time, once its colour key has been read
             // from the inks it was keyed in.
@@ -147,16 +158,33 @@ internal sealed class PdfPicture
         return bitmap;
     }
 
+    /// <summary>Whether the image's mask is an <c>/SMask</c>, rather than a <c>/Mask</c> image.</summary>
+    private static bool HasSoftMask(IPdfImage image) =>
+        image.MaskImage is not null && image.ImageDictionary.ContainsKey(NameToken.Smask);
+
+    /// <summary>The levels of the image's <c>/SMask</c>, at its own resolution; null where it has none.</summary>
+    private static (byte[] Levels, int Width, int Height)? SoftMaskAlpha(IPdfImage image) =>
+        HasSoftMask(image) ? MaskAlpha(image.MaskImage!) : null;
+
+    /// <summary>
+    /// A soft mask's levels on the image's own grid, which is where a matte is taken out of its samples. A <c>/Matte</c> asks
+    /// for a mask the image's size; one that is not is resampled for the unmixing, and drawn at its own resolution.
+    /// </summary>
+    private static byte[] OnImageGrid((byte[] Levels, int Width, int Height) mask, int width, int height) =>
+        mask.Width == width && mask.Height == height
+            ? mask.Levels
+            : Resampled(mask.Levels, mask.Width, mask.Height, 1, width, height);
+
     /// <summary>
     /// How much of each sample shows, at the resolution it was given in: a soft mask's own, which need not be the image's,
     /// or the image's for a colour key. Null where every sample shows. An <c>/SMask</c> takes the place of the opacity in the
     /// image's own data, and either takes the place of a <c>/Mask</c> (ISO 32000-2, 8.9.5, table 87).
     /// </summary>
     private static (byte[] Levels, int Width, int Height)? Alpha(IPdfImage image, int width, int height, int components,
-        ReadOnlySpan<byte> samples, (byte[] Levels, int Width, int Height)? embedded)
+        ReadOnlySpan<byte> samples, (byte[] Levels, int Width, int Height)? softMask, (byte[] Levels, int Width, int Height)? embedded)
     {
-        if (image.MaskImage is { } softMask && image.ImageDictionary.ContainsKey(NameToken.Smask))
-            return MaskAlpha(softMask);
+        if (HasSoftMask(image))
+            return softMask;
 
         if (embedded is { } own)
             return own;
