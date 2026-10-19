@@ -8,6 +8,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Media.Jpeg2000;
 using UglyToad.PdfPig.Filters;
+using static Nexaflow.Tests.Features.Pdf.DecodeTiming;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -41,30 +42,17 @@ namespace Nexaflow.Tests.Features.Pdf;
 [NoCoverage("a measurement to read, not a check")]
 public class JpxDecodeBench
 {
-    /// <summary>How many times each decode is timed; the median is kept.</summary>
-    private const int Runs = 5;
-
-    /// <summary>
-    /// A decode slower than this is timed once: its first run, which the pixel comparison has already warmed. Repeats
-    /// buy nothing at that size, where a run is long beside the timer and the noise.
-    /// </summary>
-    private const double Slow = 1000;
-    /// <summary>A timed run repeats a decode until it lasts this long, so a tiny image is not timer noise.</summary>
-    private const double Batch = 5;
-
-    /// <summary>How many decodes an allocation figure is averaged over.</summary>
-    private const int MemoryRuns = 2;
-
     /// <summary>How long each profile samples for, the corpus decoded as many times as that takes.</summary>
     private const double ProfileMs = 15_000;
 
     [TestMethod]
     public void HowManagedJpxDecodingComparesWithNative()
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(JpxRun.Folder))) { Assert.Inconclusive($"set {JpxRun.Folder} to a folder to write the run to"); return; }
-        if (JpxRun.NativeLibrary() is not { } library) return;
+        var codec = PdfImageCodec.Jpx;
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(codec.FolderVariable))) { Assert.Inconclusive($"set {codec.FolderVariable} to a folder to write the run to"); return; }
+        if (PdfImageRun.NativeLibrary(codec) is not { } library) return;
 
-        if (JpxRun.Open("bench") is not { } sample) return;
+        if (PdfImageRun.Open(codec, "bench") is not { } sample) return;
         using var _ = sample;
 
         using var native = new LibOpenJpeg(library);
@@ -106,44 +94,14 @@ public class JpxDecodeBench
         sample.Write(run);
     }
 
-    /// <summary>
-    /// Decodes the sample over and over before anything is timed — every way it is timed, until there have been
-    /// <see cref="WarmUpDecodes"/> decodes and <see cref="WarmUpMs"/> has gone by — so the JIT has replaced the
-    /// decoder's first, unoptimised code with its optimised code: a method is recompiled after 30 calls and a short delay,
-    /// and a small image is otherwise timed in the few runs before that happens.
-    /// </summary>
-    private static void WarmUp(IReadOnlyList<JpxStream> streams, PdfJpxFilter filter)
-    {
-        if (streams.Count == 0) return;
-
-        var clock = Stopwatch.StartNew();
-        for (var decodes = 0; decodes < WarmUpDecodes || clock.Elapsed.TotalMilliseconds < WarmUpMs; )
+    /// <summary>The sample decoded every way it is timed, before anything is: <see cref="DecodeTiming.WarmUp"/>.</summary>
+    private static void WarmUp(IReadOnlyList<PdfImageStream> streams, PdfJpxFilter filter) =>
+        DecodeTiming.WarmUp(streams, stream =>
         {
-            foreach (var stream in streams)
-            {
-                try
-                {
-                    Managed(stream, singleThreaded: true);
-                    Managed(stream, singleThreaded: false);
-                    filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0);
-                }
-                catch (Exception)
-                {
-                    // An image the decoder refuses is reported when it is measured.
-                }
-                decodes++;
-            }
-        }
-    }
-
-    /// <summary>How many decodes warm the decoder up, at the least.</summary>
-    private const int WarmUpDecodes = 64;
-
-    /// <summary>
-    /// How long warming the decoder up takes, at the least, in milliseconds: the JIT holds back its recompiling while
-    /// methods are still being compiled for the first time, so a second is not enough.
-    /// </summary>
-    private const double WarmUpMs = 3000;
+            Managed(stream, singleThreaded: true);
+            Managed(stream, singleThreaded: false);
+            filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0);
+        });
 
     /// <summary>
     /// Where OpenJPEG.net's time goes, by stage, over the same sample <see cref="HowManagedJpxDecodingComparesWithNative"/>
@@ -154,7 +112,7 @@ public class JpxDecodeBench
     [TestMethod]
     public void WhereManagedJpxDecodingSpendsItsTime()
     {
-        if (JpxRun.Open("profile") is not { } sample) return;
+        if (PdfImageRun.Open(PdfImageCodec.Jpx, "profile") is not { } sample) return;
         using var _ = sample;
 
         var filter = new PdfJpxFilter();
@@ -179,14 +137,14 @@ public class JpxDecodeBench
     }
 
     /// <summary>Whether the reader's filter decodes this image at all — only what it decodes is profiled.</summary>
-    private static bool Decodes(JpxStream stream, PdfJpxFilter filter)
+    private static bool Decodes(PdfImageStream stream, PdfJpxFilter filter)
     {
         try { filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0); return true; }
         catch (Exception) { return false; }
     }
 
     /// <summary>One image: decoded by both, compared, and — when both decoded it alike — timed every way.</summary>
-    private static Row Measured(JpxStream stream, LibOpenJpeg native, int threads, PdfJpxFilter filter)
+    private static Row Measured(PdfImageStream stream, LibOpenJpeg native, int threads, PdfJpxFilter filter)
     {
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -231,59 +189,14 @@ public class JpxDecodeBench
     }
 
     /// <summary>The managed decode alone, set up as <see cref="PdfJpxFilter"/> sets it up.</summary>
-    private static Jpeg2000Image Managed(JpxStream stream, bool singleThreaded) =>
+    private static Jpeg2000Image Managed(PdfImageStream stream, bool singleThreaded) =>
         Jpeg2000Decoder.Decode(stream.Data, new Jpeg2000DecodeOptions { ApplyPalette = !stream.IgnorePalette, Parallel = !singleThreaded });
-
-    /// <summary>
-    /// The median of a decode's timed runs, in milliseconds, after one run to warm it — or that one run, when it is
-    /// <see cref="Slow"/>.
-    /// </summary>
-    private static double Time(Action decode)
-    {
-        var clock = Stopwatch.StartNew();
-        decode();
-        var once = clock.Elapsed.TotalMilliseconds;
-        if (once > Slow) return Round(once);
-
-        var batch = Math.Max(1, (int)Math.Ceiling(Batch / Math.Max(once, 0.001)));
-        var times = new double[Runs];
-
-        for (var at = 0; at < times.Length; at++)
-        {
-            clock.Restart();
-            for (var repeat = 0; repeat < batch; repeat++) decode();
-            times[at] = clock.Elapsed.TotalMilliseconds / batch;
-        }
-
-        Array.Sort(times);
-        return Round(times[times.Length / 2]);
-    }
-
-    /// <summary>
-    /// What one decode allocates, across every thread it uses, and how many collections of each generation it costs —
-    /// averaged over <see cref="MemoryRuns"/> decodes after one to warm it, so a pool or a cache filled once is not counted.
-    /// </summary>
-    private static DecodeMemory Allocated(Action decode)
-    {
-        decode();
-        var (gen0, gen1, gen2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
-        var before = GC.GetTotalAllocatedBytes(precise: true);
-
-        for (var run = 0; run < MemoryRuns; run++) decode();
-
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
-        return new DecodeMemory(
-            Round(allocated / 1024.0 / MemoryRuns),
-            Round((GC.CollectionCount(0) - gen0) / (double)MemoryRuns),
-            Round((GC.CollectionCount(1) - gen1) / (double)MemoryRuns),
-            Round((GC.CollectionCount(2) - gen2) / (double)MemoryRuns));
-    }
 
     /// <summary>
     /// The images decoded over and over, whole passes, until <see cref="ProfileMs"/> has gone by, counting each pass on
     /// <paramref name="passed"/>.
     /// </summary>
-    private static Action ForAWhile(IReadOnlyList<JpxStream> streams, Action<JpxStream> decode, Action passed) => () =>
+    private static Action ForAWhile(IReadOnlyList<PdfImageStream> streams, Action<PdfImageStream> decode, Action passed) => () =>
     {
         var clock = Stopwatch.StartNew();
         do
@@ -343,10 +256,10 @@ public class JpxDecodeBench
     {
         var listed = new List<Dictionary<string, object>>();
 
-        foreach (var group in timed.GroupBy(row => JpxRun.SizeOf(row.Megapixels)).OrderBy(g => g.Key))
+        foreach (var group in timed.GroupBy(row => PdfImageRun.SizeOf(row.Megapixels)).OrderBy(g => g.Key))
         {
             var totals = Totals(group.ToList());
-            totals["size"] = JpxRun.Sizes[group.Key].Name;
+            totals["size"] = PdfImageRun.Sizes[group.Key].Name;
             listed.Add(totals);
         }
 
@@ -396,17 +309,10 @@ public class JpxDecodeBench
     private static Dictionary<string, string> Staged(params (string Stage, string[] Types)[] stages) =>
         stages.SelectMany(s => s.Types.Select(type => (type, s.Stage))).ToDictionary(p => p.type, p => p.Stage, StringComparer.Ordinal);
 
-    private static double Ratio(double managed, double native) => native <= 0 ? 0 : Math.Round(managed / native, 2);
-
-    private static double Round(double value) => Math.Round(value, 3);
-
     private sealed record Timing(double ManagedSingleMs, double ManagedMs, double? FilterMs, double NativeSingleMs, double NativeMs,
         DecodeMemory ManagedSingleMemory, DecodeMemory ManagedMemory, DecodeMemory? FilterMemory);
 
-    /// <summary>One decode's allocations, in KB across every thread, and the collections of each generation it caused.</summary>
-    private sealed record DecodeMemory(double AllocatedKb, double Gen0, double Gen1, double Gen2);
-
-    private sealed record Row(JpxStream Stream, ImageShape? Shape, string Pixels, string? ManagedError, string? NativeError, string? FilterError, Timing? Timing)
+    private sealed record Row(PdfImageStream Stream, ImageShape? Shape, string Pixels, string? ManagedError, string? NativeError, string? FilterError, Timing? Timing)
     {
         public double Megapixels => Shape is null ? 0 : Shape.Width * (double)Shape.Height / 1_000_000;
 
