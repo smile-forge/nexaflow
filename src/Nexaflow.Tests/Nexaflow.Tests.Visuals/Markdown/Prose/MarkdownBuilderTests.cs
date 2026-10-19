@@ -62,6 +62,7 @@ public class MarkdownBuilderTests
         ("a table with a cell across two", "| a | b |\n|---|---|\n| one | two |\n"),
         ("a link", "see [the page](https://example.org)\n"),
         ("an entity", "a &amp; b\n"),
+        ("typography and an emoji", "\"Wait\" -- it's :rocket:...\n"),
         ("everything at once",
          "# Title\n\nWords with **bold**.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- [ ] a task\n\n> quoted\n"),
     ];
@@ -179,6 +180,32 @@ public class MarkdownBuilderTests
 
         Assert.IsFalse(entity.Words!.Maps, "what is drawn is not what was written");
         Assert.IsTrue(entity.Words!.Writes, "so pressing it shows what was written");
+    }
+
+    [TestMethod]
+    public void TypographyAndAnEmojiAreDrawnAsWhatTheyStandForAndSaySo()
+    {
+        var words = Words(Lay("\"Wait\" -- :rocket:...\n"));
+
+        foreach (var drawn in new[] { "“", "”", "–", "\U0001F680", "…" })
+        {
+            var piece = words.First(piece => piece.Words!.Glyphs.Text == drawn);
+
+            Assert.IsFalse(piece.Words!.Maps, $"{drawn}: what is drawn is not what was written");
+            Assert.IsTrue(piece.Words!.Writes, $"{drawn}: so pressing it shows what was written");
+        }
+    }
+
+    [TestMethod]
+    public void WhatIsWrittenAsOtherCharactersReadsAsWhatItStandsFor_StandingForAllOfWhatWasWritten()
+    {
+        const string source = "caf&eacute; -- \"so\" :rocket:\n";
+        var read = DrawnText.Of(MarkdownParser.Parsing()(source).Tree);
+
+        Assert.AreEqual("café – “so” \U0001F680", read.Text.Trim());
+
+        var found = MarkdownFind.Drawn(read, "café").Single();
+        Assert.AreEqual((0, "caf&eacute;".Length), (found.Start, found.Length));
     }
 
     [TestMethod]

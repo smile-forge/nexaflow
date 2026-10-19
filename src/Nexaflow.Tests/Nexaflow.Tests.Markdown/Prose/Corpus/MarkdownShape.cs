@@ -43,14 +43,15 @@ internal static class MarkdownShape
         MarkdownKinds.Emphasis, MarkdownKinds.Strong, MarkdownKinds.Strike, MarkdownKinds.Mark, MarkdownKinds.Insert,
         MarkdownKinds.Sub, MarkdownKinds.Sup, MarkdownKinds.Citation, MarkdownKinds.Image, MarkdownKinds.Entity,
         MarkdownKinds.Break, MarkdownKinds.Abbreviation, MarkdownKinds.Figure, MarkdownKinds.Caption, MarkdownKinds.Footer,
-        Kinds.Link,
+        MarkdownKinds.Typographic, MarkdownKinds.Shortcode, Kinds.Link,
     ];
 
     /// <summary>The kinds whose insides are not looked into: what is in them is no construct of markdown's.</summary>
     private static readonly HashSet<string> Closed =
     [
         MarkdownKinds.Rule, MarkdownKinds.Task, MarkdownKinds.FrontMatter, MarkdownKinds.Reference, MarkdownKinds.Entity,
-        MarkdownKinds.Break, MarkdownKinds.Abbreviation, CodeSpan, IndentedCode, Fence, HtmlBlock, HtmlInline, Formula,
+        MarkdownKinds.Break, MarkdownKinds.Abbreviation, MarkdownKinds.Typographic, MarkdownKinds.Shortcode, CodeSpan, IndentedCode,
+        Fence, HtmlBlock, HtmlInline, Formula,
         DisplayedFormula, AbbreviationDefinition, ShownAsWritten, Unread,
     ];
 
@@ -162,6 +163,7 @@ internal static class MarkdownShape
         MarkdownKinds.Alert => Facts(("name", node.SelfAndDescendants().FirstOrDefault(part => part.Role == Roles.Name && part.IsLeaf)?.Text)),
         Kinds.Link or MarkdownKinds.Image => Facts(("to", MarkdownLinks.Goes(node) ?? string.Empty)),
         MarkdownKinds.Break => Facts(("hard", node.Role == MarkdownRoles.Hard)),
+        MarkdownKinds.Typographic => Facts(("faces", node.Role)),
         MarkdownKinds.Abbreviation => Facts(("means", Said(node, MarkdownKinds.Abbreviation))),
         MarkdownKinds.Reference => Facts(("to", Said(node, MarkdownKinds.Reference))),
         AbbreviationDefinition => Facts(("means", Said(node, MarkdownKinds.Abbreviation))),

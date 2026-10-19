@@ -120,6 +120,14 @@ public sealed partial class MarkdownBuilder
     {
         if (part.Derived) return;
 
+        // Written as other characters than it reads as — an entity, an escape, punctuation typed plainly, an emoji's name — so
+        // what is drawn is not what was written, and a press on it says so.
+        if (MarkdownStandIns.Decoded(part.Node) is { } drawn)
+        {
+            runs.Add(new Run(face.Capitals ? Capitalised(drawn) : drawn, part, face, Maps: false));
+            return;
+        }
+
         switch (part.Kind)
         {
             case MarkdownKinds.Strong: Inside(part, face with { Bold = true }, runs); return;
@@ -169,17 +177,6 @@ public sealed partial class MarkdownBuilder
 
             case Kinds.Link:
                 Linked(part, face, runs);
-                return;
-
-            // Written as the characters that could hold it, drawn as the character it stands for — so what is drawn is
-            // not what was written, and a press on it says so.
-            case MarkdownKinds.Entity:
-                runs.Add(new Run(MarkdownEntities.Decoded(part.Text) ?? part.Text, part, face, Maps: false));
-                return;
-
-            // The same bargain, spelled with a backslash: two characters that mean the second one.
-            case MarkdownKinds.Escape when part.Text.Length > 1:
-                runs.Add(new Run(part.Text[1..], part, face, Maps: false));
                 return;
 
             case MarkdownKinds.Citation:

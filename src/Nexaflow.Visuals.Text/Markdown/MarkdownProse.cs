@@ -61,14 +61,18 @@ public static class MarkdownProse
         {
             if (part.Derived) return;
 
+            if (MarkdownStandIns.Decoded(part.Node) is { } reads)
+            {
+                sb.Append(reads);
+                return;
+            }
+
             switch (part.Kind)
             {
                 case MarkdownKinds.Image:                         return;   // a picture, not text
                 case MarkdownKinds.Html:                          return;
                 case MarkdownKinds.Task:                          return;
                 case Kinds.Block or MarkdownKinds.Formula:        return;   // typeset, not text
-                case MarkdownKinds.Entity:                        sb.Append(MarkdownEntities.Decoded(part.Text) ?? part.Text); return;
-                case MarkdownKinds.Escape when part.Text.Length > 1: sb.Append(part.Text[1..]); return;
                 case MarkdownKinds.Break:
                     if (!MarkdownLineEnds.Closes(part)) sb.Append(part.Role == MarkdownRoles.Hard ? '\n' : ' ');
                     return;
