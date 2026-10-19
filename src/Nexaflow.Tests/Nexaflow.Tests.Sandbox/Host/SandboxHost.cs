@@ -72,16 +72,21 @@ internal static class SandboxHost
 
         var monitor = MonitorDirectory.Choose(arguments.Value("monitor"));
         var forwarded = ForwardedEnvironment.FromHost(Checkout);
+        var webView2 = HostWebView2.Find();
         var configuration = new SandboxConfiguration(
-            Checkout, HostDotnet(), arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"),
+            Checkout, HostDotnet(), webView2, arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"),
             forwarded.Folders);
 
         var session = SessionFolder.CreateNew(Checkout);
         VisualCppRuntime.Stage(session.Redist);
         SessionFolder.WriteJson(session.EnvironmentFile, forwarded.Variables);
 
-        // Started minimised, so its console never sits over the app it is driving.
-        var logon = $"cmd.exe /c start \"Nexaflow sandbox agent\" /min \"{configuration.InSandbox(agent)}\" "
+        // The sandbox brought to the host's Smart App Control and pointed at the lent WebView2 runtime first, then the agent,
+        // started minimised so its console never sits over the app it is driving.
+        var smartAppControlOff = HostSmartAppControl.IsOff;
+        string[] setup = [.. HostSmartAppControl.SandboxCommands(smartAppControlOff), .. webView2?.SandboxCommands ?? []];
+        var logon = $"cmd.exe /c {string.Concat(setup.Select(command => command + " & "))}"
+                    + $"start \"Nexaflow sandbox agent\" /min \"{configuration.InSandbox(agent)}\" "
                     + $"{VerbCatalogue.Agent.Name} --session \"{configuration.InSandbox(session.Root)}\"";
         var xml = configuration.ToXml(logon);
         File.WriteAllText(session.ConfigurationFile, xml);
@@ -89,6 +94,12 @@ internal static class SandboxHost
         Console.WriteLine($"Starting Windows Sandbox with {configuration.MemoryMB} MB; session {session.Root}");
         if (forwarded.Variables.Count > 0)
             Console.WriteLine($"Forwarding {string.Join(", ", forwarded.Variables.Keys)} ({forwarded.Folders.Count} folder(s) shared read-only).");
+        Console.WriteLine(webView2 is null
+            ? "The host has no Edge WebView2 runtime to lend, so the sandbox's Web viewer will show its fallback."
+            : $"Lending the host's Edge WebView2 runtime {webView2.Version} (read-only).");
+        Console.WriteLine(smartAppControlOff
+            ? "Smart App Control is off here, so the sandbox turns it off too before the agent starts."
+            : "Smart App Control is on here, so the sandbox keeps it, and may refuse an unsigned rebuild of the agent.");
         var id = WsbCli.Start(xml);
         SessionFolder.WriteJson(session.HostRecordFile, new HostRecord(id, DateTimeOffset.Now, monitor.Device));
 

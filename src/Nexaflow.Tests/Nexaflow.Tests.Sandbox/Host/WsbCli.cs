@@ -30,10 +30,16 @@ internal static class WsbCli
             .ToList();
     }
 
-    /// <summary>Opens the sandbox's window, which signs its user in. <c>wsb connect</c> lasts as long as the window, so it is left running.</summary>
+    /// <summary>
+    /// Opens the sandbox's window, which signs its user in. <c>wsb connect</c> starts the window's own process and returns,
+    /// and that process lives as long as the window — so it is started through the shell, which hands it none of this
+    /// process's handles. Given our output, the window would hold it open, and whoever reads it would wait for the window to close.
+    /// </summary>
     public static void Connect(string id)
     {
-        using var _ = Launch(capture: false, "connect", "--id", id);
+        using var process = Launch(capture: false, "connect", "--id", id);
+        process.WaitForExit();
+        if (process.ExitCode != 0) throw new SandboxException($"wsb connect failed ({process.ExitCode}).");
     }
 
     public static void Stop(string id) => Invoke("stop", "--id", id);
@@ -51,10 +57,13 @@ internal static class WsbCli
 
     private static Process Launch(bool capture, params string[] arguments)
     {
+        // Captured, its output comes back through pipes of ours; otherwise it is started through the shell, hidden, and
+        // inherits nothing to pass on.
         var start = new ProcessStartInfo("wsb")
         {
-            UseShellExecute = false,
+            UseShellExecute = !capture,
             CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
             RedirectStandardOutput = capture,
             RedirectStandardError = capture,
         };
