@@ -85,6 +85,7 @@ public sealed class ToneSignal(double frequency, double level, ChannelSelection 
 /// </summary>
 public sealed class SweepSignal(double from, double to, TimeSpan duration, double level, ChannelSelection selection) : IAudioSignal
 {
+    readonly double _from = from;
     double _phase;
     long _frames;
 
@@ -95,11 +96,11 @@ public sealed class SweepSignal(double from, double to, TimeSpan duration, doubl
     {
         long total = (long)(duration.TotalSeconds * rate);
         int frames = (int)Math.Min(interleaved.Length / channels, Math.Max(0, total - _frames));
-        double ratio = Math.Log(to / from);
+        double ratio = Math.Log(to / _from);
         for (int f = 0; f < frames; f++)
         {
             double t = (double)(_frames + f) / total;
-            Frequency = from * Math.Exp(ratio * t);
+            Frequency = _from * Math.Exp(ratio * t);
             _phase += 2 * Math.PI * Frequency / rate;
             if (_phase > 2 * Math.PI) _phase -= 2 * Math.PI;
             float s = (float)(level * Math.Sin(_phase));

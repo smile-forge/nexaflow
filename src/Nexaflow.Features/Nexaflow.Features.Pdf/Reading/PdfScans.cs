@@ -47,7 +47,7 @@ internal static class PdfScans
     public static double? ScanResolution(PdfDocument document, int number)
     {
         if (document.GetPage(number).GetImages().FirstOrDefault() is not { } image) return null;
-        var placed = Math.Max(image.Bounds.Width, image.Bounds.Height);
+        var placed = Math.Max(image.BoundingBox.Width, image.BoundingBox.Height);
         return placed > 0 ? Math.Max(image.WidthInSamples, image.HeightInSamples) / placed : null;
     }
 }

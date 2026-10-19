@@ -22,7 +22,6 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 /// standing for the same characters, wherever the stretches happened to stop.
 /// </summary>
 [TestClass]
-[CoversNode("windowed-reading")]
 public class WindowedLayoutTests
 {
     private const double Room = 640;
@@ -39,6 +38,7 @@ public class WindowedLayoutTests
     private static int[] Lengths(string text) => text.Length < 16 * 1024 ? [64, 1024] : [text.Length / 32, text.Length / 8];
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void EveryMarkdownSample_LaidAStretchAtATime_IsTheSampleLaidWhole()
     {
         var documents = TestSampleData.Files("markdown").ToList();
@@ -54,6 +54,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void EveryRtfSample_LaidAStretchAtATime_IsTheSampleLaidWhole()
     {
         foreach (var path in TestSampleData.Files("rtf"))
@@ -66,6 +67,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ALongDocument_IsLaidOnlyAsFarAsTheReaderHasLooked_OnAPageAsLongAsAllOfIt()
     {
         var text = Paragraphs(4000);
@@ -81,6 +83,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void TheReaderComingNearWhatIsNotLaid_AsksForMore_AndMoreIsLaid()
     {
         var engine = Shown(Paragraphs(4000), null, new ContentEngine());
@@ -99,6 +102,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ACaretSentToTheEnd_IsLaidOutTo()
     {
         var text = Paragraphs(4000);
@@ -112,6 +116,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ALongRtfDocument_OpensAStretchAtATime_AndLaidToItsEndIsItLaidWhole()
     {
         var text = RtfParagraphs(3000);
@@ -125,6 +130,7 @@ public class WindowedLayoutTests
     // ── Laying ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ALongDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
     {
         var path = Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md"));
@@ -146,6 +152,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ALongRtfDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
     {
         var text = RtfParagraphs(1500);
@@ -161,6 +168,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void AWordInTheLastParagraphOfALongRtfDocument_IsFound_WithOnlyTheFirstScreenLaid()
     {
         var text = RtfParagraphs(3000);
@@ -175,6 +183,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ACaretSentPastWhatIsLaid_IsLaidTo_AndThenBroughtOntoThePage()
     {
         var text = Paragraphs(4000);
@@ -193,6 +202,7 @@ public class WindowedLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("windowed-reading")]
     [CoversNode("reference-links")]
     public void ALinkDefinedAtTheEndOfALongDocument_IsALinkAtItsTop_BeforeTheEndIsLaid()
     {

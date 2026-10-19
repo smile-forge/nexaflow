@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using ComStream = System.Runtime.InteropServices.ComTypes.IStream;
+using System.Runtime.Versioning;
 
 namespace Nexaflow.IO.Common.Portable;
 
@@ -75,6 +76,7 @@ internal static class WpdKeys
     public static PropertyKey ResourceDefault = new(new Guid("E81E79BE-34F0-41BF-B53F-F1A06AE87842"), 0);
 }
 
+[SupportedOSPlatform("windows")]
 internal static class WpdGuids
 {
     public static readonly Guid DeviceInterface = new("6AC27878-A6FA-4155-BA85-F98F491D4F33");

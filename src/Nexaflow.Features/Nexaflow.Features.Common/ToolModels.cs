@@ -18,6 +18,8 @@ public enum ToolModelsState
 
 /// <summary>A picture to restore, by file: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</summary>
 /// <param name="Pixels">The file the picture is in.</param>
+/// <param name="Width">The picture's width, in pixels.</param>
+/// <param name="Height">The picture's height, in pixels.</param>
 /// <param name="Scale">1, 2 or 4: how many times its size it comes back — at 1, cleaned and kept at its size.</param>
 /// <param name="Faces">Whether the faces found in it are remade.</param>
 /// <param name="Into">The file the restored picture is written to, in the same form; replaced if it is there.</param>
@@ -126,6 +128,8 @@ public interface IPictureSelectionSession : IAsyncDisposable
 /// <summary>What to erase from a picture, by file.</summary>
 /// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
 /// <param name="Mask">The file the mask is in: one byte a pixel, row by row, erased where it is not 0.</param>
+/// <param name="Width">The picture's and the mask's width, in pixels.</param>
+/// <param name="Height">The picture's and the mask's height, in pixels.</param>
 /// <param name="Into">The file the erased picture is written to, in the picture's form; replaced if it is there.</param>
 public sealed record PictureEraseRequest(string Pixels, string Mask, int Width, int Height, string Into);
 

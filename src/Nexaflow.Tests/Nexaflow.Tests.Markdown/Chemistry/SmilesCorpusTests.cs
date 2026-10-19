@@ -20,13 +20,12 @@ namespace Nexaflow.Tests.Markdown.Chemistry;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("smiles-chemistry")]
-[CoversNode("smiles-structure-layout")]
 public class SmilesCorpusTests
 {
     private const string Default = @"D:\Datasets\smiles";
 
     [TestMethod]
+    [CoversNode("smiles-chemistry")]
     public void FiveThousandRealMoleculesReadBackExactly()
     {
         if (Corpus() is not { } rows) { Assert.Inconclusive(Missing); return; }
@@ -58,6 +57,7 @@ public class SmilesCorpusTests
     }
 
     [TestMethod]
+    [CoversNode("smiles-chemistry")]
     public void WhatReadsAndWhatDoesNotAgreesWithRDKit()
     {
         if (Corpus() is not { } rows) { Assert.Inconclusive(Missing); return; }
@@ -76,6 +76,7 @@ public class SmilesCorpusTests
     }
 
     [TestMethod]
+    [CoversNode("smiles-chemistry")]
     public void EveryAtomCarriesTheHydrogensRDKitGivesIt()
     {
         if (Corpus() is not { } rows) { Assert.Inconclusive(Missing); return; }
@@ -92,6 +93,7 @@ public class SmilesCorpusTests
     }
 
     [TestMethod]
+    [CoversNode("smiles-structure-layout")]
     public void AndFewerOfThemOverlapThanInRDKitsOwnDrawings()
     {
         // RDKit's depictions overlap two atoms in about one molecule in thirty of this corpus. Ours is held to doing

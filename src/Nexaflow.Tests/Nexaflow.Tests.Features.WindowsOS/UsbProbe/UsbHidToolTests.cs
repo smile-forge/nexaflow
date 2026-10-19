@@ -139,7 +139,7 @@ public class UsbHidToolTests
         await tool.ActivateAsync(CancellationToken.None);
         Assert.IsTrue(tool.IsMonitoring, "opened again, it watches again");
         tool.Dispose();
-        Assert.IsTrue(access.Opened.Disposed);
+        Assert.IsTrue(access.Opened is { Disposed: true });
     }
 
     [TestMethod]

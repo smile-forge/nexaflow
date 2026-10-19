@@ -137,7 +137,7 @@ public sealed class RenderPipeline : IDisposable
         return DrawBanded(new SKSizeI(geometry.Width, geometry.Height), c =>
         {
             using var paint = new SKPaint { ColorFilter = filter, BlendMode = SKBlendMode.Src };
-            c.DrawImage(geometry, 0, 0, paint);
+            c.DrawImage(geometry, 0, 0, SKSamplingOptions.Default, paint);
         });
     }
 
@@ -146,7 +146,7 @@ public sealed class RenderPipeline : IDisposable
         using var surface = NewSurface(new SKSizeI(toned.Width, toned.Height));
         var c = surface.Canvas;
         c.Clear(SKColors.Transparent);
-        using (var copy = new SKPaint { BlendMode = SKBlendMode.Src }) c.DrawImage(toned, 0, 0, copy);
+        using (var copy = new SKPaint { BlendMode = SKBlendMode.Src }) c.DrawImage(toned, 0, 0, SKSamplingOptions.Default, copy);
         c.SetMatrix(sourceToCanvas);
         foreach (var element in recipe.Markup) _markup.Paint(c, element);
         return surface.Snapshot();

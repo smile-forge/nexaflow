@@ -92,9 +92,10 @@ public static class EraseMasks
                 }
                 paint.Style = SKPaintStyle.Stroke;
                 paint.StrokeWidth = (float)stroke.Width;
-                using var path = new SKPath();
-                path.MoveTo((float)stroke.Points[0].X, (float)stroke.Points[0].Y);
-                foreach (var point in stroke.Points.Skip(1)) path.LineTo((float)point.X, (float)point.Y);
+                using var builder = new SKPathBuilder();
+                builder.MoveTo((float)stroke.Points[0].X, (float)stroke.Points[0].Y);
+                foreach (var point in stroke.Points.Skip(1)) builder.LineTo((float)point.X, (float)point.Y);
+                using var path = builder.Detach();
                 canvas.DrawPath(path, paint);
             }
         }

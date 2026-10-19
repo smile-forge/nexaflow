@@ -17,7 +17,6 @@ namespace Nexaflow.Tests.Core.Unit.Ribbon;
 /// everything version 2 adds must survive a save and load; and the shipped defaults must read in either shape.
 /// </summary>
 [TestClass]
-[CoversNode("ribbon-layout-sync")]
 public class RibbonLayoutServiceTests
 {
     private string _dir = null!;
@@ -38,6 +37,7 @@ public class RibbonLayoutServiceTests
     private string RibbonFile => Path.Combine(_dir, "ribbon.json");
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void VersionOne_ReadsAccentAsForeground()
     {
         File.WriteAllText(RibbonFile, """
@@ -63,6 +63,7 @@ public class RibbonLayoutServiceTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void VersionOne_IsWrittenBackAsVersionTwo()
     {
         File.WriteAllText(RibbonFile, """[ { "Kind": "Button", "Label": "Docs", "Icon": "📄", "AccentColor": "#FF112233" } ]""");
@@ -77,6 +78,7 @@ public class RibbonLayoutServiceTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void VersionTwo_RoundTripsEveryLookProperty()
     {
         var service = new RibbonLayoutService(_dir);
@@ -112,6 +114,7 @@ public class RibbonLayoutServiceTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void AnUnstyledButton_WritesNoLook()
     {
         var service = new RibbonLayoutService(_dir);
@@ -123,6 +126,7 @@ public class RibbonLayoutServiceTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void Corrupt_LoadsAsNothing()
     {
         File.WriteAllText(RibbonFile, "{ not json");
@@ -130,6 +134,7 @@ public class RibbonLayoutServiceTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void Missing_LoadsAsNothing() => Assert.IsNull(new RibbonLayoutService(_dir).Load());
 
     [TestMethod]

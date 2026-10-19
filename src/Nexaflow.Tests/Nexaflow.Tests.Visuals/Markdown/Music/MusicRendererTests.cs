@@ -19,7 +19,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("abc-layout")]
 public class MusicRendererTests
 {
     private static Laid Lay(string md) => Laying.Lay(null, md, 700, StyleFormat.Dark);
@@ -29,6 +28,7 @@ public class MusicRendererTests
         && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MarkdownPieces.Verbatim);
 
     [TestMethod]
+    [CoversNode("abc-layout")]
     public void ValidAbc_Engraves() => UiThread.Run(() =>
         Assert.IsTrue(Engraved(Lay("```abc\nX:1\nM:4/4\nK:G\n|:GABc dedB|c2A2 A2BA:|\n```\n")),
                       "valid notation should engrave, not fall back to its source"));

@@ -14,8 +14,6 @@ namespace Nexaflow.Tests.Markdown.WordCloud;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("wordcloud-packing")]
-[CoversNode("wordcloud-stencil")]
 public class WordCloudPackingTests
 {
     /// <summary>A square of ink, which is the one outline whose cells can be counted by hand.</summary>
@@ -25,6 +23,7 @@ public class WordCloudPackingTests
     // ── The shape of a word ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void AWordCoversTheCellsItsOutlineFills()
     {
         var mask = WordMask.Of(Square(12), grid: 4, gap: 0)!;
@@ -35,6 +34,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void AWordKnowsWhereItsShapeSitsFromWhereItIsSet()
     {
         // The outline is in pixels from where the word is set, and the grid is laid over it — so a word
@@ -47,6 +47,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void TheGapIsPartOfTheWordsShape()
     {
         var tight = WordMask.Of(Square(12), grid: 4, gap: 0)!;
@@ -57,6 +58,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void AnOutlineThatEnclosesNothingIsNoWord()
     {
         Assert.IsNull(WordMask.Of([], grid: 4, gap: 0));
@@ -65,6 +67,7 @@ public class WordCloudPackingTests
     // ── Where the words go ─────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void TheFirstWordTakesTheMiddle()
     {
         var board = Board(out var settings);
@@ -77,6 +80,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void NoTwoWordsShareACell()
     {
         var board = Board(out var settings);
@@ -95,6 +99,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void EveryWordStaysInsideThePicture()
     {
         var board = Board(out var settings);
@@ -113,6 +118,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void AWordTooBigForThePictureIsRefused()
     {
         var board = Board(out var settings);
@@ -124,6 +130,7 @@ public class WordCloudPackingTests
     // ── The shape a cloud is packed into ───────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-stencil")]
     public void AStencilHoldsWhatItsOutlineEncloses()
     {
         // Asked in shares of itself rather than in cells, so whoever builds one chooses its resolution and the
@@ -136,6 +143,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-stencil")]
     public void AnOutlineThatEnclosesNothingIsNoStencil()
     {
         Assert.IsNull(WordCloudStencil.Of([], grid: 2));
@@ -143,6 +151,8 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
+    [CoversNode("wordcloud-stencil")]
     public void NoWordIsPlacedOutsideTheStencil()
     {
         // The whole of how a cloud comes out letter-shaped: every cell outside the shape is taken before a
@@ -170,6 +180,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void TheSameBlockAlwaysGivesTheSameCloud()
     {
         // The whole reason the throw is the block's rather than the clock's: a cloud is laid out again on
@@ -178,6 +189,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void ADifferentSeedGivesADifferentCloud()
     {
         CollectionAssert.AreNotEqual(Spots(seed: 1), Spots(seed: 2));
@@ -186,6 +198,7 @@ public class WordCloudPackingTests
     // ── The outline the ring is pulled into ────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void ACircleReachesTheSameDistanceEveryWay()
     {
         foreach (var angle in Angles())
@@ -193,6 +206,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void ADiamondReachesFurthestAlongItsAxesAndLeastAtItsSides()
     {
         Assert.AreEqual(1, WordCloudShapes.Reach(WordCloudShape.Diamond, 0), 1e-9);
@@ -201,6 +215,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void EveryShapeReachesSomewhereAtEveryAngle()
     {
         // Including the angles either side of where each formula wraps, which is where a reach worked out
@@ -217,6 +232,7 @@ public class WordCloudPackingTests
     }
 
     [TestMethod]
+    [CoversNode("wordcloud-packing")]
     public void EveryShapeNamedIsAShape()
     {
         foreach (var name in WordCloudShapes.Names.Split(", "))

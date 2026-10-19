@@ -49,11 +49,12 @@ public sealed class MarkupPainter : IDisposable
         }
 
         paint.Style = SKPaintStyle.Fill;
-        using var path = new SKPath();
-        path.MoveTo(to);
-        path.LineTo(head.Left);
-        path.LineTo(head.Right);
-        path.Close();
+        using var builder = new SKPathBuilder();
+        builder.MoveTo(to);
+        builder.LineTo(head.Left);
+        builder.LineTo(head.Right);
+        builder.Close();
+        using var path = builder.Detach();
         canvas.DrawPath(path, paint);
     }
 
@@ -264,21 +265,21 @@ public sealed class MarkupPainter : IDisposable
     /// <summary>A quadratic curve through the midpoints of a freehand stroke's samples, so it is smooth however it was sampled.</summary>
     private static SKPath Smoothed(IReadOnlyList<MarkupPoint> points)
     {
-        var path = new SKPath();
-        path.MoveTo(Point(points[0]));
+        using var builder = new SKPathBuilder();
+        builder.MoveTo(Point(points[0]));
         if (points.Count == 1)
         {
-            path.LineTo(Point(points[0]));
-            return path;
+            builder.LineTo(Point(points[0]));
+            return builder.Detach();
         }
         for (int i = 1; i < points.Count - 1; i++)
         {
             var p = Point(points[i]);
             var next = Point(points[i + 1]);
-            path.QuadTo(p, new SKPoint((p.X + next.X) / 2, (p.Y + next.Y) / 2));
+            builder.QuadTo(p, new SKPoint((p.X + next.X) / 2, (p.Y + next.Y) / 2));
         }
-        path.LineTo(Point(points[^1]));
-        return path;
+        builder.LineTo(Point(points[^1]));
+        return builder.Detach();
     }
 
     private static SKPaint Ink(uint argb) => new() { Color = new SKColor(argb), IsAntialias = true };

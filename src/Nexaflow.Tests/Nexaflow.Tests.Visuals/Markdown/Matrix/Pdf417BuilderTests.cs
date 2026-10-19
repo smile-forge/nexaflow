@@ -18,11 +18,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("pdf417-render")]
-[CoversNode("pdf417-block-syntax")]
 public class Pdf417BuilderTests
 {
     [TestMethod]
+    [CoversNode("pdf417-render")]
     public void Pdf417IsADiagramLanguage()
     {
         Assert.IsTrue(ContentLanguages.Reads("pdf417"));
@@ -31,6 +30,7 @@ public class Pdf417BuilderTests
     }
 
     [TestMethod]
+    [CoversNode("pdf417-render")]
     public void APdf417FenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
         var element = Alone.Drawn("pdf417", "type: text\ntext: hello", StyleFormat.Dark);
@@ -40,6 +40,7 @@ public class Pdf417BuilderTests
     });
 
     [TestMethod]
+    [CoversNode("pdf417-block-syntax")]
     public void TakesTheQrTypeVocabulary()
     {
         var block = Read("type: wifi\nssid: Net\npassword: pw\nsecurity: WPA");
@@ -47,6 +48,7 @@ public class Pdf417BuilderTests
     }
 
     [TestMethod]
+    [CoversNode("pdf417-block-syntax")]
     public void ReadsItsOwnShapeSettings()
     {
         var block = Read("type: text\ntext: x\ncolumns: 4\nec: 5\nrowHeight: 4\ntruncated: true\ncellSize: 3");
@@ -59,6 +61,7 @@ public class Pdf417BuilderTests
     }
 
     [TestMethod]
+    [CoversNode("pdf417-block-syntax")]
     public void RefusesSettingsOutsideTheStandard()
     {
         Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse(language: "pdf417", source:"type: text\ntext: x\ncolumns: 40"), out _, out var wrong));
@@ -72,6 +75,7 @@ public class Pdf417BuilderTests
     }
 
     [TestMethod]
+    [CoversNode("pdf417-render")]
     public void RowsAreDrawnTallerThanTheyAreWide() => UiThread.Run(() =>
     {
         // The one code whose modules are not square. A PDF417 row carries nothing in its height, so it is drawn tall
@@ -86,6 +90,7 @@ public class Pdf417BuilderTests
     });
 
     [TestMethod]
+    [CoversNode("pdf417-render")]
     public void EveryRowIsStartIndicatorsCodewordsAndStop() => UiThread.Run(() =>
     {
         // Every one of them opens with a bar, so each starts where its column does: seventeen modules a column, the
@@ -111,6 +116,7 @@ public class Pdf417BuilderTests
     });
 
     [TestMethod]
+    [CoversNode("pdf417-render")]
     public void ThePictureReadsBack() => UiThread.Run(() =>
     {
         const string source = "type: url\nurl: https://markdown.org\ncolumns: 3\ncellSize: 2\nmargin: 2\nrowHeight: 3";
@@ -126,6 +132,8 @@ public class Pdf417BuilderTests
     });
 
     [TestMethod]
+    [CoversNode("pdf417-render")]
+    [CoversNode("pdf417-block-syntax")]
     public void ABadBlock_IsShownAsWritten_WithTheReason() => UiThread.Run(() =>
     {
         var laid = Build("type: text\ntext: x\ncolumns: 99");

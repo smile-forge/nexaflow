@@ -303,7 +303,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (!Conversion.Available) return;
         try
         {
-            _scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, _cts.Token), _cts.Token);
+            _scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, _cts.Token), _cts.Token) ?? [];
         }
         catch (OperationCanceledException) { return; }
         catch { return; }   // a document whose pages will not parse has no scans to offer

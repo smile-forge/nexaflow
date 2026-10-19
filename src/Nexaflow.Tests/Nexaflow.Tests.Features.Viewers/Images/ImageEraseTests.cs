@@ -30,7 +30,6 @@ namespace Nexaflow.Tests.Features.Images;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("images-edit-erase")]
 public class ImageEraseTests
 {
     private static readonly SKColor Ground = new(100, 150, 200);
@@ -116,6 +115,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void ABrushedStep_FilledByContentAwareFill_ErasesAtOnce_InThePhotoShownAndSaved()
     {
         var vm = Editing();
@@ -136,6 +136,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void TheHealingBrush_CopiesFromWhereItIsTold_AndNeedsTellingFirst()
     {
         var vm = Editing();
@@ -157,6 +158,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void AStepFilledByAi_IsErasedByPictureErasing_HandedThePhotoAndWhatIsBrushed()
     {
         var rubber = new Rubber();
@@ -174,6 +176,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void APickedThing_IsErasedGrownPastItsEdge()
     {
         var rubber = new Rubber();
@@ -192,6 +195,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void EachRunOfSteps_IsKept_SoAStepAddedMakesOnlyItself()
     {
         var rubber = new Rubber();
@@ -221,6 +225,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void AStepFilledByAi_WaitsForPictureErasing_AndOffersIt()
     {
         var rubber = new Rubber { State = ToolModelsState.NotDownloaded };
@@ -237,6 +242,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void ARestoration_IsMadeOfThePhotoAsErased()
     {
         var tools = new Enhancer();
@@ -253,6 +259,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public async Task AThumbnail_IsDrawnFromThePhotoAsErased()
     {
         var steps = new EraseSteps([new RecipeErase { Fill = EraseFill.ContentAware, Strokes = [new RecipeEraseStroke { Points = [new MarkupPoint(16, 12)], Width = 8 }] }]);
@@ -280,6 +287,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public async Task TheAssistant_ErasesWhatItNames_AsAStepOfTheEdits_FilledByAiWhereItIsHere()
     {
         var rubber = new Rubber();
@@ -296,6 +304,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public async Task TheAssistant_ErasesNothing_WhereNothingIsWhatItNames()
     {
         var rubber = new Rubber();
@@ -309,6 +318,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public async Task TheAssistant_ErasesABox_ContentAware_WherePictureErasingIsNotHere()
     {
         var vm = Editing(new Rubber { State = ToolModelsState.NotDownloaded }, new Patch());
@@ -347,6 +357,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void ARecipeThatErases_IsWrittenAsVersion4_AndReadsBackTheSame()
     {
         var recipe = ImageRecipe.Identity with
@@ -370,6 +381,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void AStep_MarksNothing_WhereOnlyMarkingIsTakenBack()
     {
         var marks = new EraseMarking(aiOffered: false);
@@ -390,6 +402,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void AMask_IsGrownSquare_ByTheGrowthForThePhotosSize()
     {
         var mask = new byte[20 * 10];
@@ -401,6 +414,7 @@ public class ImageEraseTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-erase")]
     public void Strokes_ArePaintedInOrder_ALaterOneTakingMarkingBack()
     {
         var painted = new byte[20 * 10];

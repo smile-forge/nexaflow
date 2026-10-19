@@ -24,13 +24,13 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// alpha reaches the paint, a hidden layer draws nothing, and the page's text is where its runs say.
 /// </summary>
 [TestClass]
-[CoversNode("pdf-document-ast")]
 public class PdfPageReadingTests
 {
     /// <summary>The page every test draws on: 200 points square, so page space is the PDF's y turned over at 200.</summary>
     private const double Side = 200;
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
     public void AClip_IsAGroupItsContentSitsIn_AndWhatComesAfterItsRestoreIsOutsideIt()
     {
         var page = Read("q 10 10 50 50 re W n 1 0 0 rg 0 0 200 200 re f Q 0 0 1 rg 0 0 20 20 re f");
@@ -55,6 +55,7 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-render")]
     public void ThePaintingOrder_SurvivesIntoTheLayoutTree()
     {
         // A fill before a clipped group and one after it: the tree must draw them in that order, which a piece painting
@@ -77,6 +78,7 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
     public void TheGraphicsStatesAlpha_ReachesThePaint()
     {
         var page = Read("/A gs 1 0 0 rg 0 0 100 100 re f", resources: "/ExtGState << /A << /ca 0.5 >> >>");
@@ -86,6 +88,7 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
     public void AHiddenLayer_DrawsNothing()
     {
         var page = Read("/OC /hidden BDC 1 0 0 rg 0 0 100 100 re f EMC 0 0 1 rg 0 0 20 20 re f",
@@ -99,6 +102,8 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
+    [CoversNode("pdf-render")]
     public void TwoLayersWithTheSameDictionary_AreShownAndHiddenApart()
     {
         // Objects 8 and 9 are the same dictionary, as a layout program's duplicated layer is; the configuration turns 9
@@ -114,6 +119,7 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
     public void ThePagesText_IsWhereItsRunsSay_ALineBreakBetweenLines()
     {
         var page = Read("BT /F 12 Tf 20 150 Td (falcon) Tj 0 -30 Td (kestrel) Tj ET",
@@ -136,6 +142,8 @@ public class PdfPageReadingTests
     /// The page gives its letters the widths those fonts' own metrics do, as a document set in them would.
     /// </summary>
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
+    [CoversNode("pdf-render")]
     public void AFontFoundNowhere_IsDrawnInAFaceOfTheKindItsDescriptorAsksFor()
     {
         var kinds = new[]
@@ -150,6 +158,7 @@ public class PdfPageReadingTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-render")]
     public void AFontsKind_IsWhatItsDescriptorSays_OrItsName()
     {
         Assert.AreEqual(PdfFaceKind.Serif, PdfFaceKinds.Of(FontDescriptorFlags.Serif | FontDescriptorFlags.NonSymbolic, "Melior"));
@@ -181,6 +190,7 @@ public class PdfPageReadingTests
             : "none")];
 
     [TestMethod]
+    [CoversNode("pdf-document-ast")]
     public void ATextRun_IsSelectableWhereItsGlyphsAre()
     {
         var page = Read("BT /F 24 Tf 20 100 Td (peregrine) Tj ET",
