@@ -52,6 +52,9 @@ public class JpxDecodeBench
     /// <summary>A timed run repeats a decode until it lasts this long, so a tiny image is not timer noise.</summary>
     private const double Batch = 5;
 
+    /// <summary>How many decodes an allocation figure is averaged over.</summary>
+    private const int MemoryRuns = 2;
+
     /// <summary>How long each profile samples for, the corpus decoded as many times as that takes.</summary>
     private const double ProfileMs = 15_000;
 
@@ -67,6 +70,10 @@ public class JpxDecodeBench
         using var native = new LibOpenJpeg(library);
         var threads = Environment.ProcessorCount;
         var filter = new PdfJpxFilter();
+        sample.Log("warming the decoder up");
+        WarmUp(sample.Streams, filter);
+
+        var (gen0, gen1, gen2, paused) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2), GC.GetTotalPauseDuration());
 
         var rows = sample.Streams.Select((stream, at) =>
         {
@@ -83,11 +90,60 @@ public class JpxDecodeBench
         ((Dictionary<string, object>)run["corpus"])["timed"] = timed.Count;
         ((Dictionary<string, object>)run["corpus"])["identical"] = rows.Count(row => row.Pixels == "identical");
         run["totals"] = Totals(timed);
+        // The whole run's collections, and the most memory the process held at once — libopenjp2's included, which
+        // allocates outside the managed heap and so in none of the allocation figures.
+        run["memory"] = new Dictionary<string, object>
+        {
+            ["gen0Collections"] = GC.CollectionCount(0) - gen0,
+            ["gen1Collections"] = GC.CollectionCount(1) - gen1,
+            ["gen2Collections"] = GC.CollectionCount(2) - gen2,
+            ["gcPauseMs"] = Round((GC.GetTotalPauseDuration() - paused).TotalMilliseconds),
+            ["peakWorkingSetMb"] = Round(System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0),
+        };
         run["bySize"] = BySize(timed);
         run["images"] = rows.Select(row => row.Written()).ToList();
 
         sample.Write(run);
     }
+
+    /// <summary>
+    /// Decodes the sample over and over before anything is timed — every way it is timed, until there have been
+    /// <see cref="WarmUpDecodes"/> decodes and <see cref="WarmUpMs"/> has gone by — so the JIT has replaced the
+    /// decoder's first, unoptimised code with its optimised code: a method is recompiled after 30 calls and a short delay,
+    /// and a small image is otherwise timed in the few runs before that happens.
+    /// </summary>
+    private static void WarmUp(IReadOnlyList<JpxStream> streams, PdfJpxFilter filter)
+    {
+        if (streams.Count == 0) return;
+
+        var clock = Stopwatch.StartNew();
+        for (var decodes = 0; decodes < WarmUpDecodes || clock.Elapsed.TotalMilliseconds < WarmUpMs; )
+        {
+            foreach (var stream in streams)
+            {
+                try
+                {
+                    Managed(stream, singleThreaded: true);
+                    Managed(stream, singleThreaded: false);
+                    filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0);
+                }
+                catch (Exception)
+                {
+                    // An image the decoder refuses is reported when it is measured.
+                }
+                decodes++;
+            }
+        }
+    }
+
+    /// <summary>How many decodes warm the decoder up, at the least.</summary>
+    private const int WarmUpDecodes = 64;
+
+    /// <summary>
+    /// How long warming the decoder up takes, at the least, in milliseconds: the JIT holds back its recompiling while
+    /// methods are still being compiled for the first time, so a second is not enough.
+    /// </summary>
+    private const double WarmUpMs = 3000;
 
     /// <summary>
     /// Where OpenJPEG.net's time goes, by stage, over the same sample <see cref="HowManagedJpxDecodingComparesWithNative"/>
@@ -108,10 +164,16 @@ public class JpxDecodeBench
         var run = sample.Described();
         run["readyToRun"] = Environment.GetEnvironmentVariable("DOTNET_ReadyToRun") != "0";
         ((Dictionary<string, object>)run["corpus"])["profiled"] = decoded.Count;
+        // Each profile's allocations are over however many passes fitted its time; the megapixels a pass decodes put
+        // them per megapixel.
+        int appPasses = 0, decodePasses = 0;
+        run["megapixelsPerPass"] = Round(decoded.Sum(stream => JpxPlanes.Of(Managed(stream, singleThreaded: true)).Planes[0] is { } p ? p.Width * (double)p.Height / 1_000_000 : 0));
         run["appProfile"] = CpuStageSampler.Sample(ForAWhile(decoded,
-            stream => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0)), StageOf);
+            stream => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0), () => appPasses++), StageOf);
+        run["appPasses"] = appPasses;
         sample.Log("sampling the decode, one job at a time");
-        run["decodeProfile"] = CpuStageSampler.Sample(ForAWhile(decoded, stream => Managed(stream, singleThreaded: true)), StageOf);
+        run["decodeProfile"] = CpuStageSampler.Sample(ForAWhile(decoded, stream => Managed(stream, singleThreaded: true), () => decodePasses++), StageOf);
+        run["decodePasses"] = decodePasses;
 
         sample.Write(run);
     }
@@ -145,7 +207,12 @@ public class JpxDecodeBench
         if (pixels != "identical") return row;
 
         double? filterMs = null;
-        try { filterMs = Time(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0)); }
+        DecodeMemory? filterMemory = null;
+        try
+        {
+            filterMs = Time(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0));
+            filterMemory = Allocated(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0));
+        }
         catch (Exception failure) { filterError = $"{failure.GetType().Name}: {failure.Message}"; }
 
         return row with
@@ -157,7 +224,9 @@ public class JpxDecodeBench
                 FilterMs: filterMs,
                 NativeSingleMs: Time(() => native.Run(stream, 0)),
                 NativeMs: Time(() => native.Run(stream, threads)),
-                ManagedSingleKb: Allocated(() => Managed(stream, singleThreaded: true))),
+                ManagedSingleMemory: Allocated(() => Managed(stream, singleThreaded: true)),
+                ManagedMemory: Allocated(() => Managed(stream, singleThreaded: false)),
+                FilterMemory: filterMemory),
         };
     }
 
@@ -190,21 +259,37 @@ public class JpxDecodeBench
         return Round(times[times.Length / 2]);
     }
 
-    /// <summary>What one decode allocates on the thread that runs it, in KB.</summary>
-    private static double Allocated(Action decode)
+    /// <summary>
+    /// What one decode allocates, across every thread it uses, and how many collections of each generation it costs —
+    /// averaged over <see cref="MemoryRuns"/> decodes after one to warm it, so a pool or a cache filled once is not counted.
+    /// </summary>
+    private static DecodeMemory Allocated(Action decode)
     {
-        var before = GC.GetAllocatedBytesForCurrentThread();
         decode();
-        return Round((GC.GetAllocatedBytesForCurrentThread() - before) / 1024.0);
+        var (gen0, gen1, gen2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
+        var before = GC.GetTotalAllocatedBytes(precise: true);
+
+        for (var run = 0; run < MemoryRuns; run++) decode();
+
+        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        return new DecodeMemory(
+            Round(allocated / 1024.0 / MemoryRuns),
+            Round((GC.CollectionCount(0) - gen0) / (double)MemoryRuns),
+            Round((GC.CollectionCount(1) - gen1) / (double)MemoryRuns),
+            Round((GC.CollectionCount(2) - gen2) / (double)MemoryRuns));
     }
 
-    /// <summary>The images decoded over and over, whole passes, until <see cref="ProfileMs"/> has gone by.</summary>
-    private static Action ForAWhile(IReadOnlyList<JpxStream> streams, Action<JpxStream> decode) => () =>
+    /// <summary>
+    /// The images decoded over and over, whole passes, until <see cref="ProfileMs"/> has gone by, counting each pass on
+    /// <paramref name="passed"/>.
+    /// </summary>
+    private static Action ForAWhile(IReadOnlyList<JpxStream> streams, Action<JpxStream> decode, Action passed) => () =>
     {
         var clock = Stopwatch.StartNew();
         do
         {
             foreach (var stream in streams) decode(stream);
+            passed();
         }
         while (clock.Elapsed.TotalMilliseconds < ProfileMs);
     };
@@ -229,13 +314,28 @@ public class JpxDecodeBench
             ["nativeMs"] = native,
             ["singleThreadRatio"] = Ratio(managedSingle, nativeSingle),
             ["threadedRatio"] = Ratio(managed, native),
-            ["managedSingleKb"] = Sum(t => t.ManagedSingleKb),
+            // What a decode allocates, in all and per megapixel, and what the collector paid for it.
+            ["managedSingleKb"] = Sum(t => t.ManagedSingleMemory.AllocatedKb),
+            ["managedKb"] = Sum(t => t.ManagedMemory.AllocatedKb),
+            ["filterKb"] = Sum(t => t.FilterMemory?.AllocatedKb),
+            ["managedSingleKbPerMp"] = PerMegapixel(timed, t => t.ManagedSingleMemory.AllocatedKb),
+            ["managedKbPerMp"] = PerMegapixel(timed, t => t.ManagedMemory.AllocatedKb),
+            ["filterKbPerMp"] = PerMegapixel(timed, t => t.FilterMemory?.AllocatedKb),
+            ["managedSingleGen0"] = Sum(t => t.ManagedSingleMemory.Gen0),
+            ["managedSingleGen2"] = Sum(t => t.ManagedSingleMemory.Gen2),
+            ["filterGen2"] = Sum(t => t.FilterMemory?.Gen2),
             // The filter is only timed where it decodes; its own pair keeps the comparison like for like.
             ["filterImages"] = filtered.Count,
             ["filterMs"] = Round(filtered.Sum(row => row.Timing!.FilterMs!.Value)),
             ["filterNativeMs"] = Round(filtered.Sum(row => row.Timing!.NativeMs)),
             ["filterRatio"] = Ratio(filtered.Sum(row => row.Timing!.FilterMs!.Value), filtered.Sum(row => row.Timing!.NativeMs)),
         };
+    }
+
+    private static double PerMegapixel(IReadOnlyList<Row> timed, Func<Timing, double?> of)
+    {
+        var megapixels = timed.Sum(row => row.Megapixels);
+        return megapixels <= 0 ? 0 : Round(timed.Sum(row => of(row.Timing!) ?? 0) / megapixels);
     }
 
     /// <summary>The totals again, per size of image: a fixed cost and a per-pixel cost show apart.</summary>
@@ -300,7 +400,11 @@ public class JpxDecodeBench
 
     private static double Round(double value) => Math.Round(value, 3);
 
-    private sealed record Timing(double ManagedSingleMs, double ManagedMs, double? FilterMs, double NativeSingleMs, double NativeMs, double ManagedSingleKb);
+    private sealed record Timing(double ManagedSingleMs, double ManagedMs, double? FilterMs, double NativeSingleMs, double NativeMs,
+        DecodeMemory ManagedSingleMemory, DecodeMemory ManagedMemory, DecodeMemory? FilterMemory);
+
+    /// <summary>One decode's allocations, in KB across every thread, and the collections of each generation it caused.</summary>
+    private sealed record DecodeMemory(double AllocatedKb, double Gen0, double Gen1, double Gen2);
 
     private sealed record Row(JpxStream Stream, ImageShape? Shape, string Pixels, string? ManagedError, string? NativeError, string? FilterError, Timing? Timing)
     {

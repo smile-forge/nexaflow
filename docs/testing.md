@@ -491,8 +491,9 @@ default because a Debug build checks every pipeline stage's output against its i
 ### Measuring JPEG 2000 decoding (opt-in, by hand)
 
 `JpxDecodeBench` measures the JPEG 2000 images in PDFs, sampled to a fixed few of each size (`-PerSize`, six by
-default), with `Nexaflow.Media`'s decoder — OpenJPEG.net, a managed port of OpenJPEG, which the PDF reader decodes
-them with — beside libopenjp2, the C library it was ported from, called in process from the same bytes. The PDFs are
+default) or named (`-Only`, parts of their names separated by semicolons), with `Nexaflow.Media`'s decoder — the
+managed JPEG 2000 decoder the PDF reader decodes them with — beside libopenjp2, the C library it follows, called in
+process from the same bytes. The PDFs are
 the 151 JPX test documents of the PDF filter Nexaflow used to build, which the script fetches at a pinned commit,
 and the baseline PDF corpus `NEXAFLOW_PDF_CORPUS` names (`-PdfCorpus`) when it is set; `-Corpus` names other
 folders instead. Every PDF is scanned for its JPEG 2000 images first, keeping only where each is, and only the
@@ -500,16 +501,20 @@ sample's bytes are read, so a corpus of any size costs little memory. It is two 
 its own:
 
 - **Timing** sets both decodes side by side sample for sample first, and times only an image both decode alike:
-  the managed decode serially and with its own threading, the reader's whole `JPXDecode` filter, and libopenjp2 on
-  one thread and on one per processor, with totals per size of image so a fixed cost and a per-pixel cost show
-  apart. The managed decoder hands every code block to the thread pool even when told not to thread; serially it
-  hands out one at a time, so its serial figure is one job at a time, not one thread.
+  the managed decode on one thread and with its own threading, the reader's whole `JPXDecode` filter, and
+  libopenjp2 on one thread and on one per processor, with totals per size of image so a fixed cost and a per-pixel
+  cost show apart, and what each managed decode allocates. The sample is decoded over and over for some seconds
+  before anything is timed, so the JIT has replaced the decoder's first code with its optimised code — without it a
+  small image is timed in the few runs before that happens, several times slower than it decodes.
 - **Profiling** samples the managed decode through EventPipe and puts each sample to a stage — tier-1 code blocks,
   tier-2 packets, the inverse wavelet, the inverse colour transform, the tile coder, codestream parsing, image
   output — on every thread, with a thread waiting on the jobs it handed out told apart from one working: once for
   the filter as the reader runs it, once for the serial decode. It runs with `DOTNET_ReadyToRun=0`, because a
   precompiled framework method (a wait, a copy, an allocation) carries no name in a sample, and its time would be
-  counted to the code that called it.
+  counted to the code that called it. It counts allocations by stage and type from the collector's allocation
+  ticks. A stage's share is sound; within a stage, the method a sample names is not: a thread is sampled where it
+  can be stopped, so a loop's time shows on the next call it makes — a clear, a copy — and a change inside a stage
+  is weighed by timing it, not by its samples.
 
 Each writes one JSON file, and a log of how far it has got, and asserts nothing.
 

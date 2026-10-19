@@ -37,6 +37,9 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Buffers;
+using System.Runtime.Intrinsics;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Media.Jpeg2000.Internal
 {
@@ -328,14 +331,17 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         }
 
         /// <summary>
-        /// Inverse 9-7 wavelet transform in 2-D.
+        /// Inverse 9-7 wavelet transform in 2-D, over the whole tile.
         /// </summary>
-        /// <remarks>2.5.1 - opj_dwt_decode_tile</remarks>
+        /// <remarks>
+        /// 2.5 - opj_dwt_decode_tile_97
+        ///
+        /// Each resolution is lifted along its rows eight at a time, then down its columns eight at a time, as libopenjp2
+        /// does. A resolution big enough to be worth it shares its rows, then its columns, out over the processors, each
+        /// share lifted through a buffer of its own from the shared pool.
+        /// </remarks>
         internal static bool decode_tile_97(TcdTilecomp tilec, uint numres, bool disable_multi_threading)
         {
-            v4dwt_local h = new v4dwt_local();
-            v4dwt_local v = new v4dwt_local();
-
             TcdResolution[] res_ar = tilec.resolutions;
             int res_ar_pos = 0;
             TcdResolution res = res_ar[res_ar_pos];
@@ -346,11 +352,8 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             //Height of the resolution level computed
             uint rh = (uint)(res.y1 - res.y0);
 
-            int w = tilec.resolutions[tilec.minimum_num_resolutions - 1].x1 
+            int w = tilec.resolutions[tilec.minimum_num_resolutions - 1].x1
                   - tilec.resolutions[tilec.minimum_num_resolutions - 1].x0;
-
-            ulong data_size;
-            int num_threads;
 
             // Not entirely sure for the return code of w == 0 which is triggered per
             // https://github.com/uclouvain/openjpeg/issues/1505
@@ -358,28 +361,24 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             {
                 return true;
             }
-            ThreadPool.GetAvailableThreads(out num_threads, out _);
-            num_threads = Math.Min(Environment.ProcessorCount, num_threads);
-            if (disable_multi_threading)
-                num_threads = 0;
+            var num_threads = disable_multi_threading ? 1 : Environment.ProcessorCount;
 
-            data_size = MaxResolution(res_ar, (int)numres);
+            ulong data_size = MaxResolution(res_ar, (int)numres);
             /* overflow check */
             if (data_size > (Constants.SIZE_MAX / NB_ELTS_V8 * sizeof(float)))
             {
                 return false;
             }
+            var length = checked((int)data_size * NB_ELTS_V8);
 
-            h.wavelet = new float[data_size * NB_ELTS_V8];
-            v.wavelet = h.wavelet;
+            var h = new v4dwt_local { wavelet = RentWavelet(length) };
+            var v = new v4dwt_local { wavelet = h.wavelet };
+            int[] aj_ar = tilec.data;
 
-            using (var reset = new ManualResetEvent(false))
+            try
             {
                 while (--numres != 0)
                 {
-                    int[] aj_ar = tilec.data;
-                    int aj = 0, j;
-
                     h.sn = (int)rw;
                     v.sn = (int)rh;
 
@@ -396,111 +395,15 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                     h.win_h_x0 = 0;
                     h.win_h_x1 = (uint)h.dn;
 
-                    //C# impl. note
-                    //Used to convert from float to the "int value" of the
-                    //float. This is since the org impl. use a int array
-                    //to store both float and int values
-                    var fi = new IntOrFloat();
-
-                    if (num_threads <= 1 || rh < 2 * NB_ELTS_V8)
+                    // The rows, each lifted where it lies.
+                    if (num_threads <= 1 || rh < 2 * NB_ELTS_V8 || rw * (ulong)rh < MinimumSharedSamples)
                     {
-                        for (j = 0; j + (NB_ELTS_V8 - 1) < rh; j += NB_ELTS_V8)
-                        {
-                            v8dwt_interleave_h(h, aj_ar, aj, w, NB_ELTS_V8);
-                            v8dwt_decode(h);
-
-                            //Copies that back into the aj array.
-                            // C# I'm unsure why it's split into two loops, that is probably an
-                            // optimalization.
-                            for (int k = 0; k < rw; k++)
-                            {
-                                //C# note: Org. impl stores the wavlet as a struct with eight
-                                //floating points. Here it's stored as a continuous array, this
-                                //is why we have to multiply k with 8. 
-                                int k_wavelet = k * NB_ELTS_V8;
-                                fi.F = h.wavelet[k_wavelet + 0];
-                                aj_ar[aj + k] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 1];
-                                aj_ar[aj + k + w] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 2];
-                                aj_ar[aj + k + w * 2] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 3];
-                                aj_ar[aj + k + w * 3] = fi.I;
-                            }
-                            for (int k = 0; k < rw; k++)
-                            {
-                                int k_wavelet = k * NB_ELTS_V8;
-                                fi.F = h.wavelet[k_wavelet + 4];
-                                aj_ar[aj + k + w * 4] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 5];
-                                aj_ar[aj + k + w * 5] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 6];
-                                aj_ar[aj + k + w * 6] = fi.I;
-                                fi.F = h.wavelet[k_wavelet + 7];
-                                aj_ar[aj + k + w * 7] = fi.I;
-                            }
-
-                            aj += w * NB_ELTS_V8;
-                        }
+                        decode_rows_97(h, aj_ar, w, 0, (int)rh);
                     }
                     else
                     {
-                        int num_jobs = num_threads;
-
-                        if ((rh / NB_ELTS_V8) < num_jobs)
-                        {
-                            num_jobs = (int)rh / NB_ELTS_V8;
-                        }
-
-                        uint step_j = ((rh / (uint)num_jobs) / NB_ELTS_V8) * NB_ELTS_V8;
-
-                        reset.Reset();
-                        //Alternativly, we can set this to num_jobs and remove the Interlocked.Increment
-                        //and the Interlocked.Decrement after the for loop
-                        int n_thread_workers = 1;
-
-                        for (j = 0; j < num_jobs; j++)
-                        {
-                            var job = new dwt97_decode_h_job(
-                                h.Clone(), rw, (uint)w, aj_ar, aj,
-                                (j + 1 == num_jobs) ? (rh & unchecked((uint)~(NB_ELTS_V8 - 1))) - (uint)j * step_j : step_j
-                            );
-                            job.h.wavelet = new float[h.wavelet.Length];
-
-                            aj += (int)(w * job.nb_rows);
-
-                            Interlocked.Increment(ref n_thread_workers);
-                            ThreadPool.QueueUserWorkItem((x) =>
-                            {
-                                try { dwt97_decode_h_func((dwt97_decode_h_job)x); }
-                                finally
-                                {
-                                    if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                                        reset.Set();
-                                }
-                            }, job);
-                        }
-                        if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                            reset.Set();
-                        reset.WaitOne();
-                        j = (int)(rh & unchecked((uint)~(NB_ELTS_V8 - 1)));
-                    }
-
-                    if (j < rh)
-                    {
-                        
-                        v8dwt_interleave_h(h, aj_ar, aj, w, rh - (uint)j);
-                        v8dwt_decode(h);
-
-                        for (int k = 0; k < rw; k++)
-                        {
-                            int k_wavelet = k * NB_ELTS_V8, ajk = aj + k;
-                            for (uint l = 0; l < rh - j; l++)
-                            {
-                                fi.F = h.wavelet[k_wavelet + l];
-                                aj_ar[ajk + w * l] = fi.I;
-                            }
-                        }
+                        var shape = h;
+                        InShares(num_threads, (int)rh, 1, (first, end) => decode_rows_97(shape, aj_ar, w, first, end));
                     }
 
                     v.dn = (int)(rh - (uint)v.sn);
@@ -510,108 +413,294 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                     v.win_h_x0 = 0;
                     v.win_h_x1 = (uint)v.dn;
 
-                    aj = 0;
-                    if (num_threads <= 1 || rw < 2 * NB_ELTS_V8)
+                    // The columns eight at a time, then the few left over.
+                    var columns = (int)(rw & ~(uint)(NB_ELTS_V8 - 1));
+                    if (num_threads <= 1 || rw < 2 * NB_ELTS_V8 || rw * (ulong)rh < MinimumSharedSamples)
                     {
-                        for (j = (int)rw; j > (NB_ELTS_V8 - 1); j -= NB_ELTS_V8)
-                        {
-                            IntOrFloat faa;
-                            faa.I = 0;
-
-                            v8dwt_interleave_v(v, aj_ar, aj, w, NB_ELTS_V8);
-                            v8dwt_decode(v);
-                            for (int k = 0; k < rh; ++k)
-                            {
-                                Buffer.BlockCopy(v.wavelet, k * NB_ELTS_V8 * sizeof(float), aj_ar, (aj + (k * w)) * sizeof(float), NB_ELTS_V8 * sizeof(float));
-                            }
-
-                            aj += NB_ELTS_V8;
-                        }
+                        decode_columns_97(v, aj_ar, w, (int)rh, 0, columns);
                     }
                     else
                     {
                         /* "bench_dwt -I" shows that scaling is poor, likely due to RAM
                             transfer being the limiting factor. So limit the number of
-                            threads.
-                            C# note: I've not run this benchmark
-                         */
-                        int num_jobs = Math.Max(num_threads / 2, 2);
-                        //num_jobs = 1;
-
-                        if ((rw / NB_ELTS_V8) < num_jobs)
+                            threads. */
+                        var shape = v;
+                        var height = (int)rh;
+                        InShares(Math.Max(num_threads / 2, 2), columns, NB_ELTS_V8, (first, end) =>
                         {
-                            num_jobs = (int)rw / NB_ELTS_V8;
-                        }
-
-                        uint step_j = ((rw / (uint)num_jobs) / NB_ELTS_V8) * NB_ELTS_V8;
-
-                        reset.Reset();
-                        //Alternativly, we can set this to num_jobs and remove the Interlocked.Increment
-                        //and the Interlocked.Decrement after the for loop
-                        int n_thread_workers = 1;
-
-                        for (j = 0; j < num_jobs; j++)
-                        {
-                            var job = new dwt97_decode_v_job(
-                                v.Clone(), rh, (uint)w, aj_ar, aj,
-                                (j + 1 == num_jobs) ? (rw & unchecked((uint)~(NB_ELTS_V8 - 1))) - (uint)j * step_j : step_j
-                            );
-                            job.v.wavelet = new float[v.wavelet.Length];
-
-                            aj += (int)(job.nb_columns);
-
-                            Interlocked.Increment(ref n_thread_workers);
-                            ThreadPool.QueueUserWorkItem((x) =>
-                            {
-                                try { dwt97_decode_v_func((dwt97_decode_v_job)x); }
-                                finally
-                                {
-                                    if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                                        reset.Set();
-                                }
-                            }, job);
-                        }
-                        if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                            reset.Set();
-                        reset.WaitOne();
+                            var local = shape.Clone();
+                            local.wavelet = RentWavelet(length);
+                            try { decode_columns_97(local, aj_ar, w, height, first, end); }
+                            finally { ArrayPool<float>.Shared.Return(local.wavelet); }
+                        });
                     }
 
-                    //Makes sure not not overflow the array by copying "less than 4 floats".
-                    if ((rw & (NB_ELTS_V8 - 1)) != 0)
+                    if (columns < rw)
                     {
-                        j = (int)(rw & (NB_ELTS_V8 - 1));
-                        v8dwt_interleave_v(v, aj_ar, aj, w, j);
+                        var left = (int)rw - columns;
+                        v8dwt_interleave_v(v, aj_ar, columns, w, left);
                         v8dwt_decode(v);
-
-                        for (int k = 0; k < rh; ++k)
-                            Buffer.BlockCopy(v.wavelet, k * NB_ELTS_V8 * sizeof(float), aj_ar, (aj + (k * w)) * sizeof(float), j * sizeof(float));
+                        store_columns_97(v.wavelet, aj_ar, columns, w, (int)rh, left);
                     }
                 }
             }
-
-            //{
-            //    //C# Debug code to dump out the wavelets. Reason for doing this was to get the same floating point
-            //    //   precision as the original impl. 
-            //    IntOrFloat faa;
-            //    faa.I = 0;
-
-            //    using (var file = new System.IO.StreamWriter("c:/temp/cs_wavelet.txt", append: true))
-            //    {
-            //        file.Write("Raw float values for {0} wavelets\n", h.win_h_x1 - h.win_h_x0);
-            //        for (uint wave_nr = h.win_h_x0; wave_nr < h.win_h_x1; wave_nr++)
-            //        {
-            //            file.Write("  --- wave {0}\n", wave_nr);
-            //            for (int wave_comp = 0; wave_comp < 8; wave_comp++)
-            //            {
-            //                faa.F = h.wavelet[wave_nr * 8 + wave_comp];
-            //                //FP is rounded differently, {1:0.000000}
-            //                file.Write(string.Format(System.Globalization.CultureInfo.InvariantCulture, "{1}: {0}\n", faa.I, wave_comp + 1));
-            //            }
-            //        }
-            //    }
-            //}
+            finally
+            {
+                ArrayPool<float>.Shared.Return(h.wavelet);
+            }
 
             return true;
+        }
+
+        /// <summary>
+        /// A wavelet buffer of at least <paramref name="length"/> floats from the shared pool, cleared as far as it is used:
+        /// a strip of fewer than eight rows or columns lifts the lanes it does not fill too, and they should hold numbers.
+        /// </summary>
+        private static float[] RentWavelet(int length)
+        {
+            var wavelet = ArrayPool<float>.Shared.Rent(length);
+            Array.Clear(wavelet, 0, length);
+            return wavelet;
+        }
+
+        /// <summary>
+        /// Rows <paramref name="first"/> to <paramref name="end"/> of a resolution, each lifted horizontally where it lies,
+        /// through a row buffer of the shared pool's.
+        /// </summary>
+        private static void decode_rows_97(v4dwt_local h, int[] a, int w, int first, int end)
+        {
+            var interleaved = ArrayPool<int>.Shared.Rent(h.sn + h.dn);
+            try
+            {
+                for (var row = first; row < end; row++)
+                    decode_row_97(a.AsSpan(row * w, h.sn + h.dn), h.sn, h.dn, h.cas, interleaved);
+            }
+            finally
+            {
+                ArrayPool<int>.Shared.Return(interleaved);
+            }
+        }
+
+        /// <summary>
+        /// Inverse 9-7 wavelet transform in 1-D of one row, in place: the row holds its low band, then its high band, the
+        /// bits of floats; the bands are lifted where they lie and then interleaved.
+        /// </summary>
+        /// <remarks>
+        /// 2.5 - opj_v8dwt_decode, for one row. libopenjp2 lifts eight rows at once, one to a lane, after interleaving
+        /// them; lifting one row along its own length does each sample's products and sums exactly as a lane does them —
+        /// in the same order, at single precision, with no fused multiply-add — so the row comes out bit for bit the same,
+        /// without the transposes into the lanes and back. In the interleaved order libopenjp2 lifts, the low band is on
+        /// the even samples when <paramref name="cas"/> is 0 and on the odd when 1, and a sample's neighbours in the other
+        /// band are those either side of it: for the band on the even samples, the other band's previous and own; for the
+        /// band on the odd, its own and next.
+        /// </remarks>
+        private static void decode_row_97(Span<int> row, int sn, int dn, int cas, int[] interleaved)
+        {
+            /* BUG_WEIRD_TWO_INVK (look for this identifier in tcd.c) */
+            /* Historic value for 2 / opj_invK */
+            /* Normally, we should use invK, but if we do so, we have failures in the */
+            /* conformance test, due to MSE and peak errors significantly higher than */
+            /* accepted value */
+            /* Due to using two_invK instead of invK, we have to compensate in tcd.c */
+            /* the computation of the stepsize for the non LL subbands */
+            const float two_invK = 1.625732422f;
+
+            var low = row[..sn];
+            var high = row.Slice(sn, dn);
+            if (cas == 0 ? dn > 0 || sn > 1 : sn > 0 || dn > 1)
+            {
+                scale_band(low, K);
+                scale_band(high, two_invK);
+                if (cas == 0)
+                {
+                    lift_from_previous(low, high, Math.Min(sn, dn), -dwt_delta);
+                    lift_from_next(high, low, Math.Min(dn, sn - 1), -dwt_gamma);
+                    lift_from_previous(low, high, Math.Min(sn, dn), -dwt_beta);
+                    lift_from_next(high, low, Math.Min(dn, sn - 1), -dwt_alpha);
+                }
+                else
+                {
+                    lift_from_next(low, high, Math.Min(sn, dn - 1), -dwt_delta);
+                    lift_from_previous(high, low, Math.Min(dn, sn), -dwt_gamma);
+                    lift_from_next(low, high, Math.Min(sn, dn - 1), -dwt_beta);
+                    lift_from_previous(high, low, Math.Min(dn, sn), -dwt_alpha);
+                }
+            }
+
+            if (cas == 0)
+                interleave_bands(low, high, interleaved);
+            else
+                interleave_bands(high, low, interleaved);
+            interleaved.AsSpan(0, row.Length).CopyTo(row);
+        }
+
+        /// <summary>A band, the bits of floats, scaled by <paramref name="c"/>.</summary>
+        /// <remarks>2.5 - opj_v8dwt_decode_step1, along a band</remarks>
+        private static void scale_band(Span<int> band, float c)
+        {
+            var i = 0;
+            for (; i + NB_ELTS_V8 <= band.Length; i += NB_ELTS_V8)
+            {
+                var lanes = band.Slice(i, NB_ELTS_V8);
+                (Vector256.Create(lanes).AsSingle() * c).AsInt32().CopyTo(lanes);
+            }
+
+            for (; i < band.Length; i++)
+                band[i] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(band[i]) * c);
+        }
+
+        /// <summary>
+        /// The lifting step for the band on the even samples: each of its first <paramref name="m"/> samples gains the
+        /// sum of the other band's previous and own times <paramref name="c"/> — its first counts the other band's first
+        /// twice — and when the band is the longer, its last gains the other band's last times twice <paramref name="c"/>.
+        /// </summary>
+        /// <remarks>2.5 - opj_v8dwt_decode_step2, along a band</remarks>
+        private static void lift_from_previous(Span<int> target, ReadOnlySpan<int> from, int m, float c)
+        {
+            var end = target.Length;
+            var imax = Math.Min(end, m);
+            var i = 0;
+            if (imax > 0)
+            {
+                var first = BitConverter.Int32BitsToSingle(from[0]);
+                target[0] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(target[0]) + (first + first) * c);
+                i = 1;
+            }
+
+            for (; i + NB_ELTS_V8 <= imax; i += NB_ELTS_V8)
+            {
+                var lanes = target.Slice(i, NB_ELTS_V8);
+                var neighbours = Vector256.Create(from.Slice(i - 1, NB_ELTS_V8)).AsSingle() + Vector256.Create(from.Slice(i, NB_ELTS_V8)).AsSingle();
+                (Vector256.Create(lanes).AsSingle() + neighbours * c).AsInt32().CopyTo(lanes);
+            }
+
+            for (; i < imax; i++)
+            {
+                var neighbours = BitConverter.Int32BitsToSingle(from[i - 1]) + BitConverter.Int32BitsToSingle(from[i]);
+                target[i] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(target[i]) + neighbours * c);
+            }
+
+            if (m < end)
+            {
+                Debug.Assert(m + 1 == end && m >= 0);
+                c += c;
+                var only = BitConverter.Int32BitsToSingle(from[Math.Max(m - 1, 0)]);
+                target[m] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(target[m]) + only * c);
+            }
+        }
+
+        /// <summary>
+        /// The lifting step for the band on the odd samples: each of its first <paramref name="m"/> samples gains the sum
+        /// of the other band's own and next times <paramref name="c"/>, and when the band is the longer, its last gains the
+        /// other band's own times twice <paramref name="c"/>.
+        /// </summary>
+        /// <remarks>2.5 - opj_v8dwt_decode_step2, along a band</remarks>
+        private static void lift_from_next(Span<int> target, ReadOnlySpan<int> from, int m, float c)
+        {
+            var end = target.Length;
+            var imax = Math.Min(end, m);
+            var i = 0;
+            for (; i + NB_ELTS_V8 <= imax; i += NB_ELTS_V8)
+            {
+                var lanes = target.Slice(i, NB_ELTS_V8);
+                var neighbours = Vector256.Create(from.Slice(i, NB_ELTS_V8)).AsSingle() + Vector256.Create(from.Slice(i + 1, NB_ELTS_V8)).AsSingle();
+                (Vector256.Create(lanes).AsSingle() + neighbours * c).AsInt32().CopyTo(lanes);
+            }
+
+            for (; i < imax; i++)
+            {
+                var neighbours = BitConverter.Int32BitsToSingle(from[i]) + BitConverter.Int32BitsToSingle(from[i + 1]);
+                target[i] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(target[i]) + neighbours * c);
+            }
+
+            if (m < end)
+            {
+                Debug.Assert(m + 1 == end && m >= 0);
+                c += c;
+                var only = BitConverter.Int32BitsToSingle(from[m]);
+                target[m] = BitConverter.SingleToInt32Bits(BitConverter.Int32BitsToSingle(target[m]) + only * c);
+            }
+        }
+
+        /// <summary>
+        /// Interleaves two bands into <paramref name="into"/>: <paramref name="even"/> on the even samples and
+        /// <paramref name="odd"/> on the odd, eight samples of each at a time.
+        /// </summary>
+        private static void interleave_bands(ReadOnlySpan<int> even, ReadOnlySpan<int> odd, Span<int> into)
+        {
+            var firstHalf = Vector256.Create(0, 0, 1, 1, 2, 2, 3, 3);
+            var secondHalf = Vector256.Create(4, 4, 5, 5, 6, 6, 7, 7);
+            var evenLanes = Vector256.Create(-1, 0, -1, 0, -1, 0, -1, 0);
+
+            var pairs = Math.Min(even.Length, odd.Length);
+            var i = 0;
+            for (; i + NB_ELTS_V8 <= pairs; i += NB_ELTS_V8)
+            {
+                var e = Vector256.Create(even.Slice(i, NB_ELTS_V8));
+                var o = Vector256.Create(odd.Slice(i, NB_ELTS_V8));
+                Vector256.ConditionalSelect(evenLanes, Vector256.Shuffle(e, firstHalf), Vector256.Shuffle(o, firstHalf))
+                    .CopyTo(into.Slice(2 * i, NB_ELTS_V8));
+                Vector256.ConditionalSelect(evenLanes, Vector256.Shuffle(e, secondHalf), Vector256.Shuffle(o, secondHalf))
+                    .CopyTo(into.Slice(2 * i + NB_ELTS_V8, NB_ELTS_V8));
+            }
+
+            for (; i < pairs; i++)
+            {
+                into[2 * i] = even[i];
+                into[2 * i + 1] = odd[i];
+            }
+
+            // The band on the even samples is longer by one when the row's length is odd.
+            if (even.Length > pairs)
+                into[2 * pairs] = even[pairs];
+        }
+
+        /// <summary>
+        /// Columns <paramref name="first"/> to <paramref name="end"/> of a resolution, a multiple of eight, lifted
+        /// vertically eight at a time.
+        /// </summary>
+        private static void decode_columns_97(v4dwt_local v, int[] a, int w, int rh, int first, int end)
+        {
+            for (var column = first; column < end; column += NB_ELTS_V8)
+            {
+                v8dwt_interleave_v(v, a, column, w, NB_ELTS_V8);
+                v8dwt_decode(v);
+                store_columns_97(v.wavelet, a, column, w, rh, NB_ELTS_V8);
+            }
+        }
+
+        /// <summary>Writes a vertical lift back: the <paramref name="columns"/> lanes of each of the <paramref name="rh"/> samples to its row.</summary>
+        private static void store_columns_97(float[] wavelet, int[] a, int at, int w, int rh, int columns)
+        {
+            for (int k = 0, kw = 0; k < rh; k++, kw += NB_ELTS_V8, at += w)
+            {
+                if (columns == NB_ELTS_V8)
+                {
+                    Vector256.Create(wavelet.AsSpan(kw, NB_ELTS_V8)).AsInt32().CopyTo(a.AsSpan(at, NB_ELTS_V8));
+                    continue;
+                }
+
+                for (var l = 0; l < columns; l++)
+                    a[at + l] = BitConverter.SingleToInt32Bits(wavelet[kw + l]);
+            }
+        }
+
+        /// <summary>
+        /// The fewest samples a resolution must have for its lifting to be shared out: below it, handing the strips to other
+        /// threads costs more than lifting them.
+        /// </summary>
+        private const ulong MinimumSharedSamples = 64 * 1024;
+
+        /// <summary>
+        /// Shares <paramref name="end"/> rows or columns out over up to <paramref name="threads"/> jobs, each a run of whole
+        /// multiples of <paramref name="granule"/> but the last, which takes what remains, and waits for them all.
+        /// </summary>
+        private static void InShares(int threads, int end, int granule, Action<int, int> run)
+        {
+            var jobs = Math.Max(1, Math.Min(threads, end / granule));
+            var step = end / granule / jobs * granule;
+            Parallel.For(0, jobs, new ParallelOptions { MaxDegreeOfParallelism = threads },
+                job => run(job * step, job + 1 == jobs ? end : (job + 1) * step));
         }
 
         /// <summary>
@@ -663,32 +752,32 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         }
 
         /// <summary>
-        /// Wavelet decode step 1
+        /// Wavelet decode step 1: scales each of the samples from <paramref name="start"/> to <paramref name="end"/>, eight
+        /// lanes at a time.
         /// </summary>
         /// <remarks>
         /// 2.5 - opj_v8dwt_decode_step1
         /// </remarks>
-        /// <param name="wavelet">The array with wavelet</param>
-        /// <param name="start">Position of the wavelet in the array</param>
-        /// <param name="end">Wavelet count</param>
-        /// <param name="c">Some constant</param>
         private static void v8dwt_decode_step1(float[] f, int fw, int start, int end, float c)
         {
-            // To be adapted if NB_ELTS_V8 changes
-            for (int i = start; i < end; ++i)
+            var k = Vector256.Create(c);
+            for (int i = start, at = fw + start * 2 * NB_ELTS_V8; i < end; ++i, at += 2 * NB_ELTS_V8)
             {
-                f[fw + i * 2 * 8 + 0] = f[fw + i * 2 * 8 + 0] * c;
-                f[fw + i * 2 * 8 + 1] = f[fw + i * 2 * 8 + 1] * c;
-                f[fw + i * 2 * 8 + 2] = f[fw + i * 2 * 8 + 2] * c;
-                f[fw + i * 2 * 8 + 3] = f[fw + i * 2 * 8 + 3] * c;
-                f[fw + i * 2 * 8 + 4] = f[fw + i * 2 * 8 + 4] * c;
-                f[fw + i * 2 * 8 + 5] = f[fw + i * 2 * 8 + 5] * c;
-                f[fw + i * 2 * 8 + 6] = f[fw + i * 2 * 8 + 6] * c;
-                f[fw + i * 2 * 8 + 7] = f[fw + i * 2 * 8 + 7] * c;
+                var lanes = f.AsSpan(at, NB_ELTS_V8);
+                (Vector256.Create(lanes) * k).CopyTo(lanes);
             }
         }
 
-        //2.5 - opj_v8dwt_decode_step2
+        /// <summary>
+        /// Wavelet decode step 2: adds to each sample the sum of its two neighbours times <paramref name="c"/>, eight lanes
+        /// at a time.
+        /// </summary>
+        /// <remarks>
+        /// 2.5 - opj_v8dwt_decode_step2
+        ///
+        /// Each lane is the scalar sum and product libopenjp2 computes, in its order and at single precision, with no fused
+        /// multiply-add: the vector only does eight of them at once, so the result is bit for bit the scalar one.
+        /// </remarks>
         private static void v8dwt_decode_step2(float[] f, int fl, int fw, int start, int end, int m, float c)
         {
             int imax = Math.Min(end, m);
@@ -697,86 +786,40 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 fw += 2 * NB_ELTS_V8 * start;
                 fl = fw - 2 * NB_ELTS_V8;
             }
-            /* To be adapted if NB_ELTS_V8 changes */
+
+            var k = Vector256.Create(c);
             for (int i = start; i < imax; ++i)
             {
-                //if (i == 5)
-                //{
-                //    IntOrFloat faa;
-                //    faa.I = 0;
-
-                //    faa.F = f[fw - 7];
-                //    faa.F = f[fl + 1];
-                //    faa.F = f[fw + 1];
-                //    faa.F = c;
-
-                //    float prob_f = (float)(f[fw - 7] + (float)((float)(f[fl + 1] + f[fw + 1]) * (float)c));
-                //    faa.F = prob_f;
-
-                //    i = i;
-                //}
-
-#if TEST_MATH_MODE
-                //C# We have a problem. AFAICT, C# likes to do double precision math
-                //   Liberal use of (float) seems to fix the issue. 
-                f[fw - 8] = f[fw - 8] + (float)((float)(f[fl + 0] + f[fw + 0]) * (float)c);
-                f[fw - 7] = f[fw - 7] + (float)((float)(f[fl + 1] + f[fw + 1]) * (float)c);
-                f[fw - 6] = f[fw - 6] + (float)((float)(f[fl + 2] + f[fw + 2]) * (float)c);
-                f[fw - 5] = f[fw - 5] + (float)((float)(f[fl + 3] + f[fw + 3]) * (float)c);
-                f[fw - 4] = f[fw - 4] + (float)((float)(f[fl + 4] + f[fw + 4]) * (float)c);
-                f[fw - 3] = f[fw - 3] + (float)((float)(f[fl + 5] + f[fw + 5]) * (float)c);
-                f[fw - 2] = f[fw - 2] + (float)((float)(f[fl + 6] + f[fw + 6]) * (float)c);
-                f[fw - 1] = f[fw - 1] + (float)((float)(f[fl + 7] + f[fw + 7]) * (float)c); 
-#else
-                //It's not a bug to have greater precision, it's a problem for verifying
-                //the result against original libary.
-                f[fw - 8] = f[fw - 8] + ((f[fl + 0] + f[fw + 0]) * c);
-                f[fw - 7] = f[fw - 7] + ((f[fl + 1] + f[fw + 1]) * c);
-                f[fw - 6] = f[fw - 6] + ((f[fl + 2] + f[fw + 2]) * c);
-                f[fw - 5] = f[fw - 5] + ((f[fl + 3] + f[fw + 3]) * c);
-                f[fw - 4] = f[fw - 4] + ((f[fl + 4] + f[fw + 4]) * c);
-                f[fw - 3] = f[fw - 3] + ((f[fl + 5] + f[fw + 5]) * c);
-                f[fw - 2] = f[fw - 2] + ((f[fl + 6] + f[fw + 6]) * c);
-                f[fw - 1] = f[fw - 1] + ((f[fl + 7] + f[fw + 7]) * c);
-#endif
+                var target = f.AsSpan(fw - NB_ELTS_V8, NB_ELTS_V8);
+                var neighbours = Vector256.Create(f.AsSpan(fl, NB_ELTS_V8)) + Vector256.Create(f.AsSpan(fw, NB_ELTS_V8));
+                (Vector256.Create(target) + neighbours * k).CopyTo(target);
                 fl = fw;
                 fw += 2 * NB_ELTS_V8;
             }
             if (m < end)
             {
                 Debug.Assert(m + 1 == end);
-                c += c;
-#if TEST_MATH_MODE
-                f[fw - 8] = f[fw - 8] + (float)(f[fl + 0] * (float)c);
-                f[fw - 7] = f[fw - 7] + (float)(f[fl + 1] * (float)c);
-                f[fw - 6] = f[fw - 6] + (float)(f[fl + 2] * (float)c);
-                f[fw - 5] = f[fw - 5] + (float)(f[fl + 3] * (float)c);
-                f[fw - 4] = f[fw - 4] + (float)(f[fl + 4] * (float)c);
-                f[fw - 3] = f[fw - 3] + (float)(f[fl + 5] * (float)c);
-                f[fw - 2] = f[fw - 2] + (float)(f[fl + 6] * (float)c);
-                f[fw - 1] = f[fw - 1] + (float)(f[fl + 7] * (float)c);
-#else
-                f[fw - 8] = f[fw - 8] + (f[fl + 0] * c);
-                f[fw - 7] = f[fw - 7] + (f[fl + 1] * c);
-                f[fw - 6] = f[fw - 6] + (f[fl + 2] * c);
-                f[fw - 5] = f[fw - 5] + (f[fl + 3] * c);
-                f[fw - 4] = f[fw - 4] + (f[fl + 4] * c);
-                f[fw - 3] = f[fw - 3] + (f[fl + 5] * c);
-                f[fw - 2] = f[fw - 2] + (f[fl + 6] * c);
-                f[fw - 1] = f[fw - 1] + (f[fl + 7] * c);
-#endif
+                k += k;
+                var target = f.AsSpan(fw - NB_ELTS_V8, NB_ELTS_V8);
+                (Vector256.Create(target) + Vector256.Create(f.AsSpan(fl, NB_ELTS_V8)) * k).CopyTo(target);
             }
         }
 
-        //2.5
+        /// <summary>
+        /// Inverse 5-3 wavelet transform in 2-D, over the whole tile.
+        /// </summary>
+        /// <remarks>
+        /// 2.5 - opj_dwt_decode_tile
+        ///
+        /// Each resolution is lifted along its rows one at a time, then down its columns eight at a time. A resolution big
+        /// enough to be worth it shares its rows, then its columns, out over the processors, each share lifted through a
+        /// buffer of its own from the shared pool.
+        /// </remarks>
         private static bool decode_tile(TcdTilecomp tilec, uint numres, bool disable_multi_threading)
         {
-            dwt_local h = new dwt_local();
-            dwt_local v = new dwt_local();
-
             TcdResolution[] tr_ar = tilec.resolutions;
             int tr_pos = 0;
-            TcdResolution tr = tr_ar[tr_pos], tr_max = tr_ar[numres - 1];
+            TcdResolution tr = tr_ar[tr_pos];
 
             //Width of the resolution level computed
             uint rw = (uint)(tr.x1 - tr.x0);
@@ -784,21 +827,16 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             //Height of the resolution level computed
             uint rh = (uint)(tr.y1 - tr.y0);
 
-            uint w = (uint)(tilec.resolutions[tilec.minimum_num_resolutions -
-                                                               1].x1 -
-                            tilec.resolutions[tilec.minimum_num_resolutions - 1].x0);
-
-            ulong h_mem_size;
-            int num_threads;
+            int w = tilec.resolutions[tilec.minimum_num_resolutions - 1].x1
+                  - tilec.resolutions[tilec.minimum_num_resolutions - 1].x0;
 
             if (numres == 1U)
             {
                 return true;
             }
-            ThreadPool.GetAvailableThreads(out num_threads, out _);
-            num_threads = disable_multi_threading ? 1 : Math.Min(Environment.ProcessorCount, num_threads);
+            var num_threads = disable_multi_threading ? 1 : Environment.ProcessorCount;
 
-            h_mem_size = MaxResolution(tr_ar, (int)numres);
+            ulong h_mem_size = MaxResolution(tr_ar, (int)numres);
             /* overflow check */
             if (h_mem_size > (Constants.SIZE_MAX / PARALLEL_COLS_53 / sizeof(int)))
             {
@@ -807,17 +845,16 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             // We need PARALLEL_COLS_53 times the height of the array,
             // since for the vertical pass
             // we process PARALLEL_COLS_53 columns at a time
-            h_mem_size *= PARALLEL_COLS_53;
-            h.mem = new int[h_mem_size];
-            v.mem = h.mem;
+            var length = checked((int)(h_mem_size * PARALLEL_COLS_53));
 
-            using (var reset = new ManualResetEvent(false))
+            var h = new dwt_local { mem = ArrayPool<int>.Shared.Rent(length) };
+            var v = new dwt_local { mem = h.mem };
+            int[] tiled = tilec.data;
+
+            try
             {
                 while (--numres != 0)
                 {
-                    int tiledp = 0;
-                    uint j;
-
                     tr = tr_ar[++tr_pos];
                     h.sn = (int)rw;
                     v.sn = (int)rh;
@@ -828,112 +865,68 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                     h.dn = (int)(rw - (uint)h.sn);
                     h.cas = tr.x0 % 2;
 
-                    if (num_threads <= 1 || rh <= 1)
+                    if (num_threads <= 1 || rh <= 1 || rw * (ulong)rh < MinimumSharedSamples)
                     {
-                        for (j = 0; j < rh; ++j)
-                        {
-                            idwt53_h(h, tilec.data, tiledp + (int)(j * w));
-                        }
+                        decode_rows_53(h, tiled, w, 0, (int)rh);
                     }
                     else
                     {
-                        int num_jobs = num_threads;
-
-                        if (rh < num_jobs)
+                        var shape = h;
+                        InShares(num_threads, (int)rh, 1, (first, end) =>
                         {
-                            num_jobs = (int)rh;
-                        }
-
-                        uint step_j = (rh / (uint)num_jobs);
-                        
-                        reset.Reset();
-                        //Alternativly, we can set this to num_jobs and remove the Interlocked.Increment
-                        //and the Interlocked.Decrement after the for loop
-                        int n_thread_workers = 1;
-
-                        for (j = 0; j < num_jobs; j++)
-                        {
-                            var max_j = (j + 1U) * step_j; // this will overflow
-                            if (j == (num_jobs - 1)) //So we clamp max_j
-                                max_j = rh;
-                            var job = new decode_h_job(
-                                h.Clone(), rw, w, tilec.data, tiledp,
-                                j * step_j, max_j
-                            );
-
-                            job.h.mem = new int[h_mem_size];
-
-                            Interlocked.Increment(ref n_thread_workers);
-                            ThreadPool.QueueUserWorkItem((x) =>
-                            {
-                                try { decode_h_func((decode_h_job)x); }
-                                finally
-                                {
-                                    if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                                        reset.Set();
-                                }
-                            }, job);
-                        }
-                        if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                            reset.Set();
-                        reset.WaitOne();
+                            var local = shape.Clone();
+                            local.mem = ArrayPool<int>.Shared.Rent(length);
+                            try { decode_rows_53(local, tiled, w, first, end); }
+                            finally { ArrayPool<int>.Shared.Return(local.mem); }
+                        });
                     }
 
                     v.dn = (int)(rh - (uint)v.sn);
                     v.cas = tr.y0 % 2;
- 
-                    if (num_threads <= 1 || rw <= 1)
+
+                    if (num_threads <= 1 || rw < 2 * PARALLEL_COLS_53 || rw * (ulong)rh < MinimumSharedSamples)
                     {
-                        for (j = 0; j + PARALLEL_COLS_53 <= rw; j += PARALLEL_COLS_53)
-                        {
-                            idwt53_v(v, tilec.data, tiledp + (int)j, (int)w, (int)PARALLEL_COLS_53);
-                        }
-                        if (j < rw)
-                            idwt53_v(v, tilec.data, tiledp + (int)j, (int)w, (int)(rw - j));
+                        decode_columns_53(v, tiled, w, 0, (int)rw);
                     }
                     else
                     {
-                        int num_jobs = num_threads;
-
-                        if (rw < num_jobs)
+                        var shape = v;
+                        InShares(num_threads, (int)rw, (int)PARALLEL_COLS_53, (first, end) =>
                         {
-                            num_jobs = (int)rw;
-                        }
-
-                        uint step_j = (rw / (uint)num_jobs);
-
-                        reset.Reset();
-                        int n_thread_workers = 1;
-
-                        for (j = 0; j < num_jobs; j++)
-                        {
-                            var max_j = (j + 1U) * step_j; // this can overflow
-                            if (j == (num_jobs - 1))
-                                max_j = rw;
-                            var job = new decode_v_job(
-                                v.Clone(), rh, w, tilec.data, tiledp,
-                                j * step_j, max_j
-                            );
-                            job.v.mem = new int[h_mem_size];
-
-                            Interlocked.Increment(ref n_thread_workers);
-                            ThreadPool.QueueUserWorkItem((x) =>
-                            {
-                                try { decode_v_func((decode_v_job)x); }
-                                finally
-                                {
-                                    if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                                        reset.Set();
-                                }
-                            }, job);
-                        }
-                        if (Interlocked.Decrement(ref n_thread_workers) == 0)
-                            reset.Set();
-                        reset.WaitOne();
+                            var local = shape.Clone();
+                            local.mem = ArrayPool<int>.Shared.Rent(length);
+                            try { decode_columns_53(local, tiled, w, first, end); }
+                            finally { ArrayPool<int>.Shared.Return(local.mem); }
+                        });
                     }
                 }
             }
+            finally
+            {
+                ArrayPool<int>.Shared.Return(h.mem);
+            }
+
             return true;
+        }
+
+        /// <summary>Rows <paramref name="first"/> to <paramref name="end"/> of a resolution, lifted horizontally one at a time.</summary>
+        private static void decode_rows_53(dwt_local h, int[] tiled, int w, int first, int end)
+        {
+            for (var row = first; row < end; row++)
+                idwt53_h(h, tiled, row * w);
+        }
+
+        /// <summary>
+        /// Columns <paramref name="first"/> to <paramref name="end"/> of a resolution, lifted vertically
+        /// <see cref="PARALLEL_COLS_53"/> at a time, then the few left over.
+        /// </summary>
+        private static void decode_columns_53(dwt_local v, int[] tiled, int w, int first, int end)
+        {
+            var column = first;
+            for (; column + PARALLEL_COLS_53 <= end; column += (int)PARALLEL_COLS_53)
+                idwt53_v(v, tiled, column, w, (int)PARALLEL_COLS_53);
+            if (column < end)
+                idwt53_v(v, tiled, column, w, end - column);
         }
 
         //2.5
@@ -1499,107 +1492,32 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             }
         }
 
-        static void v8dwt_interleave_h(v4dwt_local dwt, int[] a_ar, int a, int width, uint remaining_height)
-        {
-            float[] bi_ar = dwt.wavelet;
-            int bi = dwt.cas * NB_ELTS_V8; //C# NB_ELTS_V8 is because we're indexing into dwt.wavelet
-            int x0 = (int)dwt.win_l_x0;
-            int x1 = (int)dwt.win_l_x1;
-
-            //C# impl. note:
-            //Workaround for C's ability to treat float and
-            //int as raw data.
-            IntOrFloat fi = new IntOrFloat();
-
-            for (int k = 0; k < 2; ++k)
-            {
-                //C# impl note. (a & 0x0f) and (bi & 0x0f) checks if a "pointer" is aligned.
-                //Now, on C# the base pointer is always aligned, so this test should still work
-                if (remaining_height >= NB_ELTS_V8 && (a & 0x0f) == 0 && (bi & 0x0f) == 0)
-                {
-                    // Fast code path
-                    // C# - I've not done any benchmarking.
-                    for (int i = x0; i < x1; ++i)
-                    {
-                        int j = a + i, dst = bi + i * 2 * NB_ELTS_V8;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 0] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 1] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 2] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 3] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 4] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 5] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 6] = fi.F;
-                        j += width; fi.I = a_ar[j];
-                        bi_ar[dst + 7] = fi.F;
-                    }
-                }
-                else
-                {
-                    // Slow code path
-                    for (int i = x0; i < x1; ++i)
-                    {
-                        int j = a + i, dst = bi + i * 2 * NB_ELTS_V8;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 0] = fi.F;
-                        j += width;
-                        if (remaining_height == 1) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 1] = fi.F;
-                        j += width;
-                        if (remaining_height == 2) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 2] = fi.F;
-                        j += width;
-                        if (remaining_height == 3) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 3] = fi.F;
-                        j += width;
-                        if (remaining_height == 4) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 4] = fi.F;
-                        j += width;
-                        if (remaining_height == 5) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 5] = fi.F;
-                        j += width;
-                        if (remaining_height == 6) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 6] = fi.F;
-                        j += width;
-                        if (remaining_height == 7) continue;
-                        fi.I = a_ar[j];
-                        bi_ar[dst + 7] = fi.F;
-                    }
-                }
-
-                bi = (1 - dwt.cas) * NB_ELTS_V8;
-                a += dwt.sn;
-                x0 = (int) dwt.win_h_x0;
-                x1 = (int) dwt.win_h_x1;
-            }
-        }
-
-        //2.5
+        /// <summary>
+        /// Gathers up to eight columns into the wavelet buffer, each sample's lanes the columns, the low band on the even
+        /// samples and the high band on the odd (or the other way about).
+        /// </summary>
+        /// <remarks>2.5 - opj_v8dwt_interleave_v</remarks>
         static void v8dwt_interleave_v(v4dwt_local dwt, int[] a_ar, int a, int width, int n_elts_read)
         {
-            //C# Impl. Note that bi_ar is not a float[], but a wavelet array where each entery has 8 floating points.
-            //         This while the a array is a plain float[]. I.e how they are to be indexed differers
             float[] bi_ar = dwt.wavelet;
-            int bi = dwt.cas;
-
             for (int i = (int)dwt.win_l_x0; i < dwt.win_l_x1; ++i)
-                Buffer.BlockCopy(a_ar, (a + i * width) * sizeof(float), bi_ar, (bi + i * 2) * NB_ELTS_V8 * sizeof(float), n_elts_read * sizeof(float));
+                load_lanes(a_ar, a + i * width, bi_ar, (dwt.cas + i * 2) * NB_ELTS_V8, n_elts_read);
             a += dwt.sn * width;
-            bi = (1 - dwt.cas);
             for (int i = (int)dwt.win_h_x0; i < dwt.win_h_x1; ++i)
-                Buffer.BlockCopy(a_ar, (a + i * width) * sizeof(float), bi_ar, (bi + i * 2) * NB_ELTS_V8 * sizeof(float), n_elts_read * sizeof(float));
+                load_lanes(a_ar, a + i * width, bi_ar, (1 - dwt.cas + i * 2) * NB_ELTS_V8, n_elts_read);
+        }
+
+        /// <summary>Reads <paramref name="count"/> samples of a row, the bits of floats, into one sample's lanes.</summary>
+        static void load_lanes(int[] from, int at, float[] to, int into, int count)
+        {
+            if (count == NB_ELTS_V8)
+            {
+                Vector256.Create(from.AsSpan(at, NB_ELTS_V8)).AsSingle().CopyTo(to.AsSpan(into, NB_ELTS_V8));
+                return;
+            }
+
+            for (var l = 0; l < count; l++)
+                to[into + l] = BitConverter.Int32BitsToSingle(from[at + l]);
         }
 
         //2.5
@@ -1655,79 +1573,6 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 return decode_tile(tilec, numres, tcd.DisableMultiThreading);
             else
                 return DecodePartialTile(tilec, numres);
-        }
-
-        //2.5
-        private static void decode_h_func(decode_h_job job)
-        {
-            for(int j = (int)job.min_j; j < job.max_j; j++)
-            {
-                idwt53_h(job.h, job.tiled, job.tiledp + j * (int)job.w);
-            }
-        }
-
-        //2.5
-        private static void dwt97_decode_h_func(dwt97_decode_h_job job)
-        {
-            var w = (int)job.w;
-            var aj_ar = job.aj;
-            var aj = job.ajp;
-            IntOrFloat fi = new IntOrFloat();
-
-            for (int j = 0; j + NB_ELTS_V8 <= job.nb_rows; j += NB_ELTS_V8)
-            {
-                v8dwt_interleave_h(job.h, aj_ar, aj, w, NB_ELTS_V8);
-                v8dwt_decode(job.h);
-
-                // To be adapted if NB_ELTS_V8 changes
-                for (int k = 0; k < job.rw; k++)
-                {
-                    //C# note: Org. impl stores the wavlet as a struct with four
-                    //floating points. Here it's stored as a continious array. 
-                    int k_wavelet = k * NB_ELTS_V8;
-
-                    fi.F = job.h.wavelet[k_wavelet + 0];
-                    aj_ar[aj + k] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 1];
-                    aj_ar[aj + k + w] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 2];
-                    aj_ar[aj + k + w * 2] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 3];
-                    aj_ar[aj + k + w * 3] = fi.I;
-                }
-                for (int k = 0; k < job.rw; k++)
-                {
-                    int k_wavelet = k * NB_ELTS_V8;
-
-                    fi.F = job.h.wavelet[k_wavelet + 4];
-                    aj_ar[aj + k + w * 4] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 5];
-                    aj_ar[aj + k + w * 5] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 6];
-                    aj_ar[aj + k + w * 6] = fi.I;
-                    fi.F = job.h.wavelet[k_wavelet + 7];
-                    aj_ar[aj + k + w * 7] = fi.I;
-                }
-
-                aj += w * NB_ELTS_V8;
-            }
-        }
-
-        //2.5
-        private static void dwt97_decode_v_func(dwt97_decode_v_job job)
-        {
-            var aj_ar = job.aj;
-            var aj = job.ajp;
-
-            for (uint j = 0; j + NB_ELTS_V8 <= job.nb_columns; j += NB_ELTS_V8)
-            {
-                v8dwt_interleave_v(job.v, aj_ar, aj, (int)job.w, NB_ELTS_V8);
-                v8dwt_decode(job.v);
-                for (int k = 0; k < job.rh; ++k)
-                    Buffer.BlockCopy(job.v.wavelet, k * NB_ELTS_V8 * sizeof(float), aj_ar, (aj + (k * (int)job.w)) * sizeof(float), NB_ELTS_V8 * sizeof(float));
-
-                aj += NB_ELTS_V8;
-            }
         }
 
         /// <summary>
@@ -1952,7 +1797,7 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 tmp[len - 1] = d1n + s0n;
             }
 #endif
-            Buffer.BlockCopy(tmp, 0, tiled, tiledp * sizeof(int), len * sizeof(int));
+            tmp.AsSpan(0, len).CopyTo(tiled.AsSpan(tiledp, len));
         }
 
         //2.5
@@ -2026,7 +1871,7 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 tmp[len - 1] = s1 + dc;
             }
 #endif
-            Buffer.BlockCopy(tmp, 0, tiled, tiledp * sizeof(int), len * sizeof(int));
+            tmp.AsSpan(0, len).CopyTo(tiled.AsSpan(tiledp, len));
         }
 
         //2.5
@@ -2133,18 +1978,6 @@ namespace Nexaflow.Media.Jpeg2000.Internal
 #endif
 
         //2.5
-        private static void decode_v_func(decode_v_job job)
-        {
-            int j;
-            for (j = (int)job.min_j; j + PARALLEL_COLS_53 <= job.max_j; j += (int)PARALLEL_COLS_53)
-            {
-                idwt53_v(job.v, job.tiled, job.tiledp +j, (int)job.w, (int)PARALLEL_COLS_53);
-            }
-            if (j < job.max_j)
-                idwt53_v(job.v, job.tiled, job.tiledp + j, (int)job.w, (int)(job.max_j - j));
-        }
-
-        //2.5
         private static void idwt53_v(dwt_local dwt, int[] tiled, int tiledp_col, int stride, int nb_cols)
         {
 #if STANDARD_SLOW_VERSION
@@ -2179,10 +2012,14 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             int len = sn + dwt.dn;
             if (dwt.cas == 0)
             {
-                //C# Snip SSE2
-
                 if (len > 1)
                 {
+                    if (nb_cols == PARALLEL_COLS_53)
+                    {
+                        idwt53_v_cas0_mcols(dwt.mem, sn, len, tiled, tiledp_col, stride);
+                        return;
+                    }
+
                     for (int c = 0; c < nb_cols; c++, tiledp_col++)
                     {
                         idwt3_v_cas0(dwt.mem, sn, len, tiled, tiledp_col, stride);
@@ -2230,10 +2067,14 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                     return;
                 }
 
-                //C# Snip SSE2
-
                 if (len > 2)
                 {
+                    if (nb_cols == PARALLEL_COLS_53)
+                    {
+                        idwt53_v_cas1_mcols(dwt.mem, sn, len, tiled, tiledp_col, stride);
+                        return;
+                    }
+
                     for (int c = 0; c < nb_cols; c++, tiledp_col++)
                     {
                         idwt3_v_cas1(dwt.mem, sn, len, tiled, tiledp_col, stride);
@@ -2242,6 +2083,108 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 }
             }
 #endif
+        }
+
+        /// <summary>
+        /// The lifting of <see cref="idwt3_v_cas0"/> down eight columns at once, a row of eight samples a vector, the
+        /// intermediate column kept in <paramref name="tmp"/> eight to a row.
+        /// </summary>
+        /// <remarks>
+        /// 2.5 - opj_idwt53_v_cas0_mcols_SSE2. Integer lifting wraps and shifts exactly as the scalar does, so the
+        /// columns come out the same.
+        /// </remarks>
+        private static void idwt53_v_cas0_mcols(int[] tmp, int sn, int len, int[] tiled, int tiledp_col, int stride)
+        {
+            const int Lanes = (int)PARALLEL_COLS_53;
+            var one = Vector256<int>.One;
+            var two = Vector256.Create(2);
+            int i, j;
+
+            Debug.Assert(len > 1);
+
+            var s1n = Vector256.Create(tiled.AsSpan(tiledp_col, Lanes));
+            var d1n = Vector256.Create(tiled.AsSpan(tiledp_col + sn * stride, Lanes));
+            var s0n = s1n - Vector256.ShiftRightArithmetic(d1n + one, 1);
+
+            for (i = 0, j = 0; i < (len - 3); i += 2, j++)
+            {
+                var d1c = d1n;
+                var s0c = s0n;
+
+                s1n = Vector256.Create(tiled.AsSpan(tiledp_col + (j + 1) * stride, Lanes));
+                d1n = Vector256.Create(tiled.AsSpan(tiledp_col + (sn + j + 1) * stride, Lanes));
+
+                s0n = s1n - Vector256.ShiftRightArithmetic(d1c + d1n + two, 2);
+
+                s0c.CopyTo(tmp.AsSpan(i * Lanes, Lanes));
+                (d1c + Vector256.ShiftRightArithmetic(s0c + s0n, 1)).CopyTo(tmp.AsSpan((i + 1) * Lanes, Lanes));
+            }
+
+            s0n.CopyTo(tmp.AsSpan(i * Lanes, Lanes));
+
+            if ((len & 1) != 0)
+            {
+                var last = Vector256.Create(tiled.AsSpan(tiledp_col + ((len - 1) / 2) * stride, Lanes))
+                           - Vector256.ShiftRightArithmetic(d1n + one, 1);
+                last.CopyTo(tmp.AsSpan((len - 1) * Lanes, Lanes));
+                (d1n + Vector256.ShiftRightArithmetic(s0n + last, 1)).CopyTo(tmp.AsSpan((len - 2) * Lanes, Lanes));
+            }
+            else
+            {
+                (d1n + s0n).CopyTo(tmp.AsSpan((len - 1) * Lanes, Lanes));
+            }
+
+            for (i = 0; i < len; ++i)
+                tmp.AsSpan(i * Lanes, Lanes).CopyTo(tiled.AsSpan(tiledp_col + i * stride, Lanes));
+        }
+
+        /// <summary>
+        /// The lifting of <see cref="idwt3_v_cas1"/> down eight columns at once, a row of eight samples a vector.
+        /// </summary>
+        /// <remarks>2.5 - opj_idwt53_v_cas1_mcols_SSE2</remarks>
+        private static void idwt53_v_cas1_mcols(int[] tmp, int sn, int len, int[] tiled, int tiledp_col, int stride)
+        {
+            const int Lanes = (int)PARALLEL_COLS_53;
+            var one = Vector256<int>.One;
+            var two = Vector256.Create(2);
+            int i, j;
+            int in_even = tiledp_col + sn * stride;
+            int in_odd = tiledp_col;
+
+            Debug.Assert(len > 2);
+
+            var even = Vector256.Create(tiled.AsSpan(in_even, Lanes));
+            var s1 = Vector256.Create(tiled.AsSpan(in_even + stride, Lanes));
+            var dc = Vector256.Create(tiled.AsSpan(in_odd, Lanes)) - Vector256.ShiftRightArithmetic(even + s1 + two, 2);
+            (even + dc).CopyTo(tmp.AsSpan(0, Lanes));
+
+            int end = len - 2 - ((len & 1) == 0 ? 1 : 0);
+            for (i = 1, j = 1; i < end; i += 2, j++)
+            {
+                var s2 = Vector256.Create(tiled.AsSpan(in_even + (j + 1) * stride, Lanes));
+
+                var dn = Vector256.Create(tiled.AsSpan(in_odd + j * stride, Lanes)) - Vector256.ShiftRightArithmetic(s1 + s2 + two, 2);
+                dc.CopyTo(tmp.AsSpan(i * Lanes, Lanes));
+                (s1 + Vector256.ShiftRightArithmetic(dn + dc, 1)).CopyTo(tmp.AsSpan((i + 1) * Lanes, Lanes));
+
+                dc = dn;
+                s1 = s2;
+            }
+            dc.CopyTo(tmp.AsSpan(i * Lanes, Lanes));
+
+            if ((len & 1) == 0)
+            {
+                var dn = Vector256.Create(tiled.AsSpan(in_odd + (len / 2 - 1) * stride, Lanes)) - Vector256.ShiftRightArithmetic(s1 + one, 1);
+                (s1 + Vector256.ShiftRightArithmetic(dn + dc, 1)).CopyTo(tmp.AsSpan((len - 2) * Lanes, Lanes));
+                dn.CopyTo(tmp.AsSpan((len - 1) * Lanes, Lanes));
+            }
+            else
+            {
+                (s1 + dc).CopyTo(tmp.AsSpan((len - 1) * Lanes, Lanes));
+            }
+
+            for (i = 0; i < len; ++i)
+                tmp.AsSpan(i * Lanes, Lanes).CopyTo(tiled.AsSpan(tiledp_col + i * stride, Lanes));
         }
 
         //2.5
@@ -2374,122 +2317,6 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             internal uint win_h_x1;
 
             public v4dwt_local Clone() { return (v4dwt_local)MemberwiseClone(); }
-        }
-
-        /// <summary>
-        /// Used by the MT impl
-        /// </summary>
-        private class decode_h_job
-        {
-            public readonly dwt_local h;
-            public readonly uint rw;
-            public readonly uint w;
-            public readonly int[] tiled;
-            public readonly int tiledp;
-            public readonly uint min_j;
-            public readonly uint max_j;
-
-            public decode_h_job(
-                dwt_local h,
-                uint rw, uint w,
-                int[] tiled, int tiledp,
-                uint min_j, uint max_j
-            )
-            {
-                this.h = h;
-                this.rw = rw;
-                this.w = w;
-                this.tiled = tiled;
-                this.tiledp = tiledp;
-                this.min_j = min_j;
-                this.max_j = max_j;
-            }
-        }
-
-        /// <summary>
-        /// Used by the MT impl
-        /// </summary>
-        private class decode_v_job
-        {
-            public readonly dwt_local v;
-            public readonly uint rh;
-            public readonly uint w;
-            public readonly int[] tiled;
-            public readonly int tiledp;
-            public readonly uint min_j;
-            public readonly uint max_j;
-
-            public decode_v_job(
-                dwt_local v,
-                uint rh, uint w,
-                int[] tiled, int tiledp,
-                uint min_j, uint max_j
-            )
-            {
-                this.v = v;
-                this.rh = rh;
-                this.w = w;
-                this.tiled = tiled;
-                this.tiledp = tiledp;
-                this.min_j = min_j;
-                this.max_j = max_j;
-            }
-        }
-
-        /// <summary>
-        /// Used by the MT impl
-        /// </summary>
-        private class dwt97_decode_h_job
-        {
-            public readonly v4dwt_local h;
-            public readonly uint rw;
-            public readonly uint w;
-            public readonly int[] aj;
-            public readonly int ajp;
-            public readonly uint nb_rows;
-
-            public dwt97_decode_h_job(
-                v4dwt_local h,
-                uint rw, uint w,
-                int[] aj, int ajp,
-                uint nb_rows
-            )
-            {
-                this.h = h;
-                this.rw = rw;
-                this.w = w;
-                this.aj = aj;
-                this.ajp = ajp;
-                this.nb_rows = nb_rows;
-            }
-        }
-
-        /// <summary>
-        /// Used by the MT impl
-        /// </summary>
-        private class dwt97_decode_v_job
-        {
-            public readonly v4dwt_local v;
-            public readonly uint rh;
-            public readonly uint w;
-            public readonly int[] aj;
-            public readonly int ajp;
-            public readonly uint nb_columns;
-
-            public dwt97_decode_v_job(
-                v4dwt_local v,
-                uint rh, uint w,
-                int[] aj, int ajp,
-                uint nb_columns
-            )
-            {
-                this.v = v;
-                this.rh = rh;
-                this.w = w;
-                this.aj = aj;
-                this.ajp = ajp;
-                this.nb_columns = nb_columns;
-            }
         }
     }
 }

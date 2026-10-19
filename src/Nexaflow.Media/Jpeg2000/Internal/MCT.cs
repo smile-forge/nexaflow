@@ -2,6 +2,7 @@
 #nullable disable
 using System;
 using System.Diagnostics;
+using System.Runtime.Intrinsics;
 
 namespace Nexaflow.Media.Jpeg2000.Internal
 {
@@ -52,13 +53,25 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         /// <param name="c2">Samples for blue chrominance component</param>
         /// <param name="n">Number of samples for each component</param>
         ///<remarks>
-        ///2.5
+        /// 2.5 - opj_mct_decode
         ///
-        /// There's a SSE2 variant of this algo. 
+        /// Eight samples at a time, as libopenjp2's SSE2 variant does four: integer arithmetic, so exactly the scalar result.
         /// </remarks>
         internal static void Decode(int[] c0, int[] c1, int[] c2, int n)
         {
-            for (int i = 0; i < n; ++i)
+            var i = 0;
+            for (; i + Vector256<int>.Count <= n; i += Vector256<int>.Count)
+            {
+                var y = Vector256.Create(c0.AsSpan(i, Vector256<int>.Count));
+                var u = Vector256.Create(c1.AsSpan(i, Vector256<int>.Count));
+                var v = Vector256.Create(c2.AsSpan(i, Vector256<int>.Count));
+                var g = y - Vector256.ShiftRightArithmetic(u + v, 2);
+                (v + g).CopyTo(c0.AsSpan(i, Vector256<int>.Count));
+                g.CopyTo(c1.AsSpan(i, Vector256<int>.Count));
+                (u + g).CopyTo(c2.AsSpan(i, Vector256<int>.Count));
+            }
+
+            for (; i < n; ++i)
             {
                 int y = c0[i];
                 int u = c1[i];
@@ -73,10 +86,13 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         }
 
         /// <summary>
-        /// Apply a reversible multi-component inverse transform to an image
+        /// Apply an irreversible multi-component inverse transform to an image
         /// </summary>
         /// <remarks>
         /// 2.5 - opj_mct_decode_real
+        ///
+        /// The components hold the bits of floats. Eight samples at a time, each lane the scalar's products and sums in its
+        /// order at single precision, with no fused multiply-add, so the result is bit for bit the scalar one.
         /// </remarks>
         /// <param name="c0">Samples for luminance component</param>
         /// <param name="c1">Samples for red chrominance component</param>
@@ -84,62 +100,25 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         /// <param name="n">Number of samples for each component</param>
         internal static void DecodeReal(int[] c0, int[] c1, int[] c2, int n)
         {
-            IntOrFloat y = new IntOrFloat();
-            IntOrFloat u = new IntOrFloat();
-            IntOrFloat v = new IntOrFloat();
-            IntOrFloat r = new IntOrFloat();
-            IntOrFloat g = new IntOrFloat();
-            IntOrFloat b = new IntOrFloat();
-
-            //C# Snip SSE2
-
-            //C# Liberal application of (float) to reduce math precision to the same as the org. impl
-            for (int i = 0; i < n; ++i)
+            var i = 0;
+            for (; i + Vector256<int>.Count <= n; i += Vector256<int>.Count)
             {
-                y.I = c0[i];
-                u.I = c1[i];
-                v.I = c2[i];
-#if !TEST_MATH_MODE
-                r.F = y.F + (v.F * 1.402f);
-                g.F = y.F - (u.F * 0.34413f) - (v.F * 0.71414f);
-                b.F = y.F + (u.F * 1.772f);
-#else
-                r.F = y.F + (float)(v.F * 1.402f);
-                g.F = y.F - (float)(u.F * 0.34413f) - (float)(v.F * 0.71414f);
-                {
-                    //c# This isn't more correct than the formula above, the goal
-                    //   here is to have the exact same result as the c impl. 
-                    //
-                    //   This lets us do a byte for byte comparison check, with the
-                    //   caviat that we're comparing against the result of a MSVC
-                    //   build of the c libary.
-                    //
-                    //   Other builds may give different results.
-                    g.F = y.F;
-                    float tmp = u.F * 0.344130009f;
-                    g.F -= tmp;
-                    tmp = v.F * 0.714139998f;
-                    g.F -= tmp;
-                }
-                b.F = y.F + (float)(u.F * 1.772f);
-#endif
-                c0[i] = r.I;
-                c1[i] = g.I;
-                c2[i] = b.I;
+                var y = Vector256.Create(c0.AsSpan(i, Vector256<int>.Count)).AsSingle();
+                var u = Vector256.Create(c1.AsSpan(i, Vector256<int>.Count)).AsSingle();
+                var v = Vector256.Create(c2.AsSpan(i, Vector256<int>.Count)).AsSingle();
+                (y + v * 1.402f).AsInt32().CopyTo(c0.AsSpan(i, Vector256<int>.Count));
+                (y - u * 0.34413f - v * 0.71414f).AsInt32().CopyTo(c1.AsSpan(i, Vector256<int>.Count));
+                (y + u * 1.772f).AsInt32().CopyTo(c2.AsSpan(i, Vector256<int>.Count));
+            }
 
-                //C# Code useful for math comparison
-                //if (i == 12)
-                //{
-                //    IntOrFloat calc1, calc2, res;
-
-                //    calc1.F = (float)(v.F * 0.714139998f);
-                //    calc2.F = (float)(u.F * 0.344130009f);
-                //    res.F = y.F;
-                //    res.F -= calc2.F;
-                //    res.F -= calc1.F;
-
-                //    i = i;
-                //}
+            for (; i < n; ++i)
+            {
+                float y = BitConverter.Int32BitsToSingle(c0[i]);
+                float u = BitConverter.Int32BitsToSingle(c1[i]);
+                float v = BitConverter.Int32BitsToSingle(c2[i]);
+                c0[i] = BitConverter.SingleToInt32Bits(y + (v * 1.402f));
+                c1[i] = BitConverter.SingleToInt32Bits(y - (u * 0.34413f) - (v * 0.71414f));
+                c2[i] = BitConverter.SingleToInt32Bits(y + (u * 1.772f));
             }
         }
     }

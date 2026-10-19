@@ -34,30 +34,26 @@
 #endregion
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Nexaflow.Media.Jpeg2000.Internal
 {
     /// <summary>
     /// MQ-coder.
-    /// 
+    ///
     /// The MQ arithmetic coding was orgiginaly developed for JBIG image compression.
-    /// 
+    ///
     /// Rather than coding the binary value, MQ encodies if the symbol being coded
-    /// is what we expected (Most Probably, Less Probably). 
+    /// is what we expected (Most Probably, Less Probably).
     /// </summary>
+    /// <remarks>
+    /// What decoding changes is in <see cref="Registers"/>, which a coding pass copies into a local for the pass and
+    /// back after it; what stays put across a code block — its bounds and the bytes its end marker overwrote — is here.
+    /// </remarks>
     internal sealed class MQCoder
     {
-        #region Variables and properties
-
-        /// <summary>
-        /// Temporary buffer where bits are coded or decoded
-        /// </summary>
-        uint c;
-
-        /// <summary>
-        /// Number of bits already read or free to write
-        /// </summary>
-        uint ct;
+        /// <summary>The decoder's working state between passes.</summary>
+        internal MQRegisters Registers;
 
         /// <summary>
         /// Maximum length to decode
@@ -65,77 +61,29 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         uint _end;
 
         /// <summary>
-        /// Source data
-        /// </summary>
-        byte[] _data;
-
-        /// <summary>
         /// Original value of the 2 bytes at end[0] and end[1]
         /// </summary>
         readonly byte[] _backup = new byte[Constants.COMMON_CBLK_DATA_EXTRA];
 
         /// <summary>
-        /// aaaaaaaaaaa
+        /// Where the code block's data starts in <see cref="MQRegisters.data"/>
         /// </summary>
-        uint a;
-
-        /// <summary>
-        /// Read position in the data array
-        /// </summary>
-        int _bp, _start;
-
-        /// <summary>
-        /// Only used by decoder, to count the number of times a terminating 0xFF >0x8F marker is read
-        /// </summary>
-        internal uint _end_of_byte_stream_counter;
-
-        /// <remarks>
-        /// C# implementation note:
-        /// As long as no indexing is done into the "second"
-        /// dimension of this array, it will work as in the
-        /// C++ code.
-        /// 
-        /// If it turns out this is needed, somehow store the
-        /// index of the MQCState, and use that to look up in
-        /// the mqc_states array.
-        /// 
-        /// The important bit here is anyway that one can hand
-        /// out a "ptr", and if that ptr is updated said update
-        /// is reflected in this array.
-        /// </remarks>
-        internal Ptr<MQCState>[] ctxs = new Ptr<MQCState>[Constants.MQC_NUMCTXS];
-
-        /// <summary>Current context</summary>
-        /// <remarks>
-        /// C# This is a "pointer" into ctxs. However, this implementation
-        ///    has it be a Ptr class. This works since it is effectivly a
-        ///    pointer into the ctxs array.
-        ///    
-        ///    Note, whenever curctx is changed, the new Ptr must be fetched 
-        ///    from ctsx.
-        /// </remarks>
-        internal Ptr<MQCState> curctx;
+        int _start;
 
         /// <summary>
         /// lut_ctxno_zc shifted by (1 << 9) * bandno
         /// </summary>
         /// <remarks>
-        /// This is a pointer into the byte array T1Luts.lut_ctxno_zc
+        /// This is an offset into the byte array T1Luts.lut_ctxno_zc
         /// </remarks>
         internal int lut_ctxno_zc_orient;
 
-        #endregion
+        /// <summary>The context <see cref="Decode"/> decodes in, as its index in <see cref="MQRegisters.ctxs"/></summary>
+        int _curctx;
 
-        #region Init
-
-        //C# - Creates the ctxs "struct". Might be overdesigned, as this
-        //     was some of the first code I converted and I was usure whet
-        //     c pointer peculiarities I needed to support.
         internal MQCoder()
         {
-            for (int c = 0; c < ctxs.Length; c++)
-                ctxs[c] = new Ptr<MQCState>();
-            curctx = ctxs[0];
+            Registers.ctxs = new uint[Constants.MQC_NUMCTXS];
         }
 
         /// <remarks>
@@ -144,18 +92,18 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         void CommonInit(byte[] data, uint offset, uint length, uint extra_writable_bytes)
         {
             Debug.Assert(extra_writable_bytes >= Constants.COMMON_CBLK_DATA_EXTRA);
-            _data = data;
-            _start = (int) offset;
+            Registers.data = data;
+            _start = (int)offset;
             _end = offset + length;
 
             // Insert an artificial 0xFF 0xFF marker at end of the code block
             // data so that the bytein routines stop on it. This saves us comparing
             // the bp and end pointers
             // But before inserting it, backup th bytes we will overwrite
-            Array.Copy(_data, _end, _backup, 0, Constants.COMMON_CBLK_DATA_EXTRA);
-            _data[_end + 0] = 0xFF;
-            _data[_end + 1] = 0xFF;
-            _bp = (int)offset;
+            Array.Copy(data, _end, _backup, 0, Constants.COMMON_CBLK_DATA_EXTRA);
+            data[_end + 0] = 0xFF;
+            data[_end + 1] = 0xFF;
+            Registers.bp = (int)offset;
         }
 
         /// <summary>
@@ -168,8 +116,8 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         internal void InitRawDec(byte[] bp, uint start_pos, uint len, uint extra_writable_bytes)
         {
             CommonInit(bp, start_pos, len, extra_writable_bytes);
-            c = 0;
-            ct = 0;
+            Registers.c = 0;
+            Registers.ct = 0;
         }
 
         /// <summary>
@@ -189,100 +137,195 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             CommonInit(bp, start_pos, len, extra_writable_bytes);
             Setcurctx(0);
 
-            _end_of_byte_stream_counter = 0;
-            if (len == 0)
-                c = 0xFF << 16;
-            else
-                c = (uint)_data[start_pos] << 16;
+            Registers.end_of_byte_stream_counter = 0;
+            Registers.c = len == 0 ? 0xFFu << 16 : (uint)bp[start_pos] << 16;
 
-            ByteIn();
-            c <<= 7;
-            ct -= 7;
-            a = 0x8000;
+            Registers.ByteIn();
+            Registers.c <<= 7;
+            Registers.ct -= 7;
+            Registers.a = 0x8000;
         }
 
-        #endregion
+        /// <summary>
+        /// Set the current context used for coding/decoding
+        /// </summary>
+        /// <remarks>
+        /// 2.5 - opj_mqc_setcurctx
+        /// </remarks>
+        internal void Setcurctx(T1_CTXNO i) { _curctx = (int)i; }
 
         /// <summary>
         /// Set the current context used for coding/decoding
         /// </summary>
-        /// <param name="ctxno">Number that identifies the context</param>
         /// <remarks>
         /// 2.5 - opj_mqc_setcurctx
-        /// 
-        /// Org. impl. is a macro
         /// </remarks>
-        internal void Setcurctx(T1_CTXNO i) { curctx = ctxs[(int) i]; }
-
-        /// <summary>
-        /// Set the current context used for coding/decoding
-        /// </summary>
-        /// <param name="ctxno">Number that identifies the context</param>
-        /// <remarks>
-        /// 2.5 - opj_mqc_setcurctx
-        /// 
-        /// Org. impl. is a macro
-        /// </remarks>
-        internal void Setcurctx(int ctxno) { curctx = ctxs[ctxno]; }
+        internal void Setcurctx(int ctxno) { _curctx = ctxno; }
 
         //2.5 - opj_mqc_raw_decode
         internal bool RawDecode()
         {
-            if (ct == 0)
+            ref var r = ref Registers;
+            if (r.ct == 0)
             {
                 // Given opj_mqc_raw_init_dec() we know that at some point we will
                 // have a 0xFF 0xFF artificial marker
-                if (c == 0xff)
+                if (r.c == 0xff)
                 {
-                    if (_data[_bp] > 0x8f)
+                    if (r.data[r.bp] > 0x8f)
                     {
-                        c = 0xff;
-                        ct = 8;
+                        r.c = 0xff;
+                        r.ct = 8;
                     }
                     else
                     {
-                        c = _data[_bp++];
-                        ct = 7;
+                        r.c = r.data[r.bp++];
+                        r.ct = 7;
                     }
                 }
                 else
                 {
-                    c = _data[_bp++];
-                    ct = 8;
+                    r.c = r.data[r.bp++];
+                    r.ct = 8;
                 }
             }
-            ct--;
-            return ((c >> (int)ct) & 0x01) == 0x01;
+            r.ct--;
+            return ((r.c >> (int)r.ct) & 0x01) == 0x01;
         }
 
-        //2.5 - opj_mqc_decode_macro
-        internal bool Decode()
+        /// <summary>Decodes one decision in the current context.</summary>
+        internal bool Decode() => Registers.Decode(_curctx);
+
+        //C# - This method dosn't exist in 2.5, but the equivalent code it identical.
+        internal void CheckPTerm(CompressionInfo cinfo)
         {
-            bool d;
-            a -= curctx.P.qeval;
-            if ((c >> 16) < curctx.P.qeval)
+            if (Registers.bp + 2 < _end)
             {
-                d = LpsExchange();
-                Renormd();
+                cinfo.WarnMT("\"PTERM check failure: {0} remaining bytes in code block ({1} used / {2})",
+                    _end - Registers.bp, Registers.bp - _start, _end - _start);
             }
-            else
+            else if (Registers.end_of_byte_stream_counter > 2)
             {
-                c -= curctx.P.qeval << 16;
-                if ((a & 0x8000) == 0)
+                cinfo.WarnMT("PTERM check failure: {0} synthetized 0xFF markers read",
+                    Registers.end_of_byte_stream_counter);
+            }
+        }
+
+        //2.5 - opq_mqc_finish_dec
+        internal void FinishDec()
+        {
+            //Restore the bytes overwritten by opj_mqc_init_dec_common()
+            Array.Copy(_backup, 0, Registers.data, _end, Constants.COMMON_CBLK_DATA_EXTRA);
+        }
+
+        //2.5 - opj_mqc_resetstates
+        internal void ResetStates()
+        {
+            Array.Fill(Registers.ctxs, MQCState.mqc_states[0]);
+        }
+
+        //2.5 - opj_mqc_setstate
+        internal void SetState(T1_CTXNO ctxno, int msb, int prob)
+        {
+            Registers.ctxs[(int)ctxno] = MQCState.mqc_states[msb + (prob << 1)];
+        }
+
+        /// <remarks>
+        /// 2.5 - opj_t1_getctxno_zc
+        ///
+        /// I assume the "zc" referes to "zero coding."
+        /// </remarks>
+        internal byte Getctxno_zc(T1 f)
+        {
+            return (byte) T1Luts.lut_ctxno_zc[lut_ctxno_zc_orient + (uint)(f & T1.SIGMA_NEIGHBOURS)];
+        }
+    }
+
+    /// <summary>
+    /// What the MQ decoder changes as it decodes: the interval, the code register and how many of its bits are left,
+    /// the read position, and the context and the state of each.
+    /// </summary>
+    /// <remarks>
+    /// A struct, so a coding pass can copy it into a local that the JIT keeps in registers for the whole pass — with
+    /// <see cref="Decode"/> and what it calls inlined into the pass — and copy it back after, as libopenjp2's
+    /// DOWNLOAD_MQC_VARIABLES and UPLOAD_MQC_VARIABLES do around its decode macros.
+    /// </remarks>
+    internal struct MQRegisters
+    {
+        /// <summary>The interval</summary>
+        internal uint a;
+
+        /// <summary>The code register</summary>
+        internal uint c;
+
+        /// <summary>Number of bits left in <see cref="c"/> before the next byte is read</summary>
+        internal uint ct;
+
+        /// <summary>Read position in <see cref="data"/></summary>
+        internal int bp;
+
+        /// <summary>Only used by decoder, to count the number of times a terminating 0xFF >0x8F marker is read</summary>
+        internal uint end_of_byte_stream_counter;
+
+        /// <summary>Source data</summary>
+        internal byte[] data;
+
+        /// <summary>The state each context is in, as its entry in <see cref="MQCState.mqc_states"/></summary>
+        internal uint[] ctxs;
+
+        /// <summary>Decodes one decision in context <paramref name="ctx"/>, moving the context to its next state.</summary>
+        /// <remarks>
+        /// 2.5 - opj_mqc_decode_macro, with opj_mqc_lpsexchange_macro and opj_mqc_mpsexchange_macro
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool Decode(int ctx)
+        {
+            ref uint context = ref ctxs[ctx];
+            var state = context;
+            var qeval = state >> 16;
+            var mps = (state & 1) != 0;
+            bool d;
+
+            a -= qeval;
+            if ((c >> 16) < qeval)
+            {
+                // The LPS interval: when it is the larger, the MPS was coded in it.
+                if (a < qeval)
                 {
-                    d = MpsExchange();
-                    Renormd();
+                    d = mps;
+                    context = MQCState.mqc_states[(state >> 1) & 0x7F];
                 }
                 else
                 {
-                    d = curctx.P.mps;
+                    d = !mps;
+                    context = MQCState.mqc_states[(state >> 8) & 0x7F];
                 }
+                a = qeval;
+                Renormd();
+                return d;
             }
 
+            c -= qeval << 16;
+            if ((a & 0x8000) != 0)
+                return mps;
+
+            // The MPS interval, too small to stay: when it is the smaller, the LPS was coded in it.
+            if (a < qeval)
+            {
+                d = !mps;
+                context = MQCState.mqc_states[(state >> 8) & 0x7F];
+            }
+            else
+            {
+                d = mps;
+                context = MQCState.mqc_states[(state >> 1) & 0x7F];
+            }
+            Renormd();
             return d;
         }
 
         //2.5 - opj_mqc_renormd_macro
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void Renormd()
         {
             do
@@ -294,173 +337,63 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             } while (a < 0x8000);
         }
 
-        //2.5 - opj_mqc_mpsexchange_macro
-        bool MpsExchange()
-        {
-            bool d;
-            if (a < curctx.P.qeval)
-            {
-                d = !curctx.P.mps;
-                curctx.P = curctx.P.nlps;
-            }
-            else
-            {
-                d = curctx.P.mps;
-                curctx.P = curctx.P.nmps;
-            }
-
-            return d;
-        }
-
-        //2.5 - opj_mqc_lpsexchange_macro
-        bool LpsExchange()
-        {
-            bool d;
-            if (a < curctx.P.qeval)
-            {
-                a = curctx.P.qeval;
-                d = curctx.P.mps;
-                curctx.P = curctx.P.nmps;
-            }
-            else
-            {
-                a = curctx.P.qeval;
-                d = !curctx.P.mps;
-                curctx.P = curctx.P.nlps;
-            }
-            return d;
-        }
-
-        //C# - This method dosn't exist in 2.5, but the equivalent code it identical.
-        internal void CheckPTerm(CompressionInfo cinfo)
-        {
-            if (this._bp + 2 < _end)
-            {
-                cinfo.WarnMT("\"PTERM check failure: {0} remaining bytes in code block ({1} used / {2})",
-                    _end - _bp, _bp - _start, _end - _start);
-            }
-            else if (_end_of_byte_stream_counter > 2)
-            {
-                cinfo.WarnMT("PTERM check failure: {0} synthetized 0xFF markers read",
-                    _end_of_byte_stream_counter);
-            }
-        }
-
-        //2.5 - opq_mqc_finish_dec
-        internal void FinishDec()
-        {
-            //Restore the bytes overwritten by opj_mqc_init_dec_common()
-            Array.Copy(_backup, 0, _data, _end, Constants.COMMON_CBLK_DATA_EXTRA);
-        }
-
-        //2.5 - opj_mqc_resetstates
-        internal void ResetStates()
-        {
-            for (int i = 0; i < Constants.MQC_NUMCTXS; i++)
-                ctxs[i].P = MQCState.mqc_states[0];
-        }
-
-        //2.5 - opj_mqc_setstate
-        internal void SetState(T1_CTXNO ctxno, int msb, int prob)
-        {
-            ctxs[(int)ctxno].P = MQCState.mqc_states[msb + (prob << 1)];
-        }
-
         /// <summary>
         /// Reads in one byte
         /// </summary>
         /// <remarks>
         /// 2.5 - opj_mqc_bytein_macro
         /// </remarks>
-        void ByteIn()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ByteIn()
         {
             // Given opj_mqc_init_dec() we know that at some point we will
             // have a 0xFF 0xFF artificial marker
-            uint l_c = _data[_bp + 1];
-            if (_data[_bp] == 0xff)
+            uint l_c = data[bp + 1];
+            if (data[bp] == 0xff)
             {
                 if (l_c > 0x8f)
                 {
                     c += 0xff00;
                     ct = 8;
-                    _end_of_byte_stream_counter++;
+                    end_of_byte_stream_counter++;
                 }
                 else
                 {
-                    _bp++;
+                    bp++;
                     c += l_c << 9;
                     ct = 7;
                 }
             }
             else
             {
-                _bp++;
+                bp++;
                 c += l_c << 8;
                 ct = 8;
-            }        
-        }
-
-        /// <remarks>
-        /// 2.5 - opj_t1_getctxno_zc
-        /// 
-        /// I assume the "zc" referes to "zero coding."
-        /// </remarks>
-        internal byte Getctxno_zc(T1 f)
-        {
-            return (byte) T1Luts.lut_ctxno_zc[lut_ctxno_zc_orient + (uint)(f & T1.SIGMA_NEIGHBOURS)];
+            }
         }
     }
 
     /// <summary>
     /// Defines the state of a context
     /// </summary>
-    internal class MQCState
+    internal static class MQCState
     {
         /// <summary>
-        /// The probability of the Least Probable Symbol 
-        /// (0.75->0x8000, 1.5->0xffff)
+        /// Every state a context can be in, packed as <see cref="MQCState()"/> describes; a context holds its state's entry
+        /// itself, so a decision that leaves the state as it is reads nothing else.
         /// </summary>
-        internal uint qeval;
-
-        /// <summary>
-        /// The Most Probable Symbol
-        /// </summary>
-        internal bool mps;
-
-        /// <summary>
-        /// Next state if the next encoded symbol is the MPS
-        /// </summary>
-        internal MQCState nmps;
-
-        /// <summary>
-        /// Next state if the next encoded symbol is the LPS
-        /// </summary>
-        internal MQCState nlps;
-
-        private MQCState(int q, int m)
-        { qeval = (uint)q; mps = m == 1; }
-
-        /// <summary>
-        /// This array defines all the possible states for a context.
-        /// </summary>
-        internal static MQCState[] mqc_states;
+        internal static readonly uint[] mqc_states;
         
         /// <summary>
-        /// Builds up the mqc_states array
+        /// Packs the states from <see cref="mcqints"/>, each into one entry: its MPS in bit 0, the index of the state after
+        /// an MPS in bits 1 to 7 and after an LPS in bits 8 to 14, and the LPS probability in the top 16 bits.
         /// </summary>
         static MQCState()
         {
-            mqc_states = new MQCState[47 * 2];
+            mqc_states = new uint[128];
 
-            for (int c = 0; c < mqc_states.Length; c++)
-                mqc_states[c] = new MQCState(mcqints[c, 0], mcqints[c, 1]);
-
-            for (int c = 0; c < mqc_states.Length; c++)
-            {
-                var mcq = mqc_states[c];
-                mcq.nmps = mqc_states[mcqints[c, 2]];
-                mcq.nlps = mqc_states[mcqints[c, 3]];
-            }
+            for (int c = 0; c < mcqints.GetLength(0); c++)
+                mqc_states[c] = (uint)mcqints[c, 1] | (uint)mcqints[c, 2] << 1 | (uint)mcqints[c, 3] << 8 | (uint)mcqints[c, 0] << 16;
             mcqints = null;
         }
 

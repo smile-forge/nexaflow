@@ -14,7 +14,8 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// <remarks>
 /// Opt-in: <c>NEXAFLOW_JPX_BENCH</c> names the folder; <c>NEXAFLOW_JPX_CORPUS</c> the folders of PDFs, separated
 /// as a PATH is (PdfPig's own test documents when it names none); <c>NEXAFLOW_JPX_PER_SIZE</c> how many images of
-/// each size a sampled run measures.
+/// each size a sampled run measures; <c>NEXAFLOW_JPX_ONLY</c> the images to measure instead, by parts of their names
+/// separated by semicolons.
 /// </remarks>
 internal sealed class JpxRun : IDisposable
 {
@@ -22,6 +23,8 @@ internal sealed class JpxRun : IDisposable
     public const string Library = "NEXAFLOW_OPENJP2";
     private const string Corpus = "NEXAFLOW_JPX_CORPUS";
     private const string PerSize = "NEXAFLOW_JPX_PER_SIZE";
+
+    private const string Only = "NEXAFLOW_JPX_ONLY";
 
     /// <summary>How many images of each size a sampled run measures, unless <c>NEXAFLOW_JPX_PER_SIZE</c> says otherwise; 0 is all.</summary>
     private const int DefaultPerSize = 6;
@@ -55,7 +58,9 @@ internal sealed class JpxRun : IDisposable
             .Order(StringComparer.OrdinalIgnoreCase).ToList();
         var (found, unread) = JpxCorpus.Scan(pdfs);
         var perSize = everyImage ? 0 : int.TryParse(Environment.GetEnvironmentVariable(PerSize), out var asked) ? asked : DefaultPerSize;
-        Entries = Sampled(found, perSize);
+        Entries = Environment.GetEnvironmentVariable(Only) is { Length: > 0 } only
+            ? [.. found.Where(entry => only.Split(';', StringSplitOptions.RemoveEmptyEntries).Any(name => entry.Name.Contains(name, StringComparison.OrdinalIgnoreCase)))]
+            : Sampled(found, perSize);
         Megapixels = Entries.Sum(entry => entry.DeclaredMegapixels);
         Log($"{found.Count} images in {pdfs.Count} PDFs ({unread.Count} unread); measuring {Entries.Count}, {Megapixels:N0} MP");
 

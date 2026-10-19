@@ -39,6 +39,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using OPJ_UINT32 = System.UInt32;
+using System.Runtime.Intrinsics;
 #endregion
 
 namespace Nexaflow.Media.Jpeg2000.Internal
@@ -48,9 +49,6 @@ namespace Nexaflow.Media.Jpeg2000.Internal
     /// </summary>
     internal sealed class TileCoder
     {
-        private delegate void ThreadWorker(object job);
-        private delegate IEnumerable<object> CreateJobs(bool mt, Tier1Coding.SetRet ret);
-
         #region Variables and properties
 
         internal bool DisableMultiThreading => _cinfo.DisableMultiThreading;
@@ -592,170 +590,58 @@ namespace Nexaflow.Media.Jpeg2000.Internal
             return t2.DecodePackets(this, _tcd_tileno, _tcd_image.tiles[0], src, src_len, cstr_index);
         }
 
+        /// <summary>The tier-1 coder a serial decode runs every code block through, made on first use.</summary>
+        private Tier1Coding _t1;
+
+        /// <summary>
+        /// Decodes every code block of the tile.
+        /// </summary>
         /// <remarks>
-        /// //2.5 - opj_tcd_t1_decode
-        /// 
-        /// Implements multithreading with thread limiter. This function is
-        /// basically all new, with the "real" T1Decode beeing made into a
-        /// generator. See comment of that function for why.
+        /// 2.5 - opj_tcd_t1_decode
+        ///
+        /// libopenjp2 hands its code blocks to a thread pool whose workers keep a tier-1 coder each in thread-local
+        /// storage. Here a serial decode runs them on the calling thread through one coder, and a parallel decode shares
+        /// them out over the processors, each worker taking a coder of its own for its whole share: no hand-off per code
+        /// block, and no coder made for one.
         /// </remarks>
         bool T1Decode()
         {
-            return RunThreads((mt, set_ret) =>
+            var ok = 1;
+            bool SetRet(bool? value)
             {
-                return T1Decode(mt, set_ret);
-            }, (obj) =>
+                if (value == false) Volatile.Write(ref ok, 0);
+                return Volatile.Read(ref ok) == 1;
+            }
+
+            if (DisableMultiThreading)
             {
-                Tier1Coding.ThreadWorker((Tier1Coding.T1CBLKDecodeProcessingJob)obj);
-            });
-        }
+                _t1 ??= new Tier1Coding();
+                foreach (var job in T1Decode(false, SetRet))
+                {
+                    Tier1Coding.ThreadWorker(job, _t1);
+                    if (!SetRet(null)) break;
+                }
+                return SetRet(null);
+            }
 
-        /// <summary>
-        /// To share code between encoding and decoding, the MT code has been
-        /// funneled into this function, with the differences handled by a couple
-        /// of delegates
-        /// </summary>
-        /// <remarks>
-        /// Org impl depends on its threadpool impl for limiting the number of threads,
-        /// it also takes advantage of threadlocal store.
-        /// 
-        /// Since this impl. depends on .net's threadpool, we have to manualy limit the
-        /// number of executable threads, and local storage isn't reccomended with these
-        /// threads, as we don't own them, so we don't use it.
-        /// </remarks>
-        /// <param name="create_jobs">Used to generate the jobs that will be scheduled</param>
-        /// <param name="run_thread">Command to actually run the job</param>
-        /// <returns>True of true</returns>
-        private bool RunThreads(CreateJobs create_jobs, ThreadWorker run_thread)
-        {
-            bool ret = true;
-
-            //How many threads are currently working
-            int running_jobs = 0;
-
-            int max_threads;
-            ThreadPool.GetAvailableThreads(out max_threads, out _);
-            max_threads = _cinfo.DisableMultiThreading ? 1 : Math.Min(Environment.ProcessorCount, max_threads);
-
-            //Generator for work
-            var work = create_jobs(max_threads > 1, (val) =>
-            {
-                //Since we only allow setting this value false,
-                //we don't need to worry about syncing the threads.
-                if (val != null && val.Value == false)
-                    ret = val.Value;
-                return ret;
-            });
-
-            var reset = new ManualResetEvent(true);
-            var done = new ManualResetEvent(true); //<-- true in case there's no jobs
+            var jobs = T1Decode(true, SetRet).ToList();
             try
             {
-                foreach (var job in work)
-                {
-                    //Before we enqueue the job, we must wait for a thread to become
-                    //avalible.
-                    int jobs = Interlocked.Increment(ref running_jobs);
-                    if (jobs == max_threads)
+                Parallel.For(0, jobs.Count, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                    () => new Tier1Coding(),
+                    (at, loop, t1) =>
                     {
-                        //When max_threads == 1, we'll always enter this if,
-                        //including on the first itteration.
-
-                        reset.WaitOne();
-                        reset.Reset();
-                    }
-
-                    //max_threads may be == 1, which is why this isn't an "else if"
-                    if (jobs == 1)
-                    {
-                        //Can only be 1 after incrementing from 0, as this thread is
-                        //the only thread incrementing running_jobs.
-                        //
-                        //This means we know that "done" is set, and thus needs
-                        //to be reset.
-                        //
-                        //We lock before we reset so that we're sure that the thread
-                        //which decremented to zero is actually done, as it may be
-                        //sleeping right before "done.Set()"
-                        lock (reset) { done.Reset(); }
-                    }
-
-                    ThreadPool.QueueUserWorkItem((x) =>
-                    {
-                        try { run_thread(x); }
-                        finally
-                        {
-                            // Locking on reset is safe as it's a method local object.
-                            //
-                            //The reason we grab a lock is because we this thread
-                            //may fall asleep right before done.Set().
-                            lock (reset)
-                            {
-                                //Only worker threads decrement running jobs. 
-                                int rj = Interlocked.Decrement(ref running_jobs);
-
-                                //In theory we don't always have to set the reset flag,
-                                //we only need to do so when (running_jobs == max_threads)
-                                //as that means the main thread may be asleep.
-                                //
-                                //However, setting reset doesn't hurt, as we know a slot
-                                //for new work has become avalible. (This thread is finished
-                                //after all), and I'm not 100% sure I'm right in my thinking.
-                                //
-                                //if (running_jobs == max_threads)
-                                {
-
-                                    //Signal the main thread that it can schedule more
-                                    //work.
-                                    reset.Set();
-                                    //The lock( ) isn't needed for reset.Set(), it can be
-                                    //placed after the lock. But again, I'm not 100%
-                                    //sure.
-                                }
-
-                                //rj being zero means this thread decremented running_jobs to
-                                //zero. Since done will only be reset when running_jobs is
-                                //zero, we know that at worst the main thread is waiting to
-                                //call done.reset() right after this thread sets it. 
-                                //
-                                //
-                                //running_jobs being zero means the main thread may be
-                                //waiting on the done signal*.
-                                //
-                                //* It can also be sleeping before the increement, in which
-                                //  case it will reset the done signal after waking up.
-                                //* If it's sleeping after the increement, running_jobs can't
-                                //  be zero.
-                                if (rj == 0 && running_jobs == 0)
-                                {
-                                    done.Set();
-                                }
-                            }
-                        }
-                    }, job);
-
-                    if (jobs == max_threads)
-                    {
-                        //We don't want jobs to become bigger than max_threads, as my logic
-                        //don't like that.
-                        reset.WaitOne();
-                    }
-
-                    //For when we break out of the loop early.
-                    if (!ret)
-                        break;
-                }
-
-                //We have to wait until all threads terminate.
-                done.WaitOne();
+                        if (SetRet(null)) Tier1Coding.ThreadWorker(jobs[at], t1);
+                        else loop.Stop();
+                        return t1;
+                    },
+                    static _ => { });
             }
-            finally
+            catch (AggregateException failed) when (failed.InnerExceptions.Count == 1)
             {
-                done.Dispose();
-                reset.Dispose();
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failed.InnerExceptions[0]).Throw();
             }
-
-            return ret;
+            return SetRet(null);
         }
 
         /// <summary>
@@ -998,46 +884,69 @@ namespace Nexaflow.Media.Jpeg2000.Internal
                 if (width == 0 || height == 0)
                     continue;
 
-                if (_tcp.tccps[compno].qmfbid == 1)
+                var reversible = _tcp.tccps[compno].qmfbid == 1;
+                for (int j = 0; j < height; j++, data_ptr += width + stride)
                 {
-                    for (int j = 0; j < height; j++)
-                    {
-                        for (int i = 0; i < width; i++)
-                        {
-                            data[data_ptr] = MyMath.int_clamp(data[data_ptr] + tccp.dc_level_shift, min, max);
-                            data_ptr++;
-                        }
-                        data_ptr += stride;
-                    }
+                    var row = data.AsSpan(data_ptr, width);
+                    if (reversible)
+                        ShiftRow(row, tccp.dc_level_shift, min, max);
+                    else
+                        ShiftRealRow(row, tccp.dc_level_shift, min, max, (int)imagec.prec);
                 }
+            }
+        }
+
+        /// <summary>A reversible row shifted to its level and clamped to its precision's range, eight samples at a time.</summary>
+        static void ShiftRow(Span<int> row, int shift, int min, int max)
+        {
+            var i = 0;
+            var (shifts, mins, maxes) = (Vector256.Create(shift), Vector256.Create(min), Vector256.Create(max));
+            for (; i + Vector256<int>.Count <= row.Length; i += Vector256<int>.Count)
+            {
+                var lanes = row.Slice(i, Vector256<int>.Count);
+                Vector256.Min(Vector256.Max(Vector256.Create(lanes) + shifts, mins), maxes).CopyTo(lanes);
+            }
+
+            for (; i < row.Length; i++)
+                row[i] = MyMath.int_clamp(row[i] + shift, min, max);
+        }
+
+        /// <summary>
+        /// An irreversible row — the bits of floats — rounded to the nearest integer, ties to even as lrintf rounds, shifted
+        /// to its level and clamped to its precision's range.
+        /// </summary>
+        /// <remarks>
+        /// Eight samples at a time while the range the rounded value is clamped to before the shift, from
+        /// <c>min - shift</c> to <c>max - shift</c>, is exact as floats — up to 24 bits: clamping there first and converting
+        /// after is then the scalar's clamp of the shifted 64-bit value, infinities and values outside an int included.
+        /// A NaN rounds to zero, as the scalar's conversion makes it.
+        /// </remarks>
+        static void ShiftRealRow(Span<int> row, int shift, int min, int max, int precision)
+        {
+            var i = 0;
+            if (precision <= 24)
+            {
+                var shifts = Vector256.Create(shift);
+                var low = Vector256.Create((float)((long)min - shift));
+                var high = Vector256.Create((float)((long)max - shift));
+                for (; i + Vector256<int>.Count <= row.Length; i += Vector256<int>.Count)
+                {
+                    var lanes = row.Slice(i, Vector256<int>.Count);
+                    var value = Vector256.Create(lanes).AsSingle();
+                    var rounded = Vector256.ConditionalSelect(Vector256.Equals(value, value), Vector256.Round(value), Vector256<float>.Zero);
+                    (Vector256.ConvertToInt32(Vector256.Min(Vector256.Max(rounded, low), high)) + shifts).CopyTo(lanes);
+                }
+            }
+
+            for (; i < row.Length; i++)
+            {
+                var value = BitConverter.Int32BitsToSingle(row[i]);
+                if (value > int.MaxValue)
+                    row[i] = max;
+                else if (value < int.MinValue)
+                    row[i] = min;
                 else
-                {
-                    IntOrFloat fi = new IntOrFloat();
-                    for (int j = 0; j < height; j++)
-                    {
-                        for (int i = 0; i < width; i++)
-                        {
-                            fi.I = data[data_ptr];
-                            if (fi.F > int.MaxValue)
-                            {
-                                data[data_ptr] = max;
-                            }
-                            else if (fi.F < int.MinValue)
-                            {
-                                data[data_ptr] = min;
-                            }
-                            else 
-                            {
-                                // Do addition on int64 to avoid overflows
-                                //long value_int = lrintf(fi.F);
-                                long value_int = (long)Math.Round(fi.F); //<-- Impl. banker's rounding (round towards even).
-                                data[data_ptr] = (int)MyMath.int64_clamp(value_int + tccp.dc_level_shift, min, max);
-                            }
-                            data_ptr++;
-                        }
-                        data_ptr += stride;
-                    }
-                }
+                    row[i] = (int)MyMath.int64_clamp((long)Math.Round(value) + shift, min, max);
             }
         }
 

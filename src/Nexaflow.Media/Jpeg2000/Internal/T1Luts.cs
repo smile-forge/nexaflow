@@ -38,7 +38,7 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         }
 
         //2.5 - lut_ctxno_zc[2048]
-        internal static sbyte[] lut_ctxno_zc = {
+        internal static readonly sbyte[] lut_ctxno_zc = {
             0, 1, 3, 3, 1, 2, 3, 3, 5, 6, 7, 7, 6, 6, 7, 7, 0, 1, 3, 3, 1, 2, 3, 3, 5, 6, 7, 7, 6, 6, 7, 7,
             5, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 5, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
             1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7,
@@ -106,7 +106,7 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         };
 
         //2.5 - lut_spb
-        static bool[] lut_spb = 
+        static readonly bool[] lut_spb = 
         {
             false, false, false, false, false, false, false, false, false, true, false, true, false, true, false, true, false, false, true, true, false, false, true, true, false, true, false, true, false, true, false, true,
             false, false, false, false, true, true, true, true, false, false, false, false, false, true, false, true, false, false, false, false, true, true, true, true, false, false, false, true, false, true, true, true,
@@ -126,7 +126,7 @@ namespace Nexaflow.Media.Jpeg2000.Internal
 
         //2.5 - lut_ctxno_sc[256]
         //This table corresponds with the enum "T1_CTXNO"
-        static sbyte[] ctxno_sc = 
+        static readonly sbyte[] ctxno_sc = 
         {
             0x9, 0x9, 0xa, 0xa, 0x9, 0x9, 0xa, 0xa, 0xc, 0xc, 0xd, 0xb, 0xc, 0xc, 0xd, 0xb,
             0x9, 0x9, 0xa, 0xa, 0x9, 0x9, 0xa, 0xa, 0xc, 0xc, 0xb, 0xd, 0xc, 0xc, 0xb, 0xd,

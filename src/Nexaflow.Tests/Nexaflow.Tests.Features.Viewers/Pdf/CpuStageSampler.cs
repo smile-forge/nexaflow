@@ -28,6 +28,12 @@ internal static class CpuStageSampler
     /// <summary>The sampler's mark for a thread outside managed code (1 External, 2 Managed).</summary>
     private const int ExternalCode = 1;
 
+    /// <summary>The runtime's allocation sample: one event for about every 100 KB allocated, with its type and stack.</summary>
+    private const string AllocationTick = "GC/AllocationTick";
+
+    /// <summary>An allocation tick's kind for the large object heap (0 is the small object heap).</summary>
+    private const int LargeObjectHeap = 1;
+
     public static StageProfile Sample(Action run, Func<string, string?> stageOf)
     {
         var file = TestTemp.CreateFile(".nettrace");
@@ -50,9 +56,10 @@ internal static class CpuStageSampler
         var providers = new List<EventPipeProvider>
         {
             new(Sampler, EventLevel.Informational),
-            // Method names for the stacks: what is jitted while recording, and the rundown at the end names the rest.
-            new("Microsoft-Windows-DotNETRuntime", EventLevel.Informational,
-                (long)(ClrTraceEventParser.Keywords.Jit | ClrTraceEventParser.Keywords.Loader)),
+            // Method names for the stacks — what is jitted while recording, and the rundown at the end names the rest — and,
+            // at the verbose level, the collector's allocation ticks.
+            new("Microsoft-Windows-DotNETRuntime", EventLevel.Verbose,
+                (long)(ClrTraceEventParser.Keywords.Jit | ClrTraceEventParser.Keywords.Loader | ClrTraceEventParser.Keywords.GC)),
         };
 
         var client = new DiagnosticsClient(Environment.ProcessId);
@@ -77,6 +84,8 @@ internal static class CpuStageSampler
         var work = new Dictionary<string, int>();
         var onCaller = new Dictionary<string, (int Samples, int Waiting)>();
         var hottest = new Dictionary<(string Method, string Stage), int>();
+        var allocatedByStage = new Dictionary<string, (long Small, long Large)>();
+        var allocatedByType = new Dictionary<(string Type, string Stage), long>();
         var stages = new Dictionary<string, string?>(StringComparer.Ordinal);
         var dropped = 0;
         var callerDropped = 0;
@@ -85,13 +94,15 @@ internal static class CpuStageSampler
 
         foreach (var sample in log.Events)
         {
-            if (sample.ProviderName != Sampler) continue;
-
-            string? stage = null;
-            string? innermost = null;
+            var isSample = sample.ProviderName == Sampler;
+            var isAllocation = !isSample && sample.EventName == AllocationTick;
+            if (!isSample && !isAllocation) continue;
 
             // EventPipe stacks hold managed frames only, so the innermost is managed: the work's own code, or what it
             // called into — a copy, an allocation, a wait.
+            string? stage = null;
+            string? innermost = null;
+            string? staged = null;
             for (var frame = sample.CallStack(); frame is not null && stage is null; frame = frame.Caller)
             {
                 var method = frame.CodeAddress.Method?.FullMethodName;
@@ -99,6 +110,20 @@ internal static class CpuStageSampler
 
                 innermost ??= method;
                 if (!stages.TryGetValue(method, out stage)) stages[method] = stage = stageOf(method);
+                if (stage is not null) staged = method;
+            }
+
+            if (isAllocation)
+            {
+                // A tick stands for the bytes allocated since the last, about 100 KB, and names the type it fell on.
+                if (stage is null) continue;
+                var bytes = Convert.ToInt64(sample.PayloadByName("AllocationAmount64"));
+                var large = Convert.ToInt32(sample.PayloadByName("AllocationKind")) == LargeObjectHeap;
+                var (small, big) = allocatedByStage.GetValueOrDefault(stage);
+                allocatedByStage[stage] = large ? (small, big + bytes) : (small + bytes, big);
+                var type = (sample.PayloadByName("TypeName") as string ?? "?", stage);
+                allocatedByType[type] = allocatedByType.GetValueOrDefault(type) + bytes;
+                continue;
             }
 
             if (stage is null)
@@ -111,7 +136,7 @@ internal static class CpuStageSampler
             // The sampler says whether the thread was running managed code or was outside it — blocked in a wait, in a
             // P/Invoke, in the collector. A thread blocked in a native wait shows only the managed frame that called it, so
             // its name alone cannot tell a wait from work.
-            var waiting = sample.PayloadByName("Type") is int type && type == ExternalCode || IsWait(innermost!);
+            var waiting = sample.PayloadByName("Type") is int kind && kind == ExternalCode || IsWait(innermost!);
             if (sample.ThreadID == caller)
             {
                 var (samples, waits) = onCaller.GetValueOrDefault(stage);
@@ -121,9 +146,12 @@ internal static class CpuStageSampler
             if (waiting) continue;
 
             work[stage] = work.GetValueOrDefault(stage) + 1;
-            var key = (Trimmed(innermost!), stage);
+            // A runtime helper — a copy, a clear, an allocation — is named with the work's method that called it.
+            var key = (staged == innermost ? Trimmed(innermost!) : $"{Trimmed(innermost!)} in {Trimmed(staged!)}", stage);
             hottest[key] = hottest.GetValueOrDefault(key) + 1;
         }
+
+        static double Mb(long bytes) => Math.Round(bytes / 1048576.0, 1);
 
         return new StageProfile(
             work.Values.Sum(),
@@ -133,7 +161,12 @@ internal static class CpuStageSampler
             callerDropped,
             work.OrderByDescending(s => s.Value).Select(s => new StageShare(s.Key, s.Value, 0)).ToList(),
             onCaller.OrderByDescending(s => s.Value.Samples).Select(s => new StageShare(s.Key, s.Value.Samples, s.Value.Waiting)).ToList(),
-            hottest.OrderByDescending(h => h.Value).Take(40).Select(h => new MethodShare(h.Key.Method, h.Key.Stage, h.Value)).ToList());
+            hottest.OrderByDescending(h => h.Value).Take(40).Select(h => new MethodShare(h.Key.Method, h.Key.Stage, h.Value)).ToList(),
+            Mb(allocatedByStage.Values.Sum(a => a.Small + a.Large)),
+            allocatedByStage.OrderByDescending(a => a.Value.Small + a.Value.Large)
+                .Select(a => new AllocationShare(a.Key, Mb(a.Value.Small), Mb(a.Value.Large))).ToList(),
+            allocatedByType.OrderByDescending(a => a.Value).Take(25)
+                .Select(a => new AllocatedType(a.Key.Type, a.Key.Stage, Mb(a.Value))).ToList());
     }
 
     /// <summary>A thread blocked rather than working: waiting on an event, a lock, a semaphore, or asleep.</summary>
@@ -159,6 +192,8 @@ internal static class CpuStageSampler
 /// blocked or outside managed code counted beside each stage — where its wall time went;
 /// <see cref="CallerDropped"/> are its samples that held no frame of the work at all. <see cref="Hottest"/> are the
 /// methods most often innermost while working. One sample is about a millisecond of one thread.
+/// <see cref="AllocatedMb"/> is what the work allocated while sampled, from the collector's allocation ticks, with
+/// <see cref="Allocations"/> splitting it by stage and heap and <see cref="AllocatedTypes"/> by type.
 /// </summary>
 internal sealed record StageProfile(
     int WorkSamples,
@@ -168,7 +203,16 @@ internal sealed record StageProfile(
     int CallerDropped,
     IReadOnlyList<StageShare> Work,
     IReadOnlyList<StageShare> OnCaller,
-    IReadOnlyList<MethodShare> Hottest);
+    IReadOnlyList<MethodShare> Hottest,
+    double AllocatedMb,
+    IReadOnlyList<AllocationShare> Allocations,
+    IReadOnlyList<AllocatedType> AllocatedTypes);
+
+/// <summary>What one stage allocated, in MB, on the small and the large object heap.</summary>
+internal sealed record AllocationShare(string Stage, double SmallMb, double LargeMb);
+
+/// <summary>What was allocated of one type within one stage, in MB.</summary>
+internal sealed record AllocatedType(string Type, string Stage, double Mb);
 
 /// <summary>One stage's samples, and how many of them were a thread blocked or outside managed code inside it.</summary>
 internal sealed record StageShare(string Stage, int Samples, int Waiting);

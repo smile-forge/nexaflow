@@ -44,6 +44,9 @@
   How many images of each size (under 0.1 MP, 0.1-1, 1-4, 4 MP and over) are timed, spread from the smallest file
   to the largest; the same corpus always gives the same sample. 0 times every image.
 
+.PARAMETER Only
+  Measures only the images whose names hold one of these parts, separated by semicolons — "MOZILLA-1.pdf#12;x.pdf" —
+  instead of a sample of each size.
 .PARAMETER Label
   What this run is - "baseline", "pooled code-block buffers". Recorded in the run beside the commit.
 
@@ -62,6 +65,7 @@ param(
     [string]$PdfCorpus = $env:NEXAFLOW_PDF_CORPUS,
     [switch]$Compare,
     [int]$PerSize = 6,
+    [string]$Only = '',
     [string]$Label = '',
     [string]$Out = (Join-Path $env:LOCALAPPDATA 'Nexaflow\jpx-bench'),
     [ValidateSet('Release', 'Debug')][string]$Configuration = 'Release'
@@ -127,6 +131,7 @@ $env:NEXAFLOW_JPX_BENCH = $Out
 $env:NEXAFLOW_OPENJP2 = (Resolve-Path $library).Path
 $env:NEXAFLOW_JPX_CORPUS = $Corpus -join [IO.Path]::PathSeparator
 $env:NEXAFLOW_JPX_PER_SIZE = $PerSize
+$env:NEXAFLOW_JPX_ONLY = $Only
 $env:NEXAFLOW_BENCH_LABEL = $Label
 $env:NEXAFLOW_BENCH_COMMIT = $commit
 
@@ -186,11 +191,16 @@ $file
 "serial        managed {0,9:N0} ms   libopenjp2 {1,7:N0} ms   x{2}" -f $t.managedSingleMs, $t.nativeSingleMs, $t.singleThreadRatio
 "threaded      managed {0,9:N0} ms   libopenjp2 {1,7:N0} ms   x{2}   ({3} processors)" -f $t.managedMs, $t.nativeMs, $t.threadedRatio, $run.processors
 "the reader    JPXDecode {0,9:N0} ms   libopenjp2 {1,7:N0} ms   x{2}   ({3} images)" -f $t.filterMs, $t.filterNativeMs, $t.filterRatio, $t.filterImages
+"allocated     serial {0:N0} KB/MP   threaded {1:N0} KB/MP   the reader {2:N0} KB/MP   ({3:N0} MB in all serially, {4} gen2 collections)" -f `
+    $t.managedSingleKbPerMp, $t.managedKbPerMp, $t.filterKbPerMp, ($t.managedSingleKb / 1024), $t.managedSingleGen2
+$m = $run.memory
+"memory        peak working set {0:N0} MB, GC paused {1:N0} ms, collections gen0 {2} gen1 {3} gen2 {4}" -f `
+    $m.peakWorkingSetMb, $m.gcPauseMs, $m.gen0Collections, $m.gen1Collections, $m.gen2Collections
 foreach ($size in $run.bySize) {
     "  {0,-14} {1,4} images   serial x{2,-6} threaded x{3}" -f $size.size, $size.images, $size.singleThreadRatio, $size.threadedRatio
 }
 
-function Show-Work($title, $profile) {
+function Show-Work($title, $profile, $passes) {
     $title
     $all = [double][Math]::Max(1, $profile.workSamples)
     foreach ($stage in $profile.work | Select-Object -First 9) {
@@ -198,7 +208,15 @@ function Show-Work($title, $profile) {
     }
     "  the calling thread spent {0:P0} of its {1:N0} samples blocked or outside managed code" -f `
         ($profile.callerWaiting / [double][Math]::Max(1, $profile.callerSamples)), $profile.callerSamples
+    $decoded = [Math]::Max(0.001, $passes * $profiled.megapixelsPerPass)
+    "  allocated {0:N0} MB, {1:N1} MB per megapixel decoded:" -f $profile.allocatedMb, ($profile.allocatedMb / $decoded)
+    foreach ($stage in $profile.allocations | Select-Object -First 5) {
+        "    {0,-52} {1,8:N0} MB small {2,8:N0} MB large" -f $stage.stage, $stage.smallMb, $stage.largeMb
+    }
+    foreach ($type in $profile.allocatedTypes | Select-Object -First 6) {
+        "    {0,8:N0} MB  {1} in {2}" -f $type.mb, $type.type, $type.stage
+    }
 }
 $profileFile
-Show-Work 'where the reader''s decode works, every thread, waits taken out' $profiled.appProfile
-Show-Work 'where the serial decode works, waits taken out' $profiled.decodeProfile
+Show-Work 'where the reader''s decode works, every thread, waits taken out' $profiled.appProfile $profiled.appPasses
+Show-Work 'where the serial decode works, waits taken out' $profiled.decodeProfile $profiled.decodePasses

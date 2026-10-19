@@ -387,59 +387,6 @@ namespace Nexaflow.Media.Jpeg2000
         }
 
         /// <summary>
-        /// Returns the raw image data as a stream of bytes. Note
-        /// that this method will rezise channels that don't fit.
-        /// </summary>
-        /// <remarks>Should perhaps leave out the alpha channels</remarks>
-        public byte[] ToArray()
-        {
-            using (var ms = ToMemoryStream())
-            {
-                return ms.ToArray();
-            }
-        }
-
-        /// <summary>
-        /// Returns the raw image data as a stream of bytes. Note
-        /// that this method will rezise channels that don't fit.
-        /// </summary>
-        /// <remarks>Should perhaps leave out the alpha channels</remarks>
-        public MemoryStream ToMemoryStream()
-        {
-            //Determine resolution.
-            uint w = x1 - x0, h = y1 - y0;
-
-            //Resize channels if needed
-            var cc = new int[comps.Length][];
-            for (int c = 0; c < comps.Length; c++)
-            {
-                var comp = comps[c];
-                cc[c] = Util.Scaler.Rezise(comp.data, (int)comp.w, (int)comp.h, (int)w, (int)h);
-            }
-
-            //Writes out the data
-            var ms = new MemoryStream();
-            var bio = new Util.BitWriter(ms);
-
-            for (int i = 0, pos = 0; i < h; i++)
-            {
-                for (int j = 0; j < w; j++, pos++)
-                {
-                    for (int k = 0; k < cc.Length; k++)
-                    {
-                        var comp = comps[k];
-                        bio.Write(cc[k][pos], (int)comp.prec); //comp.bpp is usually 0
-                    }
-                }
-
-                //Byte aligns the data after each row
-                bio.Flush();
-            }
-
-            return ms;
-        }
-
-        /// <summary>
         /// When the SMaskInData flag is set it's not guranteed that
         /// there's alpha channel data (though Adobe appears to require this,
         /// but perhaps not for J2K streams as I've only tested JP2)

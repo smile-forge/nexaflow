@@ -59,6 +59,9 @@ namespace Nexaflow.Media.Jpeg2000.Internal
     /// </summary>
     /// <remarks>
     /// C# impl. note: Based on tgt.h and tgt.c
+    ///
+    /// The nodes are structs in one array, each naming its parent by index, as libopenjp2's point into theirs; a tree
+    /// rebuilt for another precinct reuses the array when it is big enough.
     /// </remarks>
     internal sealed class TagTree
     {
@@ -76,254 +79,165 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         //2.5 - opj_tgt_create
         internal static TagTree Create(uint numleafsh, uint numleafsv, CompressionInfo cinfo)
         {
-            uint n;
-            var tt = new TagTree();
-
-            tt._numleafsh = numleafsh;
-            tt._numleafsv = numleafsv;
-
-            int[] nplh = new int[32];
-            int[] nplv = new int[32];
-
-            int numlvls = 0;
-            nplh[0] = (int)numleafsh;
-            nplv[0] = (int)numleafsv;
-            tt._numnodes = 0;
-            do
-            {
-                n = (uint)(nplh[numlvls] * nplv[numlvls]);
-                nplh[numlvls + 1] = (nplh[numlvls] + 1) / 2;
-                nplv[numlvls + 1] = (nplv[numlvls] + 1) / 2;
-                tt._numnodes += n;
-                ++numlvls;
-            } while (n > 1);
-
-            // ADD
-            if (tt._numnodes == 0)
-            {
-                //C# openJpeg 2.5 dosn't emit this warning
-                //cinfo.Warn("tgt_create tree->numnodes == 0, no tree created.");
-                return null;
-            }
-
-            //Annoying, but the org. code makes use of a invalid pointer. (I.e. a non-null pointer to nowhere)
-            //I've rewritten to make C# happy, but this needs to be tested.
-            // (org. code is tgt_create(..) in tft.c)
-            tt.nodes = new TagNode[tt._numnodes];
-            for (int c = 0; c < tt.nodes.Length; c++)
-                tt.nodes[c] = new TagNode();
-            TagNode parentnode;
-            int node_pos = 0;
-            int parrent_node_pos = (int)(numleafsh * numleafsv);
-            int parrent0_node_pos = parrent_node_pos;
-            if (parrent_node_pos >= tt.nodes.Length)
-                parentnode = null; //<-- Invalid parrent
-            else
-                parentnode = tt.nodes[parrent_node_pos];
-            TagNode parentnode0 = parentnode;
-
-            for (int i = 0; i < numlvls - 1; i++)
-            {
-                for (int j = 0; j < nplv[i]; j++)
-                {
-                    int k = nplh[i];
-                    while (--k >= 0)
-                    {
-                        tt.nodes[node_pos++].parent = parentnode;
-                        if (--k >= 0)
-                            tt.nodes[node_pos++].parent = parentnode;
-
-                        parrent_node_pos++;
-                        if (parrent_node_pos >= tt.nodes.Length)
-                            parentnode = null;
-                        else
-                            parentnode = tt.nodes[parrent_node_pos];
-                    }
-                    if ((j & 1) == 1 || j == nplv[i] - 1)
-                    {
-                        parentnode0 = parentnode;
-                        parrent0_node_pos = parrent_node_pos;
-                    }
-                    else
-                    {
-                        parentnode = parentnode0;
-                        parrent_node_pos = parrent0_node_pos;
-                        parrent0_node_pos += nplh[i];
-                    }
-                }
-            }
-            tt.nodes[node_pos].parent = null;
-
-            Reset(tt);
-
-            return tt;
+            var tt = new TagTree { nodes = [] };
+            return tt.Build(numleafsh, numleafsv) ? tt : null;
         }
 
         //2.5
         private TagTree()
         { }
 
-        /// <summary>
-        /// Reinitialises a tag-tree from an existing one.
-        /// </summary>
-        /// <param name="p_num_leafs_h">the width of the array of leafs of the tree</param>
-        /// <param name="p_num_leafs_v">the height of the array of leafs of the tree</param>
+    /// <summary>
+    /// Reinitialises a tag-tree from an existing one.
+    /// </summary>
+    /// <param name="num_leafs_h">the width of the array of leafs of the tree</param>
+    /// <param name="num_leafs_v">the height of the array of leafs of the tree</param>
         //2.1
         internal void Init(uint num_leafs_h, uint num_leafs_v)
         {
             if (_numleafsh == num_leafs_h && _numleafsv == num_leafs_v)
                 return;
 
-            this._numleafsh = num_leafs_h;
-            this._numleafsv = num_leafs_v;
+            Build(num_leafs_h, num_leafs_v);
+        }
 
-            int[] nplh = new int[32];
-            int[] nplv = new int[32];
-            int _num_levels = 0;
-            nplh[0] = (int)_numleafsh;
-            nplv[0] = (int)_numleafsv;
+    /// <summary>
+    /// Sizes the tree for its leaves, links every node to its parent and resets them; false when it has no nodes.
+    /// </summary>
+    /// <remarks>2.5 - the body of opj_tgt_create and opj_tgt_init</remarks>
+        private bool Build(uint num_leafs_h, uint num_leafs_v)
+        {
+            _numleafsh = num_leafs_h;
+            _numleafsv = num_leafs_v;
+
+            Span<int> nplh = stackalloc int[32];
+            Span<int> nplv = stackalloc int[32];
+            int num_levels = 0;
+            nplh[0] = (int)num_leafs_h;
+            nplv[0] = (int)num_leafs_v;
             _numnodes = 0;
 
             uint n;
             do
             {
-                n = (uint)(nplh[_num_levels] * nplv[_num_levels]);
-                nplh[_num_levels + 1] = (nplh[_num_levels] + 1) / 2;
-                nplv[_num_levels + 1] = (nplv[_num_levels] + 1) / 2;
+                n = (uint)(nplh[num_levels] * nplv[num_levels]);
+                nplh[num_levels + 1] = (nplh[num_levels] + 1) / 2;
+                nplv[num_levels + 1] = (nplv[num_levels] + 1) / 2;
                 _numnodes += n;
-                ++_num_levels;
+                ++num_levels;
             } while (n > 1);
 
             // ADD
             if (_numnodes == 0)
-            {
-                return;
-            }
-            if (nodes.Length != _numnodes)
-            {
-                int old_size = nodes.Length;
-                Array.Resize<TagNode>(ref nodes, (int)_numnodes);
-                for (int c = old_size; c < nodes.Length; c++)
-                    nodes[c] = new TagNode();
-            }
+                return false;
 
-            //Annoying, but the org. code makes use of a invalid pointer.
-            //I've rewritten to make C# happy, but this needs to be tested.
-            // (org. code is tgt_create(..) in tft.c)
-            TagNode parentnode;
+            if (nodes.Length < _numnodes)
+                nodes = new TagNode[_numnodes];
+
+            // A node past the last has no parent: the root's parent, and the "invalid pointer" the original computes
+            // one past the end of the nodes.
+            int Parent(int at) => at >= _numnodes ? -1 : at;
+
             int node_pos = 0;
-            int parrent_node_pos = (int)(_numleafsh * _numleafsv);
-            int parrent0_node_pos = parrent_node_pos;
-            if (parrent_node_pos >= nodes.Length)
-                parentnode = null; //<-- Invalid parrent pointer is set to null
-            else
-                parentnode = nodes[parrent_node_pos];
-            TagNode parentnode0 = parentnode;
+            int parent_pos = (int)(num_leafs_h * num_leafs_v);
+            int parent0_pos = parent_pos;
+            int parent = Parent(parent_pos);
+            int parent0 = parent;
 
-            for (int i = 0; i < _num_levels - 1; i++)
+            for (int i = 0; i < num_levels - 1; i++)
             {
                 for (int j = 0; j < nplv[i]; j++)
                 {
                     int k = nplh[i];
                     while (--k >= 0)
                     {
-                        nodes[node_pos++].parent = parentnode;
+                        nodes[node_pos++].parent = parent;
                         if (--k >= 0)
-                            nodes[node_pos++].parent = parentnode;
+                            nodes[node_pos++].parent = parent;
 
-                        parrent_node_pos++;
-                        if (parrent_node_pos >= nodes.Length)
-                            parentnode = null;
-                        else
-                            parentnode = nodes[parrent_node_pos];
+                        parent = Parent(++parent_pos);
                     }
                     if ((j & 1) == 1 || j == nplv[i] - 1)
                     {
-                        parentnode0 = parentnode;
-                        parrent0_node_pos = parrent_node_pos;
+                        parent0 = parent;
+                        parent0_pos = parent_pos;
                     }
                     else
                     {
-                        parentnode = parentnode0;
-                        parrent_node_pos = parrent0_node_pos;
-                        parrent0_node_pos += nplh[i];
+                        parent = parent0;
+                        parent_pos = parent0_pos;
+                        parent0_pos += nplh[i];
                     }
                 }
             }
-            nodes[node_pos].parent = null;
+            nodes[node_pos].parent = -1;
 
             Reset(this);
+            return true;
         }
 
-        /// <summary>
-        /// Resets the tree
-        /// </summary>
-        /// <remarks>2.5 - opj_tgt_reset</remarks>
+    /// <summary>
+    /// Resets the tree
+    /// </summary>
+    /// <remarks>2.5 - opj_tgt_reset</remarks>
         internal static void Reset(TagTree tt)
         {
             if (tt == null) return;
             for (int i = 0; i < tt._numnodes; i++)
             {
-                var current_node = tt.nodes[i];
+                ref var current_node = ref tt.nodes[i];
                 current_node.value = 999;
                 current_node.low = 0;
-                current_node.known = false;
             }
         }
 
         #endregion
 
-        //2.5
+    /// <remarks>2.5 - opj_tgt_decode</remarks>
         internal bool Decode(BIO bio, uint leafno, uint threshold)
         {
-            var stk = new TagNode[31];
+            // The path from the leaf to the root, walked back down from the root.
+            Span<int> stk = stackalloc int[31];
             int stk_pos = -1;
 
-            //Builds a list that goes from "great grandparent"
-            //in node, to the leaf node on the beginning of the 
-            //list
-            TagNode node = nodes[leafno];
-            while (node.parent != null)
+            int node = (int)leafno;
+            while (nodes[node].parent >= 0)
             {
                 stk[++stk_pos] = node;
-                node = node.parent;
+                node = nodes[node].parent;
             }
 
-            //Computes the list. Works from highest parent
-            //and down to the leaf node
             for (int low = 0; ; )
             {
-                if (low > node.low)
-                    node.low = low;
+                ref var current = ref nodes[node];
+                if (low > current.low)
+                    current.low = low;
                 else
-                    low = node.low;
-                while (low < threshold && low < node.value)
+                    low = current.low;
+                while (low < threshold && low < current.value)
                 {
                     if (bio.ReadBool())
-                        node.value = low;
+                        current.value = low;
                     else
                         low++;
                 }
-                node.low = low;
+                current.low = low;
 
-                //C# Org impl uses a pointer, we use an array index.
-                // i.e. there's stk_pos == stk here.
                 if (stk_pos < 0) break;
 
                 //Gets a descendant/leaf node of this node
                 node = stk[stk_pos--];
             }
 
-            return (node.value < threshold);
+            return nodes[node].value < threshold;
         }
     }
 
-    [DebuggerDisplay("{parent} - {value}")]
-    internal class TagNode
+    /// <summary>A node of a tag tree: its parent's index, or -1 for the root, and what decoding has learned of it.</summary>
+    internal struct TagNode
     {
-        internal TagNode parent;
+        internal int parent;
         internal int value;
         internal int low;
-        internal bool known;
     }
 }

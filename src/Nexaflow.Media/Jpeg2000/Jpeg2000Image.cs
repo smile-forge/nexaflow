@@ -53,11 +53,7 @@ public sealed class Jpeg2000Image
     /// The samples interleaved component by component, each at its precision, every row starting on a byte: the
     /// layout a PDF image's data has. Components smaller than the image are scaled to its size.
     /// </summary>
-    public Memory<byte> ToPackedSamples()
-    {
-        var packed = _image.ToMemoryStream();
-        return packed.TryGetBuffer(out var written) ? written.AsMemory() : packed.ToArray();
-    }
+    public Memory<byte> ToPackedSamples() => SamplePacker.Pack(_image);
 }
 
 /// <summary>One plane of a decoded image.</summary>
