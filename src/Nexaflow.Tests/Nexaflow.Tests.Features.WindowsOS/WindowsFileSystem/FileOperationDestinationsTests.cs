@@ -18,7 +18,6 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// </summary>
 [TestClass]
 [CoversNode("winfs-drag-drop")]
-[CoversNode("winfs-act-paste")]
 public class FileOperationDestinationsTests
 {
     private string _scratch = string.Empty;
@@ -58,6 +57,7 @@ public class FileOperationDestinationsTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-act-paste")]
     public void AFolderCopiedIntoItselfIsRefused()
     {
         var src   = Folder("src");
@@ -71,6 +71,7 @@ public class FileOperationDestinationsTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-act-paste")]
     public void CopyingIntoTheFolderItIsAlreadyInBecomesCopyOfIt()
     {
         var src  = Folder("src");
@@ -83,6 +84,7 @@ public class FileOperationDestinationsTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-act-paste")]
     public void MovingSomethingToWhereItAlreadyIsDoesNothing()
     {
         var src  = Folder("src");
@@ -95,6 +97,7 @@ public class FileOperationDestinationsTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-act-paste")]
     public void AnOrdinaryDestinationKeepsTheName()
     {
         var src  = Folder("src");
@@ -107,6 +110,7 @@ public class FileOperationDestinationsTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-act-paste")]
     public void DropAndPasteAgreeOnEverySource()
     {
         var src    = Folder("src");

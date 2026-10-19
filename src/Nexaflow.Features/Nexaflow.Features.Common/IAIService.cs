@@ -90,6 +90,7 @@ namespace Nexaflow.Features.Common
         /// and each model's speed measured, and one report written.
         /// </summary>
         /// <param name="progress">What it is doing, as it goes.</param>
+        /// <param name="ct">Stops the check where it is.</param>
         /// <exception cref="InvalidOperationException">The workspace uses no model Nexaflow runs itself, or the AI host
         /// could not be reached.</exception>
         Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default);
@@ -127,6 +128,8 @@ namespace Nexaflow.Features.Common
         /// condense with, or it could not.
         /// </summary>
         /// <param name="messages">The stretch, oldest first: who said each thing, and what.</param>
+        /// <param name="earlier">Notes condensed before the stretch, carried into the new ones; null where there are none.</param>
+        /// <param name="ct">Stops the condensing.</param>
         Task<string?> CondenseConversationAsync(IReadOnlyList<(string Speaker, string Text)> messages, string? earlier, CancellationToken ct = default);
 
         /// <summary>
@@ -192,6 +195,7 @@ namespace Nexaflow.Features.Common
 
     /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>
     /// <param name="Png">The picture, edits and all, as a PNG.</param>
+    /// <param name="Description">What happens in the clip, in the user's words.</param>
     /// <param name="Seconds">One of <see cref="IAIService.PictureClipLengths"/>.</param>
     /// <param name="Portrait">Taller than wide; otherwise wider than tall.</param>
     public sealed record ClipFromPicture(byte[] Png, string Description, int Seconds, bool Portrait);

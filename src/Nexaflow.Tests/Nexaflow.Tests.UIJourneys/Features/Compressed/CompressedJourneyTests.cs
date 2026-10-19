@@ -31,7 +31,6 @@ namespace Nexaflow.Tests.Features.Compressed.UI;
 /// </summary>
 [TestClass]
 [CoversNode("compressed-actionbar")]
-[CoversNode("compressed-overlays")]
 public class CompressedJourneyTests : UiJourneyTestBase
 {
     /// <summary>
@@ -55,6 +54,7 @@ public class CompressedJourneyTests : UiJourneyTestBase
     }
 
     [TestMethod]
+    [CoversNode("compressed-overlays")]
     public void Compressed_Controls_RespondInOnePass()
     {
         // sample.zip, because the row chevron is bound to HasChildren and only exists in the tree for an

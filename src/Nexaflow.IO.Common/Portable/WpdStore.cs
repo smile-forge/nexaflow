@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.IO.Common.Stores;
 using ComStream = System.Runtime.InteropServices.ComTypes.IStream;
+using System.Runtime.Versioning;
 
 namespace Nexaflow.IO.Common.Portable;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.IO.Common.Portable;
 /// store reads its roots again. The device is opened through the free-threaded <c>PortableDeviceFTM</c>, so calls
 /// may come from any thread.
 /// </remarks>
+[SupportedOSPlatform("windows")]
 public sealed class WpdStore : IFileStore
 {
     const uint GenericRead = 0x80000000, GenericWrite = 0x40000000;

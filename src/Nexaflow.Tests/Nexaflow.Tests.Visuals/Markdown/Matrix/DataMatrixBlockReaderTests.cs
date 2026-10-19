@@ -10,11 +10,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 /// each writes, the two settings of its own, and each diagnostic.
 /// </summary>
 [TestClass]
-[CoversNode("datamatrix-block-syntax")]
-[CoversNode("datamatrix-payloads")]
 public class DataMatrixBlockReaderTests
 {
     [TestMethod]
+    [CoversNode("datamatrix-payloads")]
     public void SharedTypes_ProduceTheSamePayloadAsAQrBlock()
     {
         var block = Parse("type: wifi\nssid: Net\npassword: pw\nsecurity: WPA");
@@ -23,6 +22,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-payloads")]
     public void Ppn_DerivesTheNumberFromThePzn_AndWrapsItInMacro06()
     {
         // PZN 01234562: 0·1+1·2+2·3+3·4+4·5+5·6+6·7 = 112, 112 mod 11 = 2. PPN check: the ASCII values
@@ -35,6 +35,8 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
+    [CoversNode("datamatrix-payloads")]
     public void Ppn_RefusesAPznThatFailsItsCheck()
     {
         Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse(language: "datamatrix", source:"type: ppn\npzn: 01234563"), out _, out var wrong));
@@ -42,6 +44,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-payloads")]
     public void Ntin_BuildsTheGtinFromThePzn_UnderGs1()
     {
         // 0 4150 01234562 → mod-10 over the thirteen digits gives 3.
@@ -52,6 +55,8 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
+    [CoversNode("datamatrix-payloads")]
     public void Ntin_TakesAGtinDirectly_AndVerifiesIt()
     {
         Assert.AreEqual("0104150012345623", Parse("type: ntin\ngtin: 04150012345623").Payload);
@@ -62,6 +67,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-payloads")]
     public void Gs1_StripsBrackets_AndSeparatesVariableLengthElementsOnly()
     {
         var block = Parse("type: gs1\ndata: (01)04150012345623(10)LOT7(21)SN1(17)271231");
@@ -73,6 +79,8 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
+    [CoversNode("datamatrix-payloads")]
     public void Gs1_RefusesAFixedLengthElementOfTheWrongLength()
     {
         Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse(language: "datamatrix", source:"type: gs1\ndata: (01)123"), out _, out var wrong));
@@ -80,6 +88,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-payloads")]
     public void Mailmark_FixesTheSymbolSizeByFormat()
     {
         string ninety = new string('A', 90);
@@ -93,6 +102,8 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
+    [CoversNode("datamatrix-payloads")]
     public void Mailmark_RefusesTheWrongLengthOrCharacters()
     {
         Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse(language: "datamatrix", source:"type: mailmark\nformat: 9\nmessage: SHORT"), out _, out var wrong));
@@ -103,6 +114,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
     public void ShapeAndSize_AreRead()
     {
         Assert.AreEqual(DataMatrixShape.Rectangle, Parse("type: text\ntext: x\nshape: rectangle").Options.Shape);
@@ -114,6 +126,7 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
     public void SharedSettings_AreRead_AndUnknownKeysRefused()
     {
         var block = Parse("type: text\ntext: x\ncellSize: 6\nmargin: 1\ndark: #123456");
@@ -126,6 +139,8 @@ public class DataMatrixBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-block-syntax")]
+    [CoversNode("datamatrix-payloads")]
     public void AnUnknownType_ListsTheOnesThatExist()
     {
         Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse(language: "datamatrix", source:"type: aztec\ntext: x"), out _, out var wrong));

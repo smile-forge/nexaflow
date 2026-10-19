@@ -14,7 +14,6 @@ namespace Nexaflow.Tests.Components.Compiler;
 /// before and an after held in memory, which is also what a dry run asks.
 /// </summary>
 [TestClass]
-[CoversNode("syntax-compile-check")]
 [DoNotParallelize]
 public class CompileHostTests
 {
@@ -164,6 +163,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AnErrorTheEditIntroduces_IsReported_AndOneThatWasThereAlreadyIsNot()
     {
         var after  = Calc.Replace("}\n", "    public int Worse => \"text\";\n}\n");
@@ -177,6 +177,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AnErrorTheEditRemoves_IsReportedAsFixed()
     {
         var report = _host.Check([new SourceChange(Lib("Calc.cs"), Calc, Calc.Replace("Missing", "1"))], [], Budget);
@@ -186,6 +187,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void ChangingASignature_ReportsTheCallerItBreaks_InTheProjectThatReferencesIt()
     {
         var after  = Greeter.Replace("Greet(string name)", "Greet(string name, int times)");
@@ -199,6 +201,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AFileNoProjectCompiles_IsNamedAsNotChecked()
     {
         var loose  = Path.Combine(_root, "loose.cs");
@@ -209,6 +212,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void References_FollowTheBinding_NotTheSpelling()
     {
         var declaration = Greeter.IndexOf("Greet(", StringComparison.Ordinal);
@@ -223,6 +227,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AProjectNeverRestored_IsNamedAsNotChecked_RatherThanEveryPackageUseBeingAnError()
     {
         var file   = Path.Combine(_root, "Unrestored", "Thing.cs");
@@ -234,6 +239,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AUseOfWhatANeverBuiltDependencyDeclares_IsNotAnErrorTheEditIntroduced()
     {
         // Lib is restored and never built, so the app's reference to it names a file that is not there. Read from Lib's
@@ -263,6 +269,7 @@ public class CompileHostTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void References_AreFoundInAProjectNeverRestored_SinceAMissingPackageDoesNotStopOurOwnTypesBinding()
     {
         var declaration = Greeter.IndexOf("Greet(", StringComparison.Ordinal);

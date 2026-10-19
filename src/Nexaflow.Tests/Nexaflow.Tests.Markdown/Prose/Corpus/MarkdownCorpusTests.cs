@@ -20,13 +20,13 @@ namespace Nexaflow.Tests.Markdown.Prose.Corpus;
 /// </summary>
 [TestClass]
 [CoversNode("markdown-text")]
-[CoversNode("reference-links")]
 public class MarkdownCorpusTests
 {
     /// <summary>How many places each block is cut at, at most.</summary>
     private const int CutsPerBlock = 6;
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void EveryDocument_ReadsBackAsItWasWritten_AndSaysWhereEveryPieceCameFrom()
     {
         var failures = new List<string>();
@@ -43,6 +43,7 @@ public class MarkdownCorpusTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void NothingIsShownAsWrittenForWantOfAReading()
     {
         var failures = new List<string>();

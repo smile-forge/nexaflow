@@ -21,8 +21,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("symbol-tree")]
-[CoversNode("barcode-editing")]
 public class BarcodeLayoutTests
 {
     /// <summary>A block laid out as a document being written lays it: somewhere its value can be put right in place.</summary>
@@ -42,6 +40,8 @@ public class BarcodeLayoutTests
     // ── Where a caret may stand ───────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
+    [CoversNode("barcode-editing")]
     public void ACode128OffersAStopBetweenEveryCharacter() => UiThread.Run(() =>
     {
         const string value = "HELLO123";
@@ -54,6 +54,8 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
+    [CoversNode("barcode-editing")]
     public void NothingInsideAWorkedOutDigitIsAStop() => UiThread.Run(() =>
     {
         // Twelve typed, thirteen printed. The thirteenth is a fact about all of them and belongs to
@@ -67,6 +69,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void APublicationWithAnAddOnCanStillBeEdited() => UiThread.Run(() =>
     {
         // The number in its caption and the add-on over its bars are both what was typed, so both are somewhere to stand.
@@ -79,6 +82,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ALowerCaseLetterInACode39IsRefusedAndTheValueStaysEditable() => UiThread.Run(() =>
     {
         // Reported from the app: a lower-case letter typed into a Code 39 was drawn as a capital while the source
@@ -95,6 +99,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void AValueThatWillNotEncodeWhereNothingIsWritten_IsShownAsWrittenWithTheValueMarked() => UiThread.Run(() =>
     {
         const string source = "format: CODE39\nvalue: MARKdOWN-39";
@@ -108,6 +113,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABlockThatDoesNotRead_IsShownAsWrittenWithThePieceAtFaultMarked() => UiThread.Run(() =>
     {
         const string source = "format: CODE128\nvalue: X\nheight: tall";
@@ -118,6 +124,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
     public void APieceTheFormatWorkedOutHoldsNoPlaceInTheSource() => UiThread.Run(() =>
     {
         var root = Root("format: EAN13\nvalue: 590123412345");
@@ -130,6 +137,8 @@ public class BarcodeLayoutTests
     // ── Where a press lands ───────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
+    [CoversNode("barcode-editing")]
     public void PressingADigitOfTheValueFindsThatCharacter() => UiThread.Run(() =>
     {
         const string source = "format: CODE128\nvalue: HELLO123";
@@ -145,6 +154,7 @@ public class BarcodeLayoutTests
     // ── What is drawn but says nothing ────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
     public void TheBarsAreDrawnAndStandForNothing() => UiThread.Run(() =>
     {
         var root = Root("format: EAN13\nvalue: 590123412345");
@@ -159,6 +169,8 @@ public class BarcodeLayoutTests
     // ── A publication ─────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("symbol-tree")]
+    [CoversNode("barcode-editing")]
     public void APublicationTakesItsCaretInTheCaptionAndNotUnderTheBars() => UiThread.Run(() =>
     {
         // The caption carries the number as it was written; the digits under the bars are that number
@@ -177,6 +189,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABrokenPublicationKeepsTheCaptionSoItCanStillBeRepaired() => UiThread.Run(() =>
     {
         // A value one character short does not encode, so there is no symbol to read a caption off. It is
@@ -189,6 +202,7 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void AValueNotYetWritten_IsAHoleUnderAFaintSymbol_WhereSomebodyIsWriting() => UiThread.Run(() =>
     {
         const string source = "format: CODE128\nvalue:";

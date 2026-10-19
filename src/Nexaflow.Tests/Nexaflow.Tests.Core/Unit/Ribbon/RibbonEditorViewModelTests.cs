@@ -17,7 +17,6 @@ namespace Nexaflow.Tests.Core.Unit.Ribbon;
 /// and every arranging and styling command acts on the draft alone.
 /// </summary>
 [TestClass]
-[CoversNode("ribbon-editor-draft")]
 public class RibbonEditorViewModelTests
 {
     private List<RibbonItem> _live = null!;
@@ -52,6 +51,7 @@ public class RibbonEditorViewModelTests
     private static RibbonEditorCard Card(RibbonEditorViewModel vm, string label) => vm.Cards.Single(c => c.Item.Label == label);
 
     [TestMethod]
+    [CoversNode("ribbon-editor-draft")]
     public void Draft_IsACopy()
     {
         var vm = Editor();
@@ -64,6 +64,7 @@ public class RibbonEditorViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-editor-draft")]
     [CoversNode("ribbon-editor-done")]
     public void Cancel_CommitsNothing()
     {
@@ -78,6 +79,7 @@ public class RibbonEditorViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-editor-draft")]
     [CoversNode("ribbon-editor-done")]
     public void Done_CommitsTheDraftInOrder()
     {
@@ -141,6 +143,7 @@ public class RibbonEditorViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-editor-draft")]
     [CoversNode("ribbon-editor-reset")]
     public void Reset_RebuildsTheDraftOnly()
     {

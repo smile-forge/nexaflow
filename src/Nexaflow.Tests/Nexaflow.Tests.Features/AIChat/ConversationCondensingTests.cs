@@ -46,7 +46,7 @@ public class ConversationCondensingTests
         vm.ShowFinal(Said("delta"));
         Assert.IsFalse(vm.IsContextReady, "the next request waits for the notes");
         CollectionAssert.AreEqual(new[] { "User", "Assistant" }, condensed!.Select(m => m.Speaker).ToArray(), "the older exchange");
-        StringAssert.StartsWith(condensed[0].Text, "alpha");
+        StringAssert.StartsWith(condensed![0].Text, "alpha");
 
         notes.SetResult("NOTES: alpha was asked, bravo answered.");
         await Task.Yield();
