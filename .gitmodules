@@ -23,7 +23,3 @@
 	path = external/PdfPig
 	url = https://github.com/smile-forge/PdfPig.git
 	branch = nexaflow
-[submodule "external/PdfPig.Filters.Jbig2.PdfboxJbig2"]
-	path = external/PdfPig.Filters.Jbig2.PdfboxJbig2
-url = https://github.com/smile-forge/PdfPig.Filters.Jbig2.PdfboxJbig2.git
-branch = nexaflow

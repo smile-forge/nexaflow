@@ -1,0 +1,9 @@
+Nexaflow's JBIG2 decoder (src/Nexaflow.Media/Jbig2) is a port of Apache PDFBox's JBIG2 ImageIO plugin
+(pdfbox-jbig2), by way of PdfPig.Filters.Jbig2.PdfboxJbig2 by BobLd, reworked for Nexaflow. Each source file names the
+files it ports and says how it was changed. Its notice follows.
+
+Apache JBig2 ImageIO Plugin
+Copyright 2017 The Apache Software Foundation
+
+Based on source code originally developed in the JBig2 project.
+Copyright (C) 1995-2017 levigo holding GmbH

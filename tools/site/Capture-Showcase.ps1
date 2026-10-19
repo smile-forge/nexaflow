@@ -21,7 +21,7 @@ param(
     [string] $Output,
 
     # Capture only these themes. Defaults to all of them.
-    [string[]] $Themes = @('Dark', 'Light', 'Ocean', 'Nature', 'Sandstone', 'Gothic', 'Arctic', 'Flowers', 'Sunny'),
+    [string[]] $Themes = @('Dark', 'Light', 'Ocean', 'Nature', 'Sandstone', 'Gothic', 'Arctic', 'Desert', 'Flowers', 'Sunny'),
 
     # The window is captured at whatever size it opens, which is far more than a page ever shows. Every picture
     # is scaled down to this width afterwards - nine of them go on one page, so the bytes matter more than the

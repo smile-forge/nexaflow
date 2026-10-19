@@ -434,9 +434,7 @@
     <Project Path="external/PdfPig/src/UglyToad.PdfPig.Tokens/UglyToad.PdfPig.Tokens.csproj">
       <Platform Project="AnyCPU" />
     </Project>
-    <Project Path="external/PdfPig.Filters.Jbig2.PdfboxJbig2/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
+
 
     <Project Path="external/DiscUtils/Library/DiscUtils.Btrfs/DiscUtils.Btrfs.csproj">
       <Platform Project="AnyCPU" />

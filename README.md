@@ -72,9 +72,9 @@ Lightweight project tracking with a backlog workflow. A Product Manager for trac
 
 **🎨 Themes that go further than a colour swap**
 
-Nine themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Several paint an illustrated scene behind your work, and the diagrams in your document take the theme's colours too. Text size is yours to set, and every text surface has its own zoom on top of it.
+Ten themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Several paint an illustrated scene behind your work, and the diagrams in your document take the theme's colours too. Text size is yours to set, and every text surface has its own zoom on top of it.
 
-**[See all nine →](https://smile-forge.github.io/nexaflow/themes/)**
+**[See all ten →](https://smile-forge.github.io/nexaflow/themes/)**
 
 **🤖 An assistant looking at the same screen you are**
 

@@ -148,6 +148,12 @@ public sealed class WithTargets(LinkTargets targets) : IAstStage
                 said.Append(MarkdownEntities.Decoded(node.Text) ?? node.Text);
                 return;
 
+            // A heading is named by what was written, as GitHub names it: typography and emoji are how it is drawn, so drawing them
+            // moves no anchor anybody links to.
+            case MarkdownKinds.Typographic or MarkdownKinds.Shortcode when node.IsLeaf:
+                said.Append(node.Text);
+                return;
+
             case MarkdownKinds.Break:
                 said.Append('\n');
                 return;

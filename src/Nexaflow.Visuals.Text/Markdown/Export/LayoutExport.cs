@@ -271,6 +271,12 @@ public static class LayoutExport
         {
             if (part.Derived) return;
 
+            if (MarkdownStandIns.Decoded(part.Node) is { } reads)
+            {
+                Text(reads, runs);
+                return;
+            }
+
             switch (part.Kind)
             {
                 case MarkdownKinds.Strong: this.Styled(ExportStyle.Strong, part, runs); return;
@@ -305,14 +311,6 @@ public static class LayoutExport
 
                 case Kinds.Link:
                     this.Linked(part, runs);
-                    return;
-
-                case MarkdownKinds.Entity:
-                    Text(MarkdownEntities.Decoded(part.Text) ?? part.Text, runs);
-                    return;
-
-                case MarkdownKinds.Escape when part.Text.Length > 1:
-                    Text(part.Text[1..], runs);
                     return;
 
                 case MarkdownKinds.Abbreviation when part.Part(Roles.Body) is { } word:

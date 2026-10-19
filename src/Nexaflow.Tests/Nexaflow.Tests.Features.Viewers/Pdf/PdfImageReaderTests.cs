@@ -120,7 +120,7 @@ public class PdfImageReaderTests
 
 /// <summary>
 /// PdfPig ships DCTDecode, JBIG2Decode and JPXDecode as stubs that decline, and Nexaflow substitutes real decoders:
-/// Nexaflow.Media's for DCT and JPX, the JBIG2 package's for JBIG2. Nothing else in the suite would notice them going
+/// Nexaflow.Media's, for all three. Nothing else in the suite would notice them going
 /// missing — a scanned document would just quietly yield no images — so the substitution is asserted directly.
 /// </summary>
 [TestClass]
