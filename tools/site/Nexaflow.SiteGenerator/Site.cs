@@ -24,9 +24,10 @@ internal static class Site
         ("Light", "The same, for a bright room."),
         ("Ocean", "Cool blues, with a little depth behind them."),
         ("Nature", "Greens, and leaves behind the page."),
-        ("Sandstone", "Warm stone, and a desert scene."),
+        ("Sandstone", "Warm stone, and a sunlit wall of it."),
         ("Gothic", "Moonlight, a castle and bats."),
         ("Arctic", "Pale blue, ice and sky."),
+        ("Desert", "Sand and wind, and now and then a storm that never quite comes."),
         ("Flowers", "An illustrated meadow behind your document."),
         ("Sunny", "Bright and yellow."),
     ];
@@ -134,13 +135,13 @@ internal static class Site
               Shell(title + " — Nexaflow", Render.Plain(lede), body.ToString(), "../", version));
     }
 
-    /// <summary>The gallery: the same document, the same window, dressed nine different ways.</summary>
+    /// <summary>The gallery: the same document, the same window, dressed ten different ways.</summary>
     private static void WriteThemes(string output, string version)
     {
         var body = new StringBuilder("""
             <header class="page-head">
               <h1>Themes</h1>
-              <p class="lede">Nine of them, and they go further than a colour swap: several paint an illustrated
+              <p class="lede">Ten of them, and they go further than a colour swap: several paint an illustrated
               backdrop behind your work, and the diagrams in your document take the theme's colours too.</p>
             </header>
             <article class="prose">
@@ -164,7 +165,7 @@ internal static class Site
         body.Append("</div></section>\n");
 
         Write(Path.Combine(output, "themes", "index.html"),
-              Shell("Themes — Nexaflow", "Nine themes, several with an illustrated backdrop.", body.ToString(), "../", version));
+              Shell("Themes — Nexaflow", "Ten themes, several with an illustrated backdrop.", body.ToString(), "../", version));
     }
 
     private static void WriteIndex(HelpCorpus corpus, string output, string version)
@@ -227,7 +228,7 @@ internal static class Site
               <img src="assets/showcase/nexaflow-markdown-dark.jpg"
                    alt="Nexaflow showing a document with two diagrams drawn in it, and the assistant's input bar beneath">
               <p class="small">A document open in the editor, its diagrams drawn as you type, and the bar at the
-                 bottom that can see it. <a href="themes/">Nine themes</a> &middot;
+                 bottom that can see it. <a href="themes/">Ten themes</a> &middot;
                  <a href="together/">how the AI works</a>.</p>
             </section>
 
