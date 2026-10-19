@@ -1,0 +1,237 @@
+{
+  "branch": "claude/context-previews-av-web",
+  "nodes": {
+    "audio-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/AudioViewModel.cs",
+          "class": "AudioViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Views/AudioContextPreview.xaml",
+          "class": "AudioContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioAiTests.cs",
+            "class": "AudioAiTests",
+            "method": "ThePreview_RemindsOfTheTrack_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "video-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs",
+          "class": "VideoViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoContextPreview.xaml",
+          "class": "VideoContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Video/VideoAiTests.cs",
+            "class": "VideoAiTests",
+            "method": "ThePreview_RemindsOfTheVideo_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "web-viewer-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/ViewModels/HtmlViewModel.cs",
+          "class": "HtmlViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/ViewModels/HtmlViewModel.cs",
+          "class": "HtmlViewModel",
+          "method": "TakeSnapshotAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Views/WebContextPreview.xaml",
+          "class": "WebContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Previews/PageSnapshot.cs",
+          "class": "PageSnapshot"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Web/WebContextPreviewTests.cs",
+            "class": "WebContextPreviewTests"
+          }
+        ]
+      }
+    },
+    "svg-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Svg/ViewModels/SvgViewModel.cs",
+          "class": "SvgViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Svg/Views/SvgContextPreview.xaml",
+          "class": "SvgContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Svg/SvgSurfaceTests.cs",
+            "class": "SvgSurfaceTests",
+            "method": "ThePreview_RemindsOfTheArtwork_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "model3d-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/ViewModels/Model3DViewModel.cs",
+          "class": "Model3DViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/ViewModels/Model3DViewModel.cs",
+          "class": "Model3DViewModel",
+          "method": "TakeSnapshotAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/Views/Model3DContextPreview.xaml",
+          "class": "Model3DContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Previews/PageSnapshot.cs",
+          "class": "PageSnapshot"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Model3D/Model3DViewModelTests.cs",
+            "class": "Model3DViewModelTests",
+            "method": "TheFramedModel_IsPictured_SmallEnoughForThePanel"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Model3D/Model3DViewModelTests.cs",
+            "class": "Model3DViewModelTests",
+            "method": "ThePreview_RemindsOfTheModel_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "json-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonViewModel.cs",
+          "class": "JsonViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonContextOutline.cs",
+          "class": "JsonContextOutline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Json/JsonContextPreviewTests.cs",
+            "class": "JsonContextPreviewTests"
+          }
+        ]
+      }
+    },
+    "log-viewer-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "CreateContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogAiTests.cs",
+            "class": "LogAiTests",
+            "method": "ThePreview_ShowsTheLastLines_OrTheSelectedOnes"
+          }
+        ]
+      }
+    },
+    "tabular-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularViewModel.cs",
+          "class": "TabularViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularPreviewTable.cs",
+          "class": "TabularPreviewTable"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Tabular/TabularContextPreviewTests.cs",
+            "class": "TabularContextPreviewTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 16,
+  "touched_nodes": [
+    "audio-ai-preview",
+    "json-ai-preview",
+    "log-viewer-ai-preview",
+    "model3d-ai-preview",
+    "svg-ai-preview",
+    "tabular-ai-preview",
+    "video-ai-preview",
+    "web-viewer-ai-preview"
+  ]
+}

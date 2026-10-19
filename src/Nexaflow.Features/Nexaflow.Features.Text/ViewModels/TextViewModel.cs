@@ -1317,7 +1317,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         const int cap = 8000;
         var text = Document.Text;
         var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
-        return new ReadOnlyTextPreview(string.IsNullOrEmpty(FileName) ? "Text" : FileName, meta, body);
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     public string? GetAiSystemPromptGuidance() =>

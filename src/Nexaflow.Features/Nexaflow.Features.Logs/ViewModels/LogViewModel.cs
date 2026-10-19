@@ -11,10 +11,11 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
-public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageViewModel
+public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview
 {
     // ── File ──────────────────────────────────────────────────────────────────
 
@@ -642,6 +643,41 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         sb.Append("Use read_tail / read_lines to read the log content and search_page to find lines; "
                 + "set_regex_filter / set_time_filter / highlight_levels / set_tail_paused mirror the toolbar controls.");
         return sb.ToString();
+    }
+
+    /// <summary>The most lines the context preview shows.</summary>
+    private const int PreviewLineCount = 20;
+
+    /// <summary>Where the context preview cuts a long line; it never wraps.</summary>
+    private const int PreviewLineLength = 200;
+
+    /// <summary>
+    /// A reminder of the log for the conversation context panel: its size and length, then the lines the user
+    /// selected — or, with none selected, the last lines, where a tailing log is read. The panel's header names the
+    /// file. A fresh control each time the chip is selected, per the contract; it copies what it shows. On the UI
+    /// thread, which owns the document.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var meta = $"{FileSizeText} · {LineCount:N0} line{(LineCount == 1 ? "" : "s")}"
+                 + (SelectedLineCount > 0 ? $" · {SelectedLineCount:N0} selected" : string.Empty);
+        return new ReadOnlyTextPreview(meta, string.Join("\n", PreviewLines()));
+    }
+
+    private IEnumerable<string> PreviewLines()
+    {
+        var last = Document.LineCount;
+        if (last > 1 && Document.GetLineByNumber(last).Length == 0) last--;   // the file's closing newline
+
+        var numbers = _selectedLineNumbers.Count > 0
+            ? _selectedLineNumbers.Where(n => n >= 1 && n <= last).Order().Take(PreviewLineCount)
+            : Enumerable.Range(Math.Max(1, last - PreviewLineCount + 1), Math.Min(PreviewLineCount, last));
+
+        foreach (var number in numbers)
+        {
+            var line = Document.GetLineByNumber(number);
+            yield return Document.GetText(line.Offset, Math.Min(line.Length, PreviewLineLength));
+        }
     }
 
     /// <summary>File-path scope boundary — keeps two log tabs on different files distinguishable when pinned.</summary>

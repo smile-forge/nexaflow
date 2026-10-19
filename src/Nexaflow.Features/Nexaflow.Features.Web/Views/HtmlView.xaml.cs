@@ -4,6 +4,7 @@ using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Web;
 using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -14,6 +15,7 @@ namespace Nexaflow.Features.Web.Views;
 public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDisposable
 {
     private readonly IShellServices _shell;
+    private CancellationTokenSource? _snapshotCts;
 
     public HtmlViewModel ViewModel { get; }
 
@@ -29,7 +31,7 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
 
         // Let the view-model drive the live page on demand for AI visual context: capture a screenshot,
         // read the scroll position, and scroll through a long page.
-        ViewModel.CaptureScreenshotAsync        = ct => Surface.CapturePngAsync(1200, ct);
+        ViewModel.CaptureScreenshotAsync        = (edge, ct) => Surface.CapturePngAsync(edge, ct);
         ViewModel.GetScrollInfoAsync            = ct => Surface.GetScrollInfoAsync(ct);
         ViewModel.ScrollByViewportFractionAsync = (f, ct) => Surface.ScrollByViewportFractionAsync(f, ct);
 
@@ -67,6 +69,7 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
 
     private void Surface_NavigationStarting(object? sender, WebSurfaceNavigationEventArgs e)
     {
+        CancelSnapshot();
         ViewModel.IsLoading  = true;
         ViewModel.CurrentUrl = e.Uri;
         ViewModel.PageTitle  = string.Empty;   // old title no longer applies; URL-form shows until the new title arrives
@@ -79,6 +82,28 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         ViewModel.CurrentUrl = e.Uri;
         ViewModel.PageTitle  = Surface.DocumentTitle;
         PageChanged?.Invoke();
+        TakeSnapshot();
+    }
+
+    /// <summary>Pictures the page just loaded for the context preview. The next navigation cancels it, so a slow
+    /// capture of the old page never lands over the new one.</summary>
+    private async void TakeSnapshot()
+    {
+        CancelSnapshot();
+        var cts = _snapshotCts = new CancellationTokenSource();
+        try { await ViewModel.TakeSnapshotAsync(cts.Token); }
+        catch (OperationCanceledException) { /* a newer page, or the tab closed */ }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or ObjectDisposedException)
+        {
+            // The browser went away mid-capture; the last snapshot stands.
+        }
+    }
+
+    private void CancelSnapshot()
+    {
+        _snapshotCts?.Cancel();
+        _snapshotCts?.Dispose();
+        _snapshotCts = null;
     }
 
     /// <summary>Enables each nav button only when it would do something — a button the user can press to no
@@ -163,5 +188,9 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
     IPageViewModel? IPageView.ViewModel => ViewModel;
 
     /// <summary>Ends the embedded browser process when the tab genuinely closes.</summary>
-    public void Dispose() => Surface.Dispose();
+    public void Dispose()
+    {
+        CancelSnapshot();
+        Surface.Dispose();
+    }
 }

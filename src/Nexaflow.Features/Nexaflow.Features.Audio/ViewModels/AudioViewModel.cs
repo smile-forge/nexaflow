@@ -16,6 +16,7 @@ using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Features.Audio.Views;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -26,7 +27,7 @@ namespace Nexaflow.Features.Audio.ViewModels;
 /// playing. Leaving the tab pauses playback (resumed on return); the engine + timer are torn down when
 /// the tab closes.
 /// </summary>
-public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int WaveformBuckets = 800;
     private static readonly TimeSpan RestartThreshold = TimeSpan.FromSeconds(3);
@@ -155,8 +156,8 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
     // ── Now-playing display ──────────────────────────────────────────────────
 
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _fileName = string.Empty;
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _title = string.Empty;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText), nameof(TagTitle))] private string _fileName = string.Empty;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText), nameof(TagTitle))] private string _title = string.Empty;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _artist = string.Empty;
     [ObservableProperty] private string _album = string.Empty;
     [ObservableProperty] private BitmapSource? _albumArt;
@@ -173,6 +174,10 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             return string.IsNullOrWhiteSpace(Artist) ? name : $"{Artist} — {name}";
         }
     }
+
+    /// <summary>The track's own title from its tags, or empty when it has none — <see cref="Title"/> then falls back
+    /// to the file name, which the context panel's header already shows.</summary>
+    public string TagTitle => Title == FileName ? string.Empty : Title;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(QueueText))]
@@ -843,6 +848,14 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             ? TimeSpan.FromSeconds(secs)
             : null;
     }
+
+    /// <summary>
+    /// A reminder of the track for the conversation context panel: its cover, its own title and artist where the
+    /// tags give them, then the queue with the current track picked out — what the conversation is about, not the
+    /// player. The panel's header names the file. A fresh control each time the chip is selected, per the contract;
+    /// it binds to the now-playing state and queue but owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new AudioContextPreview { DataContext = this };
 
     public void Dispose()
     {

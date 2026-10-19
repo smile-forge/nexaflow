@@ -1,11 +1,17 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.ViewModels;
+using Nexaflow.Features.Model3D.Views;
+using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Tests.Features.Model3D;
 
@@ -123,4 +129,82 @@ public class Model3DViewModelTests
 
     private static IClientTool Tool(Model3DViewModel vm, string name) =>
         vm.GetClientTools().Single(t => t.Name == name);
+
+    // ── Context preview ───────────────────────────────────────────────────────────
+
+    /// <summary>A viewport that answers each capture with a picture of the given size, counting the captures.</summary>
+    private static List<int> Viewport(Model3DViewModel vm, int width, int height)
+    {
+        var captures = new List<int>();
+        vm.CaptureViewportPngAsync = _ =>
+        {
+            captures.Add(captures.Count);
+            var bitmap  = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, new byte[width * height * 4], width * 4);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return Task.FromResult<byte[]?>(stream.ToArray());
+        };
+        return captures;
+    }
+
+    private static async Task<Model3DViewModel> TetraAsync()
+    {
+        var vm = new Model3DViewModel(Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"), new ModelLoaderRegistry());
+        await vm.LoadAsync();
+        Assert.IsFalse(vm.HasError, vm.ErrorMessage);
+        return vm;
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("model3d-ai-preview")]
+    public async Task TheFramedModel_IsPictured_SmallEnoughForThePanel()
+    {
+        var vm = await TetraAsync();
+        Viewport(vm, 1200, 800);
+
+        await vm.TakeSnapshotAsync(default);
+
+        var snapshot = (BitmapSource)vm.Snapshot!;
+        Assert.AreEqual(PageSnapshot.MaxEdge, snapshot.PixelWidth, "the full-size capture is not kept");
+        Assert.AreEqual(320, snapshot.PixelHeight, "its shape is");
+        Assert.IsTrue(snapshot.IsFrozen, "frozen, so the preview can bind it from wherever it is built");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("model3d-ai-preview")]
+    public async Task WithNothingLoaded_NothingIsPictured()
+    {
+        var vm       = Make();
+        var captures = Viewport(vm, 64, 48);
+
+        await vm.TakeSnapshotAsync(default);
+
+        Assert.AreEqual(0, captures.Count, "an empty viewport reminds no one of anything");
+        Assert.IsNull(vm.Snapshot);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("model3d-ai-preview")]
+    public async Task ThePreview_RemindsOfTheModel_AndIsFreshEachTime()
+    {
+        var vm = await TetraAsync();
+
+        UiThread.Run(() =>
+        {
+            var first  = vm.CreateContextPreview();
+            var second = vm.CreateContextPreview();
+
+            Assert.IsInstanceOfType(first, typeof(Model3DContextPreview));
+            Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot");
+            Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
+            var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
+            CollectionAssert.Contains(shown, vm.FormatName, "the model's format");
+            CollectionAssert.DoesNotContain(shown, "tetra.stl", "the panel's header names the file");
+        });
+    }
 }

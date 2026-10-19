@@ -1,0 +1,25 @@
+<UserControl x:Class="Nexaflow.Features.Web.Views.WebContextPreview"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Read-only reminder of the Web page for the conversation context panel: a picture of the page as it was
+         last loaded, and its address; the panel's header gives its title. Built fresh each time the chip is
+         selected; it binds to the page's snapshot but owns nothing — the live browser can never be shown twice. -->
+    <StackPanel Margin="8">
+        <Border MaxHeight="220" HorizontalAlignment="Left" CornerRadius="6"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <Grid>
+                <TextBlock Text="🌐" FontSize="44" Opacity="0.4" Margin="48,28"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextMutedBrush}"/>
+                <Image Source="{Binding Snapshot}" Stretch="Uniform" VerticalAlignment="Top"/>
+            </Grid>
+        </Border>
+
+        <TextBlock Text="{Binding CurrentUrl}" ToolTip="{Binding CurrentUrl}"
+                   Margin="0,8,0,0" FontSize="12"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource TextMutedBrush}"/>
+    </StackPanel>
+</UserControl>

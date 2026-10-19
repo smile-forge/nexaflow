@@ -20,7 +20,7 @@ using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 
-public sealed partial class TabularViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class TabularViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const long  SmallFileThresholdBytes = 100_000;
     private const int   VisibleWindowSize       = 150;
@@ -169,6 +169,32 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
         sb.Append("\nUse read_rows to read the actual cell values for any range of rows.");
         return sb.ToString();
+    }
+
+    /// <summary>The most rows the context preview shows.</summary>
+    private const int PreviewRowCount = 8;
+
+    /// <summary>
+    /// A reminder of the table for the conversation context panel: its size in rows and columns, then a few of its
+    /// first columns over the rows the user selected — or, with none selected, the rows where the grid stands. The
+    /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
+    /// what it shows.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var rows = KnownRowCount is { } known ? known.ToString("N0") : $"~{EstimatedRowCount:N0}";
+        var meta = $"{rows} rows × {Columns.Count:N0} columns"
+                 + (SelectedRowIndices.Count > 0 ? $" · {SelectedRowIndices.Count:N0} selected" : string.Empty);
+
+        var atFocus = Window.SkipWhile(r => r.AbsoluteIndex < FocalRow);
+        var shown = SelectedRowIndices.Count > 0
+            ? Window.Where(r => SelectedRowIndices.Contains(r.AbsoluteIndex))
+            : atFocus.Any() ? atFocus : Window;
+        var body = TabularPreviewTable.Format(
+            Columns.Select(c => c.Header).ToList(),
+            shown.Take(PreviewRowCount).Select(r => r.Cells));
+
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     public string? GetSecurityContext() => FilePath;
