@@ -206,8 +206,10 @@
                             <!-- AI enhance: the photo restored by the picture tools before the sliders apply. -->
                             <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
                                 <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
-                                          Content="{loc:Str Images.Edit.Restore.Enhance}" ToolTip="{loc:Str Images.Edit.Restore.EnhanceTip}"
-                                          AutomationProperties.AutomationId="Image_EditAiEnhance"/>
+                                          Content="{loc:Str Images.Edit.Restore.Enhance}" ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.EnhanceTip}}"
+                                          AutomationProperties.AutomationId="Image_EditAiEnhance"
+                                          IsEnabled="{Binding Editor.CanToggleAiEnhance}"
+                                          ToolTipService.ShowOnDisabled="True"/>
                                 <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
                                     <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Restore.Strength}"/>
                                     <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
@@ -377,11 +379,11 @@
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.UpscaleOff}" FontSize="11"/>
                                     </RadioButton>
                                     <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleTwice, Mode=TwoWay}"
-                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice">
+                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason}">
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.Twice}" FontSize="11"/>
                                     </RadioButton>
                                     <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleFourTimes, Mode=TwoWay}"
-                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes">
+                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason}">
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.FourTimes}" FontSize="11"/>
                                     </RadioButton>
                                 </StackPanel>
@@ -408,14 +410,16 @@
                                 <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
                                          VerticalContentAlignment="Center" Padding="4,3"
                                          Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
-                                         AutomationProperties.AutomationId="Image_CutOutPhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
+                                         AutomationProperties.AutomationId="Image_CutOutPhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}" IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.PickingModels.DisabledReason}">
                                     <TextBox.InputBindings>
                                         <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
                                     </TextBox.InputBindings>
                                 </TextBox>
                                 <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
-                                        Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
-                                        AutomationProperties.AutomationId="Image_CutOutFind">
+                                        Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.CutOut.FindTip}}"
+                                        AutomationProperties.AutomationId="Image_CutOutFind"
+                                        IsEnabled="{Binding Editor.PickingModels.IsReady}"
+                                        ToolTipService.ShowOnDisabled="True">
                                     <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
                                 </Button>
                             </Grid>
@@ -440,7 +444,7 @@
                                     <TextBlock Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.RemoveBackgroundCommand}"
-                                        ToolTip="{loc:Str Images.CutOut.RemoveBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutRemoveBackground">
+                                        ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.CutOut.RemoveBackgroundTip}}" AutomationProperties.AutomationId="Image_CutOutRemoveBackground" IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True">
                                     <TextBlock Text="{loc:Str Images.CutOut.RemoveBackground}" FontSize="11"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.KeepBackgroundCommand}"
@@ -458,8 +462,10 @@
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
                             <UniformGrid Rows="1">
                                 <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick"
-                                             ToolTip="{loc:Str Images.Erase.PickTip}"
-                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
+                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
+                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}"
+                                             IsEnabled="{Binding Editor.PickingModels.IsReady}"
+                                             ToolTipService.ShowOnDisabled="True">
                                     <TextBlock Text="{loc:Str Images.Erase.Pick}" FontSize="11"/>
                                 </RadioButton>
                                 <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush"
@@ -511,8 +517,9 @@
                             <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Erase.Fill}"/>
                             <UniformGrid Rows="1">
                                 <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillAi"
-                                             ToolTip="{loc:Str Images.Erase.AiTip}" IsEnabled="{Binding Editor.ErasesByAi}"
-                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Ai}">
+                                             ToolTip="{Binding Editor.ErasingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.AiTip}}" IsEnabled="{Binding Editor.ErasingModels.IsReady}"
+                                             IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Ai}"
+                                             ToolTipService.ShowOnDisabled="True">
                                     <TextBlock Text="{loc:Str Images.Erase.Ai}" FontSize="11"/>
                                 </RadioButton>
                                 <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillContentAware"

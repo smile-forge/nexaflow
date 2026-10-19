@@ -86,9 +86,6 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The Erase tool's marks: brush strokes, the fill, where the healing brush copies from.</summary>
     public EraseMarking EraseMarks { get; }
 
-    /// <summary>Whether a step can be filled by picture erasing on this machine.</summary>
-    public bool ErasesByAi => _eraser.ErasesByAi;
-
     /// <summary>Erases what is marked — what the cut-out tool has picked, and the strokes — as one step of the recipe,
     /// undone like any other; the marks go once it is.</summary>
     [RelayCommand(CanExecute = nameof(CanErase))]
@@ -109,31 +106,72 @@ public partial class ImageEditorViewModel : ObservableObject
         Cutter.ClearCommand.Execute(null);
     }
 
+    // ── Models the tools wait for ─────────────────────────────────────────
+
+    /// <summary>Picture selection: what Cut out, and picking what to retouch, need.</summary>
+    public ModelsGate PickingModels { get; }
+
+    /// <summary>Picture erasing: what AI fill needs.</summary>
+    public ModelsGate ErasingModels { get; }
+
+    /// <summary>The picture tools: what AI enhance and AI upscale need.</summary>
+    public ModelsGate RestoringModels { get; }
+
+    /// <summary>The models the open panel needs are offered over the picture while they are not here.</summary>
+    private void WantModels(bool editing)
+    {
+        PickingModels.IsWanted   = editing && Tool is EditTool.CutOut or EditTool.Retouch;
+        ErasingModels.IsWanted   = editing && Tool == EditTool.Retouch;
+        RestoringModels.IsWanted = editing && Tool is EditTool.Adjust or EditTool.Resize;
+    }
+
+    /// <summary>Retouch marks and fills only with what is here: picking waits for picture selection and AI fill for picture
+    /// erasing, so each gives way to the brush and to content-aware fill until they are.</summary>
+    private void SettleRetouchChoices()
+    {
+        if (EraseMarks.IsPicking && !PickingModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
+        if (EraseMarks.Fill == EraseFill.Ai && !ErasingModels.IsReady) EraseMarks.Fill = EraseFill.ContentAware;
+    }
+
     internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
-                                      PictureCutter cutter, PhotoEraser eraser)
+                                  PictureCutter cutter, PhotoEraser eraser, ModelsGate picking, ModelsGate erasing, ModelsGate restoring)
     {
-    _viewer   = viewer;
-    Cutter    = cutter;
-    _shell    = shell;
-    _services = services;
-    _restorer = restorer;
-    _remover  = remover;
-    _eraser   = eraser;
-    EraseMarks = new EraseMarking(eraser.ErasesByAi);
-    // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
-    restorer.Made += ToolMade;
-    remover.Made  += ToolMade;
-    eraser.Made   += ToolMade;
-    // What is picked is what Remove background keeps, and part of what Erase erases.
-    cutter.PropertyChanged += (_, e) =>
-    {
-        if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking))
+        _viewer   = viewer;
+        Cutter    = cutter;
+        _shell    = shell;
+        _services = services;
+        _restorer = restorer;
+        _remover  = remover;
+        _eraser   = eraser;
+        PickingModels   = picking;
+        ErasingModels   = erasing;
+        RestoringModels = restoring;
+        EraseMarks = new EraseMarking(erasing.IsReady);
+        // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
+        restorer.Made += ToolMade;
+        remover.Made  += ToolMade;
+        eraser.Made   += ToolMade;
+        // What is picked is what Remove background keeps, and part of what Erase erases.
+        cutter.PropertyChanged += (_, e) =>
         {
-            RemoveBackgroundCommand.NotifyCanExecuteChanged();
-            EraseCommand.NotifyCanExecuteChanged();
-        }
-    };
-    EraseMarks.PropertyChanged += (_, _) => EraseCommand.NotifyCanExecuteChanged();
+            if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking))
+            {
+                RemoveBackgroundCommand.NotifyCanExecuteChanged();
+                EraseCommand.NotifyCanExecuteChanged();
+            }
+        };
+        EraseMarks.PropertyChanged += (_, _) => EraseCommand.NotifyCanExecuteChanged();
+        // Models arriving, or going, change what the controls that need them allow.
+        picking.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
+        erasing.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
+        restoring.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ModelsGate.IsReady)) return;
+            OnPropertyChanged(nameof(CanToggleAiEnhance));
+            OnPropertyChanged(nameof(UpscaleTwiceOffered));
+            OnPropertyChanged(nameof(UpscaleFourTimesOffered));
+        };
+        SettleRetouchChoices();
     }
 
     private void ToolMade()
@@ -173,6 +211,7 @@ public partial class ImageEditorViewModel : ObservableObject
         IsLevelTool = false;
         if (value != EditTool.Markup) SelectedId = null;
         _cropSessionStart = value == EditTool.Crop ? Recipe.Geometry : null;
+        WantModels(_viewer.IsEditing);
         _viewer.RequestRender();
     }
 
@@ -188,6 +227,7 @@ public partial class ImageEditorViewModel : ObservableObject
 
     internal void OnEditModeChanged(bool editing)
     {
+    WantModels(editing);
         if (editing)
         {
             _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
@@ -389,6 +429,9 @@ public partial class ImageEditorViewModel : ObservableObject
         set => Commit(r => r with { Restore = value ? r.Restore ?? new RecipeRestore() : null });
     }
 
+    /// <summary>AI enhance can be turned on — the picture tools are here — or off, which it always can be.</summary>
+    public bool CanToggleAiEnhance => RestoringModels.IsReady || AiEnhance;
+
     /// <summary>How much of the restoration shows over the photo as it was, 0–100.</summary>
     public double EnhanceStrength
     {
@@ -424,12 +467,12 @@ public partial class ImageEditorViewModel : ObservableObject
         set { if (value) Restore(x => x with { Scale = 4 }); }
     }
 
-    /// <summary>Twice the size is offered where the photo restores at it; a very large one does not.</summary>
+    /// <summary>Twice the size is offered where the picture tools are here and the photo restores at it; a very large one does not.</summary>
     public bool UpscaleTwiceOffered => Offered(2);
 
     public bool UpscaleFourTimesOffered => Offered(4);
 
-    private bool Offered(int scale) => Source is { } s && _restorer.Restores((int)Math.Round(s.Width), (int)Math.Round(s.Height), scale);
+    private bool Offered(int scale) => RestoringModels.IsReady && Source is { } s && _restorer.Restores((int)Math.Round(s.Width), (int)Math.Round(s.Height), scale);
 
     private void Restore(Func<RecipeRestore, RecipeRestore> change) => Commit(r => r with { Restore = change(r.Restore ?? new RecipeRestore()) });
 

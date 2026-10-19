@@ -310,6 +310,7 @@ public sealed class EditOverlay : FrameworkElement
         }
         else if (editor.IsCutOutTool || editor.IsRetouchTool && editor.EraseMarks.IsPicking)
         {
+            if (!editor.PickingModels.IsReady) return;   // nothing picks until picture selection is here: the press pans
             _cutFrom = _cutTo = at;
             _cutDragging = false;
             Begin(Gesture.CutOut, e);
@@ -462,6 +463,7 @@ public sealed class EditOverlay : FrameworkElement
             Begin(Gesture.Erase, e);
             return;
         }
+        if (!editor.PickingModels.IsReady) return;
         editor.Cutter.Click(at.X, at.Y, include: false);
         e.Handled = true;
     }
@@ -486,7 +488,8 @@ public sealed class EditOverlay : FrameworkElement
                 _                                            => Cursors.Arrow,
             };
         }
-        if (editor.IsCutOutTool || editor.IsRetouchTool) return Cursors.Cross;
+        if (editor.IsCutOutTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
+        if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)
             return editor.MarkupTool switch
             {

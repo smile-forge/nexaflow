@@ -535,7 +535,17 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.ErasedDecodeFailed += session => Eraser.Lost(session);
 
         Cutter = new PictureCutter(_editing, selection, shell, runOnUi);
-        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser);
+
+        // What each model-backed control waits for, and the download offered while a panel that needs it is open — unless a
+        // picture tool's banner, for an edit the recipe asks for, is offering the same.
+        var picking = new ModelsGate(selection, "Images.Models.Picking.", runOnUi);
+        var erasingModels = new ModelsGate(erasing, "Images.Models.Erasing.", runOnUi);
+        var restoring = new ModelsGate(pictures, "Images.Models.Restoring.", runOnUi);
+        picking.Defer(Remover, Eraser);
+        erasingModels.Defer(Eraser);
+        restoring.Defer(Restorer);
+
+        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser, picking, erasingModels, restoring);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
                 EncodeCurrentPng);

@@ -64,7 +64,7 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
   right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like "mug" or "child in a red
   vest", and press **Find** to pick out every one. **Copy** puts it on the clipboard without its background, and
   **Save cut-out** saves it as a PNG, transparent around it and cropped to it; the picture itself is untouched. The first
-  time, picture selection is a download of about 1.8 GB, offered in the panel. [Show me](locate:Image_EditToolCutOut,Image_CutOutPhrase,Image_CutOutSave)
+  time, picture selection is a download of about 1.8 GB, offered above the picture. [Show me](locate:Image_EditToolCutOut,Image_CutOutPhrase,Image_CutOutSave)
   **Remove background** keeps what is picked in the picture itself and makes everything else transparent — an edit like
   any other, undone or put back with **Keep background**. A JPEG can't be transparent, so it is then saved as a copy,
     offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
@@ -76,6 +76,7 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
     sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. **Heal** copies texture from where you
     Alt-click, matched to the light and colour round what you heal. **Erase** makes it one step of your edits — undone like
     any other — and a picture restored with AI enhance is restored as erased. [Show me](locate:Image_EditToolRetouch,Image_EraseMarkBrush,Image_EraseFillAi,Image_EraseApply)
+- Tools that need a model this PC hasn't downloaded yet — picking in **Cut out** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see what it needs and how big the download is, and the bar above the picture offers the download while its panel is open. Until then **Retouch** opens on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolCutOut,Image_EditToolRetouch)
 - **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
 - **AI upscale** makes the picture twice or four times its size with the picture tools, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
 - **Save options**, beside **Save as copy**, choose whether saving keeps the camera details, location, dates and descriptions, or removes them, and set the quality of a JPEG or WebP. The colour profile is always kept. A dot on the button means Save has something to tell you — why this picture can only be saved as a copy, or what saving it will drop — said inside. [Show me](locate:Image_EditSaveOptions)

@@ -591,6 +591,40 @@
                     <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
+            <!-- The open panel's tools wait for models not here yet: their download, offered once. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.PickingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.PickingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.PickingModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_PickingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.PickingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.ErasingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.ErasingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.ErasingModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_ErasingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.ErasingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.RestoringModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.RestoringModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.RestoringModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_RestoringModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.RestoringModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
             <!-- Converting the page to Markdown: how far it has got, its download, or why it could not -->
             <pages:PageConversionBar DataContext="{Binding ReadPage.Conversion}"/>
         </StackPanel>
