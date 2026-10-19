@@ -16,6 +16,7 @@ using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Features.Audio.Views;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -26,7 +27,7 @@ namespace Nexaflow.Features.Audio.ViewModels;
 /// playing. Leaving the tab pauses playback (resumed on return); the engine + timer are torn down when
 /// the tab closes.
 /// </summary>
-public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int WaveformBuckets = 800;
     private static readonly TimeSpan RestartThreshold = TimeSpan.FromSeconds(3);
@@ -843,6 +844,13 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             ? TimeSpan.FromSeconds(secs)
             : null;
     }
+
+    /// <summary>
+    /// A reminder of the track for the conversation context panel: its cover, title and artist, and where it sits
+    /// in the queue — what the conversation is about, not the player. A fresh control each time the chip is
+    /// selected, per the contract; it binds to the now-playing state but owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new AudioContextPreview { DataContext = this };
 
     public void Dispose()
     {

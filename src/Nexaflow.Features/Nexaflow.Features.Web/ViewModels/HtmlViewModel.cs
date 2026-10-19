@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Web.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Web;
 using System;
@@ -9,6 +10,8 @@ using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Web.ViewModels;
 
@@ -17,8 +20,13 @@ namespace Nexaflow.Features.Web.ViewModels;
 /// Resolves a local .html or .url file path to a navigable URI and exposes
 /// metadata for the tab title / toolbar.
 /// </summary>
-public partial class HtmlViewModel : ObservableObject, IPageViewModel
+public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextPreview
 {
+    /// <summary>The longest edge of the screenshot the AI is handed: enough to read the page's text.</summary>
+    private const double ToolCaptureEdge = 1200;
+
+    /// <summary>The longest edge of <see cref="Snapshot"/>: enough to recognise the page in the narrow context panel.</summary>
+    private const double SnapshotEdge = 480;
     /// <summary>The URI that WebView2 should navigate to.</summary>
     public Uri NavigationUri { get; }
 
@@ -30,7 +38,16 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
 
     /// <summary>The loaded document's title (from WebView2), or empty before it's known.
     /// Drives the tab title when present; otherwise the URL-derived form is used.</summary>
-    [ObservableProperty] private string _pageTitle = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewTitle))]
+    private string _pageTitle = string.Empty;
+
+    /// <summary>What the context preview calls the page: its title once known, otherwise the file it was opened from.</summary>
+    public string PreviewTitle => string.IsNullOrWhiteSpace(PageTitle) ? FileName : PageTitle;
+
+    /// <summary>A small picture of the page as it was last loaded, for the context preview; null until one is taken.
+    /// Frozen, so the preview can bind it from wherever it is built.</summary>
+    [ObservableProperty] private ImageSource? _snapshot;
 
     /// <summary>False when the embedded WebView2 control couldn't be started on this machine
     /// (e.g. the Edge WebView2 runtime is missing). The view swaps to a fallback panel that offers
@@ -49,9 +66,9 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
     /// <summary>The WebView is shown only when it's available AND not hidden behind a shell overlay.</summary>
     public bool WebViewVisible => WebViewAvailable && !IsCovered;
 
-    /// <summary>Set by the view: captures the live page as a downscaled PNG (null if unavailable).
-    /// Used to feed the AI a screenshot of what the user is looking at.</summary>
-    public Func<CancellationToken, Task<byte[]?>>? CaptureScreenshotAsync { get; set; }
+    /// <summary>Set by the view: captures the live page as a PNG no longer than the given edge (null if unavailable).
+    /// Feeds the AI a screenshot of what the user is looking at, and takes <see cref="Snapshot"/>.</summary>
+    public Func<double, CancellationToken, Task<byte[]?>>? CaptureScreenshotAsync { get; set; }
 
     /// <summary>Set by the view: reads the current scroll position and content/viewport heights, so the AI
     /// can tell how much of the page is visible and whether there's more above/below. Null if unavailable.</summary>
@@ -112,6 +129,40 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
         catch { /* fall through */ }
 
         return new Uri("about:blank");
+    }
+
+    // ── IContextPreview ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// A reminder of the page for the conversation context panel: its <see cref="Snapshot"/>, title and address —
+    /// what the conversation is about, not a second browser (the live one cannot be shown twice). A fresh control
+    /// each time the chip is selected, per the contract; it binds to the snapshot but owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new WebContextPreview { DataContext = this };
+
+    /// <summary>
+    /// Takes <see cref="Snapshot"/> of the page as it now stands. Called by the view once a page has loaded; a
+    /// capture that comes back empty, or is cancelled by the next navigation, leaves the last snapshot standing.
+    /// </summary>
+    public async Task TakeSnapshotAsync(CancellationToken ct)
+    {
+        if (!WebViewAvailable || CaptureScreenshotAsync is null) return;
+
+        var png = await CaptureScreenshotAsync(SnapshotEdge, ct);
+        if (ct.IsCancellationRequested || png is not { Length: > 0 }) return;
+
+        Snapshot = DecodeSnapshot(png);
+    }
+
+    private static BitmapImage DecodeSnapshot(byte[] png)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption  = BitmapCacheOption.OnLoad;
+        image.StreamSource = new MemoryStream(png);
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────
@@ -185,7 +236,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
         if (!WebViewAvailable || CaptureScreenshotAsync is null)
             return ToolResult.Error("The web page can't be captured right now.");
 
-        var png = await CaptureScreenshotAsync(ct);
+        var png = await CaptureScreenshotAsync(ToolCaptureEdge, ct);
         if (png is not { Length: > 0 })
             return ToolResult.Error("Couldn't capture the page image.");
 

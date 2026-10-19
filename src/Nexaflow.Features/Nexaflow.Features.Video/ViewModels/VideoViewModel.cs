@@ -24,6 +24,7 @@ using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Features.Video.Views;
 
 namespace Nexaflow.Features.Video.ViewModels;
 
@@ -39,7 +40,7 @@ namespace Nexaflow.Features.Video.ViewModels;
 /// raises <see cref="FatalError"/> so the shell can close the tab with a notice.
 /// </para>
 /// </summary>
-public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int KeyframeCount = 32;
     private const uint ThumbWidth = 160, ThumbHeight = 90;
@@ -762,6 +763,13 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     private static Task Run(Action a) { a(); return Task.CompletedTask; }
 
     // ── Disposal ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A reminder of the video for the conversation context panel: its first frame, its name and how long it runs —
+    /// what the conversation is about, not the player. A fresh control each time the chip is selected, per the
+    /// contract; it binds to the poster the scene strip already made and owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new VideoContextPreview { DataContext = this };
 
     public void Dispose()
     {

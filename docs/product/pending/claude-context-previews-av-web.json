@@ -1,0 +1,92 @@
+{
+  "branch": "claude/context-previews-av-web",
+  "nodes": {
+    "audio-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/AudioViewModel.cs",
+          "class": "AudioViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Views/AudioContextPreview.xaml",
+          "class": "AudioContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioAiTests.cs",
+            "class": "AudioAiTests",
+            "method": "ThePreview_RemindsOfTheTrack_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "video-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs",
+          "class": "VideoViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoContextPreview.xaml",
+          "class": "VideoContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Video/VideoAiTests.cs",
+            "class": "VideoAiTests",
+            "method": "ThePreview_RemindsOfTheVideo_AndIsFreshEachTime"
+          }
+        ]
+      }
+    },
+    "web-viewer-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/ViewModels/HtmlViewModel.cs",
+          "class": "HtmlViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/ViewModels/HtmlViewModel.cs",
+          "class": "HtmlViewModel",
+          "method": "TakeSnapshotAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Views/WebContextPreview.xaml",
+          "class": "WebContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Web/WebContextPreviewTests.cs",
+            "class": "WebContextPreviewTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "audio-ai-preview",
+    "video-ai-preview",
+    "web-viewer-ai-preview"
+  ]
+}
