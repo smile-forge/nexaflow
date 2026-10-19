@@ -527,6 +527,24 @@ public class PdfPageReadingTests
 
     [TestMethod]
     [CoversNode("pdf-render")]
+    [DataRow("", DisplayName = "colour space from the codestream")]
+    [DataRow(" /ColorSpace /DeviceRGB", DisplayName = "/DeviceRGB")]
+    public void ATwelveBitJpegTwoThousandImage_IsDrawnInItsColours(string colourSpace)
+    {
+        // Its depth is the codestream's, 12 bits, which no PDF image's own data is packed at: each pixel over a quadrant.
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra: [(5, JpxStream(JpxImage + colourSpace, Jpeg2000TwelveBitSample.Codestream()))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        var colour = Jpeg2000TwelveBitSample.Colour;
+        (int X, int Y, string Name)[] pixels = [(50, 50, "the red"), (150, 50, "the blue"), (50, 150, "the green"), (150, 150, "the grey")];
+        for (var i = 0; i < pixels.Length; i++)
+            AssertNear(Color.FromRgb(colour[i * 3], colour[i * 3 + 1], colour[i * 3 + 2]), Pixel(picture, pixels[i].X, pixels[i].Y), pixels[i].Name);
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
     public void AnSMask_TakesThePlaceOfTheOpacityInTheImagesData()
     {
         var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
