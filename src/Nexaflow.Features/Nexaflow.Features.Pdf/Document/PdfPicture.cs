@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Features.Pdf.Reading;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Graphics.Colors;
 using UglyToad.PdfPig.Images;
 using UglyToad.PdfPig.Tokens;
+using UglyToad.PdfPig.XObjects;
 
 namespace Nexaflow.Features.Pdf.Document;
 
@@ -67,7 +69,7 @@ internal sealed class PdfPicture
                 return null;
             }
 
-            if (!image.TryGetBytesAsMemory(out var memory))
+            if (!TryReadSamples(image, details, out var memory, out var embedded))
             {
                 failure = "samples could not be decoded";
                 return null;
@@ -88,7 +90,7 @@ internal sealed class PdfPicture
                 return null;
             }
 
-            var alpha = Alpha(image, width, height, components, samples);
+            var alpha = Alpha(image, width, height, components, samples, embedded);
 
             // CMYK goes through Windows' colour management a whole image at a time, once its colour key has been read
             // from the inks it was keyed in.
@@ -147,11 +149,18 @@ internal sealed class PdfPicture
 
     /// <summary>
     /// How much of each sample shows, at the resolution it was given in: a soft mask's own, which need not be the image's,
-    /// or the image's for a colour key. Null where every sample shows.
+    /// or the image's for a colour key. Null where every sample shows. An <c>/SMask</c> takes the place of the opacity in the
+    /// image's own data, and either takes the place of a <c>/Mask</c> (ISO 32000-2, 8.9.5, table 87).
     /// </summary>
     private static (byte[] Levels, int Width, int Height)? Alpha(IPdfImage image, int width, int height, int components,
-        ReadOnlySpan<byte> samples)
+        ReadOnlySpan<byte> samples, (byte[] Levels, int Width, int Height)? embedded)
     {
+        if (image.MaskImage is { } softMask && image.ImageDictionary.ContainsKey(NameToken.Smask))
+            return MaskAlpha(softMask);
+
+        if (embedded is { } own)
+            return own;
+
         if (image.MaskImage is { } mask)
             return MaskAlpha(mask);
 
@@ -160,6 +169,26 @@ internal sealed class PdfPicture
             return (keyed, width, height);
 
         return null;
+    }
+
+    /// <summary>
+    /// The image's samples, and the opacity its own data carries as its soft mask. A JPEG 2000 image is decoded here rather
+    /// than through its filter, so its colour and its opacity come from the one decode, and its colour space says how many of
+    /// its components are colour (<see cref="PdfJpxSamples"/>).
+    /// </summary>
+    private static bool TryReadSamples(IPdfImage image, ColorSpaceDetails details, out Memory<byte> samples,
+        out (byte[] Levels, int Width, int Height)? embedded)
+    {
+        if (image is XObjectImage { IsJpxEncoded: true })
+        {
+            var jpx = PdfJpxSamples.Read(image.RawMemory, image.ImageDictionary, details.NumberOfColorComponents);
+            samples = jpx.Colour;
+            embedded = jpx.Opacity is { } levels ? (levels, jpx.Width, jpx.Height) : null;
+            return true;
+        }
+
+        embedded = null;
+        return image.TryGetBytesAsMemory(out samples);
     }
 
     /// <summary>A mask image's levels, resampled to the image it masks by nearest sample.</summary>

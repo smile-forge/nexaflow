@@ -5,7 +5,7 @@ namespace Nexaflow.Tests.Components.Media;
 
 /// <summary>
 /// What a caller asks of a decoded image: its samples packed as a PDF image's data is laid out, its sYCC converted
-/// to RGB, its components brought to one precision.
+/// to RGB, its components brought to one precision, its colour told apart from its opacity.
 /// </summary>
 [TestClass]
 [CoversNode("media-jpeg2000-output")]
@@ -66,6 +66,49 @@ public class Jpeg2000ImageTests
 
         Assert.AreEqual(4, image.Components[0].Precision);
         CollectionAssert.AreEqual(before, image.Components[0].Samples.ToArray());
+    }
+
+    [TestMethod]
+    public void AChannelDefinitionBox_SaysWhichComponentIsOpacity_AndABareCodestreamSaysNone()
+    {
+        static Jpeg2000ChannelType[] Types(byte[] data) =>
+            [.. Jpeg2000Decoder.Decode(data, Serial).Components.Select(c => c.ChannelType)];
+
+        var colour = Jpeg2000ChannelType.Colour;
+        CollectionAssert.AreEqual(new[] { colour, colour, colour, colour }, Types(Jpeg2000OpacitySample.Codestream()));
+        CollectionAssert.AreEqual(new[] { colour, colour, colour, Jpeg2000ChannelType.Opacity }, Types(Jpeg2000OpacitySample.Jp2(1)));
+        CollectionAssert.AreEqual(new[] { colour, colour, colour, Jpeg2000ChannelType.PremultipliedOpacity }, Types(Jpeg2000OpacitySample.Jp2(2)));
+    }
+
+    [TestMethod]
+    public void ChosenComponents_ArePackedAlone_AndOpacityReadsAsLevels()
+    {
+        var image = Jpeg2000Decoder.Decode(Jpeg2000OpacitySample.Jp2(1), Serial);
+        var components = image.Components;
+
+        CollectionAssert.AreEqual(Jpeg2000OpacitySample.Colour, image.ToPackedSamples(components.Take(3).ToList()).ToArray());
+        CollectionAssert.AreEqual(Jpeg2000OpacitySample.Opacity, image.ToLevels(components[3]));
+    }
+
+    [TestMethod]
+    public void PremultipliedSamples_AreDividedByTheirOpacity_AndNoneShowWhereThereIsNone()
+    {
+        var image = Jpeg2000Decoder.Decode(Jpeg2000OpacitySample.Jp2(2), Serial);
+        var components = image.Components;
+
+        // Opaque pixels as they were; the transparent blue 0; the green under half opacity, 100 × 255 ÷ 128, rounded.
+        CollectionAssert.AreEqual(new byte[] { 255, 0, 0, 0, 0, 0, 0, 199, 0, 64, 64, 64 },
+            image.ToPackedSamples(components.Take(3).ToList(), premultipliedBy: components[3]).ToArray());
+    }
+
+    [TestMethod]
+    public void AnotherImagesComponent_IsRefused()
+    {
+        var image = Jpeg2000Decoder.Decode(Jpeg2000OpacitySample.Jp2(1), Serial);
+        var another = Jpeg2000Decoder.Decode(Jpeg2000OpacitySample.Jp2(1), Serial).Components[3];
+
+        Assert.Throws<ArgumentException>(() => image.ToLevels(another));
+        Assert.Throws<ArgumentException>(() => image.ToPackedSamples([another]));
     }
 
     private static Jpeg2000Image Decode(string name) => Jpeg2000Decoder.Decode(Jpeg2000Fixture.Named(name).Bytes(), Serial);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Features.Pdf.Reading;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
@@ -602,7 +603,8 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
             return (decoded, why);
         }, out var failure);
 
-        Image(picture, failure, ownSoftMask: xObjectContentRecord.Stream.StreamDictionary.ContainsKey(NameToken.Smask));
+        var dictionary = xObjectContentRecord.Stream.StreamDictionary;
+        Image(picture, failure, ownSoftMask: dictionary.ContainsKey(NameToken.Smask) || PdfJpxSamples.CarriesSoftMask(dictionary));
     }
 
     protected override void RenderInlineImage(InlineImage inlineImage)

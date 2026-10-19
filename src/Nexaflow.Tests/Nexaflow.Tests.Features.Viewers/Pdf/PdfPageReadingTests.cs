@@ -446,6 +446,96 @@ public class PdfPageReadingTests
         Assert.IsTrue(hidden is { R: > 249, G: > 249, B: > 249 }, $"where the mask hides it: {hidden}");
     }
 
+    private const string JpxImage = "/Type /XObject /Subtype /Image /Width 2 /Height 2";
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    [DataRow(1, 1, 177, DisplayName = "opacity, /SMaskInData 1")]
+    [DataRow(2, 1, 227, DisplayName = "premultiplied opacity, /SMaskInData 1")]
+    [DataRow(1, 2, 227, DisplayName = "opacity, /SMaskInData 2: the colour preblended")]
+    public void AJpegTwoThousandImagesOwnOpacity_IsItsSoftMask(int opacityType, int mode, int halfShownGreen)
+    {
+        // The sample's four pixels over the page's quadrants, on white paper: red opaque, blue wholly transparent, green half
+        // opaque — lighter where its colour was preblended and is divided back up — and grey opaque.
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra: [(5, JpxStream($"{JpxImage} /SMaskInData {mode}", Jpeg2000OpacitySample.Jp2((ushort)opacityType)))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb(255, 0, 0), Pixel(picture, 50, 50), "the opaque red");
+        AssertNear(Colors.White, Pixel(picture, 150, 50), "the transparent blue shows the paper");
+        AssertNear(Color.FromRgb(127, (byte)halfShownGreen, 127), Pixel(picture, 50, 150), "the half-opaque green");
+        AssertNear(Color.FromRgb(64, 64, 64), Pixel(picture, 150, 150), "the opaque grey");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void WithoutSMaskInData_AJpegTwoThousandImagesOpacityIsLeftUnread_AndItsColourReadWhole()
+    {
+        // The opacity channel is neither the image's mask nor read as a fourth colour sample, which would put every pixel
+        // after the first a sample out.
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra: [(5, JpxStream(JpxImage, Jpeg2000OpacitySample.Jp2(1)))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb(255, 0, 0), Pixel(picture, 50, 50), "the red");
+        AssertNear(Color.FromRgb(0, 0, 255), Pixel(picture, 150, 50), "the blue, opaque");
+        AssertNear(Color.FromRgb(0, 100, 0), Pixel(picture, 50, 150), "the green, opaque");
+        AssertNear(Color.FromRgb(64, 64, 64), Pixel(picture, 150, 150), "the grey");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void ABareCodestreamsOpacity_IsTheComponentPastItsColourSpace()
+    {
+        // A codestream marks none of its components: under /DeviceRGB, the fourth is the one past the colour.
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra: [(5, JpxStream($"{JpxImage} /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMaskInData 1", Jpeg2000OpacitySample.Codestream()))]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb(255, 0, 0), Pixel(picture, 50, 50), "the opaque red");
+        AssertNear(Colors.White, Pixel(picture, 150, 50), "the transparent blue shows the paper");
+        AssertNear(Color.FromRgb(127, 177, 127), Pixel(picture, 50, 150), "the half-opaque green");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void AnSMask_TakesThePlaceOfTheOpacityInTheImagesData()
+    {
+        var page = Read("q 200 0 0 200 0 0 cm /Im Do Q",
+            resources: "/XObject << /Im 5 0 R >>",
+            extra:
+            [
+                (5, JpxStream($"{JpxImage} /SMaskInData 1 /SMask 6 0 R", Jpeg2000OpacitySample.Jp2(1))),
+                (6, Stream("/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8", "FFFFFFFF>")),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb(0, 0, 255), Pixel(picture, 150, 50), "the blue, shown by the wholly opaque /SMask");
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-render")]
+    public void TheOpacityInAnImagesData_TakesThePlaceOfTheGraphicsStatesMask()
+    {
+        // The graphics state's soft mask hides whatever it masks; the image's own opacity masks it instead. A path painted
+        // under the same state stays hidden, over the image's half-opaque green.
+        var page = Read("/M gs q 200 0 0 200 0 0 cm /Im Do Q 0 0 1 rg 0 0 50 50 re f",
+            resources: "/XObject << /Im 5 0 R >> /ExtGState << /M << /SMask << /Type /Mask /S /Luminosity /G 7 0 R >> >> >>",
+            extra:
+            [
+                (5, JpxStream($"{JpxImage} /SMaskInData 1", Jpeg2000OpacitySample.Jp2(1))),
+                (7, "<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Group << /S /Transparency /CS /DeviceGray >> /Length 0 >>\nstream\n\nendstream"),
+            ]);
+        var picture = UiThreadPainted(PdfPageLayout.Lay(page, Brushes.White), page);
+
+        AssertNear(Color.FromRgb(255, 0, 0), Pixel(picture, 50, 50), "the image is masked by its own opacity alone");
+        AssertNear(Colors.White, Pixel(picture, 150, 50), "where its opacity is none");
+        AssertNear(Color.FromRgb(127, 177, 127), Pixel(picture, 25, 175), "the path under the state's mask is hidden");
+    }
+
     [TestMethod]
     [CoversNode("pdf-render")]
     public void AShadingThatStopsAtItsEnds_ReachesAcrossThePage_HoweverSmallItsUnits()
@@ -735,6 +825,15 @@ public class PdfPageReadingTests
     private static string Stream(string dictionary, string hex) =>
         $"<< {dictionary} /Filter /ASCIIHexDecode /Length {hex.Length} >>\nstream\n{hex}\nendstream";
 
+    /// <summary>A JPEG 2000 image stream: its data as it is, a byte a character, as <see cref="Write"/> writes the file.</summary>
+    private static string JpxStream(string dictionary, byte[] data) =>
+        $"<< {dictionary} /Filter /JPXDecode /Length {data.Length} >>\nstream\n{Encoding.Latin1.GetString(data)}\nendstream";
+
+    /// <summary>Within a few levels of <paramref name="expected"/> in each channel, as a picture drawn larger and smoothed is.</summary>
+    private static void AssertNear(Color expected, Color actual, string what) =>
+        Assert.IsTrue(Math.Abs(expected.R - actual.R) <= 4 && Math.Abs(expected.G - actual.G) <= 4 && Math.Abs(expected.B - actual.B) <= 4,
+            $"{what}: {actual}, not {expected}");
+
     /// <summary>A profile Windows installs, which a test of colour management converts through.</summary>
     private static byte[] InstalledProfile(string name)
     {
@@ -889,7 +988,7 @@ public class PdfPageReadingTests
             (1, $"<< /Type /Catalog /Pages 2 0 R {catalog} >>"),
             (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
             (3, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {Side} {Side}] /Resources << {resources} >> /Contents 4 0 R {page} >>"),
-            (4, $"<< /Length {Encoding.ASCII.GetByteCount(content)} >>\nstream\n{content}\nendstream"),
+            (4, $"<< /Length {Encoding.Latin1.GetByteCount(content)} >>\nstream\n{content}\nendstream"),
         };
         objects.AddRange(extra);
         objects.Sort(static (a, b) => a.Number.CompareTo(b.Number));
@@ -898,17 +997,17 @@ public class PdfPageReadingTests
         var offsets = new SortedDictionary<int, int>();
         foreach (var (number, body) in objects)
         {
-            offsets[number] = Encoding.ASCII.GetByteCount(pdf.ToString());
+            offsets[number] = Encoding.Latin1.GetByteCount(pdf.ToString());
             pdf.Append($"{number} 0 obj\n{body}\nendobj\n");
         }
 
-        var xref = Encoding.ASCII.GetByteCount(pdf.ToString());
+        var xref = Encoding.Latin1.GetByteCount(pdf.ToString());
         var size = offsets.Keys.Max() + 1;
         pdf.Append($"xref\n0 {size}\n0000000000 65535 f \n");
         for (var n = 1; n < size; n++)
             pdf.Append(offsets.TryGetValue(n, out var at) ? $"{at:D10} 00000 n \n" : "0000000000 65535 f \n");
         pdf.Append($"trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
-        return Encoding.ASCII.GetBytes(pdf.ToString());
+        return Encoding.Latin1.GetBytes(pdf.ToString());
     }
 
     // ── Pixels ────────────────────────────────────────────────────────────────────
