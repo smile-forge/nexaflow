@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using UglyToad.PdfPig.Filters;
-using UglyToad.PdfPig.Filters.Dct.JpegLibrary;
 using UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2;
 using UglyToad.PdfPig.Tokens;
 
@@ -10,9 +9,9 @@ namespace Nexaflow.Features.Pdf.Reading;
 /// <summary>
 /// The default filter table with its three unimplemented image codecs filled in. PdfPig ships
 /// <c>DCTDecode</c> (JPEG), <c>JBIG2Decode</c> (bilevel scans) and <c>JPXDecode</c> (JPEG 2000) as stubs
-/// whose <c>IsSupported</c> is false, so the core stays dependency-free. The first two are PdfPig's own
-/// optional filters; JPEG 2000 is Nexaflow.Media's decoder through <see cref="PdfJpxFilter"/>. Without them a
-/// scanned document yields no extractable images at all.
+/// whose <c>IsSupported</c> is false, so the core stays dependency-free. JBIG2 is PdfPig's own optional filter;
+/// JPEG and JPEG 2000 are Nexaflow.Media's decoders, through <see cref="PdfDctFilter"/> and
+/// <see cref="PdfJpxFilter"/>. Without them a scanned document yields no extractable images at all.
 /// <para>
 /// Written as a decorator rather than by rebuilding the whole name→filter dictionary, so a filter added to
 /// a future PdfPig keeps working here instead of silently disappearing from a copied table.
@@ -23,7 +22,7 @@ internal sealed class PdfFilterProvider : IFilterProvider
     public static PdfFilterProvider Instance { get; } = new();
 
     // Stateless decoders, so one instance each serves every document.
-    private static readonly IFilter Dct   = new JpegLibraryDctDecodeFilter();
+    private static readonly IFilter Dct   = new PdfDctFilter();
     private static readonly IFilter Jbig2 = new PdfboxJbig2DecodeFilter();
     private static readonly IFilter Jpx   = new PdfJpxFilter();
 

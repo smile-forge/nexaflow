@@ -52,6 +52,11 @@
     <Content Include="Media\Jpeg2000\Fixtures\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- JPEGs libjpeg-turbo encoded from sources the tests regenerate, some damaged, and hashes of what libjpeg-turbo
+         decodes them to. Made by JpegFixtureMaker and checked in, as the JPEG 2000 ones are. -->
+    <Content Include="Media\Jpeg\Fixtures\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -225,8 +225,8 @@ internal static class PdfImageReader
         if (IsJpeg2000(raw.Span))  { bytes = raw; extension = ".jp2"; return true; }
 
         // Everything else gets decoded and re-encoded as PNG. This is the branch that carries scanned
-        // documents, and it only succeeds because the JBIG2/JPX/DCT filter packages are referenced — PdfPig's
-        // built-in stubs for those codecs decline, and the image would be lost.
+        // documents, and it only succeeds because PdfFilterProvider fills in the JBIG2, JPX and DCT decoders —
+        // PdfPig's built-in stubs for those codecs decline, and the image would be lost.
         if (image.TryGetPng(out var png) && png is { Length: > 0 })
         {
             bytes = png; extension = ".png"; return true;

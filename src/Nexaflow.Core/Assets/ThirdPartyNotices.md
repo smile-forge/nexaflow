@@ -39,8 +39,8 @@ under the license noted below.
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) (+ System.ClientModel) | MIT |
 | [OpenJPEG.net](https://github.com/notBald/OpenJPEG.net), a C# port of [OpenJPEG](https://github.com/uclouvain/openjpeg) (carried as source: `Nexaflow.Media/Jpeg2000`) | BSD-2-Clause |
+| [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo)'s decoder, ported to C# (carried as source: `Nexaflow.Media/Jpeg`). This software is based in part on the work of the Independent JPEG Group. | IJG, BSD-3-Clause |
 | [PdfPig](https://github.com/UglyToad/PdfPig) | Apache-2.0 |
-| [PdfPig.Filters.Dct.JpegLibrary](https://github.com/BobLd/UglyToad.PdfPig.Filters.Dct.JpegLibrary) | Apache-2.0 |
 | [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2) | Apache-2.0 |
 
 | [PeterO.Numbers](https://github.com/peteroupc/Numbers) (via AngouriMath) | CC0-1.0 |
