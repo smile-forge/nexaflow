@@ -18,7 +18,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- What an action puts on the wire, where it is a protocol rather than a socket call. Content, not
+         code: Wake-on-LAN's magic packet is wol.json, and the action only decides where it goes. -->
+    <Content Include="Protocols\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Protocol\Nexaflow.IO.Protocol.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
   </ItemGroup>
 

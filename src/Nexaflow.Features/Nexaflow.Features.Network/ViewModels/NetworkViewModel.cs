@@ -343,7 +343,7 @@ public sealed partial class NetworkViewModel : ObservableObject
 
         // A fresh budget per click: a user gesture is not part of a sweep's allowance and must not be
         // refused because a discovery earlier spent it.
-        var host = new ActionHost(new UdpTransport(_guard, new RunBudget()), _shell, Log);
+        var host = new ActionHost(new UdpTransport(_guard, new RunBudget()), Adapters, _shell, Log);
 
         try
         {
@@ -415,10 +415,12 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// action reaches the wire through the guard and the desktop through one method, and has no route to
     /// either besides what is on this object.
     /// </remarks>
-    private sealed class ActionHost(IGuardedTransport transport, IShellServices shell,
-                                    ObservableCollection<string> log) : IDeviceActionHost, IProbeLog
+    private sealed class ActionHost(IGuardedTransport transport, IReadOnlyList<NetworkAdapterInfo> adapters,
+                                    IShellServices shell, ObservableCollection<string> log)
+        : IDeviceActionHost, IProbeLog
     {
         public IGuardedTransport Transport => transport;
+        public IReadOnlyList<NetworkAdapterInfo> Adapters => adapters;
         public IProbeLog Log => this;
 
         // "Html" by name rather than by reference: a feature may not reference another feature, and a page
