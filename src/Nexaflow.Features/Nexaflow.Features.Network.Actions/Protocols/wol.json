@@ -1,0 +1,321 @@
+{
+  "protocol": "wol",
+  "title": "Wake-on-LAN magic packet",
+  "source": "AMD, Magic Packet Technology (white paper 20213, 1995); SecureOn as implemented by network adapters since",
+  "about": [
+    "Six octets of all ones, then the target adapter's hardware address sixteen times, and optionally a",
+    "SecureOn password of four or six octets. That is the whole format. A sleeping adapter looks for the",
+    "pattern anywhere in any frame it receives, so the packet has no header, no length and no type of its",
+    "own: it is carried as the payload of a UDP datagram to a broadcast address, by convention on port 9,",
+    "and none of that is the format's business.",
+    "",
+    "What a description can refuse here is the pattern itself. A run of ones that is not all ones, or",
+    "sixteen copies that do not agree, is not a magic packet — no adapter would wake for it — so both are",
+    "checked on the way in rather than read as though they were right."
+  ],
+  "nodes": [
+    {
+      "id": "wol",
+      "kind": "protocol",
+      "as": "Wake-on-LAN",
+      "about": "One format, sent and never answered. A machine that wakes says so by being there, not by replying."
+    },
+    {
+      "id": "magic",
+      "kind": "message",
+      "as": "Magic Packet"
+    },
+    {
+      "id": "packing.magic",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "sync",
+      "kind": "field",
+      "as": "Synchronization Stream",
+      "form": {
+        "of": "opaque",
+        "octets": 6
+      },
+      "about": "Six octets of 0xFF. What an adapter scans for first; the address only counts after it."
+    },
+    {
+      "id": "constant.sync",
+      "kind": "constant",
+      "holds": {
+        "hex": "FFFFFFFFFFFF"
+      },
+      "label": "six octets of all ones"
+    },
+    {
+      "id": "validator.sync",
+      "kind": "validator",
+      "because": "The white paper fixes the synchronization stream at six octets of 0xFF."
+    },
+    {
+      "id": "copies",
+      "kind": "field",
+      "as": "Target MAC, sixteen times",
+      "form": {
+        "of": "opaque",
+        "octets": 96
+      },
+      "about": [
+        "The adapter's own hardware address, repeated sixteen times without a gap. One field rather than",
+        "sixteen: the copies are not separately meaningful, and an adapter matches the run as a whole."
+      ]
+    },
+    {
+      "id": "input.target",
+      "kind": "input",
+      "as": "Target MAC",
+      "purpose": "The hardware address of the adapter to wake, as 'aa:bb:cc:dd:ee:ff'.",
+      "gives": "Text"
+    },
+    {
+      "id": "converted.target",
+      "kind": "converted",
+      "label": "the address as six octets",
+      "applies": "mac"
+    },
+    {
+      "id": "converted.copies",
+      "kind": "converted",
+      "label": "the address, sixteen times",
+      "applies": "repeat"
+    },
+    {
+      "id": "constant.sixteen",
+      "kind": "constant",
+      "holds": {
+        "int": 16
+      },
+      "label": "sixteen"
+    },
+    {
+      "id": "evaluated.copiesAgree",
+      "kind": "evaluated",
+      "label": "is the run one address said sixteen times?",
+      "runs": "copies == repeat(take(copies, len(copies) / count), count)",
+      "gives": "Bool",
+      "takes": {
+        "copies": "Bytes",
+        "count": "Int"
+      }
+    },
+    {
+      "id": "secureOn",
+      "kind": "junction",
+      "as": "SecureOn Password, if any",
+      "about": [
+        "An adapter configured for SecureOn will not wake without a password after the sixteenth copy, of",
+        "four octets or of six. Nothing in the packet says one is there and nothing measures it, so the",
+        "packet's own end is what says which: on the way in, the octets left over; on the way out, the",
+        "password the target was configured with. Those are three shapes, so three ways on — and no",
+        "fourth, which is how a packet with any other number of octets after the copies is refused."
+      ]
+    },
+    {
+      "id": "noPassword",
+      "kind": "junction",
+      "as": "no password",
+      "about": "The packet ends at the sixteenth copy. What an adapter without SecureOn is sent, and almost every magic packet."
+    },
+    {
+      "id": "password4",
+      "kind": "field",
+      "as": "SecureOn Password (four octets)",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "A four-octet password, often written as an IPv4 address."
+    },
+    {
+      "id": "password6",
+      "kind": "field",
+      "as": "SecureOn Password (six octets)",
+      "form": {
+        "of": "opaque",
+        "octets": 6
+      },
+      "about": "A six-octet password, often written as a hardware address."
+    },
+    {
+      "id": "state.password",
+      "kind": "state",
+      "as": "SecureOn Password",
+      "purpose": "The password the target adapter was configured with. A property of the adapter, kept between wakes — not something a caller restates per packet.",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.passwordLeft",
+      "kind": "evaluated",
+      "label": "how many octets are left?",
+      "runs": "remaining",
+      "gives": "Int"
+    },
+    {
+      "id": "evaluated.passwordKept",
+      "kind": "evaluated",
+      "label": "how long is the target's password?",
+      "runs": "len(password)",
+      "gives": "Int",
+      "takes": {
+        "password": "Bytes"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "wol",
+      "to": "magic"
+    },
+    {
+      "kind": "then",
+      "from": "magic",
+      "to": "packing.magic"
+    },
+    {
+      "kind": "then",
+      "from": "packing.magic",
+      "to": "sync"
+    },
+    {
+      "kind": "then",
+      "from": "sync",
+      "to": "copies"
+    },
+    {
+      "kind": "then",
+      "from": "copies",
+      "to": "secureOn"
+    },
+    {
+      "kind": "decides",
+      "from": "secureOn",
+      "to": "evaluated.passwordLeft",
+      "reading": true
+    },
+    {
+      "kind": "decides",
+      "from": "secureOn",
+      "to": "evaluated.passwordKept"
+    },
+    {
+      "kind": "then",
+      "from": "secureOn",
+      "to": "noPassword",
+      "key": {
+        "int": 0
+      }
+    },
+    {
+      "kind": "then",
+      "from": "secureOn",
+      "to": "password4",
+      "key": {
+        "int": 4
+      }
+    },
+    {
+      "kind": "then",
+      "from": "secureOn",
+      "to": "password6",
+      "key": {
+        "int": 6
+      }
+    },
+    {
+      "kind": "computes",
+      "from": "sync",
+      "to": "constant.sync",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sync",
+      "to": "validator.sync",
+      "order": 0
+    },
+    {
+      "kind": "requires",
+      "from": "validator.sync",
+      "to": "constant.sync",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "copies",
+      "to": "converted.copies",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.copies",
+      "to": "converted.target",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.copies",
+      "to": "constant.sixteen",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "count"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.target",
+      "to": "input.target",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "checks",
+      "from": "copies",
+      "to": "evaluated.copiesAgree",
+      "because": "An adapter wakes for its own address said sixteen times. A run whose copies differ wakes nothing, so it is not read as though it would."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.copiesAgree",
+      "to": "copies",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "copies"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.copiesAgree",
+      "to": "constant.sixteen",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "count"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.passwordKept",
+      "to": "state.password",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "password"
+    },
+    {
+      "kind": "computes",
+      "from": "password4",
+      "to": "state.password",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "password6",
+      "to": "state.password",
+      "facet": "value"
+    }
+  ]
+}

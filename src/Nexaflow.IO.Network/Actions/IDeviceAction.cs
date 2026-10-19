@@ -1,3 +1,4 @@
+using Nexaflow.IO.Network.Adapters;
 using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
 using Nexaflow.IO.Network.Probes;
@@ -39,6 +40,11 @@ public interface IDeviceActionHost
     IGuardedTransport Transport { get; }
 
     IProbeLog Log { get; }
+
+    /// <summary>The adapters the page sends from — every usable one Options → Network has not excluded. For an
+    /// action whose destination depends on which network a device is on: a broadcast reaches one segment, so
+    /// waking a device means finding this machine's address on the segment it was seen on.</summary>
+    IReadOnlyList<NetworkAdapterInfo> Adapters { get; }
 
     /// <summary>Opens a URL wherever the shell opens things. The one capability a probe does not get.</summary>
     Task OpenAsync(string url, CancellationToken ct);

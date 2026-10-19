@@ -35,6 +35,7 @@ Lists the devices on your network and what is known about each one.
 ## Actions on a device
 - Only the actions that apply to the device in hand are offered.
 - Ping reports how long the round trip took. No answer is recorded as a result too, since some devices refuse pings by policy.
+- Wake switches on a device that is asleep or off, by sending its network adapter a Wake-on-LAN packet. It is offered for any device with a hardware address, asks before sending, and then waits up to 45 seconds for the device to answer a ping. It works only where the device has Wake-on-LAN enabled and this PC is on the network the device was seen on.
 - Web page, Model, Maker and Service URL open an address the device published, as an ordinary tab. Each appears only where the device published that address.
 - Each run gets its own tab in the panel, which you can close. Running the same action again replaces its tab.
 - What an action learns stays with the device through the next discovery, and the panel stays on the device you were reading.

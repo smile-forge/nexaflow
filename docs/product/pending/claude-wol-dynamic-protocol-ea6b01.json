@@ -1,0 +1,37 @@
+{
+  "branch": "claude/wol-dynamic-protocol-ea6b01",
+  "nodes": {
+    "network-action-wol": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network.Actions/WakeOnLanAction.cs",
+          "class": "WakeOnLanAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network.Actions/Protocols/wol.json"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Network/WakeOnLanPacketTests.cs",
+            "class": "WakeOnLanPacketTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Network/DeviceActionTests.cs",
+            "class": "DeviceActionTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "network-action-wol"
+  ]
+}
