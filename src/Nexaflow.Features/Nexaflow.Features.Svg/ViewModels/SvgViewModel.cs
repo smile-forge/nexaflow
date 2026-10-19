@@ -7,6 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Svg.ClientTools;
 using Nexaflow.Features.Svg.Loaders;
+using Nexaflow.Features.Svg.Views;
 using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.Svg.ViewModels;
@@ -18,7 +19,7 @@ namespace Nexaflow.Features.Svg.ViewModels;
 /// rendered form is a self-contained frozen drawing, so the view just displays it and the AI's render tool
 /// rasterizes it directly.
 /// </summary>
-public sealed partial class SvgViewModel : ObservableObject, IPageViewModel
+public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, IContextPreview
 {
     /// <summary>Files larger than this aren't rendered — a pathological SVG can expand into an enormous
     /// visual tree. Cosmetic metadata still loads; the view shows the guard message.</summary>
@@ -123,6 +124,13 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel
         sb.Append($"File size: {FileSizeText}.");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// A reminder of the artwork for the conversation context panel: the drawing itself, its name and its size —
+    /// what the conversation is about, not the viewer. A fresh control each time the chip is selected, per the
+    /// contract; it binds to the frozen <see cref="Artifact"/> and owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new SvgContextPreview { DataContext = this };
 
     // ── IPageViewModel ──────────────────────────────────────────────────────────────────────────
     public bool IsContextReady => IsLoaded;

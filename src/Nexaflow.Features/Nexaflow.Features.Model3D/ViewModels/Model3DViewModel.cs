@@ -10,8 +10,10 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Model3D.ClientTools;
 using Nexaflow.Features.Model3D.Loaders;
+using Nexaflow.Features.Model3D.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Model3D.ViewModels;
 
@@ -21,7 +23,7 @@ namespace Nexaflow.Features.Model3D.ViewModels;
 /// live viewport. Camera moves and viewport capture need the actual <c>HelixViewport3D</c>, so the view wires
 /// those operations in as delegates (the same View→ViewModel bridge the web viewer uses for its page tools).
 /// </summary>
-public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
+public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel, IContextPreview
 {
     private readonly ModelLoaderRegistry _registry;
 
@@ -40,6 +42,10 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
 
     /// <summary>The loaded, frozen geometry the view drops into the viewport. Null until loaded / on error.</summary>
     [ObservableProperty] private Model3DGroup? _geometry;
+
+    /// <summary>A small picture of the model as it was first framed, for the context preview; null until one is
+    /// taken. Frozen, so the preview can bind it from wherever it is built.</summary>
+    [ObservableProperty] private ImageSource? _snapshot;
 
     /// <summary>The file's authored camera, if any — the view uses it as the initial view and reset home.</summary>
     public ModelCameraView? InitialView { get; private set; }
@@ -175,6 +181,27 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// A reminder of the model for the conversation context panel: its <see cref="Snapshot"/>, name and format —
+    /// what the conversation is about, not a second viewport (the live one cannot be shown twice). A fresh control
+    /// each time the chip is selected, per the contract; it binds to the snapshot but owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new Model3DContextPreview { DataContext = this };
+
+    /// <summary>
+    /// Takes <see cref="Snapshot"/> of the viewport as it now stands. Called by the view once the model is first
+    /// framed; with nothing loaded, or a capture that comes back empty, the last snapshot stands.
+    /// </summary>
+    public async Task TakeSnapshotAsync(CancellationToken ct)
+    {
+        if (Geometry is null || CaptureViewportPngAsync is null) return;
+
+        var png = await CaptureViewportPngAsync(ct);
+        if (ct.IsCancellationRequested || png is not { Length: > 0 }) return;
+
+        Snapshot = PageSnapshot.Decode(png);
     }
 
     // ── IPageViewModel ──────────────────────────────────────────────────────────────────────────

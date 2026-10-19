@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Web.Views;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Previews;
 using Nexaflow.Visuals.Web;
 using System;
 using System.Collections.Generic;
@@ -25,8 +26,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// <summary>The longest edge of the screenshot the AI is handed: enough to read the page's text.</summary>
     private const double ToolCaptureEdge = 1200;
 
-    /// <summary>The longest edge of <see cref="Snapshot"/>: enough to recognise the page in the narrow context panel.</summary>
-    private const double SnapshotEdge = 480;
+
     /// <summary>The URI that WebView2 should navigate to.</summary>
     public Uri NavigationUri { get; }
 
@@ -148,21 +148,10 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     {
         if (!WebViewAvailable || CaptureScreenshotAsync is null) return;
 
-        var png = await CaptureScreenshotAsync(SnapshotEdge, ct);
+        var png = await CaptureScreenshotAsync(PageSnapshot.MaxEdge, ct);
         if (ct.IsCancellationRequested || png is not { Length: > 0 }) return;
 
-        Snapshot = DecodeSnapshot(png);
-    }
-
-    private static BitmapImage DecodeSnapshot(byte[] png)
-    {
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption  = BitmapCacheOption.OnLoad;
-        image.StreamSource = new MemoryStream(png);
-        image.EndInit();
-        image.Freeze();
-        return image;
+        Snapshot = PageSnapshot.Decode(png);
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────

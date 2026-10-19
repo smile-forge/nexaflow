@@ -74,7 +74,8 @@ public partial class Model3DView : UserControl, IPageView
             _vm.CategoricalPalette = ResolveSwatchPalette(); // theme colours for materials the file doesn't colour
             await _vm.LoadAsync();
         }
-        BuildVisuals();
+    BuildVisuals();
+        await _vm.TakeSnapshotAsync(CancellationToken.None);   // the home framing, for the context preview
     }
 
     /// <summary>The theme's categorical <c>Swatch.*</c> bank as colours, for tinting uncoloured materials.
