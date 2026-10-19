@@ -258,8 +258,9 @@ public sealed partial class PictureCutter : ObservableObject
         {
             if (asking.IsCancellationRequested) return;
             _opened = null;
-            Failed = true;
+            // The reason first: whoever sees Failed reads why, not the notice it replaces.
             Notice = Str.Format("Images.CutOut.Failed", ex.Message);
+            Failed = true;
         }
         finally
         {
