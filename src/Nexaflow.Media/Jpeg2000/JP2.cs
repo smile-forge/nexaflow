@@ -156,9 +156,6 @@ namespace Nexaflow.Media.Jpeg2000
 
             _color = new JP2Color();
             _color.ignore_pclr_cmap_cdef = (parameters.flags & DecompressionParameters.DPARAMETERS.IGNORE_PCLR_CMAP_CDEF_FLAG) != 0;
-
-            // This is a C# addition.
-            _color.ignore_cmap = parameters.IgnoreColorLookupTable;
         }
 
         #endregion
@@ -360,16 +357,8 @@ namespace Nexaflow.Media.Jpeg2000
                         _color.jp2_pclr = null;
                     else
                     {
-                        if (!_color.ignore_cmap)
-                        {
-                            if (!ApplyPCLR(image, _color, _cinfo))
-                                return false;
-                        }
-                        else
-                        {
-                            //Added for Pdflib
-                            image.color_info = _color;
-                        }
+                        if (!ApplyPCLR(image, _color, _cinfo))
+                            return false;
                     }
                 }
 

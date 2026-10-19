@@ -144,8 +144,9 @@ namespace Nexaflow.Media.Jpeg2000
         {
             var j2k = new J2K(cinfo);
 
-            //Default to using strict mode
-            j2k.DecoderSetStrictMode(true);
+            // Default to using strict mode. Set directly, as opj_j2k_create_decompress does: DecoderSetStrictMode
+            // also marks the TPsot==TNsot correction as checked, which would turn it off for every codestream.
+            j2k._cp.strict = true;
 
             
             // in the absence of JP2 boxes, consider different bit depth / sign
@@ -179,14 +180,6 @@ namespace Nexaflow.Media.Jpeg2000
                 _dump_state = (parameters.flags & DecompressionParameters.DPARAMETERS.DUMP_FLAG) != 0;
 #endif
             }
-        }
-
-        //2.5.3 - opj_j2k_decoder_set_strict_mode
-        internal void DecoderSetStrictMode(bool strict)
-        {
-            _cp.strict = strict;
-            if (strict)
-                _specific_param.decoder.n_tile_parts_correction_checked = true;
         }
 
 

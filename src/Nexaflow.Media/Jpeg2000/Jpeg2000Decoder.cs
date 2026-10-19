@@ -23,7 +23,7 @@ public static class Jpeg2000Decoder
         };
         var parameters = new DecompressionParameters
         {
-            IgnoreColorLookupTable = !options.ApplyPalette,
+            flags = options.ApplyPalette ? 0 : DecompressionParameters.DPARAMETERS.IGNORE_PCLR_CMAP_CDEF_FLAG,
             DisableMultiThreading = !options.Parallel,
         };
 

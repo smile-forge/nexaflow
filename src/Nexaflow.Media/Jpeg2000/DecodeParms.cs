@@ -95,11 +95,6 @@ namespace Nexaflow.Media.Jpeg2000
 
         internal OPJ_UINT32 layer;
 
-        /// <summary>
-        /// When set, the color lookup table is not applied to the image
-        /// </summary>
-        public bool IgnoreColorLookupTable { get; set; }
-
         public bool DisableMultiThreading { get; set; }
 
         /// <summary>

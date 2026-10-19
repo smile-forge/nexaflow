@@ -18,29 +18,35 @@ public sealed class Jpeg2000Image
 
     public Jpeg2000ColourSpace ColourSpace => (Jpeg2000ColourSpace)_image.ColorSpace;
 
-    /// <summary>The components are indices into a palette that has not been applied.</summary>
-    public bool HasPalette => _image.IsIndexed;
-
     /// <summary>The widest component's precision, in bits.</summary>
     public int MaxPrecision => _image.MaxBPC;
 
-    /// <summary>The components as they stand now: applying a palette or converting colour replaces them.</summary>
+    /// <summary>The components as they stand now: converting colour replaces them.</summary>
     public IReadOnlyList<Jpeg2000Component> Components => [.. _image.Components.Select(c => new Jpeg2000Component(c))];
-
-    /// <summary>Replaces palette indices with the palette's colours; nothing changes when there is no palette.</summary>
-    public void ApplyPalette()
-    {
-        if (!_image.ApplyIndex()) throw new Jpeg2000Exception("the palette could not be applied");
-    }
 
     /// <summary>Scales every component up to the widest one's precision.</summary>
     public void MakeUniformPrecision() => _image.MakeUniformBPC();
 
-    /// <summary>Converts eYCC components to RGB.</summary>
-    /// <exception cref="NotSupportedException">The image is not three eYCC components of one size.</exception>
-    public void ConvertEsyccToRgb()
+    /// <summary>
+    /// Converts sYCC or e-sYCC components to RGB, as opj_decompress does, and says whether it did. Any other colour
+    /// space is left as it is, and so is YCC the conversions do not cover: sYCC subsampled other than 4:2:0, 4:2:2 or
+    /// not at all, or e-sYCC whose components differ in size.
+    /// </summary>
+    public bool ConvertYccToRgb()
     {
-        if (!_image.ESyccToRGB()) throw new Jpeg2000Exception("the eYCC components could not be converted to RGB");
+        var c = _image.Components;
+        switch (ColourSpace)
+        {
+            case Jpeg2000ColourSpace.Sycc when c.Length >= 3 && c[0].DX == 1 && c[0].DY == 1
+                                               && c[1].DX == c[2].DX && c[1].DY == c[2].DY
+                                               && (c[1].DX, c[1].DY) is (2, 2) or (2, 1) or (1, 1):
+                return _image.SyccToRGB();
+            case Jpeg2000ColourSpace.Eycc when c.Length >= 3 && c[0].DX == c[1].DX && c[0].DX == c[2].DX
+                                               && c[0].DY == c[1].DY && c[0].DY == c[2].DY:
+                return _image.ESyccToRGB();
+            default:
+                return false;
+        }
     }
 
     /// <summary>

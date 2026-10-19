@@ -517,6 +517,19 @@ Each writes one JSON file, and a log of how far it has got, and asserts nothing.
 tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jpx-bench
 ```
 
+`JpxComparisonSweep` (`-Compare`) is the check that the managed decoder matches libopenjp2: it decodes **every**
+JPEG 2000 image in the corpus with both, from the same bytes, and sets their components side by side; the managed
+decoder decodes it again with its own threading, as the reader does, and that is held to its serial decode. An image
+they disagree on is kept as a file beside the run's `jpx-compare-*.json`, and the script prints the disagreements
+grouped by what `opj_dump` says the codestream uses — wavelet, code-block style, precision, colour transform, tiling,
+palette — so a cause shows as one group rather than thousands of images. Images go out one a thread on threads of
+the sweep's own, not the thread pool the decoder hands its code blocks to. A change to the decoder is not done
+while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -PdfCorpus <folder> -Compare
+```
+
 `-OpenJpeg` is an OpenJPEG checkout outside the repository: cloned at `-Tag` when it is absent and built with MSVC
 when it has no `openjp2.dll`, so the baseline is a release build of the library a run names. As with the markdown bench, compare
 runs taken on one machine in one configuration.

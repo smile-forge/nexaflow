@@ -41,10 +41,6 @@ namespace Nexaflow.Tests.Features.Pdf;
 [NoCoverage("a measurement to read, not a check")]
 public class JpxDecodeBench
 {
-    private const string Folder = "NEXAFLOW_JPX_BENCH";
-    private const string Library = "NEXAFLOW_OPENJP2";
-    private const string Corpus = "NEXAFLOW_JPX_CORPUS";
-
     /// <summary>How many times each decode is timed; the median is kept.</summary>
     private const int Runs = 5;
 
@@ -56,29 +52,16 @@ public class JpxDecodeBench
     /// <summary>A timed run repeats a decode until it lasts this long, so a tiny image is not timer noise.</summary>
     private const double Batch = 5;
 
-    private const string PerSize = "NEXAFLOW_JPX_PER_SIZE";
-
-    /// <summary>How many images of each size are timed, unless <c>NEXAFLOW_JPX_PER_SIZE</c> says otherwise; 0 is all.</summary>
-    private const int DefaultPerSize = 6;
-
-    /// <summary>The sizes images are chosen and totalled by.</summary>
-    private static readonly (string Name, double Below)[] Sizes =
-        [("under 0.1 MP", 0.1), ("0.1-1 MP", 1), ("1-4 MP", 4), ("4 MP and over", double.MaxValue)];
-
     /// <summary>How long each profile samples for, the corpus decoded as many times as that takes.</summary>
     private const double ProfileMs = 15_000;
-
-    private static readonly JsonSerializerOptions Written = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     [TestMethod]
     public void HowManagedJpxDecodingComparesWithNative()
     {
-        var folder = Environment.GetEnvironmentVariable(Folder);
-        if (string.IsNullOrWhiteSpace(folder)) { Assert.Inconclusive($"set {Folder} to a folder to write the run to"); return; }
-        var library = Environment.GetEnvironmentVariable(Library);
-        if (string.IsNullOrWhiteSpace(library) || !File.Exists(library)) { Assert.Fail($"set {Library} to the openjp2.dll to measure against"); return; }
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(JpxRun.Folder))) { Assert.Inconclusive($"set {JpxRun.Folder} to a folder to write the run to"); return; }
+        if (JpxRun.NativeLibrary() is not { } library) return;
 
-        if (Sample.Open("bench") is not { } sample) return;
+        if (JpxRun.Open("bench") is not { } sample) return;
         using var _ = sample;
 
         using var native = new LibOpenJpeg(library);
@@ -115,7 +98,7 @@ public class JpxDecodeBench
     [TestMethod]
     public void WhereManagedJpxDecodingSpendsItsTime()
     {
-        if (Sample.Open("profile") is not { } sample) return;
+        if (JpxRun.Open("profile") is not { } sample) return;
         using var _ = sample;
 
         var filter = new PdfJpxFilter();
@@ -149,7 +132,7 @@ public class JpxDecodeBench
         JpxPlanes? mine = null, theirs = null;
         string? managedError = null, nativeError = null, filterError = null;
 
-        try { mine = Planes(Managed(stream, singleThreaded: true)); }
+        try { mine = JpxPlanes.Of(Managed(stream, singleThreaded: true)); }
         catch (Exception failure) { managedError = $"{failure.GetType().Name}: {failure.Message}"; }
 
         try { theirs = native.Read(stream, 0); }
@@ -181,9 +164,6 @@ public class JpxDecodeBench
     /// <summary>The managed decode alone, set up as <see cref="PdfJpxFilter"/> sets it up.</summary>
     private static Jpeg2000Image Managed(JpxStream stream, bool singleThreaded) =>
         Jpeg2000Decoder.Decode(stream.Data, new Jpeg2000DecodeOptions { ApplyPalette = !stream.IgnorePalette, Parallel = !singleThreaded });
-
-    private static JpxPlanes Planes(Jpeg2000Image image) =>
-        new(image.Components.Select(c => new JpxPlane(c.Width, c.Height, c.Precision, c.Signed, c.Samples.ToArray())).ToList());
 
     /// <summary>
     /// The median of a decode's timed runs, in milliseconds, after one run to warm it — or that one run, when it is
@@ -229,88 +209,6 @@ public class JpxDecodeBench
         while (clock.Elapsed.TotalMilliseconds < ProfileMs);
     };
 
-    /// <summary>
-    /// What both measurements share: the folder a run writes to, the images it measures — the corpus's JPEG 2000
-    /// images, sampled by size — and a log, beside the file it will write, of how far it has got.
-    /// </summary>
-    private sealed class Sample : IDisposable
-    {
-        private readonly string _folder;
-        private readonly string _kind;
-        private readonly string _stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        private readonly StreamWriter _progress;
-        private readonly Stopwatch _clock = Stopwatch.StartNew();
-        private readonly Dictionary<string, object> _corpus;
-
-        private Sample(string folder, string kind)
-        {
-            _folder = folder;
-            _kind = kind;
-            Directory.CreateDirectory(folder);
-            _progress = new StreamWriter(Path.Combine(folder, $"jpx-{kind}-{_stamp}.log")) { AutoFlush = true };
-
-            // One folder or several, separated as a PATH is; PdfPig's own test documents when none is named.
-            string[] folders = Environment.GetEnvironmentVariable(Corpus) is { Length: > 0 } named
-                ? named.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                : [Path.Combine(TestSampleData.RepoRoot, "external", "PdfPig", "src", "UglyToad.PdfPig.Tests")];
-
-            var pdfs = folders.SelectMany(folder => Directory.EnumerateFiles(folder, "*.pdf", SearchOption.AllDirectories))
-                .Order(StringComparer.OrdinalIgnoreCase).ToList();
-            var (found, unread) = JpxCorpus.Scan(pdfs);
-            var perSize = int.TryParse(Environment.GetEnvironmentVariable(PerSize), out var asked) ? asked : DefaultPerSize;
-            Streams = JpxCorpus.Load(Sampled(found, perSize));
-            Log($"{found.Count} images in {pdfs.Count} PDFs ({unread.Count} unread); measuring {Streams.Count}");
-
-            _corpus = new Dictionary<string, object>
-            {
-                ["folders"] = folders,
-                ["pdfs"] = pdfs.Count,
-                ["unread"] = unread,
-                ["images"] = found.Count,
-                ["perSize"] = perSize,
-                ["sampled"] = Streams.Count,
-            };
-        }
-
-        public IReadOnlyList<JpxStream> Streams { get; }
-
-        /// <summary>The run, or nothing — and the test inconclusive — when no folder is set to write it to.</summary>
-        public static Sample? Open(string kind)
-        {
-            var folder = Environment.GetEnvironmentVariable(Folder);
-            if (string.IsNullOrWhiteSpace(folder)) { Assert.Inconclusive($"set {Folder} to a folder to write the run to"); return null; }
-            return new Sample(folder, kind);
-        }
-
-        public void Log(string line) => _progress.WriteLine($"{_clock.Elapsed:hh\\:mm\\:ss} {line}");
-
-        /// <summary>What every run records about itself, for the measurement to add to.</summary>
-        public Dictionary<string, object> Described() => new()
-        {
-            ["label"] = Environment.GetEnvironmentVariable("NEXAFLOW_BENCH_LABEL") ?? "",
-            ["commit"] = Environment.GetEnvironmentVariable("NEXAFLOW_BENCH_COMMIT") ?? "",
-    #if DEBUG
-            ["configuration"] = "Debug",
-    #else
-            ["configuration"] = "Release",
-    #endif
-            ["machine"] = Environment.MachineName,
-            ["runtime"] = RuntimeInformation.FrameworkDescription,
-            ["when"] = DateTimeOffset.Now.ToString("o"),
-            ["corpus"] = _corpus,
-        };
-
-        public void Write(Dictionary<string, object> run)
-        {
-            var file = Path.Combine(_folder, $"jpx-{_kind}-{_stamp}.json");
-            File.WriteAllText(file, JsonSerializer.Serialize(run, Written));
-            Log($"wrote {file}");
-            Console.WriteLine(file);
-        }
-
-        public void Dispose() => _progress.Dispose();
-    }
-
     private static Dictionary<string, object> Totals(IReadOnlyList<Row> timed)
     {
         double Sum(Func<Timing, double?> of) => Round(timed.Sum(row => of(row.Timing!) ?? 0));
@@ -345,44 +243,14 @@ public class JpxDecodeBench
     {
         var listed = new List<Dictionary<string, object>>();
 
-        foreach (var group in timed.GroupBy(row => SizeOf(row.Megapixels)).OrderBy(g => g.Key))
+        foreach (var group in timed.GroupBy(row => JpxRun.SizeOf(row.Megapixels)).OrderBy(g => g.Key))
         {
             var totals = Totals(group.ToList());
-            totals["size"] = Sizes[group.Key].Name;
+            totals["size"] = JpxRun.Sizes[group.Key].Name;
             listed.Add(totals);
         }
 
         return listed;
-    }
-
-    /// <summary>Which of <see cref="Sizes"/> an image of this many megapixels falls in.</summary>
-    private static int SizeOf(double megapixels)
-    {
-        var at = 0;
-        while (megapixels >= Sizes[at].Below) at++;
-        return at;
-    }
-
-    /// <summary>
-    /// The images a run measures: <paramref name="perSize"/> of each size, by the size their dictionaries declare,
-    /// spread evenly from the smallest file to the largest so how hard an image was compressed varies too. The same
-    /// corpus always yields the same sample, so runs compare.
-    /// </summary>
-    private static List<JpxEntry> Sampled(IReadOnlyList<JpxEntry> entries, int perSize)
-    {
-        if (perSize <= 0) return [.. entries];
-
-        var sampled = new List<JpxEntry>();
-        foreach (var group in entries.GroupBy(entry => SizeOf(entry.DeclaredMegapixels)).OrderBy(g => g.Key))
-        {
-            var ordered = group.OrderBy(entry => entry.Bytes).ThenBy(entry => entry.Name, StringComparer.Ordinal).ToList();
-            if (ordered.Count <= perSize) { sampled.AddRange(ordered); continue; }
-
-            var step = (ordered.Count - 1) / (double)Math.Max(1, perSize - 1);
-            for (var pick = 0; pick < perSize; pick++) sampled.Add(ordered[(int)Math.Round(pick * step)]);
-        }
-
-        return sampled;
     }
 
     // Which stage of OpenJPEG.net a frame belongs to, by its type. Helpers every stage calls into are left

@@ -284,7 +284,6 @@ namespace Nexaflow.Media.Jpeg2000.Internal
         internal JP2pclr jp2_pclr;
         bool jp2_has_colr;
         internal bool ignore_pclr_cmap_cdef;
-        internal bool ignore_cmap;
         internal bool HasColor { get { return jp2_has_colr; } set { jp2_has_colr = value; } }
     }
 

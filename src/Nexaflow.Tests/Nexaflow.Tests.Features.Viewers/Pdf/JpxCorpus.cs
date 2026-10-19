@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 
+using Nexaflow.Media.Jpeg2000;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Filters;
@@ -70,6 +71,10 @@ internal sealed record JpxPlanes(IReadOnlyList<JpxPlane> Planes)
 
         return "identical";
     }
+
+    /// <summary>A managed decode's components, copied out to set beside another decoder's.</summary>
+    public static JpxPlanes Of(Jpeg2000Image image) =>
+        new(image.Components.Select(c => new JpxPlane(c.Width, c.Height, c.Precision, c.Signed, c.Samples.ToArray())).ToList());
 }
 
 /// <summary>
@@ -136,6 +141,45 @@ internal static class JpxCorpus
         }
 
         return [.. entries.Select(entry => loaded[entry])];
+    }
+
+    /// <summary>
+    /// Every image handed to <paramref name="visit"/> as it is read, on <paramref name="threads"/> threads of the
+    /// caller's own rather than the thread pool — which the managed decoder hands its code blocks to, so a pool thread
+    /// waiting on one would starve it. Images go out in batches from one PDF, a few to a batch so a PDF of thousands
+    /// spreads over every thread, and nothing is held but what is being decoded. Returns the batches that could not be read.
+    /// </summary>
+    public static IReadOnlyList<string> Visit(IReadOnlyList<JpxEntry> entries, int threads, Action<JpxEntry, JpxStream> visit)
+    {
+        const int Batch = 16;
+        var batches = new System.Collections.Concurrent.BlockingCollection<JpxEntry[]>();
+        foreach (var pdf in entries.GroupBy(entry => entry.Pdf))
+            foreach (var batch in pdf.Chunk(Batch)) batches.Add(batch);
+        batches.CompleteAdding();
+
+        var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var workers = Enumerable.Range(0, threads).Select(at => new System.Threading.Thread(() =>
+        {
+            foreach (var batch in batches.GetConsumingEnumerable())
+            {
+                try
+                {
+                    using var document = Open(batch[0].Pdf);
+                    var structure = document.Structure;
+                    foreach (var entry in batch)
+                    {
+                        var stream = (StreamToken)structure.GetObject(entry.Reference).Data;
+                        IsJpxImage(stream, structure.FilterProvider, structure.TokenScanner, out var data);
+                        visit(entry, new JpxStream(entry.Name, data, stream.StreamDictionary));
+                    }
+                }
+                catch (Exception failure) { failures.Enqueue($"{batch[0].Pdf}: {failure.GetType().Name}: {failure.Message}"); }
+            }
+        }) { IsBackground = true, Name = $"jpx visit {at}" }).ToList();
+
+        workers.ForEach(worker => worker.Start());
+        workers.ForEach(worker => worker.Join());
+        return [.. failures];
     }
 
     private static PdfDocument Open(string path) =>

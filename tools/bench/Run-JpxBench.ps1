@@ -35,6 +35,11 @@
 .PARAMETER PdfCorpus
   A further folder of PDFs measured with them — the baseline PDF corpus. Defaults to NEXAFLOW_PDF_CORPUS.
 
+.PARAMETER Compare
+  Instead of timing and profiling a sample, decode every image with both libraries and compare them
+  (JpxComparisonSweep). Each image they disagree on is kept as a file, and the disagreements are printed grouped by
+  what opj_dump says the codestream uses - wavelet, code-block style, precision, colour transform, tiling.
+
 .PARAMETER PerSize
   How many images of each size (under 0.1 MP, 0.1-1, 1-4, 4 MP and over) are timed, spread from the smallest file
   to the largest; the same corpus always gives the same sample. 0 times every image.
@@ -55,6 +60,7 @@ param(
     [string]$JpxDocuments = '',
     [string]$JpxDocumentsCommit = '206bfaaddfe2c33d122b15638dff0d85e6bcd679',
     [string]$PdfCorpus = $env:NEXAFLOW_PDF_CORPUS,
+    [switch]$Compare,
     [int]$PerSize = 6,
     [string]$Label = '',
     [string]$Out = (Join-Path $env:LOCALAPPDATA 'Nexaflow\jpx-bench'),
@@ -127,11 +133,40 @@ $env:NEXAFLOW_BENCH_COMMIT = $commit
 $exe = Join-Path $root "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/bin/x64/$Configuration/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.Viewers.exe"
 function Invoke-Measurement($test, $kind) {
     $since = Get-Date
-    & $exe --filter "FullyQualifiedName~JpxDecodeBench.$test" | Out-Null
+    & $exe --filter "FullyQualifiedName~$test" | Out-Null
     $written = Get-ChildItem $Out -Filter "jpx-$kind-*.json" | Where-Object LastWriteTime -ge $since | Sort-Object LastWriteTime | Select-Object -Last 1
     if (-not $written) { throw "$test wrote nothing to $Out - its jpx-$kind-*.log says how far it got" }
     $written.FullName
     Get-Content $written.FullName -Raw | ConvertFrom-Json
+}
+
+if ($Compare) {
+    "comparing every image with libopenjp2 - progress in a jpx-compare-*.log in $Out"
+    $file, $sweep = Invoke-Measurement 'EveryJpegTwoThousandImage_DecodesAsLibopenjp2Does' 'compare'
+    $file
+    "{0} images from {1} PDFs; libopenjp2 {2}, {3} {4}" -f $sweep.corpus.sampled, $sweep.corpus.pdfs, $sweep.libopenjp2.version, $sweep.configuration, $sweep.commit
+    foreach ($outcome in $sweep.outcomes.PSObject.Properties) { "  {0,7:N0}  {1}" -f $outcome.Value, $outcome.Name }
+    if ($sweep.unread.Count -gt 0) { "  {0,7:N0}  batches could not be read" -f $sweep.unread.Count }
+
+    # What kind of codestream each disagreement is, as libopenjp2's own dump tool reads its main header.
+    $dump = Join-Path $build 'bin/Release/opj_dump.exe'
+    $kinds = foreach ($disagreement in $sweep.disagreements) {
+        $header = (& $dump -i $disagreement.file 2>$null) -join "`n"
+        $values = { param($name) ([regex]::Matches($header, "(?m)^\s*$name=(\S+?)[,\s]") | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique) -join '/' }
+        $palette = [IO.File]::ReadAllBytes($disagreement.file) | Select-Object -First 4096 | ForEach-Object { [char]$_ } | Join-String
+        [pscustomobject]@{
+            Outcome = $disagreement.outcome
+            Kind = 'qmfbid={0} cblksty={1} prec={2} sgnd={3} mct={4} numresolutions={5} tiles={6} roishift={7}{8}' -f `
+                (& $values 'qmfbid'), (& $values 'cblksty'), (& $values 'prec'), (& $values 'sgnd'), (& $values 'mct'),
+                (& $values 'numresolutions'), (& $values 'tw'), (& $values 'roishift'), ($(if ($palette -match 'pclr') { ' palette' } else { '' }))
+            Name = $disagreement.name
+        }
+    }
+    "disagreements by kind of codestream:"
+    $kinds | Group-Object Outcome, Kind | Sort-Object Count -Descending | ForEach-Object {
+        "  {0,6:N0}  {1}   e.g. {2}" -f $_.Count, $_.Name, $_.Group[0].Name
+    }
+    return
 }
 
 "timing - each image is logged to a jpx-bench-*.log in $Out as it is measured"

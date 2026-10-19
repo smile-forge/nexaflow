@@ -75,11 +75,6 @@ namespace Nexaflow.Media.Jpeg2000
         internal COLOR_SPACE color_space;
 
         /// <summary>
-        /// C# Added for PdfLib
-        /// </summary>
-        internal JP2Color color_info;
-
-        /// <summary>
         /// Image components
         /// </summary>
         internal ImageComp[] comps;
@@ -95,11 +90,6 @@ namespace Nexaflow.Media.Jpeg2000
         /// The images color information
         /// </summary>
         internal JP2cdefInfo[] channel_definitions;
-
-        /// <summary>
-        /// C#: Added for PdfLib
-        /// </summary>
-        public bool IsIndexed { get { return color_info != null; } } 
 
         /// <summary>
         /// Width of the image
@@ -323,18 +313,6 @@ namespace Nexaflow.Media.Jpeg2000
         internal JPXImage() { }
 
         #endregion
-
-        /// <summary>
-        /// Added for PdfLib
-        /// 
-        /// A better approach would be to convert the color space to a PdfIndexed colorspace
-        /// </summary>
-        public bool ApplyIndex()
-        {
-            if (color_info != null)
-                return JP2.ApplyPCLR(this, color_info, null);
-            return true;
-        }
 
         /// <summary>
         /// Copies the header of an image and its component header (no data is copied)
