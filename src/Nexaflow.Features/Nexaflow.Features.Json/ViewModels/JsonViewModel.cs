@@ -6,6 +6,7 @@ using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Formatting;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -16,7 +17,7 @@ using System.Windows;
 
 namespace Nexaflow.Features.Json.ViewModels;
 
-internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, IDisposable
+internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private readonly JsonFileLoader    _loader;
     private readonly JsonPathEvaluator _evaluator;
@@ -1364,6 +1365,20 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         return $"JSON file '{FileName}' ({FileSizeText}, {NodeCount} nodes){dirty}. Root is {rootKind}. "
              + $"Showing the {mode} view; selected node: {sel}.\n"
              + "Use query_json_path to read a value at any path, or read_json for the whole (loaded) document.";
+    }
+
+    /// <summary>
+    /// A reminder of the document for the conversation context panel: the file, its size and the path of the
+    /// selected node, then that node's entries (the root's, with nothing selected) — where the user is, not a
+    /// second tree. A fresh control each time the chip is selected, per the contract; it copies what it shows.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var focus = SelectedNode ?? Root;
+        var meta  = FileSizeText
+                  + (focus is { Parent: not null } ? $" · {focus.GetJsonPath()}" : string.Empty)
+                  + (IsModified ? " · unsaved edits" : string.Empty);
+        return new ReadOnlyTextPreview(FileName, meta, JsonContextOutline.Of(focus));
     }
 
     public string? GetSecurityContext() => FilePath;

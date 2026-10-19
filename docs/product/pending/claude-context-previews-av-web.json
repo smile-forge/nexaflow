@@ -152,14 +152,85 @@
           }
         ]
       }
+    },
+    "json-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonViewModel.cs",
+          "class": "JsonViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonContextOutline.cs",
+          "class": "JsonContextOutline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Json/JsonContextPreviewTests.cs",
+            "class": "JsonContextPreviewTests"
+          }
+        ]
+      }
+    },
+    "log-viewer-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "CreateContextPreview"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogAiTests.cs",
+            "class": "LogAiTests",
+            "method": "ThePreview_ShowsTheLastLines_OrTheSelectedOnes"
+          }
+        ]
+      }
+    },
+    "tabular-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularViewModel.cs",
+          "class": "TabularViewModel",
+          "method": "CreateContextPreview"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularPreviewTable.cs",
+          "class": "TabularPreviewTable"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Tabular/TabularContextPreviewTests.cs",
+            "class": "TabularContextPreviewTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 16,
   "touched_nodes": [
     "audio-ai-preview",
+    "json-ai-preview",
+    "log-viewer-ai-preview",
     "model3d-ai-preview",
     "svg-ai-preview",
+    "tabular-ai-preview",
     "video-ai-preview",
     "web-viewer-ai-preview"
   ]

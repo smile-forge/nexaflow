@@ -138,4 +138,32 @@ public class LogAiTests
         }
         finally { File.Delete(path); }
     });
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("log-viewer-ai-preview")]
+    public void ThePreview_ShowsTheLastLines_OrTheSelectedOnes() => UiThread.Run(() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp(string.Concat(Enumerable.Range(1, 30).Select(i => $"line {i}\n")));
+        try
+        {
+            using var vm = new LogViewModel(path, RunningShell()) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            var tail = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
+            Assert.AreEqual(Path.GetFileName(path), tail[0]);
+            StringAssert.Contains(tail[1], $"{vm.LineCount:N0} lines", "the length the page's status bar shows");
+            var shown = tail[2].Split('\n');
+            Assert.AreEqual(20, shown.Length, "the last lines, where a tailing log is read");
+            Assert.AreEqual("line 11", shown[0]);
+            Assert.AreEqual("line 30", shown[^1], "the file's closing newline is not a line");
+
+            vm.ToggleLineSelection(7);
+            vm.ToggleLineSelection(3);
+            var selected = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
+            StringAssert.EndsWith(selected[1], "2 selected");
+            Assert.AreEqual("line 3\nline 7", selected[2], "the selection, in file order");
+        }
+        finally { File.Delete(path); }
+    }));
 }
