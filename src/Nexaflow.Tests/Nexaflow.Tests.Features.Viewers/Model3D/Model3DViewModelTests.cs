@@ -202,8 +202,9 @@ public class Model3DViewModelTests
             Assert.IsInstanceOfType(first, typeof(Model3DContextPreview));
             Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot");
             Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
-            CollectionAssert.IsSubsetOf(new[] { "tetra.stl", vm.FormatName },
-                ContextPreviewProbe.VisibleTexts(first).ToList(), "the file's name and format");
+            var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
+            CollectionAssert.Contains(shown, vm.FormatName, "the model's format");
+            CollectionAssert.DoesNotContain(shown, "tetra.stl", "the panel's header names the file");
         });
     }
 }

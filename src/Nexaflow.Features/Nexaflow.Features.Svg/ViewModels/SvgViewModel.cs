@@ -126,9 +126,9 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
     }
 
     /// <summary>
-    /// A reminder of the artwork for the conversation context panel: the drawing itself, its name and its size —
-    /// what the conversation is about, not the viewer. A fresh control each time the chip is selected, per the
-    /// contract; it binds to the frozen <see cref="Artifact"/> and owns none of it.
+    /// A reminder of the artwork for the conversation context panel: the drawing itself and its size — what the
+    /// conversation is about, not the viewer. The panel's header names the file. A fresh control each time the chip
+    /// is selected, per the contract; it binds to the frozen <see cref="Artifact"/> and owns none of it.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview() => new SvgContextPreview { DataContext = this };
 

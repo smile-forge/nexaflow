@@ -36,7 +36,7 @@ public class TabularContextPreviewTests
     }
 
     [TestMethod]
-    public void ThePreview_NamesTheFile_ItsSize_AndShowsTheRows()
+    public void ThePreview_GivesTheSize_AndShowsTheRows()
     {
         var dir = Path.Combine(TestTemp.Root, "nexatab_preview_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -51,9 +51,9 @@ public class TabularContextPreviewTests
             UiThread.Run(() =>
             {
                 var shown = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
-                Assert.AreEqual("people.csv", shown[0]);
-                StringAssert.StartsWith(shown[1], "3 rows × 2 columns");
-                var lines = shown[2].Split('\n');
+                CollectionAssert.DoesNotContain(shown.ToList(), "people.csv", "the panel's header names the file");
+                StringAssert.StartsWith(shown[0], "3 rows × 2 columns");
+                var lines = shown[1].Split('\n');
                 Assert.AreEqual("name   age", lines[0]);
                 CollectionAssert.AreEqual(new[] { "Ada    36", "Alan   41", "Grace  85" }, lines[2..]);
             });

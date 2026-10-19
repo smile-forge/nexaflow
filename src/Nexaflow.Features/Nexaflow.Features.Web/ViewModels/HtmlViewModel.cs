@@ -38,12 +38,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
 
     /// <summary>The loaded document's title (from WebView2), or empty before it's known.
     /// Drives the tab title when present; otherwise the URL-derived form is used.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PreviewTitle))]
-    private string _pageTitle = string.Empty;
-
-    /// <summary>What the context preview calls the page: its title once known, otherwise the file it was opened from.</summary>
-    public string PreviewTitle => string.IsNullOrWhiteSpace(PageTitle) ? FileName : PageTitle;
+    [ObservableProperty] private string _pageTitle = string.Empty;
 
     /// <summary>A small picture of the page as it was last loaded, for the context preview; null until one is taken.
     /// Frozen, so the preview can bind it from wherever it is built.</summary>
@@ -134,9 +129,10 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     // ── IContextPreview ───────────────────────────────────────────────────
 
     /// <summary>
-    /// A reminder of the page for the conversation context panel: its <see cref="Snapshot"/>, title and address —
-    /// what the conversation is about, not a second browser (the live one cannot be shown twice). A fresh control
-    /// each time the chip is selected, per the contract; it binds to the snapshot but owns none of it.
+    /// A reminder of the page for the conversation context panel: its <see cref="Snapshot"/> and address — what the
+    /// conversation is about, not a second browser (the live one cannot be shown twice). The panel's header gives its
+    /// title. A fresh control each time the chip is selected, per the contract; it binds to the snapshot but owns none
+    /// of it.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview() => new WebContextPreview { DataContext = this };
 

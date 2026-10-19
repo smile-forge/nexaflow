@@ -184,9 +184,10 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
     }
 
     /// <summary>
-    /// A reminder of the model for the conversation context panel: its <see cref="Snapshot"/>, name and format —
-    /// what the conversation is about, not a second viewport (the live one cannot be shown twice). A fresh control
-    /// each time the chip is selected, per the contract; it binds to the snapshot but owns none of it.
+    /// A reminder of the model for the conversation context panel: its <see cref="Snapshot"/> and format — what the
+    /// conversation is about, not a second viewport (the live one cannot be shown twice). The panel's header names
+    /// the file. A fresh control each time the chip is selected, per the contract; it binds to the snapshot but owns
+    /// none of it.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview() => new Model3DContextPreview { DataContext = this };
 

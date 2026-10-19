@@ -63,22 +63,21 @@ public class JsonContextPreviewTests
     }
 
     [TestMethod]
-    public async Task ThePreview_NamesTheFile_AndFollowsTheSelectedNode()
+    public async Task ThePreview_GivesTheSize_AndFollowsTheSelectedNode()
     {
         var vm = await LoadedAsync(Document(extraKeys: 0));
 
         UiThread.Run(() =>
         {
-            var whole = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
             Assert.IsInstanceOfType(vm.CreateContextPreview(), typeof(ReadOnlyTextPreview));
-            Assert.AreEqual(vm.FileName, whole[0]);
-            Assert.AreEqual(vm.FileSizeText, whole[1], "nothing selected: no path to name");
-            StringAssert.StartsWith(whole[2], "\"name\": \"nexaflow\"");
+            var whole = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
+            Assert.AreEqual(vm.FileSizeText, whole[0], "nothing selected: no path to name, and the panel's header names the file");
+            StringAssert.StartsWith(whole[1], "\"name\": \"nexaflow\"");
 
             vm.SelectedDisplayItem = vm.DisplayItems.OfType<JsonTreeDisplayItem>().First(d => d.Node.Key == "server");
             var server = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
-            StringAssert.EndsWith(server[1], "$.server");
-            Assert.AreEqual("\"host\": \"localhost\"\n\"port\": 8080", server[2]);
+            StringAssert.EndsWith(server[0], "$.server");
+            Assert.AreEqual("\"host\": \"localhost\"\n\"port\": 8080", server[1]);
         });
     }
 }

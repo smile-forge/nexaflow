@@ -114,24 +114,24 @@ public class WebContextPreviewTests
     }
 
     [TestMethod]
-    public void ThePreview_RemindsOfThePage_ByItsTitleAndAddress_AndIsFreshEachTime()
+    public void ThePreview_RemindsOfThePage_ByItsAddress_AndIsFreshEachTime()
     {
         UiThread.Run(() =>
         {
             var vm = Page();
-
-            var untitled = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
-            CollectionAssert.Contains(untitled.ToList(), "page.html", "before its title is known, the page is called by its file");
-
             vm.PageTitle = "Release notes";
+
             var first  = vm.CreateContextPreview();
             var second = vm.CreateContextPreview();
 
             Assert.IsInstanceOfType(first, typeof(WebContextPreview));
-            Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot and title");
+            Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot");
             Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
-            CollectionAssert.IsSubsetOf(new[] { "Release notes", vm.CurrentUrl },
-                ContextPreviewProbe.VisibleTexts(first).ToList());
+
+            var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
+            CollectionAssert.Contains(shown, vm.CurrentUrl);
+            CollectionAssert.DoesNotContain(shown, "Release notes", "the panel's header gives the page's title");
+            CollectionAssert.DoesNotContain(shown, "page.html");
         });
     }
 }

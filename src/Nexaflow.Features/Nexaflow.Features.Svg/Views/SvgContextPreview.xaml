@@ -7,9 +7,10 @@
         <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
     </UserControl.Resources>
 
-    <!-- Read-only reminder of the SVG page for the conversation context panel: the artwork, the file's name and
-         its size. Built fresh each time the chip is selected; it binds to the page's frozen drawing, crisp at
-         any size, but owns nothing. The art can be transparent, so the placeholder shows only without it. -->
+    <!-- Read-only reminder of the SVG page for the conversation context panel: the artwork and its size; the
+         panel's header names the file. Built fresh each time the chip is selected; it binds to the page's frozen
+         drawing, crisp at any size, but owns nothing. The art can be transparent, so the placeholder shows only
+         without it. -->
     <StackPanel Margin="8">
         <Border MaxHeight="200" HorizontalAlignment="Left" CornerRadius="6" Padding="6"
                 Background="{DynamicResource SurfaceBrush}"
@@ -23,11 +24,7 @@
             </Grid>
         </Border>
 
-        <TextBlock Text="{Binding FileName}" ToolTip="{Binding FileName}"
-                   Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextBrush}"/>
-        <TextBlock Text="{Binding DimensionsText}" Margin="0,2,0,0" FontSize="12"
+        <TextBlock Text="{Binding DimensionsText}" Margin="0,8,0,0" FontSize="12"
                    Foreground="{DynamicResource TextMutedBrush}"/>
     </StackPanel>
 </UserControl>

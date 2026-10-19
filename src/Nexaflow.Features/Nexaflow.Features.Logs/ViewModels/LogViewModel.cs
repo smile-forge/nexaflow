@@ -652,16 +652,16 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     private const int PreviewLineLength = 200;
 
     /// <summary>
-    /// A reminder of the log for the conversation context panel: the file, its size and length, then the lines
-    /// the user selected — or, with none selected, the last lines, where a tailing log is read. A fresh control
-    /// each time the chip is selected, per the contract; it copies what it shows. On the UI thread, which owns the
-    /// document.
+    /// A reminder of the log for the conversation context panel: its size and length, then the lines the user
+    /// selected — or, with none selected, the last lines, where a tailing log is read. The panel's header names the
+    /// file. A fresh control each time the chip is selected, per the contract; it copies what it shows. On the UI
+    /// thread, which owns the document.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview()
     {
         var meta = $"{FileSizeText} · {LineCount:N0} line{(LineCount == 1 ? "" : "s")}"
                  + (SelectedLineCount > 0 ? $" · {SelectedLineCount:N0} selected" : string.Empty);
-        return new ReadOnlyTextPreview(FileName, meta, string.Join("\n", PreviewLines()));
+        return new ReadOnlyTextPreview(meta, string.Join("\n", PreviewLines()));
     }
 
     private IEnumerable<string> PreviewLines()

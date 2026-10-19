@@ -175,9 +175,10 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     private const int PreviewRowCount = 8;
 
     /// <summary>
-    /// A reminder of the table for the conversation context panel: the file and its size in rows and columns,
-    /// then a few of its first columns over the rows the user selected — or, with none selected, the rows where
-    /// the grid stands. A fresh control each time the chip is selected, per the contract; it copies what it shows.
+    /// A reminder of the table for the conversation context panel: its size in rows and columns, then a few of its
+    /// first columns over the rows the user selected — or, with none selected, the rows where the grid stands. The
+    /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
+    /// what it shows.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview()
     {
@@ -193,7 +194,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             Columns.Select(c => c.Header).ToList(),
             shown.Take(PreviewRowCount).Select(r => r.Cells));
 
-        return new ReadOnlyTextPreview(FileName, meta, body);
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     public string? GetSecurityContext() => FilePath;

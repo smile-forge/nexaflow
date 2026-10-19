@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- Read-only reminder of the Web page for the conversation context panel: a picture of the page as it was
-         last loaded, its title and its address. Built fresh each time the chip is selected; it binds to the
-         page's snapshot and title but owns nothing — the live browser can never be shown twice. -->
+         last loaded, and its address; the panel's header gives its title. Built fresh each time the chip is
+         selected; it binds to the page's snapshot but owns nothing — the live browser can never be shown twice. -->
     <StackPanel Margin="8">
         <Border MaxHeight="220" HorizontalAlignment="Left" CornerRadius="6"
                 Background="{DynamicResource SurfaceBrush}"
@@ -17,12 +17,8 @@
             </Grid>
         </Border>
 
-        <TextBlock Text="{Binding PreviewTitle}" ToolTip="{Binding PreviewTitle}"
-                   Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextBrush}"/>
         <TextBlock Text="{Binding CurrentUrl}" ToolTip="{Binding CurrentUrl}"
-                   Margin="0,2,0,0" FontSize="12"
+                   Margin="0,8,0,0" FontSize="12"
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource TextMutedBrush}"/>
     </StackPanel>

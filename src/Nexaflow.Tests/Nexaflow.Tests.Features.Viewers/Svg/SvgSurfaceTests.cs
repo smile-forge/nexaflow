@@ -173,7 +173,8 @@ public class SvgSurfaceTests
             Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
 
             var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
-            CollectionAssert.IsSubsetOf(new[] { "sample.svg", loaded.DimensionsText }, shown, "the file's name and size");
+            CollectionAssert.Contains(shown, loaded.DimensionsText, "the artwork's size");
+            CollectionAssert.DoesNotContain(shown, "sample.svg", "the panel's header names the file");
             CollectionAssert.DoesNotContain(shown, "🖼", "the art can be transparent, so the placeholder steps aside for it");
 
             CollectionAssert.Contains(ContextPreviewProbe.VisibleTexts(loading.CreateContextPreview()).ToList(), "🖼",

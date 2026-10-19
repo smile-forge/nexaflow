@@ -1368,9 +1368,10 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     }
 
     /// <summary>
-    /// A reminder of the document for the conversation context panel: the file, its size and the path of the
-    /// selected node, then that node's entries (the root's, with nothing selected) — where the user is, not a
-    /// second tree. A fresh control each time the chip is selected, per the contract; it copies what it shows.
+    /// A reminder of the document for the conversation context panel: its size and the path of the selected node,
+    /// then that node's entries (the root's, with nothing selected) — where the user is, not a second tree. The
+    /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
+    /// what it shows.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview()
     {
@@ -1378,7 +1379,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         var meta  = FileSizeText
                   + (focus is { Parent: not null } ? $" · {focus.GetJsonPath()}" : string.Empty)
                   + (IsModified ? " · unsaved edits" : string.Empty);
-        return new ReadOnlyTextPreview(FileName, meta, JsonContextOutline.Of(focus));
+        return new ReadOnlyTextPreview(meta, JsonContextOutline.Of(focus));
     }
 
     public string? GetSecurityContext() => FilePath;

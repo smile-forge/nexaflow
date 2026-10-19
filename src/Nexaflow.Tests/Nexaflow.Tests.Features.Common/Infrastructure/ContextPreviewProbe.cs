@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Nexaflow.Tests.Fixtures;
 
@@ -28,11 +29,12 @@ public static class ContextPreviewProbe
         return texts;
     }
 
+    /// <summary>The visual tree, so the rows an items template generates are read too.</summary>
     private static void Gather(DependencyObject node, List<string> texts)
     {
         if (node is UIElement { Visibility: not Visibility.Visible }) return;
         if (node is TextBlock { Text.Length: > 0 } line) texts.Add(line.Text);
-        foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>())
-            Gather(child, texts);
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+            Gather(VisualTreeHelper.GetChild(node, i), texts);
     }
 }

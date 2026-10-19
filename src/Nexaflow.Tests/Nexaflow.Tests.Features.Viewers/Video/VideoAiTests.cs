@@ -98,7 +98,7 @@ public class VideoAiTests
                 Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
 
                 var shown = ContextPreviewProbe.VisibleTexts(first);
-                CollectionAssert.Contains(shown.ToList(), "clip.mp4");
+                CollectionAssert.DoesNotContain(shown.ToList(), "clip.mp4", "the panel's header names the file");
                 CollectionAssert.DoesNotContain(shown.ToList(), vm.DurationDisplay, "no running time is claimed before the video has opened");
             }
             finally { vm.Dispose(); }

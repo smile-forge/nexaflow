@@ -765,9 +765,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     // ── Disposal ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A reminder of the video for the conversation context panel: its first frame, its name and how long it runs —
-    /// what the conversation is about, not the player. A fresh control each time the chip is selected, per the
-    /// contract; it binds to the poster the scene strip already made and owns none of it.
+    /// A reminder of the video for the conversation context panel: its first frame and how long it runs — what the
+    /// conversation is about, not the player. The panel's header names the file. A fresh control each time the chip
+    /// is selected, per the contract; it binds to the poster the scene strip already made and owns none of it.
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview() => new VideoContextPreview { DataContext = this };
 

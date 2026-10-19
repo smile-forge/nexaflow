@@ -3,8 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- Read-only reminder of the 3D Model page for the conversation context panel: a picture of the model as
-         it was first framed, the file's name and its format. Built fresh each time the chip is selected; it
-         binds to the page's snapshot but owns nothing — the live viewport can never be shown twice. -->
+         it was first framed, and its format; the panel's header names the file. Built fresh each time the chip
+         is selected; it binds to the page's snapshot but owns nothing — the live viewport can never be shown
+         twice. -->
     <StackPanel Margin="8">
         <Border MaxHeight="220" HorizontalAlignment="Left" CornerRadius="6"
                 Background="{DynamicResource SurfaceBrush}"
@@ -17,11 +18,7 @@
             </Grid>
         </Border>
 
-        <TextBlock Text="{Binding FileName}" ToolTip="{Binding FileName}"
-                   Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextBrush}"/>
-        <TextBlock Text="{Binding FormatName}" Margin="0,2,0,0" FontSize="12"
+        <TextBlock Text="{Binding FormatName}" Margin="0,8,0,0" FontSize="12"
                    Foreground="{DynamicResource TextMutedBrush}"/>
     </StackPanel>
 </UserControl>

@@ -1,30 +1,86 @@
 <UserControl x:Class="Nexaflow.Features.Audio.Views.AudioContextPreview"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <!-- A line with nothing to say takes no room. -->
+        <Style x:Key="PreviewLine" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
 
-    <!-- Read-only reminder of the Audio page for the conversation context panel: the track's cover, its title
-         and artist, and where it sits in the queue. Built fresh each time the chip is selected; it binds to the
-         page's now-playing state but owns nothing. -->
-    <StackPanel Margin="8">
-        <Border Width="160" Height="160" HorizontalAlignment="Left" CornerRadius="6"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-            <Grid>
-                <TextBlock Text="🎵" FontSize="56" Opacity="0.4"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextMutedBrush}"/>
-                <Image Source="{Binding AlbumArt}" Stretch="UniformToFill"/>
-            </Grid>
-        </Border>
+    <!-- Read-only reminder of the Audio page for the conversation context panel: the track's cover, its own title
+         and artist where its tags give them (the panel's header already names the file), then the queue with the
+         current track picked out. Built fresh each time the chip is selected; it binds to the page's now-playing
+         state and queue but owns nothing. -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" ToolTip="{Binding Title}"
-                   Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextBrush}"/>
-        <TextBlock Text="{Binding Artist}" Margin="0,2,0,0" FontSize="12"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextMutedBrush}"/>
-        <TextBlock Text="{Binding QueueText}" Margin="0,4,0,0" FontSize="11"
-                   Foreground="{DynamicResource TextMutedBrush}"/>
-    </StackPanel>
+        <StackPanel Grid.Row="0">
+            <Border Width="160" Height="160" HorizontalAlignment="Left" CornerRadius="6"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <TextBlock Text="🎵" FontSize="56" Opacity="0.4"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}"/>
+                    <Image Source="{Binding AlbumArt}" Stretch="UniformToFill"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Style="{StaticResource PreviewLine}" Text="{Binding TagTitle}" ToolTip="{Binding TagTitle}"
+                       Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextBrush}"/>
+            <TextBlock Style="{StaticResource PreviewLine}" Text="{Binding Artist}"
+                       Margin="0,2,0,0" FontSize="12"
+                       Foreground="{DynamicResource TextMutedBrush}"/>
+        </StackPanel>
+
+        <!-- The queue. Virtualized, so a folder of a thousand tracks builds only the rows in view. -->
+        <ItemsControl Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Playlist}"
+                      Visibility="{Binding HasPlaylist, Converter={StaticResource BoolToVis}}"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.ScrollUnit="Pixel">
+            <ItemsControl.Template>
+                <ControlTemplate TargetType="ItemsControl">
+                    <ScrollViewer CanContentScroll="True"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsPresenter/>
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Display}" ToolTip="{Binding Display}"
+                               Margin="0,1" FontSize="12" TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
 </UserControl>

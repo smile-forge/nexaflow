@@ -5,9 +5,9 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
 
-    <!-- Read-only reminder of the Video page for the conversation context panel: the first frame, the file's
-         name and how long it runs. Built fresh each time the chip is selected; it binds to the page's poster
-         and duration but owns nothing — never the live frame, which only the playing page draws. -->
+    <!-- Read-only reminder of the Video page for the conversation context panel: the first frame and how long
+         it runs; the panel's header names the file. Built fresh each time the chip is selected; it binds to the
+         page's poster and duration but owns nothing — never the live frame, which only the playing page draws. -->
     <StackPanel Margin="8">
         <Border MaxHeight="200" HorizontalAlignment="Left" CornerRadius="6"
                 Background="{DynamicResource SurfaceBrush}"
@@ -20,11 +20,7 @@
             </Grid>
         </Border>
 
-        <TextBlock Text="{Binding FileName}" ToolTip="{Binding FileName}"
-                   Margin="0,8,0,0" FontSize="14" FontWeight="SemiBold"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource TextBrush}"/>
-        <TextBlock Text="{Binding DurationDisplay}" Margin="0,2,0,0" FontSize="12"
+        <TextBlock Text="{Binding DurationDisplay}" Margin="0,8,0,0" FontSize="12"
                    Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}"
                    Foreground="{DynamicResource TextMutedBrush}"/>
     </StackPanel>

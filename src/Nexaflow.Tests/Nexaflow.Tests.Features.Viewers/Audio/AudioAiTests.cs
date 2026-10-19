@@ -10,6 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Features.Audio.Views;
 using System.Linq;
 using Nexaflow.Tests.Features.Infrastructure;
+using System.IO;
 
 namespace Nexaflow.Tests.Features.Audio;
 
@@ -153,8 +154,9 @@ public class AudioAiTests
             var vm = NewPlayer(files, startIndex: 1);
             try
             {
-                vm.Title  = "Tone";
-                vm.Artist = "Nexaflow";
+                vm.FileName = Path.GetFileName(files[1]);
+                vm.Title    = "Tone";
+                vm.Artist   = "Nexaflow";
 
                 var first  = vm.CreateContextPreview();
                 var second = vm.CreateContextPreview();
@@ -163,9 +165,18 @@ public class AudioAiTests
                 Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own now-playing state");
                 Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
 
-                var shown = ContextPreviewProbe.VisibleTexts(first);
-                CollectionAssert.IsSubsetOf(new[] { "Tone", "Nexaflow", "2 / 2" }, shown.ToList(),
-                    "the track's title, artist and place in the queue");
+                var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
+                CollectionAssert.IsSubsetOf(new[] { "Tone", "Nexaflow" }, shown, "the track's own title and artist");
+                CollectionAssert.IsSubsetOf(files.Select(Path.GetFileNameWithoutExtension).ToList(), shown, "the whole queue");
+                CollectionAssert.DoesNotContain(shown, vm.FileName, "the panel's header names the file");
+                var tagged = first.DesiredSize.Height;
+
+                vm.Title  = vm.FileName;   // what an untagged track's title falls back to
+                vm.Artist = string.Empty;
+                var untagged = vm.CreateContextPreview();
+                ContextPreviewProbe.VisibleTexts(untagged);
+                Assert.AreEqual(string.Empty, vm.TagTitle);
+                Assert.IsTrue(untagged.DesiredSize.Height < tagged - 20, "lines with nothing to say take no room");
             }
             finally { vm.Dispose(); }
         });
