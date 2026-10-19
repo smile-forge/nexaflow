@@ -52,7 +52,7 @@ public sealed class ImageTabRegistration : IPageRegistration
         new("paths", "Pipe-separated full paths of the pictures to show.", OnDisk: true),
         new("view", "How to show them: carousel (the default), album, explore, collage or edit.", Required: false),
         new("scope", "\"folder\" when the pictures are a whole folder.", Required: false),
-        new("tool", "The image editor's tool to open on, such as \"cutout\", with view edit.", Required: false),
+        new("tool", "The image editor's tool to open on, with view edit: crop, adjust, retouch, cutout, markup or resize.", Required: false),
     ];
 
     /// <summary>Maps a "view" page param to its sub-view (carousel is the default; "slideshow" is an alias).</summary>

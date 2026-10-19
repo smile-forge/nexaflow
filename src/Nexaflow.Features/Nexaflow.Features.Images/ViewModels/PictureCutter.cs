@@ -97,23 +97,18 @@ public sealed partial class PictureCutter : ObservableObject
     /// <summary>What it says beneath the tool: how to pick, what it is doing, or why it cannot.</summary>
     [ObservableProperty] private string _notice = "";
 
-    /// <summary>Picture selection is not here, and can be fetched.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAction), nameof(ActionLabel))]
-    [NotifyCanExecuteChangedFor(nameof(ActCommand))]
-    private bool _canDownload;
-
     /// <summary>The last pick failed; it is tried again when asked.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAction), nameof(ActionLabel))]
     [NotifyCanExecuteChangedFor(nameof(ActCommand))]
     private bool _failed;
 
-    /// <summary>The tool has something to offer: picture selection to fetch, or the pick to try again.</summary>
-    public bool HasAction => CanDownload || Failed;
+    /// <summary>The tool has something to offer: the pick to try again. Picture selection itself is offered over the picture,
+    /// with the editor's other models.</summary>
+    public bool HasAction => Failed;
 
     /// <summary>What the tool's action button says.</summary>
-    public string? ActionLabel => CanDownload ? Str.Get("Images.CutOut.Download") : Failed ? Str.Get("Images.CutOut.Retry") : null;
+    public string? ActionLabel => Failed ? Str.Get("Images.CutOut.Retry") : null;
 
     /// <summary>The photo the editor is on; another one lets the last go, with everything picked from it.</summary>
     public void Follow(string? photo)
@@ -200,11 +195,6 @@ public sealed partial class PictureCutter : ObservableObject
     [RelayCommand(CanExecute = nameof(HasAction))]
     private Task Act()
     {
-        if (CanDownload)
-        {
-            _selection?.Download();
-            return Task.CompletedTask;
-        }
         Failed = false;
         _opened = null;   // a selection that failed may have ended; the photo is read again
         return PickAsync(Found);
@@ -304,7 +294,7 @@ public sealed partial class PictureCutter : ObservableObject
     /// <summary>Says where picture selection stands, and how to pick once it is here.</summary>
     private void Refresh()
     {
-        CanDownload = _selection is { State: ToolModelsState.NotDownloaded };
+        
         if (IsWorking || Failed) return;
         Notice = _selection?.State switch
         {

@@ -77,7 +77,7 @@ public class ImageEraseTests
         var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Edit, _services, pictures: pictures, selection: selection, erasing: erasing);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
-        OnUi(() => vm.Editor.Tool = EditTool.Erase);
+        OnUi(() => vm.Editor.Tool = EditTool.Retouch);
         return vm;
     }
 
@@ -300,7 +300,7 @@ public class ImageEraseTests
         Assert.AreEqual(EraseFill.Ai, step.Fill);
         Assert.AreEqual("sign", step.Pick!.Phrase);
         Assert.AreEqual(255, rubber.Asks.Single().Mask[6 * 32 + 8], "what it names was erased");
-        Assert.IsTrue(_ui.Invoke(() => vm.Editor.IsEraseTool), "the editor shows the Erase tool");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.IsRetouchTool), "the editor shows the Erase tool");
     }
 
     [TestMethod]

@@ -101,9 +101,9 @@ public sealed class EditOverlay : FrameworkElement
             DrawLevelLine(dc);
         if (editor.IsMarkupTool && editor.SelectedOutline is { } outline)
             DrawSelection(dc, outline);
-        if (editor.IsCutOutTool || editor.IsEraseTool)
+        if (editor.IsCutOutTool || editor.IsRetouchTool)
             DrawCutOut(dc, editor.Cutter);
-        if (editor.IsEraseTool)
+        if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);
     }
 
@@ -308,13 +308,14 @@ public sealed class EditOverlay : FrameworkElement
             if (editor.MarkupTool == MarkupTool.Select && !editor.HasSelection) return;   // nothing hit: pan
             Begin(Gesture.Markup, e);
         }
-        else if (editor.IsCutOutTool || editor.IsEraseTool && editor.EraseMarks.IsPicking)
+        else if (editor.IsCutOutTool || editor.IsRetouchTool && editor.EraseMarks.IsPicking)
         {
+            if (!editor.PickingModels.IsReady) return;   // nothing picks until picture selection is here: the press pans
             _cutFrom = _cutTo = at;
             _cutDragging = false;
             Begin(Gesture.CutOut, e);
         }
-        else if (editor.IsEraseTool && canvas.SourceToCanvas.TryInvert(out var brushToSource))
+        else if (editor.IsRetouchTool && canvas.SourceToCanvas.TryInvert(out var brushToSource))
         {
             var under = brushToSource.MapPoint(p);
             if (OnPhoto(under) is not { } onPhoto) return;
@@ -361,7 +362,7 @@ public sealed class EditOverlay : FrameworkElement
                 break;
             default:
                 Cursor = HoverCursor(editor, Sk(at));
-                if (editor.IsEraseTool && editor.EraseMarks.IsBrushing)
+                if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
                 {
                     _brushAt = at;
                     InvalidateVisual();
@@ -453,15 +454,16 @@ public sealed class EditOverlay : FrameworkElement
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        if (Editor is not { ShowOriginal: false } editor || !(editor.IsCutOutTool || editor.IsEraseTool) || _viewer?.Canvas is not { } canvas
+        if (Editor is not { ShowOriginal: false } editor || !(editor.IsCutOutTool || editor.IsRetouchTool) || _viewer?.Canvas is not { } canvas
             || !canvas.SourceToCanvas.TryInvert(out var toSource)) return;
         if (OnPhoto(toSource.MapPoint(Sk(e.GetPosition(this)))) is not { } at) return;
-        if (editor.IsEraseTool && editor.EraseMarks.IsBrushing)
+        if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
         {
             editor.EraseMarks.BeginStroke(new MarkupPoint(at.X, at.Y), marks: false);
             Begin(Gesture.Erase, e);
             return;
         }
+        if (!editor.PickingModels.IsReady) return;
         editor.Cutter.Click(at.X, at.Y, include: false);
         e.Handled = true;
     }
@@ -486,7 +488,8 @@ public sealed class EditOverlay : FrameworkElement
                 _                                            => Cursors.Arrow,
             };
         }
-        if (editor.IsCutOutTool || editor.IsEraseTool) return Cursors.Cross;
+        if (editor.IsCutOutTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
+        if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)
             return editor.MarkupTool switch
             {

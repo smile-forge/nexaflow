@@ -18,14 +18,13 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
-/// <summary>The edit mode's tool panels.</summary>
+/// <summary>The edit mode's tools, in the order a picture is usually worked on: framed, corrected, cleaned up, picked apart, annotated, sized.</summary>
 public enum EditTool
 {
     Crop,
     Adjust,
-    Markup,
+    Retouch,
     CutOut,
-    Erase,
+    Markup,
     Resize,
-    Export,
 }
