@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -40,6 +41,10 @@ public abstract class AnimatedScene : UserControl
     private bool _built;
     private Size _builtSize;
 
+    // The time the clocks have actually advanced: it runs while the scene is built and visible, stops while the
+    // window is minimised (when every clock is paused), and survives a rebuild. See SceneTime.
+    private readonly Stopwatch _runTime = new();
+
     protected AnimatedScene()
     {
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
@@ -57,6 +62,15 @@ public abstract class AnimatedScene : UserControl
     /// only when the region actually changes size. Everything is procedural so it re-fits the region.
     /// </summary>
     protected abstract void BuildScene(double width, double height);
+
+    /// <summary>
+    /// How long this scene has been running: across rebuilds, and not counting time minimised — which is
+    /// exactly the time its clocks have advanced. A scene whose art follows a cycle longer than a resize is
+    /// likely to wait for enters each rebuild here, so the cycle carries on where it was rather than starting
+    /// over. For a rare event that is the difference between rare and "every time the window is resized".
+    /// Starts again from zero when the scene is unloaded, along with everything else.
+    /// </summary>
+    protected TimeSpan SceneTime => _runTime.Elapsed;
 
     // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
     // window parked on a second monitor keeps animating while the user works elsewhere. (Full occlusion
@@ -76,6 +90,7 @@ public abstract class AnimatedScene : UserControl
         if (_host is not null) _host.StateChanged -= OnHostStateChanged;
         _host = null;
         StopClocks();
+        _runTime.Reset();
         _built = false;
         SceneLayer.Children.Clear();
     }
@@ -85,6 +100,8 @@ public abstract class AnimatedScene : UserControl
     private void ApplyPauseState()
     {
         bool minimised = _host?.WindowState == WindowState.Minimized;
+        if (minimised)   _runTime.Stop();
+        else if (_built) _runTime.Start();
         foreach (var c in _clocks)
         {
             if (minimised) c.Pause();
@@ -179,6 +196,17 @@ public abstract class AnimatedScene : UserControl
 
         _clocks.Add(controller);
     }
+
+    /// <summary>
+    /// Drive <paramref name="prop"/> by <paramref name="curve"/> — seconds into a cycle of
+    /// <paramref name="cycleSeconds"/>, to a value — entered at <paramref name="phaseSeconds"/>. For motion
+    /// that answers to a model the whole scene shares rather than to its own loop: every element that follows
+    /// the model is entered at the same phase, so they stay in step for as long as the scene runs.
+    /// </summary>
+    protected void Follow(IAnimatable target, DependencyProperty prop, Func<double, double> curve,
+                          double cycleSeconds, double phaseSeconds, int? fps = null)
+        => Animate(target, prop, new CurveAnimation(curve, TimeSpan.FromSeconds(cycleSeconds)),
+                   fps, phaseSeconds % cycleSeconds);
 
     /// <summary>
     /// Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
