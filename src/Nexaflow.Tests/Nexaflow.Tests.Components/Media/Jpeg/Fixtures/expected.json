@@ -1,0 +1,172 @@
+{
+  "cmyk": {
+    "Hash": "D01E21A409C567757437BAE5CF456F269C1823C3E0F204D33B90D7C9CF3B5ABA",
+    "Warns": false,
+    "Refused": false
+  },
+  "cmyk-lossless-5": {
+    "Hash": "1119CD31DD59AA621E7177F18A80A90319DE19C522EDEFD91460A06AD47D6CBA",
+    "Warns": false,
+    "Refused": false
+  },
+  "cmyk-progressive": {
+    "Hash": "D01E21A409C567757437BAE5CF456F269C1823C3E0F204D33B90D7C9CF3B5ABA",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey": {
+    "Hash": "BCC00C8D76117D8C62557B35511CA53F6EF109524A425A36D7DF7B64DEF4A15F",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey-arithmetic": {
+    "Hash": "BCC00C8D76117D8C62557B35511CA53F6EF109524A425A36D7DF7B64DEF4A15F",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey-lossless-1": {
+    "Hash": "02D2C2D62B41022050CE6448FA9CDA58B760098AF4A5DD76C3BC1646AA33E2E2",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey-lossless-7-pt2-restart": {
+    "Hash": "E73C8EF2EC5A3A81D07602E6E28359A2821F8A34F358BAAA99C3F2046C71F895",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey-lossless-truncated": {
+    "Hash": "A4CBFE12C1BD730B8D6C2C64DBC80A707E0852A954F3E50D595EFC460268A1BD",
+    "Warns": true,
+    "Refused": false
+  },
+  "grey-one-row": {
+    "Hash": "1C96DF1DEE37A0620C281EB0EAFC7EFB17D557BA663024468A5B9ECBAD641A7E",
+    "Warns": false,
+    "Refused": false
+  },
+  "grey-progressive": {
+    "Hash": "BCC00C8D76117D8C62557B35511CA53F6EF109524A425A36D7DF7B64DEF4A15F",
+    "Warns": false,
+    "Refused": false
+  },
+  "rgb": {
+    "Hash": "65CD434153DE339BD3F8719853C8CDE9217253CF7660BF053976DD5111B6DE06",
+    "Warns": false,
+    "Refused": false
+  },
+  "rgb-lossless-4": {
+    "Hash": "6DFD5A02A211F59FCE8F967656A70615ACE0AFA13E8321445E1F1D56AD53C203",
+    "Warns": false,
+    "Refused": false
+  },
+  "rgb-lossless-6-pt1": {
+    "Hash": "0BE9FBEC26437D798A7A704CAD1DFC255E63C7EA2F728E95EC383E80BD6942FE",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc411": {
+    "Hash": "D9938CCB09AA1299A6349D448671F9BE9C6F4C94DC1466B420453F8F72955F87",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-arithmetic": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-arithmetic-progressive": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-large": {
+    "Hash": "8FA1A4EFC508CCB1D80EF3AAA5ED35EAFA2960469C88EF2456038877274A0DA4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-large-arithmetic-corrupted": {
+    "Hash": "0EB5B6CA2C09F6EB3348D9097EC40E93067A2721E957A6F159596D3D021613CF",
+    "Warns": true,
+    "Refused": false
+  },
+  "ycc420-large-corrupted": {
+    "Hash": "6E890AF12E4AEE23ED454654B8AFF9881EAE9F6F275720DB53000753867E3AF0",
+    "Warns": true,
+    "Refused": false
+  },
+  "ycc420-large-progressive": {
+    "Hash": "8FA1A4EFC508CCB1D80EF3AAA5ED35EAFA2960469C88EF2456038877274A0DA4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-large-progressive-truncated": {
+    "Hash": "42403F79CE218B7892D5D36139074E6675138AA1848AD77632CE99C552B3D367",
+    "Warns": true,
+    "Refused": false
+  },
+  "ycc420-large-truncated": {
+    "Hash": "07DB812E90AF2532D73B609F42CFCA664C4CE87275A37F25D4871B5AFD384AEC",
+    "Warns": true,
+    "Refused": false
+  },
+  "ycc420-one-pixel": {
+    "Hash": "15C858F1248B00DBE3CF7A10AA55BB349CBA715FDC79324B36CC6EBB0C7DFC6B",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-progressive": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-progressive-restart-rows": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-q100": {
+    "Hash": "07EA8ECF94FF4BB0B1205EBB409F717B42F23FE5C6E7B444BBD5F2B62444C3CB",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-q5": {
+    "Hash": "5E3C66E3778D887E2D5165200977119C8A54A2E39370A92B8AE75B4D14BB1266",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc420-restart-every-block": {
+    "Hash": "43A1B79A12553FFE4CC79C68D2BD5EC651485EE98ACC9350DD1F58BAB60E1EB4",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc422": {
+    "Hash": "48E13C3BC3AAD0A52989D8FA1A4CC8950FC698599F22967D4D4FFBA4E16E7062",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc440": {
+    "Hash": "8417DDA4801521D3BE6AC7F822645728F1C2CF4347DE6D8FBB8A4638B6BD397C",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc441": {
+    "Hash": "2A3BCDC59E68F4F6E27B6606CCDE4707167E4CDFC0F3CCE6783CEF48F590CFA9",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycc444": {
+    "Hash": "DC49A715C94E285A9128ED92F05DF672CD6F5C4A11CD7BC4F70739CF1F046E04",
+    "Warns": false,
+    "Refused": false
+  },
+  "ycck420": {
+    "Hash": "76F43D9FE2204E4AC56DCB4844125B27C068D39BC84F4C000DBDF6DE764E4AA8",
+    "Warns": false,
+    "Refused": false
+  }
+}

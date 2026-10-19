@@ -87,12 +87,12 @@ internal sealed class LibOpenJpeg : IDisposable
     public string Version { get; }
 
     /// <summary>Decodes and lets the image go — what a timing measures.</summary>
-    public void Run(JpxStream stream, int threads) => Decode(stream, threads, static _ => true);
+    public void Run(PdfImageStream stream, int threads) => Decode(stream, threads, static _ => true);
 
     /// <summary>Decodes and keeps the samples, to set beside what OpenJPEG.net decoded.</summary>
-    public JpxPlanes Read(JpxStream stream, int threads) => Decode(stream, threads, Planes);
+    public JpxPlanes Read(PdfImageStream stream, int threads) => Decode(stream, threads, Planes);
 
-    private T Decode<T>(JpxStream stream, int threads, Func<IntPtr, T> taken)
+    private T Decode<T>(PdfImageStream stream, int threads, Func<IntPtr, T> taken)
     {
         var source = new Source(stream.Data);
         var handle = GCHandle.Alloc(source);

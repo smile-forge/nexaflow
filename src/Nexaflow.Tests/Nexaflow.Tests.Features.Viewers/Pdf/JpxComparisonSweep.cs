@@ -31,9 +31,10 @@ public class JpxComparisonSweep
     [TestMethod]
     public void EveryJpegTwoThousandImage_DecodesAsLibopenjp2Does()
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(JpxRun.Folder))) { Assert.Inconclusive($"set {JpxRun.Folder} to a folder to write the run to"); return; }
-        if (JpxRun.NativeLibrary() is not { } library) return;
-        if (JpxRun.Open("compare", everyImage: true) is not { } run) return;
+        var codec = PdfImageCodec.Jpx;
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(codec.FolderVariable))) { Assert.Inconclusive($"set {codec.FolderVariable} to a folder to write the run to"); return; }
+        if (PdfImageRun.NativeLibrary(codec) is not { } library) return;
+        if (PdfImageRun.Open(codec, "compare", everyImage: true) is not { } run) return;
         using var _ = run;
         using var native = new LibOpenJpeg(library);
 
@@ -48,7 +49,7 @@ public class JpxComparisonSweep
                 if (clock.Elapsed > Stuck) run.Log($"still decoding {name} after {clock.Elapsed:mm\\:ss}");
         }, null, Stuck, Stuck);
 
-        var unread = JpxCorpus.Visit(run.Entries, Environment.ProcessorCount, (entry, stream) =>
+        var unread = run.Visit(Environment.ProcessorCount, (entry, stream) =>
         {
             decoding[Environment.CurrentManagedThreadId] = (entry.Name, Stopwatch.StartNew());
             var (outcome, detail) = Compared(stream, native);
@@ -77,7 +78,7 @@ public class JpxComparisonSweep
     }
 
     /// <summary>What happened to one image in each decoder, and, when they disagree, how.</summary>
-    private static (string Outcome, string Detail) Compared(JpxStream stream, LibOpenJpeg native)
+    private static (string Outcome, string Detail) Compared(PdfImageStream stream, LibOpenJpeg native)
     {
         JpxPlanes? mine = null, theirs = null;
         string? myFailure = null, theirFailure = null;

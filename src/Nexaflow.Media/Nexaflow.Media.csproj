@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <None Include="Jpeg2000\LICENSE" />
+    <None Include="Jpeg\LICENSE.md" />
+    <None Include="Jpeg\README.ijg" />
   </ItemGroup>
 
   <ItemGroup>

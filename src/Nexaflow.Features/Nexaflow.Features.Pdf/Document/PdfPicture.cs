@@ -67,27 +67,15 @@ internal sealed class PdfPicture
                 return null;
             }
 
-            Span<byte> samples;
-            int components;
-            if (Jpeg(image, details, width, height) is { } jpeg)
+            if (!image.TryGetBytesAsMemory(out var memory))
             {
-                // Decoded from its JPEG, each sample is as the colour space has it, and the space converts it as it
-                // converts any other image's: through its profile, or its calibration.
-                samples = ColorSpaceDetailsByteConverter.Convert(details, jpeg, 8, width, height, null, image.RenderingIntent);
-                components = details.BaseNumberOfColorComponents;
+                failure = "samples could not be decoded";
+                return null;
             }
-            else
-            {
-                if (!image.TryGetBytesAsMemory(out var memory))
-                {
-                    failure = "samples could not be decoded";
-                    return null;
-                }
 
-                samples = ColorSpaceDetailsByteConverter.Convert(
-                    details, memory.Span, image.BitsPerComponent, width, height, image.Decode, image.RenderingIntent);
-                components = details.BaseNumberOfColorComponents;
-            }
+            var samples = ColorSpaceDetailsByteConverter.Convert(
+                details, memory.Span, image.BitsPerComponent, width, height, image.Decode, image.RenderingIntent);
+            var components = details.BaseNumberOfColorComponents;
             if (components is not (1 or 3 or 4))
             {
                 failure = $"{components} colour components";
@@ -134,63 +122,6 @@ internal sealed class PdfPicture
             failure = ex.Message;
             return null;
         }
-    }
-
-    /// <summary>
-    /// A plain JPEG's samples, before its colour space converts them, decoded by Windows' own codec: an image whose only
-    /// filter is <c>DCTDecode</c>, in grey or RGB,
-    /// with the default decode. That is most photographs in most documents, and the native codec reads them many times
-    /// faster than a managed one; anything else (CMYK, a Decode array, a filter chain) is left to PdfPig's decoding, which
-    /// knows the PDF-specific cases. Null when the image is not such a JPEG, or Windows will not read it.
-    /// </summary>
-    private static byte[]? Jpeg(IPdfImage image, ColorSpaceDetails details, int width, int height)
-    {
-        var filter = image.ImageDictionary.TryGet(NameToken.Filter, out var named) ? named : null;
-        var dct = filter switch
-        {
-            NameToken name                           => name.Equals(NameToken.DctDecode),
-            ArrayToken { Length: 1 } array           => array.Data[0] is NameToken only && only.Equals(NameToken.DctDecode),
-            _                                        => false,
-        };
-        if (!dct || image.BitsPerComponent != 8 || !IsDefault(image.Decode)) return null;
-
-        var components = details.NumberOfColorComponents;
-        var plain = details.Type switch
-        {
-            ColorSpace.DeviceGray or ColorSpace.CalGray => components == 1,
-            ColorSpace.DeviceRGB or ColorSpace.CalRGB   => components == 3,
-            ColorSpace.ICCBased                         => components is 1 or 3,
-            _                                           => false,
-        };
-        if (!plain) return null;
-
-        try
-        {
-            using var stream = new System.IO.MemoryStream(image.RawMemory.ToArray(), writable: false);
-            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-            var frame = decoder.Frames[0];
-            if (frame.PixelWidth != width || frame.PixelHeight != height) return null;
-
-            var format = components == 1 ? PixelFormats.Gray8 : PixelFormats.Rgb24;
-            var converted = new FormatConvertedBitmap(frame, format, null, 0);
-            var stride = width * components;
-            var samples = new byte[stride * height];
-            converted.CopyPixels(samples, stride, 0);
-            return samples;
-        }
-        catch (Exception ex) when (ex is NotSupportedException or System.IO.FileFormatException or ArgumentException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>Whether a <c>Decode</c> array maps samples to themselves: absent, or <c>[0 1 0 1 …]</c>.</summary>
-    private static bool IsDefault(IReadOnlyList<double>? decode)
-    {
-        if (decode is null) return true;
-        for (var i = 0; i < decode.Count; i++)
-            if (decode[i] != (i % 2 == 0 ? 0 : 1)) return false;
-        return true;
     }
 
     /// <summary>Whether a mask's <c>Decode</c> array turns its samples over, so a set bit means "show".</summary>

@@ -548,6 +548,38 @@ tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -PdfCorpus <folder> -Compare
 when it has no `openjp2.dll`, so the baseline is a release build of the library a run names. As with the markdown bench, compare
 runs taken on one machine in one configuration.
 
+### Measuring JPEG decoding (opt-in, by hand)
+
+`DctDecodeBench` measures the JPEG (`DCTDecode`) images in PDFs, sampled to a fixed number of each size (`-PerSize`,
+forty by default) or named (`-Only`), with `Nexaflow.Media`'s decoder — a port of libjpeg-turbo, which the PDF reader
+decodes every JPEG with — beside libjpeg-turbo's TurboJPEG library, called in process from the same bytes, and beside
+Windows' own codec. The PDFs are the baseline corpus `NEXAFLOW_PDF_CORPUS` names, or the folders `-Corpus` names;
+the corpus is scanned and sampled as the JPEG 2000 bench scans it, through the same `PdfImageRun`. Each image is
+decoded by ours and by libjpeg-turbo and their samples set side by side first, and only an image both decode alike
+is timed: ours serially and with its own threading, the reader's whole `DCTDecode` filter, libjpeg-turbo with its
+SIMD code (which decodes on one thread), and — for a grey or RGB image — WIC, decoded and converted to bytes as a
+reader would ask it, with whether WIC's samples match libjpeg-turbo's. It records what each of ours allocates, and
+totals per size of image.
+
+```powershell
+tools/bench/Run-DctBench.ps1 -LibJpegTurbo <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\dct-bench
+```
+
+`DctComparisonSweep` (`-Compare`) is the check that the decoder matches libjpeg-turbo: it decodes **every** JPEG in
+the corpus with both, with libjpeg's default output and none of the PDF's colour rules, and sets the samples side by
+side; ours decodes it again with its own threading, and that is held to its serial decode. Two outcomes agree in all
+but name and are counted apart: an image whose components no TurboJPEG pixel format holds (two), and one libjpeg-turbo
+fails on only after writing its output, where ours keeps that output with a warning. Any other disagreement is kept as
+a file beside the run's `dct-compare-*.json`. A change to the decoder is not done while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-DctBench.ps1 -LibJpegTurbo <folder> -Compare
+```
+
+`-LibJpegTurbo` is a libjpeg-turbo checkout outside the repository: cloned at `-Tag` (3.1.1, the release the decoder
+was ported from) when it is absent, and built with MSVC and NASM — its SIMD code required — when it has no
+`turbojpeg.dll`.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
@@ -723,7 +755,13 @@ them:
   of what `opj_decompress` decodes it to (`expected.json`); a parallel decode to the serial one. The MQ coder is held
   to ITU-T T.88's test sequence on its own. `Jpeg2000FixtureMaker` writes the fixtures and is inconclusive unless
   `NEXAFLOW_OPENJPEG` names an OpenJPEG checkout built as `tools/bench/Run-JpxBench.ps1` builds it — run it after
-  changing `Jpeg2000Fixture.All`, and commit what it writes.
+  changing `Jpeg2000Fixture.All`, and commit what it writes. Its JPEG decoder against images libjpeg-turbo's
+  compressor encoded (`Media/Jpeg/Fixtures/`): every colour space and subsampling, progressive, arithmetic, restart
+  intervals, lossless predictors and point transforms, and damaged files cut short or corrupted. Each must decode to
+  the hash of what libjpeg-turbo decodes it to, warning where libjpeg warns; a lossless one to its source as well; a
+  parallel decode to the serial one. The vector inverse DCT is held to the scalar one over random blocks.
+  `JpegFixtureMaker` writes the fixtures and is inconclusive unless `NEXAFLOW_TURBOJPEG` names a `turbojpeg.dll`
+  built as `tools/bench/Run-DctBench.ps1` builds it.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 

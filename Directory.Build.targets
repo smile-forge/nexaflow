@@ -19,7 +19,6 @@
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\src\TreeSitter.csproj')
  Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\tree-sitter-native\tree-sitter\lib\src\lib.c')
                            Or !Exists('$(MSBuildThisFileDirectory)external\PdfPig\src\UglyToad.PdfPig\UglyToad.PdfPig.csproj')
-                           Or !Exists('$(MSBuildThisFileDirectory)external\PdfPig.Filters.Dct.JpegLibrary\UglyToad.PdfPig.Filters.Dct.JpegLibrary\UglyToad.PdfPig.Filters.Dct.JpegLibrary.csproj')
  Or !Exists('$(MSBuildThisFileDirectory)external\PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2.csproj') )">
     <Message Importance="high"
              Text="Nexaflow: external/ submodules are not initialised — populating them (fresh worktree)…" />
