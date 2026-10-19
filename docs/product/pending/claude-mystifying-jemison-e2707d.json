@@ -1,0 +1,70 @@
+{
+  "branch": "claude/mystifying-jemison-e2707d",
+  "nodes": {
+    "pdf-render": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ThePaintingOrder_SurvivesIntoTheLayoutTree"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AnImagesOwnSoftMask_TakesThePlaceOfTheGraphicsStatesMask"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AJoinPastTheMiterLimit_IsBevelled_AndOneWithinIt_KeepsItsMiter"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "APatternSteppedToShowOnce_IsDrawnAsSharpAsItsCell"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AMasksTransferFunction_RemapsItsLevels_WhereItsGroupPaintsAndWhereItDoesNot"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "TwoLayersWithTheSameDictionary_AreShownAndHiddenApart"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ATwelveBitJpegTwoThousandImage_IsDrawnInItsColours"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AJpegTwoThousandImagesOwnOpacity_IsItsSoftMask"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "pdf-render"
+  ]
+}
