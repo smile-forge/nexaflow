@@ -25,14 +25,20 @@ internal sealed record PdfImageCodec(
     public static readonly PdfImageCodec Dct = new("dct", "DCTDecode", static filter => filter is DctDecodeFilter,
         "NEXAFLOW_DCT", "NEXAFLOW_TURBOJPEG", "turbojpeg.dll", static _ => ".jpg");
 
+    /// <summary>JBIG2 (<c>JBIG2Decode</c>), held to jbig2dec.</summary>
+    public static readonly PdfImageCodec Jbig2 = new("jbig2", "JBIG2Decode", static filter => filter is Jbig2DecodeFilter,
+        "NEXAFLOW_JBIG2", "NEXAFLOW_JBIG2DEC", "jbig2.dll", static _ => ".jb2");
+
     /// <summary>The variable naming the folder a run writes to.</summary>
     public string FolderVariable => $"{Variables}_BENCH";
 }
 
 /// <summary>
-/// One image as a PDF carries it: the bytes its codec's filter is handed, and the image dictionary they came with.
+/// One image as a PDF carries it: the bytes its codec's filter is handed, the image dictionary they came with — its
+/// decode parameters resolved, as the reader hands them to a filter, so a JBIG2 image's globals stream comes with it —
+/// and where in the dictionary's chain of filters the codec's stands.
 /// </summary>
-internal sealed record PdfImageStream(string Name, byte[] Data, DictionaryToken Dictionary);
+internal sealed record PdfImageStream(string Name, byte[] Data, DictionaryToken Dictionary, int FilterIndex);
 
 /// <summary>
 /// Where one image is and how big, as <see cref="PdfImageCorpus.Scan"/> finds it — without its bytes, which
@@ -73,7 +79,7 @@ internal static class PdfImageCorpus
                     try { stream = structure.GetObject(reference).Data as StreamToken; }
                     catch (Exception) { continue; }   // a damaged object is the document's problem, not the bench's
 
-                    if (stream is null || !IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data)) continue;
+                    if (stream is null || !IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data, out _, out _)) continue;
                     if (!seen.Add(Convert.ToHexString(SHA256.HashData(data)))) continue;
 
                     entries.Add(new PdfImageEntry(path, reference, data.Length, DeclaredMegapixels(stream.StreamDictionary)));
@@ -101,8 +107,8 @@ internal static class PdfImageCorpus
             foreach (var entry in pdf)
             {
                 var stream = (StreamToken)structure.GetObject(entry.Reference).Data;
-                IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data);
-                loaded[entry] = new PdfImageStream(entry.Name, data, stream.StreamDictionary);
+                IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data, out var dictionary, out var index);
+                loaded[entry] = new PdfImageStream(entry.Name, data, dictionary, index);
             }
         }
 
@@ -136,8 +142,8 @@ internal static class PdfImageCorpus
                     foreach (var entry in batch)
                     {
                         var stream = (StreamToken)structure.GetObject(entry.Reference).Data;
-                        IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data);
-                        visit(entry, new PdfImageStream(entry.Name, data, stream.StreamDictionary));
+                        IsImage(stream, codec, structure.FilterProvider, structure.TokenScanner, out var data, out var dictionary, out var index);
+                        visit(entry, new PdfImageStream(entry.Name, data, dictionary, index));
                     }
                 }
                 catch (Exception failure) { failures.Enqueue($"{batch[0].Pdf}: {failure.GetType().Name}: {failure.Message}"); }
@@ -160,25 +166,46 @@ internal static class PdfImageCorpus
 
     /// <summary>
     /// An image whose filters include the codec's, with <paramref name="data"/> the bytes that filter is handed: any
-    /// filter before it in the chain is applied first, as a reader would.
+    /// filter before it in the chain is applied first, as a reader would. <paramref name="dictionary"/> is the image's,
+    /// its decode parameters resolved, and <paramref name="index"/> the codec's place in its chain.
     /// </summary>
     private static bool IsImage(StreamToken stream, PdfImageCodec codec, ILookupFilterProvider provider,
-        UglyToad.PdfPig.Tokenization.Scanner.IPdfTokenScanner scanner, out byte[] data)
+        UglyToad.PdfPig.Tokenization.Scanner.IPdfTokenScanner scanner, out byte[] data, out DictionaryToken dictionary, out int index)
     {
         data = [];
-        var dictionary = stream.StreamDictionary;
+        dictionary = stream.StreamDictionary;
+        index = -1;
         if (!dictionary.TryGet(NameToken.Subtype, out NameToken subtype) || subtype != NameToken.Image) return false;
 
         var filters = provider.GetFilters(dictionary, scanner);
-        var at = -1;
-        for (var index = 0; index < filters.Count && at < 0; index++)
-            if (codec.Marks(filters[index])) at = index;
-        if (at < 0) return false;
+        for (var at = 0; at < filters.Count && index < 0; at++)
+            if (codec.Marks(filters[at])) index = at;
+        if (index < 0) return false;
+
+        if (dictionary.TryGet(NameToken.DecodeParms, out var parameters))
+            dictionary = dictionary.With(NameToken.DecodeParms, Resolved(parameters, scanner, depth: 0));
 
         var bytes = stream.Data;
-        for (var index = 0; index < at; index++) bytes = filters[index].Decode(bytes, dictionary, provider, index);
+        for (var at = 0; at < index; at++) bytes = filters[at].Decode(bytes, dictionary, provider, at);
 
         data = bytes.ToArray();
         return data.Length > 0;
+    }
+
+    /// <summary>
+    /// Decode parameters with what they hold by reference read in: a dictionary of them, or an array of one per filter,
+    /// and the objects those name — a JBIG2 image's globals stream among them.
+    /// </summary>
+    private static IToken Resolved(IToken token, UglyToad.PdfPig.Tokenization.Scanner.IPdfTokenScanner scanner, int depth)
+    {
+        if (token is IndirectReferenceToken reference) token = scanner.Get(reference.Data)?.Data ?? token;
+        if (depth >= 2) return token;
+        return token switch
+        {
+            DictionaryToken dictionary => new DictionaryToken(dictionary.Data.ToDictionary(
+                entry => NameToken.Create(entry.Key), entry => Resolved(entry.Value, scanner, depth + 1))),
+            ArrayToken array => new ArrayToken([.. array.Data.Select(item => Resolved(item, scanner, depth + 1))]),
+            _ => token,
+        };
     }
 }
