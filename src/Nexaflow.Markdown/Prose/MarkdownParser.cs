@@ -605,9 +605,11 @@ public sealed class MarkdownParser : ITranspile
     ///
     /// <para>
     /// Said by the role and not the kind: a link's closing bracket is a token exactly as a word is, and what separates
-    /// them is what each is for. Only what a block holds as its own words takes words in front of it.
+    /// them is what each is for. Only what a block holds as its own words takes words in front of it — and a quote, a dash or
+    /// an emoji typed plainly is words however it is drawn and whichever way it faces.
     /// </para>
     /// </summary>
     private static bool Worded(ContentPart part) =>
-        part.Role == Roles.Element && part.Kind is MarkdownKinds.Word or Kinds.Token or Kinds.Space;
+        (part.Role == Roles.Element && part.Kind is MarkdownKinds.Word or Kinds.Token or Kinds.Space)
+        || part.Kind is MarkdownKinds.Typographic or MarkdownKinds.Shortcode;
 }

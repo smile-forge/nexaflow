@@ -24,7 +24,7 @@ namespace Nexaflow.Tests.Markdown.Prose;
 public class MarkdownTranspileTests
 {
     /// <summary>Every character markdown gives a meaning to somewhere.</summary>
-    private const string Typed = @"\`*_[]~&<>#-+=:.|";
+    private const string Typed = @"\`*_[]~&<>#-+=:.|'""";
 
     private const string Document = """
         # Title
@@ -147,6 +147,22 @@ public class MarkdownTranspileTests
     }
 
     [TestMethod]
+    public void QuotesDashesAnEllipsisAndAnEmojisNameGoInAsTyped()
+    {
+        // They are how a writer types the typographer's characters and an emoji, so they go in as typed and the reading draws
+        // what they stand for. Spelled with a backslash, they would be drawn as typed instead.
+        Assert.AreEqual("it's \"so\" -- yes... :rocket:", Written(At("paragraph"), "it's \"so\" -- yes... :rocket:"));
+    }
+
+    [TestMethod]
+    public void WordsGoInFrontOfACurledQuoteAsTheyDoInFrontOfAWord()
+    {
+        var quote = Read("say \"hi\" now\n").SelfAndDescendants().First(part => part.Kind == MarkdownKinds.Typographic);
+
+        Assert.AreEqual("x", Spelled(quote, quote.Start, "x"));
+    }
+
+    [TestMethod]
     public void NothingIsWrittenWhereABackslashIsNotAnEscape()
     {
         // A code span holds its characters as they are, so there is no spelling that would make one safe there.
@@ -213,14 +229,16 @@ public class MarkdownTranspileTests
     /// <para>
     /// Words, escapes and the sequence a word holding one is read as are all left out. A word is what is being
     /// written; an escape and its sequence are the parser reading back the very spelling it asked for, so counting
-    /// them would make every answer a change.
+    /// them would make every answer a change. Typography and an emoji's name are words too, drawn as the typographer's
+    /// characters: a quote written beside another may pair with it, and that is the words, not their shape.
     /// </para>
     /// </summary>
     private static List<string> Shaped(string source) =>
         [.. Read(source).SelfAndDescendants()
             .Select(part => part.Kind)
             .Where(kind => kind is not (Kinds.Token or Kinds.Space or Kinds.Sequence
-                                        or MarkdownKinds.Word or MarkdownKinds.Escape))
+                                        or MarkdownKinds.Word or MarkdownKinds.Escape
+                                        or MarkdownKinds.Typographic or MarkdownKinds.Shortcode))
             .Order()];
 
     private static ContentChange? Rewritten(ContentPart part, int at, string text) =>

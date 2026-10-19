@@ -68,12 +68,21 @@ public sealed class DrawnText
         foreach (var child in node.Children) Runs(child, text, from);
     }
 
-    /// <summary>The words of a run: what its words were written as, and what its escapes decode to.</summary>
+    /// <summary>The words of a run: what its words were written as, and what everything written as other characters stands for.</summary>
     private static void Worded(ContentNode node, StringBuilder text, List<SourcePlace> from)
     {
         if (node.IsDerived) return;
 
         var at = node.Offset ?? 0;
+
+        // A piece written as other characters than it reads as — an entity, an escape, punctuation typed plainly, an emoji's
+        // name — reads as what it stands for, each character of that standing for the whole of what was written.
+        if (MarkdownStandIns.Decoded(node) is { } reads)
+        {
+            text.Append(reads);
+            for (var letter = 0; letter < reads.Length; letter++) from.Add(new SourcePlace(at, node.Width));
+            return;
+        }
 
         switch (node.Kind)
         {
