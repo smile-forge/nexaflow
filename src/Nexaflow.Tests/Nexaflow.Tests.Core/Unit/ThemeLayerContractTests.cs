@@ -106,6 +106,7 @@ public class ThemeLayerContractTests
     /// </summary>
     [TestMethod]
     [DataRow(ThemeOption.Arctic)]
+    [DataRow(ThemeOption.Desert)]
     [DataRow(ThemeOption.Ocean)]
     [DataRow(ThemeOption.Sunny)]
     [DataRow(ThemeOption.Nature)]

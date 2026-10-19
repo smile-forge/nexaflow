@@ -5,7 +5,7 @@ using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
 
-public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic }
+public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic, Desert }
 
 /// <summary>
 /// Shell-level configuration. Registered manually in App.xaml.cs since it is not

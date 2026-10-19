@@ -1,0 +1,59 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Palette: sunlit SAND GLASS ──
+         A LIGHT immersive theme: a desert of dunes, rippled sand and wind-bent bushes (Scene.Window ->
+         DesertScene) under a warm cream veil, with deep umber text, a terracotta accent and the sky's dusty
+         blue as the secondary. The two hues are the reference photographs' own — sunlit sand against the sky
+         above it — and they sit far enough apart that the blue reads as a distinct highlight.
+
+         Light rather than dark because the scene is: a desert at midday is the brightest thing a theme here
+         paints, and a dark veil over it turns gold into mud. The veil is pitched for the scene's darkest
+         moment, not its brightest — when a storm gathers the dust veil browns the whole backdrop, and BgColor
+         still lifts it to a tan that the umber text clears at ~6.5:1 (>11:1 in the calm). No thicker than that:
+         the moving sand is the theme, and a heavier veil left the desert a rumour behind the page.
+
+         BgColor is the page's translucent veil; SurfaceColor stays opaque so a list, an editor or a card
+         never has blowing sand behind its text. -->
+    <Color x:Key="BgColor">#80FAF2E2</Color>       <!-- page root: a cream veil the desert reads through -->
+    <Color x:Key="SurfaceColor">#FFFAF1</Color>     <!-- panels, cards — bleached linen -->
+    <Color x:Key="Surface2Color">#F1E3CA</Color>    <!-- inputs, hover, selection — pale sand -->
+    <Color x:Key="BorderColor">#D6BD94</Color>
+    <Color x:Key="BorderLightColor">#E8D8BA</Color>
+    <Color x:Key="AccentColor">#B4532A</Color>
+    <!-- Terracotta: white on it is ~5:1, so OnAccentBrush keeps its white default -->
+    <Color x:Key="Accent2Color">#3F7CA3</Color>
+    <!-- The dusty blue of the sky over the dunes -->
+    <Color x:Key="TextColor">#33241A</Color>        <!-- deep umber (~13:1 on the linen) -->
+    <Color x:Key="TextMutedColor">#6B5642</Color>   <!-- weathered wood; clears 4.5:1 on the sand wings too -->
+    <Color x:Key="DeepBgColor">#E9D7B8</Color>      <!-- chrome wings / drag bar / footer: dune shade -->
+
+    <!-- ── Brushes ── -->
+    <SolidColorBrush x:Key="BgBrush"         Color="{StaticResource BgColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="Surface2Brush"   Color="{StaticResource Surface2Color}"/>
+    <SolidColorBrush x:Key="BorderBrush"     Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="AccentBrush"     Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
+    <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
+
+    <!-- Sun on sand into the shade of a slip face. -->
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#E9A64E" Offset="0"/>
+        <GradientStop Color="#A84A26" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="BarGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource AccentColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource Accent2Color}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- Dimensions -->
+    <GridLength x:Key="TopBarHeight">72</GridLength>
+    <GridLength x:Key="TabBarHeight">38</GridLength>
+    <GridLength x:Key="InteractionHeight">90</GridLength>
+
+</ResourceDictionary>

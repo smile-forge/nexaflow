@@ -186,6 +186,13 @@ understanding before changing a scene:
 - **A rebuild happens only on a real size change.** Layout settles over more than one pass, and
   rebuilding for a pass that arrives at the size already built tore down and restarted every clock a
   moment after the scene appeared.
+- **A real rebuild can carry on where it was.** `SceneTime` is how long the scene has run — across rebuilds, and
+  not counting time minimised, so exactly what its clocks have advanced. A scene whose art follows a cycle longer
+  than a resize is likely to wait for enters each rebuild there, rather than starting the cycle over.
+- **Motion that answers to a shared model is a curve, not a loop.** `Follow` drives a property by a function of
+  where the clock is in a cycle (`CurveAnimation`, in `Visuals.Common/Controls`), so every element following one
+  model — a wind, a tide — is entered at one phase and stays in step for as long as the scene runs. The curve is
+  evaluated per frame, so it must be a pure function of time costing about what a keyframe lookup costs.
 
 Measured in a bare window at 1400×900, 60 fps, hardware tier 2 — the reef alone, no shell. Take
 these numbers only from a window that is **in front**: DWM stops presenting a fully occluded window,
@@ -289,6 +296,41 @@ Everything in it is *ambient* — nothing crosses the window in under ten minute
 the `AmbientFrameRate` cap. The judder that cap normally causes needs motion the eye can track, and a
 berg moves about a pixel a second.
 
+
+### The Desert scene
+
+`Themes/DesertScene.xaml(.cs)` is the worked example of a scene where **everything that moves answers to one
+model**. A windswept desert — a great dune, two bands of distant dunes, a rippled floor scattered with grass tufts
+and shrubs — under a wind that breathes, gusts, and once in a long while gathers toward a storm that fades before
+it arrives.
+
+- **The wind is a model, not an animation.** `Themes/DesertWind.cs` is WPF-free: one long cycle of strength over
+  time — a breeze that never stops, gusts, and the storm — as a pure function of seconds into the cycle. Every
+  moving part follows it through `Follow`, entered at one phase: the bushes lean, the crest plumes and the floor
+  drift thicken, the dust veil and the storm's billows rise. A gust is a *front* that crosses the window in a few
+  seconds, and an element feels it when the front reaches its own x — so a bush bends the moment the sand sheet
+  carrying the gust passes it, with nothing kept in step by hand.
+- **"A storm at most once an hour" is a property of the model, and tested** (`DesertWindTests`). The cycle runs
+  80–100 minutes and holds exactly one storm, at its very start; a new desert enters the cycle after that storm
+  has settled and at least an hour before the next; and a rebuild enters at `SceneTime` past where it opened,
+  so a resize carries on with the same afternoon. A scene torn down and made again — a theme change, the battery
+  policy dropping and restoring it — therefore cannot follow one storm with another sooner than an hour.
+- **Sprites are pooled, not made per event.** A cycle holds dozens of gusts and a storm's worth of streaks, but
+  the scene keeps a fixed handful of streak, swirl and sheet sprites and shares the passes out among them; a
+  sprite's passes never overlap, so a frame finds the one it is on with a binary search. Passes are seconds in
+  the cycle, so the pool is a schedule, not a timer.
+- **Sand blowing over sand is nearly invisible**, so every moving piece of it carries two tones: a body darker
+  than the sunlit floor, and a lit core that reads against the sky and the dune's shadow. A gust reads at a
+  distance as a *sheet* — a low veil densest at the ground, sweeping across with the front — not as lines.
+- **The floor drift moves by how far the air has moved** (`DesertWind.TravelAt`), so it crawls in the calm, races
+  in a gust and never jumps between; scaled so a whole cycle is a whole number of widths, its wrap is seamless.
+  Calm sways take periods fitted to divide the cycle for the same reason.
+- **A bush bends by a skew about its root**, not a rotation: the root stays put and the tips travel furthest.
+- **A big dune is two faces split by a crest**, not an outline over a fill. Drawn as one smooth hump it read as an
+  animal's flank, and with straight faces as a cliff. The crest drops off a sharp peak in an S, the near face is in
+  sun, and behind it a shadowed bowl rises to a saddle and a lower hump — the shape of the reference photographs.
+  Shadow that falls off away from an edge is laid as bands stacked *from* the edge, not tiled: tiles have to
+  overlap to leave no gap, and the overlap shows as a line along every seam.
 
 ### The Flowers plate — a scene that never moves
 
@@ -462,7 +504,8 @@ pale override gets dark text without the author asking.
   `Theme.Arctic.xaml` (polar dusk) are *dark immersive* — overrides + a `Scene.Window`
   (`OceanReefScene` / `ForestScene` / `SandstoneWall` / `GothicScene` / `ArcticScene`). `Theme.Sunny.xaml` is a *light immersive* — a
   bright sky with drifting balloons/confetti (`SunnyScene`) behind translucent white panels, showing
-  the same `Scene.Window` mechanism works for light themes too.
+  the same `Scene.Window` mechanism works for light themes too. `Theme.Desert.xaml` is light immersive as well —
+  a windswept desert (`DesertScene`) behind a cream sand veil.
 - Cross-dictionary `{StaticResource}` (a token in `Tokens.xaml` aliasing a colour in `Colors.*.xaml`)
   resolves because the palette is merged first — the same pattern `Styles.xaml` already relied on.
 
@@ -478,6 +521,8 @@ pale override gets dark text without the author asking.
 | `Core/Themes/OceanReefScene.xaml(.cs)` | The Ocean scene (theme art) |
 | `Core/Themes/ArcticScene.xaml(.cs)` | The Arctic scene (theme art) — the depth/grouping worked example |
 | `Core/Themes/FlowerbedScene.xaml(.cs)` | The Flowers plate (theme art) — the *still* scene, and the not-looking-procedural worked example |
+| `Core/Themes/DesertScene.xaml(.cs)` + `DesertWind.cs` | The Desert scene (theme art) and the wind it follows — the one-shared-model worked example |
+| `Visuals.Common/Controls/AnimatedScene.cs` + `CurveAnimation.cs` | The scene base (build cycle, clocks, caching, `SceneTime`, `Follow`) and the curve-driven animation |
 | `Visuals.Common/Controls/ThemedRegion.cs` + `Themes/Generic.xaml` | The generic scene/veil wrapper |
 | `Features.Common/IThemeContribution.cs` | The optional feature contribution seam |
 | `Core/App.xaml`, `App.xaml.cs` | Bootstrap merge + the startup `Apply` call |

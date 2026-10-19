@@ -54,7 +54,7 @@ public class DctDecodeBench
         {
             JpegDecoder.Decode(stream.Data, Serial);
             JpegDecoder.Decode(stream.Data);
-            filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0);
+            filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex);
             native.Decode(stream.Data);
             Wic(stream.Data, 3);
         });
@@ -124,8 +124,8 @@ public class DctDecodeBench
         DecodeMemory? filterMemory = null;
         try
         {
-            filterMs = Time(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0));
-            filterMemory = Allocated(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0));
+            filterMs = Time(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex));
+            filterMemory = Allocated(() => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex));
         }
         catch (Exception failure) { filterError = $"{failure.GetType().Name}: {failure.Message}"; }
 

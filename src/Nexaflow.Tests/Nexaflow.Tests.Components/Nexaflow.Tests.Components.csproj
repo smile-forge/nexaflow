@@ -57,6 +57,11 @@
     <Content Include="Media\Jpeg\Fixtures\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- SerenityOS's JBIG2 test files, each a coding of one picture, and that picture. Downloaded, not made: see the
+         README beside them. -->
+    <Content Include="Media\Jbig2\Fixtures\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

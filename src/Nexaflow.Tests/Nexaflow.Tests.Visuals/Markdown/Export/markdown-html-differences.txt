@@ -44,3 +44,38 @@ GridTableSpecs#12
 # it, and the table is as wide as its widest row.
 PipeTableGfmSpecs#7
 PipeTableGfmSpecs#25
+
+# SmartyPants is read in every document: quotes that pair are curled, -- and --- are dashes and ... an ellipsis, where
+# CommonMark's specification and the other extensions' read them as the characters typed.
+CommonMark#14
+CommonMark#46
+CommonMark#55
+CommonMark#87
+CommonMark#106
+CommonMark#209
+CommonMark#210
+CommonMark#352
+CommonMark#359
+CommonMark#363
+CommonMark#380
+CommonMark#385
+CommonMark#395
+CommonMark#508
+CommonMark#590
+CommonMark#619
+CommonMark#624
+CommonMark#626
+GridTableSpecs#2
+GridTableSpecs#10
+PipeTableSpecs#4
+PipeTableSpecs#17
+PipeTableSpecs#27
+PipeTableGfmSpecs#4
+PipeTableGfmSpecs#17
+YamlSpecs#6
+
+# An emoji is read by its name between colons, and a smiley is the characters typed: :) and ;-) are too often what they
+# are — beside a word, inside parentheses — where Markdig's emoji extension draws them as faces.
+EmojiSpecs#1
+EmojiSpecs#3
+EmojiSpecs#4

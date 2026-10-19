@@ -1,0 +1,43 @@
+{
+  "branch": "claude/jbig2-decoder",
+  "nodes": {
+    "pdf-image-filters": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfFilterProvider.cs",
+          "class": "PdfFilterProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfJbig2Filter.cs",
+          "class": "PdfJbig2Filter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/Jbig2GlobalsCache.cs",
+          "class": "Jbig2GlobalsCache"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfImageReaderTests.cs",
+            "class": "PdfFilterProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfJbig2FilterTests.cs",
+            "class": "PdfJbig2FilterTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "pdf-image-filters"
+  ]
+}
