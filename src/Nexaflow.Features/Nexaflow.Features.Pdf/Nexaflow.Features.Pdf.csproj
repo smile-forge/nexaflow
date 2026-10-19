@@ -19,18 +19,15 @@
          the fork's nexaflow branch until upstream takes it. DocumentLayoutAnalysis is the reading order. -->
     <ProjectReference Include="..\..\..\external\PdfPig\src\UglyToad.PdfPig\UglyToad.PdfPig.csproj" />
     <ProjectReference Include="..\..\..\external\PdfPig\src\UglyToad.PdfPig.DocumentLayoutAnalysis\UglyToad.PdfPig.DocumentLayoutAnalysis.csproj" />
-    <!-- An optional image codec PdfPig leaves unhandled: JBIG2Decode (what document scanners emit). It depends on
-         PdfPig alone, so it is built from its own fork against the PdfPig above rather than the package - two PdfPig
-         assemblies in one app would not be one PdfPig. DCTDecode (JPEG, by far the most common) and JPXDecode
-         (JPEG 2000, archival scans) are Nexaflow.Media's own decoders, below. Without them TryGetPng declines those
-         images and "extract images" quietly skips most of a scanned document. -->
-    <ProjectReference Include="..\..\..\external\PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2\UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
-    <!-- JPEG 2000 for JPXDecode, through Reading/PdfJpxFilter. -->
+    <!-- The image codecs PdfPig leaves unhandled, Nexaflow.Media's own decoders: JPEG for DCTDecode (by far the most
+         common), JBIG2 for JBIG2Decode (what document scanners emit) and JPEG 2000 for JPXDecode (archival scans),
+         through Reading/PdfDctFilter, PdfJbig2Filter and PdfJpxFilter. Without them TryGetPng declines those images
+         and "extract images" quietly skips most of a scanned document. -->
     <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 

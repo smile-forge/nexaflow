@@ -59,7 +59,7 @@ src/
   Nexaflow.Visuals.Terminal/          terminal input logic
   Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
   Nexaflow.IO.Terminal/               PTY host
-  Nexaflow.Media/                     WPF-free media codecs carried as our own memory-safe source, a folder each with its licence: Jpeg, Jpeg2000
+  Nexaflow.Media/                     WPF-free media codecs carried as our own memory-safe source, a folder each with its licence: Jbig2, Jpeg, Jpeg2000
   Nexaflow.Syntax/                    tree-sitter engine + StructuralEdit; grammars built from submodules (externals.md)
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
   Nexaflow.Services.Initiatives.Cli/  nfi

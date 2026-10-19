@@ -580,6 +580,35 @@ tools/bench/Run-DctBench.ps1 -LibJpegTurbo <folder> -Compare
 was ported from) when it is absent, and built with MSVC and NASM — its SIMD code required — when it has no
 `turbojpeg.dll`.
 
+### Measuring JBIG2 decoding (opt-in, by hand)
+
+`Jbig2DecodeBench` measures the JBIG2 (`JBIG2Decode`) images in PDFs, sampled to a fixed number of each size
+(`-PerSize`, forty by default) or named (`-Only`), with `Nexaflow.Media`'s decoder — a port of PDFBox's, which the PDF
+reader decodes every JBIG2 image with — beside jbig2dec, the decoder Ghostscript and MuPDF are built on, called in
+process from the same bytes and the same `JBIG2Globals`. The PDFs are the baseline corpus `NEXAFLOW_PDF_CORPUS` names,
+or the folders `-Corpus` names, scanned and sampled through the same `PdfImageRun` as the JPEG and JPEG 2000 benches.
+Each image is decoded by ours and by jbig2dec and their bits set side by side first, and only an image both decode
+alike is timed: ours with its globals read afresh, as jbig2dec's are; the reader's whole `JBIG2Decode` filter, which
+keeps a document's globals from one page to the next; and jbig2dec — all on one thread, as JBIG2 decodes. It records
+what ours allocates, and totals per size of image.
+
+```powershell
+tools/bench/Run-Jbig2Bench.ps1 -Jbig2dec <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jbig2-bench
+```
+
+`Jbig2ComparisonSweep` (`-Compare`) is the check that the decoder matches jbig2dec: it decodes **every** JBIG2 image in
+the corpus with both, to its JBIG2 page — before the reader lays it out at the PDF's size and inverts it — and sets the
+bits side by side. Any disagreement is kept as a file, with its globals, beside the run's `jbig2-compare-*.json`. A
+change to the decoder is not done while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-Jbig2Bench.ps1 -Jbig2dec <folder> -Compare
+```
+
+`-Jbig2dec` is a jbig2dec checkout outside the repository — jbig2dec is AGPL, measured against and never carried:
+cloned at `-Tag` (0.20, the release `Jbig2Dec` expects) when it is absent, and built as a DLL with MSVC when it has no
+`nexaflow-dll/jbig2.dll`.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
@@ -761,7 +790,14 @@ them:
   the hash of what libjpeg-turbo decodes it to, warning where libjpeg warns; a lossless one to its source as well; a
   parallel decode to the serial one. The vector inverse DCT is held to the scalar one over random blocks.
   `JpegFixtureMaker` writes the fixtures and is inconclusive unless `NEXAFLOW_TURBOJPEG` names a `turbojpeg.dll`
-  built as `tools/bench/Run-DctBench.ps1` builds it.
+  built as `tools/bench/Run-DctBench.ps1` builds it. Its JBIG2 decoder against SerenityOS's JBIG2 test files
+  (`Media/Jbig2/Fixtures/`, downloaded, with their README and licence): every generic region template with and
+  without typical prediction and adaptive pixels, MMR, refinement, text regions and symbol dictionaries in both
+  codings with aggregation, custom tables and carried contexts, halftone regions, striped pages, random access — each
+  a coding of one picture, which each must decode to bit for bit without a warning. A file split as a PDF embeds it
+  decodes with its globals, and one globals serves many decodes at once; files cut short decode with a warning,
+  every byte of a few files flipped in turn gives a page or a `Jbig2Exception`, and a page claiming more than the
+  memory limit is refused before it is allocated.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 

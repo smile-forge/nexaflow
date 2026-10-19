@@ -100,7 +100,7 @@ public class JpxDecodeBench
         {
             Managed(stream, singleThreaded: true);
             Managed(stream, singleThreaded: false);
-            filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0);
+            filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex);
         });
 
     /// <summary>
@@ -127,7 +127,7 @@ public class JpxDecodeBench
         int appPasses = 0, decodePasses = 0;
         run["megapixelsPerPass"] = Round(decoded.Sum(stream => JpxPlanes.Of(Managed(stream, singleThreaded: true)).Planes[0] is { } p ? p.Width * (double)p.Height / 1_000_000 : 0));
         run["appProfile"] = CpuStageSampler.Sample(ForAWhile(decoded,
-            stream => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0), () => appPasses++), StageOf);
+            stream => filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex), () => appPasses++), StageOf);
         run["appPasses"] = appPasses;
         sample.Log("sampling the decode, one job at a time");
         run["decodeProfile"] = CpuStageSampler.Sample(ForAWhile(decoded, stream => Managed(stream, singleThreaded: true), () => decodePasses++), StageOf);
@@ -139,7 +139,7 @@ public class JpxDecodeBench
     /// <summary>Whether the reader's filter decodes this image at all — only what it decodes is profiled.</summary>
     private static bool Decodes(PdfImageStream stream, PdfJpxFilter filter)
     {
-        try { filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, 0); return true; }
+        try { filter.Decode(stream.Data, stream.Dictionary, DefaultFilterProvider.Instance, stream.FilterIndex); return true; }
         catch (Exception) { return false; }
     }
 
