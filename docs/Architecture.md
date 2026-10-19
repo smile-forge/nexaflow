@@ -50,9 +50,10 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 - `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
   view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
   instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
-- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, not
-  `Features.Common`; `Elevation.Contracts` is the fourth shared leaf (referenced by `Features.Common`
-  for the `IShellServices.RunElevatedAsync` signature).
+- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Media` / `Nexaflow.Syntax`,
+  not `Features.Common`; `Elevation.Contracts` is the fifth shared leaf (referenced by `Features.Common`
+  for the `IShellServices.RunElevatedAsync` signature). `Nexaflow.Media` holds media codecs Nexaflow carries as its
+  own memory-safe source rather than wraps as native libraries, each in a folder with its licence.
 
 ---
 

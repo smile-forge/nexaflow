@@ -38,18 +38,7 @@ foreach ($line in $status) {
     }
 }
 
-# Submodules whose own submodules are part of what Nexaflow compiles: the JPX filter builds OpenJPEG.net from source
-# it holds as a submodule of its own.
-foreach ($withNested in @('external/PdfPig.Filters.Jpx.OpenJpeg')) {
-    $at = Join-Path $root $withNested
-    if (-not (Test-Path (Join-Path $at '.git'))) { continue }
-    foreach ($line in @(& git -C $at submodule status 2>$null)) {
-        if ($line -match '^-\S+\s+(?<path>\S+)') {
-            Write-Host "ensure-submodules: initialising '$withNested/$($Matches['path'])'..."
-            & git -C $at -c protocol.file.allow=always submodule update --init -- $Matches['path']
-        }
-    }
-}
+
 
 # tree-sitter-dotnet-bindings carries the grammars as NESTED submodules - 29 of them, plus the runtime.
 # Nexaflow compiles only the ones it registers, so init exactly those rather than --recursive: the rest are

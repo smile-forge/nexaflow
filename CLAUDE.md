@@ -59,6 +59,7 @@ src/
   Nexaflow.Visuals.Terminal/          terminal input logic
   Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
   Nexaflow.IO.Terminal/               PTY host
+  Nexaflow.Media/                     WPF-free media codecs carried as our own memory-safe source, a folder each with its licence: Jpeg2000
   Nexaflow.Syntax/                    tree-sitter engine + StructuralEdit; grammars built from submodules (externals.md)
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
   Nexaflow.Services.Initiatives.Cli/  nfi
@@ -241,8 +242,8 @@ run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also screen
   from source — the package is stale, broken, or lacks what we need — is a git submodule under `external/` from the
   smile-forge fork, consumed by `ProjectReference`, never vendored (native grammars compile via an MSBuild target
   instead). Read [externals.md](docs/externals.md) before touching one; use `git -C external/<name> …`.
-- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, never
-  `Features.Common`.
+- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Media` / `Nexaflow.Syntax`,
+  never `Features.Common`.
 - NEVER substitute a simpler, "equivalent", or partial approach. If the specified design seems hard, wrong, or blocked, STOP and tell me why. Do not work around it.
 - No placeholder implementations, stubs, TODO shortcuts, or hardcoded special cases unless I explicitly ask for them.
 - Extensibility and performance are requirements. A version that "works" but can't be extended as designed is a failure, not a partial success.

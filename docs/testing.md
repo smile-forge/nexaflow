@@ -182,7 +182,7 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Sandbox` | `net10.0-windows` exe | Not a test project: [runs the journeys in Windows Sandbox](#running-journeys-in-windows-sandbox) and drives the app there | FlaUI + `Nexaflow.Tests.Fixtures` **and nothing else** — like the journeys, it knows the app as a running process |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
+| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts`, `Nexaflow.Media` (codecs) | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info, USB devices and their live tools, the serial terminal | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
@@ -488,6 +488,57 @@ tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept
 Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the
 default because a Debug build checks every pipeline stage's output against its input, which a user never pays for.
 
+### Measuring JPEG 2000 decoding (opt-in, by hand)
+
+`JpxDecodeBench` measures the JPEG 2000 images in PDFs, sampled to a fixed few of each size (`-PerSize`, six by
+default) or named (`-Only`, parts of their names separated by semicolons), with `Nexaflow.Media`'s decoder — the
+managed JPEG 2000 decoder the PDF reader decodes them with — beside libopenjp2, the C library it follows, called in
+process from the same bytes. The PDFs are
+the 151 JPX test documents of the PDF filter Nexaflow used to build, which the script fetches at a pinned commit,
+and the baseline PDF corpus `NEXAFLOW_PDF_CORPUS` names (`-PdfCorpus`) when it is set; `-Corpus` names other
+folders instead. Every PDF is scanned for its JPEG 2000 images first, keeping only where each is, and only the
+sample's bytes are read, so a corpus of any size costs little memory. It is two measurements, each a process of
+its own:
+
+- **Timing** sets both decodes side by side sample for sample first, and times only an image both decode alike:
+  the managed decode on one thread and with its own threading, the reader's whole `JPXDecode` filter, and
+  libopenjp2 on one thread and on one per processor, with totals per size of image so a fixed cost and a per-pixel
+  cost show apart, and what each managed decode allocates. The sample is decoded over and over for some seconds
+  before anything is timed, so the JIT has replaced the decoder's first code with its optimised code — without it a
+  small image is timed in the few runs before that happens, several times slower than it decodes.
+- **Profiling** samples the managed decode through EventPipe and puts each sample to a stage — tier-1 code blocks,
+  tier-2 packets, the inverse wavelet, the inverse colour transform, the tile coder, codestream parsing, image
+  output — on every thread, with a thread waiting on the jobs it handed out told apart from one working: once for
+  the filter as the reader runs it, once for the serial decode. It runs with `DOTNET_ReadyToRun=0`, because a
+  precompiled framework method (a wait, a copy, an allocation) carries no name in a sample, and its time would be
+  counted to the code that called it. It counts allocations by stage and type from the collector's allocation
+  ticks. A stage's share is sound; within a stage, the method a sample names is not: a thread is sampled where it
+  can be stopped, so a loop's time shows on the next call it makes — a clear, a copy — and a change inside a stage
+  is weighed by timing it, not by its samples.
+
+Each writes one JSON file, and a log of how far it has got, and asserts nothing.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jpx-bench
+```
+
+`JpxComparisonSweep` (`-Compare`) is the check that the managed decoder matches libopenjp2: it decodes **every**
+JPEG 2000 image in the corpus with both, from the same bytes, and sets their components side by side; the managed
+decoder decodes it again with its own threading, as the reader does, and that is held to its serial decode. An image
+they disagree on is kept as a file beside the run's `jpx-compare-*.json`, and the script prints the disagreements
+grouped by what `opj_dump` says the codestream uses — wavelet, code-block style, precision, colour transform, tiling,
+palette — so a cause shows as one group rather than thousands of images. Images go out one a thread on threads of
+the sweep's own, not the thread pool the decoder hands its code blocks to. A change to the decoder is not done
+while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -PdfCorpus <folder> -Compare
+```
+
+`-OpenJpeg` is an OpenJPEG checkout outside the repository: cloned at `-Tag` when it is absent and built with MSVC
+when it has no `openjp2.dll`, so the baseline is a release build of the library a run names. As with the markdown bench, compare
+runs taken on one machine in one configuration.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
@@ -656,6 +707,14 @@ them:
   `SourceText`, `StructuralEdit`, XAML value highlighting.
 - **`Search/`** — `Nexaflow.Search`: the `?` bar's query syntax and term parsing (globs vs regex).
 - **`Elevation/`** — `Elevation.Contracts` DTO round-trips.
+- **`Media/`** — `Nexaflow.Media`'s JPEG 2000 decoder against images libopenjp2's `opj_compress` encoded
+  (`Media/Jpeg2000/Fixtures/`), each chosen for a part of the standard: precisions, subsampling, tiles off the
+  origin, precincts, every progression order, every code-block style, markers and tile-parts, the JP2 container, the
+  irreversible path. A lossless image must decode to exactly the source the tests regenerate; a lossy one to the hash
+  of what `opj_decompress` decodes it to (`expected.json`); a parallel decode to the serial one. The MQ coder is held
+  to ITU-T T.88's test sequence on its own. `Jpeg2000FixtureMaker` writes the fixtures and is inconclusive unless
+  `NEXAFLOW_OPENJPEG` names an OpenJPEG checkout built as `tools/bench/Run-JpxBench.ps1` builds it — run it after
+  changing `Jpeg2000Fixture.All`, and commit what it writes.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 
