@@ -18,7 +18,7 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// work from a picture another edit makes (<see cref="Input"/>).
 /// </summary>
 /// <typeparam name="TAsk">The recipe's section that asks for it.</typeparam>
-public abstract partial class ToolEdit<TAsk> : ObservableObject where TAsk : class
+public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer where TAsk : class
 {
     private readonly IReadOnlyList<IToolModels?> _tools;
     private readonly Func<Action, Task> _runOnUi;

@@ -191,9 +191,9 @@ public class ImageCutOutTests
         Thread.Sleep(100);
 
         Assert.AreEqual(0, selection.Opened);
-        Assert.IsTrue(vm.Cutter.CanDownload);
-        Assert.AreEqual(Str.Get("Images.CutOut.Download"), vm.Cutter.ActionLabel);
-        OnUi(() => vm.Cutter.ActCommand.Execute(null));
+        Assert.IsFalse(vm.Cutter.HasAction, "the tool offers nothing of its own: picture selection is offered over the picture");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.PickingModels.ShowsOffer), "the Cut out panel is open, so its models are offered");
+        OnUi(() => vm.Editor.PickingModels.DownloadCommand.Execute(null));
         Assert.IsTrue(selection.Downloading);
     }
 
@@ -291,6 +291,8 @@ public class ImageCutOutTests
     [DataRow("cutout", EditTool.CutOut)]
     [DataRow("CutOut", EditTool.CutOut)]
     [DataRow("crop", EditTool.Crop)]
+    [DataRow("retouch", EditTool.Retouch)]
+    [DataRow("resize", EditTool.Resize)]
     public void ATabAskedToOpenOnATool_OpensTheEditorThere(string asked, EditTool tool)
         => Assert.AreEqual(tool, Nexaflow.Features.Images.ImageTabRegistration.ParseTool(asked));
 

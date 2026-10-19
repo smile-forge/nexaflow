@@ -17,12 +17,12 @@ namespace Nexaflow.Tests.Markdown.Prose;
 /// (<see cref="WithReferences"/>). The parse reads each block on its own, and knows none of it.
 /// </summary>
 [TestClass]
-[CoversNode("reference-links")]
 public class MarkdownTargetsTests
 {
     private const string Defined = "\n\n[ref]: https://example.org\n[One Two]: https://two.org\n";
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void TheParse_HoldsALinkByName_AsTheWordsItWasWrittenIn()
     {
         var read = MarkdownParser.Parsing()("see [one][ref]\n\n[ref]: https://example.org\n").Tree;
@@ -31,6 +31,7 @@ public class MarkdownTargetsTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void ALinkByName_GoesWhereItsDefinitionSays_WhereverTheDefinitionIsWritten()
     {
         foreach (var source in new[]
@@ -49,6 +50,7 @@ public class MarkdownTargetsTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void EveryWayOfNamingADefinition_IsALink_AndAPictureIsToo()
     {
         foreach (var (written, kind, goes) in new[]
@@ -74,6 +76,7 @@ public class MarkdownTargetsTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void BracketsNamingNothingDefined_StayTheWordsTheyWere()
     {
         // A name follows the second, so it is a link by that name or nothing — never one by its own words.
@@ -88,6 +91,7 @@ public class MarkdownTargetsTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void ALinkHoldsNoLink_ButBracketsRoundOneAreWords()
     {
         var tree = Worked("see [a [ref] b] here" + Defined);
@@ -113,6 +117,7 @@ public class MarkdownTargetsTests
     }
 
     [TestMethod]
+    [CoversNode("reference-links")]
     public void ADefinition_IsPutBackWhereItWasWritten_AndSaidInTheOrderWritten_TheFirstOfANameStanding()
     {
         const string Source = "words\n\n[b]: /b\n[a]: /a\n\nmore\n\n[A]: /second\n";

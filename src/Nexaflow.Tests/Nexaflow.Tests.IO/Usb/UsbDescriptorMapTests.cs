@@ -19,15 +19,15 @@ public class UsbDescriptorMapTests
     {
         foreach (var map in new[] { LgConfig(), UsbDescriptorMaps.Configuration(Bytes(AsusLcdConfiguration), Lg), UsbDescriptorMaps.Bos(Bytes(PlatformBos), Lg), UsbDescriptorMaps.Bos(Bytes(TiHubBos), Lg) })
         {
-            int expected = 0;
+            int next = 0;
             foreach (var entry in map.Entries)
             {
-                Assert.AreEqual(expected, entry.Offset, $"{map.Title}: a gap or overlap before {entry.Kind}");
-                expected += entry.Length;
+                Assert.AreEqual(next, entry.Offset, $"{map.Title}: a gap or overlap before {entry.Kind}");
+                next += entry.Length;
                 foreach (var field in entry.Fields)
                     Assert.IsTrue(field.Offset >= entry.Offset && field.Offset + field.Size <= entry.Offset + entry.Length, $"{entry.Kind}.{field.Name} lies outside its descriptor");
             }
-            Assert.AreEqual(map.Bytes.Length, expected, $"{map.Title}: bytes left unaccounted");
+            Assert.AreEqual(map.Bytes.Length, next, $"{map.Title}: bytes left unaccounted");
             Assert.AreEqual(0, map.Problems.Count, string.Join("; ", map.Problems));
         }
     }

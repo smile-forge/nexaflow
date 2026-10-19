@@ -22,8 +22,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Plot;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("correlation-plots-render")]
-[CoversNode("correlation-plots-editing")]
 public class PlotBuilderTests
 {
     private const string Cars = "weight  mpg\n3504  18\n2372  24\n1613  35";
@@ -32,6 +30,7 @@ public class PlotBuilderTests
         Laying.Lay(fence.ToString().ToLowerInvariant(), source, room);
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ASettingThatWillNotRead_IsMarkedWhereItIsWritten() => UiThread.Run(() =>
     {
         // A setting nobody can read is a question about the whole picture, so the block is shown as written — with the value
@@ -53,12 +52,14 @@ public class PlotBuilderTests
     // ── The marks ───────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EveryRowOfTheTableIsAMark() => UiThread.Run(() =>
     {
         Assert.AreEqual(3, Marks(Lay(Cars)).Length);
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AHeaderIsNotAMark() => UiThread.Run(() =>
     {
         // It names the columns; drawing it would put a point at the words.
@@ -67,6 +68,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void AMarkStandsForTheRowItWasDrawnFrom() => UiThread.Run(() =>
     {
         // What makes the picture editable: a press on a point means the row it came from, so the numbers
@@ -81,6 +84,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AMarkSitsWhereItsValuesAreAcrossAndUpTheRange() => UiThread.Run(() =>
     {
         // The smallest x is left of the largest, and the smallest y is below the largest. Which way up
@@ -95,6 +99,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ABiggerValueIsABiggerMarkWhereAColumnFeedsSize() => UiThread.Run(() =>
     {
         var marks = Marks(Lay("weight  mpg  pop\n3504  18  10\n2372  24  400", PlotFence.Bubble));
@@ -103,6 +108,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void WithNoColumnFeedingSizeEveryMarkIsTheSame() => UiThread.Run(() =>
     {
         var marks = Marks(Lay(Cars));
@@ -113,6 +119,7 @@ public class PlotBuilderTests
     // ── The axes ────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BothAxesAreDrawn() => UiThread.Run(() =>
     {
         var laid = Lay(Cars);
@@ -122,12 +129,14 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AnAxisIsNumberedWithRoundNumbers() => UiThread.Run(() =>
     {
         Assert.IsTrue(Of(Lay(Cars), PlotPiece.Tick).Length > 1, "an axis nobody can read is not an axis");
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AnAxisTakesItsTitleFromTheColumnFeedingIt() => UiThread.Run(() =>
     {
         var titles = Of(Lay(Cars), PlotPiece.AxisTitle).Select(piece => piece.Words?.Glyphs.Text).ToArray();
@@ -137,6 +146,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void WhatTheBlockCallsAnAxisWinsOverTheColumnsName() => UiThread.Run(() =>
     {
         var titles = Of(Lay("xTitle: Kerb weight\n\n" + Cars), PlotPiece.AxisTitle)
@@ -146,6 +156,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ATableWithNoHeaderHasNoAxisTitles() => UiThread.Run(() =>
     {
         Assert.AreEqual(0, Of(Lay("1 2\n3 4"), PlotPiece.AxisTitle).Length);
@@ -154,6 +165,7 @@ public class PlotBuilderTests
     // ── The key ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void OnlyAColumnFeedingColourMakesAKey() => UiThread.Run(() =>
     {
         Assert.AreEqual(0, Of(Lay(Cars), PlotPiece.Name).Length);
@@ -164,6 +176,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void LegendNoneDrawsNoKeyAtAll() => UiThread.Run(() =>
     {
         var laid = Lay("colour: origin\nlegend: none\n\nweight  mpg  origin\n3504  18  USA\n2372  24  Japan");
@@ -174,12 +187,14 @@ public class PlotBuilderTests
     // ── The room it is given ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ThePlotIsFittedIntoTheRoomItIsGiven() => UiThread.Run(() =>
     {
         Assert.IsTrue(Lay(Cars, room: 300).Size.Width <= 300);
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AWidthWrittenInTheBlockWinsOverTheRoom() => UiThread.Run(() =>
     {
         Assert.AreEqual(420, Lay("width: 420\n\n" + Cars, room: 900).Size.Width, 0.001);
@@ -188,6 +203,7 @@ public class PlotBuilderTests
     // ── What cannot be drawn ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ABlockThatIsNotAPlotShowsItsOwnLines() => UiThread.Run(() =>
     {
         var laid = Lay("width: wide\n1 2");
@@ -197,6 +213,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AnEmptyBlockSaysWhatItNeeds() => UiThread.Run(() =>
     {
         var laid = Lay("");
@@ -206,6 +223,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ASettingThatCannotBeReadIsShownAsWritten_AndSaysWhyUnderIt() => UiThread.Run(() =>
     {
         const string source = "width: wide\n\n1 2\n3 4";
@@ -221,6 +239,7 @@ public class PlotBuilderTests
             .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ARowWithNoPlaceIsMarkedInTheSource() => UiThread.Run(() =>
     {
         // A plot is only read where it is drawn, so a row it cannot place is put right where it is written.
@@ -234,6 +253,7 @@ public class PlotBuilderTests
     // ── The way in ──────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TheCorrelationFencesAreDiagramLanguages()
     {
         Assert.IsTrue(ContentLanguages.Reads("scatter"));
@@ -241,6 +261,7 @@ public class PlotBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AScatterBlockDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
         var element = Alone.Drawn("scatter", Cars, StyleFormat.Dark);
@@ -268,6 +289,7 @@ public class PlotBuilderTests
                  .Select(piece => piece.Bounds.Left + (piece.Bounds.Width / 2))];
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ALogAxisIsNumberedInPowers() => UiThread.Run(() =>
     {
         var laid = Lay("xScale: log\n\ngdp  life\n430  54\n54225  83");
@@ -276,6 +298,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ALogAxisPutsEachPowerTheSameDistanceApart() => UiThread.Run(() =>
     {
         var at = Along(Lay("xScale: log\n\ngdp  life\n430  54\n54225  83"), PlotPiece.XAxis);
@@ -288,6 +311,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EndsWrittenInTheBlockAreTheEndsOfTheAxis() => UiThread.Run(() =>
     {
         // Rather than the round numbers either side of the values, which is what nobody wrote.
@@ -298,6 +322,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BreaksWrittenInTheBlockAreWhereItIsMarked() => UiThread.Run(() =>
     {
         var marks = Marks(Lay("xBreaks: 0 50 100\nxLimits: 0 100\n\nx  y\n30  1\n40  2"), PlotPiece.XAxis);
@@ -306,6 +331,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AValueWithNoPlaceOnALogAxisIsMarkedRatherThanDrawnAtNought() => UiThread.Run(() =>
     {
         // Nought is a real place, and a log axis has nothing to say about a value of nought or less.
@@ -319,6 +345,7 @@ public class PlotBuilderTests
     // ── Gridlines ───────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void GridlinesAreDrawnBehindTheMarksUnlessTheBlockSaysNot() => UiThread.Run(() =>
     {
         Assert.IsTrue(Of(Lay(Cars), PlotPiece.Grid).Length > 0);
@@ -329,6 +356,7 @@ public class PlotBuilderTests
     // ── Marks ───────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AColumnCanFeedColourAndShapeAtOnce() => UiThread.Run(() =>
     {
         // aes(colour = region, shape = region) — how a chart tells its groups apart twice over, so they
@@ -348,6 +376,7 @@ public class PlotBuilderTests
              .FirstOrDefault();
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AShapeNamingNeitherAColumnNorAMarkSaysSo() => UiThread.Run(() =>
     {
         var laid = Lay("shape: sunburst\n\n" + Cars);
@@ -363,12 +392,14 @@ public class PlotBuilderTests
     private const string Matrix = "     mpg    hp\nmpg   1.00  -0.78\nhp   -0.78   1.00";
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AHeatMapDrawsATilePerValue() => UiThread.Run(() =>
     {
         Assert.AreEqual(4, Marks(Lay(Sightings, PlotFence.Heatmap)).Length);
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AMatrixDrawsATilePerValueOfIt() => UiThread.Run(() =>
     {
         // Two rows of two, which is four marks rather than two.
@@ -376,6 +407,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TilesFillThePanelOnceAndNoMore() => UiThread.Run(() =>
     {
         // A tile stands for one value rather than a stretch of them. Reading the years as a plain range
@@ -393,6 +425,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ATileAxisOfNumbersIsStillReadInOrder() => UiThread.Run(() =>
     {
         CollectionAssert.AreEqual(new[] { "2023", "2024" }, Marks(Lay(Sightings, PlotFence.Heatmap), PlotPiece.YAxis));
@@ -401,6 +434,7 @@ public class PlotBuilderTests
 
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AMatrixIsTitledByNeitherOfItsAxes() => UiThread.Run(() =>
     {
         // Its columns are its values, so an axis titled with one of them would be naming its own tick.
@@ -410,6 +444,7 @@ public class PlotBuilderTests
     // ── Colour read as a quantity ───────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AColourThatIsAQuantityGetsABarRatherThanRows() => UiThread.Run(() =>
     {
         var laid = Lay(Sightings, PlotFence.Heatmap);
@@ -419,6 +454,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ABiggerValueIsFurtherAlongTheRunOfColours() => UiThread.Run(() =>
     {
         var marks = Marks(Lay("gradient: blues\n\n" + Sightings, PlotFence.Heatmap));
@@ -428,6 +464,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AMidpointPutsTheMiddleColourOnTheMiddleValue() => UiThread.Run(() =>
     {
         // Which is what makes the colour of a correlation mean its sign.
@@ -440,6 +477,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void LabelsWriteEachValueOnItsOwnTile() => UiThread.Run(() =>
     {
         Assert.AreEqual(0, Of(Lay(Matrix, PlotFence.Heatmap), PlotPiece.Label).Length);
@@ -447,6 +485,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AGradientNamingNoRunOfColoursSaysSo() => UiThread.Run(() =>
     {
         var laid = Lay("gradient: sunburst\n\n" + Sightings, PlotFence.Heatmap);
@@ -478,6 +517,7 @@ public class PlotBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ABinnedPlotDrawsBinsRatherThanAMarkPerRow() => UiThread.Run(() =>
     {
         var laid = Lay(Crowded("hex"), PlotFence.Heatmap);
@@ -487,6 +527,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BothBinningsDrawSomething() => UiThread.Run(() =>
     {
         Assert.IsTrue(Of(Lay(Crowded("hex"), PlotFence.Heatmap), PlotPiece.Bin).Length > 4);
@@ -494,6 +535,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void ABinStandsForNoOneRow() => UiThread.Run(() =>
     {
         // Nobody typed a bin — it is a count of rows, not one of them — so there is nowhere in one for a
@@ -503,6 +546,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ABinnedPlotsKeyCountsRowsRatherThanNamingColumns() => UiThread.Run(() =>
     {
         // There may be no third column at all, and the colours still mean something: how many fell there.
@@ -513,6 +557,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void MoreBinsAreSmallerBins() => UiThread.Run(() =>
     {
         var few = Of(Lay(Crowded("bin2d").Replace("bins: 6", "bins: 4"), PlotFence.Heatmap), PlotPiece.Bin);
@@ -522,6 +567,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BinsThatAreNotWholeNumbersStopTheBlock() => UiThread.Run(() =>
     {
         var laid = Lay("geom: hex\nbins: 2.5\n\nx  y\n1  1", PlotFence.Heatmap);
@@ -533,6 +579,7 @@ public class PlotBuilderTests
     // ── How thickly the rows lie ────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ADensityDrawsContoursRatherThanAMarkPerRow() => UiThread.Run(() =>
     {
         var laid = Lay(Crowded("density2d"), PlotFence.Density2d);
@@ -542,6 +589,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EveryWayOfDrawingADensityDrawsSomething() => UiThread.Run(() =>
     {
         foreach (var how in new[] { "bands", "lines", "raster" })
@@ -553,6 +601,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void AContourStandsForNoOneRow() => UiThread.Run(() =>
     {
         foreach (var piece in Of(Lay(Crowded("density2d"), PlotFence.Density2d), PlotPiece.Cloud))
@@ -560,6 +610,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void PointsDrawsTheRowsOverTheCloudAndTheyCanStillBePressed() => UiThread.Run(() =>
     {
         var over = Lay("points: true\n" + Crowded("density2d"), PlotFence.Density2d);
@@ -570,6 +622,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void RowsShownOverACloudAreSmallerThanRowsShownAlone() => UiThread.Run(() =>
     {
         // At the number of rows that make a cloud worth drawing, marks at their usual size are a solid
@@ -581,6 +634,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TooFewRowsToSayHowThicklyTheyLieSaysSo() => UiThread.Run(() =>
     {
         var laid = Lay("x  y\n1  1\n2  2", PlotFence.Density2d);
@@ -592,6 +646,7 @@ public class PlotBuilderTests
     // ── What is worked out and drawn over them ──────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void NoFitIsAskedForAndNoneIsDrawn() => UiThread.Run(() =>
     {
         Assert.AreEqual(0, Of(Lay(Cars), PlotPiece.Fit).Length);
@@ -599,6 +654,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AFitIsDrawnWithTheBandItsOwnDoubtMakes() => UiThread.Run(() =>
     {
         var laid = Lay("fit: lm\n\n" + Cars);
@@ -608,6 +664,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void SeFalseDrawsTheLineWithoutTheBand() => UiThread.Run(() =>
     {
         var laid = Lay("fit: lm\nse: false\n\n" + Cars);
@@ -617,6 +674,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BothKindsOfFitDrawSomething() => UiThread.Run(() =>
     {
         Assert.AreEqual(1, Of(Lay("fit: lm\n\n" + Cars), PlotPiece.Fit).Length);
@@ -624,6 +682,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void AFitStandsForNoOneRow() => UiThread.Run(() =>
     {
         // Nobody typed a regression.
@@ -632,6 +692,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TheStatsAreWrittenOnThePanel() => UiThread.Run(() =>
     {
         var said = Of(Lay("stats: r r2 n\n\n" + Cars), PlotPiece.Stats)
@@ -645,6 +706,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ACorrelationIsReportedFromTheValuesRatherThanFromThePage() => UiThread.Run(() =>
     {
         // Down the page is the way a screen counts and not the way a number does. Worked out on the panel,
@@ -657,6 +719,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EachMethodIsWrittenWithItsOwnLetter() => UiThread.Run(() =>
     {
         StringAssert.Contains(Said("stats: r\nmethod: pearson\n\n" + Cars), "r = ");
@@ -669,6 +732,7 @@ public class PlotBuilderTests
                                         .First(text => text is not null)!;
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AStatNobodyKnowsSaysWhatCouldHaveBeenAskedFor() => UiThread.Run(() =>
     {
         var laid = Lay("stats: sigma\n\n" + Cars);
@@ -680,6 +744,8 @@ public class PlotBuilderTests
     // ── Written in place ────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void AValueDrawnOnItsTileIsTheCharactersItWasWrittenWith() => UiThread.Run(() =>
     {
         // What makes a heat map editable: a caret stands in the number, a drag picks out its digits, and
@@ -703,6 +769,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-editing")]
     public void ATicksNumberIsWorkedOutRatherThanWritten() => UiThread.Run(() =>
     {
         // Nobody typed "2000" on the axis — it is a number the plot chose — so there is nowhere in it for a
@@ -712,6 +779,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-editing")]
     public void ACategoryOnAnAxisIsWorkedOutToo() => UiThread.Run(() =>
     {
         // A category stands for every row carrying it rather than for one of them, so typing there would
@@ -725,6 +793,7 @@ public class PlotBuilderTests
     // ── Settings that used to parse and do nothing ──────────────────────────
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ASubtitleAndACaptionAreDrawn() => UiThread.Run(() =>
     {
         var said = Of(Lay("title: One\nsubtitle: Two\ncaption: Three\n\n" + Cars), PlotPiece.Title)
@@ -737,6 +806,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TheKeyCarriesItsOwnTitle() => UiThread.Run(() =>
     {
         var said = Of(Lay("colour: origin\nlegendTitle: Origin\n\nweight  mpg  origin\n3504  18  USA\n2372  24  Japan"),
@@ -749,6 +819,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AColumnMappedToAlphaMakesSomeMarksFainter() => UiThread.Run(() =>
     {
         var marks = Marks(Lay("alpha: share\n\nx  y  share\n1  1  1\n2  2  100"));
@@ -761,6 +832,7 @@ public class PlotBuilderTests
              .Select(mark => mark.Fill?.Opacity ?? 1).FirstOrDefault();
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void JitterMovesMarksOffTheirPlaceAndAlwaysTheSameWay() => UiThread.Run(() =>
     {
         const string Stacked = "x  y\n1  1\n1  1\n1  1";
@@ -777,6 +849,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AColumnMappedToLabelNamesEachMark() => UiThread.Run(() =>
     {
         var said = Of(Lay("label: name\n\nx  y  name\n1  1  Alpha\n2  2  Beta"), PlotPiece.Label)
@@ -787,6 +860,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void FlipSwapsTheAxes() => UiThread.Run(() =>
     {
         // The upright title is the turned one, whichever order the pieces happen to be laid in.
@@ -809,6 +883,7 @@ public class PlotBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AspectHoldsThePanelToTheShapeItAsksFor() => UiThread.Run(() =>
     {
         // A correlation matrix asked for square cells is not a correlation matrix drawn oblong. The room
@@ -821,6 +896,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AspectHoldsEvenWithAFitAndAFlipOverIt() => UiThread.Run(() =>
     {
         // The combination the figure is drawn from, because a shape held in isolation and lost in company
@@ -848,6 +924,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TheTitleStandsClearOfThePanel() => UiThread.Run(() =>
     {
         // A title drawn over the top gridline is a title drawn inside the plot.
@@ -883,6 +960,7 @@ public class PlotBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AColumnMappedToGroupFitsALinePerGroup() => UiThread.Run(() =>
     {
         const string Two = "x  y  side\n1  1  up\n2  2  up\n3  3  up\n1  9  down\n2  8  down\n3  7  down";
@@ -892,6 +970,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void NoMarkIsShakenPastTheAxis() => UiThread.Run(() =>
     {
         // A mark moved off its place to stop it hiding another is still a mark standing at a value, and a
@@ -920,6 +999,7 @@ public class PlotBuilderTests
         "geom: corr\n\nwt  mpg  hp\n2.620  21.0  110\n3.440  18.7  175\n1.615  30.4  52\n5.250  10.4  205";
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ACorrelationMatrixDrawsATilePerPairOfColumns() => UiThread.Run(() =>
     {
         // Three columns, so nine tiles — the table's four rows are not marks at all.
@@ -927,6 +1007,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void BothAxesOfACorrelationMatrixAreTheColumnNames() => UiThread.Run(() =>
     {
         var laid = Lay(Observations, PlotFence.Heatmap);
@@ -937,6 +1018,8 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
+    [CoversNode("correlation-plots-editing")]
     public void ACorrelationTileStandsForNothingWritten() => UiThread.Run(() =>
     {
         // No cell of the table holds the coefficient, so there is nowhere in it for a caret to go.
@@ -945,6 +1028,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ThePerfectDiagonalIsTheStrongestColourOnTheMatrix() => UiThread.Run(() =>
     {
         var marks = Marks(Lay(Observations, PlotFence.Heatmap));
@@ -966,6 +1050,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void LabelsWritesTheCoefficientInsideEachTile() => UiThread.Run(() =>
     {
         var laid = Lay("geom: corr\nlabels: true\n\nwt  mpg  hp\n2.620  21.0  110\n3.440  18.7  175\n"
@@ -978,6 +1063,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ATableWithOneNumericColumnIsNoMatrixAndSaysSo() => UiThread.Run(() =>
     {
         // Nothing to correlate, so nothing is drawn — and the block still stands rather than throwing.
@@ -987,6 +1073,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void NeitherAxisOfACorrelationMatrixIsTitledWithOneOfItsOwnColumns() => UiThread.Run(() =>
     {
         // Both axes are the columns, so a title taken off a column would be naming one of its own ticks.
@@ -996,6 +1083,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ACorrelationMatrixStillTakesTheTitlesTheBlockWrites() => UiThread.Run(() =>
     {
         var laid = Lay("geom: corr\nxTitle: Across\nyTitle: Down\n\nwt  mpg  hp\n2.620  21.0  110\n"
@@ -1007,6 +1095,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void TheOneIsWhereAColumnMeetsItself() => UiThread.Run(() =>
     {
         // The claim this holds: a tile reads one exactly when the name under it and the name beside it are
@@ -1060,12 +1149,14 @@ public class PlotBuilderTests
         [.. Of(laid, PlotPiece.Strip).Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EachValueOfTheFacetColumnGetsAPanelOfItsOwn() => UiThread.Run(() =>
     {
         CollectionAssert.AreEquivalent(new[] { "six", "four", "eight" }, Strips(Lay(ByCylinders())));
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void EveryRowIsStillAMarkOnceTheyAreSplitUp() => UiThread.Run(() =>
     {
         // Split across three panels, but not one row lost or drawn twice.
@@ -1073,6 +1164,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void APanelHoldsOnlyItsOwnRows() => UiThread.Run(() =>
     {
         // Three panels in a row, so which one a mark is in is settled by how far across the page it is.
@@ -1094,6 +1186,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void ThePanelsAreAllOnTheSameScales() => UiThread.Run(() =>
     {
         // The point of facets: read one panel against another. Each axis is numbered once for all of them.
@@ -1106,6 +1199,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void OneValueIsNoDivisionAtAll() => UiThread.Run(() =>
     {
         // Everything in one group is one plot, not one panel with a name over it.
@@ -1116,6 +1210,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void FacetColsSaysHowManyStandSideBySide() => UiThread.Run(() =>
     {
         var strips = Of(Lay(ByCylinders("facet: cyl\nfacetCols: 1")), PlotPiece.Strip);
@@ -1126,6 +1221,7 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("correlation-plots-render")]
     public void AFacetedPlotIsNotSplitByTheColumnItAlreadyPlots() => UiThread.Run(() =>
     {
         // The facet column is not used up as a place, so x and y are still the first two columns.

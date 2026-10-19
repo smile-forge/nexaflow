@@ -18,11 +18,11 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("datamatrix-render")]
 [CoversNode("matrix-renderer")]
 public class DataMatrixBuilderTests
 {
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void DataMatrixIsADiagramLanguage()
     {
         Assert.IsTrue(ContentLanguages.Reads("datamatrix"));
@@ -32,6 +32,7 @@ public class DataMatrixBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void ADataMatrixFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
         var element = Alone.Drawn("datamatrix", "type: text\ntext: hello", StyleFormat.Dark);
@@ -41,6 +42,7 @@ public class DataMatrixBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void ARectangle_MeasuresToItsOwnWidthAndHeight() => UiThread.Run(() =>
     {
         // A symbol whose two sides differ.
@@ -55,6 +57,7 @@ public class DataMatrixBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void EveryRegionWearsAFinderAndAClock() => UiThread.Run(() =>
     {
         // The L runs down the left and along the bottom, and the clock across the top and down the right — so the
@@ -70,6 +73,7 @@ public class DataMatrixBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void TheInkCoversExactlyTheDarkModules_EachOnce_AcrossSeveralRegions() => UiThread.Run(() =>
     {
         // Long enough to need more than one data region, so the borders between regions are shared out too.
@@ -86,6 +90,7 @@ public class DataMatrixBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void ThePictureReadsBack() => UiThread.Run(() =>
     {
         // Rendered, rasterised, sampled at each module's centre and decoded.
@@ -102,6 +107,7 @@ public class DataMatrixBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("datamatrix-render")]
     public void ABadBlock_IsShownAsWritten_WithTheReason() => UiThread.Run(() =>
     {
         var laid = Build("type: ppn\npzn: 1");

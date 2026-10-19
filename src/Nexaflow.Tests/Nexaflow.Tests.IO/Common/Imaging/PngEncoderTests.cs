@@ -8,6 +8,7 @@ namespace Nexaflow.Tests.IO.Common.Imaging;
 /// order with right checksums, the header says what was written, and undoing each row's filter gives the pixels back.
 /// </summary>
 [TestClass]
+[CoversNode("owned-images")]
 public class PngEncoderTests
 {
     [TestMethod]

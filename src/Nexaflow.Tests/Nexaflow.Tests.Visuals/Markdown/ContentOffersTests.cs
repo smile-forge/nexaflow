@@ -21,10 +21,10 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("markdown-copy")]
 public class ContentOffersTests
 {
     [TestMethod]
+    [CoversNode("markdown-copy")]
     public void WhatWouldBeCopiedIsSaidWithoutAnythingBeingCopied()
     {
         const string source = "# Title\n\nWords with **bold** in them.\n";
@@ -37,6 +37,7 @@ public class ContentOffersTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-copy")]
     public void AndAChoiceIsTheCharactersThatWereChosen()
     {
         const string source = "# Title\n\nWords with **bold** in them.\n";
@@ -49,6 +50,7 @@ public class ContentOffersTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-copy")]
     public void AChoiceThatMakesNoSenseIsTheWholeDocumentRatherThanAThrow()
     {
         const string source = "words\n";
@@ -59,6 +61,7 @@ public class ContentOffersTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-copy")]
     public void ABlockSaysWhichOfTheUsualButtonsMakeSenseForIt()
     {
         // A picture of a diagram is worth keeping. A picture of a code fence is a worse copy of the code.

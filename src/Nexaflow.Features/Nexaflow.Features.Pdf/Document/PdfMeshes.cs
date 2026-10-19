@@ -118,7 +118,7 @@ internal static class PdfMeshes
                     into.Add(a, b, c);
                     break;
                 case 2 when any:
-                    (a, b, c) = (a, c, vertex);
+                    (b, c) = (c, vertex);
                     into.Add(a, b, c);
                     break;
             }

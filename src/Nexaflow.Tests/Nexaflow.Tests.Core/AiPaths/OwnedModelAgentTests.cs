@@ -16,7 +16,6 @@ namespace Nexaflow.Tests.Core.AiPaths;
 [TestClass]
 [DoNotParallelize]
 [TestCategory("OwnedModel")]
-[CoversNode("owned-llm")]
 [CoversNode("chat-interface")]
 public class OwnedModelAgentTests
 {
@@ -103,6 +102,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task AQuestionNoToolAnswers_IsAnsweredWithoutCallingOne()
     {
         var page = new NotesPage();
@@ -114,6 +114,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task AQuestionAToolAnswers_CallsItWithWhatTheUserAsked()
     {
         var page = new NotesPage();
@@ -127,6 +128,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task AnAction_IsAskedForApproval_AndChangesThePage()
     {
         var page = new NotesPage();
@@ -139,6 +141,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task ADeclinedAction_ChangesNothing_AndTheRunStillEnds()
     {
         var page = new NotesPage();
@@ -150,6 +153,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task ATaskOfTwoSteps_FindsTheAddressFirst_ThenSendsToIt()
     {
         var page = new NotesPage();
@@ -165,6 +169,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     [DataRow("Quelle est la capitale de l'Italie ? Réponds en une phrase.", "fr")]
     [DataRow("Was ist die Hauptstadt von Spanien? Antworte in einem Satz.", "de")]
     [DataRow("What is the capital of Portugal? Answer in one sentence.", "en")]
@@ -206,6 +211,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task OnAPageOfManyTools_TheRightOneIsFoundAndCalled()
     {
         var page = new ToolboxPage();
@@ -247,6 +253,7 @@ public class OwnedModelAgentTests
     }
 
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task AnImageAToolCaptured_ReachesTheModel_AndTheRunGoesOn()
     {
         var run = await AskAsync(new MediaPage(), "Capture the chart and tell me what colour it is.");
@@ -259,6 +266,7 @@ public class OwnedModelAgentTests
     /// <summary>What the voicemail says is the one fact the model can only have from hearing it — the single place this
     /// suite looks at what a reply says.</summary>
     [TestMethod]
+    [CoversNode("owned-llm")]
     public async Task ARecordingAToolHandedOver_IsHeard()
     {
         var run = await AskAsync(new MediaPage(), "Listen to the voicemail and tell me which day the meeting is now.");

@@ -702,7 +702,8 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     {
         if (_hidden > 0) return;
 
-        var mode = (int)currentState.FontState.TextRenderingMode;
+        // A state with no font state of its own draws as the default does: filled.
+        var mode = (int)(currentState.FontState?.TextRenderingMode ?? UglyToad.PdfPig.Core.TextRenderingMode.Fill);
         var fills   = mode is 0 or 2 or 4 or 6;
         var strokes = mode is 1 or 2 or 5 or 6;
         var clips   = mode >= 4;

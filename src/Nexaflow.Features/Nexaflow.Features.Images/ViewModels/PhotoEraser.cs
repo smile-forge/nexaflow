@@ -26,9 +26,6 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     /// <summary>Erasing is always offered: content-aware fill and the healing brush run on any machine.</summary>
     public override bool Available => true;
 
-    /// <summary>Whether a step can be filled by picture erasing on this machine.</summary>
-    public bool ErasesByAi => _erasing is { State: not ToolModelsState.Unavailable };
-
     /// <summary>Whether picture erasing is here now, ready to fill a step.</summary>
     public bool ErasesByAiNow => _erasing is { State: ToolModelsState.Ready };
 

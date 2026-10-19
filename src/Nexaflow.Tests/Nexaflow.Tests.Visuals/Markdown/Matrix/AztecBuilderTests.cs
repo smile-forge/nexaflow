@@ -18,11 +18,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("aztec-render")]
-[CoversNode("aztec-block-syntax")]
 public class AztecBuilderTests
 {
     [TestMethod]
+    [CoversNode("aztec-render")]
     public void AztecIsADiagramLanguage()
     {
         Assert.IsTrue(ContentLanguages.Reads("aztec"));
@@ -32,6 +31,7 @@ public class AztecBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-render")]
     public void AnAztecFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
         var element = Alone.Drawn("aztec", "type: text\ntext: hello", StyleFormat.Dark);
@@ -41,6 +41,7 @@ public class AztecBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("aztec-block-syntax")]
     public void TakesTheQrTypeVocabulary()
     {
         var block = Read("type: wifi\nssid: Net\npassword: pw\nsecurity: WPA");
@@ -48,6 +49,7 @@ public class AztecBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-block-syntax")]
     public void ReadsItsOwnShapeSettings()
     {
         var block = Read("type: text\ntext: x\nformat: full\nlayers: 3\necc: 40\neci: 26\ncellSize: 3\nmargin: 2");
@@ -61,6 +63,7 @@ public class AztecBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-block-syntax")]
     public void DefaultsToAutoAndTheAdvisedErrorCorrection()
     {
         var block = Read("type: text\ntext: x");
@@ -77,6 +80,7 @@ public class AztecBuilderTests
     /// direction nobody notices.
     /// </summary>
     [TestMethod]
+    [CoversNode("aztec-block-syntax")]
     public void AGs1BlockWritesTheWireFormAndFlagsIt()
     {
         var block = Read("type: gs1\ndata: (01)04150123456782(10)LOT7(21)SN9");
@@ -86,6 +90,7 @@ public class AztecBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-block-syntax")]
     public void RefusesSettingsOutsideTheStandard()
     {
         AssertRefused("type: text\ntext: x\nformat: tiny",               "not an Aztec format");
@@ -100,6 +105,7 @@ public class AztecBuilderTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-render")]
     public void ACompactSymbolIsItsBullseye_ItsModeMessage_AndItsData() => UiThread.Run(() =>
     {
         var laid = Build("type: text\ntext: hello\nformat: compact\ncellSize: 1\nmargin: 0");
@@ -115,6 +121,7 @@ public class AztecBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("aztec-render")]
     public void AFullRangeSymbolCarriesItsReferenceGrid() => UiThread.Run(() =>
     {
         var laid = Build("type: text\ntext: hello\nformat: full\ncellSize: 1\nmargin: 0");
@@ -125,6 +132,7 @@ public class AztecBuilderTests
 
     /// <summary>The picture reads back, off the pixels, as the symbol the encoder built.</summary>
     [TestMethod]
+    [CoversNode("aztec-render")]
     public void ThePictureReadsBack() => UiThread.Run(() =>
     {
         const string source = "type: text\ntext: An Aztec Code\ncellSize: 4\nmargin: 2";
@@ -143,6 +151,8 @@ public class AztecBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("aztec-render")]
+    [CoversNode("aztec-block-syntax")]
     public void ABadBlock_IsShownAsWritten_WithTheReason() => UiThread.Run(() =>
     {
         var laid = Build("type: text");

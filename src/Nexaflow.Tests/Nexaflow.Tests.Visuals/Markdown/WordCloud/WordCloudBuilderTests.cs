@@ -22,9 +22,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.WordCloud;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("wordcloud-render")]
-[CoversNode("wordcloud-editing")]
-[CoversNode("wordcloud-stencil")]
 public class WordCloudBuilderTests
 {
     private const string Stack = "WPF: 40\nXAML: 25\nMVVM: 12";
@@ -38,12 +35,14 @@ public class WordCloudBuilderTests
     // ── The words ──────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void EveryWordOfTheBlockIsDrawn() => UiThread.Run(() =>
     {
         Assert.AreEqual(3, Words(Lay(Stack)).Length);
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-editing")]
     public void AWordIsDrawnFromTheCharactersItWasWrittenWith() => UiThread.Run(() =>
     {
         // What makes the picture editable: a caret in a word is a caret in the line it came from, so typing
@@ -59,6 +58,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-editing")]
     public void AWordIsOneRunWithACaretBetweenAnyTwoOfItsLetters() => UiThread.Run(() =>
     {
         var word = Words(Lay(Stack)).First();
@@ -68,6 +68,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void TheHeaviestWordIsTheBiggest() => UiThread.Run(() =>
     {
         var words = Words(Lay(Stack));
@@ -91,6 +92,7 @@ public class WordCloudBuilderTests
     /// </para>
     /// </summary>
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void TheLettersOfTwoWordsNeverTouch() => UiThread.Run(() =>
     {
         var words = Words(Lay("""
@@ -116,6 +118,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void EveryWordStaysInsideThePicture() => UiThread.Run(() =>
     {
         var laid = Lay("width: 400\nheight: 300\n" + Stack);
@@ -130,6 +133,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void TurnedWordsAreTurned() => UiThread.Run(() =>
     {
         var laid = Lay("rotate: 1\nminRotation: -90\nmaxRotation: -90\n" + Stack);
@@ -139,6 +143,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void ALevelCloudTurnsNothing() => UiThread.Run(() =>
     {
         foreach (var word in Words(Lay("rotate: 0\n" + Stack)))
@@ -153,6 +158,7 @@ public class WordCloudBuilderTests
     /// dozen words in the middle of a field of nothing.
     /// </summary>
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void ThePictureIsTrimmedToWhatWasDrawn() => UiThread.Run(() =>
     {
         var laid = Lay("width: 360\nheight: 240\n" + Stack);
@@ -170,6 +176,7 @@ public class WordCloudBuilderTests
     /// never runs past the column, however wide or narrow it is.
     /// </summary>
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void ACloudWithNoSizeIsGivenTheColumnItIsIn() => UiThread.Run(() =>
     {
         foreach (var room in new double[] { 240, 480, 700 })
@@ -184,6 +191,8 @@ public class WordCloudBuilderTests
     /// put words there first — it is the side nearest the middle.
     /// </summary>
     [TestMethod]
+    [CoversNode("wordcloud-render")]
+    [CoversNode("wordcloud-stencil")]
     public void LettersShapeTheCloud() => UiThread.Run(() =>
     {
         var laid = Lay("letters: L\nminSize: 5\nmaxSize: 18\ngap: 1\n" + Many(), room: 700);
@@ -199,6 +208,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-stencil")]
     public void APictureThatCannotBeFoundStopsTheBlock() => UiThread.Run(() =>
     {
         // Not a cloud of the wrong shape and no word about it: a reader who named a mask meant it, and a
@@ -210,6 +220,8 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
+    [CoversNode("wordcloud-stencil")]
     public void APictureIsTheShapeItsDarkPartMakes() => UiThread.Run(() =>
     {
         // Black on white, left half only — every word should land in that half.
@@ -252,6 +264,7 @@ public class WordCloudBuilderTests
     // ── When it will not read ──────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void ABlockThatIsNotACloudIsShownAsWritten_AndSaysWhyUnderIt() => UiThread.Run(() =>
     {
         // Its lines are all a reader has left to work with, so they are what is shown — and this says why, under them.
@@ -268,6 +281,7 @@ public class WordCloudBuilderTests
             .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void AWordThatWillNotReadIsMarkedInTheSource() => UiThread.Run(() =>
     {
         // A cloud is only read where it is drawn, so a line that is no word is put right where it is written.
@@ -280,6 +294,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void AnEmptyBlockSaysWhatItNeeds() => UiThread.Run(() =>
     {
         var laid = Lay("");
@@ -289,6 +304,7 @@ public class WordCloudBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("wordcloud-render")]
     public void AWordWithNoRoomLeftSaysSoRatherThanVanishingQuietly() => UiThread.Run(() =>
     {
         // Small picture, big words: what will not fit has to be said, because a word silently missing from

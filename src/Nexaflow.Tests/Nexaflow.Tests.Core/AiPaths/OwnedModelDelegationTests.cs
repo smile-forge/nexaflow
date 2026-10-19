@@ -15,8 +15,6 @@ namespace Nexaflow.Tests.Core.AiPaths;
 [TestClass]
 [DoNotParallelize]
 [TestCategory("OwnedModel")]
-[CoversNode("agent-routing")]
-[CoversNode("agent-reading-delegate")]
 public class OwnedModelDelegationTests
 {
     private static readonly TimeSpan Limit = TimeSpan.FromMinutes(5);
@@ -63,6 +61,7 @@ public class OwnedModelDelegationTests
     ];
 
     [TestMethod]
+    [CoversNode("agent-routing")]
     [DynamicData(nameof(Light))]
     [Timeout(300_000, CooperativeCancellation = true)]
     public async Task EverydayWork_TheJudgeKeepsOnThisMachine(string request)
@@ -74,6 +73,7 @@ public class OwnedModelDelegationTests
     }
 
     [TestMethod]
+    [CoversNode("agent-routing")]
     [DynamicData(nameof(Heavy))]
     [Timeout(300_000, CooperativeCancellation = true)]
     public async Task HeavierWork_TheJudgeSendsToTheLargerModel(string request)
@@ -85,6 +85,8 @@ public class OwnedModelDelegationTests
     }
 
     [TestMethod]
+    [CoversNode("agent-routing")]
+    [CoversNode("voice-session")]
     [DynamicData(nameof(Quick))]
     [Timeout(300_000, CooperativeCancellation = true)]
     public async Task AQuickTurn_TheJudgeLetsAnswerAtOnce(string request)
@@ -96,6 +98,8 @@ public class OwnedModelDelegationTests
     }
 
     [TestMethod]
+    [CoversNode("agent-routing")]
+    [CoversNode("voice-session")]
     [DynamicData(nameof(Thoughtful))]
     [Timeout(300_000, CooperativeCancellation = true)]
     public async Task ATurnWorthThinkingOver_TheJudgeGivesThought(string request)
@@ -107,6 +111,7 @@ public class OwnedModelDelegationTests
     }
 
     [TestMethod]
+    [CoversNode("agent-reading-delegate")]
     [Timeout(600_000, CooperativeCancellation = true)]
     public async Task ADocumentLongerThanItReads_IsReadInParts_AndTheFactAskedForFound()
     {

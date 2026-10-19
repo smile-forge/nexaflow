@@ -35,6 +35,12 @@ public class ImagesJourneyTests : UiJourneyTestBase
         CheckInvoke("Rotate right", "Image_RotateRight");
         CheckInvoke("Fit / actual-size toggle", "Image_FitMode");
 
+        // Details: what the picture's file says about it, in a panel beside it.
+        Check("Details opens beside the picture", () => SetToggle("Image_Details", true) && WaitForFs(() => Exists("Image_DetailsPanel"), 3));
+        Check("It names the picture's file", () => WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_DetailsPanel"))
+                                                                        ?.FindFirstDescendant(cf => cf.ByName(file)) is not null, 5));
+        CheckDoes("Its close button puts it away", "Image_DetailsClose", () => WaitForGone("Image_DetailsPanel", 3));
+
         // Full-screen — present for every image; invoking it opens a separate window, so only check presence.
         CheckPresent("Full screen", "Image_FullScreen");
 
