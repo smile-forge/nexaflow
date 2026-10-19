@@ -14,21 +14,39 @@ namespace Nexaflow.Media.Jpeg2000.Internal;
 /// </remarks>
 internal static class SamplePacker
 {
-    public static byte[] Pack(JPXImage image)
+    public static byte[] Pack(JPXImage image) => Pack(image, image.comps, null);
+
+    /// <summary>
+    /// <paramref name="comps"/> interleaved in the order given, each at its precision, every row starting on a byte. With
+    /// <paramref name="premultipliedBy"/>, each sample is first divided by that opacity where it stands.
+    /// </summary>
+    public static byte[] Pack(JPXImage image, ImageComp[] comps, ImageComp? premultipliedBy)
     {
         var width = checked((int)(image.x1 - image.x0));
         var height = checked((int)(image.y1 - image.y0));
-        var comps = image.comps;
-        if (width == 0 || height == 0) return [];
+        if (width == 0 || height == 0 || comps.Length == 0) return [];
 
         var rows = new ComponentRows[comps.Length];
         var precisions = new int[comps.Length];
         var bitsPerPixel = 0;
         for (var c = 0; c < comps.Length; c++)
         {
-            rows[c] = ComponentRows.Of(comps[c], c, width, height);
+            rows[c] = ComponentRows.Of(comps[c], Array.IndexOf(image.comps, comps[c]), width, height);
             precisions[c] = (int)comps[c].prec;
             bitsPerPixel += precisions[c];
+        }
+
+        // The opacity a premultiplied image's samples are divided by, row by row, into rows of their own: a component's
+        // rows can be its own data, which is not to be changed.
+        ComponentRows? opacity = null;
+        int[][]? divided = null;
+        var opacityPrecision = 0;
+        if (premultipliedBy is not null)
+        {
+            opacity = ComponentRows.Of(premultipliedBy, Array.IndexOf(image.comps, premultipliedBy), width, height);
+            opacityPrecision = (int)premultipliedBy.prec;
+            divided = new int[comps.Length][];
+            for (var c = 0; c < comps.Length; c++) divided[c] = new int[width];
         }
 
         var rowBytes = checked((int)(((long)width * bitsPerPixel + 7) / 8));
@@ -40,6 +58,17 @@ internal static class SamplePacker
         for (var y = 0; y < height; y++)
         {
             for (var c = 0; c < rows.Length; c++) sources[c] = rows[c].Row(y, out starts[c]);
+            if (opacity is { } over)
+            {
+                var levels = over.Row(y, out var from).AsSpan(from, width);
+                for (var c = 0; c < sources.Length; c++)
+                {
+                    Unmultiplied(sources[c].AsSpan(starts[c], width), levels, precisions[c], opacityPrecision, divided![c]);
+                    sources[c] = divided[c];
+                    starts[c] = 0;
+                }
+            }
+
             var target = packed.AsSpan(y * rowBytes, rowBytes);
 
             switch (uniform)
@@ -60,6 +89,53 @@ internal static class SamplePacker
         }
 
         return packed;
+    }
+
+    /// <summary>
+    /// One component at the image's size, a byte a sample, row by row, scaled from its precision so its largest value is 255;
+    /// a signed one is first offset to start at 0.
+    /// </summary>
+    public static byte[] Levels(JPXImage image, ImageComp comp)
+    {
+        var width = checked((int)(image.x1 - image.x0));
+        var height = checked((int)(image.y1 - image.y0));
+        var levels = new byte[checked(width * height)];
+        if (levels.Length == 0) return levels;
+
+        var rows = ComponentRows.Of(comp, Array.IndexOf(image.comps, comp), width, height);
+        var precision = (int)comp.prec;
+        var largest = (1L << precision) - 1;
+        var offset = comp.Signed ? 1L << (precision - 1) : 0;
+        for (var y = 0; y < height; y++)
+        {
+            var row = rows.Row(y, out var start).AsSpan(start, width);
+            var target = levels.AsSpan(y * width, width);
+            if (precision == 8 && offset == 0)
+            {
+                Narrow(row, target);
+                continue;
+            }
+
+            for (var x = 0; x < width; x++)
+                target[x] = (byte)((Math.Clamp(row[x] + offset, 0, largest) * 255 + largest / 2) / largest);
+        }
+
+        return levels;
+    }
+
+    /// <summary>
+    /// Samples divided by the opacity they were multiplied by, each in its own precision — c × the opacity's largest value ÷ a,
+    /// rounded, and held to the sample's range — and 0 where the opacity is.
+    /// </summary>
+    private static void Unmultiplied(ReadOnlySpan<int> samples, ReadOnlySpan<int> opacity, int precision, int opacityPrecision, Span<int> target)
+    {
+        var largest = (1L << precision) - 1;
+        var opaque = (1L << opacityPrecision) - 1;
+        for (var x = 0; x < samples.Length; x++)
+        {
+            long a = opacity[x];
+            target[x] = a <= 0 ? 0 : (int)Math.Min(largest, (samples[x] * opaque + a / 2) / a);
+        }
     }
 
     /// <summary>One component's samples, as the low byte of each.</summary>

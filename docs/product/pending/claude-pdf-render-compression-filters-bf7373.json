@@ -1,0 +1,124 @@
+{
+  "branch": "claude/pdf-render-compression-filters-bf7373",
+  "nodes": {
+    "pdf-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml.cs",
+          "class": "PdfView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageLayout.cs",
+          "class": "PdfLaying"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfBrushes.cs",
+          "class": "PdfBrushes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfPageSource.cs",
+          "class": "PdfPageSource"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfMiters.cs",
+          "class": "PdfMiters"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfFaceKinds.cs",
+          "class": "PdfFaceKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfMeshes.cs",
+          "class": "PdfMeshes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfMeshPictures.cs",
+          "class": "PdfMeshPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Reading/PdfJpxSamples.cs",
+          "class": "PdfJpxSamples"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Pdf/PdfJourneyTests.cs",
+            "class": "PdfJourneyTests",
+            "method": "Pdf_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "ThePaintingOrder_SurvivesIntoTheLayoutTree"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AnImagesOwnSoftMask_TakesThePlaceOfTheGraphicsStatesMask"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AJoinPastTheMiterLimit_IsBevelled_AndOneWithinIt_KeepsItsMiter"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "APatternSteppedToShowOnce_IsDrawnAsSharpAsItsCell"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AMasksTransferFunction_RemapsItsLevels_WhereItsGroupPaintsAndWhereItDoesNot"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "TwoLayersWithTheSameDictionary_AreShownAndHiddenApart"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageReadingTests.cs",
+            "class": "PdfPageReadingTests",
+            "method": "AJpegTwoThousandImagesOwnOpacity_IsItsSoftMask"
+          }
+        ]
+      }
+    },
+    "media-jpeg2000-output": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000ImageTests.cs",
+            "class": "Jpeg2000ImageTests",
+            "method": "ChosenComponents_ArePackedAlone_AndOpacityReadsAsLevels"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "media-jpeg2000-output",
+    "pdf-render"
+  ]
+}

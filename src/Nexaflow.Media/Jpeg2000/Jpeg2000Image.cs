@@ -54,6 +54,29 @@ public sealed class Jpeg2000Image
     /// layout a PDF image's data has. Components smaller than the image are scaled to its size.
     /// </summary>
     public Memory<byte> ToPackedSamples() => SamplePacker.Pack(_image);
+
+    /// <summary>
+    /// <paramref name="components"/> packed as <see cref="ToPackedSamples()"/> packs them all, in the order given. With
+    /// <paramref name="premultipliedBy"/>, each sample is first divided by that opacity where it stands, undoing a
+    /// premultiplication: a sample under no opacity at all is 0.
+    /// </summary>
+    /// <exception cref="ArgumentException">A component is not one of this image's as it now stands.</exception>
+    public Memory<byte> ToPackedSamples(IReadOnlyList<Jpeg2000Component> components, Jpeg2000Component? premultipliedBy = null) =>
+        SamplePacker.Pack(_image, [.. components.Select(Own)], premultipliedBy is null ? null : Own(premultipliedBy));
+
+    /// <summary>
+    /// <paramref name="component"/> as levels, a byte a sample at the image's size, row by row: stretched as
+    /// <see cref="ToPackedSamples()"/> stretches a smaller component, and scaled from its precision so its largest value is
+    /// 255.
+    /// </summary>
+    /// <exception cref="ArgumentException">The component is not one of this image's as it now stands.</exception>
+    public byte[] ToLevels(Jpeg2000Component component) => SamplePacker.Levels(_image, Own(component));
+
+    /// <summary>The decoder's component behind <paramref name="component"/>, when it is still one of this image's.</summary>
+    private ImageComp Own(Jpeg2000Component component) =>
+        Array.IndexOf(_image.comps, component.Source) >= 0
+            ? component.Source
+            : throw new ArgumentException("The component is not one of this image's as it now stands.", nameof(component));
 }
 
 /// <summary>One plane of a decoded image.</summary>
@@ -76,4 +99,10 @@ public sealed class Jpeg2000Component
 
     /// <summary>The samples, row by row.</summary>
     public ReadOnlyMemory<int> Samples => _component.Data;
+
+    /// <summary>What the component holds: colour, unless the file's channel definitions say otherwise.</summary>
+    public Jpeg2000ChannelType ChannelType => (Jpeg2000ChannelType)_component.alpha;
+
+    /// <summary>The decoder's own component, for the image it belongs to.</summary>
+    internal ImageComp Source => _component;
 }
