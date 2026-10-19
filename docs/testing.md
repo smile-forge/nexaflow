@@ -299,12 +299,21 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   (`runs\`), the screenshots (`shots\`) and the agent's log. Drive it through the verbs, never by writing those files.
 - **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from your build and
   write `test-samples` and their results back exactly as on the host; your .NET, read-only; and the host's Visual C++
-    runtime, which the clean image lacks. Not the clipboard, printers or camera — and the microphone only with
-    `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+    runtime and Edge WebView2 runtime, which the clean image lacks. WebView2 is mapped read-only where a per-machine
+    install puts it, and the sandbox's `BrowserExecutableFolder` policy points every app at it — the loader finds no
+    runtime by that folder alone or by `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, but takes the policy — so the Web viewer and
+    its journeys run there. Not the clipboard, printers or camera — and the microphone only
+    with `start --audio`. It gets 16 GB unless `--memory` says otherwise.
   - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
     finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
     value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed
     as it is.
+- **Smart App Control follows the host.** The clean image boots with it on, which refuses an agent freshly built here,
+  unsigned and with no reputation yet. Off on your machine, `start` turns it off in the sandbox before the agent starts;
+  on, the sandbox keeps it, and a rebuild of the agent can be refused there.
+- **A `start` that gives up leaves the sandbox up.** Without an agent after four minutes it says so and exits, and the
+  sandbox and its window stay for you to look at; `stop` them. The window shares no handle with `start`, so a caller
+  reading `start`'s output sees it end when it ends.
 - **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
   `shot`, `tree` and `status` still answer, so a running journey can be watched.
 - **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox
