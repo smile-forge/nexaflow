@@ -28,12 +28,20 @@ public static class Jpeg2000Decoder
         };
 
         using var input = Readable(data);
-        if (!info.SetupDecoder(info.OpenCIO(input), parameters)) throw Failed("set up the decoder", error);
-        if (!info.ReadHeader(out var image) || image is null) throw Failed("read the header", error);
-        if (!info.Decode(image)) throw Failed("decode the image", error);
-        if (!info.EndDecompress()) throw Failed("end the decode", error);
+        try
+        {
+            if (!info.SetupDecoder(info.OpenCIO(input), parameters)) throw Failed("set up the decoder", error);
+            if (!info.ReadHeader(out var image) || image is null) throw Failed("read the header", error);
+            if (!info.Decode(image)) throw Failed("decode the image", error);
+            if (!info.EndDecompress()) throw Failed("end the decode", error);
 
-        return new Jpeg2000Image(image);
+            return new Jpeg2000Image(image);
+        }
+        catch (EndOfStreamException)
+        {
+            // A marker segment the data ends inside: the reader runs off the end where libopenjp2 checks the length.
+            throw new Jpeg2000Exception("the data ends before the image does");
+        }
     }
 
     /// <summary>A bare codestream starts with its SOC marker; a JP2 file with its 12-byte signature box.</summary>

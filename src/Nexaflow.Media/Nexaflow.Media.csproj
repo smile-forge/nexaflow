@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Components" />
   </ItemGroup>
 
 </Project>

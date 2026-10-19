@@ -182,7 +182,7 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Sandbox` | `net10.0-windows` exe | Not a test project: [runs the journeys in Windows Sandbox](#running-journeys-in-windows-sandbox) and drives the app there | FlaUI + `Nexaflow.Tests.Fixtures` **and nothing else** — like the journeys, it knows the app as a running process |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
+| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts`, `Nexaflow.Media` (codecs) | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info, USB devices and their live tools, the serial terminal | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
@@ -707,6 +707,14 @@ them:
   `SourceText`, `StructuralEdit`, XAML value highlighting.
 - **`Search/`** — `Nexaflow.Search`: the `?` bar's query syntax and term parsing (globs vs regex).
 - **`Elevation/`** — `Elevation.Contracts` DTO round-trips.
+- **`Media/`** — `Nexaflow.Media`'s JPEG 2000 decoder against images libopenjp2's `opj_compress` encoded
+  (`Media/Jpeg2000/Fixtures/`), each chosen for a part of the standard: precisions, subsampling, tiles off the
+  origin, precincts, every progression order, every code-block style, markers and tile-parts, the JP2 container, the
+  irreversible path. A lossless image must decode to exactly the source the tests regenerate; a lossy one to the hash
+  of what `opj_decompress` decodes it to (`expected.json`); a parallel decode to the serial one. The MQ coder is held
+  to ITU-T T.88's test sequence on its own. `Jpeg2000FixtureMaker` writes the fixtures and is inconclusive unless
+  `NEXAFLOW_OPENJPEG` names an OpenJPEG checkout built as `tools/bench/Run-JpxBench.ps1` builds it — run it after
+  changing `Jpeg2000Fixture.All`, and commit what it writes.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 

@@ -17,6 +17,10 @@
           "type": "code",
           "doc": "src/Nexaflow.Media/Jpeg2000/Jpeg2000Decoder.cs",
           "class": "Jpeg2000Decoder"
+        },
+        {
+          "type": "node",
+          "target": "media-jpeg2000"
         }
       ],
       "concerns": {
@@ -33,11 +37,199 @@
           }
         ]
       }
+    },
+    "media": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Nexaflow.Media.csproj"
+        }
+      ]
+    },
+    "media-jpeg2000": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Jpeg2000Decoder.cs",
+          "class": "Jpeg2000Decoder"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Media/Jpeg2000/README.md"
+        }
+      ]
+    },
+    "media-jpeg2000-codestream": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/J2K.cs",
+          "class": "J2K"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/JP2.cs",
+          "class": "JP2"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/Tier2Coding.cs",
+          "class": "Tier2Coding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/TagTree.cs",
+          "class": "TagTree"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "ALosslessImage_DecodesToTheSamplesItWasMadeFrom"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "AJp2File_SaysWhatColourSpaceItsComponentsAreIn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "DataThatIsNotJpeg2000_IsRefused"
+          }
+        ]
+      }
+    },
+    "media-jpeg2000-code-blocks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/Tier1Passes.cs",
+          "class": "Tier1Coding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/MQCoder.cs",
+          "class": "MQCoder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "ALosslessImage_DecodesToTheSamplesItWasMadeFrom"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/MqDecoderTests.cs",
+            "class": "MqDecoderTests"
+          }
+        ]
+      }
+    },
+    "media-jpeg2000-transforms": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/DWT.cs",
+          "class": "DWT"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/MCT.cs",
+          "class": "MCT"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/TileCoder.cs",
+          "class": "TileCoder",
+          "method": "DcLevelShiftDecode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "ALosslessImage_DecodesToTheSamplesItWasMadeFrom"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "AnImage_DecodesToWhatLibopenjp2DecodesItTo"
+          }
+        ]
+      }
+    },
+    "media-jpeg2000-output": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Jpeg2000Image.cs",
+          "class": "Jpeg2000Image"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/SamplePacker.cs",
+          "class": "SamplePacker"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000ImageTests.cs",
+            "class": "Jpeg2000ImageTests"
+          }
+        ]
+      }
+    },
+    "media-jpeg2000-threading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/TileCoder.cs",
+          "class": "TileCoder",
+          "method": "T1Decode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Jpeg2000/Internal/DWT.cs",
+          "class": "DWT",
+          "method": "InShares"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Jpeg2000/Jpeg2000DecoderTests.cs",
+            "class": "Jpeg2000DecoderTests",
+            "method": "AParallelDecode_GivesTheSerialDecodesSamples"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 14,
   "touched_nodes": [
+    "media",
+    "media-jpeg2000",
+    "media-jpeg2000-code-blocks",
+    "media-jpeg2000-codestream",
+    "media-jpeg2000-output",
+    "media-jpeg2000-threading",
+    "media-jpeg2000-transforms",
     "pdf-image-filters"
   ]
 }
