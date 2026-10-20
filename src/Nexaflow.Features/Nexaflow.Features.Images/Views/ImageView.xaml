@@ -50,14 +50,22 @@
                 </Setter>
             </Style>
 
-            <!-- Right-click → Delete menus (defined before the templates that reference them, so the
+            <!-- Right-click → Copy / Delete menus (defined before the templates that reference them, so the
                  top-down StaticResource lookup can resolve them). -->
-            <ContextMenu x:Key="ThumbDeleteMenu" x:Shared="False">
+            <ContextMenu x:Key="ThumbPictureMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Copy}"
+                          Command="{Binding PlacementTarget.Tag.CopyPictureCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                <Separator/>
                 <MenuItem Header="{loc:Str Images.Menu.Delete}"
                           Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                           CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             </ContextMenu>
-            <ContextMenu x:Key="CurrentDeleteMenu" x:Shared="False">
+            <ContextMenu x:Key="CurrentPictureMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Copy}"
+                          Command="{Binding PlacementTarget.DataContext.CopyPictureCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                <Separator/>
                 <MenuItem Header="{loc:Str Images.Menu.Delete}"
                           Command="{Binding PlacementTarget.DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                           CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
@@ -67,7 +75,7 @@
                  ItemContainerStyle; the card fills its container. Accent border on hover or when selected. -->
             <DataTemplate x:Key="ThumbCard" DataType="{x:Type vm:ImageThumbItem}">
                 <Border Cursor="Hand" BorderThickness="1.5" CornerRadius="4" ToolTip="{Binding FileName}"
-                        ContextMenu="{StaticResource ThumbDeleteMenu}"
+                        ContextMenu="{StaticResource ThumbPictureMenu}"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -646,7 +654,7 @@
                 </Grid.RowDefinitions>
 
                 <Grid x:Name="CarouselImageHost" Grid.Row="0" ClipToBounds="True" Background="Transparent"
-                      ContextMenu="{StaticResource CurrentDeleteMenu}" SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
+                      ContextMenu="{StaticResource CurrentPictureMenu}" SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
                     <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
                     <!-- Prev / Next -->
@@ -779,7 +787,7 @@
                 <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
 
                 <Grid x:Name="ExploreImageHost" Grid.Column="2" ClipToBounds="True" Background="{StaticResource BgBrush}"
-                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentDeleteMenu}"
+                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentPictureMenu}"
                       SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
                     <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
