@@ -24,7 +24,7 @@ and an inspector that tells you what an executable actually is.</p>
 <p>Elevated work goes through a privilege bridge, so a UAC prompt never arrives in the middle of
 something else.</p>
 </article>
-<section class="group"><h2>9 pages on this</h2><div class="cards"><a class="card" href="../help/console/">
+<section class="group"><h2>12 pages on this</h2><div class="cards"><a class="card" href="../help/console/">
   <h3>Console</h3>
   <p>Runs a Windows command prompt in a tab, and sends anything that isn&#39;t a command to the assistant.</p>
   <p class="badges"><span class="badge ai">AI Ready</span></p>
@@ -34,8 +34,8 @@ something else.</p>
   
 </a><a class="card" href="../help/windows-apps/">
   <h3>Installed Apps</h3>
-  <p>An &quot;Add or remove programs&quot; style tab: a sortable, filterable list of every installed Win32 and Microsoft Store app, with per-row uninstall, open-location and cleanup actions, plus AI context and tools.</p>
-  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+  <p>An “Add or remove programs” style tab: a sortable, filterable list of every installed Win32 and Microsoft Store app, with per-row uninstall, open-location and cleanup actions, plus AI context and tools.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
 </a><a class="card" href="../help/network/">
   <h3>Network</h3>
   <p>Network adapter list, layered LAN device discovery into one correlated device graph, device actions, connectivity tools and a topology view. Discovery layers ship as lazily-loaded subfeature plugins; protocols…</p>
@@ -51,20 +51,32 @@ something else.</p>
 </a><a class="card" href="../help/windows-registry/">
   <h3>Registry</h3>
   <p>A registry browser/editor tab: a hive-rooted key tree, a value list, in-tab create/rename/delete of keys and modify/new/delete of values (writes run in-process with an elevation-bridge fallback and…</p>
-  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/serial/">
+  <h3>Serial</h3>
+  <p>A terminal for any COM port: the line settings and DTR/RTS, connect and disconnect, a transcript of what came and went as text or hex with millisecond times, a line to send text or hex from (the first send on…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
 </a><a class="card" href="../help/system-services/">
   <h3>Services</h3>
   <p>Lists the Windows services on this machine and lets you start, stop and reconfigure them.</p>
   
 </a><a class="card" href="../help/system-info/">
   <h3>System Info</h3>
-  <p>Reports what this machine is: its Windows build, hardware, displays, disks and security settings.</p>
-  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+  <p>Reports what this machine is: its Windows build, hardware, displays, what it can run AI models on, disks and security settings.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/usb-probe/">
+  <h3>USB</h3>
+  <p>Every USB bus, hub, port and device on the machine as places to go, like folders in the file browser — a tree of the places that hold something, a listing of what the open place holds, and below it everything…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/usb-device/">
+  <h3>USB device</h3>
+  <p>One USB device on its own page: what it is, what you can do with it now, what it is made of, and what is wrong with it.</p>
+  
 </a></div></section>
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

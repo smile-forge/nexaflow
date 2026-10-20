@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serial — Nexaflow help</title>
+<meta name="description" content="A terminal for any COM port: a USB serial adapter, a development board, a modem, a virtual port.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Serial</h1>
+  <p class="lede">A terminal for any COM port: a USB serial adapter, a development board, a modem, a virtual port.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#connecting">Connecting</a></li><li><a href="#the-transcript">The transcript</a></li><li><a href="#sending">Sending</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="connecting">Connecting</h2>
+<ul>
+<li>Choose the port: each is listed with the device behind it. <span class="locate" title="In the app this points at Serial_Port">Show me</span></li>
+<li>Set the line to match the device — baud rate, data bits, parity, stop bits and flow control — then <span class="locate" title="In the app this points at Serial_Connect">Connect</span>. The settings stay fixed while connected, because both ends must agree.</li>
+<li><span class="locate" title="In the app this points at Serial_Dtr">DTR</span> and <span class="locate" title="In the app this points at Serial_Rts">RTS</span> set the two control lines. Many boards reset when DTR changes.</li>
+<li>If the device is unplugged while connected, the page says so and closes the port.</li>
+</ul>
+<h2 id="the-transcript">The transcript</h2>
+<ul>
+<li>What arrives is shown as it comes, one line per line the device sends; what you send is shown too. ← came in, → went out. <span class="locate" title="In the app this points at Serial_Transcript">Show me</span></li>
+<li><span class="locate" title="In the app this points at Serial_ShowHex">Show hex</span> shows the bytes instead of the text; <span class="locate" title="In the app this points at Serial_Times">Times</span> shows when each line arrived, to the millisecond.</li>
+<li>The transcript follows new lines unless you have scrolled up to look back.</li>
+<li><span class="locate" title="In the app this points at Serial_Save">Save…</span> writes the transcript, text and hex, to a file.</li>
+</ul>
+<h2 id="sending">Sending</h2>
+<ul>
+<li>Type in the line at the bottom and press Enter. <span class="locate" title="In the app this points at Serial_SendText">Show me</span></li>
+<li><span class="locate" title="In the app this points at Serial_LineEnding">The line ending</span> is added after text: none, CR, LF or CR LF.</li>
+<li>With <span class="locate" title="In the app this points at Serial_SendHex">Hex</span> on, what you type is sent as bytes: <code>02 10 FF</code>.</li>
+<li>The first send on each connection asks first: what you send goes straight to the device.</li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<ul>
+<li>The assistant sees the port, its settings and the end of the transcript, and can read more of it. Connecting and sending reach the device, so you approve each; it can wait for the reply to what it sent.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

@@ -19,7 +19,7 @@
   <h1>Images</h1>
   <p class="lede">Opens one picture, a selection, or every picture in a folder.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-pictures">Opening pictures</a></li><li><a href="#views">Views</a></li><li><a href="#moving-through-a-set">Moving through a set</a></li><li><a href="#slideshow-and-full-screen">Slideshow and full screen</a></li><li><a href="#rotating-scaling-and-the-collage">Rotating, scaling and the collage</a></li><li><a href="#deleting-and-the-assistant">Deleting and the assistant</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-pictures">Opening pictures</a></li><li><a href="#views">Views</a></li><li><a href="#moving-through-a-set">Moving through a set</a></li><li><a href="#details">Details</a></li><li><a href="#slideshow-and-full-screen">Slideshow and full screen</a></li><li><a href="#rotating-flipping-scaling-and-the-collage">Rotating, flipping, scaling and the collage</a></li><li><a href="#editing">Editing</a></li><li><a href="#converting-a-page-to-markdown">Converting a page to Markdown</a></li><li><a href="#deleting-and-the-assistant">Deleting and the assistant</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="opening-pictures">Opening pictures</h2>
 <ul>
@@ -27,7 +27,8 @@
 <li>Open several as one set: select them and choose <strong>As Image</strong>.</li>
 <li>A picture inside an archive opens the same way.</li>
 <li>Where a folder holds a fair share of pictures, its actions offer <strong>Slideshow</strong> and <strong>Album</strong>, taking that folder's pictures in name order.</li>
-<li>A format your machine has no codec for shows an empty frame.</li>
+<li>A picture that cannot be read says so in place of the picture.</li>
+<li>A JPEG or TIFF taken on its side is shown upright, the way its camera recorded it.</li>
 <li>The tab is named for the picture you opened, or counts the set, and the breadcrumb names the folder. <span class="locate" title="In the app this points at TabItem_Images">Show me</span></li>
 </ul>
 <h2 id="views">Views</h2>
@@ -44,32 +45,89 @@
 <li>The wheel steps to the next picture, except at actual size, where it pans instead.</li>
 <li>Jump to a picture: click its dot beneath the carousel. A long set shows twenty dots at a time, with arrows for the rest.</li>
 </ul>
+<h2 id="details">Details</h2>
+<ul>
+<li><strong>Details</strong> at the top left, or I, opens a panel beside the picture with what its file says about it: its name, type, size and dimensions; the camera and lens; the exposure — aperture, shutter speed, ISO, focal length and flash; when it was taken, by the camera's clock; where, from its GPS position; its description, author and copyright; and its colour profile. <span class="locate" title="In the app this points at Image_Details">Show me</span></li>
+<li>It follows the picture you are on, in every view and in the editor, and shows only what the file holds: a screenshot, or a picture saved without its details, has its file and nothing more. An edited picture also says the size it will be saved at.</li>
+<li>What it shows is what <strong>Save</strong> keeps, unless you choose in the save options to remove it.</li>
+</ul>
 <h2 id="slideshow-and-full-screen">Slideshow and full screen</h2>
 <ul>
 <li>Advance on a timer: turn on <strong>Auto</strong>. It loops back to the first picture at the end and runs in whichever view you are in. <span class="locate" title="In the app this points at Image_AutoAdvance, Image_AutoSpeed">Show me</span></li>
 <li>Set the speed with the slider: slow, medium or fast — a picture every ten seconds, four seconds, or one. A change takes effect straight away.</li>
 <li>The slideshow stops when you move to another tab and resumes when you come back.</li>
 <li>Fill the display: <span class="locate" title="In the app this points at Image_FullScreen">View full screen</span>. Move forward with Space, the right or down arrow, or a click; back with the left or up arrow, or a right-click. The wheel steps too.</li>
-<li>Esc returns to the tab on the picture you stopped at and stops the slideshow. A slideshow started before you went full screen keeps running, and anything you rotated stays rotated.</li>
+<li>Esc returns to the tab on the picture you stopped at and stops the slideshow. A slideshow started before you went full screen keeps running, and every picture is shown with its edits.</li>
 </ul>
-<h2 id="rotating-scaling-and-the-collage">Rotating, scaling and the collage</h2>
+<h2 id="rotating-flipping-scaling-and-the-collage">Rotating, flipping, scaling and the collage</h2>
 <ul>
-<li>Rotate in ninety-degree steps, or switch between fit and actual size, from the toolbar floating over the picture in the carousel and in Explore. At actual size the picture scrolls. <span class="locate" title="In the app this points at Image_RotateLeft, Image_RotateRight, Image_FitMode">Show me</span></li>
-<li>Rotating and rescaling change the display only. The file on disk is never changed.</li>
+<li>Rotate in ninety-degree steps, flip across or upside down, or switch between fit and actual size, from the toolbar floating over the picture in the carousel and in Explore. At actual size the picture scrolls. <span class="locate" title="In the app this points at Image_RotateLeft, Image_RotateRight, Image_FlipHorizontal, Image_FlipVertical, Image_FitMode">Show me</span></li>
+<li>A turn or a flip is an edit: it is remembered with the picture and undone with Ctrl+Z, like everything in the editor below. Fit and actual size change only the view.</li>
 <li>In the collage, drag anywhere to pan and use the wheel to zoom about the pointer. The chips in the corner offer minus, plus, <strong>Fit</strong> and <strong>1:1</strong>.</li>
 <li>An overview appears in the bottom right once the pile runs past the edges; drag inside it to move the view. Collage positions are kept when you leave and come back. Double-click a picture to open it in the carousel.</li>
 </ul>
+<h2 id="editing">Editing</h2>
+<p>Open the editor with <strong>Edit</strong> at the top right, with E, or from <strong>Edit</strong> among a picture's actions in the <a href="../file-system/">File System</a> page. The picture sits on a canvas you can pan and zoom, with six tools beside it in the order a picture is usually worked on — <strong>Crop</strong>, <strong>Adjust</strong>, <strong>Retouch</strong>, <strong>Cut out</strong>, <strong>Markup</strong> and <strong>Resize</strong> — each saying at the head of its panel what it is for. <span class="locate" title="In the app this points at Image_EditMode">Show me</span></p>
+<ul>
+<li>Edits never touch the file until you save. They are kept beside the picture in a hidden file named after it, and every view shows the picture with them applied — the carousel, the thumbnails, full screen, and what the assistant is shown. A picture with edits is marked <em>edited</em> beside its name.</li>
+<li><strong>Crop</strong> shows the whole picture with a frame over it. Drag the corners or edges, or drag inside to move it; it stops at the edge of the picture. Choose a shape — free, the picture's own, square, 4:3 or 16:9 — and flip it upright with <strong>Portrait</strong>. A rule-of-thirds grid helps placing. Enter applies the crop; Esc puts it back as it was when you opened the crop tool. <span class="locate" title="In the app this points at Image_EditToolCrop, Image_EditAspectFree, Image_EditAspectPortrait">Show me</span></li>
+<li><strong>Straighten</strong> with the slider, or turn on <strong>Level line</strong> and drag along something that should be level — a horizon, a shelf — or upright, and the picture turns to match. The crop shrinks to keep empty corners out of the picture, and grows back if you turn back. <span class="locate" title="In the app this points at Image_EditStraighten, Image_EditLevel">Show me</span></li>
+<li><strong>Adjust</strong> opens on the quick fixes: <strong>Auto enhance</strong> reads the picture and sets the sliders for you, so any of them can still be changed after. Below them are the light — exposure, contrast, highlights and shadows — and the colour — saturation, temperature and tint. Double-click a slider to reset it, or <strong>Reset</strong> them all. <span class="locate" title="In the app this points at Image_EditToolAdjust, Image_EditAuto">Show me</span></li>
+<li><strong>AI enhance</strong> cleans the picture up — softness, noise and JPEG blocks — with the picture tools on this machine, and repairs the faces in it as it goes; <strong>Strength</strong> mixes it with the picture as it was. The first time, the tools are a download of about 640 MB, offered in the banner above the picture. An enhanced picture is made once and kept, so coming back to it is instant. <span class="locate" title="In the app this points at Image_EditToolAdjust, Image_EditAiEnhance">Show me</span></li>
+<li><strong>Markup</strong> draws arrows, boxes, text, pen lines and highlighter. Pick a tool and drag on the picture; for text, click where it goes and type in the panel. <strong>Select</strong> picks an annotation to move it, restyle it or delete it with Del. Annotations stay on what they mark if you crop again later. <span class="locate" title="In the app this points at Image_EditToolMarkup, Image_EditMarkupArrow, Image_EditMarkupText">Show me</span></li>
+<li><strong>Cut out</strong> picks something out of the picture with picture selection on this machine: click the thing to keep,
+right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like “mug” or “child in a red
+vest”, and press <strong>Find</strong> to pick out every one. <strong>Copy</strong> puts it on the clipboard without its background, and
+<strong>Save cut-out</strong> saves it as a PNG, transparent around it and cropped to it; the picture itself is untouched. The first
+time, picture selection is a download of about 1.8 GB, offered above the picture. <span class="locate" title="In the app this points at Image_EditToolCutOut, Image_CutOutPhrase, Image_CutOutSave">Show me</span>
+<strong>Remove background</strong> keeps what is picked in the picture itself and makes everything else transparent — an edit like
+any other, undone or put back with <strong>Keep background</strong>. A JPEG can't be transparent, so it is then saved as a copy,
+offered as a PNG. <span class="locate" title="In the app this points at Image_EditToolCutOut, Image_CutOutRemoveBackground">Show me</span>
+<ul>
+<li><strong>Retouch</strong> rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
+to erase with <strong>Pick</strong>, which picks a thing as Cut out does, or with <strong>Brush</strong>: brush over it, and right-drag to take
+marking back. Anything picked is erased with what you brush, so pick a person and brush their shadow. Then choose how to
+fill it: <strong>AI</strong> fills from what is round it and is best where an edge or shape runs through what you erase; the first
+time it is a download of about 210 MB, offered above the picture. <strong>Content-aware</strong> copies the picture's own texture in,
+sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. <strong>Heal</strong> copies texture from where you
+Alt-click, matched to the light and colour round what you heal. <strong>Erase</strong> makes it one step of your edits — undone like
+any other — and a picture restored with AI enhance is restored as erased. <span class="locate" title="In the app this points at Image_EditToolRetouch, Image_EraseMarkBrush, Image_EraseFillAi, Image_EraseApply">Show me</span></li>
+</ul>
+</li>
+<li>Tools that need a model this PC hasn't downloaded yet — picking in <strong>Cut out</strong> and <strong>Retouch</strong>, <strong>AI fill</strong>, <strong>AI enhance</strong> and <strong>AI upscale</strong> — are greyed out until it is: hover one to see what it needs and how big the download is, and the bar above the picture offers the download while its panel is open. Until then <strong>Retouch</strong> opens on <strong>Brush</strong> and <strong>Content-aware</strong>, which need nothing. <span class="locate" title="In the app this points at Image_EditToolCutOut, Image_EditToolRetouch">Show me</span></li>
+<li><strong>Resize</strong> sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. <span class="locate" title="In the app this points at Image_EditToolResize">Show me</span></li>
+<li><strong>AI upscale</strong> makes the picture twice or four times its size with the picture tools, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. <span class="locate" title="In the app this points at Image_EditToolResize, Image_EditUpscaleTwice">Show me</span></li>
+<li><strong>Save options</strong>, beside <strong>Save as copy</strong>, choose whether saving keeps the camera details, location, dates and descriptions, or removes them, and set the quality of a JPEG or WebP. The colour profile is always kept. A dot on the button means Save has something to tell you — why this picture can only be saved as a copy, or what saving it will drop — said inside. <span class="locate" title="In the app this points at Image_EditSaveOptions">Show me</span></li>
+<li><strong>Undo</strong> and <strong>Redo</strong> step through everything you did to the picture while it has been open — a slider drag, a crop drag or a pen line counts as one step. <strong>Before</strong> shows the picture as it is on disk, to compare. <strong>Revert</strong> removes every edit, and can itself be undone. <span class="locate" title="In the app this points at Image_EditUndo, Image_EditRedo, Image_EditCompare, Image_EditRevert">Show me</span></li>
+<li><strong>Save</strong> writes the edits into the picture, after asking: the original pixels are replaced, the picture is saved upright, and its camera details are kept unless you chose to remove them. <strong>Save as copy</strong> writes a new file in the format its name asks for and leaves the original and its edits as they are. A picture inside an archive, an animated GIF or WebP, or an icon can only be saved as a copy. <span class="locate" title="In the app this points at Image_EditSave, Image_EditSaveCopy">Show me</span></li>
+<li><strong>Done</strong>, or Esc, leaves the editor; the edits stay. Ctrl+Z and Ctrl+Y undo and redo, and Ctrl+S and Ctrl+Shift+S save, while editing. <span class="locate" title="In the app this points at Image_EditDone">Show me</span></li>
+<li>In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. <strong>Revert edits</strong> appears among the actions of an edited picture.</li>
+<li>If a picture is changed by another program after you edited it, the viewer asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.</li>
+</ul>
+<h2 id="converting-a-page-to-markdown">Converting a page to Markdown</h2>
+<ul>
+<li>A picture of a page of writing — a scan, a photographed page, a form, a receipt — can be converted to Markdown. <strong>Convert to Markdown</strong> sits at the top right whenever the picture is one; until page reading is on this PC every picture offers it, with the download. <span class="locate" title="In the app this points at Image_ConvertToMarkdown">Show me</span></li>
+<li>A tinted line above the picture says how far the reading has got. <strong>Stop</strong> asks first: <strong>Show what's converted</strong> opens what has been read so far, <strong>Discard</strong> lets it go, and <strong>Keep converting</strong> carries on. Once it is read, the Markdown opens in the Markdown editor in the right-hand pane: columns as one text, headings, formulas as LaTeX, tables, and the page's figures cut out of it. A figure the workspace's image model can draw again as a diagram comes back as one.</li>
+<li>It reads the picture as you see it, edits and all, at its full size: crop to the page or straighten it first and it reads better. The reading is kept, so converting the same picture again opens at once.</li>
+<li>The Markdown is a draft to edit as you like. Its first save asks where to keep it — a Markdown Package, with its figures inside it, unless you pick a Markdown file.</li>
+<li>Page reading runs on this PC. The first time it is a download of about 4 GB, offered above the picture. <span class="locate" title="In the app this points at Image_ConvertToMarkdown, PageConversion_Download">Show me</span></li>
+</ul>
 <h2 id="deleting-and-the-assistant">Deleting and the assistant</h2>
 <ul>
-<li>Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file to the Recycle Bin and removes it from every view; the selection moves to what is left.</li>
-<li>The assistant can look at the picture you are on and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.</li>
+<li>Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin and removes it from every view; the selection moves to what is left.</li>
+<li>The assistant can look at the picture you are on, as edited, and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.</li>
+<li>The assistant works on the picture you are on, and nothing else: a picture is its to see or change only once you have it open.</li>
+<li>Ask the assistant to pick something out — “select the dog”, “find the woman with red hair” — and it opens the editor's Cut out with every one it found picked, ready to copy or save. Ask it to cut something out and it opens the cut-out in a new tab for you as a draft: <strong>Save as</strong> keeps it where you choose, starting beside the picture.</li>
+<li>A picture made for you — drawn by the assistant with nowhere asked to save it, or cut out — opens as a draft, with a strip over it saying it is not saved yet. <strong>Save as</strong> keeps it, with any edits you made to it, and the tab becomes that file; a draft you never save is kept only until Windows clears its temporary files. <span class="locate" title="In the app this points at Draft_SaveAs">Show me</span></li>
+<li>Ask the assistant to clean up or enlarge the picture, or to erase something from it — “remove the sign”, “get rid of the people in the background” — and it does it as one of your edits in the editor, which you can undo or save.</li>
+<li>Ask the assistant to read a page — “what does this letter say”, “type up this receipt” — and it reads the picture with page reading, its text opening beside it.</li>
 <li>In a conversation, this tab's context chip previews every image it holds.</li>
 </ul>
 </article>
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

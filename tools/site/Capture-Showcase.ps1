@@ -39,6 +39,13 @@ $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $Output) { $Output = Join-Path $repo 'docs/images/showcase' }
 
 $project = Join-Path $repo 'src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj'
+$app     = Join-Path $repo 'src/Nexaflow.Core/Nexaflow.Core.csproj'
+
+# The journeys start whatever Nexaflow.exe was last built in their own configuration and never build it, so a stale
+# Debug build would be photographed - and a theme newer than it drawn as Dark without a word.
+Write-Host 'Building the app...' -ForegroundColor Cyan
+dotnet build $app -c Debug --nologo | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "the app did not build (exit $LASTEXITCODE)" }
 
 Write-Host 'Building the journey suite...' -ForegroundColor Cyan
 dotnet build $project -c Debug --nologo | Out-Host
