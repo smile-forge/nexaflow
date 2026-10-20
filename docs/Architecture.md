@@ -10,7 +10,8 @@
 6. [Elevation / Privilege Bridge](#elevation--privilege-bridge)
 7. [Core Flows](#core-flows)
 8. [Large-file reading](#large-file-reading)
-9. [Architectural Findings](#architectural-findings)
+9. [Installer](#installer)
+10. [Architectural Findings](#architectural-findings)
 
 ---
 
@@ -786,6 +787,30 @@ re-rolling them.
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
 | One rectangular selection per window | `IO.Hdf5/PureHdf/PureHdfSource.cs` (`ReadBlock`) | N-D arrays: a table window is one hyperslab read, and `Hdf5Selection.Walk` streams a whole dataset in C order through bounded memory |
+
+---
+
+## Installer
+
+The installer is its own solution, `NexaflowSetup.slnx`: `nexaflowSetup` builds the MSI that carries the app (and fails
+on a broken product tree — `ValidateSnaplinks`), and `nexaflowBundle` the WiX Burn bundle released as the setup exe.
+The bundle's chain puts what the app needs from Windows in place before the MSI. Each prerequisite is an `ExePackage`
+whose installer is downloaded only when a registry search finds the machine without it; it is permanent (uninstalling
+Nexaflow leaves it) and vital (a failure stops the chain before the MSI).
+
+| Prerequisite | Needed by | Detected by |
+|---|---|---|
+| .NET 10 Desktop Runtime (x64) | the app, which is framework-dependent | the bundled patch's value under `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App`, 32-bit view |
+| Visual C++ v14 Redistributable (x64) | the native libraries — llama.cpp, ONNX Runtime and onnxruntime-genai in the AI host, whisper, assimp — which import `vcruntime140`, `msvcp140` and `vcomp140`; a clean Windows has none of them | `Installed` = 1 and a minimum `Minor` under `HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64`, 64-bit view |
+
+A DLL needs a Visual C++ runtime at least as new as the toolset that linked it, so the minimum is the newest linker
+version in those DLLs' PE headers; a native dependency built with a newer toolset raises it in `Bundle.wxs`. Every
+payload is pinned by hash, size and version to a versioned download URL, never a permanent `aka.ms` link: Burn refuses
+a download whose hash differs, and a permanent link moves to each new release. Exit code 1638 (a same-or-newer version
+is already installed) counts as success, and 3010 schedules a reboot.
+
+`Nexaflow.Tests.Sandbox` copies the host's Visual C++ runtime into the sandbox so it can run the app, so a missing
+prerequisite does not show there; checking a clean install of the bundle takes a plain `.wsb` sandbox.
 
 ---
 
