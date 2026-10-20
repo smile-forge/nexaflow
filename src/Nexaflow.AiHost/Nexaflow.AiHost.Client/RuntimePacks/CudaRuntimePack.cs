@@ -46,11 +46,4 @@ public static class CudaRuntimePack
         }
         return folder;
     }
-
-    /// <summary>Fetches whatever of the pack is missing and returns its folder.</summary>
-    public static async Task<string> EnsureAsync(IModelAssetStore store, IProgress<AssetProgress>? progress, CancellationToken ct)
-    {
-        var paths = await store.EnsureAllAsync(Files, progress, ct);
-        return Path.GetDirectoryName(paths[0])!;
-    }
 }

@@ -63,7 +63,6 @@ PlaceholderPage_Headline
 
 # src/Nexaflow.Core/Views/SetupWizardWindow.xaml
 WizardBackButton
-WizardSkipButton
 
 # src/Nexaflow.Features/Nexaflow.Features.Audio/Controls/AudioMiniTransport.xaml
 Audio_Chrome_Next

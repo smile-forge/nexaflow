@@ -473,6 +473,27 @@ public sealed class WorkspaceManager
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /// <summary>
+    /// Folds a grid saved before the Local column's models on this machine into it, once, and turns the Local column on where this
+    /// machine runs a model; each job it is used for keeps a model the job offers here. Nothing is downloaded. Saved when it
+    /// changed — before the workspace runs, the setup wizard does it so it can offer what the column now needs.
+    /// </summary>
+    /// <returns>Whether the grid changed.</returns>
+    internal static bool FoldInLocalColumns(Workspace workspace, ProviderSet providers)
+    {
+        var folded = LocalColumns.Gather(workspace.AiConfig, providers.IsLocal);
+        if (ProviderManager.Instance.Assets is { } assets)
+        {
+            var shelf = new LocalModelShelf(providers, assets);
+            IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)
+                => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o), o.Model.Tier == LocalColumns.TierOf(slot)))];
+            folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
+            folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
+        }
+        if (folded) ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        return folded;
+    }
+
+    /// <summary>
     /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
     /// columns, swaps it in (acquire-before-release, so the pool warms newly-needed models and cools
     /// dropped ones), and re-registers the execution instances into the AIService keyed by column id.
@@ -484,21 +505,8 @@ public sealed class WorkspaceManager
         var fresh = ProviderManager.Instance.AcquireProviderSet(
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
 
-        // A grid saved before the Local column has its models on this machine folded into it, once, and the Local column
-        // turned on where this machine runs a model; each job it is used for keeps a model the job offers here. It is
-        // saved so.
-        var folded = LocalColumns.Gather(workspace.AiConfig, fresh.IsLocal);
-        if (ProviderManager.Instance.Assets is { } assets)
+        if (FoldInLocalColumns(workspace, fresh))
         {
-            var shelf = new LocalModelShelf(fresh, assets);
-            IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)
-                => [.. shelf.OptionsFor(slot).Select(o => (o.Column(), o.Runs, shelf.IsReady(o), o.Model.Tier == LocalColumns.TierOf(slot)))];
-            folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
-            folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
-        }
-        if (folded)
-        {
-            ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
             var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
             ProviderManager.Instance.ReleaseProviderSet(fresh);
             fresh = again;
@@ -518,7 +526,7 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>
-    private static IReadOnlyList<ProviderModelPair> AssignedColumns(AiConfig cfg)
+    internal static IReadOnlyList<ProviderModelPair> AssignedColumns(AiConfig cfg)
     {
         var assigned = cfg.AssignedColumnIds();
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];

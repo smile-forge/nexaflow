@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -177,6 +178,96 @@ public class ModelAssetStoreTests
         await Assert.ThrowsExactlyAsync<InvalidDataException>(() => store.EnsureAllAsync([asset]));
 
         Assert.IsNull(store.Locate(asset));
+    }
+
+    // ── Room on the drive ─────────────────────────────────────────────────
+
+    /// <summary>A drive with <paramref name="free"/> bytes left, as <see cref="SaveRoom.For"/> would read it.</summary>
+    private static Func<string, long, SaveRoom> Drive(long free)
+        => (path, bytes) => new SaveRoom(path, bytes, free, null, null, SaveTrouble.None);
+
+    [TestMethod]
+    public async Task AFetchTheDriveHasNoRoomFor_IsRefusedBeforeAByteComes_SayingWhatItNeedsAndWhatIsFree()
+    {
+        var server = new Server();
+        var store  = new ModelAssetStore(_root, [], new HttpClient(server), weigh: Drive(Weights.Length - 1));
+
+        var refused = await Assert.ThrowsExactlyAsync<ModelRoomException>(() => store.EnsureAsync(Asset));
+
+        Assert.AreEqual(0, server.Requests);
+        Assert.AreEqual(((long)Weights.Length, (long?)Weights.Length - 1, 1L), (refused.Room.Bytes, refused.Room.Free, refused.Room.Shortfall));
+        Assert.AreEqual(Path.GetPathRoot(_root), refused.Room.Drive);
+        Assert.IsNull(store.Locate(Asset));
+    }
+
+    [TestMethod]
+    public async Task AFetchThatFits_IsMade()
+    {
+        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), weigh: Drive(Weights.Length));
+
+        await store.EnsureAsync(Asset);
+
+        Assert.IsNotNull(store.Locate(Asset));
+        Assert.AreEqual(0, store.RoomFor([Asset]).Bytes, "what is here takes no more room");
+    }
+
+    [TestMethod]
+    public void AnArchive_IsWeighedWhole_BesideTheEntriesUnpackedFromIt()
+    {
+        var store  = new ModelAssetStore(_root, [], new HttpClient(new ArchiveServer(Wheel)), weigh: Drive(1_000_000));
+        var cublas = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
+        var cudnn  = Packed("cudnn.dll", "nvidia/bin/cudnn.dll", Cudnn, Wheel);
+
+        Assert.AreEqual(Wheel.Length + Cublas.Length + Cudnn.Length, store.RoomFor([cublas, cudnn, cublas]).Bytes,
+                        "it is staged in .downloads until its entries are out, and a file asked for twice counts once");
+    }
+
+    [TestMethod]
+    public void WhatAnInterruptedDownloadKept_TakesNoMoreRoom()
+    {
+        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), weigh: Drive(1_000_000));
+        var path  = Path.Combine(_root, Asset.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path + ".partial", Weights[..10_000]);
+
+        Assert.AreEqual(Weights.Length - 10_000, store.RoomFor([Asset]).Bytes, "the rest is all it asks for");
+    }
+
+    /// <summary>Holds every answer until <see cref="Release"/> — a download under way.</summary>
+    private sealed class HeldServer : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _asked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Asked => _asked.Task;
+
+        public void Release() => _held.TrySetResult();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            _asked.TrySetResult();
+            await _held.Task;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Weights) };
+        }
+    }
+
+    [TestMethod]
+    public async Task AFetchUnderWay_HoldsItsRoom_AgainstTheNext_ButAFileItFetchesCountsOnce()
+    {
+        var server = new HeldServer();
+        var store  = new ModelAssetStore(_root, [], new HttpClient(server), weigh: Drive(Weights.Length + Wheel.Length));
+        var cublas = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
+
+        var first = store.EnsureAsync(Asset);
+        await server.Asked;
+
+        Assert.AreEqual(Weights.Length, store.RoomFor([Asset]).Bytes, "the same file, already being fetched");
+        Assert.AreEqual(Weights.Length + Wheel.Length + Cublas.Length, store.RoomFor([cublas]).Bytes, "beside what the first still needs");
+        await Assert.ThrowsExactlyAsync<ModelRoomException>(() => store.EnsureAsync(cublas), "both would not fit");
+
+        server.Release();
+        await first;
+        Assert.AreEqual(0, store.RoomFor([Asset]).Bytes);
     }
 
     /// <summary>Records reports as they are made — <see cref="Progress{T}"/> would post them to a context later.</summary>

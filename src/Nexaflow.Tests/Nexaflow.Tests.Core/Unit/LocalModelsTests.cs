@@ -225,6 +225,72 @@ public class LocalModelsTests
 
     // ── The grid's Local column ───────────────────────────────────────────
 
+    // ── What a set of models comes to ─────────────────────────────────────
+
+    private static LocalModelOption OptionOf(Setup setup, LocalSlot slot, CatalogModel model)
+        => setup.Shelf.OptionsFor(slot).Single(o => o.Id == model.Id);
+
+    [TestMethod]
+    public void ThePlan_ListsEachModelNotHere_AndTheRuntimeTheyShare_Once()
+    {
+        var setup = Open();
+
+        var plan = LocalDownloadPlan.For([OptionOf(setup, LocalSlot.Language, E4b), OptionOf(setup, LocalSlot.ImageGeneration, Z)], _store);
+
+        CollectionAssert.AreEqual(new[] { ("E4B", 6_000L), ("Z", 5_000L), ("CUDA runtime", 3_000L) }, plan.Rows.Select(r => (r.Name, r.Bytes)).ToArray());
+        Assert.IsNull(plan.Rows[^1].Option, "the runtime comes with the models");
+        Assert.AreEqual(14_000, plan.Bytes, "the runtime both need is counted once");
+        Assert.AreEqual(14_000, plan.Room.Bytes);
+    }
+
+    [TestMethod]
+    public async Task ThePlan_LeavesOutWhatIsHere()
+    {
+        var setup = Open();
+        await _store.EnsureAllAsync([.. Cuda.Files, .. Z.Files]);
+
+        var plan = LocalDownloadPlan.For([OptionOf(setup, LocalSlot.Language, E4b), OptionOf(setup, LocalSlot.ImageGeneration, Z)], _store);
+
+        CollectionAssert.AreEqual(new[] { "E4B" }, plan.Rows.Select(r => r.Name).ToArray(), "a model all here has no row, nor a runtime that is here");
+        Assert.AreEqual(6_000, plan.Bytes);
+    }
+
+    [TestMethod]
+    public void ThePlan_SaysWhatTheDriveIsShort()
+    {
+        _store = new ModelAssetStore(_root, [], new HttpClient(_server), weigh: (path, bytes) => new(path, bytes, 10_000, null, null, Nexaflow.IO.Common.SaveTrouble.None));
+        var setup = Open();
+
+        var plan = LocalDownloadPlan.For([OptionOf(setup, LocalSlot.Language, E4b), OptionOf(setup, LocalSlot.ImageGeneration, Z)], _store);
+
+        Assert.IsFalse(plan.Room.Fits);
+        Assert.AreEqual(4_000, plan.Room.Shortfall);
+    }
+
+    [TestMethod]
+    public async Task TheModelsAwaited_AreThoseTheLocalColumnHoldsInRowsThatUseIt_NotHereYet()
+    {
+        var setup = Open();
+        LocalSlot[] slots = [LocalSlot.Language, LocalSlot.SpeechToText, LocalSlot.TextToSpeech];
+
+        CollectionAssert.AreEqual(new[] { "small" }, LocalDownloadPlan.Awaited(setup.Config, setup.Shelf, slots).Select(o => o.Id).ToArray(),
+                                  "the speech job's model; the language job has none chosen");
+
+        await _store.EnsureAllAsync([.. Small.Files]);
+        Assert.AreEqual(0, LocalDownloadPlan.Awaited(setup.Config, setup.Shelf, slots).Count);
+    }
+
+    [TestMethod]
+    public void TheGrid_OffersNoDownloadTheDriveHasNoRoomFor_AndSaysWhy()
+    {
+        _store = new ModelAssetStore(_root, [], new HttpClient(_server), weigh: (path, bytes) => new(path, bytes, 1_000, null, null, Nexaflow.IO.Common.SaveTrouble.None));
+
+        var grid = Open().Grid;
+
+        Assert.IsFalse(grid.CanDownloadLocal);
+        StringAssert.StartsWith(grid.LocalNotice, "Shell.Ai.Room.ShortFormat", "the refusal, as Tests.Core reads a key with no table loaded");
+    }
+
     [TestMethod]
     public void TheLocalColumn_ComesFirst_AndCannotBeRemoved()
     {

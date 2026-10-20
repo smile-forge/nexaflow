@@ -407,14 +407,21 @@ maps roles to models:
   cannot run it; choosing one that is not here downloads it with its runtime first, the job keeping its model meanwhile,
   and a job no row used starts on it in every row. Downloads are the app's (`LocalModelDownloads`): one for each model
   however many jobs or workspaces chose it, going on after the page closes and shown again when it opens, with about how
-  long is left read from the last few seconds' speed. The setup wizard starts the downloads of what it chose. The
+  long is left read from the last few seconds' speed. The setup wizard asks who runs a new workspace's AI — Nexaflow's
+  own models or a cloud provider, the two together being set per ability in the grid later — and, for its own models,
+  shows a **Download models** step: the language model, speech in and speech out with the runtime they share, each with
+  what it adds to the download (files on disk left out, the CUDA pack once), the room it takes on the store's drive and
+  what is free, then *Download now* (the app's downloads, followed in the step, going on after the wizard closes) or
+  *Later* (each model offering its download on first use). Where the drive is short only *Later* is offered. After an
+  update, the same step offers what every workspace's Local column now holds and lacks, each model once
+  (`LocalDownloadPlan`). Pictures, video and the picture tools are offered on first use. The
   Downloaded models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are
   never a provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
   the machine's GPUs is listed greyed, never chosen.
 
-In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
-to the owned model, which is where API cost actually goes.
+In a workspace that mixes both — set up in the grid, not the wizard — the frequent, cheap roles — Disambiguation, tool
+ranking, Analysis, ImageRecognition — default to the owned model, which is where API cost actually goes.
 
 ### Light work here, heavy work elsewhere
 
