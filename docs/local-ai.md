@@ -881,8 +881,7 @@ Phase 1 is useful on its own — streaming improves the cloud path before any lo
 - onnxruntime-genai's Engine (paged KV, prefix caching, continuous batching) is in its C API only; C# would need our
   own P/Invoke layer. The `Generator` API works without it.
 - onnxruntime-genai defects above; exports per execution provider; architecture support lagging releases. Media on a
-  continuing generator is unsupported in 0.17.1 (an image mid-conversation is dropped without an error) — worth an
-  upstream issue, with the Whisper builder's turbo fix as an upstream PR.
+  continuing generator is unsupported in 0.17.1 (an image mid-conversation is dropped without an error).
 - Every diffusion and music model needs a hand-written C# pipeline (scheduler, tokenizer, sampler).
 - Licences do not block a non-commercial project. espeak-ng (GPL) runs only in our build; whether its generated
   pronunciations may ship as data is worth confirming — Wiktionary's IPA (CC BY-SA, as Crane uses for German) is the

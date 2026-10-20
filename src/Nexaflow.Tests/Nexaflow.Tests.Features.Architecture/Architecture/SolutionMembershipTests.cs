@@ -30,12 +30,23 @@ public class SolutionMembershipTests
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Repo project files matching <paramref name="pattern"/> (under <paramref name="underDir"/> if given),
-    /// repo-relative + forward slashes, excluding build output and the nested git worktrees under .claude/.</summary>
+    /// repo-relative + forward slashes. Build output and the nested git worktrees under .claude/ are never entered, so the
+    /// walk stays the size of the repository however many worktrees sit inside it.</summary>
     private static IReadOnlyList<string> RepoProjects(string pattern, string underDir = "")
-        => Directory.GetFiles(string.IsNullOrEmpty(underDir) ? Root : Path.Combine(Root, underDir), pattern, SearchOption.AllDirectories)
-                    .Select(p => Path.GetRelativePath(Root, p).Replace('\\', '/'))
-                    .Where(rel => !rel.Split('/').Any(seg => SkipSegments.Contains(seg, StringComparer.OrdinalIgnoreCase)))
-                    .ToList();
+    {
+        var found = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(string.IsNullOrEmpty(underDir) ? Root : Path.Combine(Root, underDir));
+        while (pending.Count > 0)
+        {
+            var dir = pending.Pop();
+            found.AddRange(Directory.EnumerateFiles(dir, pattern).Select(p => Path.GetRelativePath(Root, p).Replace('\\', '/')));
+            foreach (var sub in new DirectoryInfo(dir).EnumerateDirectories())
+                if (!sub.Attributes.HasFlag(FileAttributes.ReparsePoint) && !SkipSegments.Contains(sub.Name, StringComparer.OrdinalIgnoreCase))
+                    pending.Push(sub.FullName);
+        }
+        return found;
+    }
 
     [TestMethod]
     public void Every_source_project_is_listed_in_the_app_solution()

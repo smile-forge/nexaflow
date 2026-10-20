@@ -128,9 +128,9 @@ finishes it from whatever state it is in.
 ## usb.ids licence
 
 `external/usbids` mirrors linux-usb.org's `usb.ids`, which linux-usb.org offers under GPL-2.0-or-later **or**
-BSD-3-Clause; Nexaflow (Unlicense) embeds it under BSD-3-Clause. The mirror's own `LICENSE` file is GPL-3.0, which
-is not one of those two — **open:** confirm with the maintainer that the mirror carries the file under its
-original dual licence before a release ships it. A newer copy is downloaded from linux-usb.org itself
+BSD-3-Clause; Nexaflow (Unlicense) embeds it under BSD-3-Clause. The upstream mirror's GPL-3.0 `LICENSE` is the
+mirror's, not the database's; our fork's `LICENSE` replaces it with linux-usb.org's statement and the BSD-3-Clause
+text. A newer copy is downloaded from linux-usb.org itself
 (`UsbIdsStore`), under the same BSD-3-Clause option — at most monthly when the USB page opens, or from Options → USB.
 linux-usb.org's HTTPS certificate names another host on the same server, so a handshake that fails on the host name
 and nothing else falls back to `http://www.linux-usb.org/usb.ids`; any other certificate failure is a failure. The
