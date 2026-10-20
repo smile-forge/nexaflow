@@ -3,6 +3,7 @@ using System.Net.Http;
 using Nexaflow.IO.Common.Downloads;
 using Nexaflow.Providers.Common;
 using System.IO.Compression;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Core.Services;
 
@@ -27,15 +28,26 @@ public sealed class ModelAssetStore : IModelAssetStore
     private readonly HttpClient            _http;
     private readonly bool                  _downloadsAllowed;
     private readonly Dictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, long, SaveRoom> _weigh;
+
+    /// <summary>The room each fetch under way still needs, by what it fetches — a file, or an archive with the entries kept
+    /// from it — so fetches running side by side are weighed together, and a file two of them want counts once.</summary>
+    private readonly Dictionary<string, Claim> _claims = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
     /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
-    public ModelAssetStore(string root, IReadOnlyList<string> adoptFrom, HttpClient? http = null, bool downloadsAllowed = true)
+    /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
+    /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
+    /// <param name="weigh">What writing a number of bytes under a path comes to on its drive; <see cref="SaveRoom.For"/> unless a
+    /// test stands in for the drive.</param>
+    public ModelAssetStore(string root, IReadOnlyList<string> adoptFrom, HttpClient? http = null, bool downloadsAllowed = true,
+                           Func<string, long, SaveRoom>? weigh = null)
     {
         _root             = root;
         _adoptFrom        = adoptFrom;
         _http             = http ?? SharedHttp;
         _downloadsAllowed = downloadsAllowed;
+        _weigh            = weigh ?? ((path, bytes) => SaveRoom.For(path, bytes));
     }
 
     /// <summary><c>NEXAFLOW_AI_DIR</c>, or <c>%LOCALAPPDATA%\Smile\nexaflow\ai</c>.</summary>
@@ -63,17 +75,114 @@ public sealed class ModelAssetStore : IModelAssetStore
                                                       CancellationToken ct = default)
         => Task.Run(() => FetchMissingAsync(assets, progress, ct), ct);
 
+    /// <summary>
+    /// What fetching <paramref name="assets"/> would take on the store's drive at its fullest, beside every fetch under way: each
+    /// file not here, less what an interrupted download of it kept, and each archive whole beside the entries unpacked from it —
+    /// it is staged in <c>.downloads</c> until they are out. Every fetch is refused with this when it does not fit.
+    /// </summary>
+    public ModelRoom RoomFor(IEnumerable<ModelAsset> assets)
+    {
+        var claims = Claims(Missing(assets));
+        lock (_claims) return Weigh(claims);
+    }
+
+    /// <summary>The assets not here, each once.</summary>
+    private List<ModelAsset> Missing(IEnumerable<ModelAsset> assets)
+        => [.. assets.Where(a => Locate(a) is null).DistinctBy(a => a.RelativePath, StringComparer.Ordinal)];
+
+    /// <summary>What fetching <paramref name="missing"/> claims of the drive: one claim for each file published on its own, and one
+    /// for each archive with the entries kept from it, each counting what an interrupted download of it already wrote.</summary>
+    private List<(string Key, Claim Claim)> Claims(IReadOnlyList<ModelAsset> missing)
+    {
+        var claims = missing.Where(a => a.Archive is null)
+                            .Select(a => (LooseKey(a), new Claim(a.Size, PartialLength(PathOf(a)))))
+                            .ToList();
+        foreach (var entries in missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256, StringComparer.OrdinalIgnoreCase))
+        {
+            var archive = entries.First().Archive!;
+            claims.Add((ArchiveKey(entries.Key), new Claim(archive.ArchiveSize + entries.Sum(e => e.Size), PartialLength(ArchivePath(archive)))));
+        }
+        return claims;
+    }
+
+    /// <summary>The room <paramref name="claims"/> take beside every fetch under way — a claim one of them holds already counted
+    /// once. Called holding <see cref="_claims"/>.</summary>
+    private ModelRoom Weigh(IReadOnlyList<(string Key, Claim Claim)> claims)
+    {
+        long bytes = _claims.Values.Sum(c => c.Left) + claims.Where(c => !_claims.ContainsKey(c.Key)).Sum(c => c.Claim.Left);
+        return ModelRoom.Of(_weigh(Path.Combine(_root, ".downloads"), bytes));
+    }
+
+    /// <summary>Holds <paramref name="claims"/> against the drive's room for a fetch — sharing any another fetch holds — or refuses
+    /// the fetch when they do not fit beside the rest.</summary>
+    /// <exception cref="ModelRoomException">They do not fit.</exception>
+    private Dictionary<string, Claim> Take(IReadOnlyList<(string Key, Claim Claim)> claims)
+    {
+        lock (_claims)
+        {
+            var room = Weigh(claims);
+            if (!room.Fits) throw new ModelRoomException(room);
+            var held = new Dictionary<string, Claim>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, claim) in claims)
+            {
+                if (!_claims.TryGetValue(key, out var holding)) _claims[key] = holding = claim;
+                holding.Holders++;
+                held[key] = holding;
+            }
+            return held;
+        }
+    }
+
+    private void Release(Dictionary<string, Claim> held)
+    {
+        lock (_claims)
+            foreach (var (key, claim) in held)
+                if (--claim.Holders == 0) _claims.Remove(key);
+    }
+
+    private static string LooseKey(ModelAsset asset) => "file:" + asset.RelativePath;
+
+    private static string ArchiveKey(string archiveSha256) => "zip:" + archiveSha256;
+
+    private string ArchivePath(ArchiveEntry archive) => Path.Combine(_root, ".downloads", archive.ArchiveSha256 + ".zip");
+
+    /// <summary>What an interrupted download to <paramref name="path"/> kept, which the next one resumes from.</summary>
+    private static long PartialLength(string path) => new FileInfo(path + ".partial") is { Exists: true } partial ? partial.Length : 0;
+
+    /// <summary>Room one fetch holds on the drive: what it will have written there at its fullest, and how much of that is written
+    /// already — the drive's free space has paid for that part.</summary>
+    private sealed class Claim(long bytes, long written)
+    {
+        private long _written = written;
+
+        /// <summary>The fetches holding it; it is let go when the last ends.</summary>
+        public int Holders;
+
+        public long Left => Math.Max(0, bytes - Volatile.Read(ref _written));
+
+        /// <summary>Takes how much of it is written, as its download reports.</summary>
+        public void Wrote(long received) => Volatile.Write(ref _written, received);
+    }
+
+    /// <summary>Fetches what is missing of <paramref name="assets"/> once the drive is known to have room for it, holding that
+    /// room against other fetches until it ends.</summary>
+    /// <exception cref="ModelRoomException">The drive has too little room left; nothing was fetched.</exception>
     private async Task<IReadOnlyList<string>> FetchMissingAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress, CancellationToken ct)
     {
-        var missing = assets.Where(a => Locate(a) is null).Distinct().ToList();
+        var missing = Missing(assets);
         var loose   = missing.Where(a => a.Archive is null).ToList();
-        var packed  = missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256).ToList();
+        var packed  = missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256, StringComparer.OrdinalIgnoreCase).ToList();
 
-        var tally = new ProgressTally(loose.Sum(a => a.Size) + packed.Sum(g => g.First().Archive!.ArchiveSize), progress);
-        foreach (var asset in loose)
-            await EnsureLooseAsync(asset, tally.Next(asset.Size), ct);
-        foreach (var archive in packed)
-            await EnsurePackedAsync([.. archive], tally.Next(archive.First().Archive!.ArchiveSize), ct);
+        var held = Take(Claims(missing));
+        try
+        {
+            var tally = new ProgressTally(loose.Sum(a => a.Size) + packed.Sum(g => g.First().Archive!.ArchiveSize), progress);
+            foreach (var asset in loose)
+                await EnsureLooseAsync(asset, tally.Next(asset.Size, held[LooseKey(asset)]), ct);
+            foreach (var archive in packed)
+                await EnsurePackedAsync([.. archive], tally.Next(archive.First().Archive!.ArchiveSize, held[ArchiveKey(archive.Key)]), ct);
+        }
+        finally { Release(held); }
 
         return [.. assets.Select(a => Locate(a) ?? throw new InvalidDataException($"{a.RelativePath} did not arrive."))];
     }
@@ -107,7 +216,7 @@ public sealed class ModelAssetStore : IModelAssetStore
     private async Task EnsurePackedAsync(IReadOnlyList<ModelAsset> entries, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         var archive     = entries[0].Archive!;
-        var archivePath = Path.Combine(_root, ".downloads", archive.ArchiveSha256 + ".zip");
+        var archivePath = ArchivePath(archive);
         var gate = LockFor(archivePath);
         await gate.WaitAsync(ct);
         try
@@ -157,19 +266,23 @@ public sealed class ModelAssetStore : IModelAssetStore
         Changed?.Invoke(this, asset);
     }
 
-    /// <summary>One progress bar over several downloads: each reports its own bytes, counted after those before it. Each
-    /// report is passed on as it is made, in order — the caller's own <see cref="Progress{T}"/> moves it to the caller's
-    /// thread; a second hop here would let reports overtake each other, and the last arrive after the fetch had ended.</summary>
+    /// <summary>One progress bar over several downloads: each reports its own bytes, counted after those before it, and what it has
+    /// written to the room its fetch holds. Each report is passed on as it is made, in order — the caller's own
+    /// <see cref="Progress{T}"/> moves it to the caller's thread; a second hop here would let reports overtake each other, and the
+    /// last arrive after the fetch had ended.</summary>
     private sealed class ProgressTally(long total, IProgress<AssetProgress>? progress)
     {
         private long _before;
 
-        public IProgress<DownloadProgress>? Next(long size)
+        public IProgress<DownloadProgress> Next(long size, Claim claim)
         {
-            if (progress is null) return null;
             long before = _before;
             _before += size;
-            return new Forward(p => progress.Report(new AssetProgress(before + p.Received, total)));
+            return new Forward(p =>
+            {
+                claim.Wrote(p.Received);
+                progress?.Report(new AssetProgress(before + p.Received, total));
+            });
         }
 
         private sealed class Forward(Action<DownloadProgress> report) : IProgress<DownloadProgress>

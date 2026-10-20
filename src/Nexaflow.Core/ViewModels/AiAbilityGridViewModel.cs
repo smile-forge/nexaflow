@@ -361,8 +361,9 @@ public partial class AiAbilityGridViewModel : ObservableObject
             return;
         }
 
-        var bytes = missing.SelectMany(o => o.Needs).Where(f => _shelf.Store.Locate(f) is null).DistinctBy(f => f.RelativePath).Sum(f => f.Size);
-        LocalNotice      = Str.Format("Shell.Config.AiGrid.Local.MissingFormat", SizeFormatter.FormatBytes(bytes));
+        var plan = LocalDownloadPlan.For(missing, _shelf.Store);
+        if (!plan.Room.Fits) { (LocalNotice, CanDownloadLocal) = (plan.Room.Refusal, false); return; }
+        LocalNotice      = Str.Format("Shell.Config.AiGrid.Local.MissingFormat", SizeFormatter.FormatBytes(plan.Bytes));
         CanDownloadLocal = _downloads is not null;
     }
 

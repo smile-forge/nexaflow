@@ -9,6 +9,7 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -47,27 +48,28 @@ public sealed partial class WizardProviderPickContent : ObservableObject
     [ObservableProperty] private string? _selectedProvider;
 }
 
-/// <summary>The choice of who runs the workspace's AI, with what Nexaflow's own model costs to fetch.</summary>
+/// <summary>The choice of who runs the workspace's AI: Nexaflow's own models, or a cloud provider — the two together are set
+/// up later, per ability, in the workspace's AI settings.</summary>
 public sealed partial class WizardHarnessContent : ObservableObject
 {
-    public WizardHarnessContent(string modelName, string downloadText, string hardwareText)
+    public WizardHarnessContent(string modelName, string hardwareText)
     {
         ModelName    = modelName;
-        DownloadText = downloadText;
         HardwareText = hardwareText;
     }
 
     public string ModelName    { get; }
-    public string DownloadText { get; }
     public string HardwareText { get; }
 
+    /// <summary>What Nexaflow's own model does, by name.</summary>
+    public string OwnedText => Str.Format("Shell.Wizard.Harness.OwnedDetailFormat", ModelName);
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOwned), nameof(IsBridged), nameof(IsMixed))]
-    private WorkspaceHarness _choice = WorkspaceHarness.Mixed;
+    [NotifyPropertyChangedFor(nameof(IsOwned), nameof(IsBridged))]
+    private WorkspaceHarness _choice = WorkspaceHarness.Owned;
 
     public bool IsOwned   { get => Choice == WorkspaceHarness.Owned;   set { if (value) Choice = WorkspaceHarness.Owned; } }
     public bool IsBridged { get => Choice == WorkspaceHarness.Bridged; set { if (value) Choice = WorkspaceHarness.Bridged; } }
-    public bool IsMixed   { get => Choice == WorkspaceHarness.Mixed;   set { if (value) Choice = WorkspaceHarness.Mixed; } }
 }
 
 public sealed partial class WizardModelPickContent : ObservableObject
@@ -128,71 +130,6 @@ internal sealed class WorkspaceSetupContext
     public OwnedModelOffer? Owned;
 }
 
-/// <summary>The model Nexaflow runs itself that a new workspace is offered: what its column is, and what it costs to fetch.</summary>
-/// <param name="Placement">Where its models would run on this machine, as its GPUs are expected before the host has run.</param>
-/// <param name="VoiceOnGpu">Every voice model has room on a GPU beside it.</param>
-/// <param name="Larger">The other language models of Nexaflow's own this machine fits, by name.</param>
-internal sealed record OwnedModelOffer(string ProviderName, string ModelId, string DisplayName, string AssemblyFileName, long DownloadBytes,
-                                       string? SpeechInModelId, string? SpeechOutModelId, Placement Placement, bool VoiceOnGpu,
-                                       IReadOnlyList<string> Larger)
-{
-/// <summary>What choosing it downloads: its language model and voice, each with the runtime it needs. Warming a model never
-/// downloads it, so the wizard starts these itself once the choice is made.</summary>
-    public IReadOnlyList<LocalModelOption> Downloads { get; init; } = [];
-
-/// <summary>Starts downloading what it needs — the app's downloads take it on, each model once.</summary>
-    public void Fetch()
-    {
-        if (ProviderManager.Instance.Service<LocalModelDownloads>() is not { } downloads) return;
-        foreach (var option in Downloads) downloads.Fetch(option);
-    }
-
-/// <summary>The columns a workspace that uses Nexaflow's own models starts with.</summary>
-    public OwnedColumns Columns() => new(
-        Column(ModelId, ModelKind.Language),
-        SpeechInModelId is null ? null : Column(SpeechInModelId, ModelKind.SpeechToText),
-        SpeechOutModelId is null ? null : Column(SpeechOutModelId, ModelKind.TextToSpeech));
-
-    private ProviderModelPair Column(string model, ModelKind kind)
-        => new() { ProviderName = ProviderName, Model = model, Kind = kind, AssemblyFileName = AssemblyFileName };
-
-/// <summary>Its language model as the setup would place it on a GPU; null where none has room for it.</summary>
-    public ModelSpec? OnGpu => Placement.Placed.FirstOrDefault(s => s.Id.StartsWith(ModelId + "/", StringComparison.Ordinal) && s.Device is not null);
-
-/// <summary>The owned language provider's first model, with its speech models, their files and — where the machine
-/// suits it — the CUDA pack to fetch, and where they would run here; null when no provider is Nexaflow's own harness.</summary>
-    public static OwnedModelOffer? Find(ProviderSet providers, ComputeHardwareReport hardware, ModelAssetStore? assets = null)
-    {
-        var provider = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Serves(ModelKind.Language));
-        if (provider is not ILocalModelCatalog { Catalog: [var model, ..] } catalog) return null;
-
-        IAiProvider? Serving(ModelKind kind)
-            => providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Name == provider.Name && p.Serves(kind));
-        CatalogModel? First(ModelKind kind) => Serving(kind) is ILocalModelCatalog { Catalog: [var first, ..] } ? first : null;
-        var speechIn  = First(ModelKind.SpeechToText);
-        var speechOut = First(ModelKind.TextToSpeech);
-        long bytes = new[] { model, speechIn, speechOut }.OfType<CatalogModel>().Sum(m => m.Files.Sum(f => f.Size))
-                   + (CudaRuntimePack.Applies(hardware) ? CudaRuntimePack.Size : 0);
-
-        static IReadOnlyList<PlacementNeed> NeedsOf(IAiProvider? served, CatalogModel? of)
-            => served is IHostModelCatalog host && of is not null ? host.NeedsOf(of.Id) : [];
-        var voice = NeedsOf(Serving(ModelKind.SpeechToText), speechIn).Concat(NeedsOf(Serving(ModelKind.TextToSpeech), speechOut)).ToList();
-        var placement = ModelPlacement.Plan(ModelPlacement.Expected(hardware), [.. NeedsOf(provider, model), .. voice]);
-
-        var shelf = assets is null ? null : new LocalModelShelf(providers, assets);
-        LocalModelOption? Option(LocalSlot slot, CatalogModel? of)
-            => of is null ? null : shelf?.OptionsFor(slot).FirstOrDefault(o => o.ProviderName == provider.Name && o.Id == of.Id);
-        return new OwnedModelOffer(provider.Name, model.Id, model.DisplayName, providers.GetAssemblyFileName(provider.Name), bytes,
-                                   speechIn?.Id, speechOut?.Id, placement,
-                                   VoiceOnGpu: voice.All(n => n.CpuOnly || placement.Of(n.Id)?.Device is not null),
-                                   Larger: [.. catalog.Catalog.Skip(1).Select(m => m.DisplayName)])
-        {
-            Downloads = [.. new[] { Option(LocalSlot.Language, model), Option(LocalSlot.SpeechToText, speechIn), Option(LocalSlot.TextToSpeech, speechOut) }
-                            .OfType<LocalModelOption>()],
-        };
-    }
-}
-
 // ── Steps ────────────────────────────────────────────────────────────────────
 
 /// <summary>A read-only markdown page (What's New). Always complete.</summary>
@@ -239,8 +176,9 @@ internal sealed class ConfigEditStep : ObservableObject, IWizardStep
 }
 
 /// <summary>
-/// Who runs the workspace's AI: Nexaflow itself, a provider the user chooses, or both. Asked only where the machine
-/// can run Nexaflow's own model; choosing Nexaflow alone skips the provider steps and sets the grid here.
+/// Who runs the workspace's AI: Nexaflow's own models, or a cloud provider the user chooses. Asked only where the machine
+/// can run Nexaflow's own model; choosing it skips the provider steps and sets the grid here, and the Download models step
+/// follows. The two together are set up later, per ability, in the workspace's AI settings.
 /// </summary>
 internal sealed class HarnessStep : ObservableObject, IWizardStep
 {
@@ -254,18 +192,18 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
         if (ctx.Owned is not { OnGpu: { } chat } offer) return;
 
         var gpu = offer.Placement.Gpus.First(g => g.Device == chat.Device);
-        string machine = $"This machine runs it on its {gpu.Name}, with a context of {chat.ContextTokens:N0} tokens"
-                       + (offer.SpeechInModelId is null && offer.SpeechOutModelId is null ? "."
-                          : offer.VoiceOnGpu ? ", and the voice models beside it."
-                          : "; the voice models that do not fit beside it run on the CPU, more slowly.");
-        if (offer.Larger.Count > 0) machine += $" Larger models it fits can be chosen in AI settings: {string.Join(", ", offer.Larger)}.";
+        var context = chat.ContextTokens.ToString("N0");
+        string machine = offer.SpeechInModelId is null && offer.SpeechOutModelId is null
+            ? Str.Format("Shell.Wizard.Harness.MachineFormat", gpu.Name, context)
+            : offer.VoiceOnGpu
+                ? Str.Format("Shell.Wizard.Harness.MachineVoiceOnGpuFormat", gpu.Name, context)
+                : Str.Format("Shell.Wizard.Harness.MachineVoiceOnCpuFormat", gpu.Name, context);
+        if (offer.Larger.Count > 0) machine += " " + Str.Format("Shell.Wizard.Harness.LargerFormat", string.Join(", ", offer.Larger));
 
-        _content = new WizardHarnessContent(offer.DisplayName,
-            $"{offer.DisplayName} and what it needs to run on this machine: {offer.DownloadBytes / 1e9:0.0} GB, downloaded in the background once you finish. Until it is here, Nexaflow's own model is not available.",
-            machine);
+        _content = new WizardHarnessContent(offer.DisplayName, machine);
     }
 
-    public string Title      => "Who runs the AI";
+    public string Title      => Str.Get("Shell.Wizard.Harness.Title");
     public object Content    => _content!;
     public bool   IsComplete => true;
     public bool   Applies    => _content is not null;
@@ -279,7 +217,6 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
         WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns());
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
-        _ctx.Owned.Fetch();
     }
 }
 
@@ -413,13 +350,11 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
             AssemblyFileName = _ctx.ProviderSet?.GetAssemblyFileName(name) ?? string.Empty,
         };
 
-        // The chosen language model serves every reasoning role — alongside Nexaflow's own when the workspace mixes
-        // both; abilities of other kinds need models of their own.
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, _ctx.Harness == WorkspaceHarness.Mixed ? _ctx.Owned?.Columns() : null);
+        // The chosen language model serves every reasoning role; abilities of other kinds need models of their own.
+        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, null);
 
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
-        if (_ctx.Harness == WorkspaceHarness.Mixed) _ctx.Owned?.Fetch();
     }
 }
 
@@ -660,6 +595,14 @@ public partial class SetupWizardViewModel : ObservableObject
         if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace))
             ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace);
 
+        // 4. After an update, the models every workspace's Local column holds that are not here yet — a grid from before the
+        //    column has it turned on here, before the workspace first runs — are offered for download in one step, each once
+        //    however many workspaces use it, as they are to a new workspace that chooses Nexaflow's own models, rather than
+        //    found missing on first use. A startup workspace being set up above is offered its own there.
+        if (WasUpdated()
+            && OwnedAwaited(WorkspaceManager.Instance.Workspaces.Where(w => ctx is null || !ReferenceEquals(w, startupWorkspace))) is { Count: > 0 } awaited)
+            steps.Add(new ModelDownloadStep(() => true, awaited));
+
         return steps.Count == 0 ? null : new SetupWizardViewModel(steps, ctx);
     }
 
@@ -721,6 +664,7 @@ public partial class SetupWizardViewModel : ObservableObject
         try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, ProviderManager.Instance.Assets); }
         finally { ProviderManager.Instance.ReleaseProviderSet(offers); }
         steps.Add(new HarnessStep(ctx));
+        steps.Add(new ModelDownloadStep(() => ctx.Harness == WorkspaceHarness.Owned, ctx.Owned?.Downloads ?? []));
 
         // Essential AI bootstrap — unless Nexaflow runs the workspace's AI itself.
         steps.Add(new ProviderPickStep(ctx));
@@ -760,17 +704,45 @@ public partial class SetupWizardViewModel : ObservableObject
                       : ProviderManager.Instance.TakesNoConfig(c.AssemblyFileName));
     }
 
+    /// <summary>The jobs the Download models step offers models for; pictures, video and tools are offered on first use.</summary>
+    private static readonly LocalSlot[] OfferedSlots = [LocalSlot.Language, LocalSlot.SpeechToText, LocalSlot.TextToSpeech];
+
+    /// <summary>
+    /// The models the Local columns of <paramref name="workspaces"/> hold for language and speech that are not here yet, each
+    /// once, after the column is folded into each grid — as opening the workspace would — with a provider set acquired just long
+    /// enough to read the models on this machine.
+    /// </summary>
+    private static IReadOnlyList<LocalModelOption> OwnedAwaited(IEnumerable<Workspace> workspaces)
+    {
+        if (ProviderManager.Instance.Assets is not { } assets) return [];
+        ProviderManager.Instance.DiscoverAll();
+        var awaited = new List<LocalModelOption>();
+        foreach (var workspace in workspaces.ToList())
+        {
+            workspace.EnsureSharedServicesLoaded();
+            var providers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(workspace.AiConfig));
+            try
+            {
+                WorkspaceManager.FoldInLocalColumns(workspace, providers);
+                foreach (var option in LocalDownloadPlan.Awaited(workspace.AiConfig, new LocalModelShelf(providers, assets), OfferedSlots))
+                    if (!awaited.Any(a => a.IsIn(option.Column()))) awaited.Add(option);
+            }
+            finally { ProviderManager.Instance.ReleaseProviderSet(providers); }
+        }
+        return awaited;
+    }
+
+    /// <summary>Whether this run is the first since Nexaflow was updated.</summary>
+    private static bool WasUpdated()
+        => ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault()?.LastRunVersion is { } last && last != CurrentVersion();
+
     private static bool TryLoadWhatsNew(out string markdown)
     {
         markdown = string.Empty;
 
         // Show on a fresh install (welcome) and after a version bump (changelog); skip on an
         // unchanged relaunch.
-        var shell    = ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault();
-        var current  = CurrentVersion();
-        var firstRun = ConfigManager.Instance.IsFirstRun;
-        var updated  = shell?.LastRunVersion is { } last && last != current;
-        if (!firstRun && !updated) return false;
+        if (!ConfigManager.Instance.IsFirstRun && !WasUpdated()) return false;
 
         try
         {

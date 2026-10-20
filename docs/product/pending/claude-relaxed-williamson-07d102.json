@@ -1,0 +1,85 @@
+{
+  "branch": "claude/relaxed-williamson-07d102",
+  "nodes": {
+    "ws-model-downloads": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalDownloadPlan.cs",
+          "class": "LocalDownloadPlan"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WizardModelDownloads.cs",
+          "class": "ModelDownloadStep"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WizardModelDownloads.cs",
+          "class": "WizardModelDownloadContent"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/SetupWizardTests.cs",
+            "class": "SetupWizardTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalModelsTests.cs",
+            "class": "LocalModelsTests",
+            "method": "ThePlan_ListsEachModelNotHere_AndTheRuntimeTheyShare_Once"
+          }
+        ]
+      }
+    },
+    "ws-harness-choice": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/SetupWizardTests.cs",
+            "class": "SetupWizardTests"
+          }
+        ]
+      }
+    },
+    "ai-model-assets": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ModelAssetStore.cs",
+          "class": "ModelAssetStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Downloads/VerifiedDownload.cs",
+          "class": "VerifiedDownload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ModelAssets.cs",
+          "class": "ModelCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ModelRoom.cs",
+          "class": "ModelRoom"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "ai-model-assets",
+    "ws-harness-choice",
+    "ws-model-downloads"
+  ]
+}

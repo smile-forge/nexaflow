@@ -34,7 +34,7 @@ internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiP
     /// <summary>
     /// True when <paramref name="ability"/> is served now. Where it waits on a download, the user is asked whether to download
     /// it — false either way, the download going on in the background if they agree; while it downloads, they are told how far
-    /// it has got. Otherwise false.
+    /// it has got; where the drive has no room for it, they are told what it needs instead. Otherwise false.
     /// </summary>
     public async Task<bool> MakeReadyAsync(AiAbility ability, CancellationToken ct)
     {
@@ -51,6 +51,12 @@ internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiP
         if (status.State != AiAbilityState.NeedsDownload || Shelf() is not { } shelf || Downloads is not { } downloads
             || Awaited(ability, Columns(ability), shelf) is not { } option)
             return false;
+
+        if (shelf.Store.RoomFor(option.Needs) is { Fits: false } room)
+        {
+            ui.ShowNotification(room.Refusal);   // offered only where it would fit: the download would be refused
+            return false;
+        }
 
         var model = option.Model.DisplayName;
         if (!await ui.ConfirmAsync(Str.Get("Shell.Ai.DownloadTitle"),
