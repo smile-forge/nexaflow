@@ -220,4 +220,18 @@ public class ImagesSurfaceTests
         shell.Received().ShowError(Arg.Is<string>(m => m == Str.Format("Images.Delete.FailedFormat", Path.GetFileName(missing))));
         Assert.AreEqual(1, vm.TotalImages, "a failed delete must not drop the image from the view anyway");
     }
+
+    [TestMethod]
+    [CoversNode("images-copy")]
+    public async Task APictureThatCannotBeRead_IsReported_AndNothingIsCopied()
+    {
+        var shell = Substitute.For<IShellServices>();
+        var missing = Path.Combine(TestTemp.Root, $"nexaflow_missing_{Guid.NewGuid():N}.png");
+        var vm = Make(shell, missing);
+
+        await vm.CopyPictureCommand.ExecuteAsync(0);
+
+        shell.Received().ShowError(Arg.Is<string>(m => m == Str.Format("Images.Copy.FailedFormat", Path.GetFileName(missing))));
+        shell.DidNotReceive().ShowNotification(Arg.Any<string>());
+    }
 }

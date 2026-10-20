@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Details;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Erasing;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
@@ -22,6 +23,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -436,6 +438,38 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         var sidecar = ImageRecipeStore.SidecarPath(path);
         if (File.Exists(sidecar)) RecycleBin.TryRecycle(sidecar);
         RemoveAt(index);
+    }
+
+    /// <summary>
+    /// Puts the picture at <paramref name="index"/> on the clipboard as it is shown — its edits drawn in, at full
+    /// resolution. An open photo is copied with its session's edits, any other with the edits its sidecar keeps.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyPicture(int index)
+    {
+        if (index < 0 || index >= _paths.Count) return;
+
+        var path = _paths[index];
+        var (recipe, made) = _sessions.Peek(path) is { } session
+            ? (session.Recipe, session.Made)
+            : _editing.Recipes.Load(path) is { Status: RecipeLoadStatus.Loaded, Recipe: { } kept }
+                ? (kept, KeptByTools(path, kept))
+                : (ImageRecipe.Identity, MadeByTools.None);
+        try
+        {
+            var png = await Task.Run(() => _editing.Exporter.Export(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
+            PictureClipboard.CopyPng(png);
+            _shell?.ShowNotification(Str.Get("Images.Copy.Done"));
+        }
+        catch (OperationCanceledException)
+        {
+            // The viewer closed while the picture was rendering.
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ImageDecodeException
+                                       or NotSupportedException or InvalidOperationException or ExternalException)
+        {
+            _shell?.ShowError(Str.Format("Images.Copy.FailedFormat", Path.GetFileName(path)));
+        }
     }
 
     /// <summary>Drops the image at <paramref name="index"/> from every collection and re-points the view.</summary>
