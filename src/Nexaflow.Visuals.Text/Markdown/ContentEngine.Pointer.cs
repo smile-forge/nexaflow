@@ -281,9 +281,9 @@ public sealed partial class ContentEngine
         // From content a binding supplied, there are no characters to choose between: it picks out every piece of it spanned.
         if (Supplied(_anchorNode)) { PickSpanned(at); return; }
 
-        // Inside one run of text it picks out characters, because that is what dragging through text means. Everywhere else it
-        // is whole pieces — see below.
-        if (_anchorNode.Words is { Maps: true } && _laid.PieceAt(at) == _anchorNode)
+        // Through text it picks out characters, because that is what dragging through text means (CharactersBetween). Everywhere
+        // else it is whole pieces — see below.
+        if (CharactersBetween(_anchorNode, _laid.PieceAt(at)))
         {
             ExtendSelectionTo(_laid.OffsetAt(at));
             return;
@@ -300,6 +300,22 @@ public sealed partial class ContentEngine
         }
 
         ExtendSelectionTo(_laid.OffsetAt(at));
+    }
+
+    /// <summary>
+    /// Whether a drag from <paramref name="from"/> to <paramref name="to"/> picks out characters rather than whole pieces: both ends
+    /// in runs of words, and either the one run or two runs of one block whose language draws every character written
+    /// (<see cref="IContentLanguage.ShowsWhatWasWritten"/>). Code is the case: each token is a run of its own, but any stretch of it
+    /// is one a writer could have typed, so there is no construct for it to cut in half, and growing it out to whole pieces would
+    /// grow it out to the whole fence. A formula, a score or a diagram draws what its source meant, and half of one of those is
+    /// not a smaller selection but one that cannot be read.
+    /// </summary>
+    private bool CharactersBetween(Piece from, Piece to)
+    {
+        if (from.Words is not { Maps: true } || to.Words is not { Maps: true }) return false;
+        if (from == to) return true;
+
+        return HolderOf(from) == HolderOf(to) && Language(LanguageOf(from)).Editing.ShowsWhatWasWritten;
     }
 
     private void Release()
