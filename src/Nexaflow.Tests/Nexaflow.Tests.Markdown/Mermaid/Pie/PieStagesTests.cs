@@ -124,23 +124,35 @@ public class PieStagesTests
     }
 
     [TestMethod]
-    public void ASliceWorthNothingIsNoPartOfTheWholeAndHasNoWedge()
+    public void ASliceWhoseValueIsWrongIsNoPartOfTheWholeAndHasNoWedge()
     {
         var slices = Slices(MermaidStaged.Read("pie\n  \"Dogs\" : 3\n  \"Cats\" : -1\n  \"Fish\" : lots\n  \"Birds\" : 1"));
 
         CollectionAssert.AreEqual(new[] { 0.75, 0, 0, 0.25 }, slices.Select(slice => slice.Share).ToArray(), "only what is worth drawing shares the whole");
         CollectionAssert.AreEqual(new[] { 0, -1, -1, 1 }, slices.Select(slice => slice.Order).ToArray(),
-                                  "and a slice's place among the wedges skips those with none");
+                                  "and a slice's place in the order skips those whose value does not count");
         Assert.AreEqual(4, slices.Count, "every one of them is still read, so a reader can fix it");
     }
 
     [TestMethod]
-    public void OnlyWhatIsDrawnIsListed_UnlessSomebodyIsWritingTheChart()
+    public void ASliceWorthNoughtHasNoWedgeButKeepsItsPlaceAndItsRow()
+    {
+        var slices = Slices(MermaidStaged.Read("pie\n  \"Done\" : 3\n  \"Faulted\" : 0\n  \"Planned\" : 1"));
+
+        CollectionAssert.AreEqual(new[] { 0.75, 0, 0.25 }, slices.Select(slice => slice.Share).ToArray(), "nought is none of the whole");
+        CollectionAssert.AreEqual(new[] { true, false, true }, slices.Select(slice => slice.Drawn).ToArray(), "so it has no wedge");
+        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, slices.Select(slice => slice.Order).ToArray(),
+                                  "but it takes its colour in the order, as Mermaid's legend gives it one");
+        Assert.IsTrue(slices.All(slice => slice.Listed), "and it has its row in the legend");
+    }
+
+    [TestMethod]
+    public void OnlyWhatCountsIsListed_UnlessSomebodyIsWritingTheChart()
     {
         const string source = "pie\n  \"Dogs\" : 3\n  \"Cats\" : \n";
 
         CollectionAssert.AreEqual(new[] { true, false }, Slices(MermaidStaged.Read(source)).Select(slice => slice.Listed).ToArray(),
-                                  "a chart only being read lists what it draws");
+                                  "a chart only being read lists the slices whose value counts");
         CollectionAssert.AreEqual(new[] { true, true }, Slices(MermaidStaged.Read(source, holes: true)).Select(slice => slice.Listed).ToArray(),
                                   "a chart being written lists every slice written, where the reader is typing");
     }

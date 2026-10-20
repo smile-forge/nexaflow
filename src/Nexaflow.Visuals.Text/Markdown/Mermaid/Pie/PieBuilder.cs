@@ -143,7 +143,8 @@ internal sealed class PieBuilder : MermaidBuilder
 
         build.Open(PiePiece.Slices, part: null, stops: Stops.None);
 
-        // Nothing worth a wedge yet, which only a chart being written shows: its outline, so there is a chart to fill in.
+        // Nothing worth a wedge — a chart still being written, or one whose every slice is worth nought: its outline, so
+        // there is a chart to fill in.
         if (slices.Count == 0) build.Draw(new GeometryMark(Ring(centre, inner, radius), null, Palette.CodeBorder, 1));
 
         var from = -Math.PI / 2;
@@ -277,7 +278,7 @@ internal sealed class PieBuilder : MermaidBuilder
 
     // ── The legend ──────────────────────────────────────────────────────────
 
-    /// <summary>A slice's row: its colour, its label, its value where the row shows one, and its share where it has a wedge to have one.</summary>
+    /// <summary>A slice's row: its colour, its label, its value where the row shows one, and its share where its value counts — nought for one worth nought.</summary>
     private DiagramKey Key(PieConfig config, Slice slice)
     {
         var size = config.LegendTextSize ?? LegendSize;
@@ -285,11 +286,11 @@ internal sealed class PieBuilder : MermaidBuilder
         var label = slice.Part.Words()!;
         var value = slice.Part.Inner(Kinds.Number);
 
-        return new DiagramKey(slice.Part, slice.Said.Drawn ? Fill(config, slice) : null,
+        return new DiagramKey(slice.Part, slice.Said.Counted ? Fill(config, slice) : null,
         [
             Written(label, label.Parent.Hole(), size, ink),
             slice.Said.ValueShown && value is not null ? Written(value, value.Parent.Hole(), size, ink) : null,
-            slice.Said.Drawn ? Worked(Percent(slice.Said.Share), slice.Part, size, Palette.TextMuted) : null,
+            slice.Said.Counted ? Worked(Percent(slice.Said.Share), slice.Part, size, Palette.TextMuted) : null,
         ]);
     }
 

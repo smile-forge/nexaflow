@@ -36,14 +36,20 @@ internal sealed class PieSliceNode : ContentNode
     /// <summary>Whether the config picks this slice out.</summary>
     public bool Highlighted { get; init; }
 
-    /// <summary>Its share of the whole: its value against every slice worth a wedge — nought for one that is not.</summary>
+    /// <summary>Its share of the whole: its value against every other slice's — nought for one worth nought, or whose value does not count.</summary>
     public double Share { get; init; }
 
-    /// <summary>Where it comes among the slices worth a wedge, which is the colour the theme gives it — -1 for one that is not.</summary>
+    /// <summary>
+    /// Where it comes among the slices whose value counts — a number of nought or more — which is the colour the theme gives
+    /// it; -1 for one whose value does not.
+    /// </summary>
     public int Order { get; init; } = -1;
 
-    /// <summary>Whether it has a wedge.</summary>
-    public bool Drawn => this.Order >= 0;
+    /// <summary>Whether its value counts: a number of nought or more, which gives it a colour and a share, though not always a wedge.</summary>
+    public bool Counted => this.Order >= 0;
+
+    /// <summary>Whether it has a wedge: it has some of the whole, which a slice worth nought has not.</summary>
+    public bool Drawn => this.Share > 0;
 
     /// <summary>Whether it has a row in the legend.</summary>
     public bool Listed { get; init; }

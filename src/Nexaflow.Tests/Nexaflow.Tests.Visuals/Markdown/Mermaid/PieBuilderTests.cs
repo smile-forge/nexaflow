@@ -32,7 +32,9 @@ public class PieBuilderTests : MermaidBuilderContract
             "---\nconfig:\n  pie:\n    donutHole: 0.4\n    legendPosition: top\n    highlightSlice: Cats\n  themeVariables:\n    pie1: \"#ff0000\"\n    pieOuterStrokeWidth: 3\n---\npie\n  \"Dogs\" : 30\n  \"Cats\" : 10\n  \"Birds\" : 5"),
         ("slices still being written, and one worth nothing", "pie showData\n  \"Dogs\" : \n  \"\" : 3\n  \"Cats\" : -1\n  \"#quot;Quoted#quot;\" : 2"),
         ("one slice", "pie\n  \"All\" : 1"),
-        ("nothing to draw", "pie\n  \"None\" : 0"),
+        ("a slice worth nought", "pie showData\n  \"Done\" : 3\n  \"Faulted\" : 0"),
+        ("nothing but nought", "pie\n  \"None\" : 0"),
+        ("nothing to draw", "pie\n  \"None\" : lots"),
     ];
 
     private static Laid Build(string source, double room = 700) =>
@@ -197,6 +199,27 @@ public class PieBuilderTests : MermaidBuilderContract
                       "and under it where there is not");
 
         Assert.IsTrue(narrow.Size.Width <= 260, $"the chart is fitted into the room it was given, and took {narrow.Size.Width}");
+    });
+
+    [TestMethod]
+    public void ASliceWorthNoughtHasItsRowInTheLegendButNoWedge() => UiThread.Run(() =>
+    {
+        var laid = Build("pie\n  \"Done\" : 3\n  \"Faulted\" : 0");
+
+        Assert.AreEqual(1, Pieces(laid, PiePiece.Wedge).Count(), "nought is no part of the chart");
+        Assert.AreEqual(2, Pieces(laid, MermaidPiece.Key).Count(), "but it is still in the legend");
+        Assert.AreEqual(2, Pieces(laid, MermaidPiece.Swatch).Count(), "in a colour of its own");
+        Assert.IsFalse(laid.Trouble.Any(), "and nothing is wrong with it");
+    });
+
+    [TestMethod]
+    public void APieWorthNoughtAltogetherIsItsOutlineAndItsLegend() => UiThread.Run(() =>
+    {
+        var laid = Build("pie\n  \"None\" : 0");
+
+        Assert.AreEqual(0, Pieces(laid, PiePiece.Wedge).Count());
+        Assert.AreEqual(1, Pieces(laid, MermaidPiece.Key).Count(), "a chart with its legend, not its source");
+        Assert.IsFalse(Pieces(laid, LayoutText.SourceKind).Any());
     });
 
     [TestMethod]
