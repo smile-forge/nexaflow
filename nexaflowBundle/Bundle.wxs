@@ -34,6 +34,28 @@
         Result="exists"
         Bitness="always32" />
 
+    <!-- The Visual C++ runtime the native libraries load: llama.cpp, ONNX Runtime and onnxruntime-genai in the AI
+         host, whisper and assimp in the app. The x64 redistributable records itself under this key in the 64-bit
+         view. A DLL needs a runtime at least as new as the toolset that linked it, so the minimum the package below
+         detects is the newest linker version among those DLLs' PE headers - 14.44. Raise it when a native
+         dependency is built with a newer toolset; the payload itself can be newer than the minimum. -->
+    <util:RegistrySearch
+        Id="VCRuntimeX64InstalledSearch"
+        Variable="VCRuntimeX64Installed"
+        Root="HKLM"
+        Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+        Value="Installed"
+        Result="value"
+        Bitness="always64" />
+    <util:RegistrySearch
+        Id="VCRuntimeX64MinorSearch"
+        Variable="VCRuntimeX64Minor"
+        Root="HKLM"
+        Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+        Value="Minor"
+        Result="value"
+        Bitness="always64" />
+
     <!--
       Opt-in for the MSI's Tools feature, surfaced as the checkbox on the theme's Install page and passed
       through as INSTALLTOOLS below. Overridable so an unattended install can decide it:
@@ -93,6 +115,27 @@
                            Version="10.0.8.0" />
         <!-- 1638 = "a same-or-newer version is already installed": the dependency is satisfied, so
              treat it as success rather than failing the (Vital) chain. 3010 = reboot needed. -->
+        <ExitCode Value="1638" Behavior="success" />
+        <ExitCode Value="3010" Behavior="scheduleReboot" />
+      </ExePackage>
+
+      <ExePackage Id="VCRuntimeX64"
+                  DisplayName="Microsoft Visual C++ v14 Redistributable (x64)"
+                  DetectCondition="VCRuntimeX64Installed = 1 AND VCRuntimeX64Minor >= 44"
+                  InstallArguments="/install /quiet /norestart"
+                  RepairArguments="/repair /quiet /norestart"
+                  UninstallArguments="/uninstall /quiet /norestart"
+                  Permanent="yes"
+                  Vital="yes">
+        <!-- A versioned link rather than the permanent aka.ms/vs/18/release/vc_redist.x64.exe: Burn refuses a
+             download whose hash and size differ from those pinned here, and the permanent link moves to each new
+             redistributable, so it would break the install the day Microsoft ships the next one. -->
+        <ExePackagePayload Name="vc_redist-14.51.36247-x64.exe"
+                           DownloadUrl="https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe"
+                           Hash="C42C82CFD5EAA2165B600F6109CB14FF4308CDF4CFF656A1375B4A933F1630BFE54C99C4D0FB9ED3BEA4DC4E4FDAA3DB8E7C58356CCA07C2954F4C297757D62D"
+                           Size="18731856"
+                           Version="14.51.36247.0" />
+        <!-- 1638 = a newer runtime than the payload is already installed: satisfied. 3010 = reboot needed. -->
         <ExitCode Value="1638" Behavior="success" />
         <ExitCode Value="3010" Behavior="scheduleReboot" />
       </ExePackage>
