@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v.1.7.0** · 2026-10-12_
+_Version **v1.8.0** · 2026-10-20_
 
-**87% shipping** — 1365/1571 components done (200 should · 0 faulted · 6 shouldn't)
+**94% shipping** — 1642/1756 components done (108 should · 0 faulted · 6 shouldn't)
 
 ## Tree
 
@@ -195,18 +195,26 @@ _Version **v.1.7.0** · 2026-10-12_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest but thin: mode (carousel/album/...), filename and index. Conveys nothing about the image content itself.
       - **Act - client tools** — _should_ — capture_image hands the pixels to the model (ContextImage); get_image_info + next/previous_image (navigation marshalled to the UI thread).
-        - **capture_image** — _done_ — Not unit-tested: PNG-encodes a WPF BitmapSource (PngBitmapEncoder), not reliable off an interactive/STA desktop; the UI journey covers the real pixel path.
+        - **capture_image** — _done_ — Rendered by Skia, off the UI thread, so it is unit-tested headlessly.
         - **get_image_info** — _done_
         - **next_image** — _done_
         - **previous_image** — _done_
+        - **select_in_picture** — _done_
+        - **read_page** — _done_
+        - **cut_out** — _done_
+        - **restore_picture** — _done_
+        - **erase_in_picture** — _done_
       - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the page's own Thumbnails and asks the page to load them, since only the grid views otherwise do and a single image never leaves the carousel. Virtualized, and opens scrolled to the current image. In-archive images keep the placeholder (ShellThumbnail cannot read VFS paths), as in the album.
     - **UI** — _done_
       - **Top Toolbar** — _done_
         - **Sub-View Selector** — _done_
-        - **Heading** — _done_
+        - **Edited mark** — _done_
         - **Auto-Advance Toggle** — _done_
         - **Speed Slider** — _done_
         - **Full-Screen Button** — _done_
+        - **Make Video** — _done_
+        - **Convert to Markdown** — _done_
+        - **Details Toggle** — _done_
       - **Carousel** — _done_
         - **Previous / Next Arrows** — _done_
         - **Wheel & Keyboard Stepping** — _done_
@@ -223,10 +231,52 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Full-Screen Navigation** — _done_
       - **Image Context Menu** — _done_
         - **Delete Image** — _done_
-      - **EXIF / Metadata Panel** — _done_
       - **Image Tools** — _done_
         - **Rotate Left / Right** — _done_
         - **Fit / Actual Size** — _done_
+        - **Flip Horizontal / Vertical** — _done_
+      - **Edit Mode** — _should_
+        - **Edit Toolbar** — _should_
+          - **Undo / Redo** — _done_
+          - **Before / After** — _done_
+          - **Revert to Original** — _done_
+          - **Save** — _done_
+          - **Save as Copy** — _done_
+          - **Done** — _done_
+          - **Save Options** — _done_
+          - **Remove Location Only** — _should_
+        - **Tool Tiles** — _done_
+        - **Crop & Rotate** — _should_
+          - **Crop Frame** — _done_
+          - **Aspect Presets** — _done_
+          - **Straighten** — _done_
+          - **Level Tool** — _done_
+          - **Auto Straighten** — _should_
+        - **Adjust** — _should_
+          - **Auto Enhance** — _done_
+          - **AI Enhance and Upscale** — _done_
+          - **Light and Colour Sliders** — _done_
+          - **Vibrance** — _should_
+          - **Sharpen** — _should_
+          - **Noise Reduction** — _should_
+          - **Vignette** — _should_
+        - **Retouch** — _done_
+          - **Erase** — _done_
+          - **Red-Eye Removal** — _should_
+        - **Cut Out** — _should_
+          - **Remove Background** — _done_
+        - **Markup** — _should_
+          - **Markup Tools** — _done_
+          - **Select, Move and Delete** — _done_
+          - **Colour, Weight and Font** — _done_
+          - **Blur or Pixelate** — _should_
+        - **Resize** — _done_
+        - **Filters** — _should_
+        - **Models Not Here Yet** — _done_
+        - **Recipe Status Banner** — _done_
+      - **Details Panel** — _done_
+        - **Facts Read from the File** — _done_
+        - **Show on a Map** — _should_
     - **Functionality** — _done_
       - **Stepping and Clamping** — _done_
       - **Slideshow Timing** — _done_
@@ -235,7 +285,23 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Open As Image** — _done_
         - **Folder Slideshow** — _done_
         - **Folder Album** — _done_
+        - **Edit Image** — _done_
+        - **Revert Edits** — _done_
       - **Collage Layout** — _done_
+      - **Non-Destructive Recipe** — _should_
+        - **Sidecar Store** — _done_
+        - **Edit History** — _done_
+        - **Source Fingerprint** — _done_
+      - **Render Pipeline** — _should_
+        - **Geometry** — _done_
+        - **Adjustment Filter** — _done_
+        - **Markup Painting** — _done_
+        - **Live Preview** — _done_
+      - **Decode and Encode** — _should_
+        - **Decode with Orientation** — _done_
+        - **Encoders** — _done_
+      - **Metadata Transfer** — _done_
+      - **Baking a Save** — _done_
   - **Json** — _should_
     - **UI** — _done_
       - **Path Breadcrumb** — _done_
@@ -253,14 +319,14 @@ _Version **v.1.7.0** · 2026-10-12_
         - **format_json** — _done_ — Re-indents the JSON in place.
         - **query_json_path** — _done_
         - **read_json** — _done_
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — Uses the shared ReadOnlyTextPreview. The outline lists up to 12 entries and counts the rest; a container shows its size ({3}, [12]) rather than opening, a long value is cut, and an entry a large file has not loaded yet shows as an ellipsis. Built fresh on each chip selection, copying what it shows.
     - **Functionality** — _done_
       - **Streaming Loader & Windowing** — _done_
       - **JSONPath Query** — _done_
       - **Open Actions** — _done_
       - **Streaming Re-indent** — _should_
       - **Splice Save** — _should_ — Until this exists, Save refuses while any part of the document is unloaded (json-edit-save) - the only correct behaviour for the current design, since writing the loaded tree would truncate everything unread. This lifts the restriction; it does not fix a defect.
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
   - **Log Viewer** — _done_
     - **AI Integration** — _should_
       - **Context — get_context** — _done_ — Honest and reasonably full: filename, size and path, loaded line count (flagged as tail-only while the head streams in), the detected format, the timestamp span, live-tail/pause state, every active filter and highlight with the caveat that lines are faded rather than removed, and the selected-line count. It does not include the log text itself - the read tools do that.
@@ -272,7 +338,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **set_time_filter** — _done_
         - **highlight_levels** — _done_
         - **set_tail_paused** — _done_
-      - **Preview — IContextPreview** — _should_ — IContextPreview not implemented.
+      - **Preview — IContextPreview** — _done_ — Uses the shared ReadOnlyTextPreview. Up to 20 lines, each cut at 200 characters; the length matches the status bar. Built fresh on each chip selection on the UI thread, which owns the document, and copies what it shows.
     - **UI** — _done_
       - **Toolbar** — _done_
         - **Level Highlight Toggles** — _done_
@@ -306,8 +372,8 @@ _Version **v.1.7.0** · 2026-10-12_
         - **JSON lines** — _done_ — Serilog's compact formatter omits the level entirely for Information - the commonest level in most files - so a missing level alongside its message-template marker is read as Information. Without that rule most of a Serilog log would sit uncoloured while the rest lit up.
         - **ETL** — _should_
         - **EVTX** — _should_
-      - **Search (?)** — _should_
-      - **Open Actions** — _should_
+      - **Search (?)** — _done_
+      - **Open Actions** — _done_
   - **Markdown** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -321,7 +387,7 @@ _Version **v.1.7.0** · 2026-10-12_
     - **UI** — _done_
       - **Document Surface** — _done_
         - **Inline (live) editor** — _done_
-          - **Caret crossing** — _should_
+          - **Caret crossing** — _done_
           - **Drop text in** — _done_
         - **Source-only editor** — _done_
         - **Render-mode context menu** — _done_ — A themed WPF ContextMenu built in code-behind over the RichTextBox selection; needs a focused, rendered control and has no view-model state. Covered by the UI journey's presence check.
@@ -352,6 +418,8 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Open in Markdown editor** — _done_
       - **Find in the open document** — _done_
       - **Links out of the document** — _done_
+      - **Save as, and drafts** — _done_
+      - **Markdown Package (*.mdz)** — _done_
   - **Processes** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -397,8 +465,8 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Snapshot reconciliation** — _done_
       - **Process tree building** — _done_
       - **Live process source** — _done_
-      - **Search (?)** — _should_
-      - **Search (?) - details page** — _should_
+      - **Search (?)** — _done_
+      - **Search (?) - details page** — _done_
   - **Product** — _should_
     - **Functionality** — _should_
       - **Data model** — _done_
@@ -435,7 +503,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Snaplinks** — _done_
           - **Snaplink picker overlay** — _done_
         - **Concerns** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Integrity View** — _should_
         - **Issues list** — _done_
         - **Coverage advisories** — _done_
@@ -447,7 +515,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Segments rail** — _done_
         - **Property drawer** — _done_ — Passive display bound to the selected node; exercised via the selection tests + the Graph UI journey.
       - **Search Results** — _should_
-        - **Drill into a result** — _should_
+        - **Drill into a result** — _done_
         - **Name and source passes** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -507,7 +575,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Project list** — _done_
         - **Bucket Tabs** — _done_
         - **Project Rows** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Project summary pane** — _done_
         - **Summary Markdown** — _done_
         - **Open Project / Open Files** — _done_
@@ -515,7 +583,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Project detail tab** — _done_
         - **Description & completion criteria** — _done_
         - **Detail Tabs** — _done_ — Which tab opens first is decided in the page factory from whether the project already has a description, and the tabs themselves are a TabControl. There is no view-model state to read back; the journey opens a project and checks both tabs are reachable.
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Backlog** — _done_
         - **Add backlog item** — _done_
         - **Progress item** — _done_
@@ -550,7 +618,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Mouse-wheel Zoom** — _done_
         - **Zoom % Picker** — _done_
         - **Minimap Navigation** — _done_ — The whole overview - the mapping in Visuals.Common PanZoomMiniMap and the box that draws it in PanZoomSurface - is shared with the image viewer collage and markdown graph diagrams. The board supplies only what is its own: each note as a swatch in its own paper colour, and the corner it sits in (top-left, because the recycle-bin panel covers the right-hand edge). Drawing the swatches is a paint pass; the arithmetic that decides where each lands, and whether the box appears at all, is asserted there.
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Post-it Note** — _done_
         - **Inline Markdown Editor** — _done_ — The body is the shared MarkdownSurface, written in, and tested in its own right under Visuals.Text (keys, undo, formatting, the clipboard). What the note adds is hosting it and migrating legacy RichTextBox-XAML content on first load, both of which need the rendered control; the journey covers typing into a note.
         - **Drag to Move** — _done_ — A header drag converts pointer movement into canvas coordinates and raises the note - no rule of its own beyond the coordinate transform WPF already provides, and no state to read back but X/Y. The rotated-axis maths that IS non-obvious lives in postit-resize, where it is asserted.
@@ -611,13 +679,14 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Storage** — _done_
         - **Windows Security** — _done_
         - **Health Colour Coding** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
+        - **Local AI** — _done_
       - **Services Page** — _done_
         - **Service List & Filter** — _done_
         - **Services Refresh** — _done_
         - **Start / Stop / Restart / Pause / Resume** — _done_
         - **Startup Type Picker** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Environment Variables Page** — _done_
         - **Scope Selector & Filter** — _done_
         - **Value Editor** — _done_
@@ -625,7 +694,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Save Variable** — _done_
         - **Delete Variable** — _done_
         - **Add Variable** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
     - **Functionality** — _done_
       - **WMI Probe Layer** — _done_
       - **Privilege Bridge** — _done_
@@ -637,7 +706,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **scroll_to_top** — _done_ — Jumps the viewport to the first row.
         - **scroll_to_end** — _done_ — Jumps the viewport to the last row (loads the tail window).
         - **read_rows** — _done_ — Reads arbitrary rows/columns as data (start/count), so the AI can see cells past what GetContext sampled.
-      - **Preview — IContextPreview** — _should_ — IContextPreview not implemented.
+      - **Preview — IContextPreview** — _done_ — Uses the shared ReadOnlyTextPreview over TabularPreviewTable: four columns at most (more are marked), cells cut at 14 characters, up to 8 rows from the loaded window. Built fresh on each chip selection, copying what it shows.
     - **UI** — _done_
       - **Toolbar** — _done_
         - **Detected-shape descriptor** — _done_
@@ -693,7 +762,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Ribbon pin (with reshaping)** — _done_
       - **Open As Table** — _done_
       - **Path breadcrumb** — _done_
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
   - **Text Viewer** — _done_
     - **UI** — _should_
       - **Toolbar** — _done_
@@ -743,7 +812,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Confined-Window Editing** — _done_
       - **File Splitting** — _done_
       - **Search In File** — _should_
-      - **Open Actions** — _should_
+      - **Open Actions** — _done_
     - **AI Integration** — _should_
       - **Context — get_context** — _done_ — Honest and visible-slice-aware: filename, path, dirty/editing state, encoding, total line count, and the actual on-screen numbered lines. Faithfully reflects the window the user sees.
       - **Act — client tools** — _should_ — Full parity: read, search, line-edit, find/replace and save all funnel through the same TextViewModel/OverlayTextFile the user drives.
@@ -769,7 +838,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Act - client tools** — _should_ — See + scroll only - the AI cannot click links, navigate, or interact as the user can. No guidance.
         - **capture_web_page** — _done_ — Capturing the page renders a live WebView2; the not-wired error path is covered by WebAiTests, the actual screenshot needs a live browser control and is not unit-testable headless.
         - **scroll_web_page** — _done_ — Scrolling drives a live WebView2 then re-captures; the not-wired error path is covered by WebAiTests, the actual scroll+capture needs a live browser control and is not unit-testable headless.
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — The live browser cannot be shown twice, so the page pictures itself after each load at 480 px (PageSnapshot; the AI's own capture is 1200 px) and keeps the last picture; the next navigation cancels a capture still running, and an empty one leaves the last standing. Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract.
   - **Installed Apps** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: selected apps, or "still scanning", or up to 200 app names.
@@ -812,6 +881,7 @@ _Version **v.1.7.0** · 2026-10-12_
           - **Provided items** — _done_
           - **Drive rows** — _done_
         - **Marquee Selection** — _done_
+        - **Reload in place** — _done_
       - **Breadcrumb / Address Bar** — _done_ — The segments are rebuilt from the current path and each navigates on click - a projection with no rule of its own beyond the path itself. The path-driving half is asserted on winfs-path-query, and the segments' presence by the journey.
       - **File Action Strip** — _done_
         - **Copy** — _done_ — Putting a CF_HDROP on the Windows clipboard is a native call with no rule between the selection and the clipboard, and a test that takes the clipboard interferes with whatever else the machine is doing. What Copy is for is asserted on the other end: winfs-act-paste, which is where a clipboard drop can actually go wrong.
@@ -867,6 +937,8 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Default-Open Resolution** — _done_
       - **Browser search (? / ISearchable)** — _done_
       - **Backing-aware action availability** — _done_
+      - **Companion Files** — _should_
+        - **Companion-gated Actions** — _done_
   - **Win Registry** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: current key, subkey/value counts (cheap - avoids enumerating huge hives), and the selected value.
@@ -895,7 +967,7 @@ _Version **v.1.7.0** · 2026-10-12_
     - **Functionality** — _done_
       - **Elevation-gated Writes** — _done_
       - **Pin Key to Ribbon** — _done_
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
   - **Win Search** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: reports the query, the scope (a specific root or "This PC / all drives") and the result count. A This-PC cross-drive search is now reported correctly, not as "no search performed".
@@ -929,7 +1001,8 @@ _Version **v.1.7.0** · 2026-10-12_
         - **seek** — _done_ — Seeking needs a loaded engine + output device (none headless); the no-track and bad-position guards are covered by AudioAiTests, the actual seek is not unit-testable.
         - **next_track** — _done_ — Mid-queue advance loads the next track through the engine; the no-op-at-last-track guard is covered by AudioAiTests.Navigation_NoOpsAtQueueBoundaries, the advance itself is not unit-testable.
         - **previous_track** — _done_ — Mid-queue rewind loads the previous track through the engine; the no-op-at-first-track guard is covered by AudioAiTests.Navigation_NoOpsAtQueueBoundaries, the rewind itself is not unit-testable.
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+        - **listen_to_track** — _done_
+      - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the page's own now-playing state and queue (virtualized); a line with nothing to say takes no room. No waveform, spectrum or lyrics: the panel reminds the user what the conversation is about rather than standing in for the player.
     - **UI** — _done_
       - **Top Bar** — _done_
         - **Playlist Toggle** — _done_
@@ -1008,7 +1081,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **tar / 7z / rar Backend** — _done_
         - **zstd / lz4 Backend** — _done_
         - **AES-256 Zip Backend** — _done_
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
   - **3D Model** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: format, triangle/vertex/mesh/material counts, render mode, and any unsupported elements.
@@ -1021,7 +1094,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **pan_model** — _done_ — Pans to off-screen parts of the model.
         - **reset_view** — _done_ — Returns the camera to the default pose.
         - **set_render_mode** — _done_ — Toggles solid/wireframe to reveal internal structure.
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — The live viewport cannot be shown twice, so the page pictures its home framing once the model is built, decoded no larger than 480 px (PageSnapshot) so the full-size capture is not kept. Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract.
     - **UI** — _done_
       - **Toolbar** — _done_
         - **Wireframe Toggle** — _done_
@@ -1042,7 +1115,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Camera Maths** — _done_
       - **Categorical Tinting** — _done_
       - **Unrendered Content Report** — _done_
-      - **Open Actions** — _should_
+      - **Open Actions** — _done_
   - **Notebook** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: kernel plus code/markdown cell counts and a preview of the first fifteen cells, held back until the file has actually parsed. Before the gate existed a notebook pinned the instant it opened reported the empty python/0/0 stub as though that were the file.
@@ -1054,7 +1127,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Cell List** — _done_
         - **Markdown Cell** — _done_
         - **Code Cell** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Code Outline** — _done_
         - **Outline Entries** — _done_
     - **Functionality** — _done_
@@ -1069,7 +1142,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **video_capture_frame** — _done_ — Not unit-tested: capturing a frame needs a live media decode/render pipeline (MediaPlayer + decodable clip); covered by the UI journey.
         - **get_media_info** — _done_
         - **seek** — _done_
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the poster the scene strip already made, never the live frame or a new capture; no keyframes or media info, since the panel reminds the user what the conversation is about rather than standing in for the player.
     - **UI** — _done_
       - **Video Surface** — _done_
         - **Poster & Big Play Button** — _done_
@@ -1085,6 +1158,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Media Info Toggle** — _done_
         - **Scene Strip Toggle** — _done_
         - **Fullscreen Toggle** — _done_
+        - **Cut Out This Frame** — _done_
       - **Media Info Panel** — _done_
         - **Track Sections** — _done_
       - **Scene Strip (Keyframes)** — _done_
@@ -1111,7 +1185,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Row Actions** — _done_
         - **Conversation Rows** — _done_
         - **Date Filter** — _done_
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Analysis overlay** — _done_
         - **Analysis Sections** — _done_
       - **Conversation view** — _done_
@@ -1120,7 +1194,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Message Timestamps and Rewind** — _done_
         - **Message Thread** — _done_
         - **Token Budget Footer** — _done_ — A live readout of the running token estimate against the model context window. The budgeting it displays is asserted on aichat-history-resume; the footer itself is two bound numbers with no rule of its own.
-        - **Search (?)** — _should_
+        - **Search (?)** — _done_
       - **Context pinning** — _done_
         - **Context Chips** — _done_
         - **Attachments** — _done_ — Attachments are a plain path list with a missing-file marker; the content they contribute is assembled and asserted through aichat-ai-context.
@@ -1158,7 +1232,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Decoder registry** — _done_
         - **WOFF decoder** — _done_
       - **Open As Font** — _done_
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and rich: each font by index + name + status + selection mark, plus preview text/size/style and the specimen line.
       - **Act - client tools** — _done_ — Full parity plus more: mirrors the details panel and the rendered rows, with custom text/size overrides beyond the on-screen values.
@@ -1178,7 +1252,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Act - client tools** — _done_ — Full for a static viewer: the AI sees the same art (render) and the same metadata (info).
         - **render_svg_image** — _done_ — Rasterizes the frozen vector drawing to PNG - art the AI cannot get from metadata alone.
         - **get_svg_info** — _done_ — Mirrors the footer (dimensions, viewBox, element count).
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the page's own frozen drawing, so it is crisp at the panel's size and costs no new render. The art can be transparent, so its placeholder shows only until the drawing is there.
     - **Functionality** — _done_
       - **SVG Loader** — _done_
       - **Load Gate** — _done_
@@ -1186,44 +1260,44 @@ _Version **v.1.7.0** · 2026-10-12_
   - **Solver** — _should_
     - **UI** — _should_
       - **Definition Area** — _should_
-        - **Mode Rail** — _should_
-        - **Calc Input** — _should_
+        - **Mode Rail** — _done_
+        - **Calc Input** — _done_
         - **Markdown Editors** — _should_ — The editor is Visuals.Text's MarkdownSurface, tested there. What this feature adds is an instance per tab: one block of LaTeX is what the formula field IS, so flipping it live would ask one editor to reinterpret a document mid-edit, and the tab switch would have to swap the text underneath it.
-        - **Single-formula mode** — _should_
-        - **Rendered / source toggle** — _should_
+        - **Single-formula mode** — _done_
+        - **Rendered / source toggle** — _done_
       - **Palette** — _should_
-        - **Calculator Keypad** — _should_
-        - **Shift Pages** — _should_
-        - **Symbol Navigator** — _should_
-        - **Symbol Tree** — _should_
-        - **Key Insertion** — _should_
-        - **Angle Toggle** — _should_
-        - **Palette Visibility** — _should_
+        - **Calculator Keypad** — _done_
+        - **Shift Pages** — _done_
+        - **Symbol Navigator** — _done_
+        - **Symbol Tree** — _done_
+        - **Key Insertion** — _done_
+        - **Angle Toggle** — _done_
+        - **Palette Visibility** — _done_
         - **Recently Used** — _done_
         - **Navigator Breadcrumb** — _done_
       - **Chip Strip** — _should_
-        - **Chip Offers** — _should_
-        - **Chip Run** — _should_
+        - **Chip Offers** — _done_
+        - **Chip Run** — _done_
       - **Result List** — _should_
-        - **Result Cell** — _should_
+        - **Result Cell** — _done_
         - **Copy Result** — _should_ — One line onto the system clipboard. There is no seam worth extracting: a test would assert that Clipboard.SetText was called, which is a test of WPF. Covered by the UI journey instead.
-        - **Use As Definition** — _should_
-        - **Remove Result** — _should_
+        - **Use As Definition** — _done_
+        - **Remove Result** — _done_
     - **Functionality** — _should_
-      - **Expression Parsing** — _should_ — Two parsers read the same formula: XamlMath typesets it, AngouriMath calculates it. The typesetter is now the gate - a definition it could not read is never offered to the engine, so what wears a red wave on screen is exactly what has no chip, from one reading rather than two. It cannot be the whole answer: the typesetter has no opinion on whether a + has a right-hand side, so \sqrt{x^2+} sets perfectly and still reaches the engine. AngouriMath rejects it correctly but faults internally on the way (ANTLR recovery leaves a rule value unassigned and the grammar actions dereference it) - caught, so nothing breaks, but it breaks into a debugger. Worth an upstream issue, and worth collapsing to one parser eventually.
-      - **Solver Registry** — _should_
-      - **Evaluate** — _should_
-      - **Algebra** — _should_
-      - **Calculus** — _should_
-      - **Statistics** — _should_
-      - **AI Solve** — _should_
-      - **Settings** — _should_
+      - **Expression Parsing** — _done_ — Two parsers read the same formula: XamlMath typesets it, AngouriMath calculates it. The typesetter is now the gate - a definition it could not read is never offered to the engine, so what wears a red wave on screen is exactly what has no chip, from one reading rather than two. It cannot be the whole answer: the typesetter has no opinion on whether a + has a right-hand side, so \sqrt{x^2+} sets perfectly and still reaches the engine. AngouriMath rejects it correctly but faults internally on the way (ANTLR recovery leaves a rule value unassigned and the grammar actions dereference it) - caught, so nothing breaks, but it breaks into a debugger. Worth collapsing to one parser eventually.
+      - **Solver Registry** — _done_
+      - **Evaluate** — _done_
+      - **Algebra** — _done_
+      - **Calculus** — _done_
+      - **Statistics** — _done_
+      - **AI Solve** — _done_
+      - **Settings** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _should_
+      - **Context - get_context** — _done_
       - **Act - client tools** — _should_
-        - **solver_read_state** — _should_
-        - **solver_set_definition** — _should_
-        - **solver_run_chip** — _should_
+        - **solver_read_state** — _done_
+        - **solver_set_definition** — _done_
+        - **solver_run_chip** — _done_
       - **Preview - IContextPreview** — _should_
   - **Email** — _should_
     - **AI Integration** — _should_
@@ -1248,6 +1322,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Open Actions** — _done_
       - **Search ? Support** — _done_
   - **Gerber Viewer** — _should_
+    - **Preview - IContextPreview** — _should_
   - **Virtual Disk Viewer** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: format, partition scheme, volume count and capacity once loaded; holds the AI send while loading and says "still reading" rather than the unreadable fallback.
@@ -1270,7 +1345,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Disk as a Virtual Filesystem** — _done_
       - **Mount / Unmount** — _done_
       - **Open Actions** — _done_
-      - **Search (?)** — _should_
+      - **Search (?)** — _done_
   - **DICOM** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -1313,7 +1388,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Copy Tag Menu** — _done_ — Four menu items that put a string on the Windows clipboard. There is no rule between the row and the clipboard to get wrong - and a test that takes the clipboard is a test that interferes with whatever else the machine is doing. The drawer's own behaviour is covered on dicom-tag-list and dicom-tag-filter.
     - **Functionality** — _done_
       - **Container Loading** — _done_
-      - **Encapsulated Reports** — _should_
+      - **Encapsulated Reports** — _done_
       - **DICOM Detection** — _done_
       - **Open Actions** — _done_
   - **OneDrive** — _done_
@@ -1325,11 +1400,12 @@ _Version **v.1.7.0** · 2026-10-12_
     - **AI Integration** — _shouldn't_
   - **Executable Inspector** — _should_
     - **UI** — _should_
-      - **Dependency viewport** — _should_
+      - **Dependency viewport** — _done_
     - **Functionality** — _should_
-      - **Open Actions** — _should_
-      - **AV Scan Action** — _should_
+      - **Open Actions** — _done_
+      - **AV Scan Action** — _done_
     - **AI Integration** — _should_
+      - **Preview - IContextPreview** — _should_
   - **PDF** — _should_
     - **Functionality** — _should_
       - **Search text extraction** — _done_
@@ -1337,12 +1413,24 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Image codec filters** — _done_
       - **Page text, outline and page images** — _done_
       - **Reading order (layout analysis)** — _done_
+      - **Scanned pages read** — _done_
+      - **Pages as objects** — _done_
     - **UI** — _should_
       - **Rendered page surface** — _done_
+        - **Page navigation** — _done_
+        - **Zoom and fit** — _done_
+        - **Find in document** — _done_
+        - **Print** — _done_
+        - **Text selection and copy** — _done_
+        - **Links** — _done_
+        - **Blend modes** — _done_
+        - **Colour management** — _done_
       - **Document panel** — _should_
         - **Properties tab** — _done_
         - **Contents tab** — _done_
       - **As Pdf file action** — _done_
+      - **Scans notice** — _done_
+      - **Convert to Markdown** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
       - **Act - client tools** — _should_
@@ -1354,6 +1442,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **pdf_get_image** — _done_
         - **pdf_page_image** — _done_
         - **pdf_view_page** — _done_
+        - **pdf_read_scans** — _done_
       - **Preview - IContextPreview** — _should_
   - **Network** — _should_
     - **UI** — _should_
@@ -1370,7 +1459,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Ping** — _done_
         - **Published addresses** — _done_
         - **Port scan** — _should_
-        - **Wake on LAN** — _should_
+        - **Wake on LAN** — _done_
     - **Functionality** — _should_
       - **Discovery** — _should_
         - **ARP / neighbour table** — _done_
@@ -1382,7 +1471,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Device graph** — _should_
         - **Topology** — _should_
         - **Addresses derived from hardware** — _should_
-      - **DynamicProtocol** — _should_ — Ten corpus protocols round-trip byte-exact against real captures. NOT yet consumed by anything: the engine is referenced only by Nexaflow.Tests.IO, so nothing in the shell can reach it. Wants sub-nodes once it has a consumer - engine, definitions and the reviewing surface are three different things being tracked as one leaf.
+      - **DynamicProtocol** — _should_ — Ten corpus protocols round-trip byte-exact against real captures. Two run in the product: SsdpProbe writes and reads ssdp.json, WakeOnLanAction writes wol.json.
         - **The codec** — _done_
         - **The corpus** — _done_
         - **Protocol descriptions** — _done_
@@ -1408,6 +1497,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Network options** — _done_
         - **Audit** — _should_
     - **AI Integration** — _should_
+      - **Preview - IContextPreview** — _should_
   - **Office** — _should_
     - **Functionality** — _should_
       - **Word text extraction (search)** — _done_
@@ -1442,6 +1532,41 @@ _Version **v.1.7.0** · 2026-10-12_
         - **hdf5_read** — _done_
         - **hdf5_select** — _done_
       - **Preview - IContextPreview** — _should_
+  - **Rich Text (RTF)** — _done_
+    - **UI** — _done_
+      - **Document** — _done_
+      - **Error Overlay** — _done_
+      - **Footer** — _done_
+    - **AI Integration** — _done_
+      - **Context - get_context** — _done_
+      - **Act - client tools** — _done_
+        - **rtf_read_text** — _done_
+      - **Preview - IContextPreview** — _should_
+    - **Functionality** — _done_
+      - **File Reading** — _done_
+      - **Load Gate** — _done_
+      - **Reload on Change** — _done_
+      - **Open Actions** — _done_
+      - **Search ? Support** — _done_
+      - **Folder Search** — _done_
+  - **USB** — _done_
+    - **Page** — _done_
+    - **Device names** — _done_
+    - **Agent** — _done_
+    - **Device page** — _done_
+      - **Live tools** — _done_
+      - **Device agent** — _done_
+    - **Mass storage tool** — _done_
+    - **Audio tools** — _done_
+    - **HID tool** — _done_
+    - **Serial link** — _done_
+    - **Phone files tool** — _done_
+    - **Debug details** — _done_
+    - **Preview - IContextPreview** — _should_
+  - **Serial** — _done_
+    - **Terminal** — _done_
+    - **Agent** — _done_
+    - **Preview - IContextPreview** — _should_
 - **Providers** — _should_
   - **Claude** — _done_
   - **Gemini** — _done_
@@ -1449,6 +1574,18 @@ _Version **v.1.7.0** · 2026-10-12_
   - **OpenAI** — _done_
   - **Aria** — _done_
   - **Providers.Common** — _done_
+  - **Model files** — _done_
+  - **Speech to text** — _done_
+  - **Whisper** — _done_
+  - **AI host** — _done_
+    - **Machine setup** — _done_
+  - **Nexaflow (owned models)** — _done_
+  - **Text to speech** — _done_
+  - **Nexaflow speech (owned)** — _done_
+  - **Image generation** — _done_
+  - **Video generation** — _done_
+  - **Nexaflow images (owned)** — _done_
+  - **Nexaflow video (owned)** — _done_
 - **Common / Shared** — _should_
   - **Visuals.Text** — _done_
     - **Markdown Rendering** — _should_
@@ -1469,11 +1606,11 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Strong** — _done_
         - **Inline Links** — _done_
           - **In-page anchor links** — _done_
-          - **Host Link Decoration** — _should_
+          - **Host Link Decoration** — _done_
         - **Reference Links** — _done_
         - **Images** — _done_
           - **Remote images** — _should_
-          - **Host image resolver** — _should_
+          - **Host image resolver** — _done_
         - **AutoLinks** — _done_
         - **Hard Breaks** — _done_
         - **Soft line breaks** — _done_
@@ -1489,7 +1626,7 @@ _Version **v.1.7.0** · 2026-10-12_
             - **Cells know their place** — _done_
           - **Wash reads as picked out** — _done_
         - **In-Formula Editing** — _done_ — Backspace acts on the ONE piece before the caret: made of parts (its parse node has slots) means go back to the source it was written as; anything else is taken whole, six characters of \alpha included, because a symbol is one thing on the page however many letters spelled it. An earlier rule asked which pieces hide source instead and got both interesting cases wrong - it un-rendered an alpha nobody wanted to respell, and un-rendered x^2 when the caret was after the 2 (which in \frac{4}{x^2} then emptied the denominator and drew a hole). Measured side by side before changing: LatexTree.SymbolBefore and IsComposite. A revealed stretch then moves like the text it is being shown as - one character per arrow - because stepping by layout stops maps every position inside it to the single point where it sits in the typeset formula, and the caret jumps over the one place the reader wanted to edit.
-          - **Drag a term to a new place** — _should_ — A full parse and typeset measured 1.5-5ms in Debug, dominated by fixed overhead rather than formula size, and is only paid when the drop point crosses a caret stop - not per pixel - so the live preview keeps up with a hand.
+          - **Drag a term to a new place** — _done_ — A full parse and typeset measured 1.5-5ms in Debug, dominated by fixed overhead rather than formula size, and is only paid when the drop point crosses a caret stop - not per pixel - so the live preview keeps up with a hand.
           - **Holes** — _done_ — Two surgical changes in the fork: PlaceholderAtom/PlaceholderBox (four hairlines at the font's x-height, not a resized glyph), and the parser making one wherever an argument parsed to nothing - StandardCommands.ReadArgument, script arguments, and ReadArgumentFormula for the built-ins that read their own (\frac, \sqrt). It exists in the parse and NEVER in the source: the source keeps saying {}, which is what gets saved, copied and solved. An earlier attempt wrote \square into the source instead and was wrong - it made the placeholder something the reader could keep. The span is empty and sits where the contents would begin, so typing lands inside the braces; the diagnostic covers the braces, because a wave needs something to sit under. One carve-out was needed: standing for some of the source is what normally makes a piece pointable, and a hole stands for nothing by definition - see MarkInk and ILayoutNode.Stands.
             - **Holes are asked for** — _done_
           - **Palette keys take the selection** — _done_ — Which slot needs no new data: CaretBack already says where the key expects to be typed next, and that is the same place. Every structural key on the palette is a Literal with a CaretBack rather than a Wrapping key, so before this the whole palette replaced a selection instead of taking it.
@@ -1502,6 +1639,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Editing through the tree** — _done_ — An edit names the stretches of source it changes and the engine writes them, as every other language does; there is no writable AST and no tree handed back to be printed. TexParser declares ITranspile, so words arriving as words - pasted, or carried in from the prose around the formula - are spelled by LaTeX before any of them is written: a percent that would comment out the rest of the formula arrives as \%, and nothing at all goes into the shape of a grid.
         - **Brackets are one thing** — _done_ — FencedAtom already had Slots; nothing needed adding. What was missing was applying the rule that already existed for a fraction's bar: a piece with a span but no role is the enclosing construct's own drawing. A bracket goes further than a bar though - it is not decoration, it carries meaning only as a pair, and one without its partner cannot be parsed at all - so LatexTree.Owning climbs to the group for backspace AND for selection. It climbs only into something that IS a construct (IsComposite), or a tree with no parse behind it would let every step qualify and walk to the top. \Bigl[ and \Bigr] stay independent, correctly: in LaTeX they are two symbols that merely happen to be sized alike. Slots were considered for the delimiters and rejected - a slot is a place content goes, and a bracket is not one.
         - **Dirac notation** — _done_
+        - **Fonts read once** — _done_
       - **Mermaid** — _should_
         - **Graph / Flowchart** — _done_
           - **Flowchart Syntax Tree** — _done_
@@ -1518,8 +1656,8 @@ _Version **v.1.7.0** · 2026-10-12_
           - **Gantt Syntax Tree** — _done_
           - **Written In Place** — _done_
         - **Git Graph** — _done_
-          - **Git Graph Syntax Tree** — _should_
-          - **Written In Place** — _should_
+          - **Git Graph Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Mindmap** — _done_
           - **Mindmap Syntax Tree** — _done_
           - **Written In Place** — _done_
@@ -1545,11 +1683,11 @@ _Version **v.1.7.0** · 2026-10-12_
           - **Venn Syntax Tree** — _done_
           - **Written In Place** — _done_
         - **Timeline** — _done_
-          - **Timeline Syntax Tree** — _should_
-          - **Written In Place** — _should_
+          - **Timeline Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **User Journey** — _done_
-          - **User Journey Syntax Tree** — _should_
-          - **Written In Place** — _should_
+          - **User Journey Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **C4 diagrams** — _should_
           - **Macro syntax** — _done_
           - **Elements** — _done_
@@ -1557,9 +1695,9 @@ _Version **v.1.7.0** · 2026-10-12_
           - **Relationships** — _done_
           - **Styling and legend** — _done_
           - **C4 sequence** — _done_
-            - **Written In Place** — _should_
+            - **Written In Place** — _done_
           - **Structural diagrams** — _should_
-            - **Written In Place** — _should_
+            - **Written In Place** — _done_
         - **Block diagram** — _done_
           - **Block Syntax Tree** — _done_
           - **Written In Place** — _done_
@@ -1567,17 +1705,18 @@ _Version **v.1.7.0** · 2026-10-12_
           - **Architecture Syntax Tree** — _done_
           - **Written In Place** — _done_
         - **Cynefin** — _done_
-          - **Cynefin Syntax Tree** — _should_
-          - **Written In Place** — _should_
+          - **Cynefin Syntax Tree** — _done_
+          - **Written In Place** — _done_
         - **Swimlanes** — _done_
         - **Expandable Nodes** — _done_
         - **Mermaid Syntax Tree** — _done_
         - **Mermaid Builder** — _done_
+          - **Fitting The Room** — _done_
         - **Mermaid Diagram Kit** — _done_
         - **Bound Words** — _done_
-        - **Nested Content** — _should_
+        - **Nested Content** — _done_
         - **Bound Content** — _done_
-      - **Markdig Extensions** — _should_
+      - **Markdown extensions** — _should_
         - **Pipe tables** — _done_
         - **Grid tables** — _done_
         - **Task Lists** — _done_
@@ -1594,8 +1733,8 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Citations** — _done_
         - **jira links** — _should_
         - **media links** — _should_
-        - **smartypants** — _should_
-        - **emoji and smilies** — _should_
+        - **SmartyPants** — _done_ — Read in every surface; the CommonMark examples it changes are named in the HTML writer's ledger (markdown-html-differences.txt).
+        - **Emoji shortcodes** — _done_ — Smileys - :) ;-) - are deliberately the characters typed: beside a word or inside parentheses they are too often what they are. An emoji draws in one colour, through WPF's font fallback, as the icon picker's do.
       - **nomnoml** — _done_
       - **Musical Notation** — _should_
         - **ABC Notation** — _done_
@@ -1641,7 +1780,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Block Syntax** — _done_
         - **Rendering** — _done_
         - **Editable Value** — _done_
-        - **Symbol Tree** — _should_
+        - **Symbol Tree** — _done_
       - **2D Symbol Layer** — _done_
         - **Block Syntax Tree** — _done_
       - **Data Matrix** — _done_
@@ -1668,6 +1807,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Rendering** — _done_
       - **Shaped Pieces** — _done_
       - **Text Runs** — _done_
+        - **Shown source, a letter at a time** — _done_
       - **Word Clouds** — _should_
         - **Block Syntax** — _done_
         - **Packing** — _done_
@@ -1700,8 +1840,18 @@ _Version **v.1.7.0** · 2026-10-12_
         - **A whole document on one page** — _done_
         - **The document surfaces read from it** — _done_
         - **A block that reads as it did is laid as it was** — _done_
+        - **A document written out in another format** — _done_
       - **Background Reading** — _done_
       - **Moving what is picked out** — _done_
+      - **Rich Text (RTF)** — _done_
+        - **Reading RTF** — _done_
+        - **HTML wrapped in RTF** — _done_
+        - **Drawn as a document** — _done_
+      - **HTML read as markdown** — _done_
+      - **Windowed reading of large content** — _done_
+      - **Clipped, faded and masked pieces** — _done_
+      - **Turned and Scaled Pieces** — _done_
+      - **Languages asked while others are added** — _done_
     - **Code/Text Editor** — _done_
       - **Editor Host** — _done_
       - **Highlighting Host** — _done_
@@ -1709,6 +1859,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **CodeBlockView** — _done_
       - **Selectable Markdown** — _done_
       - **Markdown Pipeline** — _done_
+    - **Paged layout host** — _done_
   - **Syntax Engine (tree-sitter)** — _done_
     - **Parsers** — _done_
       - **C#** — _done_
@@ -1751,9 +1902,12 @@ _Version **v.1.7.0** · 2026-10-12_
     - **Glob** — _done_
     - **Virtual File System** — _done_
       - **Pass-through mounts** — _done_
-      - **Archive Progress & Cancellation** — _should_
+      - **Archive Progress & Cancellation** — _done_
     - **Codec / Archive Contracts** — _done_
     - **Text Transforms & Hashing** — _done_
+    - **Audio endpoints and test signals** — _done_
+    - **COM port catalog** — _done_
+    - **File stores** — _done_
   - **Visuals.Common** — _done_
     - **Shared Controls** — _done_
       - **Text Zoom** — _done_
@@ -1762,6 +1916,12 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Colour Picker** — _done_
         - **Screen Eyedropper** — _done_
       - **Drag Reorder** — _done_
+      - **Byte field view** — _done_
+      - **Column tile panel** — _done_
+      - **List copy, selection and activation** — _done_
+      - **Pointer menus** — _done_
+      - **Drafts: files made for you, with Save as** — _done_
+      - **Reader's place held** — _done_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
@@ -1773,9 +1933,9 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Part roles** — _done_
       - **Grids** — _done_
       - **Edited as a tree** — _should_
-      - **Read into what a builder can act on** — _should_
+      - **Read into what a builder can act on** — _done_
     - **Typesetting engine** — _done_
-      - **Boxes built from the parse tree** — _should_
+      - **Boxes built from the parse tree** — _done_
   - **Initiatives (product tree + graph)** — _should_
     - **Product tree** — _should_
       - **Tree model and status roll-up** — _done_
@@ -1822,6 +1982,48 @@ _Version **v.1.7.0** · 2026-10-12_
   - **Visuals.Icons** — _done_
     - **Icon Catalog** — _done_
     - **Icon Picker** — _done_
+  - **IO.CompoundFile** — _done_
+  - **AI tools** — _should_
+    - **Picture tools** — _done_
+    - **Picture selection** — _done_
+    - **Page reading** — _done_
+    - **Picture erasing** — _done_
+  - **IO.Usb (USB device layer)** — _should_
+    - **Descriptor parsing** — _done_
+    - **usb.ids names** — _done_
+    - **Device inventory** — _done_
+    - **Hot-plug and change diff** — _done_
+    - **Browsing model** — _done_
+    - **Driver take-over** — _should_
+      - **Take-over policy** — _done_
+      - **Binding ledger** — _done_
+      - **Bridge broker** — _done_
+      - **Inbox WinUSB binder** — _done_ — Changes real drivers, so no unit test: the policy, ledger and broker around it are tested. The binder is exercised end-to-end through the real PrivilegeBridge (usb.bind then usb.restore, one UAC prompt each) and by spikes/UsbDriverBinding; on Windows 11 26300 with HVCI on it binds and restores a CDC interface with no driver-store, certificate or registry residue.
+    - **Live tool contract** — _done_
+    - **Disks and volumes** — _done_
+    - **HID access** — _done_
+    - **Debug details** — _done_
+  - **Visuals.Stores** — _done_
+  - **Media codecs (Nexaflow.Media)** — _should_
+    - **JPEG 2000 decoder** — _should_
+      - **Codestreams and JP2 files** — _done_
+      - **Code blocks (tier-1)** — _done_
+      - **Wavelet and colour transforms** — _done_
+      - **Image output** — _done_
+      - **Shared-out decoding** — _done_
+    - **JPEG decoder** — _done_
+      - **Markers and colour space** — _done_
+      - **Entropy decoding** — _done_
+      - **Inverse DCT and upsampling** — _done_
+      - **Image output** — _done_
+      - **Shared-out decoding** — _done_
+    - **JBIG2 decoder** — _done_
+      - **Files, streams and segments** — _done_
+      - **Generic regions** — _done_
+      - **Refinement** — _done_
+      - **Text regions and symbol dictionaries** — _done_
+      - **Halftone regions** — _done_
+      - **Damaged data and limits** — _done_
 - **Core UX** — _should_
   - **Themes** — _done_
     - **Dark** — _done_
@@ -1847,6 +2049,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Reduce-motion switch** — _should_
         - **ArcticScene** — _done_
         - **FlowerbedScene** — _done_
+        - **DesertScene** — _done_
       - **Categorical Swatch Bank** — _done_
       - **Code Colour Palette (TextSwatch)** — _done_
       - **Semantic Status Tokens** — _done_
@@ -1857,6 +2060,7 @@ _Version **v.1.7.0** · 2026-10-12_
       - **Immersive theme tuning** — _should_
     - **Arctic** — _done_
     - **Flowers** — _done_
+    - **Desert** — _done_
   - **Ribbon** — _done_
     - **Ribbon Bar** — _done_
       - **Ribbon Button (full)** — _done_
@@ -1916,15 +2120,16 @@ _Version **v.1.7.0** · 2026-10-12_
     - **Save / Validate / Dirty Tracking** — _done_
     - **Shell Settings** — _done_
       - **Text Size** — _done_
-    - **Voice Settings** — _done_
     - **File-Type Actions Editor** — _done_
     - **Workspaces (Profiles) Editor** — _done_
     - **Manage AI / Configure Workspace** — _done_
       - **AI Ability Grid** — _done_
         - **Add Provider / Model Column** — _done_
+        - **Local models** — _done_
       - **AI Persona** — _done_
       - **Provider Config / API Keys** — _done_
       - **Workspace Identity Page** — _done_
+      - **What needs an ability** — _done_
     - **About Page** — _done_
       - **Reset Config (Danger)** — _done_
       - **System components** — _done_
@@ -1932,6 +2137,8 @@ _Version **v.1.7.0** · 2026-10-12_
       - **What's New Step** — _done_
       - **Mandatory Config Steps** — _done_
       - **AI Bootstrap (Provider → Key → Model)** — _done_
+      - **Who runs the AI** — _done_
+      - **Download models** — _done_
     - **Config Versioning & Migration** — _done_
   - **Workspaces & Profiles** — _done_
     - **Add Workspace** — _done_
@@ -1941,6 +2148,7 @@ _Version **v.1.7.0** · 2026-10-12_
         - **Export Conversations** — _done_
       - **Reconfigure In Place** — _done_
       - **Startup Tabs & Session Restore** — _done_
+      - **Ask before closing with unapplied edits** — _done_
     - **Launch Control** — _done_
       - **Taskbar JumpList** — _done_
       - **Single-Instance IPC** — _done_
@@ -1958,7 +2166,7 @@ _Version **v.1.7.0** · 2026-10-12_
   - **AI Input Bar & Response Overlay** — _done_
     - **Include Page Context Toggle** — _done_
     - **Voice Input** — _done_
-      - **Voice Settings (Whisper Model)** — _done_
+      - **Speech to text on the Local page** — _done_
     - **Intent Symbol / Handler Routing** — _done_
     - **Input Cluster** — _done_
       - **Prompt Text Box** — _done_
@@ -1970,7 +2178,7 @@ _Version **v.1.7.0** · 2026-10-12_
     - **AI Status Dot** — _done_
     - **Page Chat-Bar Hooks** — _done_
     - **Prefill Type-In** — _done_
-    - **AI Response Overlay** — _done_
+    - **AI Reply Card** — _done_
       - **Live Progress Line** — _done_
       - **Tool-Batch Approval** — _done_
       - **Plan Approval** — _done_
@@ -1981,13 +2189,25 @@ _Version **v.1.7.0** · 2026-10-12_
     - **Inline Response Banner** — _done_
       - **Escalate to Overlay** — _done_
     - **Background Activity Ticker** — _done_
-    - **Page Quick-Open** — _should_
+    - **Page Quick-Open** — _done_
     - **Page Search (? / ISearchable)** — _done_
       - **Search conformance** — _done_
       - **Agent search tools** — _done_
       - **Regex everywhere** — _done_
         - **Two-stage content verification** — _done_ — Row states are five-way, and the split is about EVIDENCE not just outcome. Verified = name matched, or content matched in a file we decoded properly. Uncertain = the pattern WAS found, but by scanning the raw bytes of a format we don't understand - real, possibly incidental, like a plain-text scan finding 'magic' in a JPEG tag. Rejected = read as proper text and not there (conclusive). Unreadable = couldn't open it, OR not found in raw bytes of a container whose real text is compressed - absence there proves nothing, so it must never be reported as a miss. Candidate = not yet checked. An unknown file type is never skipped: it is always scanned as text, and only the CONFIDENCE differs. Unreadable and Uncertain are never re-offered for checking, since re-reading gives the same answer and makes the button look dead.
-      - **Search status chip** — _should_
+      - **Search status chip** — _done_
+    - **High-risk context leaves only with consent** — _done_
+    - **Recordings from tools** — _done_
+    - **Voice conversation** — _done_
+    - **Native tool calls** — _done_
+    - **Tools chosen per step** — _done_
+    - **Unreadable calls written again** — _done_
+    - **Generation tools** — _done_
+    - **Requests routed by weight** — _done_
+    - **Reading handed to the machine's model** — _done_
+    - **Background tasks pill** — _done_
+    - **Answers in the bar** — _done_
+    - **Tools reach only what the tabs show** — _done_
   - **Window Handling** — _done_
     - **Tear Off Tab** — _done_
     - **Split View (Dual Pane)** — _done_
@@ -2015,12 +2235,12 @@ _Version **v.1.7.0** · 2026-10-12_
     - **Tab Drag / Tear-off Source** — _done_
     - **Tab Context Menu** — _done_
     - **Pin Tab to Ribbon** — _done_
-    - **Tab Label** — _should_
+    - **Tab Label** — _done_
   - **Main Window Frame** — _done_
     - **Custom Title Bar / Window Controls** — _done_
     - **Top Bar** — _done_
       - **Options Button** — _done_
-      - **Help Button** — _should_
+      - **Help Button** — _done_
     - **Content Area (Pane Host)** — _done_
     - **AI Interaction Bar** — _done_
       - **AI Status Dot** — _done_
@@ -2031,27 +2251,27 @@ _Version **v.1.7.0** · 2026-10-12_
   - **Taskbar Jump List** — _done_
   - **Crash Log** — _done_
   - **Languages** — _should_
-    - **Language Packs** — _should_
-    - **String Tables** — _should_
-    - **Language Switch** — _should_
-    - **English** — _should_
+    - **Language Packs** — _done_
+    - **String Tables** — _done_
+    - **Language Switch** — _done_
+    - **English** — _done_
   - **Help** — _should_
     - **UI** — _should_
       - **Help Pane** — _should_
-        - **Search Box** — _should_
-        - **Search Status Chip** — _should_
-        - **In Other Help Pages** — _should_
-        - **All Help Pages Button** — _should_
-        - **Showcase Document** — _should_
-        - **Locate Lasso** — _should_
+        - **Search Box** — _done_
+        - **Search Status Chip** — _done_
+        - **In Other Help Pages** — _done_
+        - **All Help Pages Button** — _done_
+        - **Showcase Document** — _done_
+        - **Locate Lasso** — _done_
     - **Functionality** — _should_
-      - **Open Beside / Toggle / Follow** — _should_
-      - **Showcase Library** — _should_
-      - **Search: this page, then all** — _should_
-      - **Topics Menu** — _should_
-      - **Show Me Where: locate: links** — _should_
+      - **Open Beside / Toggle / Follow** — _done_
+      - **Showcase Library** — _done_
+      - **Search: this page, then all** — _done_
+      - **Topics Menu** — _done_
+      - **Show Me Where: locate: links** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _should_
+      - **Context - get_context** — _done_
       - **Act - help tools** — _done_
 - **OptionalTools** — _should_
   - **nfi CLI** — _should_
@@ -2070,9 +2290,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 1/1571 |
-| theming | 686/1571 |
-| tests | 1243/1571 |
-| docs | 6/1571 |
-| AI Ready | 0/1571 |
-| Expanded | 25/1571 |
+| i18n | 7/1756 |
+| theming | 740/1756 |
+| tests | 1423/1756 |
+| docs | 9/1756 |
+| Expanded | 25/1756 |
