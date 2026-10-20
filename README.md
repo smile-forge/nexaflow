@@ -92,7 +92,7 @@ An AI input bar on every window, and a dedicated AI Chat tab with saved history.
 
 **[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
 
-Requires Windows 10 or 11 (64-bit); the installer adds the .NET 10 Desktop Runtime and the Visual C++ runtime if they're missing. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+Requires Windows 10 or 11. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
 
 Every page's help is online too — the same text F1 shows you in the app: **[the full reference](https://smile-forge.github.io/nexaflow/help/)**.
 
