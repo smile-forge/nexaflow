@@ -224,9 +224,10 @@ instead (below), which is the one thing the shared layout tree cannot do yet.
 [`PieBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieBuilder.cs)).
 A pie is the first diagram drawn on the **shared layout tree** rather than by a renderer of its own, so it is selectable
 and its values are the numbers themselves. Supported: `pie`, `showData`, a `title` after the keyword or on a line of its
-own, `"label" : value` slices in clockwise order, `%%` comments and `accTitle`/`accDescr`. A value that is not a number
-greater than nought keeps its slice and carries the reason on the number; a line that is no slice is held as written
-with the reason, and a pie with nothing worth drawing is shown as its own source — unless it is being written in.
+own, `"label" : value` slices in clockwise order, `%%` comments and `accTitle`/`accDescr`. A slice worth `0` has its
+row and colour in the legend and no wedge, as in Mermaid. A value that is not a number of nought or more keeps its
+slice and carries the reason on the number; a line that is no slice is held as written with the reason, and a pie with
+no slice whose value counts is shown as its own source — unless it is being written in.
 **Written in place:** a label or value deleted to nothing leaves a hole rather than an error, Enter anywhere on a slice
 starts a new slice under it with holes for its label and value (Tab moves between them), Backspace in a slice nothing
 has been written on takes it back, Backspace and Delete stop at the edges of a label, value or title rather than
