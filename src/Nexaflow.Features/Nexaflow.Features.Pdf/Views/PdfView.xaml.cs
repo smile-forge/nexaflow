@@ -39,7 +39,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         ViewModel.NavigateToPage = (page, offsetFromTop) =>
             Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
         ViewModel.Host           = this;   // what opens beside the document — its scans' Markdown — opens in its window
-        Pages.LinkActivated += (_, href) => FollowLink(href);
+        Pages.LinkActivated += (_, link) => FollowLink(link.Href);
         Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
         Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
         DependencyPropertyDescriptor.FromProperty(PagedLayoutElement.CurrentPageProperty, typeof(PagedLayoutElement))
