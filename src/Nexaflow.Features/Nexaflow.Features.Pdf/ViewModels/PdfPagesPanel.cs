@@ -4,6 +4,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Visuals.Common.Behaviors;
@@ -14,8 +15,8 @@ namespace Nexaflow.Features.Pdf.ViewModels;
 
 /// <summary>
 /// The Pages tab: a thumbnail of every page in the order the document now has, the page being read marked, and the
-/// page edits — pages dragged or moved into a new place, deleted, a picture or another PDF inserted between two — each
-/// staged on the document until it is saved.
+/// page edits — pages dragged or moved into a new place, deleted, split into the pages printed on them, a picture or
+/// another PDF inserted between two — each staged on the document until it is saved.
 /// </summary>
 public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 {
@@ -25,12 +26,39 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     private readonly PdfThumbnails _thumbnails;
     private readonly CancellationTokenSource _lifetime = new();
 
+    /// <summary>The parts a page may be split into.</summary>
+    private static readonly int[] SplitParts = [2, 3, 4];
+
+    /// <summary>Every line a split may cut a page along — what a page's picture is read for, once, whatever is chosen.</summary>
+    private static readonly IReadOnlyList<PdfPageCut> EveryCut =
+        SplitParts.SelectMany(count => PdfPagePart.Cuts(count, across: true).Concat(PdfPagePart.Cuts(count, across: false))).Distinct().ToList();
+
+    /// <summary>The longer side of the picture a page's cuts are read from, in pixels.</summary>
+    private const int InkLongest = 480;
+
+    private readonly Func<PdfPageSource?> _source;
+
+    /// <summary>Which of <see cref="EveryCut"/> each page's artwork crosses, by the page it is — read while a split is set up.</summary>
+    private readonly Dictionary<PdfPageId, IReadOnlyDictionary<PdfPageCut, bool>> _ink = new();
+
+    private CancellationTokenSource? _inspecting;
+
     internal PdfPagesPanel(PdfDocumentSession session, IShellServices shell, Func<int, bool> goToPage, Func<PdfPageSource?> source)
     {
         _session = session;
         _shell = shell;
         _goToPage = goToPage;
         _thumbnails = new PdfThumbnails(source);
+        _source = source;
+        SplitCounts = SplitParts.Select(count => new PdfSplitChoice<int>(count, Str.Format("Pdf.Split.PartsFormat", count))).ToList();
+        SplitDirections =
+        [
+            new(PdfSplitDirection.Auto, Str.Get("Pdf.Split.Direction.Auto")),
+            new(PdfSplitDirection.Across, Str.Get("Pdf.Split.Direction.Across")),
+            new(PdfSplitDirection.Down, Str.Get("Pdf.Split.Direction.Down")),
+        ];
+        _splitCount = SplitCounts[0];
+        _splitDirection = SplitDirections[0];
     }
 
     /// <summary>Every page, in order.</summary>
@@ -42,7 +70,7 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NotEditableMessage))]
     [NotifyCanExecuteChangedFor(nameof(ReorderCommand), nameof(DeleteSelectedCommand), nameof(InsertImagesAtCommand),
-        nameof(InsertPdfsAtCommand), nameof(MoveSelectionCommand))]
+        nameof(InsertPdfsAtCommand), nameof(MoveSelectionCommand), nameof(BeginSplitCommand), nameof(ApplySplitCommand))]
     private bool _canEdit;
 
     /// <summary>Why the pages cannot be edited, where they cannot.</summary>
@@ -50,6 +78,43 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     /// <summary>The pages selected, in order.</summary>
     public int SelectedCount => Pages.Count(page => page.IsSelected);
+
+    /// <summary>Whether a split of the selected pages is being set up, the lines they would be cut along drawn on them.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BeginSplitCommand), nameof(ApplySplitCommand))]
+    private bool _isSplitting;
+
+    /// <summary>How many parts a page may be split into.</summary>
+    public IReadOnlyList<PdfSplitChoice<int>> SplitCounts { get; }
+
+    /// <summary>Which ways a page may be cut.</summary>
+    public IReadOnlyList<PdfSplitChoice<PdfSplitDirection>> SplitDirections { get; }
+
+    /// <summary>How many parts each selected page is split into.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUnfoldBooklet))]
+    private PdfSplitChoice<int> _splitCount;
+
+    /// <summary>Which way each selected page is cut.</summary>
+    [ObservableProperty] private PdfSplitChoice<PdfSplitDirection> _splitDirection;
+
+    /// <summary>
+    /// Whether the selected pages are a folded booklet's sheets, their halves put into reading order rather than left in
+    /// place — for halves only.
+    /// </summary>
+    [ObservableProperty] private bool _splitBooklet;
+
+    /// <summary>Whether a booklet can be unfolded from the parts chosen: only from halves.</summary>
+    public bool CanUnfoldBooklet => SplitCount.Value == 2;
+
+    /// <summary>Which pages' artwork a cut would cross, said where there are any.</summary>
+    [ObservableProperty] private string _splitWarning = string.Empty;
+
+    /// <summary>Whether some of the pages to be split are still being checked for artwork across their cuts.</summary>
+    [ObservableProperty] private bool _isCheckingCuts;
+
+    /// <summary>The checking of the cuts last set going: complete once every page with cuts drawn has been checked.</summary>
+    internal Task CutsInspected { get; private set; } = Task.CompletedTask;
 
     /// <summary>
     /// Brings the thumbnails into line with the pages: those gone removed, the rest moved, the new added — each kept
@@ -141,6 +206,132 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         Edit(() => _session.Move(indices, gap));
     }
 
+    /// <summary>Sets up a split of the selected pages: their cut lines drawn, and checked against their artwork.</summary>
+    [RelayCommand(CanExecute = nameof(CanBeginSplit))]
+    private void BeginSplit()
+    {
+        IsSplitting = true;
+        ShowCuts();
+    }
+
+    private bool CanBeginSplit() => CanEdit && !IsSplitting && SelectedCount > 0;
+
+    /// <summary>The selected pages split as set up, as one edit.</summary>
+    [RelayCommand(CanExecute = nameof(CanApplySplit))]
+    private void ApplySplit()
+    {
+        var indices = SelectedIndices();
+        var (count, direction, booklet) = (SplitCount.Value, SplitDirection.Value, SplitBooklet && CanUnfoldBooklet);
+        EndSplit();
+        Edit(() => _session.Split(indices, count, direction, booklet));
+    }
+
+    private bool CanApplySplit() => CanEdit && IsSplitting && SelectedCount > 0;
+
+    [RelayCommand]
+    private void CancelSplit() => EndSplit();
+
+    partial void OnSplitCountChanged(PdfSplitChoice<int> value)
+    {
+        if (!CanUnfoldBooklet) SplitBooklet = false;
+        ShowCuts();
+    }
+
+    partial void OnSplitDirectionChanged(PdfSplitChoice<PdfSplitDirection> value) => ShowCuts();
+
+    private void EndSplit()
+    {
+        IsSplitting = false;
+        ShowCuts();
+        _ink.Clear();
+    }
+
+    /// <summary>
+    /// Draws the lines the selected pages would be cut along while a split is set up — on none once it is not — each marked
+    /// where its page's artwork crosses it, and has the pages not yet checked checked.
+    /// </summary>
+    private void ShowCuts()
+    {
+        _inspecting?.Cancel();
+        _inspecting = null;
+
+        var unread = new List<PdfPageThumbnail>();
+        for (var i = 0; i < Pages.Count; i++)
+        {
+            var page = Pages[i];
+            if (!IsSplitting || !page.IsSelected)
+            {
+                if (page.Cuts.Count > 0) page.Cuts = [];
+                continue;
+            }
+
+            ShowCuts(page, i);
+            if (!_ink.ContainsKey(page.Id)) unread.Add(page);
+        }
+
+        if (unread.Count > 0)
+        {
+            _inspecting = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            CutsInspected = InspectAsync(unread, _inspecting.Token);
+        }
+
+        NoteCuts();
+    }
+
+    private void ShowCuts(PdfPageThumbnail page, int index) =>
+        page.ShowCuts(PdfPagePart.Cuts(SplitCount.Value, _session.SplitsAcross(index, SplitDirection.Value)),
+            cut => _ink.TryGetValue(page.Id, out var crossed) && crossed.TryGetValue(cut, out var crosses) && crosses);
+
+    /// <summary>
+    /// Reads which cuts each of <paramref name="pages"/> has artwork across, from a picture of it, one page at a time.
+    /// </summary>
+    private async Task InspectAsync(IReadOnlyList<PdfPageThumbnail> pages, CancellationToken ct)
+    {
+        foreach (var page in pages)
+        {
+            if (_source() is not { } source) return;
+            var index = source.Arrangement.IndexOf(page.Id);
+            if (index < 0) continue;
+
+            IReadOnlyDictionary<PdfPageCut, bool> crossed;
+            try
+            {
+                var size = _session.PageSize(index);
+                var width = Math.Max(1, (int)Math.Round(InkLongest * size.Width / Math.Max(size.Width, size.Height)));
+                crossed = await source.PaintedAsync(index, width, ct) is { } picture
+                    ? await Task.Run(() => Crossed(picture), ct)
+                    : new Dictionary<PdfPageCut, bool>();
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (InvalidOperationException)
+            {
+                crossed = new Dictionary<PdfPageCut, bool>();   // the page's document can no longer be read
+            }
+
+            _ink[page.Id] = crossed;
+            if (IsSplitting && page.IsSelected && Pages.IndexOf(page) is var at and >= 0) ShowCuts(page, at);
+            NoteCuts();
+        }
+    }
+
+    private static IReadOnlyDictionary<PdfPageCut, bool> Crossed(System.Windows.Media.Imaging.BitmapSource picture)
+    {
+        var ink = PdfInk.Of(picture);
+        return EveryCut.ToDictionary(cut => cut, ink.Crosses);
+    }
+
+    /// <summary>Says which pages' artwork a cut crosses, and whether any are still being checked.</summary>
+    private void NoteCuts()
+    {
+        var cut = IsSplitting ? Pages.Where(page => page.Cuts.Count > 0).ToList() : [];
+        var crossed = cut.Where(page => page.Cuts.Any(line => line.CrossesInk)).Select(page => page.Number).ToList();
+        SplitWarning = crossed.Count > 0 ? Str.Format("Pdf.Split.CrossesFormat", string.Join(", ", crossed)) : string.Empty;
+        IsCheckingCuts = cut.Any(page => !_ink.ContainsKey(page.Id));
+    }
+
     [RelayCommand]
     private void GoTo(PdfPageThumbnail? page)
     {
@@ -212,5 +403,8 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(SelectedCount));
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        BeginSplitCommand.NotifyCanExecuteChanged();
+        ApplySplitCommand.NotifyCanExecuteChanged();
+        if (IsSplitting) ShowCuts();
     }
 }

@@ -1,5 +1,6 @@
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
 
 namespace Nexaflow.Features.Pdf.ViewModels;
@@ -39,6 +40,12 @@ public sealed partial class PdfPageThumbnail : ObservableObject
     [ObservableProperty] private bool _isCurrent;
 
     /// <summary>
+    /// The lines the page would be cut along while a split is set up, drawn across the sheet — each marked where it crosses
+    /// the page's artwork. None otherwise.
+    /// </summary>
+    [ObservableProperty] private IReadOnlyList<PdfThumbnailCut> _cuts = [];
+
+    /// <summary>
     /// Sizes the sheet to the page's proportions, as large as fits <see cref="SheetBox"/> by <see cref="SheetTallest"/>.
     /// </summary>
     internal void Fit(System.Windows.Size page)
@@ -48,4 +55,11 @@ public sealed partial class PdfPageThumbnail : ObservableObject
         SheetWidth = page.Width * scale;
         SheetHeight = page.Height * scale;
     }
+
+    /// <summary>Draws <paramref name="cuts"/> across the sheet, those <paramref name="crossing"/> the artwork marked.</summary>
+    internal void ShowCuts(IReadOnlyList<PdfPageCut> cuts, Func<PdfPageCut, bool> crossing) =>
+        Cuts = cuts.Select(cut => cut.Vertical
+                ? new PdfThumbnailCut(cut.At * SheetWidth, 0, cut.At * SheetWidth, SheetHeight, crossing(cut))
+                : new PdfThumbnailCut(0, cut.At * SheetHeight, SheetWidth, cut.At * SheetHeight, crossing(cut)))
+            .ToList();
 }

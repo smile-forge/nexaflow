@@ -65,6 +65,19 @@ internal sealed class PdfPageArrangement : IEquatable<PdfPageArrangement>
         return new PdfPageArrangement(_pages.InsertRange(gap, pages));
     }
 
+    /// <summary>
+    /// The arrangement with the pages at <paramref name="indices"/> replaced by <paramref name="pages"/>, put where the
+    /// first of them was — a split page by its parts.
+    /// </summary>
+    public PdfPageArrangement Replace(IReadOnlyCollection<int> indices, IReadOnlyList<PdfArrangedPage> pages)
+    {
+        var replacing = Checked(indices);
+        var at = replacing.Min();
+        var kept = _pages.Where((_, index) => !replacing.Contains(index)).ToList();
+        kept.InsertRange(at - replacing.Count(index => index < at), pages);
+        return new PdfPageArrangement(kept.ToImmutableArray());
+    }
+
     public int IndexOf(PdfPageId id)
     {
         for (var i = 0; i < _pages.Length; i++)

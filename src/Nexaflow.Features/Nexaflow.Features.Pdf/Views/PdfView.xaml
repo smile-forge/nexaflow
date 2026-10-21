@@ -224,14 +224,15 @@
                             ItemContainerStyle="{StaticResource ThemedTabItem}">
 
                     <!-- Pages: a thumbnail of every page in the order the document now has, the page being read
-                         outlined. Pages are dragged into a new order, deleted, or have a picture or another PDF
-                         inserted between them from the right-click menu; every edit is staged until Save. The list
-                         virtualises: a row's picture is asked for as it comes into view. -->
+                    outlined. Pages are dragged into a new order, deleted, split into the pages printed on them, or have
+                         a picture or another PDF inserted between them from the right-click menu; every edit is staged until
+                         Save. The list virtualises: a row's picture is asked for as it comes into view. -->
                     <TabItem x:Name="PagesTab"
                              Header="{loc:Str Pdf.Tab.Pages}"
                              AutomationProperties.AutomationId="Pdf_Tab_Pages">
                         <Grid DataContext="{Binding PagesPanel}">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
@@ -245,7 +246,68 @@
                                      Text="{Binding NotEditableMessage, Mode=OneWay}"
                                      Visibility="{Binding NotEditableMessage, Converter={StaticResource StringVis}}"/>
 
-                            <ListBox Grid.Row="1"
+                                     <!-- Split: the selected pages cut into the pages printed on them. While it is set up, the lines they would be
+                                          cut along are drawn on their thumbnails, and a line crossing a page's artwork is marked and the page named. -->
+                                     <Border Grid.Row="1"
+                                             Margin="8,8,8,0"
+                                             Padding="10,8"
+                                             CornerRadius="4"
+                                             Background="{DynamicResource Surface2Brush}"
+                                             Visibility="{Binding IsSplitting, Converter={StaticResource BoolToVis}}">
+                                         <StackPanel>
+                                             <TextBlock Text="{loc:Str Pdf.Split.Heading}"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{DynamicResource TextBrush}"/>
+                                             <ComboBox Margin="0,8,0,0"
+                                                       Style="{StaticResource DarkComboBox}"
+                                                       ItemsSource="{Binding SplitCounts}"
+                                                       SelectedItem="{Binding SplitCount, Mode=TwoWay}"
+                                                       DisplayMemberPath="Label"
+                                                       ToolTip="{loc:Str Pdf.Split.PartsTip}"
+                                                       AutomationProperties.AutomationId="Pdf_Split_Parts"/>
+                                             <ComboBox Margin="0,6,0,0"
+                                                       Style="{StaticResource DarkComboBox}"
+                                                       ItemsSource="{Binding SplitDirections}"
+                                                       SelectedItem="{Binding SplitDirection, Mode=TwoWay}"
+                                                       DisplayMemberPath="Label"
+                                                       ToolTip="{loc:Str Pdf.Split.DirectionTip}"
+                                                       AutomationProperties.AutomationId="Pdf_Split_Direction"/>
+                                             <CheckBox Margin="0,8,0,0"
+                                                       Content="{loc:Str Pdf.Split.Booklet}"
+                                                       ToolTip="{loc:Str Pdf.Split.BookletTip}"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       IsChecked="{Binding SplitBooklet, Mode=TwoWay}"
+                                                       IsEnabled="{Binding CanUnfoldBooklet}"
+                                                       AutomationProperties.AutomationId="Pdf_Split_Booklet"/>
+                                             <TextBlock Margin="0,8,0,0"
+                                                        FontSize="12"
+                                                        TextWrapping="Wrap"
+                                                        Foreground="{DynamicResource TextMutedBrush}"
+                                                        Text="{loc:Str Pdf.Split.Checking}"
+                                                        Visibility="{Binding IsCheckingCuts, Converter={StaticResource BoolToVis}}"/>
+                                             <TextBlock Margin="0,8,0,0"
+                                                        FontSize="12"
+                                                        TextWrapping="Wrap"
+                                                        Foreground="{DynamicResource WarningBrush}"
+                                                        Text="{Binding SplitWarning}"
+                                                        Visibility="{Binding SplitWarning, Converter={StaticResource StringVis}}"/>
+                                             <StackPanel Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                 <Button Style="{StaticResource PdfToolbarBtn}"
+                                                         Content="{loc:Str Pdf.Split.Cancel}"
+                                                         Command="{Binding CancelSplitCommand}"
+                                                         AutomationProperties.AutomationId="Pdf_Split_Cancel"/>
+                                                 <Button Style="{StaticResource PdfAccentBtn}"
+                                                         Margin="8,0,0,0"
+                                                         Padding="14,5"
+                                                         FontSize="12"
+                                                         Content="{loc:Str Pdf.Split.Apply}"
+                                                         Command="{Binding ApplySplitCommand}"
+                                                         AutomationProperties.AutomationId="Pdf_Split_Apply"/>
+                                             </StackPanel>
+                                         </StackPanel>
+                                     </Border>
+
+                            <ListBox Grid.Row="2"
                                      x:Name="Thumbnails"
                                      AutomationProperties.AutomationId="Pdf_Thumbnails"
                                      ItemsSource="{Binding Pages}"
@@ -274,15 +336,45 @@
                                         <StackPanel Margin="0,4"
                                                     DataContextChanged="Thumbnail_DataContextChanged"
                                                     Unloaded="Thumbnail_Unloaded">
-                                            <Border x:Name="Sheet"
-                                                    Width="{Binding SheetWidth}"
-                                                    Height="{Binding SheetHeight}"
-                                                    HorizontalAlignment="Center"
-                                                    Background="{DynamicResource Pdf.Paper}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    BorderThickness="1">
-                                                <Image Source="{Binding Picture}" Stretch="Uniform"/>
-                                            </Border>
+                                            <Grid Width="{Binding SheetWidth}"
+                                                  Height="{Binding SheetHeight}"
+                                                  HorizontalAlignment="Center">
+                                                <Border x:Name="Sheet"
+                                                        Background="{DynamicResource Pdf.Paper}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1">
+                                                    <Image Source="{Binding Picture}" Stretch="Uniform"/>
+                                                </Border>
+                                                <!-- The lines the page would be cut along while a split is set up; one crossing the artwork is marked. -->
+                                                <ItemsControl ItemsSource="{Binding Cuts}"
+                                                              IsHitTestVisible="False"
+                                                              Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Line x:Name="Cut"
+                                                                  X1="{Binding X1}"
+                                                                  Y1="{Binding Y1}"
+                                                                  X2="{Binding X2}"
+                                                                  Y2="{Binding Y2}"
+                                                                  Stroke="{DynamicResource AccentBrush}"
+                                                                  StrokeThickness="1.5"
+                                                                  StrokeDashArray="3 2"/>
+                                                            <DataTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding CrossesInk}" Value="True">
+                                                                    <Setter TargetName="Cut" Property="Stroke"          Value="{DynamicResource WarningBrush}"/>
+                                                                    <Setter TargetName="Cut" Property="StrokeThickness" Value="2"/>
+                                                                    <Setter TargetName="Cut" Property="StrokeDashArray" Value="{x:Null}"/>
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
                                             <TextBlock Text="{Binding Number}"
                                                        HorizontalAlignment="Center"
                                                        Margin="0,4,0,0"

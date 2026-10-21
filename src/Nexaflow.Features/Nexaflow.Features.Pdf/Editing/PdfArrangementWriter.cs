@@ -41,7 +41,13 @@ internal static class PdfArrangementWriter
             }
 
             var pages = arrangement.Pages
-                .Select(page => new AssembledPage(opened[page.Source].Document, page.Number, sources[page.Source].Tag))
+                .Select(page => new AssembledPage(
+                    opened[page.Source].Document,
+                    page.Number,
+                    sources[page.Source].Tag,
+                    page.Part is { } part && opened[page.Source].Pages.Slot(page.Number) is var slot
+                        ? part.InUserSpace(slot.Crop, slot.Rotation)
+                        : null))
                 .ToList();
 
             PdfDocumentAssembler.Assemble(pages, output, new AssemblyOptions { Primary = opened[primary].Document }, ct);

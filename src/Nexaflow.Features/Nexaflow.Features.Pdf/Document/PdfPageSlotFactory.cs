@@ -44,7 +44,7 @@ internal sealed class PdfPageSlotFactory : IPageFactory<PdfPageSlot>
         if (media.Intersect(crop) is { } shown) crop = shown;
 
         var visible = new CropBox(crop).GetVisibleBounds(rotation);
-        return new PdfPageSlot(number, new Size(visible.Width, visible.Height));
+        return new PdfPageSlot(number, new Size(visible.Width, visible.Height), crop, rotation.Value);
     }
 
     private PdfRectangle? Box(DictionaryToken dictionary, NameToken key) =>

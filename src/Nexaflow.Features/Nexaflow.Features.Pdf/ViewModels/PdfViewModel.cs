@@ -600,9 +600,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         return true;
     }
 
-    /// <summary>Follows a link to a place in this document: its page, at the height it names when that page has been read.</summary>
-    internal bool GoToTarget(PdfPageTarget target) =>
-        GoToPage(target.PageNumber, _source?.OffsetFromTop(_session.Base.Id, target));
+    /// <summary>
+    /// Follows a link to a place in this document from the page it is on (0-based): the page its own document names, where
+    /// that page now is, at the height it names when that page has been read.
+    /// </summary>
+    internal bool GoToTarget(int fromPage, PdfPageTarget target) =>
+        _source is { } source && fromPage >= 0 && fromPage < source.PageCount
+        && source.Locate(source.Arrangement[fromPage].Source, target) is { } at
+        && GoToPage(at.Index + 1, at.Offset);
 
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;

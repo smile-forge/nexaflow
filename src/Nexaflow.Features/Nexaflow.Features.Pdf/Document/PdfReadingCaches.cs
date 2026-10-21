@@ -36,6 +36,12 @@ internal sealed class PdfReadingCaches
     public System.Threading.CancellationToken Cancellation { get; set; }
 
     /// <summary>
+    /// The part of the page being read, while it is read — one page of several printed to a sheet; null for the whole
+    /// page. The page is read as though the part were its crop box.
+    /// </summary>
+    public PdfPagePart? ReadingPart { get; set; }
+
+    /// <summary>
     /// The picture the image XObject at <paramref name="reference"/> decodes to, decoding it with <paramref name="decode"/>
     /// when it is not among those kept; a failure is kept too, so an undecodable logo on every page is tried once. An image
     /// with no reference of its own (a direct object) is decoded each time.

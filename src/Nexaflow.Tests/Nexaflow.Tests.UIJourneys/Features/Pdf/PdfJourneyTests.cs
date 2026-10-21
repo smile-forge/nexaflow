@@ -275,8 +275,26 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
             Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
             Wait.UntilInputIsProcessed();
 
-            // Delete the page selected, undo it, redo it: the page count follows each.
-            rows[1].Click();
+            // Split the page: the bar it is set up in, cancelled; then split into halves, and undone.
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Split the page", "Pdf_Thumb_Split", 3)?.Click();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("How many pages each sheet holds", "Pdf_Split_Parts", 3);
+            CheckPresent("How the pages sit on the sheet", "Pdf_Split_Direction", 2);
+            CheckPresent("Unfold a booklet", "Pdf_Split_Booklet", 2);
+            CheckDoes("Cancel the split", "Pdf_Split_Cancel", () => WaitForId("Pdf_Split_Apply", 1) is null);
+
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Split the page again", "Pdf_Thumb_Split", 3)?.Click();
+            Wait.UntilInputIsProcessed();
+            CheckDoes("Split it into halves", "Pdf_Split_Apply", () => PageCountIs('4', 4));
+            CheckDoes("Undo the split", "Pdf_Undo", () => PageCountIs('3', 4));
+
+            // Delete the page selected, undo it, redo it: the page count follows each. The split undone gave the
+            // page a new row, so the rows are found again.
+            (Thumbnails(thumbnails) is { Length: 3 } again ? again[1] : rows[1]).Click();
             Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
             Wait.UntilInputIsProcessed();
             Check("Delete takes the page out", () => PageCountIs('2', 6));

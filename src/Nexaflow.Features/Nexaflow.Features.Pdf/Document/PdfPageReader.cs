@@ -50,11 +50,18 @@ internal sealed class PdfPageReader
         return new PdfDocumentNode(slots, Fields());
     }
 
-    /// <summary>Page <paramref name="number"/> (1-based) read in full.</summary>
-    public PdfPageNode ReadPage(int number, CancellationToken ct)
+    /// <summary>Page <paramref name="number"/>'s slot alone: its size, crop box and rotation.</summary>
+    public PdfPageSlot Slot(int number) => _document.GetPage<PdfPageSlot>(number);
+
+    /// <summary>
+    /// Page <paramref name="number"/> (1-based) read in full — or only its <paramref name="part"/>, read as though the
+    /// part were the page's crop box: its size, its place, and what lies outside it all follow.
+    /// </summary>
+    public PdfPageNode ReadPage(int number, CancellationToken ct, PdfPagePart? part = null)
     {
         ct.ThrowIfCancellationRequested();
         _caches.Cancellation = ct;
+        _caches.ReadingPart = part;
         try
         {
             return _document.GetPage<PdfPageNode>(number);
@@ -62,6 +69,7 @@ internal sealed class PdfPageReader
         finally
         {
             _caches.Cancellation = CancellationToken.None;
+            _caches.ReadingPart = null;
         }
     }
 

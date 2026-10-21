@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.IO.Common;
@@ -109,16 +110,17 @@ internal sealed class PdfDocumentSession : IDisposable
     }
 
     /// <summary>
-    /// The size, in points, of the page at <paramref name="index"/> as it is shown.
+    /// The size, in points, of the page at <paramref name="index"/> as it is shown — of its part, for a part of a page.
     /// </summary>
     public Size PageSize(int index)
     {
         var page = Arrangement[index];
         var slots = Source(page.Source).Slots!.Pages;
         var at = page.Number - 1;
-        return at >= 0 && at < slots.Count && slots[at].Number == page.Number
+        var shown = at >= 0 && at < slots.Count && slots[at].Number == page.Number
             ? slots[at].Size
             : slots.First(slot => slot.Number == page.Number).Size;
+        return page.Part is { } part ? part.Of(shown) : shown;
     }
 
     // ── Edits ─────────────────────────────────────────────────────────────
@@ -128,6 +130,51 @@ internal sealed class PdfDocumentSession : IDisposable
 
     /// <summary>The pages at <paramref name="indices"/> deleted. A document keeps at least one page.</summary>
     public void Delete(IReadOnlyCollection<int> indices) => Commit(Arrangement.Remove(indices));
+
+    /// <summary>
+    /// The pages at <paramref name="indices"/> each cut into <paramref name="count"/> equal parts — a part of a page cut
+    /// into parts of itself — each page's parts in its place; or, with <paramref name="booklet"/>, the pages taken as a
+    /// booklet's sheets printed two to a side, unfolded into reading order where the first of them was. One edit.
+    /// </summary>
+    public void Split(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, bool booklet)
+    {
+        if (booklet && count != 2)
+            throw new ArgumentException("A booklet is unfolded from sheets of two pages.", nameof(booklet));
+
+        var sheets = indices.Distinct().Order().ToList();
+        if (booklet)
+        {
+            var halves = sheets.SelectMany(index => PartsOf(index, count, direction)).ToList();
+            Commit(Arrangement.Replace(sheets, PdfBooklet.Unfold(halves)));
+            return;
+        }
+
+        // Last first, so the pages before each one replaced are still where the indices say.
+        var split = Arrangement;
+        for (var at = sheets.Count - 1; at >= 0; at--)
+            split = split.Replace([sheets[at]], PartsOf(sheets[at], count, direction));
+        Commit(split);
+    }
+
+    /// <summary>
+    /// Whether the page at <paramref name="index"/> is cut <paramref name="direction"/> into parts side by side — for
+    /// <see cref="PdfSplitDirection.Auto"/>, when it is wider than it is tall — rather than one above another.
+    /// </summary>
+    public bool SplitsAcross(int index, PdfSplitDirection direction) => direction switch
+    {
+        PdfSplitDirection.Across => true,
+        PdfSplitDirection.Down   => false,
+        _                        => PageSize(index) is var size && size.Width >= size.Height,
+    };
+
+    /// <summary>The page at <paramref name="index"/> cut into <paramref name="count"/> parts, each a page of its own.</summary>
+    private IReadOnlyList<PdfArrangedPage> PartsOf(int index, int count, PdfSplitDirection direction)
+    {
+        var page = Arrangement[index];
+        return PdfPagePart.Split(count, SplitsAcross(index, direction))
+            .Select(part => new PdfArrangedPage(NewPageId(), page.Source, page.Number, part.Of(page.Part ?? PdfPagePart.Whole)))
+            .ToList();
+    }
 
     /// <summary>
     /// Every page of each PDF at <paramref name="paths"/>, in order, inserted into <paramref name="gap"/> — one edit.

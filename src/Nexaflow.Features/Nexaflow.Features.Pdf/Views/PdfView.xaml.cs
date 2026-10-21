@@ -42,7 +42,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         ViewModel.NavigateToPage = (page, offsetFromTop) =>
             Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
         ViewModel.Host           = this;   // what opens beside the document — its scans' Markdown — opens in its window
-        Pages.LinkActivated += (_, link) => FollowLink(link.Href);
+        Pages.LinkActivated += (_, link) => FollowLink(link);
         Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
         Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
         DependencyPropertyDescriptor.FromProperty(PagedLayoutElement.CurrentPageProperty, typeof(PagedLayoutElement))
@@ -260,15 +260,15 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     /// <summary>A link on a page: a place in this document is scrolled to, anything else opened as an address.</summary>
-    private void FollowLink(string href)
+    private void FollowLink(PageLink link)
     {
-        if (PdfLinks.TryRead(href, out var target))
+        if (PdfLinks.TryRead(link.Href, out var target))
         {
-            ViewModel.GoToTarget(target);
+            ViewModel.GoToTarget(link.Page, target);
             return;
         }
 
-        if (!Uri.TryCreate(href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
+        if (!Uri.TryCreate(link.Href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
             return;
 
         try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
@@ -365,7 +365,8 @@ public partial class PdfView : UserControl, IPageView, IDisposable
             var selected = panel.SelectedCount;
             menu.Items.Add(MenuItemFor(
                 selected == 1 ? Str.Get("Pdf.Menu.DeletePage") : Str.Format("Pdf.Menu.DeletePagesFormat", selected),
-                "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
+        "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
+                menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageBefore"), "Pdf_Thumb_InsertImageBefore", panel.InsertImagesAtCommand, index));
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageAfter"), "Pdf_Thumb_InsertImageAfter", panel.InsertImagesAtCommand, index + 1));

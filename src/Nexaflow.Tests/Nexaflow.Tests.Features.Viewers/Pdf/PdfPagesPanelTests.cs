@@ -1,7 +1,9 @@
 using System.Collections.Specialized;
 using System.IO;
+using System.Windows.Media;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Editing;
+using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Behaviors;
@@ -99,13 +101,55 @@ public class PdfPagesPanelTests
         StringAssert.Contains(message, "notes.txt");
     }
 
-    /// <summary>A copy of the outlined sample opened, and its Pages tab following its edits as the reader does.</summary>
-    private static async Task<(PdfDocumentSession Session, PdfPagesPanel Panel)> Opened(IShellServices? shell = null)
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
+    public async Task ASplit_DrawsItsCutsOnTheSelectedPages_MarksOneAcrossTheArtwork_AndSplitsAsSetUp()
     {
-        var session = new PdfDocumentSession(Copy("outline.pdf"));
+        var (session, panel) = await Opened(sample: "two-up.pdf");
+        using var _ = session;
+        Assert.IsFalse(panel.BeginSplitCommand.CanExecute(null), "nothing selected");
+        panel.Pages[0].IsSelected = panel.Pages[1].IsSelected = true;
+
+        panel.BeginSplitCommand.Execute(null);
+        await panel.CutsInspected;
+
+        var first = panel.Pages[0].Cuts.Single();
+        Assert.AreEqual(panel.Pages[0].SheetWidth / 2, first.X1, 0.01, "a landscape sheet is cut down the middle");
+        Assert.AreEqual(first.X1, first.X2);
+        Assert.IsFalse(first.CrossesInk, "the first sheet's fold is clear");
+        Assert.IsTrue(panel.Pages[1].Cuts.Single().CrossesInk, "the second sheet's artwork runs over the fold");
+        Assert.AreNotEqual(string.Empty, panel.SplitWarning);
+        Assert.IsFalse(panel.IsCheckingCuts);
+
+        panel.SplitCount = panel.SplitCounts[1];
+        Assert.AreEqual(2, panel.Pages[0].Cuts.Count, "three parts, two cuts, read from the picture already taken");
+        Assert.IsFalse(panel.CanUnfoldBooklet);
+
+        panel.SplitCount = panel.SplitCounts[0];
+        panel.SplitBooklet = true;
+        panel.ApplySplitCommand.Execute(null);
+
+        Assert.IsFalse(panel.IsSplitting);
+        Assert.AreEqual("1 2 2 1", string.Join(" ", session.Arrangement.Pages.Select(page => page.Number)), "unfolded: one, two, three, four");
+        Assert.IsTrue(panel.Pages.All(page => page.Cuts.Count == 0));
+    }
+
+    /// <summary>
+    /// A copy of a sample opened, its pages laid as the reader lays them, and its Pages tab following its edits as the
+    /// reader does.
+    /// </summary>
+    private static async Task<(PdfDocumentSession Session, PdfPagesPanel Panel)> Opened(IShellServices? shell = null, string sample = "outline.pdf")
+    {
+        var session = new PdfDocumentSession(Copy(sample));
         Assert.IsTrue(await session.OpenAsync(CancellationToken.None));
-        var panel = new PdfPagesPanel(session, shell ?? Substitute.For<IShellServices>(), _ => true, () => null) { CanEdit = true };
-        session.Changed += (_, next) => panel.Show(next);
+        var pages = new PdfPageSource(session.Arrangement, session.Opened(), Brushes.White);
+        var panel = new PdfPagesPanel(session, shell ?? Substitute.For<IShellServices>(), _ => true, () => pages) { CanEdit = true };
+        session.Changed += (_, next) =>
+        {
+            pages.Rearrange(next, session.Opened());
+            panel.Show(next);
+        };
         panel.Show(session.Arrangement);
         return (session, panel);
     }

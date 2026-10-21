@@ -287,10 +287,53 @@
           }
         ]
       }
+    },
+    "pdf-page-split": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfDocumentSession.cs",
+          "class": "PdfDocumentSession",
+          "method": "Split"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPagePart.cs",
+          "class": "PdfPagePart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBooklet.cs",
+          "class": "PdfBooklet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfInk.cs",
+          "class": "PdfInk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfPagesPanel.cs",
+          "class": "PdfPagesPanel",
+          "method": "ApplySplit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPageArrangement.cs",
+          "class": "PdfPageArrangement",
+          "method": "Replace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPageFactory.cs",
+          "class": "PdfPageFactory",
+          "method": "GetCropBox"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 20,
+  "changed_sets": 21,
   "touched_nodes": [
     "images-edit-history",
     "images-recipe-history",
@@ -301,6 +344,7 @@
     "pdf-page-insert-image",
     "pdf-page-insert-pdf",
     "pdf-page-reorder",
+    "pdf-page-split",
     "pdf-panel-pages",
     "pdf-save"
   ]

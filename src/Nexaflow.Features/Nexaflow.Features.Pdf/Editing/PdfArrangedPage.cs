@@ -1,3 +1,5 @@
+using Nexaflow.Features.Pdf.Document;
+
 namespace Nexaflow.Features.Pdf.Editing;
 
 /// <summary>
@@ -12,6 +14,7 @@ internal readonly record struct PdfSourceId(int Value);
 internal readonly record struct PdfPageId(int Value);
 
 /// <summary>
-/// A page of the edited document: which page of which source it is.
+/// A page of the edited document: which page of which source it is — or which part of it, for a page split from a sheet
+/// printed several to a page.
 /// </summary>
-internal readonly record struct PdfArrangedPage(PdfPageId Id, PdfSourceId Source, int Number);
+internal readonly record struct PdfArrangedPage(PdfPageId Id, PdfSourceId Source, int Number, PdfPagePart? Part = null);

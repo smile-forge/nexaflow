@@ -10,6 +10,7 @@ using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Editing.Paged;
+using UglyToad.PdfPig.Core;
 
 namespace Nexaflow.Features.Pdf.Rendering;
 
@@ -42,9 +43,9 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
 
     private IReadOnlyDictionary<PdfSourceId, PdfOpenedSource> _sources;
     private readonly Brush _paper;
-    private readonly ConcurrentDictionary<(PdfSourceId, int), string> _texts = new();
-    private readonly ConcurrentDictionary<(PdfSourceId, int), (Matrix FromUser, double Height)> _placements = new();
-    private readonly LinkedList<((PdfSourceId, int) Key, LaidPage Page)> _laid = new();
+    private readonly ConcurrentDictionary<(PdfSourceId, int, PdfPagePart?), string> _texts = new();
+    private readonly ConcurrentDictionary<(PdfSourceId, int, PdfPagePart?), (Matrix FromUser, double Height)> _placements = new();
+    private readonly LinkedList<((PdfSourceId, int, PdfPagePart?) Key, LaidPage Page)> _laid = new();
 
     /// <param name="arrangement">The pages, in order.</param>
     /// <param name="sources">Every source a page of <paramref name="arrangement"/> is from.</param>
@@ -86,12 +87,17 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
 
     public int PageCount => Arrangement.Count;
 
-    public Size PageSize(int index) => Dips(Slot(Arrangement[index]).Size);
+    public Size PageSize(int index)
+    {
+        var page = Arrangement[index];
+        var shown = Slot(page).Size;
+        return Dips(page.Part is { } part ? part.Of(shown) : shown);
+    }
 
     public async Task<LaidPage> LayAsync(int index, CancellationToken ct)
     {
         var page = Arrangement[index];
-        var key = (page.Source, page.Number);
+        var key = KeyOf(page);
         if (Kept(key) is { } kept) return kept;
 
         var read = await Read(page, ct).ConfigureAwait(false);
@@ -104,7 +110,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     public async Task<string> TextAsync(int index, CancellationToken ct)
     {
         var page = Arrangement[index];
-        if (_texts.TryGetValue((page.Source, page.Number), out var known)) return known;
+        if (_texts.TryGetValue(KeyOf(page), out var known)) return known;
         return (await Read(page, ct).ConfigureAwait(false)).Text;
     }
 
@@ -127,26 +133,64 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     }
 
     /// <summary>
-    /// How far down its page, in points, a link's target lies — known once the page has been read, since only the page
-    /// says where its own coordinates put it. Null for a target that names no height, or a page not yet read.
+    /// Where a link's target is: the page it names — of the source of the page the link is on — and how far down it, in
+    /// points, once that page has been read, since only the page says where its own coordinates put it. Of a page split
+    /// into parts, the part holding the target's point, as the file written sends it there. Null when the page is no
+    /// longer in the document.
     /// </summary>
     /// <param name="source">The source whose page the target names: the source of the page the link is on.</param>
-    public double? OffsetFromTop(PdfSourceId source, PdfPageTarget target)
+    public (int Index, double? Offset)? Locate(PdfSourceId source, PdfPageTarget target)
     {
-        if (target.Top is not { } top || !_placements.TryGetValue((source, target.PageNumber), out var placement)) return null;
-        var y = placement.FromUser.Transform(new Point(0, top)).Y;
+        int? first = null;
+        for (var index = 0; index < Arrangement.Count; index++)
+        {
+            var page = Arrangement[index];
+            if (page.Source != source || page.Number != target.PageNumber) continue;
+
+            if (HoldsTarget(Region(page), target)) return (index, TargetOffset(page, target));
+            first ??= index;
+        }
+
+        return first is { } at ? (at, TargetOffset(Arrangement[at], target)) : null;
+    }
+
+    /// <summary>Whether <paramref name="region"/> holds the point <paramref name="target"/> names, on the axes it names.</summary>
+    private static bool HoldsTarget(PdfRectangle region, PdfPageTarget target) =>
+        (target.Left is not { } x || (x >= region.Left && x <= region.Right))
+        && (target.Top is not { } y || (y >= region.Bottom && y <= region.Top));
+
+    /// <summary>
+    /// How far down <paramref name="page"/> the target's height is, in points, once the page has been read; null before,
+    /// or when the target names no height.
+    /// </summary>
+    private double? TargetOffset(PdfArrangedPage page, PdfPageTarget target)
+    {
+        if (target.Top is not { } top || !_placements.TryGetValue(KeyOf(page), out var placement)) return null;
+
+        var y = placement.FromUser.Transform(new Point(target.Left ?? Region(page).Left, top)).Y;
         return Math.Clamp(y, 0, placement.Height);
+    }
+
+    /// <summary>What of its source page <paramref name="page"/> shows, in the page's default user space.</summary>
+    private PdfRectangle Region(PdfArrangedPage page)
+    {
+        var slot = Slot(page);
+        return page.Part is { } part ? part.InUserSpace(slot.Crop, slot.Rotation) : slot.Crop;
     }
 
     private async Task<PdfPageNode> Read(PdfArrangedPage page, CancellationToken ct)
     {
         var number = page.Number;
-        var read = await _sources[page.Source].Access.ReadAsync(scope => scope.Pages.ReadPage(number, ct), ct).ConfigureAwait(false)
+        var part = page.Part;
+        var read = await _sources[page.Source].Access.ReadAsync(scope => scope.Pages.ReadPage(number, ct, part), ct).ConfigureAwait(false)
                    ?? throw new InvalidOperationException($"Page {number} could not be read: the document is no longer readable.");
-        _texts[(page.Source, number)] = read.Text;
-        _placements[(page.Source, number)] = (read.FromUser, read.Size.Height);
+        _texts[KeyOf(page)] = read.Text;
+        _placements[KeyOf(page)] = (read.FromUser, read.Size.Height);
         return read;
     }
+
+    /// <summary>What a page laid is kept by: the source page it is, and the part of it.</summary>
+    private static (PdfSourceId, int, PdfPagePart?) KeyOf(PdfArrangedPage page) => (page.Source, page.Number, page.Part);
 
     private PdfPageSlot Slot(PdfArrangedPage page)
     {
@@ -158,7 +202,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
         throw new InvalidOperationException($"Page {page.Number} is not one of its document's.");
     }
 
-    private LaidPage? Kept((PdfSourceId, int) key)
+    private LaidPage? Kept((PdfSourceId, int, PdfPagePart?) key)
     {
         lock (_laid)
         {
@@ -174,7 +218,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
         return null;
     }
 
-    private void Keep((PdfSourceId, int) key, LaidPage page)
+    private void Keep((PdfSourceId, int, PdfPagePart?) key, LaidPage page)
     {
         lock (_laid)
         {

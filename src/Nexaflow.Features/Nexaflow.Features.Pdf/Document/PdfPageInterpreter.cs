@@ -52,6 +52,9 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     private readonly StringBuilder? _text;
     private readonly bool _onPage;
     private readonly CropBox _cropBox;
+
+    /// <summary>The page as shown, in page space: what its crop box leaves in.</summary>
+    private readonly Rect _shown;
     private readonly HashSet<string> _reported = [];
 
     private readonly GroupBuilder _root = new(PdfGroupRole.Root);
@@ -98,6 +101,8 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         _text        = text;
         _onPage      = onPage;
         _cropBox     = cropBox;
+        var visible  = cropBox.GetVisibleBounds(rotation);
+        _shown       = new Rect(0, 0, visible.Width, visible.Height);
         _streamBases.Push(initialMatrix);
         _frames.Push(_root);
     }
@@ -821,6 +826,10 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         var run = _run;
         _run = null;
         if (run is null || run.Glyphs.Count == 0) return;
+
+        // Text the page's crop box leaves out is no part of the page shown: it is neither drawn on it, found on it nor
+        // selected on it — on a sheet read one part at a time, it is the other part's.
+        if (_onPage && !run.Glyphs.Any(glyph => glyph.Box.IntersectsWith(_shown))) return;
 
         var said = string.Concat(run.Glyphs.Select(static g => g.Text));
         var start = 0;
