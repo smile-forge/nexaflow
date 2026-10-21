@@ -36,11 +36,11 @@ internal sealed record PdfOpenedSource(IPdfDocumentAccess Access, PdfDocumentNod
 /// only moved, or that the reader and a thumbnail both want, is laid once.
 /// </para>
 /// </summary>
-internal sealed class PdfPageSource : IPagedLayoutSource
+internal sealed class PdfPageSource : IRearrangingPagedSource
 {
     private const int KeptLaid = 24;
 
-    private readonly IReadOnlyDictionary<PdfSourceId, PdfOpenedSource> _sources;
+    private IReadOnlyDictionary<PdfSourceId, PdfOpenedSource> _sources;
     private readonly Brush _paper;
     private readonly ConcurrentDictionary<(PdfSourceId, int), string> _texts = new();
     private readonly ConcurrentDictionary<(PdfSourceId, int), (Matrix FromUser, double Height)> _placements = new();
@@ -67,7 +67,22 @@ internal sealed class PdfPageSource : IPagedLayoutSource
     }
 
     /// <summary>The pages, in order.</summary>
-    public PdfPageArrangement Arrangement { get; }
+    public PdfPageArrangement Arrangement { get; private set; }
+
+    /// <inheritdoc />
+    public event EventHandler<PagesRearranged>? Rearranged;
+
+    /// <summary>
+    /// The pages in a new order, from <paramref name="sources"/>: the same source, so what it has laid — kept by the source
+    /// page each is — is not laid again, and the reader is told where each page was.
+    /// </summary>
+    public void Rearrange(PdfPageArrangement next, IReadOnlyDictionary<PdfSourceId, PdfOpenedSource> sources)
+    {
+        var previous = Arrangement;
+        _sources = sources;
+        Arrangement = next;
+        Rearranged?.Invoke(this, new PagesRearranged(previous.Before(next)));
+    }
 
     public int PageCount => Arrangement.Count;
 

@@ -45,6 +45,9 @@ internal sealed class PdfSourceDocument : IPdfDocumentAccess, IDisposable
     /// <summary>Whether a handle refusing writers is open on the file.</summary>
     public bool IsHeld => _hold is not null;
 
+    /// <summary>Whether the document is closed for good: a read of it gives nothing.</summary>
+    public bool IsDisposed => _disposed;
+
     /// <summary>
     /// Reads the document's page slots, once; null when the document cannot be read at all.
     /// </summary>
@@ -61,10 +64,31 @@ internal sealed class PdfSourceDocument : IPdfDocumentAccess, IDisposable
     /// </summary>
     public async Task<T?> ReadAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+        CancellationTokenSource linked;
+        try
+        {
+            linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+        }
+        catch (ObjectDisposedException)
+        {
+            return default;   // closed for good while the read was on its way
+        }
+
+        using var _ = linked;
         var token = linked.Token;
 
-        await _lock.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            await _lock.WaitAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_disposed && !ct.IsCancellationRequested)
+        {
+            return default;
+        }
+        catch (ObjectDisposedException)
+        {
+            return default;
+        }
         try
         {
             return await Task.Run(() =>
