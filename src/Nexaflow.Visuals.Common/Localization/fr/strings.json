@@ -13,5 +13,18 @@
   "Common.ColorPicker.IsCustom": "Couleur personnalisée",
   "Common.Draft.Notice": "Créé pour vous et pas encore enregistré : il n'est conservé que jusqu'à ce que Windows vide ses fichiers temporaires.",
   "Common.Draft.SaveAs": "Enregistrer sous…",
-  "Common.Draft.SaveAsTip": "Le garder où vous voulez"
+  "Common.Draft.SaveAsTip": "Le garder où vous voulez",
+
+  "Common.CloudStatus.OnlineOnly": "Disponible en ligne",
+  "Common.CloudStatus.Available": "Disponible sur cet appareil",
+  "Common.CloudStatus.AlwaysAvailable": "Toujours disponible sur cet appareil",
+  "Common.CloudStatus.SyncPending": "Synchronisation en attente",
+  "Common.CloudStatus.PendingUpload": "En attente de chargement",
+  "Common.CloudStatus.PendingDownload": "En attente de téléchargement",
+  "Common.CloudStatus.Transferring": "Synchronisation en cours",
+  "Common.CloudStatus.Error": "Erreur de synchronisation",
+  "Common.CloudStatus.Warning": "Demande votre attention",
+  "Common.CloudStatus.Excluded": "Non synchronisé",
+  "Common.CloudStatus.Shared": "Partagé",
+  "Common.CloudStatus.Public": "Partagé avec toute personne disposant du lien"
 }

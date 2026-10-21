@@ -13,6 +13,18 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- ── Status column: where each file stands with its cloud sync provider ──
+             Placed first in FileListView, in synced folders only, by the view (PlaceStatusColumn). Icons only; each
+             names itself in its tooltip. -->
+        <GridViewColumn x:Key="StatusColumn" Width="56" Header="{loc:Str WindowsFileSystem.Columns.Status}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <vcc:CloudStatusIcon Path="{Binding FullPath}" Listed="{Binding CloudState}" Revision="{Binding StatusRevision}"
+                                         HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+
         <!-- ── Define-New wizard local styles ──────────────────────────── -->
         <Style x:Key="WzInput" TargetType="TextBox">
             <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
@@ -281,11 +293,11 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <!-- Folder -->
-                                <TextBlock Text="📁" FontSize="12"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
+                                <!-- Folder: the shell's icon, so a customised folder wears its own -->
+                                <vcc:FileIcon Path="{Binding FullPath}" IsFolder="True"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <vcc:FileIcon.Style>
+                                        <Style TargetType="vcc:FileIcon">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Kind}" Value="Folder">
@@ -293,8 +305,8 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                    </vcc:FileIcon.Style>
+                                </vcc:FileIcon>
 
                                 <!-- HDD / SSD / Network / CDDVD: 🖴 + color dot -->
                                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -732,35 +744,10 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Grid Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <!-- File icon -->
-                                            <TextBlock Text="📄" FontSize="13"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <!-- Folder icon -->
-                                            <TextBlock Text="📁" FontSize="13"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
+                                        <!-- The shell's icon for the row, as Explorer draws it; its glyph until that arrives. -->
+                                        <vcc:FileIcon Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                      Path="{Binding FullPath}" IsFolder="{Binding IsDirectory}"
+                                                      NameOnly="{Binding InContainer}" Stamp="{Binding Modified}"/>
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{StaticResource TextBrush}"
                                                    FontSize="13" VerticalAlignment="Center"
@@ -785,7 +772,7 @@
                         </GridViewColumn>
 
                         <!-- Type -->
-                        <GridViewColumn Width="90" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                        <GridViewColumn Width="150" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Type}" Key="TypeLabel"/>
                             </GridViewColumn.Header>

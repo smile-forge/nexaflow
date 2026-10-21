@@ -17,10 +17,10 @@
   "WindowsFileSystem.Columns.Filesystem": "Système de fichiers",
   "WindowsFileSystem.Columns.Size": "Taille",
   "WindowsFileSystem.Columns.Modified": "Modifié le",
+  "WindowsFileSystem.Columns.Status": "État",
 
   "WindowsFileSystem.List.Loading": "Chargement…",
   "WindowsFileSystem.List.Busy": "Vous pouvez continuer à travailler — cet affichage se met à jour à la fin de l'opération.",
-  "WindowsFileSystem.Entry.Folder": "Dossier",
   "WindowsFileSystem.Entry.DriveUsedFormat": "{0} utilisés ({1:F0} %)",
 
   "WindowsFileSystem.Footer.NoItems": "0 élément",

@@ -124,6 +124,9 @@ public sealed class ShellServices : IShellServices
 
     // Active file watches, deduped by full path: one FileChangeWatcher per path fans out to its subscribers.
     private readonly Dictionary<string, WatchGroup> _watchGroups = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Made on the first folder watched: it owns a window on this workspace's UI thread.</summary>
+    private ShellFolderWatcher? _folderWatcher;
     private IWindowHost? _focused;
 
     /// <summary>
@@ -550,6 +553,9 @@ public sealed class ShellServices : IShellServices
         return handle;
     }
 
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) =>
+        (_folderWatcher ??= new ShellFolderWatcher(_ui)).Watch(path, onChanged);
+
     public Task RunOnUiAsync(Action action)
     {
         if (_ui.CheckAccess()) { action(); return Task.CompletedTask; }
@@ -583,6 +589,8 @@ public sealed class ShellServices : IShellServices
         foreach (var group in _watchGroups.Values)
             group.Watcher?.Dispose();
         _watchGroups.Clear();
+        _folderWatcher?.Dispose();
+        _folderWatcher = null;
     }
 
     private static string SafeFullPath(string path)
