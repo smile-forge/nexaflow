@@ -22,7 +22,12 @@ public sealed class HidFieldRow(HidField field) : IClipboardText
 {
     public string ClipboardText => $"{Kind}\t{ReportId}\t{Name}\t{Bits}\t{Range}";
     public HidField Field { get; } = field;
-    public string Kind => Field.Kind.ToString();
+    public string Kind => Field.Kind switch
+    {
+        HidReportKind.Input => Str.Get("HidTools.ReportKind.Input"),
+        HidReportKind.Output => Str.Get("HidTools.ReportKind.Output"),
+        _ => Str.Get("HidTools.ReportKind.Feature"),
+    };
     public string ReportId => Field.ReportId == 0 ? "—" : $"0x{Field.ReportId:X2}";
     public string Name => Field.Name;
     public string Bits => Field.BitSize == 0 ? $"× {Field.Count}" : Field.Count == 1 ? $"{Field.BitSize}" : $"{Field.BitSize} × {Field.Count}";
@@ -230,7 +235,7 @@ public sealed partial class HidTool : ObservableObject, IUsbTool, IUsbToolDebugD
         {
             var report = await Channel().GetFeatureAsync(id, ct);
             var text = $"{UsbHex.Format(report.Bytes)}\n{string.Join(" · ", report.Values.Select(v => $"{v.Name} {v.Value}"))}";
-            _host.Log(this, $"Read feature report {id}: {UsbHex.Format(report.Bytes)}");
+            _host.Log(this, Str.Format("HidTools.Log.ReadFeature", id, UsbHex.Format(report.Bytes)));
             return text;
         }
         catch (Exception e) when (e is IOException or InvalidOperationException)
@@ -248,7 +253,7 @@ public sealed partial class HidTool : ObservableObject, IUsbTool, IUsbToolDebugD
     async Task SendFromTileAsync(string hex, HidReportKind kind)
     {
         if (!HidHex.TryParse(hex, out var bytes, out var error)) { SendResult = error; return; }
-        string what = kind == HidReportKind.Feature ? Str.Get("HidTools.Kind.Feature") : Str.Get("HidTools.Kind.Output");
+        string what = ReportKindLabel(kind);
         if (!await _host.ConfirmAsync(Str.Format("HidTools.Confirm.Title", what), Str.Format("HidTools.Confirm.Message", what, UsbHex.Format(bytes), Collection?.Title ?? ""), CancellationToken.None))
             return;
         SendResult = await SendCoreAsync(bytes, kind, CancellationToken.None);
@@ -261,7 +266,7 @@ public sealed partial class HidTool : ObservableObject, IUsbTool, IUsbToolDebugD
         {
             if (kind == HidReportKind.Feature) await Channel().SetFeatureAsync(bytes, ct);
             else await Channel().SetOutputAsync(bytes, ct);
-            var done = Str.Format("HidTools.Sent", kind, UsbHex.Format(bytes));
+            var done = Str.Format("HidTools.Sent", ReportKindLabel(kind), UsbHex.Format(bytes));
             _host.Log(this, done);
             return done;
         }
@@ -270,6 +275,10 @@ public sealed partial class HidTool : ObservableObject, IUsbTool, IUsbToolDebugD
             return e.Message;
         }
     }
+
+    /// <summary>A sendable report's kind in the person's words: "feature report", "output report".</summary>
+    static string ReportKindLabel(HidReportKind kind) =>
+        kind == HidReportKind.Feature ? Str.Get("HidTools.Kind.Feature") : Str.Get("HidTools.Kind.Output");
 
     // ── The agent ──────────────────────────────────────────────────────────────────────────────────────────
 

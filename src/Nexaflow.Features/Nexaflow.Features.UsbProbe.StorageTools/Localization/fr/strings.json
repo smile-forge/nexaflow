@@ -1,0 +1,7 @@
+{
+  "StorageTools.Title": "Stockage de masse",
+  "StorageTools.Description": "Les volumes de l'appareil dans un explorateur de fichiers, et des copies vers et depuis ceux-ci — chaque copie relue depuis le support et vérifiée par SHA-256.",
+  "StorageTools.Status.NotRead": "Ouvrir pour lire ses volumes",
+  "StorageTools.Note.NoDisk": "Windows n'a pas encore créé de disque pour cette fonction.",
+  "StorageTools.Note.NoVolume": "Le disque n'a aucun volume que Windows puisse monter — pas de support, ou un système de fichiers que Windows ne lit pas."
+}

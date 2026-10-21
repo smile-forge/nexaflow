@@ -41,7 +41,7 @@ public sealed partial class SerialLinkTool(UsbDeviceNode device, UsbFunctionNode
     private void OpenTerminal()
     {
         host.OpenPage(SerialPageKind, new Dictionary<string, string> { [PortParam] = Port });
-        host.Log(this, $"Opened the serial terminal on {Port}");
+        host.Log(this, Str.Format("SerialLink.Log.OpenedTerminal", Port));
     }
 
     public string Describe() => $"{Kind} on {Port}, driver {Driver}. The Serial page is its terminal: open_terminal opens it.";

@@ -81,8 +81,11 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
     [ObservableProperty] private string? _sounding;
 
     public bool IsFile => Signal == AudioTestSignal.File;
-    public string FrequencyText => Frequency >= 1000 ? $"{Frequency / 1000:0.00} kHz" : $"{Frequency:0} Hz";
-    public string LevelText => $"{Level:0} dBFS";
+    public string FrequencyText => HzText(Frequency);
+    public string LevelText => DbText(Level);
+
+    static string HzText(double hz) => hz >= 1000 ? $"{hz / 1000:0.00} kHz" : $"{hz:0} Hz";
+    static string DbText(double db) => $"{db:0} dBFS";
 
     /// <summary>The frequency as a slider position, 0 to 1 on a log scale: equal travel per octave.</summary>
     public double FrequencyPosition
@@ -135,7 +138,7 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
 
     IAudioSignal Build()
     {
-        var channels = Channel < 0 ? ChannelSelection.All : ChannelSelection.Only(Channel);
+        var channels = SelectionOf(Channel);
         double amplitude = AudioLevels.Amplitude(Level);
         return Signal switch
         {
@@ -152,31 +155,36 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
         return new ClipSignal(clip.Samples, clip.Channels, clip.Rate, amplitude);
     }
 
-    string Describe(AudioTestSignal signal)
+    string Describe(AudioTestSignal signal) => signal switch
     {
-        string where = Channels.FirstOrDefault(c => c.Value == Channel)?.Label ?? "";
-        return signal switch
-        {
-            AudioTestSignal.Sweep => Str.Format("AudioTools.Status.Sweeping", where, LevelText),
-            AudioTestSignal.File => Str.Format("AudioTools.Status.PlayingFile", System.IO.Path.GetFileName(File ?? ""), where),
-            _ => Str.Format("AudioTools.Status.PlayingTone", FrequencyText, where, LevelText),
-        };
-    }
+        AudioTestSignal.Sweep => SweepingText(Channel, Level),
+        AudioTestSignal.File => Str.Format("AudioTools.Status.PlayingFile", System.IO.Path.GetFileName(File ?? ""), ChannelLabel(Channel)),
+        _ => ToneText(Frequency, Channel, Level),
+    };
 
-    /// <summary>Plays until the signal ends or Stop; what it played, or why it could not, is the result.</summary>
-    async Task<string> PlayCoreAsync(IAudioSignal signal, string what, ChannelWalkSignal? walk, CancellationToken ct = default)
+    string ToneText(double hz, int channel, double db) => Str.Format("AudioTools.Status.PlayingTone", HzText(hz), ChannelLabel(channel), DbText(db));
+
+    string SweepingText(int channel, double db) => Str.Format("AudioTools.Status.Sweeping", ChannelLabel(channel), DbText(db));
+
+    string ChannelLabel(int channel) => Channels.FirstOrDefault(c => c.Value == channel)?.Label ?? "";
+
+    /// <summary>
+    /// Plays until the signal ends or Stop, showing <paramref name="status"/> meanwhile; null when it played, or why it
+    /// could not. The status is the person's words, so an agent caller words its own result.
+    /// </summary>
+    async Task<string?> PlayCoreAsync(IAudioSignal signal, string status, ChannelWalkSignal? walk, CancellationToken ct = default)
     {
         Stop();
         using var playing = _playing = CancellationTokenSource.CreateLinkedTokenSource(ct);
         IsPlaying = true;
-        Status = what;
+        Status = status;
         if (walk is not null) _watch = new Timer(_ => Watch(walk), null, 0, 100);
         bool failed = false;
         try
         {
             await _devices.PlayAsync(_endpoint.Id, signal, playing.Token);
-            _host.Log(this, $"{what} — {EndpointName}");
-            return what;
+            _host.Log(this, $"{status} — {EndpointName}");
+            return null;
         }
         catch (Exception e) when (e is not OutOfMemoryException and not OperationCanceledException)
         {
@@ -226,25 +234,32 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
         new("play_sweep", "Plays a 10-second logarithmic sweep from 20 Hz to 20 kHz.", true,
             [new UsbToolArgument("level_db", "Level in dBFS, -60 to 0. Default -20.", Required: false),
              new UsbToolArgument("channel", "A channel name, or 'all'. Default all.", Required: false)],
-            (args, ct) => PlayCoreAsync(new SweepSignal(MinHz, MaxHz, SweepLength, AudioLevels.Amplitude(Db(args)), Selection(args)),
-                "Sweeping 20 Hz – 20 kHz", null, ct)),
+            async (args, ct) =>
+            {
+                int channel = ChannelIndex(args);
+                double db = Db(args);
+                return await PlayCoreAsync(new SweepSignal(MinHz, MaxHz, SweepLength, AudioLevels.Amplitude(db), SelectionOf(channel)),
+                    SweepingText(channel, db), null, ct) ?? "Played the sweep, 20 Hz to 20 kHz.";
+            }),
         new("identify_channels", "Plays a one-second tone on each channel in turn, in channel order, naming each.", true,
             [new UsbToolArgument("level_db", "Level in dBFS, -60 to 0. Default -20.", Required: false)],
             async (args, ct) =>
             {
-                await PlayCoreAsync(new ChannelWalkSignal(1000, AudioLevels.Amplitude(Db(args)), TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(400)),
-                    "Identifying channels", null, ct);
-                return $"Played a tone on each channel in order: {string.Join(", ", _endpoint.ChannelNames)}.";
+                return await PlayCoreAsync(new ChannelWalkSignal(1000, AudioLevels.Amplitude(Db(args)), TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(400)),
+                    Str.Get("AudioTools.Status.Identifying"), null, ct)
+                    ?? $"Played a tone on each channel in order: {string.Join(", ", _endpoint.ChannelNames)}.";
             }),
         new("stop", "Stops whatever is playing.", false, [], (_, _) => { Stop(); return Task.FromResult("Stopped."); }),
     ];
 
-    Task<string> AgentToneAsync(IReadOnlyDictionary<string, string> args, CancellationToken ct)
+    async Task<string> AgentToneAsync(IReadOnlyDictionary<string, string> args, CancellationToken ct)
     {
         double hz = Math.Clamp(Number(args, "frequency_hz", 1000), MinHz, MaxHz);
         double seconds = Math.Clamp(Number(args, "seconds", 2), 0.5, 30);
-        return PlayCoreAsync(new ToneSignal(hz, AudioLevels.Amplitude(Db(args)), Selection(args), TimeSpan.FromSeconds(seconds)),
-            $"Played {hz:0} Hz for {seconds:0.#} s", null, ct);
+        int channel = ChannelIndex(args);
+        double db = Db(args);
+        return await PlayCoreAsync(new ToneSignal(hz, AudioLevels.Amplitude(db), SelectionOf(channel), TimeSpan.FromSeconds(seconds)),
+            ToneText(hz, channel, db), null, ct) ?? $"Played {hz:0} Hz for {seconds:0.#} s.";
     }
 
     static double Db(IReadOnlyDictionary<string, string> args) => Math.Clamp(Number(args, "level_db", -20), -60, 0);
@@ -252,12 +267,15 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
     static double Number(IReadOnlyDictionary<string, string> args, string name, double fallback) =>
         args.TryGetValue(name, out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
-    ChannelSelection Selection(IReadOnlyDictionary<string, string> args)
+    /// <summary>The channel the agent named, as an index into the endpoint's channels; -1 for every channel.</summary>
+    int ChannelIndex(IReadOnlyDictionary<string, string> args)
     {
-        if (!args.TryGetValue("channel", out var name) || name.Equals("all", StringComparison.OrdinalIgnoreCase)) return ChannelSelection.All;
+        if (!args.TryGetValue("channel", out var name) || name.Equals("all", StringComparison.OrdinalIgnoreCase)) return -1;
         int index = _endpoint.ChannelNames.ToList().FindIndex(c => c.Equals(name, StringComparison.OrdinalIgnoreCase));
-        return index < 0 ? throw new ArgumentException($"No channel '{name}'. This endpoint has: {string.Join(", ", _endpoint.ChannelNames)}.") : ChannelSelection.Only(index);
+        return index < 0 ? throw new ArgumentException($"No channel '{name}'. This endpoint has: {string.Join(", ", _endpoint.ChannelNames)}.") : index;
     }
+
+    static ChannelSelection SelectionOf(int channel) => channel < 0 ? ChannelSelection.All : ChannelSelection.Only(channel);
 
     public Task<JsonObject> DebugDetailsAsync(UsbDebugMask mask, CancellationToken ct) => Task.FromResult(AudioEndpointDebug.Of(_endpoint, mask));
 
