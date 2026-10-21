@@ -5,6 +5,8 @@ using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -13,7 +15,7 @@ using System.Windows.Media;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
+public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ObservableCollection<Workspace>? _editWorkspaces;
     private WorkspacesConfig?              _config;
@@ -73,9 +75,46 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             };
             _editToOriginal[edit] = p;
             _editWorkspaces.Add(edit);
+            edit.PropertyChanged += OnRowEdited;
         }
+        _editWorkspaces.CollectionChanged += OnRowsChanged;
         WorkspaceItems.ItemsSource = _editWorkspaces;
+        RaiseHasChanges();
     }
+
+    // ── IConfigChangeTracker: enables the panel's Apply button once a row is added, removed, moved or edited ──
+    public bool HasChanges => RowsDifferFromSaved();
+    public event EventHandler? HasChangesChanged;
+    private void RaiseHasChanges() => HasChangesChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>True when the rows no longer stand for the saved list one for one, in order, with the same name,
+    /// colour and icon — a row added, cloned, removed, moved or edited.</summary>
+    private bool RowsDifferFromSaved()
+    {
+        if (_config is null || _editWorkspaces is null) return false;
+
+        var saved = _config.Contexts;
+        if (saved.Count != _editWorkspaces.Count) return true;
+
+        for (int i = 0; i < saved.Count; i++)
+        {
+            var edit = _editWorkspaces[i];
+            if (!_editToOriginal.TryGetValue(edit, out var original) || !ReferenceEquals(original, saved[i]))
+                return true;
+            if (edit.Name != original.Name || edit.Color != original.Color || edit.Icon != original.Icon)
+                return true;
+        }
+        return false;
+    }
+
+    private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null) foreach (Workspace row in e.NewItems) row.PropertyChanged += OnRowEdited;
+        if (e.OldItems is not null) foreach (Workspace row in e.OldItems) row.PropertyChanged -= OnRowEdited;
+        RaiseHasChanges();
+    }
+
+    private void OnRowEdited(object? sender, PropertyChangedEventArgs e) => RaiseHasChanges();
 
     public void Apply()
     {
@@ -131,6 +170,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
         // Going through SaveWorkspaces is what keeps a workspace still in use (which the removal loop above
         // refused to drop) in the saved list, and what the Options Save that follows then re-writes verbatim.
         mgr.SaveWorkspaces();
+        RaiseHasChanges();
     }
 
     // Add Workspace: commit any pending edits, create the new workspace, then run the workspace-setup

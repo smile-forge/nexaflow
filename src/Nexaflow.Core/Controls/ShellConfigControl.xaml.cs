@@ -7,10 +7,11 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
+using System.ComponentModel;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class ShellConfigControl : UserControl, ICustomConfigApply
+public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ShellConfigViewModel? _vm;
 
@@ -21,10 +22,23 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply
         {
             if (e.NewValue is ShellConfig cfg)
             {
+                if (_vm is not null) _vm.PropertyChanged -= OnChoicesChanged;
                 _vm = new ShellConfigViewModel(cfg);
+                _vm.PropertyChanged += OnChoicesChanged;
                 RootPanel.DataContext = _vm;
+                HasChangesChanged?.Invoke(this, EventArgs.Empty);
             }
         };
+    }
+
+    // ── IConfigChangeTracker: enables the panel's Apply button once a setting moves off the one saved ──
+    public bool HasChanges => _vm?.HasChanges ?? false;
+    public event EventHandler? HasChangesChanged;
+
+    private void OnChoicesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ShellConfigViewModel.HasChanges))
+            HasChangesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Apply()
@@ -47,6 +61,8 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply
             // Also live: every text surface binds the size through TextTypography, so open tabs re-lay out
             // on the spot rather than waiting to be reopened.
             TextTypography.BaseFontSize = _vm.TextFontSize;
+
+            _vm.AcceptAsSaved();
         }
     }
 }
@@ -73,15 +89,35 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     /// coarse because a point either way stops mattering once the text is that big.</summary>
     public IReadOnlyList<double> TextSizeOptions { get; } = [9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
-    [ObservableProperty] private string _selectedTheme;
-    [ObservableProperty] private string _selectedLanguage;
-    [ObservableProperty] private double _textFontSize;
-    [ObservableProperty] private bool _prestartAtLogin;
-    [ObservableProperty] private bool _disableAnimationsOnBattery;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedTheme;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedLanguage;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private double _textFontSize;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
     public ThemeOption Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
     public string      Language => SelectedLanguage;
+
+    /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
+    private readonly record struct Choices(
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery);
+
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery);
+
+    // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
+    // since a config the page had to normalise is not an edit the user made.
+    private Choices _saved;
+
+    /// <summary>True while any choice differs from the one last saved.</summary>
+    public bool HasChanges => Current != _saved;
+
+    /// <summary>Takes the choices on screen as the saved ones, once they have been written to the config.</summary>
+    public void AcceptAsSaved()
+    {
+        _saved = Current;
+        OnPropertyChanged(nameof(HasChanges));
+    }
 
     public ShellConfigViewModel(ShellConfig cfg)
     {
@@ -96,6 +132,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         _textFontSize               = NearestOfferedSize(cfg.TextFontSize);
         _prestartAtLogin            = cfg.PrestartAtLogin;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
+        _saved                      = Current;
         LoadSwatches(cfg.Theme);
     }
 
