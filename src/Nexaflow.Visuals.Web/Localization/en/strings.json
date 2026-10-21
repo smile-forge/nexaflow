@@ -1,3 +1,5 @@
 {
-  "Web.Runtime.Description": "Renders web pages inside Nexaflow. Without it the Web tab falls back to a summary panel and offers to open the page in your default application instead."
+  "Web.Runtime.Description": "Renders web pages inside Nexaflow. Without it the Web tab falls back to a summary panel and offers to open the page in your default application instead.",
+  "Web.Surface.RuntimeMissing": "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the page can't be shown here.",
+  "Web.Surface.CouldNotStart": "The embedded browser couldn't be started on this PC."
 }

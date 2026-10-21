@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -43,7 +44,7 @@ internal sealed class DiagramRibbon : UserControl
         var rows = new StackPanel { Orientation = Orientation.Vertical };
 
         foreach (var choice in offers.Where(offer => offer.Group is not null).GroupBy(offer => offer.Group!))
-            rows.Children.Add(Choosing(choice.Key, [.. choice], invoke));
+            rows.Children.Add(Choosing(choice.Key, choice.First().GroupTip ?? choice.Key, [.. choice], invoke));
 
         var loose = offers.Where(offer => offer.Group is null).ToList();
         var adds = loose.Where(offer => offer.Offer == LayoutOffer.Insert).ToList();
@@ -76,9 +77,9 @@ internal sealed class DiagramRibbon : UserControl
     /// One choice, drawn however its options are read best: a few shapes are read side by side, a bank of colours as the colours
     /// themselves, and a choice of more options than a row holds from a list the button showing the current one opens.
     /// </summary>
-    private static FrameworkElement Choosing(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke) =>
+    private static FrameworkElement Choosing(string group, string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke) =>
         options.All(option => option.Shade is not null) ? ChoosingAColour(name, options, invoke)
-        : options.Count > Abreast ? ChoosingFromAList(name, options, invoke)
+        : options.Count > Abreast ? ChoosingFromAList(group, name, options, invoke)
         : ChoosingInARow(name, options, invoke);
 
     /// <summary>A choice's options side by side, each drawn as what it would make, the one the content says now picked out.</summary>
@@ -120,7 +121,7 @@ internal sealed class DiagramRibbon : UserControl
     /// A choice of more options than a row holds, behind the one button that says which the content is: pressed, it opens them all
     /// under it as their pictures, and closes again on the one chosen, which it then says instead.
     /// </summary>
-    private static FrameworkElement ChoosingFromAList(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
+    private static FrameworkElement ChoosingFromAList(string group, string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
     {
         var shown = Flat(new Thickness(8, 5, 8, 5));
         var face = new ContentControl { VerticalAlignment = VerticalAlignment.Center };
@@ -164,7 +165,7 @@ internal sealed class DiagramRibbon : UserControl
         }
 
         Saying(options.FirstOrDefault(option => option.Current) is { Verb.Length: > 0 } current ? current : null);
-        Said(shown, name, "Diagram_Ribbon_" + name);
+        Said(shown, name, "Diagram_Ribbon_" + group);
         shown.Click += (_, _) => list.Visibility = list.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
 
         return new StackPanel { Margin = new Thickness(0, 0, 0, 2), Children = { shown, list } };
@@ -414,7 +415,7 @@ internal sealed class DiagramRibbon : UserControl
     };
 
     /// <summary>What the button everything addable sits behind is called.</summary>
-    public const string Inserts = "Insert";
+    public static string Inserts => Str.Get("Text.Ribbon.Insert");
 
     /// <summary>What it is offering, in the order it offers them.</summary>
     public IReadOnlyList<LayoutIntent> Offers { get; }
@@ -425,12 +426,12 @@ internal sealed class DiagramRibbon : UserControl
     /// </summary>
     public static string Names(LayoutIntent intent) => intent.Verb switch
     {
-        LayoutVerbs.Navigate => "Open link",
-        LayoutVerbs.Expand => "Show what is behind this",
-        LayoutVerbs.Collapse => "Fold this away",
-        LayoutVerbs.Copy => "Copy",
-        LayoutVerbs.Paste => "Paste",
-        LayoutVerbs.Save => "Save as a picture",
+        LayoutVerbs.Navigate => Str.Get("Text.Ribbon.OpenLink"),
+        LayoutVerbs.Expand => Str.Get("Text.Ribbon.Expand"),
+        LayoutVerbs.Collapse => Str.Get("Text.Ribbon.Collapse"),
+        LayoutVerbs.Copy => Str.Get("Text.Ribbon.Copy"),
+        LayoutVerbs.Paste => Str.Get("Text.Ribbon.Paste"),
+        LayoutVerbs.Save => Str.Get("Text.Ribbon.SavePicture"),
         _ => intent.Tip is { Length: > 0 } said ? said : intent.Verb,
     };
 

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
@@ -37,12 +38,12 @@ public sealed class AbcRibbon : UserControl
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2) };
 
-        Add(row, "Abc_Ribbon_OctaveUp", "↑♪", "Up an octave (Page Up)", AbcAction.OctaveUp);
-        Add(row, "Abc_Ribbon_OctaveDown", "↓♪", "Down an octave (Page Down)", AbcAction.OctaveDown);
-        Add(row, "Abc_Ribbon_Longer", "➕", "Longer (+)", AbcAction.Longer);
-        Add(row, "Abc_Ribbon_Shorter", "➖", "Shorter (-)", AbcAction.Shorter);
-        Add(row, "Abc_Ribbon_Sharpen", "♯", "Sharpen (#)", AbcAction.Sharpen);
-        Add(row, "Abc_Ribbon_Flatten", "♭", "Flatten (_)", AbcAction.Flatten);
+        Add(row, "Abc_Ribbon_OctaveUp", "↑♪", Str.Get("Text.Abc.OctaveUp"), AbcAction.OctaveUp);
+        Add(row, "Abc_Ribbon_OctaveDown", "↓♪", Str.Get("Text.Abc.OctaveDown"), AbcAction.OctaveDown);
+        Add(row, "Abc_Ribbon_Longer", "➕", Str.Get("Text.Abc.Longer"), AbcAction.Longer);
+        Add(row, "Abc_Ribbon_Shorter", "➖", Str.Get("Text.Abc.Shorter"), AbcAction.Shorter);
+        Add(row, "Abc_Ribbon_Sharpen", "♯", Str.Get("Text.Abc.Sharpen"), AbcAction.Sharpen);
+        Add(row, "Abc_Ribbon_Flatten", "♭", Str.Get("Text.Abc.Flatten"), AbcAction.Flatten);
 
         Content = new Border
         {

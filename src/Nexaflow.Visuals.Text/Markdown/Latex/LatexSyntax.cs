@@ -4,6 +4,7 @@ using Nexaflow.Visuals.Text.Editing;
 
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -51,7 +52,7 @@ public static class LatexSyntax
         catch
         {
             // Nothing at all could be made of it, which is the strongest kind of "not yet".
-            return [new Diagnostic(0, latex.Length, DiagnosticSeverity.Error, "This is not a formula.")];
+            return [new Diagnostic(0, latex.Length, DiagnosticSeverity.Error, Str.Get("Text.Latex.NotAFormula"))];
         }
     }
 

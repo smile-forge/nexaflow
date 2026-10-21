@@ -71,7 +71,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     /// </summary>
     public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask) => ask.IsReadOnly ? [] :
     [
-        .. ContentLanguages.Insertable.Select(language => new LayoutIntent(Inserts + language.DisplayName, null, language.DisplayName)
+        .. ContentLanguages.Insertable.Select(language => new LayoutIntent(Inserts + language.Name, null, language.DisplayName?.Invoke())
         {
             Offer = LayoutOffer.Insert,
             Shape = Drawn(language.Icon),
@@ -88,7 +88,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     private static ContentChange? Started(ContentEdit edit)
     {
         if (!edit.Text.StartsWith(Inserts, StringComparison.Ordinal)
-            || ContentLanguages.Insertable.FirstOrDefault(language => Inserts + language.DisplayName == edit.Text)?.DefaultBlock is not { } starts)
+            || ContentLanguages.Insertable.FirstOrDefault(language => Inserts + language.Name == edit.Text)?.DefaultBlock is not { } starts)
             return null;
 
         var block = starts.ReplaceLineEndings("\n");

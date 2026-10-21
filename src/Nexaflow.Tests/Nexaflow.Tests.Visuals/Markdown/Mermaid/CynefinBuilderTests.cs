@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
@@ -134,7 +135,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
     {
         var said = Pieces(Build("cynefin-beta\n  complex"), CynefinPiece.About).Select(piece => piece.Words!.Glyphs.Text).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "Probe → Sense → Respond", "Emergent Practices" }, said);
+        CollectionAssert.AreEqual(new[] { Str.Get("Text.Cynefin.Complex.Model"), Str.Get("Text.Cynefin.Complex.Practice") }, said);
         Assert.AreEqual(0, Pieces(Build("---\nconfig:\n  cynefin:\n    showDomainDescriptions: false\n---\ncynefin-beta\n  complex"), CynefinPiece.About).Count);
     });
 
@@ -195,6 +196,6 @@ public class CynefinBuilderTests : MermaidBuilderContract
     {
         var said = Pieces(Build("cynefin-beta\n  confusion"), CynefinPiece.About).Select(piece => piece.Words!.Glyphs.Text).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "Disorder" }, said);
+        CollectionAssert.AreEqual(new[] { Str.Get("Text.Cynefin.Disorder") }, said);
     });
 }

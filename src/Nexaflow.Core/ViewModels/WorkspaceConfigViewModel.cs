@@ -75,7 +75,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     {
         _workspace = workspace;
         _shell   = shell;
-        _title   = $"Configure Workspace — {workspace.Name}";
+        _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
         // Discover provider plugins, then make sure the workspace's folder + scoped-type list exist.
         ProviderManager.Instance.DiscoverAll();
@@ -274,7 +274,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             var oldName = _workspace.Name;
             section.ApplyToReal();
             section.ResetChanges();
-            Title = $"Configure Workspace — {_workspace.Name}";
+            Title = Str.Format("Shell.Workspace.Configure.TitleFormat", _workspace.Name);
             if (!string.Equals(oldName, _workspace.Name, StringComparison.Ordinal))
                 _dirty = true;
             return true;

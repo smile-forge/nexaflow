@@ -1,0 +1,34 @@
+{
+  "Terminal.PathBar.Configure": "Configurer",
+  "Terminal.PathBar.ConfigureTip": "Configurer les environnements de la console",
+  "Terminal.PathBar.Running": "[en cours…]",
+
+  "Terminal.Side.Files": "Fichiers",
+  "Terminal.Side.Environment": "Environnement",
+  "Terminal.Side.FilterTip": "Filtrer les variables",
+  "Terminal.Side.AddTip": "Ajouter une variable",
+  "Terminal.EnvList.Copy": "Copier",
+  "Terminal.EnvList.Edit": "Modifier…",
+
+  "Terminal.Console.Header": "Console",
+  "Terminal.Console.Copy": "Copier",
+  "Terminal.Console.Paste": "Coller",
+  "Terminal.Console.NeedsAttention": "Console : une commande en arrière-plan demande votre attention — ouvrez l’onglet pour la voir.",
+
+  "Terminal.EnvEdit.Header": "Variable d’environnement",
+  "Terminal.EnvEdit.Name": "Nom",
+  "Terminal.EnvEdit.Value": "Valeur",
+  "Terminal.EnvEdit.ApplyTo": "Appliquer à",
+  "Terminal.EnvEdit.Scope.Session": "Session",
+  "Terminal.EnvEdit.Scope.User": "Utilisateur",
+  "Terminal.EnvEdit.Scope.Machine": "Machine",
+  "Terminal.EnvEdit.Cancel": "Annuler",
+  "Terminal.EnvEdit.Save": "Enregistrer",
+  "Terminal.EnvEdit.UserSetFailed": "Impossible de définir « {0} » pour l’utilisateur : {1}",
+
+  "Terminal.EnvPicker.Header": "Choisissez un environnement pour cet emplacement",
+  "Terminal.EnvPicker.AlwaysUse": "Toujours utiliser cet environnement pour cet emplacement",
+  "Terminal.EnvPicker.Cancel": "Annuler",
+
+  "Terminal.History.Header": "Historique"
+}

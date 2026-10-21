@@ -3,10 +3,11 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Nexaflow.Visuals.Text.Editor.Commands;
 
-/// <summary>A dropdown button in the editor toolbar: a group name + its commands.</summary>
-public sealed class EditorCommandGroupVm(string name, IReadOnlyList<EditorCommandVm> commands)
+/// <summary>A dropdown button in the editor toolbar: a group — by the name it is known by, and by what it says — and its commands.</summary>
+public sealed class EditorCommandGroupVm(string name, string title, IReadOnlyList<EditorCommandVm> commands)
 {
     public string Name { get; } = name;
+    public string Title { get; } = title;
     public IReadOnlyList<EditorCommandVm> Commands { get; } = commands;
 }
 
@@ -23,5 +24,6 @@ public sealed class EditorCommandVm
     }
 
     public string Name => _command.Name;
+    public string Title => _command.Title;
     public IRelayCommand Run { get; }
 }

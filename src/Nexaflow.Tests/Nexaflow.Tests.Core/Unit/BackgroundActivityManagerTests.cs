@@ -1,6 +1,7 @@
 using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -17,7 +18,7 @@ public class BackgroundActivityManagerTests
         var mgr = new BackgroundActivityManager();
 
         Assert.AreEqual(1, mgr.Tasks.Count);
-        Assert.AreEqual("Idle", mgr.Tasks[0].Description);
+        Assert.AreEqual(Str.Get("Shell.BackgroundTasks.Idle"), mgr.Tasks[0].Description);
         Assert.IsFalse(mgr.IsActive);
     }
 
@@ -81,7 +82,7 @@ public class BackgroundActivityManagerTests
 
         Assert.IsFalse(mgr.IsActive);
         // Idle is re-inserted; the completed task stays, idle is prepended
-        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == "Idle"));
+        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
     }
 
     [TestMethod]
@@ -106,10 +107,10 @@ public class BackgroundActivityManagerTests
 
         h1.Complete();
         Assert.IsTrue(mgr.IsActive);
-        Assert.IsFalse(mgr.Tasks.Any(t => t.Description == "Idle"));
+        Assert.IsFalse(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
 
         h2.Complete();
         Assert.IsFalse(mgr.IsActive);
-        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == "Idle"));
+        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
     }
 }

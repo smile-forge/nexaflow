@@ -8,6 +8,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Markdown.Settings;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -58,8 +59,7 @@ internal sealed partial class PlotBuilder : ContentBuilder
         var chart = Drawing.Of(Reading.Root, block);
 
         if (chart.Marks.Count == 0)
-            return Stopped("An empty plot. It takes a row of values for each point — two columns for where "
-                         + "it goes — and settings written as `key: value` above them.");
+            return Stopped(Str.Get("Text.Plot.Empty"));
 
         // A plot is only read where it is drawn, so a row or a setting it cannot use is put right in its source: shown as
         // written, with what could not be used marked and why.
@@ -333,7 +333,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             if (x is null || y is null)
             {
                 trouble.Add(Diagnostic.Of(mark.Part,
-                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
+                                           Str.Get("Text.Plot.RowHasNoPlace"), DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -390,7 +390,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             if (x is null || y is null)
             {
                 trouble.Add(Diagnostic.Of(mark.Part,
-                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
+                                           Str.Get("Text.Plot.RowHasNoPlace"), DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -402,7 +402,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         {
             if (points.Count > 0)
                 trouble.Add(Diagnostic.Of(Reading.Root,
-                                           "Too few rows to say how thickly they lie. A density takes at least three.", DiagnosticSeverity.Warning));
+                                           Str.Get("Text.Plot.TooFewForDensity"), DiagnosticSeverity.Warning));
 
             return null;
         }
@@ -498,7 +498,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             {
                 // Skip rows with no placeable value (e.g. mid-edit) — the rest still renders as a plot.
                 trouble.Add(Diagnostic.Of(mark.Part,
-                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
+                                           Str.Get("Text.Plot.RowHasNoPlace"), DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -938,8 +938,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
             trouble.Add(Diagnostic.Of(Reading.Root,
-                                       $"`shape: {it.Shape}` names neither a column nor a mark. "
-                                       + $"The marks are {DiagramGlyphs.Names}.", DiagnosticSeverity.Warning));
+                                       Str.Format("Text.Plot.UnknownShape", it.Shape, DiagramGlyphs.Names), DiagnosticSeverity.Warning));
 
         var title = it.Title is null ? null : this.Worked(it.Title, null, TitleSize, _palette.Heading);
         var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);

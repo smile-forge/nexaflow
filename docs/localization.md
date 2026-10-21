@@ -68,9 +68,10 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   instance constructor.
 - **Translate only what is shown.** Config values, command ids, AI tool names and anything saved or compared stay
   invariant; the words a user reads are looked up from them. A test that finds a control by its text compares
-  against `Str.Get(key)`, never the English literal. The feature suites load English from the source tree
-  (`EnglishStrings.Use()` in each suite's `[AssemblyInitialize]`), so `Str.Format(key, 3)` there reads as the real
-  sentence with its number; `Tests.Core` has no table loaded and gets the key back.
+  against `Str.Get(key)`, never the English literal. The feature suites, `Tests.Visuals` and `Tests.Core` load English from the source tree
+  (`EnglishStringTable` in `Tests.Fixtures`, stood behind `Str` from the suite's `[AssemblyInitialize]`), so
+  `Str.Format(key, 3)` there reads as the real sentence with its number; a test that wants the bare key back sets
+  `Str.Source = null` itself and restores it.
 
 ## Options
 
@@ -145,15 +146,16 @@ off into a satellite assembly instead of the pack.
 ## What is localized
 
 The product tree's `i18n` concern is the ledger, and it sits only where words are shown: every feature root under
-`Features`, each `Nexaflow.Visuals.*` node under *Common / Shared*, and each Core UX area panel (window frame, tab
-strip, Options, Workspaces, …) — never on a leaf, a sub-panel or a node with nothing to show. Its status says how far
-the node's words have come:
+`Features`, each `Nexaflow.Visuals.*` node under *Common / Shared*, each provider whose Options rows have labels, and
+each Core UX area panel (window frame, tab strip, Options, Workspaces, …) — never on a leaf, a sub-panel or a node
+with nothing to show. Its status says how far the node's words have come:
 
 | Status | Means | Snaplinks |
 |---|---|---|
 | `done` | every word is in the project's `strings.json`, and every language carries that file | one per language's `strings.json` |
 | `faulted` | every word is in English's `strings.json`, but a language has no file of its own | one per English `strings.json` |
 | `should` | words are still written in the code | none |
+| `shouldnt` | its words must be readable before any language loads (the startup-failure message), so they stay English | none — the node's note says why |
 
 A feature built from several projects links the files of each. `nfi query --concern i18n` lists where every node
 stands. AI prompts and tool descriptions stay English: they are read by the model, not the user.

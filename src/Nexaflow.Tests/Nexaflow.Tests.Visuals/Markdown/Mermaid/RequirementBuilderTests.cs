@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
@@ -175,7 +176,9 @@ public class RequirementBuilderTests : MermaidBuilderContract
         var box = Pieces(Lay("requirementDiagram\n  element E {\n    type: \"test suite\"\n    docRef: reqs/e\n  }"), RequirementPiece.Box).Single();
         var said = Said(box).Select(words => words.Words!.Glyphs.Text).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "«Element»", "E", "Type:", "test suite", "Doc Ref:", "reqs/e" }, said, "a value in quotes says what is between them");
+        var type = Str.Format("Text.Requirement.Field", Str.Get("Text.Requirement.Type"));
+        var docRef = Str.Format("Text.Requirement.Field", Str.Get("Text.Requirement.DocRef"));
+        CollectionAssert.AreEqual(new[] { "«Element»", "E", type, "test suite", docRef, "reqs/e" }, said, "a value in quotes says what is between them");
     });
 
     [TestMethod]

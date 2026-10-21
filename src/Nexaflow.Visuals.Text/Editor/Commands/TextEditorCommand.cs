@@ -34,8 +34,14 @@ public sealed class TextEditorContext
 /// <summary>A command shown in the editor's command-group dropdowns.</summary>
 public interface ITextEditorCommand
 {
+    /// <summary>What it is known by, in every language — never shown.</summary>
     string Name { get; }
+    /// <summary>The group it is offered in, by the name it is known by in every language — never shown.</summary>
     string Group { get; }
+    /// <summary>What its menu entry says, in the window's language.</summary>
+    string Title { get; }
+    /// <summary>What the dropdown of its <see cref="Group"/> says, in the window's language.</summary>
+    string GroupTitle { get; }
     TextEditScope Scope { get; }
     /// <summary>True if it mutates the document (so it's unavailable in read-only mode).</summary>
     bool IsDestructive { get; }
@@ -52,6 +58,8 @@ public abstract class TextEditorCommandBase : ITextEditorCommand
 {
     public abstract string Name { get; }
     public abstract string Group { get; }
+    public abstract string Title { get; }
+    public abstract string GroupTitle { get; }
     public abstract TextEditScope Scope { get; }
     public abstract bool IsDestructive { get; }
     public virtual bool PlainTextOnly => false;
@@ -63,14 +71,17 @@ public abstract class TextEditorCommandBase : ITextEditorCommand
     public abstract void Execute(TextEditorContext ctx);
 }
 
-/// <summary>Lambda-backed command, so the built-ins stay declarative.</summary>
+/// <summary>Lambda-backed command, so the built-ins stay declarative. Its words are asked for each time they are shown
+/// (<paramref name="title"/>, <paramref name="groupTitle"/>), so one shared list speaks whichever language the window does.</summary>
 public sealed class DelegateEditorCommand(
-    string name, string group, TextEditScope scope, bool isDestructive,
+    string name, Func<string> title, string group, Func<string> groupTitle, TextEditScope scope, bool isDestructive,
     Action<TextEditorContext> execute, bool plainTextOnly = false)
     : TextEditorCommandBase
 {
     public override string Name => name;
     public override string Group => group;
+    public override string Title => title();
+    public override string GroupTitle => groupTitle();
     public override TextEditScope Scope => scope;
     public override bool IsDestructive => isDestructive;
     public override bool PlainTextOnly => plainTextOnly;

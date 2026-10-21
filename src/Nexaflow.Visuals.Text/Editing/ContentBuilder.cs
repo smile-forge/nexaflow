@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Visuals.Text.Editing;
@@ -116,7 +117,7 @@ public abstract class ContentBuilder
             // The message is the reader's, so it says what happened to their formula rather than which
             // method threw. The part blamed is the whole tree, because a builder that fell over has no
             // opinion about which part of it was to blame.
-            return AsSource([(Reading.Root, $"This could not be set: {error.Message}")]);
+            return AsSource([(Reading.Root, Str.Format("Text.Content.CouldNotSet", error.Message))]);
         }
     }
 

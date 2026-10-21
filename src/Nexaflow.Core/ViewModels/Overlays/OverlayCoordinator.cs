@@ -109,8 +109,8 @@ public sealed class OverlayCoordinator : ObservableObject
         request = new ConfirmationRequest(title, prompt,
             onConfirm: () => { CloseConfirmation(request!); onConfirm(); },
             onCancel:  () => { CloseConfirmation(request!); onCancel?.Invoke(); },
-            confirmLabel: string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Shell.Prompt.Confirm") : confirmLabel,
-            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Shell.Prompt.Cancel")  : cancelLabel,
+            confirmLabel: confirmLabel,
+            cancelLabel:  cancelLabel,
             onAlternate:  onAlternate is null ? null : () => { CloseConfirmation(request!); onAlternate(); },
             alternateLabel: alternateLabel);
         SetConfirmation(request);

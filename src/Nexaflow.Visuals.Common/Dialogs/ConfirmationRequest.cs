@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 
 namespace Nexaflow.Visuals.Common.Dialogs;
@@ -20,13 +21,13 @@ public sealed partial class ConfirmationRequest : ObservableObject
     /// <param name="onAlternate">A third answer beside confirm and cancel — "Discard" when closing would lose edits —
     /// shown only when given.</param>
     public ConfirmationRequest(string title, string prompt, Action onConfirm, Action? onCancel = null,
-                               string confirmLabel = "Confirm", string cancelLabel = "Cancel",
+                               string? confirmLabel = null, string? cancelLabel = null,
                                Action? onAlternate = null, string? alternateLabel = null)
     {
         Title          = title;
         Prompt         = prompt;
-        ConfirmLabel   = confirmLabel;
-        CancelLabel    = cancelLabel;
+        ConfirmLabel   = string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Common.Confirm.Confirm") : confirmLabel;
+        CancelLabel    = string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Common.Confirm.Cancel")  : cancelLabel;
         AlternateLabel = alternateLabel ?? string.Empty;
         _onConfirm     = onConfirm;
         _onCancel      = onCancel;

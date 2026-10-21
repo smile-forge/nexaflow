@@ -16,6 +16,7 @@ using Str = Nexaflow.Visuals.Common.Localization.Str;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -288,7 +289,7 @@ public class LocalModelsTests
         var grid = Open().Grid;
 
         Assert.IsFalse(grid.CanDownloadLocal);
-        StringAssert.StartsWith(grid.LocalNotice, "Shell.Ai.Room.ShortFormat", "the refusal, as Tests.Core reads a key with no table loaded");
+        StringAssert.StartsWith(grid.LocalNotice, Str.Get("Shell.Ai.Room.ShortFormat").Split('{')[0], "the refusal, saying how much it needs");
     }
 
     [TestMethod]

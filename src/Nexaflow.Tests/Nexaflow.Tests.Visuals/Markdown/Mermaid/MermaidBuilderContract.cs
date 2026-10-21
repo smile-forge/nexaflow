@@ -10,6 +10,7 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -28,7 +29,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 public abstract class MermaidBuilderContract
 {
     /// <summary>What a builder that fell over says instead of drawing — see <c>ContentBuilder.Lay</c>.</summary>
-    private const string FellOver = "This could not be set";
+    private static string FellOver => Str.Format("Text.Content.CouldNotSet", string.Empty);
 
     /// <summary>The diagram this builder draws.</summary>
     public abstract MermaidDiagram Diagram { get; }

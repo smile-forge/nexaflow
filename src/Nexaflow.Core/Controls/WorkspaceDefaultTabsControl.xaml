@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Core.Controls.WorkspaceDefaultTabsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- heading + instructions -->
@@ -10,16 +11,16 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Default tabs" FontSize="15" FontWeight="SemiBold"
+            <TextBlock Text="{loc:Str Shell.Workspace.DefaultTabs.Title}" FontSize="15" FontWeight="SemiBold"
                        Foreground="{StaticResource TextBrush}" Margin="0,0,0,6"/>
             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
-                       Text="These tabs open when a new window starts for this workspace. To define them, open the tabs and panes you want, then right-click the workspace icon and choose &#x201C;Use Tabset as Default&#x201D;. You can remove tabs here."/>
+                       Text="{loc:Str Shell.Workspace.DefaultTabs.Intro}"/>
         </StackPanel>
 
         <TextBlock x:Name="EmptyText" Grid.Row="1" Margin="0,4,0,0"
                    FontSize="12" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
                    Visibility="Collapsed"
-                   Text="No startup tabs — this workspace opens with none."/>
+                   Text="{loc:Str Shell.Workspace.DefaultTabs.Empty}"/>
 
         <ScrollViewer Grid.Row="2" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="RowsList">
@@ -39,7 +40,7 @@
                                 <Button Grid.Column="1" Content="✕" Tag="{Binding}"
                                         Click="Remove_Click" Cursor="Hand"
                                         Width="26" Height="26" FontSize="12"
-                                        ToolTip="Remove this startup tab"
+                                        ToolTip="{loc:Str Shell.Workspace.DefaultTabs.RemoveTip}"
                                         Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
                                         BorderThickness="0"
                                         AutomationProperties.AutomationId="DefaultTabs_Remove">
@@ -71,13 +72,13 @@
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <StackPanel>
                 <CheckBox x:Name="NoSessionRestoreCheck"
-                          Content="Never offer to restore the last session"
+                          Content="{loc:Str Shell.Workspace.DefaultTabs.NeverRestore}"
                           Foreground="{StaticResource TextBrush}" FontSize="12"
                           Checked="NoSessionRestore_Changed" Unchecked="NoSessionRestore_Changed"
                           AutomationProperties.AutomationId="DefaultTabs_NoSessionRestore"/>
                 <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="This workspace always starts from the tabs above. Without this, closing it with a different set of tabs records them, and the next open offers to reopen them."/>
+                           Text="{loc:Str Shell.Workspace.DefaultTabs.NeverRestoreNote}"/>
             </StackPanel>
         </Border>
     </Grid>

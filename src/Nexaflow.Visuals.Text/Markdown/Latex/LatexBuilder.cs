@@ -10,6 +10,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -99,7 +100,7 @@ public sealed partial class LatexBuilder : ContentBuilder
     }
 
     /// <summary>What is said of something read that nothing here knows how to draw.</summary>
-    private const string Undrawable = "This was read, and nothing here knows how to draw it.";
+    private static string Undrawable => Str.Get("Text.Latex.Undrawable");
 
     /// <summary>
     /// The formula and its <c>\tag</c> number as one block, number against the right edge on the formula's

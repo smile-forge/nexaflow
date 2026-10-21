@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Navigation;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -26,7 +27,7 @@ public partial class AboutControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        VersionText.Text  = $"Version {SetupWizardViewModel.CurrentVersion()}";
+        VersionText.Text  = Str.Format("Shell.About.VersionFormat", SetupWizardViewModel.CurrentVersion());
         NoticesView.Markdown = LoadNotices();
 
         // The registry re-raises this after every probe, including the ones the Re-check button starts.
@@ -54,9 +55,9 @@ public partial class AboutControl : UserControl
         ComponentsList.ItemsSource = rows;
 
         var missing = registry.Reports.Count(r => r.IsBlocking);
-        ComponentsSummary.Text = !registry.IsReady ? "checking…"
-                               : missing > 0       ? $"{missing} missing"
-                               : rows.Count > 0    ? "all present"
+        ComponentsSummary.Text = !registry.IsReady ? Str.Get("Shell.About.Checking")
+        : missing > 0       ? Str.Format("Shell.About.MissingFormat", missing)
+        : rows.Count > 0    ? Str.Get("Shell.About.AllPresent")
                                : string.Empty;
 
         // Only force it open for a real problem. Toggling it back closed on a later probe would fight a
@@ -64,7 +65,7 @@ public partial class AboutControl : UserControl
         if (missing > 0) ComponentsToggle.IsChecked = true;
 
         var empty = registry.IsReady && rows.Count == 0;
-        ComponentsEmptyText.Text = empty ? "No features on this build declare an external component." : string.Empty;
+        ComponentsEmptyText.Text = empty ? Str.Get("Shell.About.NoComponents") : string.Empty;
         ComponentsEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
 
         RecheckButton.IsEnabled = registry.IsReady;
@@ -118,9 +119,8 @@ public partial class AboutControl : UserControl
         Nexaflow.Features.Common.IShellServices? shell =
             WorkspaceManager.Instance.FirstActive?.ShellServices;
         shell?.ShowConfirmation(
-            "Reset configuration?",
-            "This permanently deletes every Nexaflow setting, workspace, provider and conversation " +
-            "for all workspaces, then restarts the app. This cannot be undone.",
+            Str.Get("Shell.About.Reset.Ask"),
+            Str.Get("Shell.About.Reset.AskBody"),
             App.ResetAndRestart,
             () => { });
     }

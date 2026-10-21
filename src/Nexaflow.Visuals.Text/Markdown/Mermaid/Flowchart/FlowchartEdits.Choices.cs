@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
@@ -61,6 +62,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
         Drawable.Select(shape => new LayoutIntent(Chose + "shape." + MermaidShapes.Wording(shape), null, ReadAs(shape))
         {
             Group = ShapeChoice,
+            GroupTip = Str.Get("Text.Flowchart.Shape"),
             Current = shape == drawn,
             Shape = ShapeIcon(shape),
             Letters = Lettered(shape),
@@ -73,28 +75,78 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     {
         var said = DiagramSwatches.Shade(filled);
 
-        yield return OneColour(DiagramSwatches.Clear, DiagramSwatches.Nothing, filled is null);
+        yield return OneColour(DiagramSwatches.Clear, Str.Get("Text.Flowchart.NoFill"), DiagramSwatches.Nothing, filled is null);
 
-        foreach (var (name, shade) in DiagramSwatches.Bank()) yield return OneColour(name, shade, said == shade);
+        foreach (var (name, label, shade) in DiagramSwatches.Bank()) yield return OneColour(name, label, shade, said == shade);
     }
 
-    private static LayoutIntent OneColour(string name, Color shade, bool current) =>
-        new(Chose + "fill." + name.ToLowerInvariant(), null, name) { Group = FillChoice, Current = current, Shade = shade };
-
-    /// <summary>What a shape is called where a reader has to read it: its own name, broken into the words it is made of.</summary>
-    private static string ReadAs(MermaidShape shape)
-    {
-        var name = shape.ToString();
-        var said = new StringBuilder(name.Length + 8);
-
-        foreach (var letter in name)
+    private static LayoutIntent OneColour(string name, string label, Color shade, bool current) =>
+    new(Chose + "fill." + name.ToLowerInvariant(), null, label)
         {
-            if (char.IsUpper(letter) && said.Length > 0) said.Append(' ');
-            said.Append(letter);
-        }
+            Group = FillChoice,
+            GroupTip = Str.Get("Text.Flowchart.Fill"),
+            Current = current,
+            Shade = shade,
+        };
 
-        return said.ToString();
-    }
+    /// <summary>What a shape is called where a reader has to read it, in the window's language.</summary>
+    private static string ReadAs(MermaidShape shape) => shape switch
+    {
+        MermaidShape.Rectangle => Str.Get("Text.Shape.Rectangle"),
+        MermaidShape.Rounded => Str.Get("Text.Shape.Rounded"),
+        MermaidShape.Stadium => Str.Get("Text.Shape.Stadium"),
+        MermaidShape.Subroutine => Str.Get("Text.Shape.Subroutine"),
+        MermaidShape.Cylinder => Str.Get("Text.Shape.Cylinder"),
+        MermaidShape.Circle => Str.Get("Text.Shape.Circle"),
+        MermaidShape.DoubleCircle => Str.Get("Text.Shape.DoubleCircle"),
+        MermaidShape.Asymmetric => Str.Get("Text.Shape.Asymmetric"),
+        MermaidShape.Diamond => Str.Get("Text.Shape.Diamond"),
+        MermaidShape.Hexagon => Str.Get("Text.Shape.Hexagon"),
+        MermaidShape.Parallelogram => Str.Get("Text.Shape.Parallelogram"),
+        MermaidShape.ParallelogramAlt => Str.Get("Text.Shape.ParallelogramAlt"),
+        MermaidShape.Trapezoid => Str.Get("Text.Shape.Trapezoid"),
+        MermaidShape.TrapezoidAlt => Str.Get("Text.Shape.TrapezoidAlt"),
+        MermaidShape.Document => Str.Get("Text.Shape.Document"),
+        MermaidShape.LinedDocument => Str.Get("Text.Shape.LinedDocument"),
+        MermaidShape.StackedDocument => Str.Get("Text.Shape.StackedDocument"),
+        MermaidShape.TaggedDocument => Str.Get("Text.Shape.TaggedDocument"),
+        MermaidShape.Card => Str.Get("Text.Shape.Card"),
+        MermaidShape.NotchedPentagon => Str.Get("Text.Shape.NotchedPentagon"),
+        MermaidShape.LinedRectangle => Str.Get("Text.Shape.LinedRectangle"),
+        MermaidShape.DividedRectangle => Str.Get("Text.Shape.DividedRectangle"),
+        MermaidShape.WindowPane => Str.Get("Text.Shape.WindowPane"),
+        MermaidShape.TaggedRectangle => Str.Get("Text.Shape.TaggedRectangle"),
+        MermaidShape.StackedRectangle => Str.Get("Text.Shape.StackedRectangle"),
+        MermaidShape.SlopedRectangle => Str.Get("Text.Shape.SlopedRectangle"),
+        MermaidShape.Delay => Str.Get("Text.Shape.Delay"),
+        MermaidShape.CurvedTrapezoid => Str.Get("Text.Shape.CurvedTrapezoid"),
+        MermaidShape.BowTie => Str.Get("Text.Shape.BowTie"),
+        MermaidShape.Flag => Str.Get("Text.Shape.Flag"),
+        MermaidShape.Triangle => Str.Get("Text.Shape.Triangle"),
+        MermaidShape.FlippedTriangle => Str.Get("Text.Shape.FlippedTriangle"),
+        MermaidShape.Hourglass => Str.Get("Text.Shape.Hourglass"),
+        MermaidShape.Bolt => Str.Get("Text.Shape.Bolt"),
+        MermaidShape.Fork => Str.Get("Text.Shape.Fork"),
+        MermaidShape.SmallCircle => Str.Get("Text.Shape.SmallCircle"),
+        MermaidShape.FramedCircle => Str.Get("Text.Shape.FramedCircle"),
+        MermaidShape.FilledCircle => Str.Get("Text.Shape.FilledCircle"),
+        MermaidShape.CrossedCircle => Str.Get("Text.Shape.CrossedCircle"),
+        MermaidShape.HorizontalCylinder => Str.Get("Text.Shape.HorizontalCylinder"),
+        MermaidShape.LinedCylinder => Str.Get("Text.Shape.LinedCylinder"),
+        MermaidShape.DataStore => Str.Get("Text.Shape.DataStore"),
+        MermaidShape.Bucket => Str.Get("Text.Shape.Bucket"),
+        MermaidShape.Brace => Str.Get("Text.Shape.Brace"),
+        MermaidShape.BraceRight => Str.Get("Text.Shape.BraceRight"),
+        MermaidShape.Braces => Str.Get("Text.Shape.Braces"),
+        MermaidShape.Browser => Str.Get("Text.Shape.Browser"),
+        MermaidShape.Console => Str.Get("Text.Shape.Console"),
+        MermaidShape.Folder => Str.Get("Text.Shape.Folder"),
+        MermaidShape.Person => Str.Get("Text.Shape.Person"),
+        MermaidShape.Cloud => Str.Get("Text.Shape.Cloud"),
+        MermaidShape.Bang => Str.Get("Text.Shape.Bang"),
+        MermaidShape.Text => Str.Get("Text.Shape.Text"),
+        _ => shape.ToString(),
+    };
 
     /// <summary>
     /// A shape drawn as itself in the box a ribbon button gives it, or null for the one shape there is no picture of. Kept once

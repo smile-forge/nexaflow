@@ -3,6 +3,7 @@ using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -143,7 +144,7 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
     {
         _idlePlaceholder = new BackgroundTask
         {
-            Description = "Idle",
+            Description = Str.Get("Shell.BackgroundTasks.Idle"),
             Status      = TaskStatus.Completed
         };
         Tasks.Insert(0, _idlePlaceholder);
