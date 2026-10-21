@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -8,6 +9,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable;
 using Nexaflow.Features.Executable.FileActions;
 using Nexaflow.Features.Executable.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Pe;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
@@ -103,6 +105,27 @@ public sealed class ExecutableFeatureTests
 
         Assert.AreEqual(AmsiVerdict.Unavailable, result.Verdict);
         Assert.IsFalse(result.IsThreat);
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_file_under_a_mount_is_scanned_as_the_real_file_it_maps_to()
+    {
+        // A OneDrive folder is browsed as a mount (::{id}\…), and that virtual path is what the action is handed.
+        var dir = TestTemp.CreateSubdirectory("amsi-mount").FullName;
+        var real = Path.Combine(dir, "notes.txt");
+        File.WriteAllText(real, "nothing to see here");
+
+        const string id = "amsimount";
+        VirtualFileSystem.Instance.RegisterMount(new VirtualMount(id, "AMSI Mount", dir));
+        try
+        {
+            var viaMount = AmsiScanner.ScanFile($@"{VirtualMount.RootFor(id)}\notes.txt");
+            var direct   = AmsiScanner.ScanFile(real);
+
+            Assert.AreEqual(direct.Verdict, viaMount.Verdict);
+            Assert.AreEqual(direct.Message, viaMount.Message, "the mount must not read as a file that has disappeared");
+        }
+        finally { VirtualFileSystem.Instance.UnregisterMount(id); }
     }
 
     // ── Dependency walk ───────────────────────────────────────────────────────
