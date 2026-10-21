@@ -65,10 +65,10 @@ public class PdfJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>Double-clicks a file in the browser — the default-open path, which is what we're testing.</summary>
-    private AutomationElement? DoubleClickOpen(string fileName, int seconds = 20)
+    private AutomationElement? DoubleClickOpen(string fileName, int seconds = 20, string? folder = null)
     {
         CloseReaderTab();
-        NavigateFileBrowserTo(PdfFolder);
+        NavigateFileBrowserTo(folder ?? PdfFolder);
 
         var row = WaitForName(fileName, 8);
         Assert.IsNotNull(row, $"File '{fileName}' not found in the file list.");
@@ -117,6 +117,8 @@ public class PdfJourneyTests : UiJourneyTestBase
     [CoversNode("pdf-open-action")]
     [CoversNode("pdf-panel-properties")]
     [CoversNode("pdf-panel-toc")]
+    [CoversNode("pdf-panel-pages")]
+    [CoversNode("pdf-page-edits")]
     public void Pdf_Controls_RespondInOnePass()
     {
         // ── A readable document: the panel, its content, and its toggle ──────────────────
@@ -233,6 +235,68 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
     }
 }
 
+        // ── Editing the pages: a copy of the outlined document, so the sample stays as it is ──
+        var copies = TestTemp.CreateSubdirectory("pdf-pages").FullName;
+        System.IO.File.Copy(TestSampleData.Path("pdf", "outline.pdf"), System.IO.Path.Combine(copies, "pages.pdf"));
+        Assert.IsNotNull(DoubleClickOpen("pages.pdf", folder: copies), "The reader did not open the copy to edit.");
+
+        var pagesTab = CheckPresent("Pages tab", "Pdf_Tab_Pages");
+        pagesTab?.Click();
+        Wait.UntilInputIsProcessed();
+
+        var thumbnails = CheckPresent("Page thumbnails", "Pdf_Thumbnails", 10);
+        Check("A thumbnail for every page", () => Thumbnails(thumbnails).Length == 3);
+        CheckPresent("Undo", "Pdf_Undo");
+        CheckPresent("Redo", "Pdf_Redo");
+        CheckPresent("Save as", "Pdf_SaveAs");
+
+        if (Thumbnails(thumbnails) is { Length: 3 } rows)
+        {
+            rows[1].Click();
+            Wait.UntilInputIsProcessed();
+            Check("Clicking a thumbnail goes to its page", () => PageNumberIs("2", 6));
+
+            // The page's own menu, and the menu between two pages.
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Delete the page", "Pdf_Thumb_Delete", 3);
+            CheckPresent("Insert a picture before it", "Pdf_Thumb_InsertImageBefore", 2);
+            CheckPresent("Insert a picture after it", "Pdf_Thumb_InsertImageAfter", 2);
+            CheckPresent("Insert a PDF before it", "Pdf_Thumb_InsertPdfBefore", 2);
+            CheckPresent("Insert a PDF after it", "Pdf_Thumb_InsertPdfAfter", 2);
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Wait.UntilInputIsProcessed();
+
+            var below = rows[2].BoundingRectangle;
+            RightClickAt(new System.Drawing.Point(below.X + below.Width / 2, below.Bottom + 6));
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Insert a picture between pages", "Pdf_Gap_InsertImage", 3);
+            CheckPresent("Insert a PDF between pages", "Pdf_Gap_InsertPdf", 2);
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Wait.UntilInputIsProcessed();
+
+            // Delete the page selected, undo it, redo it: the page count follows each.
+            rows[1].Click();
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
+            Wait.UntilInputIsProcessed();
+            Check("Delete takes the page out", () => PageCountIs('2', 6));
+            CheckDoes("Undo the delete", "Pdf_Undo", () => PageCountIs('3', 4));
+            CheckDoes("Redo the delete", "Pdf_Redo", () => PageCountIs('2', 4));
+
+            // Alt+Up moves the page selected up a place; the edit is staged until Save.
+            if (Thumbnails(thumbnails) is { Length: 2 } left)
+            {
+                left[1].Click();
+                Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.ALT, FlaUI.Core.WindowsAPI.VirtualKeyShort.UP);
+                Wait.UntilInputIsProcessed();
+            }
+
+            CheckDoes("Save the page edits", "Pdf_Save", () => WaitForId("Pdf_Save", 2)?.IsEnabled == false);
+
+            Assert.IsNotNull(DoubleClickOpen("pages.pdf", folder: copies), "The saved copy did not open again.");
+            Check("The saved file has the pages left", () => PageCountIs('2', 10));
+        }
+
         // ── A corrupt document: the panel still opens, and says why it is empty ─────────
         // The bar the ViewerMap entry sets: corrupt.pdf must reach a PdfView, because a document PdfPig can't
         // parse is a normal state of this panel, not an exception path that takes the tab down.
@@ -257,4 +321,22 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
 
         return false;
     }
+
+    /// <summary>Whether the toolbar's page count shows <paramref name="pages"/> within <paramref name="seconds"/>.</summary>
+    private bool PageCountIs(char pages, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            if (WaitForId("Pdf_PageCount", 1) is { } count && count.Name.Contains(pages)) return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
+    }
+
+    /// <summary>The rows of the Pages tab, top to bottom.</summary>
+    private static AutomationElement[] Thumbnails(AutomationElement? list) =>
+        list?.FindAllChildren(cf => cf.ByControlType(ControlType.ListItem)) ?? [];
 }

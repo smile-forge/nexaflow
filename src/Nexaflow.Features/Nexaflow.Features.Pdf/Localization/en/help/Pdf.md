@@ -22,6 +22,16 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 - [Print](locate:Pdf_Print) the document, each page as large as fits the sheet. [Open the file in your usual PDF application](locate:Pdf_OpenExternal) for anything this does not do.
 - Layers the document hides are not drawn, and form fields and stamps show as the document draws them.
 
+## Pages
+- [The Pages tab](locate:Pdf_Tab_Pages,Pdf_Thumbnails) shows every page as a small picture, in the order the document now has; the page you are reading is outlined, and clicking a page goes there. Ctrl+click and Shift+click select several.
+- Drag pages into a new order — a line shows where they will land, and the list scrolls when you drag to its edge — or move the selected pages up and down a place with Alt+Up and Alt+Down.
+- Right-click a page to delete it, or the pages selected, or press Delete. A document keeps at least one page.
+- Right-click between two pages to insert a picture or another PDF there, or right-click a page to insert before or after it. A picture becomes a page the size of the page beside it, the picture fitted to it and turned the right way up; a PDF brings all its pages, with its bookmarks, form fields and page labels.
+- Edits change the document on screen straight away, but not the file: [undo](locate:Pdf_Undo) and [redo](locate:Pdf_Redo) them with Ctrl+Z and Ctrl+Y, and [save](locate:Pdf_Save) them with Ctrl+S, or [save as another file](locate:Pdf_SaveAs) with Ctrl+Shift+S. The tab's title is marked with * while there are edits to save.
+- Saving keeps everything the document carries beyond its pages — its bookmarks, form, page labels, named places and attachments, its tags for screen readers, article threads and layers — following the pages to their new places. Only what was on a page you deleted goes with it.
+- A document that is encrypted or signed is asked about before it is saved: the file written is not encrypted, and its signatures no longer hold. A document whose form is an XFA form lays itself out, so its pages cannot be rearranged.
+- While there are edits, the file and any PDF inserted are kept from being changed by other programs, so the edits always apply to the file as it was read.
+
 ## Properties
 - [The Properties tab](locate:Pdf_Tab_Properties,Pdf_Properties) reads the document's catalogue, so it fills in while the pages are still being drawn.
 - It lists file name and size, page count, PDF version, whether the document is protected, and how many fields its form carries.

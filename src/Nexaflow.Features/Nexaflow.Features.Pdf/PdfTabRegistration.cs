@@ -38,6 +38,10 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
             var vm   = new PdfViewModel(path, shell, config, reading, ai);
             var view = new PdfView(vm, shell);
 
+            // Unsaved page edits ride on the tab's title; a Save As makes the tab that file.
+            vm.DirtyChanged += dirty => page.Title = (dirty ? "*" : string.Empty) + vm.FileName;
+            vm.Moved        += moved => Follow(page, moved);
+
             if (pageParams?.GetValueOrDefault("page") is { } raw && int.TryParse(raw, out var at))
                 view.OpenAtPage(at);
 
@@ -49,5 +53,12 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
 
         if (!string.IsNullOrEmpty(path)) page.SetFileBreadcrumbs(path, title);
         return page;
+    }
+
+    private static void Follow(Page page, string path)
+    {
+        page.Title      = Path.GetFileName(path);
+        page.PageParams = new Dictionary<string, string> { ["path"] = path };
+        page.SetFileBreadcrumbs(path, page.Title);
     }
 }

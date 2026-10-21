@@ -4,7 +4,9 @@
              xmlns:paged="clr-namespace:Nexaflow.Visuals.Text.Editing.Paged;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
+             xmlns:bh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="PdfView"
+             PreviewKeyDown="View_PreviewKeyDown"
              Background="{StaticResource BgBrush}"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
@@ -144,6 +146,44 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- A page in the Pages tab. Selection is the page's own (IsSelected is its view-model's), so a page selected
+             keeps its selection however far it is scrolled out of view, and wherever an edit moves it. A click with
+             no keys held goes to the page; a drag moves the selected pages. -->
+        <Style x:Key="PdfThumbnailRow" TargetType="ListBoxItem">
+            <Setter Property="Background"                 Value="Transparent"/>
+            <Setter Property="Padding"                    Value="6,2"/>
+            <Setter Property="Margin"                     Value="6,2"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor"                     Value="Hand"/>
+            <Setter Property="IsSelected"                 Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="ThumbnailRow_MouseUp"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -182,6 +222,84 @@
                             Background="Transparent"
                             BorderThickness="0"
                             ItemContainerStyle="{StaticResource ThemedTabItem}">
+
+                    <!-- Pages: a thumbnail of every page in the order the document now has, the page being read
+                         outlined. Pages are dragged into a new order, deleted, or have a picture or another PDF
+                         inserted between them from the right-click menu; every edit is staged until Save. The list
+                         virtualises: a row's picture is asked for as it comes into view. -->
+                    <TabItem x:Name="PagesTab"
+                             Header="{loc:Str Pdf.Tab.Pages}"
+                             AutomationProperties.AutomationId="Pdf_Tab_Pages">
+                        <Grid DataContext="{Binding PagesPanel}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBox Grid.Row="0"
+                                     Style="{StaticResource SelectableText}"
+                                     Margin="12,10,12,0"
+                                     FontSize="12"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextMutedBrush}"
+                                     Text="{Binding NotEditableMessage, Mode=OneWay}"
+                                     Visibility="{Binding NotEditableMessage, Converter={StaticResource StringVis}}"/>
+
+                            <ListBox Grid.Row="1"
+                                     x:Name="Thumbnails"
+                                     AutomationProperties.AutomationId="Pdf_Thumbnails"
+                                     ItemsSource="{Binding Pages}"
+                                     SelectionMode="Extended"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Margin="0,6"
+                                     ItemContainerStyle="{StaticResource PdfThumbnailRow}"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                     VirtualizingPanel.ScrollUnit="Pixel"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     bh:DragReorder.Command="{Binding ReorderCommand}"
+                                     bh:DragReorder.ShowsInsertion="True"
+                                     bh:DragReorder.AutoScrolls="True"
+                                     bh:DragReorder.MovesSelection="True"
+                                     ContextMenuOpening="Thumbnails_ContextMenuOpening"
+                                     PreviewKeyDown="Thumbnails_PreviewKeyDown">
+                                <ListBox.ContextMenu>
+                                    <!-- Filled as it opens: on a page, its own edits; between two, what can go there. -->
+                                    <ContextMenu Closed="ThumbnailsMenu_Closed"/>
+                                </ListBox.ContextMenu>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,4"
+                                                    DataContextChanged="Thumbnail_DataContextChanged"
+                                                    Unloaded="Thumbnail_Unloaded">
+                                            <Border x:Name="Sheet"
+                                                    Width="{Binding SheetWidth}"
+                                                    Height="{Binding SheetHeight}"
+                                                    HorizontalAlignment="Center"
+                                                    Background="{DynamicResource Pdf.Paper}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1">
+                                                <Image Source="{Binding Picture}" Stretch="Uniform"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Number}"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,4,0,0"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                <Setter TargetName="Sheet" Property="BorderBrush"     Value="{DynamicResource AccentBrush}"/>
+                                                <Setter TargetName="Sheet" Property="BorderThickness" Value="2"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </TabItem>
 
                     <TabItem Header="{loc:Str Pdf.Tab.Properties}" AutomationProperties.AutomationId="Pdf_Tab_Properties">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -443,6 +561,31 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="5" Orientation="Horizontal">
+                        <!-- Page edits: undo and redo them, save them over the file or as another. -->
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_Undo"
+                                Command="{Binding UndoCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.UndoTip}">
+                            <TextBlock Text="&#xE7A7;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_Redo"
+                                Command="{Binding RedoCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.RedoTip}">
+                            <TextBlock Text="&#xE7A6;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_Save"
+                                Command="{Binding SaveCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.SaveTip}">
+                            <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,8,0"
+                                AutomationProperties.AutomationId="Pdf_SaveAs"
+                                Command="{Binding SaveAsCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.SaveAsTip}">
+                            <TextBlock Text="&#xE792;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
                         <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
                                 AutomationProperties.AutomationId="Pdf_ConvertDocument"
                                 Command="{Binding ConvertDocumentCommand}"
