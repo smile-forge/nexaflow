@@ -131,7 +131,7 @@ public class PdfJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
         CheckPresent("Contents tab", "Pdf_Tab_Contents");
         CheckPresent("Panel splitter", "Pdf_Splitter");
-        CheckPresent("File name", "Pdf_FileName");
+        CheckPresent("Extract the images", "Pdf_ExtractImages");
 
         // The panel's actual content: the title lives only in the document's /Info dictionary, so seeing it
         // proves PdfPig parsed the document rather than the view merely rendering.
@@ -303,6 +303,7 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
             Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
             Wait.UntilInputIsProcessed();
             Check("Delete takes the page out", () => PageCountIs('2', 6));
+            Check("The edits can be saved as another file", () => WaitForId("Pdf_SaveAs", 2)?.IsEnabled == true);
             CheckDoes("Undo the delete", "Pdf_Undo", () => PageCountIs('3', 4));
             CheckDoes("Redo the delete", "Pdf_Redo", () => PageCountIs('2', 4));
 

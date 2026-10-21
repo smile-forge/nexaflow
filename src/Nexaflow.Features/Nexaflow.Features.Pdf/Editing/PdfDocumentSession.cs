@@ -303,6 +303,22 @@ internal sealed class PdfDocumentSession : IDisposable
     }
 
     /// <summary>
+    /// The document as it now stands — every edit in it — written to <paramref name="path"/>, the file and the tab's own
+    /// copies untouched: for a save, and for a reader of the whole document that must not share the tab's copies, such
+    /// as a job that runs on after the tab is closed.
+    /// </summary>
+    public Task WriteCopyAsync(string path, CancellationToken ct)
+    {
+        var arrangement = Arrangement;
+        var files = Files();
+        return Task.Run(() =>
+        {
+            using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            PdfArrangementWriter.Write(arrangement, files, Base.Id, output, ct);
+        }, ct);
+    }
+
+    /// <summary>
     /// Writes the document over its own file, or as <paramref name="target"/>, which it then is. A file inside an
     /// archive is written back into it.
     /// </summary>
@@ -311,8 +327,6 @@ internal sealed class PdfDocumentSession : IDisposable
     public async Task SaveAsync(string? target, CancellationToken ct)
     {
         var destination = target ?? Base.Path;
-        var arrangement = Arrangement;
-        var files = Files();
         var real = VirtualFileSystem.Instance.TryResolveReal(destination);
         var written = real is null
             ? System.IO.Path.Combine(Drafts(), $"saving-{Interlocked.Increment(ref _nextDraft)}.pdf")
@@ -320,11 +334,7 @@ internal sealed class PdfDocumentSession : IDisposable
 
         try
         {
-            await Task.Run(() =>
-            {
-                using var output = new FileStream(written, FileMode.Create, FileAccess.Write, FileShare.None);
-                PdfArrangementWriter.Write(arrangement, files, Base.Id, output, ct);
-            }, ct);
+            await WriteCopyAsync(written, ct);
 
             if (string.Equals(destination, Base.Path, StringComparison.OrdinalIgnoreCase))
             {

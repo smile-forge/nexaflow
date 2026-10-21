@@ -7,6 +7,7 @@ using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
+using Nexaflow.Features.Pdf.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -141,6 +142,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>How many pages the document has; zero until it is read.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PageCountText))]
+    [NotifyCanExecuteChangedFor(nameof(SaveAsCommand), nameof(ExtractImagesCommand))]
     private int _pageCount;
 
     /// <summary>"of N", beside the page being read.</summary>
@@ -386,6 +388,50 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     }
 
     private bool CanSaveAs() => PageCount > 0 && !IsSaving;
+
+    /// <summary>
+    /// Writes the document's images into a folder the reader picks, as the file browser's Extract images does — of the
+    /// document as it now stands. With edits unsaved, a copy of it is written for the extraction, which runs on after
+    /// the tab is closed and deletes the copy once read; otherwise the file itself is read.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExtractImages))]
+    private async Task ExtractImages()
+    {
+        var target = await _shell.PickFolderAsync(Path.GetDirectoryName(_path));
+        if (string.IsNullOrEmpty(target)) return;
+
+        var source = new PdfImageSource(_path, FileName);
+        if (IsDirty)
+        {
+            var copy = DraftLocation.NewFile(FileName);
+            try
+            {
+                await _session.WriteCopyAsync(copy, _cts.Token);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or UnauthorizedAccessException or PdfEditRefusedException)
+            {
+                TryDeleteDraft(copy);
+                if (ex is not OperationCanceledException) _shell.ShowError(Str.Get("Pdf.Extract.Failed"));
+                return;
+            }
+
+            source = new PdfImageSource(copy, FileName, Draft: true);
+        }
+
+        PdfImageExport.Queue(_shell, [source], target);
+    }
+
+    private bool CanExtractImages() => PageCount > 0;
+
+    private static void TryDeleteDraft(string draft)
+    {
+        try
+        {
+            if (Path.GetDirectoryName(draft) is { } folder && Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 
     /// <summary>
     /// Saves the document over its file, or as <paramref name="target"/>: once the reader has agreed to what a save

@@ -69,6 +69,7 @@
   "Pdf.Toolbar.FitWidthTip": "Ajuster la page à la largeur",
   "Pdf.Toolbar.FitPageTip": "Afficher la page entière",
   "Pdf.Toolbar.PrintTip": "Imprimer",
+  "Pdf.Toolbar.ExtractImagesTip": "Enregistrer dans un dossier les images de ce document — modifications des pages non enregistrées comprises",
   "Pdf.Toolbar.UndoTip": "Annuler la dernière modification des pages (Ctrl+Z)",
   "Pdf.Toolbar.RedoTip": "Rétablir la modification des pages annulée (Ctrl+Y)",
   "Pdf.Toolbar.SaveTip": "Enregistrer les modifications des pages (Ctrl+S)",

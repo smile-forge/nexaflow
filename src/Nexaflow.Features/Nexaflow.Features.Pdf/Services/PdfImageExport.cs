@@ -25,7 +25,16 @@ internal static class PdfImageExport
         var target = await shell.PickFolderAsync(Path.GetDirectoryName(pdfPaths[0]));
         if (string.IsNullOrEmpty(target)) return;   // cancelled the picker — not an error, say nothing
 
-        var task = new PdfImageExtractionTask(pdfPaths, target);
+        Queue(shell, pdfPaths.Select(PdfImageSource.OfFile).ToList(), target);
+    }
+
+    /// <summary>
+    /// Hands the extraction of <paramref name="sources"/> into <paramref name="target"/> to the shell, which says what
+    /// happened once it is done.
+    /// </summary>
+    public static void Queue(IShellServices shell, IReadOnlyList<PdfImageSource> sources, string target)
+    {
+        var task = new PdfImageExtractionTask(sources, target);
 
         // No token: the shell offers no way for the user to cancel a queued activity, and inventing a source
         // nothing can trip would only look like cancellation was supported. The task honours whatever token
@@ -52,7 +61,7 @@ internal static class PdfImageExport
         if (extracted == 0 && failed.Count == results.Count)
         {
             shell.ShowError(results.Count == 1
-                ? Str.Format("Pdf.Extract.FileErrorFormat", Name(results[0].PdfPath), results[0].Error)
+                ? Str.Format("Pdf.Extract.FileErrorFormat", results[0].Name, results[0].Error)
                 : Str.Format("Pdf.Extract.NoneReadableFormat", results.Count));
             return;
         }
@@ -60,13 +69,13 @@ internal static class PdfImageExport
         if (extracted == 0)
         {
             shell.ShowNotification(results.Count == 1
-                ? Str.Format("Pdf.Extract.NoImagesOneFormat", Name(results[0].PdfPath))
+                ? Str.Format("Pdf.Extract.NoImagesOneFormat", results[0].Name)
                 : Str.Format("Pdf.Extract.NoImagesManyFormat", results.Count));
             return;
         }
 
         var message = results.Count == 1
-            ? Str.Format("Pdf.Extract.DoneOneFormat", Count(extracted), Name(results[0].PdfPath))
+            ? Str.Format("Pdf.Extract.DoneOneFormat", Count(extracted), results[0].Name)
             : Str.Format("Pdf.Extract.DoneManyFormat", Count(extracted), results.Count - failed.Count);
 
         // Skipped images are worth naming: silence would make "40 images, 3 extracted" look like data loss.
@@ -82,8 +91,6 @@ internal static class PdfImageExport
             : Str.Format("Pdf.Extract.DoneSentenceFormat", message));
         shell.RequestRefresh();
     }
-
-    private static string Name(string path) => Path.GetFileName(path);
 
     private static string Count(int n) => n == 1 ? Str.Get("Pdf.Extract.ImagesOne") : Str.Format("Pdf.Extract.ImagesManyFormat", n);
 }
