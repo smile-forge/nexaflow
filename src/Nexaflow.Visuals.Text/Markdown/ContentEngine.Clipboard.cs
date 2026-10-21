@@ -32,8 +32,8 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// What goes on the clipboard. Pieces chosen whole are the words they draw: a slice's label is its label, and there is no
-    /// markdown in it. Anything else is the stretch of the document that is picked out, or the whole of it where none is — and
-    /// where that stretch is a whole block, whatever a copy of that block holds.
+    /// markdown in it. Anything else is the stretch of the document that is picked out, or the whole of it where none is — where
+    /// that stretch is a whole block, whatever a copy of that block holds, and where it is code inside one, that code.
     /// </summary>
     private MarkdownClipboard.ContentCopy Copy()
     {
@@ -49,9 +49,13 @@ public sealed partial class ContentEngine
         }
         if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(_state.Source, null);
 
-        return Blocked(chosen.Start) is { } block && block.Start == chosen.Start && block.Length == chosen.Length
-            ? CopyOf(block)
-            : MarkdownClipboard.Copied(_state.Source, chosen);
+        if (Blocked(chosen.Start) is { } block)
+        {
+            if (block.Start == chosen.Start && block.Length == chosen.Length) return CopyOf(block);
+            if (CopyWritten(block, chosen) is { } written) return written;
+        }
+
+        return MarkdownClipboard.Copied(_state.Source, chosen);
     }
 
     /// <summary>
@@ -63,6 +67,27 @@ public sealed partial class ContentEngine
         var copy = MarkdownClipboard.Copied(_state.Source, (block.Start, block.Length));
 
         return KeepsAPicture(block) && this.Events?.OnPicture(block) is { } drawn ? copy with { Picture = drawn } : copy;
+    }
+
+    /// <summary>
+    /// What a copy of <paramref name="chosen"/>, inside <paramref name="block"/>, holds where the block's language draws every
+    /// character written (<see cref="IContentLanguage.ShowsWhatWasWritten"/>) — code: those characters as they stand, in every
+    /// flavour. Laid out as markdown on their own they would read as prose, which runs one line of code into the next, and there
+    /// is nothing marked up in them to carry. Null for any other language, or a stretch reaching past what the block's language
+    /// wrote into the fence round it.
+    /// </summary>
+    private MarkdownClipboard.ContentCopy? CopyWritten(ContentPart block, (int Start, int Length) chosen)
+    {
+        var (language, body) = _named is not null
+            ? (Language(_named), block)
+            : (ContentLanguages.Held(block), block.Part(Roles.Body));
+
+        if (language?.Editing.ShowsWhatWasWritten != true || body is null) return null;
+        if (chosen.Start < body.Start || chosen.Start + chosen.Length > body.End) return null;
+
+        var characters = _state.Source.Substring(chosen.Start, chosen.Length);
+
+        return new MarkdownClipboard.ContentCopy(characters, characters, string.Empty);
     }
 
     /// <summary>Copies what is picked out and then takes it away — but only once it has been put somewhere.</summary>
