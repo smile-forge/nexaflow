@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.Services;
@@ -77,6 +78,11 @@ public static partial class AmsiScanner
     /// Scans a file. Blocking and potentially slow — the provider does the real work — so callers
     /// must run this off the dispatcher.
     /// <para>
+    /// <paramref name="path"/> is a browser path, so it may be virtual: under a mount such as a OneDrive
+    /// folder (<c>::{id}\…</c>), or an entry inside an archive. The VFS resolves a mount to its real file
+    /// with no copy and extracts an archive entry to a temp file, so either is scanned as its own bytes.
+    /// </para>
+    /// <para>
     /// The file is memory-mapped and the view handed straight to the provider, so nothing is copied
     /// onto the managed heap and size is not a practical constraint.
     /// </para>
@@ -85,9 +91,12 @@ public static partial class AmsiScanner
     {
         try
         {
-            var info = new FileInfo(path);
-            if (!info.Exists)
-                return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.TheFileNoLongerExists"), false);
+            string real;
+            try { real = VirtualFileSystem.Instance.MaterializeFile(path); }
+            catch (FileNotFoundException) { return NoLongerExists(); }
+
+            var info = new FileInfo(real);
+            if (!info.Exists) return NoLongerExists();
             if (info.Length == 0)
                 return new AmsiResult(AmsiVerdict.Clean, 0, Str.Get("Executable.Inspector.TheFileIsEmpty"), false);
 
@@ -98,7 +107,7 @@ public static partial class AmsiScanner
             ct.ThrowIfCancellationRequested();
 
             using var file = MemoryMappedFile.CreateFromFile(
-                new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete),
+                new FileStream(real, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete),
                 null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: false);
             using var view = file.CreateViewAccessor(0, length, MemoryMappedFileAccess.Read);
 
@@ -119,6 +128,9 @@ public static partial class AmsiScanner
             return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Format("Executable.Amsi.ReadFailedFormat", e.Message), false);
         }
     }
+
+    private static AmsiResult NoLongerExists()
+        => new(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.TheFileNoLongerExists"), false);
 
     /// <summary>Scans an in-memory buffer.</summary>
     public static unsafe AmsiResult Scan(byte[] content, string contentName, bool truncated = false)
