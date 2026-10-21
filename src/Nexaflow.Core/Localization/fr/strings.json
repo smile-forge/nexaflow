@@ -183,7 +183,7 @@
   "Shell.Config.AiGrid.DisabledTip": "Rien n'est attribué : ce qui en a besoin est désactivé tant qu'aucun modèle ne l'est. Cliquez une cellule pour en attribuer un.",
   "Shell.Config.AiGrid.Local.DownloadingFormat": "Téléchargement des modèles locaux… {0} %",
   "Shell.Config.AiGrid.Local.DownloadAll": "Tout télécharger",
-  "Shell.Config.AiGrid.Local.NoHardware": "Cet appareil n'a pas le matériel pour faire tourner un modèle local — ajoutez un service en ligne avec « + Add Provider / Model ».",
+  "Shell.Config.AiGrid.Local.NoHardware": "Cet appareil n'a pas le matériel pour faire tourner un modèle local — ajoutez un service en ligne avec « + Ajouter un fournisseur / modèle ».",
   "Shell.Config.AiGrid.StaysOnMachine": "sur cet ordinateur",
   "Shell.Config.AiGrid.StaysOnMachineTip": "Ce qui est envoyé à ce modèle reste sur cet ordinateur",
   "Shell.Notifications.Header": "Notifications",

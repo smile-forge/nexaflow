@@ -1,0 +1,7 @@
+{
+  "SerialLink.Title": "Port série",
+  "SerialLink.Description": "Le port COM que Windows a créé pour cette fonction série, et son terminal.",
+  "SerialLink.Log.OpenedTerminal": "Terminal série ouvert sur {0}",
+  "SerialLink.Open": "Ouvrir le terminal série",
+  "SerialLink.OpenTip": "Ouvrir la page Série sur ce port — elle ne se connecte que lorsque vous le demandez"
+}

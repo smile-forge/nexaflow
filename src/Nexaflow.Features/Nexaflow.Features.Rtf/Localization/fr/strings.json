@@ -1,0 +1,11 @@
+{
+  "Rtf.Action.AsRtf": "En texte enrichi",
+  "Rtf.Action.AsRtfTip": "Afficher le document tel qu'il est mis en page : ses polices, ses couleurs, ses tableaux et ses images",
+  "Rtf.Action.AsRtfDescription": "Visionneuse de documents en texte enrichi (RTF) : le document tel qu'il est mis en page, consultable par recherche, avec ses mots pour l'assistant (.rtf)",
+
+  "Rtf.Footer.Kind": "Texte enrichi",
+  "Rtf.Footer.WordsFormat": "{0:N0} mots",
+  "Rtf.Footer.ParagraphsFormat": "{0:N0} paragraphes",
+  "Rtf.Error.NotRtf": "Ce fichier n'est pas un document en texte enrichi : un RTF commence par {\\rtf, et celui-ci non.",
+  "Rtf.Error.UnreadableFormat": "Impossible de lire ce document : {0}"
+}

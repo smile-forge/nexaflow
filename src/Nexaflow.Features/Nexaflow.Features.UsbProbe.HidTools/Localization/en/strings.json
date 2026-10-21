@@ -33,7 +33,11 @@
   "HidTools.Kind.Output": "output report",
   "HidTools.Confirm.Title": "Send a {0}",
   "HidTools.Confirm.Message": "Send the {0} {1} to {2}? A device can do anything with a report it is sent — change a setting, light an LED, restart.",
-  "HidTools.Sent": "Sent {0} report {1}",
+  "HidTools.ReportKind.Input": "Input",
+  "HidTools.ReportKind.Output": "Output",
+  "HidTools.ReportKind.Feature": "Feature",
+  "HidTools.Sent": "Sent the {0} {1}",
+  "HidTools.Log.ReadFeature": "Read feature report {0}: {1}",
   "HidTools.Hex.Empty": "Type the report's bytes in hex first.",
   "HidTools.Hex.NotHex": "That is not hex: use pairs of 0–9 and A–F, such as 02 01 FF."
 }

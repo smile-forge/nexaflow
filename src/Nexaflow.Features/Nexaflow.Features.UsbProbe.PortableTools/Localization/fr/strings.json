@@ -1,0 +1,8 @@
+{
+  "PortableTools.Title": "Fichiers du téléphone",
+  "PortableTools.Description": "Le stockage qu'un téléphone ou un appareil photo partage via MTP, dans un explorateur de fichiers, avec des copies vers et depuis celui-ci — chaque copie relue et vérifiée par SHA-256.",
+  "PortableTools.Status.NotRead": "Ouvrir pour lire ce qu'il partage",
+  "PortableTools.Note.NoDevice": "Windows n'en a pas encore fait un appareil portable : déverrouillez le téléphone et choisissez Transfert de fichiers dans ses réglages USB.",
+  "PortableTools.Note.OpenFailed": "L'appareil n'a pas pu être ouvert : {0}",
+  "PortableTools.Note.NothingShared": "Le téléphone ne partage encore aucun stockage : déverrouillez-le, puis choisissez Transfert de fichiers dans ses réglages USB. Il apparaît ici dès que c'est fait."
+}

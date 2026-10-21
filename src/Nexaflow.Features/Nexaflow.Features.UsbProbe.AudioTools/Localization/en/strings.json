@@ -31,6 +31,7 @@
   "AudioTools.Status.Failed": "Could not use the device: {0}",
   "AudioTools.Status.Recording": "Recording {0} s…",
   "AudioTools.Status.AlreadyRecording": "A recording is already running.",
+  "AudioTools.Log.Recorded": "Recorded {0} s from {1} to {2}",
   "AudioTools.Recorded": "Saved {0}: {1} s, {2} channel(s) at {3} Hz.",
   "AudioTools.RecordingCancelled": "Recording cancelled; nothing was saved."
 }

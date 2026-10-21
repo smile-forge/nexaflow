@@ -152,7 +152,7 @@ public sealed partial class AudioInputTool : ObservableObject, IUsbTool, IUsbToo
             var clip = await _meter!.RecordAsync(TimeSpan.FromSeconds(seconds), recording.Token);
             await File.WriteAllBytesAsync(path, WavAudio.WriteFloat(clip), CancellationToken.None);
             LastRecording = Str.Format("AudioTools.Recorded", Path.GetFileName(path), clip.Length.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture), clip.Channels, clip.Rate);
-            _host.Log(this, $"Recorded {clip.Length.TotalSeconds:0.#} s from {EndpointName} to {path}");
+            _host.Log(this, Str.Format("AudioTools.Log.Recorded", clip.Length.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture), EndpointName, path));
             return $"Recorded {clip.Length.TotalSeconds:0.#} s, {clip.Channels} channel(s) at {clip.Rate} Hz, to {path}.";
         }
         catch (OperationCanceledException)

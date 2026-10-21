@@ -1,0 +1,94 @@
+{
+  "branch": "claude/i18n-french-faulted",
+  "nodes": {
+    "rtf-viewer": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "serial": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Serial/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Serial/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "usbprobe": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.HidTools/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.PortableTools/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Localization/fr/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.HidTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.PortableTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Localization/en/strings.json"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "rtf-viewer",
+    "serial",
+    "usbprobe"
+  ]
+}
