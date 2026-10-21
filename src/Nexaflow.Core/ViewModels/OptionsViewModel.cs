@@ -236,7 +236,7 @@ public partial class ConfigEditViewModel : ObservableObject
             ? (CustomControlInstance is not Nexaflow.Features.Common.IConfigValidation v || v.IsValid)
             : Properties.All(p => p.IsValid);
         HasChanges = HasCustomControl
-            ? (CustomControlInstance is not Nexaflow.Features.Common.IConfigChangeTracker t || t.HasChanges)
+            ? CustomControlHasChanges(CustomControlInstance)
             : Properties.Any(p => p.HasChanged);
 
         var required = Properties.Where(p => p.IsRequired).ToList();
@@ -244,6 +244,17 @@ public partial class ConfigEditViewModel : ObservableObject
             || required.All(p =>  string.IsNullOrWhiteSpace(p.Value as string))   // all empty = valid (no-op)
             || required.All(p => !string.IsNullOrWhiteSpace(p.Value as string));  // all filled = valid
     }
+
+    /// <summary>
+    /// A custom page's unsaved edits are what its tracker reports. A page that saves nothing (About) never holds any;
+    /// one that saves without a tracker is taken to always hold some, so closing never drops its edits unasked.
+    /// </summary>
+    private static bool CustomControlHasChanges(object? control) => control switch
+    {
+        Nexaflow.Features.Common.IConfigChangeTracker tracker => tracker.HasChanges,
+        Nexaflow.Features.Common.ICustomConfigApply or Nexaflow.Providers.Common.ICustomConfigApply => true,
+        _ => false,
+    };
 
     /// <summary>
     /// Returns true if <paramref name="config"/> has no [Required] properties or all such properties have non-empty values.
