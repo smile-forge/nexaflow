@@ -102,6 +102,7 @@ shell.
 | what the compiler or an analyzer reports | `ask 'diagnostics NXUI001 --project Features.Solver'` · for what you found: `ask 'node <id> \| diagnostics'` — a XAML finding comes with the `--at` path of its element |
 | does anything still do X, and where | `ask 'grep <regex> \| files'` · just the number: `\| count` |
 | a pattern inside one feature | `ask 'node product:<slug> \| owned \| grep <regex>'` |
+| a pattern inside one file | `ask 'grep <regex> --from file:<relpath> \| source'` |
 | near this code | `ask 'node <id> \| near 2 \| grep <regex>'` |
 | to narrow what you just found | `ask '@ \| like <regex> \| files'` — every answer ends with its handle; `@3` is the third |
 | the rest of a long answer | `ask '@3 more'` — nothing is cut without the command that shows the rest |
@@ -126,6 +127,16 @@ two either side, inside their declaration; `blocks` gives whole declarations; `f
 Past about 20,000 characters an answer is cut where a block ends, with the `@n more` that continues it. A pattern
 search is `grep` too, never `grep -rn` — every hit names its owning member and feature, it reads docs as well as code,
 and `--limit` trims the printout, never the search.
+
+**Aim every search.** Names recur across features — `Status`, `Title`, `Load`, the same key shapes in every
+`strings.json` — so a repository-wide `grep` buries the hits you want under every other feature's, and it is the
+slowest thing nfi does: one resident process answers every session and agent in turn, so a sweep holds up everyone
+behind it. Start from what you already know — one file (`grep <regex> --from file:<relpath>`), a feature
+(`node product:<slug> | owned | grep <regex>`), the code around a node (`node <id> | near 2 | grep <regex>`) — and
+read a file you can name with `graph cat` rather than searching for it. `| like` narrows the answer, not the search:
+`grep X | like Json` still reads the whole repository. Sweep only when the question really is about the whole
+repository ("does anything still call X"), and then print `files` or `count`. Fanning out agents, hand each its
+files and its scope, or they queue behind each other's sweeps.
 
 The graph keeps up with your tree on its own — changed files are folded in before a query answers, and silence means
 current. Each worktree has its own graph. Node ids: `product:<slug>` · `code:<relpath>#<astpath>` ·
