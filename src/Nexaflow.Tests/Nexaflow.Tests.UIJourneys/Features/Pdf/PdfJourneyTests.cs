@@ -249,6 +249,8 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
         var thumbnails = CheckPresent("Page thumbnails", "Pdf_Thumbnails", 10);
         Check("A thumbnail for every page", () => Thumbnails(thumbnails).Length == 3);
         Check("Each thumbnail shows its page", () => ThumbnailsDrawn(thumbnails, 10));
+        Check("Each thumbnail is named for its page", () => Thumbnails(thumbnails) is { Length: 3 } named
+            && named.Select((row, index) => row.Name.EndsWith((index + 1).ToString(), StringComparison.Ordinal) && !row.Name.Contains("Nexaflow.")).All(ok => ok));
         CheckPresent("Undo", "Pdf_Undo");
         CheckPresent("Redo", "Pdf_Redo");
         CheckPresent("Save as", "Pdf_SaveAs");

@@ -7,6 +7,7 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Pdf;
@@ -119,7 +120,11 @@ public class PdfPagesPanelTests
         Assert.AreEqual(first.X1, first.X2);
         Assert.IsFalse(first.CrossesInk, "the first sheet's fold is clear");
         Assert.IsTrue(panel.Pages[1].Cuts.Single().CrossesInk, "the second sheet's artwork runs over the fold");
-        Assert.AreNotEqual(string.Empty, panel.SplitWarning);
+    Assert.AreNotEqual(string.Empty, panel.SplitWarning);
+        Assert.AreEqual(Str.Format("Pdf.Pages.PageFormat", 1), panel.Pages[0].Name, "a row is heard as its page");
+        Assert.AreEqual(Str.Format("Pdf.Pages.PageCrossedFormat", 2), panel.Pages[1].Name, "and a cut across its artwork is heard, not only seen");
+        Assert.IsNull(panel.Pages[0].CrossingCutLines);
+        Assert.IsNotNull(panel.Pages[1].CrossingCutLines);
         Assert.IsFalse(panel.IsCheckingCuts);
 
         panel.SplitCount = panel.SplitCounts[1];

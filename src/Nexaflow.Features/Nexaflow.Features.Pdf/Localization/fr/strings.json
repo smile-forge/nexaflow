@@ -20,6 +20,8 @@
   "Pdf.Tab.Properties": "Propriétés",
   "Pdf.Tab.Contents": "Contenu",
   "Pdf.Tab.Pages": "Pages",
+  "Pdf.Pages.PageFormat": "Page {0}",
+  "Pdf.Pages.PageCrossedFormat": "Page {0} — une découpe traverse son illustration",
   "Pdf.Pages.NotEditableXfa": "Les pages de ce document ne peuvent pas être réorganisées : son formulaire XFA met lui-même en page tout le document.",
   "Pdf.Menu.DeletePage": "Supprimer la page",
   "Pdf.Menu.DeletePagesFormat": "Supprimer {0} pages",
