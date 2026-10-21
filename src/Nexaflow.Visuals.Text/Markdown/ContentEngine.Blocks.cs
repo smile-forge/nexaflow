@@ -8,6 +8,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 
@@ -293,8 +294,8 @@ public sealed partial class ContentEngine
     {
         var corner = CornerOf(block);
 
-        if (corner.Copies) yield return new LayoutIntent(LayoutVerbs.Copy, null, "Copy");
-        if (corner.Saves) yield return new LayoutIntent(LayoutVerbs.Save, null, "Save as a picture");
+        if (corner.Copies) yield return new LayoutIntent(LayoutVerbs.Copy, null, Str.Get("Text.Ribbon.Copy"));
+        if (corner.Saves) yield return new LayoutIntent(LayoutVerbs.Save, null, Str.Get("Text.Ribbon.SavePicture"));
 
         foreach (var added in corner.Adds) yield return added;
     }

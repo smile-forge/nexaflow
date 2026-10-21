@@ -4,6 +4,8 @@
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:m="clr-namespace:Nexaflow.Visuals.Terminal.Models"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+                          xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+                          xmlns:tc="clr-namespace:Nexaflow.Visuals.Terminal.Converters"
              AutomationProperties.AutomationId="ConsoleView"
              Background="{StaticResource BgBrush}">
 
@@ -59,12 +61,12 @@
                 </TextBlock>
                 <Grid.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Copy"
+                        <MenuItem Header="{loc:Str Terminal.EnvList.Copy}"
                                   Command="{Binding PlacementTarget.Tag.CopyEnvVarCommand,
                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   CommandParameter="{Binding PlacementTarget.DataContext,
                                                              RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                        <MenuItem Header="Edit…"
+                        <MenuItem Header="{loc:Str Terminal.EnvList.Edit}"
                                   Command="{Binding PlacementTarget.Tag.EditEnvVarCommand,
                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   CommandParameter="{Binding PlacementTarget.DataContext,
@@ -211,12 +213,12 @@
                         AutomationProperties.AutomationId="Console_Configure"
                         VerticalAlignment="Center" Padding="6,2"
                         Command="{Binding ConfigureCommand}"
-                        ToolTip="Configure console environments"
+                        ToolTip="{loc:Str Terminal.PathBar.ConfigureTip}"
                         Visibility="{Binding ShowConfigureButton, Converter={StaticResource BoolVis}}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#x2699;" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
                                    VerticalAlignment="Center"/>
-                        <TextBlock Text="Configure" FontSize="11" Margin="6,0,0,0"
+                        <TextBlock Text="{loc:Str Terminal.PathBar.Configure}" FontSize="11" Margin="6,0,0,0"
                                    Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -227,7 +229,7 @@
                            Foreground="{StaticResource TextBrush}"
                            FontFamily="Consolas, Courier New" FontSize="13"
                            VerticalAlignment="Center"/>
-                <TextBlock DockPanel.Dock="Left" Text="  [running...]"
+                <TextBlock DockPanel.Dock="Left" Text="{loc:Str Terminal.PathBar.Running}" Margin="8,0,0,0"
                            Foreground="{StaticResource WarningBrush}" FontSize="11"
                            VerticalAlignment="Center"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}"/>
@@ -251,7 +253,7 @@
                 <TabControl Style="{StaticResource TerminalTabControl}"
                             AutomationProperties.AutomationId="Console_SidePanelTabs"
                             ItemContainerStyle="{StaticResource TerminalTabItem}">
-                    <TabItem Header="Files"
+                    <TabItem Header="{loc:Str Terminal.Side.Files}"
                              AutomationProperties.AutomationId="Console_FilesTab">
                         <ListBox x:Name="FilesList"
                                  ItemsSource="{Binding Files}"
@@ -264,7 +266,7 @@
                                  PreviewMouseMove="FilesList_PreviewMouseMove"
                                  Padding="6,6"/>
                     </TabItem>
-                    <TabItem Header="Environment"
+                    <TabItem Header="{loc:Str Terminal.Side.Environment}"
                              AutomationProperties.AutomationId="Console_EnvironmentTab">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="6,6,6,4">
@@ -276,11 +278,11 @@
                                          Style="{StaticResource OverlayTextBox}"
                                          AutomationProperties.AutomationId="Console_EnvFilter"
                                          Text="{Binding EnvFilter, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Filter variables"/>
+                                         ToolTip="{loc:Str Terminal.Side.FilterTip}"/>
                                 <Button Grid.Column="1" Content="＋" Margin="4,0,0,0"
                                         Style="{StaticResource SurfaceButton}" Padding="8,4"
                                         AutomationProperties.AutomationId="Console_AddEnvVar"
-                                        ToolTip="Add a variable"
+                                        ToolTip="{loc:Str Terminal.Side.AddTip}"
                                         Command="{Binding AddEnvVarCommand}"/>
                             </Grid>
                             <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -308,7 +310,7 @@
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="0,0,0,1" Padding="10,6">
-                            <TextBlock Text="Console" Style="{StaticResource PanelHeaderText}"/>
+                            <TextBlock Text="{loc:Str Terminal.Console.Header}" Style="{StaticResource PanelHeaderText}"/>
                         </Border>
 
                         <!-- Inline AI banner host: the shell injects its dissolvable response banner here. -->
@@ -323,8 +325,8 @@
                                 DragOver="Terminal_DragOver" Drop="Terminal_Drop">
                             <Border.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Copy"  Click="CopyTerminal_Click"/>
-                                    <MenuItem Header="Paste" Click="PasteTerminal_Click"/>
+                                    <MenuItem Header="{loc:Str Terminal.Console.Copy}"  Click="CopyTerminal_Click"/>
+                                    <MenuItem Header="{loc:Str Terminal.Console.Paste}" Click="PasteTerminal_Click"/>
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <ScrollViewer x:Name="ConsoleScroller"
@@ -347,28 +349,34 @@
                 </Border>
 
                 <!-- Environment-variable add/edit overlay -->
-                <vcc:ModalCard Panel.ZIndex="20" Tone="Accent" CardWidth="380" Header="Environment variable"
+                <vcc:ModalCard Panel.ZIndex="20" Tone="Accent" CardWidth="380" Header="{loc:Str Terminal.EnvEdit.Header}"
                                IsOpen="{Binding EnvEditVisible}" CancelCommand="{Binding CancelEnvEditCommand}">
                     <StackPanel>
-                        <TextBlock Text="Name" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
+                        <TextBlock Text="{loc:Str Terminal.EnvEdit.Name}" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
                         <TextBox x:Name="EnvEditNameBox"
                                  Style="{StaticResource OverlayTextBox}" Margin="0,0,0,10"
                                  Text="{Binding EnvEditName, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="{Binding EnvEditNameReadOnly}"/>
-                        <TextBlock Text="Value" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
+                        <TextBlock Text="{loc:Str Terminal.EnvEdit.Value}" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
                         <TextBox x:Name="EnvEditValueBox"
                                  Style="{StaticResource OverlayTextBox}" Margin="0,0,0,10"
                                  Text="{Binding EnvEditValue, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="EnvEdit_KeyDown"/>
-                        <TextBlock Text="Apply to" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
+                        <TextBlock Text="{loc:Str Terminal.EnvEdit.ApplyTo}" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
                         <ComboBox ItemsSource="{Binding EnvScopes}"
-                                  SelectedItem="{Binding EnvEditScope}"
-                                  Margin="0,0,0,16" FontSize="12"/>
+                                            SelectedItem="{Binding EnvEditScope}"
+                                            Margin="0,0,0,16" FontSize="12">
+                                      <ComboBox.ItemTemplate>
+                                          <DataTemplate>
+                                              <TextBlock Text="{Binding Converter={x:Static tc:TerminalEnvScopeLabelConverter.Instance}}"/>
+                                          </DataTemplate>
+                                      </ComboBox.ItemTemplate>
+                                  </ComboBox>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Cancel" Style="{StaticResource SurfaceButton}"
+                            <Button Content="{loc:Str Terminal.EnvEdit.Cancel}" Style="{StaticResource SurfaceButton}"
                                     AutomationProperties.AutomationId="Console_EnvEditCancel"
                                     Margin="0,0,8,0" Command="{Binding CancelEnvEditCommand}"/>
-                            <Button Content="Save" Style="{StaticResource AccentButton}"
+                            <Button Content="{loc:Str Terminal.EnvEdit.Save}" Style="{StaticResource AccentButton}"
                                     AutomationProperties.AutomationId="Console_EnvEditSave"
                                     Command="{Binding ConfirmEnvEditCommand}"/>
                         </StackPanel>
@@ -377,15 +385,15 @@
 
                 <!-- Launch-time environment picker -->
                 <vcc:ModalCard Panel.ZIndex="30" Tone="Accent" CardWidth="420" CardMaxHeight="460"
-                               Header="Choose an environment for this location"
+                               Header="{loc:Str Terminal.EnvPicker.Header}"
                                IsOpen="{Binding EnvPickerVisible}" CancelCommand="{Binding CancelEnvPickerCommand}">
                     <DockPanel>
                         <CheckBox DockPanel.Dock="Bottom"
-                                  Content="Always use this environment for this location" AutomationProperties.AutomationId="Console_EnvPickerAlwaysUse"
+                                  Content="{loc:Str Terminal.EnvPicker.AlwaysUse}" AutomationProperties.AutomationId="Console_EnvPickerAlwaysUse"
                                   IsChecked="{Binding AlwaysUseHere}"
                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                   Margin="0,12,0,0"/>
-                        <Button DockPanel.Dock="Bottom" Content="Cancel" HorizontalAlignment="Right" AutomationProperties.AutomationId="Console_EnvPickerCancel"
+                        <Button DockPanel.Dock="Bottom" Content="{loc:Str Terminal.EnvPicker.Cancel}" HorizontalAlignment="Right" AutomationProperties.AutomationId="Console_EnvPickerCancel"
                                 Style="{StaticResource SurfaceButton}" Margin="0,12,0,0"
                                 Command="{Binding CancelEnvPickerCommand}"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -424,7 +432,7 @@
                             Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1" Padding="10,6">
-                        <TextBlock Text="History" Style="{StaticResource PanelHeaderText}"/>
+                        <TextBlock Text="{loc:Str Terminal.History.Header}" Style="{StaticResource PanelHeaderText}"/>
                     </Border>
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"

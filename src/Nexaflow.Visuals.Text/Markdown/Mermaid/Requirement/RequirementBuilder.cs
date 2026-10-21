@@ -8,6 +8,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Requirement;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Requirement;
@@ -105,12 +106,12 @@ internal sealed class RequirementBuilder : MermaidBuilder
         /// <summary>What is drawn in front of it, which is Mermaid's own word for the field rather than the key written.</summary>
         public string Label => Key.ToLowerInvariant() switch
         {
-            RequirementGrammar.IdKey => "Id",
-            RequirementGrammar.TextKey => "Text",
-            RequirementGrammar.RiskKey => "Risk",
-            RequirementGrammar.MethodKey => "Verification",
-            RequirementGrammar.TypeKey => "Type",
-            RequirementGrammar.RefKey => "Doc Ref",
+            RequirementGrammar.IdKey => Str.Get("Text.Requirement.Id"),
+            RequirementGrammar.TextKey => Str.Get("Text.Requirement.Text"),
+            RequirementGrammar.RiskKey => Str.Get("Text.Requirement.Risk"),
+            RequirementGrammar.MethodKey => Str.Get("Text.Requirement.Verification"),
+            RequirementGrammar.TypeKey => Str.Get("Text.Requirement.Type"),
+            RequirementGrammar.RefKey => Str.Get("Text.Requirement.DocRef"),
             _ => Key,
         };
     }
@@ -457,7 +458,7 @@ internal sealed class RequirementBuilder : MermaidBuilder
 
         var rows = node.Facts
             .Select(fact => (Fact: fact,
-                             Label: Worked($"{fact.Label}:", fact.Part, config.TextSize, ink),
+                             Label: Worked(Str.Format("Text.Requirement.Field", fact.Label), fact.Part, config.TextSize, ink),
                              Said: Written(fact.Said, fact.Hole, config.TextSize, ink)))
             .ToList();
 

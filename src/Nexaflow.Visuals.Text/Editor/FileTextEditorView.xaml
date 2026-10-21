@@ -5,6 +5,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="TextEditorView"
              Background="{StaticResource BgBrush}">
 
@@ -43,13 +44,13 @@
                               ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               Width="130" Height="28" VerticalAlignment="Center"
-                              ToolTip="File encoding (used to read and to save)"/>
+                              ToolTip="{loc:Str Text.Editor.EncodingTip}"/>
                     <ComboBox Style="{StaticResource DarkComboBox}"
                               AutomationProperties.AutomationId="Editor_Eol"
                               ItemsSource="{Binding AvailableEols}"
                               SelectedItem="{Binding SelectedEol}"
                               Width="110" Height="28" VerticalAlignment="Center" Margin="6,0,0,0"
-                              ToolTip="Line endings written on save"/>
+                              ToolTip="{loc:Str Text.Editor.EolTip}"/>
                 </StackPanel>
 
                 <!-- Middle: search chip — what a "?" search found, and how to step through or dismiss it.
@@ -62,7 +63,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Editor_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
-                                  ToolTip="Toggle line numbers">
+                                  ToolTip="{loc:Str Text.Editor.LineNumbersTip}">
                         <TextBlock Text="≡#" FontSize="12"/>
                     </ToggleButton>
 
@@ -71,10 +72,10 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Editor_Save"
                             Command="{Binding SaveCommand}"
-                            ToolTip="Save (Ctrl+S)">
+                            ToolTip="{loc:Str Text.Editor.SaveTip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💾" FontSize="11" Margin="0,0,4,0"/>
-                            <TextBlock Text="Save" FontSize="11"/>
+                            <TextBlock Text="{loc:Str Text.Editor.Save}" FontSize="11"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -100,9 +101,9 @@
                                Foreground="{StaticResource TextBrush}">
                 <avalon:TextEditor.ContextMenu>
                     <ContextMenu x:Name="EditorContextMenu">
-                        <MenuItem Header="Cut"   Command="ApplicationCommands.Cut"/>
-                        <MenuItem Header="Copy"  Command="ApplicationCommands.Copy"/>
-                        <MenuItem Header="Paste" Command="ApplicationCommands.Paste"/>
+                        <MenuItem Header="{loc:Str Text.Editor.Cut}"   Command="ApplicationCommands.Cut"/>
+                        <MenuItem Header="{loc:Str Text.Editor.Copy}"  Command="ApplicationCommands.Copy"/>
+                        <MenuItem Header="{loc:Str Text.Editor.Paste}" Command="ApplicationCommands.Paste"/>
                     </ContextMenu>
                 </avalon:TextEditor.ContextMenu>
             </avalon:TextEditor>
@@ -124,14 +125,14 @@
                                     Click="CommandGroupButton_Click"
                                     Margin="0,2" MinWidth="104">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                    <TextBlock Text="{Binding Title}" FontSize="11"/>
                                     <TextBlock Text=" ⌄" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <Button.ContextMenu>
                                     <ContextMenu ItemsSource="{Binding Commands}">
                                         <ContextMenu.ItemContainerStyle>
                                             <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                                                <Setter Property="Header"  Value="{Binding Name}"/>
+                                                <Setter Property="Header"  Value="{Binding Title}"/>
                                                 <Setter Property="Command" Value="{Binding Run}"/>
                                             </Style>
                                         </ContextMenu.ItemContainerStyle>
@@ -190,11 +191,11 @@
                     <TextBlock Text="{Binding FileSizeText}"
                                AutomationProperties.AutomationId="Editor_FileSize"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
-                    <TextBlock Text="● unsaved"
+                    <TextBlock Text="{loc:Str Text.Editor.Unsaved}"
                                AutomationProperties.AutomationId="Editor_UnsavedIndicator"
                                Foreground="{StaticResource WarningBrush}" FontSize="11" Margin="0,0,16,0"
                                Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
-                    <TextBlock Text="read-only"
+                    <TextBlock Text="{loc:Str Text.Editor.ReadOnly}"
                                AutomationProperties.AutomationId="Editor_ReadOnlyIndicator"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                Visibility="{Binding IsReadOnlyMode, Converter={StaticResource BoolVis}}"/>
@@ -205,9 +206,9 @@
                         AutomationProperties.AutomationId="Editor_LineCommands"
                         Click="LineCommandsButton_Click"
                         Padding="8,2" Margin="0"
-                        ToolTip="Line operations (EOL conversion, sort, dedupe…)">
+                        ToolTip="{loc:Str Text.Editor.LineCommandsTip}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding LineCount, StringFormat='{}{0} lines'}"
+                        <TextBlock Text="{Binding LineCount, StringFormat={loc:Str Text.Editor.LineCount}}"
                                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                         <TextBlock Text="  ·  " Foreground="{StaticResource BorderBrush}" FontSize="11"/>
                         <TextBlock Text="{Binding LineEndingLabel}"
@@ -218,7 +219,7 @@
                         <ContextMenu ItemsSource="{Binding LineCommands}">
                             <ContextMenu.ItemContainerStyle>
                                 <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                                    <Setter Property="Header"  Value="{Binding Name}"/>
+                                    <Setter Property="Header"  Value="{Binding Title}"/>
                                     <Setter Property="Command" Value="{Binding Run}"/>
                                 </Style>
                             </ContextMenu.ItemContainerStyle>

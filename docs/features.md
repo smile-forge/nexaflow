@@ -394,7 +394,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFeatureConfig` | Marks a POCO as a config section (global by default; `[WorkspaceScopedConfig]` makes it per-workspace). |
 | `IConfigMigration` | Opt-in hook to fix up shape changes when a config is migrated forward across an assembly-version bump. |
 | `ICustomConfigApply` | A custom Options control participating in the Save flow (`Apply()`). |
-| `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes (else it's assumed always-dirty). |
+| `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes. Every control that implements `ICustomConfigApply` implements it too — one that applies without it would count as always changed, so closing Options would always ask to save. |
 | `IConfigValidation` | A custom Options control reporting whether its state is valid (blocks Save while any section is invalid). |
 
 ### Theming

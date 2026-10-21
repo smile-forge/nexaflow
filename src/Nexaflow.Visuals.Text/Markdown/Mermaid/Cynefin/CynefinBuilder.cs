@@ -7,6 +7,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Cynefin;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Cynefin;
@@ -98,15 +99,15 @@ internal sealed class CynefinBuilder : MermaidBuilder
 
     /// <summary>
     /// How each domain is worked, which it says under its name: the decision model it asks for, and the kind of practice that
-    /// comes of it — as the Cynefin framework names them. Disorder is where a thing sits while nobody knows.
+    /// comes of it — as the Cynefin framework names them, in the window's language. Disorder is where a thing sits while nobody knows.
     /// </summary>
-    private static readonly Dictionary<CynefinDomain, IReadOnlyList<string>> Practices = new()
+    private static IReadOnlyList<string> Practices(CynefinDomain domain) => domain switch
     {
-        [CynefinDomain.Clear] = ["Sense → Categorise → Respond", "Best Practices"],
-        [CynefinDomain.Complicated] = ["Sense → Analyse → Respond", "Good Practices"],
-        [CynefinDomain.Complex] = ["Probe → Sense → Respond", "Emergent Practices"],
-        [CynefinDomain.Chaotic] = ["Act → Sense → Respond", "Novel Practices"],
-        [CynefinDomain.Confusion] = ["Disorder"],
+        CynefinDomain.Clear => [Str.Get("Text.Cynefin.Clear.Model"), Str.Get("Text.Cynefin.Clear.Practice")],
+        CynefinDomain.Complicated => [Str.Get("Text.Cynefin.Complicated.Model"), Str.Get("Text.Cynefin.Complicated.Practice")],
+        CynefinDomain.Complex => [Str.Get("Text.Cynefin.Complex.Model"), Str.Get("Text.Cynefin.Complex.Practice")],
+        CynefinDomain.Chaotic => [Str.Get("Text.Cynefin.Chaotic.Model"), Str.Get("Text.Cynefin.Chaotic.Practice")],
+        _ => [Str.Get("Text.Cynefin.Disorder")],
     };
 
     internal CynefinBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
@@ -331,7 +332,7 @@ internal sealed class CynefinBuilder : MermaidBuilder
 
         // How the domain is worked, in the words the framework uses for it: the decision model, then the practice.
         var about = config.ShowDomainDescriptions && (opened is not null || items.Count > 0)
-            ? Practices[domain]
+            ? Practices(domain)
                 .Select(says => Worked(says, opened?.Part, config.ItemFontSize ?? AboutSize, Ink.Written(config.TextColour) ?? Palette.TextMuted))
                 .ToList()
             : [];

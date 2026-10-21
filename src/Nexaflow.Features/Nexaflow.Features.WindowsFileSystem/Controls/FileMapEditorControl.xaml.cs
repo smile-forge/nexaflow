@@ -13,7 +13,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
-public partial class FileMapEditorControl : UserControl, ICustomConfigApply, IConfigValidation
+public partial class FileMapEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation
 {
     // ── Dependency properties ────────────────────────────────────────────────
 
@@ -133,14 +133,27 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
     public event EventHandler? IsValidChanged;
     private void RaiseValidity() => IsValidChanged?.Invoke(this, EventArgs.Empty);
 
+    // ── IConfigChangeTracker ───────────────────────────────────────────────────
+    // Leaving an experience saves it, so the one on screen is the only one that can hold unsaved edits.
+
+    public bool HasChanges => SelectedMapping is { } mapping && !RowsMatchSaved(mapping);
+    public event EventHandler? HasChangesChanged;
+    private void RaiseHasChanges() => HasChangesChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>True when the rows are the mapping's saved criteria, in order, type and value alike.</summary>
+    private bool RowsMatchSaved(ExperienceMapping mapping)
+        => _criteria.Select(r => (r.TypeName, r.Value))
+                    .SequenceEqual(mapping.Criteria.Select(c => (c.Type.ToString(), c.Value)));
+
     private void OnCriteriaChanged(object? s, NotifyCollectionChangedEventArgs e)
     {
         if (e.NewItems is not null) foreach (CriterionRow r in e.NewItems) r.PropertyChanged += OnCriterionChanged;
         if (e.OldItems is not null) foreach (CriterionRow r in e.OldItems) r.PropertyChanged -= OnCriterionChanged;
         RaiseValidity();
+        RaiseHasChanges();
         UpdateCanReset();
     }
-    private void OnCriterionChanged(object? s, PropertyChangedEventArgs e) { RaiseValidity(); UpdateCanReset(); }
+    private void OnCriterionChanged(object? s, PropertyChangedEventArgs e) { RaiseValidity(); RaiseHasChanges(); UpdateCanReset(); }
 
     /// <summary>Shows the "Reset to Default" button only when the current (live) criteria differ from the
     /// selected experience's bundled default. Blank-value rows are ignored (they don't affect matching).</summary>
@@ -250,6 +263,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
         if (d is not FileMapEditorControl ctrl) return;
         ctrl.HasSelectedMapping = e.NewValue is not null;
         ctrl.RefreshCriteriaList();
+        ctrl.RaiseHasChanges();
     }
 
     private void RefreshCriteriaList()
@@ -273,12 +287,15 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
 
     private void SaveCurrentMapping()
     {
-        if (SelectedMapping is null) return;
+        // An untouched experience is not rewritten: saving marks it the user's, which would pin a registry-derived
+        // mapping that was only looked at.
+        if (SelectedMapping is null || !HasChanges) return;
         SelectedMapping.Criteria.Clear();
         foreach (var row in _criteria)
             SelectedMapping.Criteria.Add(row.ToCriteria());
         SelectedMapping.Source = MappingSource.User;
         FileMapManager.Instance.SaveMapping(SelectedMapping);
+        RaiseHasChanges();
     }
 
     // Called by OptionsViewModel when the user clicks Save in the Options panel.

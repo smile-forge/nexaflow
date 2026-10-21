@@ -1,0 +1,561 @@
+{
+  "branch": "claude/product-tree-i18n-audit-2a1039",
+  "nodes": {
+    "visuals-icons": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Icons/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Icons/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "visuals-stores": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Stores/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Stores/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chat-interface": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "messages": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chrome-breadcrumb": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chrome-frame": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chrome-tabstrip": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chrome-prompts": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "help": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "executable-inspector": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "font": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Font/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Font/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "hdf5": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "images": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "pdf": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "processes": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Processes/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Processes/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "scratchpad": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "sysinfo": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "web-viewer": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "win-file-system": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "win-search": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "rtf-viewer": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Rtf/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "usbprobe": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.HidTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.PortableTools/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.StorageTools/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "claude": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Claude/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Claude/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "gemini": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "ollama": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Ollama/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Ollama/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "openai": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "visuals-common": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Common/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Common/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "visuals-text": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "visuals-web": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Web/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Web/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "visuals-terminal": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Terminal/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Terminal/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "options": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "workspaces": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "ribbon": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "window-handling": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "background-tasks": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    },
+    "chrome-jumplist": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 36,
+  "touched_nodes": [
+    "background-tasks",
+    "chat-interface",
+    "chrome-breadcrumb",
+    "chrome-frame",
+    "chrome-jumplist",
+    "chrome-prompts",
+    "chrome-tabstrip",
+    "claude",
+    "executable-inspector",
+    "font",
+    "gemini",
+    "hdf5",
+    "help",
+    "images",
+    "messages",
+    "ollama",
+    "openai",
+    "options",
+    "pdf",
+    "processes",
+    "ribbon",
+    "rtf-viewer",
+    "scratchpad",
+    "sysinfo",
+    "usbprobe",
+    "visuals-common",
+    "visuals-icons",
+    "visuals-stores",
+    "visuals-terminal",
+    "visuals-text",
+    "visuals-web",
+    "web-viewer",
+    "win-file-system",
+    "win-search",
+    "window-handling",
+    "workspaces"
+  ]
+}

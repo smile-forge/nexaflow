@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Core.Controls.WorkspaceConfigControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls"
              x:Name="Root">
@@ -12,7 +13,7 @@
         <StackPanel x:Name="RootPanel">
 
             <!-- Add button (top of the list) -->
-            <Button Content="+ Add Workspace"
+            <Button Content="{loc:Str Shell.Workspace.Add}"
                     Style="{StaticResource TopBarAction}"
                     HorizontalAlignment="Left"
                     Margin="0,0,0,10"
@@ -42,7 +43,7 @@
                                 <Border Grid.Column="0" Width="48" Height="48" CornerRadius="6"
                                         Margin="0,0,12,0" VerticalAlignment="Center"
                                         Cursor="SizeAll"
-                                        ToolTip="Drag to reorder"
+                                        ToolTip="{loc:Str Shell.Workspace.DragTip}"
                                         Background="{Binding Color, Converter={StaticResource ColorBrush}}"
                                         MouseLeftButtonDown="OnDragHandleMouseDown"
                                         MouseMove="OnDragHandleMouseMove">
@@ -59,14 +60,14 @@
                                             <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="56"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="Name"
+                                        <TextBlock Grid.Column="0" Text="{loc:Str Shell.Workspace.Name}"
                                               Foreground="{StaticResource TextMutedBrush}"
                                               FontSize="11" VerticalAlignment="Center"/>
                                         <TextBox Grid.Column="1"
                                             Style="{StaticResource DarkTextBox}"
                                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                             FontSize="12"/>
-                                        <TextBlock Grid.Column="2" Text="Icon" Margin="10,0,0,0"
+                                        <TextBlock Grid.Column="2" Text="{loc:Str Shell.Workspace.Icon}" Margin="10,0,0,0"
                                               Foreground="{StaticResource TextMutedBrush}"
                                               FontSize="11" VerticalAlignment="Center"/>
                                         <TextBox Grid.Column="3"
@@ -116,7 +117,7 @@
                                                  Style="{StaticResource DarkTextBox}"
                                                  Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12"
-                                                 ToolTip="Hex colour (e.g. #5B8CFF)"/>
+                                                 ToolTip="{loc:Str Shell.Workspace.HexTip}"/>
                                     </Grid>
                                 </StackPanel>
 
@@ -126,27 +127,27 @@
                                     <Button Style="{StaticResource TopBarAction}"
                                             Height="24" Margin="0,0,0,4"
                                             HorizontalContentAlignment="Left"
-                                            ToolTip="Configure this workspace (AI, providers, per-workspace settings)"
+                                            ToolTip="{loc:Str Shell.Workspace.ConfigureTip}"
                                             Tag="{Binding}" Click="OnConfigureClick" AutomationProperties.AutomationId="Workspaces_Configure">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="⚙" FontSize="13" Margin="0,0,8,0"/>
-                                            <TextBlock Text="Configure" FontSize="12"/>
+                                            <TextBlock Text="{loc:Str Shell.Workspace.Configure}" FontSize="12"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource TopBarAction}"
                                             Height="24" Margin="0,0,0,4"
                                             HorizontalContentAlignment="Left"
-                                            ToolTip="Clone this workspace (new symbol &amp; colour, all other settings copied)"
+                                            ToolTip="{loc:Str Shell.Workspace.CloneTip}"
                                             Tag="{Binding}" Click="OnCloneClick" AutomationProperties.AutomationId="Workspaces_Clone">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="⧉" FontSize="13" Margin="0,0,8,0"/>
-                                            <TextBlock Text="Clone" FontSize="12"/>
+                                            <TextBlock Text="{loc:Str Shell.Workspace.Clone}" FontSize="12"/>
                                         </StackPanel>
                                     </Button>
                                     <!-- Hidden for the live (active) workspace — it can't be removed. -->
                                     <Button Height="24"
                                             HorizontalContentAlignment="Left"
-                                            ToolTip="Remove this workspace"
+                                            ToolTip="{loc:Str Shell.Workspace.RemoveTip}"
                                             Tag="{Binding}" Click="OnRemoveClick" AutomationProperties.AutomationId="Workspaces_Remove">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource TopBarAction}">
@@ -160,7 +161,7 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="✕" FontSize="13" Margin="0,0,8,0"
                                                        Foreground="{StaticResource DangerBrush}"/>
-                                            <TextBlock Text="Delete" FontSize="12"
+                                            <TextBlock Text="{loc:Str Shell.Workspace.Delete}" FontSize="12"
                                                        Foreground="{StaticResource DangerBrush}"/>
                                         </StackPanel>
                                     </Button>

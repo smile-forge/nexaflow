@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Models;
 
@@ -33,7 +34,7 @@ public sealed class DefaultTabDescriptor
         PageKind   = "FileSystem",
         PageParams = new() { ["mode"] = "thispc" },
         Pane       = 0,
-        Title      = "This PC",
+        Title      = Str.Get("Shell.Workspace.DefaultTabs.ThisPc"),
         IsActive   = true,
     };
 }

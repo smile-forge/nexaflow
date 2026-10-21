@@ -89,8 +89,18 @@ public sealed record ContentLanguage(
     /// </summary>
     public Func<ContentChange, ContentChange?>? Transpile { get; init; }
 
-    /// <summary>What a reader calls it — on a button offering to start a block of it, and read out for one — or null for one never offered.</summary>
-    public string? DisplayName { get; init; }
+    /// <summary>
+    /// What it is known by among the languages, the same in every language the window speaks: which one a host's replaces, and what
+    /// the offer to start a block of it is. Never shown — <see cref="DisplayName"/> is — and null for one never offered.
+    /// </summary>
+    public string? Name { get; init; }
+
+    /// <summary>
+    /// What a reader calls it — on a button offering to start a block of it, and read out for one — in the window's language, asked for
+    /// each time it is shown: a language is declared once for the whole process, and the window's language is not. Null for one never
+    /// offered.
+    /// </summary>
+    public Func<string>? DisplayName { get; init; }
 
     /// <summary>What it is drawn as where there is room only for a mark: one of the Fluent UI System Icons, by name.</summary>
     public IconRef Icon { get; init; }

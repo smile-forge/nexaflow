@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -22,14 +23,14 @@ public sealed class ComponentRow
 
         (Glyph, StatusLabel, var brushKey) = report.Status.State switch
         {
-            ExternalDependencyState.Present => ("●", Describe("Installed", report.Status.DetectedVersion), "SuccessBrush"),
+            ExternalDependencyState.Present => ("●", Installed(report.Status.DetectedVersion), "SuccessBrush"),
             ExternalDependencyState.Missing => ("●", report.Kind == ExternalDependencyKind.Required
-                                                        ? "Missing"
-                                                        : "Not installed",
+            ? Str.Get("Shell.Components.Missing")
+            : Str.Get("Shell.Components.NotInstalled"),
                                                 report.Kind == ExternalDependencyKind.Required
                                                         ? "DangerBrush"
                                                         : "WarningBrush"),
-            _                               => ("○", "Couldn't check", "TextMutedBrush"),
+            _                               => ("○", Str.Get("Shell.Components.Unknown"), "TextMutedBrush"),
         };
 
         Brush = resolveBrush(brushKey) ?? resolveBrush("TextMutedBrush") ?? Brushes.Gray;
@@ -46,10 +47,12 @@ public sealed class ComponentRow
     public string? InstallUri  { get; }
 
     public bool   HasInstallLink  => !string.IsNullOrWhiteSpace(InstallUri);
-    public string InstallLinkText => $"Get {DisplayName}";
+    public string InstallLinkText => Str.Format("Shell.Components.GetFormat", DisplayName);
 
-    private static string Describe(string label, string? version)
-        => string.IsNullOrWhiteSpace(version) ? label : $"{label} — {version}";
+    private static string Installed(string? version)
+        => string.IsNullOrWhiteSpace(version)
+            ? Str.Get("Shell.Components.Installed")
+            : Str.Format("Shell.Components.InstalledFormat", version);
 
     /// <summary>
     /// "Required by PDF, Web" plus whatever the probe wanted to add (a path, or why it couldn't decide).
@@ -58,10 +61,12 @@ public sealed class ComponentRow
     /// </summary>
     private static string BuildProvenance(ExternalDependencyReport report)
     {
-        var need = report.Kind == ExternalDependencyKind.Required ? "Required by" : "Used by";
         var parts = new List<string>();
 
-        if (report.RequiredBy.Count > 0) parts.Add($"{need} {report.RequiredByLabel}");
+        if (report.RequiredBy.Count > 0)
+            parts.Add(report.Kind == ExternalDependencyKind.Required
+                ? Str.Format("Shell.Components.RequiredByFormat", report.RequiredByLabel)
+                : Str.Format("Shell.Components.UsedByFormat", report.RequiredByLabel));
         if (!string.IsNullOrWhiteSpace(report.Status.Detail)) parts.Add(report.Status.Detail!);
 
         return string.Join(" · ", parts);

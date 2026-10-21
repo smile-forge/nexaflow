@@ -1,3 +1,5 @@
 {
-  "Web.Runtime.Description": "Affiche les pages web dans Nexaflow. Sans lui, l'onglet Web se replie sur un panneau récapitulatif et propose d'ouvrir la page dans votre application par défaut."
+  "Web.Runtime.Description": "Affiche les pages web dans Nexaflow. Sans lui, l'onglet Web se replie sur un panneau récapitulatif et propose d'ouvrir la page dans votre application par défaut.",
+  "Web.Surface.RuntimeMissing": "Le runtime Microsoft Edge WebView2 n'est pas installé sur ce PC : la page ne peut pas s'afficher ici.",
+  "Web.Surface.CouldNotStart": "Le navigateur intégré n'a pas pu démarrer sur ce PC."
 }

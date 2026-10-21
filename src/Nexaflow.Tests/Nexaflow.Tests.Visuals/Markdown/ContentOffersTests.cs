@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -129,9 +130,9 @@ public class ContentOffersTests
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
     {
         // A verb is what the renderer calls it; what a reader sees is words.
-        Assert.AreEqual("Copy", DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Copy)));
-        Assert.AreEqual("Save as a picture", DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Save)));
-        Assert.AreEqual("Open link", DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Navigate)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.Copy"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Copy)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.SavePicture"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Save)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.OpenLink"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Navigate)));
 
         // And a content's own verb says whatever it said for itself.
         Assert.AreEqual("Sharpen", DiagramRibbon.Names(new LayoutIntent("sharpen", null, "Sharpen")));

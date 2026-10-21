@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             xmlns:local="clr-namespace:Nexaflow.Core.Controls">
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+                          xmlns:local="clr-namespace:Nexaflow.Core.Controls">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
@@ -28,7 +29,7 @@
                        Foreground="{StaticResource TextMutedBrush}"/>
             <TextBlock Margin="0,8,0,0" FontSize="12" TextWrapping="Wrap"
                        Foreground="{StaticResource TextBrush}"
-                       Text="An open-source Windows shell replacement — file explorer, terminal, editors and an AI assistant in one tabbed window."/>
+                       Text="{loc:Str Shell.About.Tagline}"/>
             <TextBlock Margin="0,8,0,0" FontSize="12">
                 <Hyperlink x:Name="RepoLink"
                            Foreground="{StaticResource AccentBrush}"
@@ -51,7 +52,7 @@
                             <TextBlock x:Name="Chevron" Text="&#x25B8;"
                                        FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBlock Text="System components" FontSize="13" FontWeight="Bold"
+                            <TextBlock Text="{loc:Str Shell.About.Components}" FontSize="13" FontWeight="Bold"
                                        Foreground="{StaticResource TextBrush}"/>
                         </StackPanel>
                         <ControlTemplate.Triggers>
@@ -77,7 +78,7 @@
             <StackPanel>
                 <TextBlock Margin="0,0,0,8" FontSize="11" TextWrapping="Wrap"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="Third-party runtimes and tools Nexaflow features rely on, and whether they were found on this PC."/>
+                           Text="{loc:Str Shell.About.ComponentsIntro}"/>
 
                 <ItemsControl x:Name="ComponentsList"
                               AutomationProperties.AutomationId="About_ComponentsList">
@@ -134,7 +135,7 @@
 
                 <Button x:Name="RecheckButton"
                         AutomationProperties.AutomationId="About_Recheck"
-                        Content="Re-check" HorizontalAlignment="Left" Margin="0,6,0,0"
+                        Content="{loc:Str Shell.About.Recheck}" HorizontalAlignment="Left" Margin="0,6,0,0"
                         Padding="12,4" Cursor="Hand" BorderThickness="1"
                         BorderBrush="{StaticResource BorderBrush}"
                         Background="Transparent"
@@ -154,7 +155,7 @@
                         <TextBlock x:Name="Chevron" Text="&#x25B8;"
                                    FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextMutedBrush}"/>
-                        <TextBlock Text="Third-party notices" FontSize="13" FontWeight="Bold"
+                        <TextBlock Text="{loc:Str Shell.About.Notices}" FontSize="13" FontWeight="Bold"
                                    Foreground="{StaticResource TextBrush}"/>
                     </StackPanel>
                     <ControlTemplate.Triggers>
@@ -182,12 +183,12 @@
                 BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="6"
                 Background="{StaticResource DangerSubtleBrush}">
             <StackPanel>
-                <TextBlock Text="Reset configuration" FontSize="13" FontWeight="Bold"
+                <TextBlock Text="{loc:Str Shell.About.Reset.Title}" FontSize="13" FontWeight="Bold"
                            Foreground="{StaticResource DangerBrush}"/>
                 <TextBlock Margin="0,4,0,10" FontSize="12" TextWrapping="Wrap"
                            Foreground="{StaticResource TextBrush}"
-                           Text="Deletes every setting, workspace, provider and conversation for all workspaces, then restarts. This cannot be undone."/>
-                <Button Content="Reset Config…" HorizontalAlignment="Left"
+                           Text="{loc:Str Shell.About.Reset.Detail}"/>
+                <Button Content="{loc:Str Shell.About.Reset.Button}" HorizontalAlignment="Left"
                         Padding="14,6" Cursor="Hand" BorderThickness="0"
                         Background="{StaticResource DangerBrush}"
                         Foreground="{StaticResource OnAccentBrush}"

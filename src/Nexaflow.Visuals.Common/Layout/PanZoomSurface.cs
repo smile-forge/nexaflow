@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Common.Layout;
 
@@ -98,7 +99,7 @@ public sealed class PanZoomSurface : UserControl
 
             // An explicit TextBlock, not a bare string: WPF's default tooltip wrapper inherits the
             // parent's TextAlignment, and this one sits in a right-aligned corner.
-            ToolTip = new TextBlock { Text = "Overview — drag to move the view", TextAlignment = TextAlignment.Left },
+            ToolTip = new TextBlock { Text = Str.Get("Common.PanZoom.OverviewTip"), TextAlignment = TextAlignment.Left },
         };
         ApplyMiniMapCorner();
 
@@ -583,10 +584,10 @@ public sealed class PanZoomSurface : UserControl
         };
 
         bar.Children.Add(_zoomLabel);
-        bar.Children.Add(Chip("−", "Zoom out",                  () => ZoomBy(1 / 1.25)));
-        bar.Children.Add(Chip("+",      "Zoom in",                   () => ZoomBy(1.25)));
-        bar.Children.Add(Chip("Fit",    "Fit the whole view",        FitToContent));
-        bar.Children.Add(Chip("1:1",    "Show at natural size",      ActualSize));
+        bar.Children.Add(Chip("−",                             Str.Get("Common.PanZoom.ZoomOutTip"),    () => ZoomBy(1 / 1.25)));
+        bar.Children.Add(Chip("+",                             Str.Get("Common.PanZoom.ZoomInTip"),     () => ZoomBy(1.25)));
+        bar.Children.Add(Chip(Str.Get("Common.PanZoom.Fit"),   Str.Get("Common.PanZoom.FitTip"),        FitToContent));
+        bar.Children.Add(Chip("1:1",                           Str.Get("Common.PanZoom.ActualSizeTip"), ActualSize));
         return bar;
     }
 

@@ -84,7 +84,7 @@ public partial class ConfigLabelGuardTests
     }
 
     /// <summary>Every concrete config type the app ships: Core's, and every feature's and provider's beside it.</summary>
-    private static IEnumerable<Type> ConfigTypes()
+    internal static IEnumerable<Type> ConfigTypes()
         => Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.*.dll")
             .Where(f => !Path.GetFileName(f).StartsWith("Nexaflow.Tests.", StringComparison.Ordinal) && IsManaged(f))
             .Select(Assembly.LoadFrom)

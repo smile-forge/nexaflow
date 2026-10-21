@@ -6,7 +6,7 @@
         xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
         xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
         xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
-        Title="Nexaflow Setup"
+        Title="{loc:Str Shell.Wizard.WindowTitle}"
         Width="780" Height="620"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -31,7 +31,7 @@
         <!-- Provider picker. -->
         <DataTemplate DataType="{x:Type vm:WizardProviderPickContent}">
             <StackPanel>
-                <TextBlock Text="Pick the AI provider to set up first. You can add more later."
+                <TextBlock Text="{loc:Str Shell.Wizard.Provider.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
                 <ListBox ItemsSource="{Binding Providers}"
@@ -131,10 +131,10 @@
         <!-- The provider's other kinds of model: one chosen for each, or none. -->
         <DataTemplate DataType="{x:Type vm:WizardModelKindsContent}">
             <StackPanel>
-                <TextBlock Text="The provider offers these kinds of model too. Choose one for each you want it to do; anything left at None stays disabled until you assign a model in Configure."
+                <TextBlock Text="{loc:Str Shell.Wizard.Kinds.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
-                <TextBlock Text="Loading models…"
+                <TextBlock Text="{loc:Str Shell.Wizard.LoadingModels}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                            Margin="0,0,0,8"
                            Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
@@ -151,7 +151,19 @@
                                 <ComboBox Grid.Column="1" ItemsSource="{Binding Models}"
                                           SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
                                           AutomationProperties.AutomationId="{Binding AutomationId}"
-                                          AutomationProperties.Name="{Binding Label}"/>
+                                          AutomationProperties.Name="{Binding Label}">
+                                    <!-- The none entry is an invariant value beside the model names; only what it shows is translated. -->
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock x:Name="ModelName" Text="{Binding}"/>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding}" Value="{x:Static vm:WizardModelKindChoice.None}">
+                                                    <Setter TargetName="ModelName" Property="Text" Value="{loc:Str Shell.Wizard.Kinds.None}"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -162,11 +174,11 @@
         <!-- Model picker. -->
         <DataTemplate DataType="{x:Type vm:WizardModelPickContent}">
             <StackPanel>
-                <TextBlock Text="Choose the language model: it holds the conversation, reasons, and routes requests (you can fine-tune this later in Configure)."
+                <TextBlock Text="{loc:Str Shell.Wizard.Model.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
                 <!-- Shown only while fetching; the list below is empty until it arrives, so they never overlap. -->
-                <TextBlock Text="Loading models…"
+                <TextBlock Text="{loc:Str Shell.Wizard.LoadingModels}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                            Margin="0,0,0,8"
                            Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
@@ -217,7 +229,7 @@
                     BorderThickness="0,1,0,0"
                     Padding="20,14">
                 <Grid>
-                    <Button Content="Back"
+                    <Button Content="{loc:Str Shell.Wizard.Back}"
                             HorizontalAlignment="Left"
                             Width="90" Height="34" FontSize="12"
                             Style="{StaticResource TopBarAction}"
@@ -225,7 +237,7 @@
                             Visibility="{Binding ShowBack, Converter={StaticResource BoolVis}}"
                             Command="{Binding BackCommand}"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Skip"
+                        <Button Content="{loc:Str Shell.Wizard.Skip}"
                                 Width="90" Height="34" Margin="0,0,8,0" FontSize="12"
                                 Style="{StaticResource TopBarAction}"
                                 AutomationProperties.AutomationId="WizardSkipButton"
