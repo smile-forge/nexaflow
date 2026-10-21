@@ -126,7 +126,9 @@ public class PdfJourneyTests : UiJourneyTestBase
         Assert.IsNotNull(view, "Double-clicking a .pdf did not open the Nexaflow reader — check the "
                              + "/document/pdf/read filemap entry and ShowPdfAction.");
 
-        CheckPresent("Properties tab", "Pdf_Tab_Properties");
+        // The Pages tab is shown first; the properties are read on their own tab.
+        CheckPresent("Properties tab", "Pdf_Tab_Properties")?.Click();
+        Wait.UntilInputIsProcessed();
         CheckPresent("Contents tab", "Pdf_Tab_Contents");
         CheckPresent("Panel splitter", "Pdf_Splitter");
         CheckPresent("File name", "Pdf_FileName");
@@ -246,6 +248,9 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
 
         var thumbnails = CheckPresent("Page thumbnails", "Pdf_Thumbnails", 10);
         Check("A thumbnail for every page", () => Thumbnails(thumbnails).Length == 3);
+        Check("Each thumbnail shows its page", () => ThumbnailsDrawn(thumbnails, 10));
+        Check("Each thumbnail is named for its page", () => Thumbnails(thumbnails) is { Length: 3 } named
+            && named.Select((row, index) => row.Name.EndsWith((index + 1).ToString(), StringComparison.Ordinal) && !row.Name.Contains("Nexaflow.")).All(ok => ok));
         CheckPresent("Undo", "Pdf_Undo");
         CheckPresent("Redo", "Pdf_Redo");
         CheckPresent("Save as", "Pdf_SaveAs");
@@ -357,4 +362,23 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
     /// <summary>The rows of the Pages tab, top to bottom.</summary>
     private static AutomationElement[] Thumbnails(AutomationElement? list) =>
         list?.FindAllChildren(cf => cf.ByControlType(ControlType.ListItem)) ?? [];
+
+    /// <summary>
+    /// Whether every thumbnail in view shows its page's picture: a thumbnail's image has no size until its picture is
+    /// drawn into it.
+    /// </summary>
+    private static bool ThumbnailsDrawn(AutomationElement? list, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            var rows = Thumbnails(list);
+            if (rows.Length > 0 && rows.All(row => row.FindFirstDescendant(cf => cf.ByControlType(ControlType.Image)) is { BoundingRectangle.Width: > 0 }))
+                return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
+    }
 }

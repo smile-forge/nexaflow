@@ -20,6 +20,8 @@
   "Pdf.Tab.Properties": "Properties",
   "Pdf.Tab.Contents": "Contents",
   "Pdf.Tab.Pages": "Pages",
+  "Pdf.Pages.PageFormat": "Page {0}",
+  "Pdf.Pages.PageCrossedFormat": "Page {0} — a cut crosses its artwork",
   "Pdf.Pages.NotEditableXfa": "This document's pages can't be rearranged: its XFA form lays out the whole document itself.",
   "Pdf.Menu.DeletePage": "Delete page",
   "Pdf.Menu.DeletePagesFormat": "Delete {0} pages",

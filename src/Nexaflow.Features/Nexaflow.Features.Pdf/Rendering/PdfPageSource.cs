@@ -82,7 +82,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
         var previous = Arrangement;
         _sources = sources;
         Arrangement = next;
-        Rearranged?.Invoke(this, new PagesRearranged(previous.Before(next)));
+        Rearranged?.Invoke(this, new PagesRearranged(previous.Before(next), previous.MadeFrom(next)));
     }
 
     public int PageCount => Arrangement.Count;

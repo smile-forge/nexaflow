@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Nexaflow.Features.Pdf.Document;
 
 namespace Nexaflow.Features.Pdf.Editing;
 
@@ -106,6 +107,30 @@ internal sealed class PdfPageArrangement : IEquatable<PdfPageArrangement>
             was[_pages[i].Id] = i;
 
         return next._pages.Select(page => was.TryGetValue(page.Id, out var index) ? index : (int?)null).ToList();
+    }
+
+    /// <summary>
+    /// For each page of <paramref name="next"/>, by its index, the pages here whose content it shows some of without being
+    /// one of them — the page a part was split from, or the parts a page was joined back from by an undo: the same page
+    /// of the same source, their parts overlapping. Empty for a page that is here, and for one made from nothing here.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<int>> MadeFrom(PdfPageArrangement next)
+    {
+        var here = new HashSet<PdfPageId>(_pages.Length);
+        var bySourcePage = new Dictionary<(PdfSourceId, int), List<int>>();
+        for (var i = 0; i < _pages.Length; i++)
+        {
+            here.Add(_pages[i].Id);
+            var key = (_pages[i].Source, _pages[i].Number);
+            if (!bySourcePage.TryGetValue(key, out var indices)) bySourcePage[key] = indices = [];
+            indices.Add(i);
+        }
+
+        return next._pages
+            .Select(page => here.Contains(page.Id) || !bySourcePage.TryGetValue((page.Source, page.Number), out var kin)
+                ? []
+                : (IReadOnlyList<int>)kin.Where(i => (_pages[i].Part ?? PdfPagePart.Whole).Overlaps(page.Part ?? PdfPagePart.Whole)).ToList())
+            .ToList();
     }
 
     public bool Equals(PdfPageArrangement? other) =>

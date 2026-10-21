@@ -2,6 +2,8 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
+using System.Windows.Media;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.ViewModels;
 
@@ -25,7 +27,9 @@ public sealed partial class PdfPageThumbnail : ObservableObject
     internal PdfPageId Id { get; }
 
     /// <summary>The page's place in the document, from 1.</summary>
-    [ObservableProperty] private int _number;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Name))]
+    private int _number;
 
     /// <summary>The page drawn, once it is.</summary>
     [ObservableProperty] private BitmapSource? _picture;
@@ -43,7 +47,23 @@ public sealed partial class PdfPageThumbnail : ObservableObject
     /// The lines the page would be cut along while a split is set up, drawn across the sheet — each marked where it crosses
     /// the page's artwork. None otherwise.
     /// </summary>
-    [ObservableProperty] private IReadOnlyList<PdfThumbnailCut> _cuts = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(ClearCutLines), nameof(CrossingCutLines))]
+    private IReadOnlyList<PdfThumbnailCut> _cuts = [];
+
+    /// <summary>
+    /// What a screen reader says of the page: its number, and — while a split is set up — whether a cut would cross its
+    /// artwork, which the sheet otherwise shows only in colour.
+    /// </summary>
+    public string Name => Cuts.Any(cut => cut.CrossesInk)
+        ? Str.Format("Pdf.Pages.PageCrossedFormat", Number)
+        : Str.Format("Pdf.Pages.PageFormat", Number);
+
+    /// <summary>The cut lines that cross nothing, as one figure; null when there are none.</summary>
+    public Geometry? ClearCutLines => CutLines(crossing: false);
+
+    /// <summary>The cut lines that cross the page's artwork, as one figure; null when there are none.</summary>
+    public Geometry? CrossingCutLines => CutLines(crossing: true);
 
     /// <summary>
     /// Sizes the sheet to the page's proportions, as large as fits <see cref="SheetBox"/> by <see cref="SheetTallest"/>.
@@ -62,4 +82,23 @@ public sealed partial class PdfPageThumbnail : ObservableObject
                 ? new PdfThumbnailCut(cut.At * SheetWidth, 0, cut.At * SheetWidth, SheetHeight, crossing(cut))
                 : new PdfThumbnailCut(0, cut.At * SheetHeight, SheetWidth, cut.At * SheetHeight, crossing(cut)))
             .ToList();
+
+    private Geometry? CutLines(bool crossing)
+    {
+        var lines = Cuts.Where(cut => cut.CrossesInk == crossing).ToList();
+        if (lines.Count == 0) return null;
+
+        var figure = new StreamGeometry();
+        using (var context = figure.Open())
+        {
+            foreach (var line in lines)
+            {
+                context.BeginFigure(new System.Windows.Point(line.X1, line.Y1), isFilled: false, isClosed: false);
+                context.LineTo(new System.Windows.Point(line.X2, line.Y2), isStroked: true, isSmoothJoin: false);
+            }
+        }
+
+        figure.Freeze();
+        return figure;
+    }
 }

@@ -157,6 +157,8 @@
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Cursor"                     Value="Hand"/>
             <Setter Property="IsSelected"                 Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <!-- What a screen reader (and a journey) hears of a row: the page it is. -->
+            <Setter Property="AutomationProperties.Name"  Value="{Binding Name}"/>
             <EventSetter Event="PreviewMouseLeftButtonUp" Handler="ThumbnailRow_MouseUp"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -335,6 +337,7 @@
                                     <DataTemplate>
                                         <StackPanel Margin="0,4"
                                                     DataContextChanged="Thumbnail_DataContextChanged"
+                                                    Loaded="Thumbnail_Loaded"
                                                     Unloaded="Thumbnail_Unloaded">
                                             <Grid Width="{Binding SheetWidth}"
                                                   Height="{Binding SheetHeight}"
@@ -345,35 +348,17 @@
                                                         BorderThickness="1">
                                                     <Image Source="{Binding Picture}" Stretch="Uniform"/>
                                                 </Border>
-                                                <!-- The lines the page would be cut along while a split is set up; one crossing the artwork is marked. -->
-                                                <ItemsControl ItemsSource="{Binding Cuts}"
-                                                              IsHitTestVisible="False"
-                                                              Focusable="False">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <Canvas/>
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Line x:Name="Cut"
-                                                                  X1="{Binding X1}"
-                                                                  Y1="{Binding Y1}"
-                                                                  X2="{Binding X2}"
-                                                                  Y2="{Binding Y2}"
-                                                                  Stroke="{DynamicResource AccentBrush}"
-                                                                  StrokeThickness="1.5"
-                                                                  StrokeDashArray="3 2"/>
-                                                            <DataTemplate.Triggers>
-                                                                <DataTrigger Binding="{Binding CrossesInk}" Value="True">
-                                                                    <Setter TargetName="Cut" Property="Stroke"          Value="{DynamicResource WarningBrush}"/>
-                                                                    <Setter TargetName="Cut" Property="StrokeThickness" Value="2"/>
-                                                                    <Setter TargetName="Cut" Property="StrokeDashArray" Value="{x:Null}"/>
-                                                                </DataTrigger>
-                                                            </DataTemplate.Triggers>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                <!-- The lines the page would be cut along while a split is set up; one crossing the artwork is marked, and the
+                                                     row's name says so. Shapes, which a screen reader passes over, so the row is heard as its page alone. -->
+                                                <Path Data="{Binding ClearCutLines}"
+                                                      Stroke="{DynamicResource AccentBrush}"
+                                                      StrokeThickness="1.5"
+                                                      StrokeDashArray="3 2"
+                                                      IsHitTestVisible="False"/>
+                                                <Path Data="{Binding CrossingCutLines}"
+                                                      Stroke="{DynamicResource WarningBrush}"
+                                                      StrokeThickness="2"
+                                                      IsHitTestVisible="False"/>
                                             </Grid>
                                             <TextBlock Text="{Binding Number}"
                                                        HorizontalAlignment="Center"

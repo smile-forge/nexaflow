@@ -48,11 +48,18 @@ public interface IRearrangingPagedSource : IPagedLayoutSource
 
 /// <summary>
 /// How a source's pages were rearranged: for each page now, by its index, the index it had before — null for a page
-/// that is new.
+/// that is new — and, for a new page made from pages before it, which they were.
 /// </summary>
-public sealed class PagesRearranged(IReadOnlyList<int?> before) : EventArgs
+public sealed class PagesRearranged(IReadOnlyList<int?> before, IReadOnlyList<IReadOnlyList<int>>? madeFrom = null) : EventArgs
 {
     public IReadOnlyList<int?> Before { get; } = before;
+
+    /// <summary>
+    /// For each page now, by its index, the pages before whose content it shows some of without being one of them — the
+    /// page a part was split from, or the parts a page was joined back from; empty for the rest. A page being read that
+    /// is gone is read on in the first page made from it.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<int>> MadeFrom { get; } = madeFrom ?? [];
 }
 
 /// <summary>A link on a page was pressed: the page it is on (0-based), and its target as the page's tree names it.</summary>

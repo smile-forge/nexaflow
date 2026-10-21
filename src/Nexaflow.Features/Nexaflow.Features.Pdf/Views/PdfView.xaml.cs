@@ -319,11 +319,22 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     private int ThumbnailPixels() =>
         (int)Math.Ceiling(PdfPageThumbnail.SheetBox * VisualTreeHelper.GetDpi(this).DpiScaleX);
 
-    /// <summary>A row was given a page — its own, or a recycled row another's: that page's picture is asked for.</summary>
+    /// <summary>
+    /// A row recycled for another page while in view: the page it showed is no longer wanted, the one it shows now is. A
+    /// row coming into view for the first time has no change of data context to report — WPF gives a template's root its
+    /// item before the root is attached — so that is <see cref="Thumbnail_Loaded"/>'s.
+    /// </summary>
     private void Thumbnail_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is PdfPageThumbnail old) ViewModel.PagesPanel.Unrealized(old);
-        if (e.NewValue is PdfPageThumbnail page) ViewModel.PagesPanel.Realized(page, ThumbnailPixels());
+        if (e.NewValue is PdfPageThumbnail page && sender is FrameworkElement { IsLoaded: true })
+            ViewModel.PagesPanel.Realized(page, ThumbnailPixels());
+    }
+
+    /// <summary>A row came into view — first shown, or shown again with its tab — and its page's picture is wanted.</summary>
+    private void Thumbnail_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: PdfPageThumbnail page }) ViewModel.PagesPanel.Realized(page, ThumbnailPixels());
     }
 
     private void Thumbnail_Unloaded(object sender, RoutedEventArgs e)
@@ -365,8 +376,8 @@ public partial class PdfView : UserControl, IPageView, IDisposable
             var selected = panel.SelectedCount;
             menu.Items.Add(MenuItemFor(
                 selected == 1 ? Str.Get("Pdf.Menu.DeletePage") : Str.Format("Pdf.Menu.DeletePagesFormat", selected),
-        "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
-                menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
+            "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
+        menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageBefore"), "Pdf_Thumb_InsertImageBefore", panel.InsertImagesAtCommand, index));
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageAfter"), "Pdf_Thumb_InsertImageAfter", panel.InsertImagesAtCommand, index + 1));
