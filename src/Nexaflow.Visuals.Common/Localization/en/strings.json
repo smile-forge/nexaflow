@@ -17,6 +17,7 @@
   "Common.Draft.SaveAs": "Save as…",
   "Common.Draft.SaveAsTip": "Keep it where you choose",
 
+
   "Common.SearchChip.Matches": "{0} match(es)",
   "Common.SearchChip.For": " for {0}",
   "Common.SearchChip.PreviousTip": "Previous match",
@@ -63,5 +64,18 @@
   "Common.Swatch.Red": "Red",
   "Common.Swatch.Pink": "Pink",
   "Common.Swatch.Purple": "Purple",
-  "Common.Swatch.Slate": "Slate"
+"Common.Swatch.Slate": "Slate",
+
+"Common.CloudStatus.OnlineOnly": "Available when online",
+"Common.CloudStatus.Available": "Available on this device",
+"Common.CloudStatus.AlwaysAvailable": "Always available on this device",
+"Common.CloudStatus.SyncPending": "Sync pending",
+"Common.CloudStatus.PendingUpload": "Waiting to upload",
+"Common.CloudStatus.PendingDownload": "Waiting to download",
+"Common.CloudStatus.Transferring": "Syncing",
+"Common.CloudStatus.Error": "Sync error",
+"Common.CloudStatus.Warning": "Needs your attention",
+"Common.CloudStatus.Excluded": "Not synced",
+"Common.CloudStatus.Shared": "Shared",
+"Common.CloudStatus.Public": "Shared with anyone who has the link"
 }

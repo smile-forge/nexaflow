@@ -13,4 +13,13 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The file lists' shell layer reads what a listing and a sync provider say of a cloud file (Cloud/, Listing/). -->
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
+  </ItemGroup>
+
 </Project>

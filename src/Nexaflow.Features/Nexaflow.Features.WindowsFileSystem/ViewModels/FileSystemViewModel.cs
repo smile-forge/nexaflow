@@ -27,6 +27,9 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Shell;
+using Nexaflow.IO.Common.Cloud;
+using Nexaflow.IO.Common.Listing;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -460,7 +463,68 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (wasBusy && !nowBusy) FolderBusyCleared?.Invoke();
     }
 
-    partial void OnCurrentPathChanged(string value) => RefreshBusyState();
+    partial void OnCurrentPathChanged(string value)
+    {
+        RefreshBusyState();
+        WatchCurrentFolder();
+    }
+
+    /// <summary>
+    /// Watches the open folder while the view is loaded, so the list keeps up with what changes there — a file added or
+    /// deleted elsewhere, one a sync provider downloads, freed or failed to sync — without the reader refreshing. Coming back
+    /// after being away catches up on what changed meanwhile.
+    /// </summary>
+    public void AttachFolderWatching()
+    {
+        _watchingFolder = true;
+        WatchCurrentFolder();
+        if (!_missedFolderChanges) return;
+        _missedFolderChanges = false;
+        OnFolderChanged(new FolderChange(new HashSet<string>(), Whole: true));
+    }
+
+    public void DetachFolderWatching()
+    {
+        _watchingFolder = false;
+        if (_folderWatch is not null) _missedFolderChanges = true;
+        _folderWatch?.Dispose();
+        _folderWatch = null;
+    }
+
+    private void WatchCurrentFolder()
+    {
+        _folderWatch?.Dispose();
+        _folderWatch = null;
+        if (!_watchingFolder || _isThisPcMode || string.IsNullOrEmpty(CurrentPath)) return;
+
+        // Inside an archive there is nothing on disk to watch; a mounted folder is watched where it really is.
+        var realPath = Vfs.TryResolveReal(CurrentPath) ?? CurrentPath;
+        if (!Directory.Exists(realPath)) return;
+
+        _watchedPath = realPath;
+        _folderWatch = _shell.WatchFolder(realPath, OnFolderChanged);
+    }
+
+    /// <summary>
+    /// The open folder changed: the rows the shell named have their sync status read again, and the folder is read again in
+    /// place, so every row stays where it was and only what differs changes.
+    /// </summary>
+    private void OnFolderChanged(FolderChange change)
+    {
+        if (_isThisPcMode) return;
+        if (IsFolderBusy) return;   // the shell's own operation is changing it; the folder is read again when that finishes
+
+        if (ShowsCloudStatus)
+            foreach (var entry in Entries)
+                if (change.Touches(Path.Combine(_watchedPath, entry.Name))) entry.RecheckStatus();
+
+        if (IsLoadingEntries)
+        {
+            _reloadWhenLoaded = true;
+            return;
+        }
+        _ = RefreshEntriesAsync(inPlace: true);
+    }
 
     /// <summary>
     /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
@@ -709,6 +773,27 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
     private CancellationTokenSource? _loadCts;
     private bool _resortPending;
+
+    /// <summary>The open folder changed while it was being read: read it again, in place, once this reading is done.</summary>
+    private bool _reloadWhenLoaded;
+
+    /// <summary>
+    /// The open folder lies in a folder a cloud sync provider keeps (OneDrive, say), so the list carries a Status column: where
+    /// each file stands with the cloud, as Explorer shows it.
+    /// </summary>
+    [ObservableProperty] private bool _showsCloudStatus;
+
+    /// <summary>The open folder's watch, held while the view is loaded; null in This PC and inside an archive.</summary>
+    private IDisposable? _folderWatch;
+
+    /// <summary>The real directory <see cref="_folderWatch"/> watches, which the shell names changed entries under.</summary>
+    private string _watchedPath = string.Empty;
+
+    /// <summary>The view is loaded, so the open folder is watched.</summary>
+    private bool _watchingFolder;
+
+    /// <summary>The view was unloaded while a folder was watched: whatever changed meanwhile is caught up on its return.</summary>
+    private bool _missedFolderChanges;
     private const int StreamThreshold = 1000;
     private const int ChunkSize       = 512;
 
@@ -1158,8 +1243,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             _loadCts?.Cancel();
             IsLoadingEntries = false;
 
-            _isThisPcMode = true;
-            CurrentPath   = string.Empty;
+            _isThisPcMode    = true;
+            CurrentPath      = string.Empty;
+            ShowsCloudStatus = false;
             ResetSortAndFilter();
 
             _actionDebounceTimer.Stop();
@@ -1265,6 +1351,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         _loadCts?.Cancel();
         IsLoadingEntries = false;
+        ShowsCloudStatus = false;
 
         var entries = Vfs.EnumerateEntries(path).Select(e =>
         {
@@ -1278,6 +1365,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 IsDirectory = isDir,
                 SizeBytes   = isDir ? 0 : e.Size,
                 Modified    = e.Modified,
+                InContainer = true,
+                // Named for what it is, not for how it is browsed: a nested archive reads as one.
+                TypeName    = ShellFileTypes.NameFor(e.IsDirectory ? string.Empty : Path.GetExtension(e.Name), e.IsDirectory),
             };
         });
 
@@ -1749,7 +1839,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// small folder, or the first chunk of a streamed one; otherwise its items are appended after the
     /// chunks already shown. Either way the list hears of it as one Reset.</summary>
     private readonly record struct LoadBatch(
-        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files);
+        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files, bool InSyncRoot);
 
     /// <summary>
     /// Loads the current directory's contents, cancelling any load already in flight.
@@ -1833,6 +1923,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     else
                         Entries.AddRange(batch.Items);
                     UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
+                    ShowsCloudStatus = batch.InSyncRoot;
                 }
             }
             Timing.Note("Folder.batches", batches.ToString());
@@ -1853,12 +1944,18 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 {
                     Entries.Clear();
                     UpdateEntryCountLabel(0, 0, 0);
+                    ShowsCloudStatus = false;
                 }
                 IsLoadingEntries = false;
                 if (_resortPending)
                 {
                     _resortPending = false;
                     ResortEntries();
+                }
+                if (_reloadWhenLoaded)
+                {
+                    _reloadWhenLoaded = false;
+                    _ = RefreshEntriesAsync(inPlace: true);
                 }
             }
         }
@@ -1887,11 +1984,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             // under a mount those must stay virtual (see ToEntry).
             var realPath = Vfs.TryResolveReal(path) ?? path;
 
-            IEnumerator<FileSystemInfo> iterator;
+            // Read straight from the file system rather than through DirectoryInfo: the listing then carries each entry's
+            // cloud placeholder state, so a synced folder names every file's sync state in this same pass.
+            IEnumerator<ListedEntry> iterator;
+            bool inSyncRoot;
             using (Timing.Measure($"Folder.openEnumerator {realPath}"))
             {
-                try { iterator = new DirectoryInfo(realPath).EnumerateFileSystemInfos().GetEnumerator(); }
+                try { iterator = DirectoryListing.Enumerate(realPath).GetEnumerator(); }
                 catch { return; } // path gone / access denied → empty list (finally completes writer)
+                inSyncRoot = CloudPlaceholders.IsInSyncRoot(realPath);
             }
             var enumerate = Timing.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
 
@@ -1921,13 +2022,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                         if (stream && buffer.Count > StreamThreshold)
                         {
                             streaming = true;
-                            await writer.WriteAsync(new(buffer.ToArray(), Replace: true, folders, files), ct);
+                            await writer.WriteAsync(new(buffer.ToArray(), Replace: true, folders, files, inSyncRoot), ct);
                             buffer.Clear();
                         }
                     }
                     else if (buffer.Count >= ChunkSize)
                     {
-                        await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+                        await writer.WriteAsync(new(buffer.ToArray(), false, folders, files, inSyncRoot), ct);
                         buffer.Clear();
                     }
                 }
@@ -1956,11 +2057,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 List<FileSystemEntry> sorted;
                 using (Timing.Measure($"Folder.sort n={buffer.Count}"))
                     sorted = ApplySort(buffer).ToList();
-                await writer.WriteAsync(new(sorted, true, folders, files), ct);
+                await writer.WriteAsync(new(sorted, true, folders, files, inSyncRoot), ct);
             }
             else if (buffer.Count > 0)
             {
-                await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+                await writer.WriteAsync(new(buffer.ToArray(), false, folders, files, inSyncRoot), ct);
             }
         }
         catch (Exception ex) { error = ex; }
@@ -1977,16 +2078,18 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// exists precisely so that never surfaces. For an ordinary folder the two are identical.
     /// </para>
     /// </summary>
-    private static FileSystemEntry ToEntry(FileSystemInfo fsi, string parentPath)
+    private static FileSystemEntry ToEntry(ListedEntry listed, string parentPath)
     {
-        bool isDir = (fsi.Attributes & FileAttributes.Directory) != 0;
+        bool isDir = listed.IsDirectory;
         return new FileSystemEntry
         {
-            Name        = fsi.Name,
-            FullPath    = Path.Combine(parentPath, fsi.Name),
+            Name        = listed.Name,
+            FullPath    = Path.Combine(parentPath, listed.Name),
             IsDirectory = isDir,
-            SizeBytes   = isDir ? 0 : ((FileInfo)fsi).Length,
-            Modified    = fsi.LastWriteTime
+            SizeBytes   = isDir ? 0 : listed.Size,
+            Modified    = listed.LastWriteTime,
+            TypeName    = ShellFileTypes.NameFor(isDir ? string.Empty : Path.GetExtension(listed.Name), isDir),
+            CloudState  = listed.CloudState,
         };
     }
 

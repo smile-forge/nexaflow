@@ -33,6 +33,8 @@ internal sealed class IntegrityShellStub : IShellServices
         return new NoopWatch();
     }
 
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) => new NoopWatch();
+
     /// <summary>Tells whoever watches <paramref name="path"/> that it changed, as the shell's watcher would.</summary>
     public void Changed(string path)
     {

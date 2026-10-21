@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
-        Title="{loc:Str Shell.Picker.SelectFile}"
+xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+Title="{loc:Str Shell.Picker.SelectFile}"
         Width="720" Height="640"
         MinWidth="560" MinHeight="460"
         WindowStyle="None"
@@ -94,7 +95,8 @@
                         <CheckBox IsChecked="{Binding IsTicked, Mode=TwoWay}" Focusable="False" Margin="0,0,6,0" VerticalAlignment="Center"
                                   AutomationProperties.AutomationId="FileBrowser_Tick"
                                   Visibility="{Binding CanTick, Converter={StaticResource PickerBoolToVis}}"/>
-                        <TextBlock Text="{Binding Glyph}" FontSize="12.5" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <vcc:FileIcon Path="{Binding IconPath}" IsFolder="{Binding IsDirectory}" Fallback="{Binding Glyph}"
+                                      Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding DisplayName}"
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource TextBrush}"/>

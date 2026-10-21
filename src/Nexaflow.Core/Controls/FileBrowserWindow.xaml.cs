@@ -38,8 +38,12 @@ internal sealed partial class FileNodeViewModel : PickerNode<FileNodeViewModel>
 
     public bool IsDirectory { get; }
 
-    /// <summary>Leading icon; a provided root supplies its own so a cloud location reads as one.</summary>
+    /// <summary>Leading glyph; a provided root supplies its own so a cloud location reads as one. Every other row shows it
+    /// only until the shell's icon arrives.</summary>
     public string Glyph => _glyphOverride ?? (IsDirectory ? "📁 " : "📄 ");
+
+    /// <summary>The path whose shell icon the row wears — none for a root, which keeps its place's glyph.</summary>
+    public string IconPath => _glyphOverride is null ? FullPath : string.Empty;
     private readonly string? _glyphOverride;
 
     public FileNodeViewModel(string fullPath, string displayName, bool isDirectory,

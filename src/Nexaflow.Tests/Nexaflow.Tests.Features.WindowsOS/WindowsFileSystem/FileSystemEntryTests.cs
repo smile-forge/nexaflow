@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common.Cloud;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -13,11 +15,12 @@ public class FileSystemEntryTests
     // ── TypeLabel ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void TypeLabel_Directory_ReturnsFolder()
+    public void TypeLabel_Directory_IsTheShellsNameForAFolder()
     {
         var entry = new FileSystemEntry { Name = "docs", IsDirectory = true };
 
-        Assert.AreEqual(Str.Get("WindowsFileSystem.Entry.Folder"), entry.TypeLabel);
+        Assert.AreEqual(ShellFileTypes.NameFor(string.Empty, isFolder: true), entry.TypeLabel);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(entry.TypeLabel));
     }
 
     [TestMethod]
@@ -30,19 +33,21 @@ public class FileSystemEntryTests
     }
 
     [TestMethod]
-    public void TypeLabel_FileWithExtension_UppercasedExtension()
+    public void TypeLabel_File_IsTheShellsNameForItsKind_AsExplorerShowsIt()
     {
-        var entry = new FileSystemEntry { Name = "Program.cs" };
+        var entry = new FileSystemEntry { Name = "notes.txt" };
 
-        Assert.AreEqual("CS", entry.TypeLabel);
+        Assert.AreEqual(ShellFileTypes.NameFor(".txt", isFolder: false), entry.TypeLabel);
+        Assert.AreNotEqual("TXT", entry.TypeLabel);
     }
 
     [TestMethod]
-    public void TypeLabel_FileNoExtension_Empty()
+    public void TypeLabel_FileNoExtension_IsTheShellsNameForAPlainFile()
     {
         var entry = new FileSystemEntry { Name = "Makefile" };
 
-        Assert.AreEqual(string.Empty, entry.TypeLabel);
+        Assert.AreEqual(ShellFileTypes.NameFor(string.Empty, isFolder: false), entry.TypeLabel);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(entry.TypeLabel));
     }
 
     // ── SizeLabel ─────────────────────────────────────────────────────────────
@@ -176,5 +181,33 @@ public class FileSystemEntryTests
 
         Assert.IsFalse(entry.TakeOn(new FileSystemEntry { Name = "build", FullPath = @"C:\d\build", IsDirectory = true }));
         Assert.AreEqual(10, entry.SizeBytes, "and it is left as it was");
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-cloud-status")]
+    public void TakeOn_AFileNowOnlyOnline_SaysItsNewSyncState()
+    {
+        var entry = new FileSystemEntry { Name = "report.docx", FullPath = @"C:\cloud\report.docx", CloudState = CloudFileState.Available };
+        var said = new List<string?>();
+        entry.PropertyChanged += (_, e) => said.Add(e.PropertyName);
+
+        entry.TakeOn(new FileSystemEntry { Name = "report.docx", FullPath = @"C:\cloud\report.docx", CloudState = CloudFileState.OnlineOnly });
+
+        Assert.AreEqual(CloudFileState.OnlineOnly, entry.CloudState);
+        CollectionAssert.Contains(said, nameof(FileSystemEntry.CloudState));
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-cloud-status")]
+    public void RecheckStatus_MovesTheRevisionOn_SoItsProviderIsAskedAgain()
+    {
+        var entry = new FileSystemEntry { Name = "report.docx", FullPath = @"C:\cloud\report.docx" };
+        var said = new List<string?>();
+        entry.PropertyChanged += (_, e) => said.Add(e.PropertyName);
+
+        entry.RecheckStatus();
+
+        Assert.AreEqual(1, entry.StatusRevision);
+        CollectionAssert.Contains(said, nameof(FileSystemEntry.StatusRevision));
     }
 }

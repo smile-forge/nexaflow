@@ -46,8 +46,18 @@ public abstract class FileSystemUiTestBase : UITestBase
         box!.AsTextBox().Text = value;
     }
 
+    /// <summary>
+    /// The on-screen control carrying <paramref name="automationId"/>. With two tabs of one kind open, the one behind keeps
+    /// its controls in the automation tree, off screen — and may be found first, so the first match is taken only when it
+    /// is on screen, and the rest are looked through when it is not.
+    /// </summary>
     protected AutomationElement? WaitForId(string automationId, int seconds = 6)
-        => WaitFor(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), seconds);
+        => WaitFor(() =>
+        {
+            var first = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            if (first is null || !first.IsOffscreen) return first;
+            return MainWindow.FindAllDescendants(cf => cf.ByAutomationId(automationId)).FirstOrDefault(element => !element.IsOffscreen) ?? first;
+        }, seconds);
 
     protected AutomationElement? WaitForName(string name, int seconds = 6)
         => WaitFor(() => MainWindow.FindFirstDescendant(cf => cf.ByName(name)), seconds);

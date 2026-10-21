@@ -215,7 +215,7 @@ TextEditorView
 FileOps_Retry
 # The dismiss cross shares that row: its Visibility is bound to HasProblems, so it too needs a failure
 # to exist at all. Its sibling on the same cell, FileOps_CancelRow, is the mutually exclusive CanCancel
-# one and is already driven by FileOperationsPanelJourneyTests.
+# one and is already driven by the File System journey's operations pass.
 FileOps_DismissRow
 # And the paused row's Stop needs something further still: IsPaused is only set when a copy stopped
 # because the destination volume ran out of space. A journey cannot fill a disk.

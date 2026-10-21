@@ -20,12 +20,17 @@ internal sealed class FolderNodeViewModel : PickerNode<FolderNodeViewModel>
 {
     private static readonly FolderNodeViewModel Placeholder = new("", "");
 
-    public string Glyph { get; }
+    /// <summary>Leading glyph; a root supplies its place's. Every other folder shows it only until the shell's icon arrives.</summary>
+    public string Glyph => _placeGlyph ?? "📁 ";
+    private readonly string? _placeGlyph;
 
-    public FolderNodeViewModel(string fullPath, string displayName, string glyph = "📁 ")
+    /// <summary>The path whose shell icon the row wears — none for a root, which keeps its place's glyph.</summary>
+    public string IconPath => _placeGlyph is null ? FullPath : string.Empty;
+
+    public FolderNodeViewModel(string fullPath, string displayName, string? placeGlyph = null)
         : base(fullPath, displayName, fullPath.Length > 0 ? Placeholder : null)
     {
-        Glyph = glyph;
+        _placeGlyph = placeGlyph;
     }
 
     protected override IReadOnlyList<FolderNodeViewModel> ReadChildren(string path) =>

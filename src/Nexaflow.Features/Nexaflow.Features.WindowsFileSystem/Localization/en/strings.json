@@ -17,10 +17,10 @@
   "WindowsFileSystem.Columns.Filesystem": "Filesystem",
   "WindowsFileSystem.Columns.Size": "Size",
   "WindowsFileSystem.Columns.Modified": "Modified",
+  "WindowsFileSystem.Columns.Status": "Status",
 
   "WindowsFileSystem.List.Loading": "Loading…",
   "WindowsFileSystem.List.Busy": "You can keep working — this view updates when it finishes.",
-  "WindowsFileSystem.Entry.Folder": "Folder",
   "WindowsFileSystem.Entry.DriveUsedFormat": "{0} used ({1:F0}%)",
 
   "WindowsFileSystem.Footer.NoItems": "0 items",

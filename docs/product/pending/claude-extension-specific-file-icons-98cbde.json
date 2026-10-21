@@ -1,0 +1,266 @@
+{
+  "branch": "claude/extension-specific-file-icons-98cbde",
+  "nodes": {
+    "vcommon-shell-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/FileIcon.cs",
+          "class": "FileIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellFileIcons.cs",
+          "class": "ShellFileIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellIconSource.cs",
+          "class": "SystemShellIconSource"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellFileTypes.cs",
+          "class": "ShellFileTypes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellRequestQueue.cs",
+          "class": "ShellRequestQueue"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Shell/ShellFileIconsTests.cs",
+            "class": "ShellFileIconsTests"
+          }
+        ]
+      }
+    },
+    "winfs-file-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "TypeName"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "ToEntry"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-shell-icons"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "TypeLabel_Directory_IsTheShellsNameForAFolder"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "TypeLabel_File_IsTheShellsNameForItsKind_AsExplorerShowsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "TypeLabel_FileNoExtension_IsTheShellsNameForAPlainFile"
+          }
+        ]
+      }
+    },
+    "iocommon-directory-listing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Listing/DirectoryListing.cs",
+          "class": "DirectoryListing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Cloud/CloudPlaceholders.cs",
+          "class": "CloudPlaceholders"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Cloud/CloudProviderStatus.cs",
+          "class": "CloudProviderStatus"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/DirectoryListingTests.cs",
+            "class": "DirectoryListingTests"
+          }
+        ]
+      }
+    },
+    "vcommon-cloud-status": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/CloudStatusIcon.cs",
+          "class": "CloudStatusIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellCloudStatuses.cs",
+          "class": "ShellCloudStatuses"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellRequestQueue.cs",
+          "class": "ShellRequestQueue"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Shell/ShellCloudStatusesTests.cs",
+            "class": "ShellCloudStatusesTests"
+          }
+        ]
+      }
+    },
+    "winfs-cloud-status": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "PlaceStatusColumn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "CloudState"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-cloud-status"
+        },
+        {
+          "type": "node",
+          "target": "iocommon-directory-listing"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "TakeOn_AFileNowOnlyOnline_SaysItsNewSyncState"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemEntryTests.cs",
+            "class": "FileSystemEntryTests",
+            "method": "RecheckStatus_MovesTheRevisionOn_SoItsProviderIsAskedAgain"
+          }
+        ]
+      }
+    },
+    "winfs-folder-watch": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "OnFolderChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellFolderWatcher.cs",
+          "class": "ShellFolderWatcher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Services/FolderChange.cs",
+          "class": "FolderChange"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FolderWatchTests.cs",
+            "class": "FolderWatchTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellFolderWatcherTests.cs",
+            "class": "ShellFolderWatcherTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileSystemJourneyTests.cs",
+            "class": "FileSystemJourneyTests",
+            "method": "RunListingPass"
+          }
+        ]
+      }
+    },
+    "file-operations-panel": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationsPanelTests.cs",
+            "class": "FileOperationsPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationHostTests.cs",
+            "class": "FileOperationHostTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationQueueTests.cs",
+            "class": "FileOperationQueueTests",
+            "method": "ACleanCopyTakesItsOwnRowAwayAfterwards"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationQueueTests.cs",
+            "class": "FileOperationQueueTests",
+            "method": "AStoppedRowStopsAnimating"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileSystemJourneyTests.Operations.cs",
+            "class": "FileSystemJourneyTests",
+            "method": "RunOperationsPanelPass"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 13,
+  "touched_nodes": [
+    "file-operations-panel",
+    "iocommon-directory-listing",
+    "vcommon-cloud-status",
+    "vcommon-shell-icons",
+    "winfs-cloud-status",
+    "winfs-file-icons",
+    "winfs-folder-watch"
+  ]
+}

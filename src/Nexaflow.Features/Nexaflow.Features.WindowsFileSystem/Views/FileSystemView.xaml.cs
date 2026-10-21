@@ -104,6 +104,11 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         Loaded   += (_, _) => ViewModel.AttachThisPcProviderTracking();
         Unloaded += (_, _) => ViewModel.DetachThisPcProviderTracking();
 
+        // And for the open folder's watch: changes are caught up on when the tab comes back.
+        Loaded   += (_, _) => ViewModel.AttachFolderWatching();
+        Unloaded += (_, _) => ViewModel.DetachFolderWatching();
+        PlaceStatusColumn();
+
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
         // handle its Click at the ListView level instead. Whole header is clickable.
@@ -256,6 +261,24 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
                 SelectBaseName(CreateFileNameBox);
             });
         }
+        else if (e.PropertyName == nameof(FileSystemViewModel.ShowsCloudStatus))
+        {
+            PlaceStatusColumn();
+        }
+    }
+
+    /// <summary>
+    /// The Status column leads the list in a folder a cloud sync provider keeps, and is not there anywhere else — an empty
+    /// column in every ordinary folder would only take room from the names.
+    /// </summary>
+    private void PlaceStatusColumn()
+    {
+        var columns = ((GridView)FileListView.View).Columns;
+        var status  = (GridViewColumn)FindResource("StatusColumn");
+        bool placed = columns.Contains(status);
+
+        if (ViewModel.ShowsCloudStatus && !placed) columns.Insert(0, status);
+        else if (!ViewModel.ShowsCloudStatus && placed) columns.Remove(status);
     }
 
     /// <summary>Selects the name without its extension (Explorer-style), so the user types over it.</summary>
