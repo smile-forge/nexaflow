@@ -69,6 +69,7 @@
   "Pdf.Toolbar.FitWidthTip": "Fit the page to the width",
   "Pdf.Toolbar.FitPageTip": "Fit the whole page",
   "Pdf.Toolbar.PrintTip": "Print",
+  "Pdf.Toolbar.ExtractImagesTip": "Save the images in this document to a folder — with any page edits not yet saved",
   "Pdf.Toolbar.UndoTip": "Undo the last page edit (Ctrl+Z)",
   "Pdf.Toolbar.RedoTip": "Redo the page edit undone (Ctrl+Y)",
   "Pdf.Toolbar.SaveTip": "Save the page edits (Ctrl+S)",

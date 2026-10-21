@@ -19,6 +19,7 @@ Shows a PDF's pages, drawn here from the document itself, and lists what the doc
 - Drag across text to select it — across pages too — double-click to select a word, and Ctrl+C to copy. Ctrl+A selects the whole document.
 - Links on a page work: one to another place in the document goes there, one to a web address opens it.
 - [Find](locate:Pdf_Find) a word or phrase: Enter goes to the next match, Shift+Enter the previous, and Esc clears the search. Every match is lit on the pages, and [the count](locate:Pdf_FindStatus) says which one you are on; [previous](locate:Pdf_FindPrevious) and [next](locate:Pdf_FindNext) step through them too.
+- [Extract the images](locate:Pdf_ExtractImages) the document carries into a folder you pick, one file per picture, as Extract images does in the file browser — from the document as you see it, page edits not yet saved included.
 - [Print](locate:Pdf_Print) the document, each page as large as fits the sheet. [Open the file in your usual PDF application](locate:Pdf_OpenExternal) for anything this does not do.
 - Layers the document hides are not drawn, and form fields and stamps show as the document draws them.
 

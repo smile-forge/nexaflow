@@ -516,8 +516,9 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- The reader's own controls: where you are, how large, what to find, and out to print or another
-                 application. The pages below are drawn here, so every one of these knows the page being read. -->
+            <!-- The reader's own controls: where you are, how large, what to find, and out to images, print or another
+                 application. The document's name is on its tab and in the breadcrumb, so it is not repeated here. The
+                 pages below are drawn here, so every one of these knows the page being read. -->
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -540,15 +541,7 @@
                         <TextBlock Text="▤" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
                     </Button>
 
-                    <TextBox Grid.Column="1"
-                             Style="{StaticResource SelectableText}"
-                             AutomationProperties.AutomationId="Pdf_FileName"
-                             Margin="10,0"
-                             VerticalAlignment="Center"
-                             FontSize="12"
-                             TextWrapping="NoWrap"
-                             Foreground="{DynamicResource TextMutedBrush}"
-                             Text="{Binding FileName, Mode=OneWay}"/>
+
 
                     <!-- Pages: back, the page being read (type a number and press Enter to go there), forward. -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0">
@@ -669,6 +662,12 @@
                                 Visibility="{Binding Conversion.Available, Converter={StaticResource BoolToVis}}"
                                 ToolTip="{loc:Str Pdf.Toolbar.ConvertTip}">
                             <TextBlock Text="M↓" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_ExtractImages"
+                                Command="{Binding ExtractImagesCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.ExtractImagesTip}">
+                            <TextBlock Text="&#xEB9F;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
                         </Button>
                         <Button Style="{StaticResource PdfToolbarBtn}"
                                 AutomationProperties.AutomationId="Pdf_Print"
