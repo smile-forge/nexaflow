@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Pdf.Document;
+using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
@@ -29,12 +30,11 @@ namespace Nexaflow.Features.Pdf.ViewModels;
 /// host to show; the document's properties and table of contents in the side panel; finding text; and a tool surface
 /// that lets the AI read the text, look at a page, and pull out a figure.
 /// <para>
-/// The document is opened once for the tab's lifetime and every reader serialised behind one lock: PdfPig's
-/// <see cref="PdfDocument"/> is not thread-safe, and re-parsing the cross-reference table per question is
-/// the difference between a fast answer and a slow one on a large report.
+/// The document is a <see cref="PdfDocumentSession"/>: the file and the pages in their order, each source opened once
+/// for the tab's lifetime and read behind its own lock.
 /// </para>
 /// </summary>
-public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDisposable, IPdfDocumentAccess
+public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     /// <summary>Characters of page text a single read returns unless the caller asks for fewer.</summary>
     private const int DefaultReadChars = 40_000;
@@ -60,15 +60,10 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private readonly IShellServices _shell;
     private readonly PdfConfig _config;
     private readonly CancellationTokenSource _cts = new();
-    private readonly SemaphoreSlim _docLock = new(1, 1);
-    private readonly Timer _idleTimer;
-
     private readonly string _path;          // as opened — may be virtual (inside an archive)
     private readonly string? _tempCopy;     // materialised copy to delete on dispose, if we made one
 
-    private PdfDocumentScope? _scope;
-    private bool _scopeFailed;              // TryOpen already said no; don't keep retrying per tool call
-    private DateTime _lastUsedUtc = DateTime.UtcNow;
+    private readonly PdfDocumentSession _session;
     private bool _disposed;
 
     /// <summary>The document as a real file — what the default PDF application is handed.</summary>
@@ -206,11 +201,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         var real = RealizeLocalFile(path);
         _tempCopy = string.Equals(real, path, StringComparison.OrdinalIgnoreCase) ? null : real;
         FileUri   = new Uri(real);
-
-        // Thread-pool timer, not a DispatcherTimer: closing an idle document is background housekeeping and
-        // must not depend on (or touch) the UI thread.
-        _idleTimer = new Timer(_ => CloseDocumentIfIdle(), null,
-            TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        _session  = new PdfDocumentSession(path);
     }
 
     private static string RealizeLocalFile(string filePath)
@@ -231,25 +222,25 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <param name="paper">What pages are laid on, from the theme.</param>
     public async Task LoadAsync(System.Windows.Media.Brush paper)
     {
-        PdfDocumentNode? document = null;
+        var opened = false;
         try
         {
-            document = await ReadScopeAsync(scope => scope.Pages.ReadDocument(_cts.Token), _cts.Token);
+            opened = await _session.OpenAsync(_cts.Token);
         }
         catch (OperationCanceledException) { return; }
         catch { /* falls through to the unreadable state */ }
 
         if (_disposed) return;
 
-        if (document is null)
+        if (!opened)
         {
             IsUnreadable   = true;
             FailureMessage = Str.Get("Pdf.Fallback.Unreadable");
         }
         else
         {
-            _source   = new PdfPageSource(this, document, paper);
-            PageCount = document.Pages.Count;
+            _source   = new PdfPageSource(_session.Arrangement, _session.Opened(), paper);
+            PageCount = _source.PageCount;
             Pages     = _source;
         }
 
@@ -436,60 +427,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private Task<T?> WithDocumentAsync<T>(Func<PdfDocument, T> read, CancellationToken ct) =>
         ReadScopeAsync(scope => read(scope.Document), ct);
 
-    Task<T?> IPdfDocumentAccess.ReadAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct) where T : default =>
-        ReadScopeAsync(read, ct);
-
     /// <summary>
-    /// Runs <paramref name="read"/> against the open document, opening it first when it is not, off the UI thread and
-    /// under the lock every reader of it shares: PdfPig's document is not thread-safe.
+    /// Runs <paramref name="read"/> against the document as it now stands, off the UI thread and under its lock; default
+    /// when it cannot be opened at all.
     /// </summary>
     private async Task<T?> ReadScopeAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
-        var token = linked.Token;
-
-        await _docLock.WaitAsync(token).ConfigureAwait(false);
-        try
-        {
-            return await Task.Run(() =>
-            {
-                if (_scope is null && !_scopeFailed)
-                {
-                    _scope = PdfDocumentScope.TryOpen(_path, token);
-                    _scopeFailed = _scope is null;
-                }
-
-                _lastUsedUtc = DateTime.UtcNow;
-                return _scope is null ? default : read(_scope);
-            }, token).ConfigureAwait(false);
-        }
-        finally
-        {
-            _docLock.Release();
-        }
-    }
-
-    /// <summary>
-    /// Drops the parsed document after a spell of inactivity. A large scan holds a sizeable object graph and
-    /// a file handle open; a background tab nobody has asked anything about in five minutes shouldn't. The
-    /// next read reopens it.
-    /// </summary>
-    private void CloseDocumentIfIdle()
-    {
-        if (_disposed || _scope is null) return;
-        if (DateTime.UtcNow - _lastUsedUtc < TimeSpan.FromMinutes(5)) return;
-
-        if (!_docLock.Wait(0)) return;   // busy — try again on the next tick rather than blocking one
-        try
-        {
-            if (DateTime.UtcNow - _lastUsedUtc >= TimeSpan.FromMinutes(5))
-            {
-                _scope?.Dispose();
-                _scope = null;
-                _scopeFailed = false;   // a fresh open may well succeed; the earlier one wasn't a verdict
-            }
-        }
-        finally { _docLock.Release(); }
+        return await _session.Document.ReadAsync(read, linked.Token).ConfigureAwait(false);
     }
 
     // ── Page navigation ───────────────────────────────────────────────────
@@ -505,7 +450,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <summary>Follows a link to a place in this document: its page, at the height it names when that page has been read.</summary>
     internal bool GoToTarget(PdfPageTarget target) =>
-        GoToPage(target.PageNumber, _source?.OffsetFromTop(target));
+        GoToPage(target.PageNumber, _source?.OffsetFromTop(_session.Base.Id, target));
 
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;
@@ -1096,26 +1041,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _disposed = true;
 
         try { _cts.Cancel(); } catch { }
-        _idleTimer.Dispose();
-
-        // Under the lock so a read in flight isn't parsing a document being torn out from under it. If it
-        // doesn't yield in time, close anyway: _cts is already cancelled, so the reader is unwinding, and a
-        // tab closing must not wait on it indefinitely.
-        var held = false;
-        try { held = _docLock.Wait(TimeSpan.FromSeconds(2)); } catch { }
-
-        try
-        {
-            _scope?.Dispose();
-            _scope = null;
-        }
-        catch { }
-        finally
-        {
-            if (held) _docLock.Release();
-        }
-
-        _docLock.Dispose();
+        _session.Dispose();
         _cts.Dispose();
 
         // Only a copy we made ourselves — never the user's file.
