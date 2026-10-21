@@ -67,7 +67,10 @@
   "Images.Nav.PreviousPage": "Previous 20",
   "Images.Nav.NextPage": "Next 20",
 
+  "Images.Menu.Copy": "Copy",
   "Images.Menu.Delete": "Delete",
+  "Images.Copy.Done": "The picture is on the clipboard.",
+  "Images.Copy.FailedFormat": "Couldn't copy '{0}'.",
   "Images.Delete.ConfirmTitle": "Delete image",
   "Images.Delete.ConfirmMessageFormat": "Send '{0}' to the Recycle Bin?",
   "Images.Delete.FailedFormat": "Couldn't delete '{0}'.",

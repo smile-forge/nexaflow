@@ -38,7 +38,10 @@
   "Images.Nav.PreviousPage": "20 précédentes",
   "Images.Nav.NextPage": "20 suivantes",
 
+  "Images.Menu.Copy": "Copier",
   "Images.Menu.Delete": "Supprimer",
+  "Images.Copy.Done": "L'image est dans le presse-papiers.",
+  "Images.Copy.FailedFormat": "Impossible de copier « {0} ».",
   "Images.Delete.ConfirmTitle": "Supprimer l'image",
   "Images.Delete.ConfirmMessageFormat": "Envoyer « {0} » dans la Corbeille ?",
   "Images.Delete.FailedFormat": "Impossible de supprimer « {0} ».",

@@ -1,0 +1,61 @@
+{
+  "branch": "claude/quirky-mirzakhani-222cb6",
+  "nodes": {
+    "images-recipe-history": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Editing/SnapshotHistory.cs",
+          "class": "SnapshotHistory"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/SnapshotHistoryTests.cs",
+            "class": "SnapshotHistoryTests",
+            "method": "AGesture_IsOneStep_OrNoneIfItEndsWhereItBegan"
+          }
+        ]
+      }
+    },
+    "vcommon-snapshot-history": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Editing/SnapshotHistory.cs",
+          "class": "SnapshotHistory"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/SnapshotHistoryTests.cs",
+            "class": "SnapshotHistoryTests"
+          }
+        ]
+      }
+    },
+    "images-edit-history": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+            "class": "ImagesViewModelTests",
+            "method": "RotateLeftAndFlips_AreUndoableEditsOfThePhoto"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "images-edit-history",
+    "images-recipe-history",
+    "vcommon-snapshot-history"
+  ]
+}

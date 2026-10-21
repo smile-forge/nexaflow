@@ -3,6 +3,7 @@ using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Visuals.Common.Editing;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.Editing;
@@ -47,7 +48,7 @@ public sealed class ImageEditSession : IDisposable
         var load = IsFileBacked ? services.Recipes.Load(path) : new RecipeLoadResult(RecipeLoadStatus.None, null);
         LoadStatus = load.Status;
         CanPersist = IsFileBacked && load.IsWritable;
-        History    = new RecipeHistory(load.Recipe ?? ImageRecipe.Identity);
+        History    = new SnapshotHistory<ImageRecipe>(load.Recipe ?? ImageRecipe.Identity);
         History.Changed += OnHistoryChanged;
     }
 
@@ -62,7 +63,11 @@ public sealed class ImageEditSession : IDisposable
     /// <summary>What the sidecar held when the photo was opened.</summary>
     public RecipeLoadStatus LoadStatus { get; private set; }
 
-    public RecipeHistory History { get; }
+    /// <summary>
+    /// Undo and redo over whole recipes. A recipe is a few hundred bytes, so a snapshot per step costs nothing and undo
+    /// is exact.
+    /// </summary>
+    public SnapshotHistory<ImageRecipe> History { get; }
 
     public ImageRecipe Recipe => History.Current;
 
