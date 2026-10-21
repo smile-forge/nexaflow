@@ -144,16 +144,24 @@ off into a satellite assembly instead of the pack.
 
 ## What is localized
 
-The product tree's `i18n` concern is the ledger. Every feature root carries it, `should` until its words are in
-its project's `strings.json`, then `done` with a snaplink to that file (`nfi query --concern i18n` lists where each
-stands). Core carries it per area: the shell chrome — window frame, tab strip, breadcrumb, ribbon bar and editor, AI
-bar and response surfaces, messages, prompts — and Help are `done`; Options, workspaces, the file pickers and the
-setup wizard are `should`. AI prompts and tool descriptions stay English: they are read by the
-model, not the user.
+The product tree's `i18n` concern is the ledger, and it sits only where words are shown: every feature root under
+`Features`, each `Nexaflow.Visuals.*` node under *Common / Shared*, and each Core UX area panel (window frame, tab
+strip, Options, Workspaces, …) — never on a leaf, a sub-panel or a node with nothing to show. Its status says how far
+the node's words have come:
+
+| Status | Means | Snaplinks |
+|---|---|---|
+| `done` | every word is in the project's `strings.json`, and every language carries that file | one per language's `strings.json` |
+| `faulted` | every word is in English's `strings.json`, but a language has no file of its own | one per English `strings.json` |
+| `should` | words are still written in the code | none |
+
+A feature built from several projects links the files of each. `nfi query --concern i18n` lists where every node
+stands. AI prompts and tool descriptions stay English: they are read by the model, not the user.
 
 Moving a feature over is mechanical — add its keys to `Localization/en/strings.json` at the project's root, replace
-each literal with `{loc:Str …}` or `Str.Get(…)`, then flip the feature's `i18n` concern to `done` and snaplink it
-to that file. The guard checks each key as it lands.
+each literal with `{loc:Str …}` or `Str.Get(…)`, add the same keys to every other language's `strings.json`, then
+flip the feature's `i18n` concern to `done` and snaplink each language's file. The guard checks each key as it lands.
 
-English is the source of every string. French (`fr`) carries a translation of every `strings.json`; its help pages
-are English until a pack ships them, and a key added to English shows there in English until French follows.
+English is the source of every string. French (`fr`) carries a translation of the `strings.json` beside each
+English one; its help pages are English until a pack ships them, and a key added to English shows there in English
+until French follows. A project with no `fr/strings.json` reads in English in French, and its node is `faulted`.
