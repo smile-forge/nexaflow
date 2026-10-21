@@ -15,6 +15,7 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.IO.Common.Hardware;
 using System.Text.Json.Nodes;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -753,7 +754,7 @@ public sealed class AIService : IAIService
 
             if (run.Stuck is { } stuck && route.HandOverTo is { } larger)
             {
-                approval.ReportProgress($"Handing over to {larger.Name}…");
+                approval.ReportProgress(Str.Format("Shell.AiResponse.HandingOverFormat", larger.Name));
                 var taken = new List<LlmMessage>();
                 run = await RunStepsAsync(larger, page, context, includeContext, pageTools, input, HandOver(stuck.Why), approval,
                                           options with { History = [.. options.History, .. ran] }, Delegates(route.Model, approval, scope), taken, ct);
@@ -791,14 +792,13 @@ public sealed class AIService : IAIService
     /// <summary>Why a step that ended with nothing to say did not answer, as the user and a model taking over are told.</summary>
     private static StepsStuck Unanswered(LlmReplyEnd? reason) => reason switch
     {
-        LlmReplyEnd.ContextFull => new("This conversation has filled the model's memory before I could answer. Start a new one, or " +
-                                       "ask again more briefly. _(stopped: context full)_",
+        LlmReplyEnd.ContextFull => new(Str.Get("Shell.AiResponse.Stuck.ContextFull"),
                                        "the conversation filled its context before it answered"),
-        LlmReplyEnd.LengthLimit => new("I ran out of room to answer that before I finished thinking it through. _(stopped: reply too long)_",
+        LlmReplyEnd.LengthLimit => new(Str.Get("Shell.AiResponse.Stuck.LengthLimit"),
                                        "its reply reached the most it may be before it answered"),
-        LlmReplyEnd.Circling    => new("I went round in circles on that and stopped myself. Could you ask it another way? _(stopped: going in circles)_",
+        LlmReplyEnd.Circling    => new(Str.Get("Shell.AiResponse.Stuck.Circling"),
                                        "it went round in circles, thinking the same thing over and over, before it answered"),
-        _                       => new("I didn't come up with an answer to that. Could you ask it another way? _(stopped: no answer)_",
+        _                       => new(Str.Get("Shell.AiResponse.Stuck.NoAnswer"),
                                        "it ended its reply without answering"),
     };
 
@@ -1100,15 +1100,15 @@ public sealed class AIService : IAIService
             }
             if (tool.Parallelizable) { parallelIdx.Add(i); continue; }
 
-            approval.ReportProgress($"Running {tool.Name}…");
+            approval.ReportProgress(Str.Format("Shell.AiResponse.RunningFormat", tool.Name));
             results[i] = (call.Tool, await InvokeSafelyAsync(tool, call, ct));
         }
 
         if (parallelIdx.Count > 0)
         {
             approval.ReportProgress(parallelIdx.Count == 1
-                ? $"Running {calls[parallelIdx[0]].Tool!.Name}…"
-                : $"Running {parallelIdx.Count} tools…");
+                ? Str.Format("Shell.AiResponse.RunningFormat", calls[parallelIdx[0]].Tool!.Name)
+                : Str.Format("Shell.AiResponse.RunningToolsFormat", parallelIdx.Count));
 
             var tasks = parallelIdx.Select(i => InvokeSafelyAsync(calls[i].Tool!, calls[i].Call, ct)).ToArray();
             var done  = await Task.WhenAll(tasks);
@@ -1170,7 +1170,7 @@ public sealed class AIService : IAIService
 
         // A separate image-recognition model is configured — have it describe each image, then pass the
         // description as text so the (possibly text-only) conversation model can still use it.
-        approval.ReportProgress("Analysing the captured image…");
+        approval.ReportProgress(Str.Get("Shell.AiResponse.AnalysingImage"));
         var descriptions = new List<string>();
         foreach (var image in atts)
         {
@@ -1197,7 +1197,7 @@ public sealed class AIService : IAIService
         if (SpeechToText is not { } transcriber)
             return (null, "(A recording was captured, but the current model can't hear audio and no Speech In model is set up to transcribe it, so it wasn't passed on.)");
 
-        approval.ReportProgress("Transcribing the recording…");
+        approval.ReportProgress(Str.Get("Shell.AiResponse.Transcribing"));
         var transcripts = new List<string>();
         foreach (var clip in audio)
         {

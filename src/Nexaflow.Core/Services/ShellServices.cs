@@ -427,12 +427,12 @@ public sealed class ShellServices : IShellServices
         var restore = new RelayCommand(() => RestoreSession(session));
         var note = new NotificationItem
         {
-            Title         = "Restore last session?",
-            Body          = "Reopen the tabs you had open when you last closed this workspace.",
+            Title         = Str.Get("Shell.Notifications.RestoreTitle"),
+            Body          = Str.Get("Shell.Notifications.RestoreBody"),
             Severity      = MessageSeverity.Info,
             Transient     = true,
             ToastDuration = TimeSpan.FromSeconds(3),
-            Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
+            Actions       = [new MessageAction(Str.Get("Shell.Notifications.Restore"), restore, IsPrimary: true)],
         };
         MessageCenter.Instance.Post(note);
     }
@@ -650,7 +650,7 @@ public sealed class ShellServices : IShellServices
     public void ShowError(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = "Error", Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowNotification(string message) =>

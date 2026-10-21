@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Common.Localization;
 using System.ComponentModel;
 
 namespace Nexaflow.Core.Controls;
@@ -74,7 +75,9 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     private static readonly string[] SwatchKeys =
         ["BgColor", "SurfaceColor", "Surface2Color", "AccentColor", "Accent2Color", "TextColor"];
 
-    public IReadOnlyList<string> ThemeOptions { get; } = Enum.GetNames<ThemeOption>();
+    /// <summary>Every theme: the invariant name the config stores, beside the name it is shown by.</summary>
+    public IReadOnlyList<ThemeChoice> ThemeOptions { get; } =
+        [.. Enum.GetValues<ThemeOption>().Select(t => new ThemeChoice(t.ToString(), ThemeChoice.Shown(t)))];
 
     /// <summary>The installed language packs, read from their file names (nothing is loaded to list them). Before
     /// startup has created the language manager — a design surface, a test — only English is on offer.</summary>
@@ -166,4 +169,24 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
                 nearest = option;
         return nearest;
     }
+}
+
+/// <summary>One theme the picker offers: <paramref name="Value"/> is what is saved, <paramref name="Display"/> what is read.</summary>
+public sealed record ThemeChoice(string Value, string Display)
+{
+    /// <summary>A theme's name in the window's language.</summary>
+    public static string Shown(ThemeOption theme) => theme switch
+    {
+    ThemeOption.Dark => Str.Get("Shell.Theme.Dark"),
+    ThemeOption.Light => Str.Get("Shell.Theme.Light"),
+    ThemeOption.Ocean => Str.Get("Shell.Theme.Ocean"),
+    ThemeOption.Sunny => Str.Get("Shell.Theme.Sunny"),
+    ThemeOption.Arctic => Str.Get("Shell.Theme.Arctic"),
+    ThemeOption.Desert => Str.Get("Shell.Theme.Desert"),
+    ThemeOption.Gothic => Str.Get("Shell.Theme.Gothic"),
+    ThemeOption.Nature => Str.Get("Shell.Theme.Nature"),
+    ThemeOption.Flowers => Str.Get("Shell.Theme.Flowers"),
+    ThemeOption.Sandstone => Str.Get("Shell.Theme.Sandstone"),
+        _ => theme.ToString(),
+    };
 }

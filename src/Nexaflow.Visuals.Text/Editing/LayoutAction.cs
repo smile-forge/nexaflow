@@ -83,6 +83,12 @@ public readonly record struct LayoutIntent(string Verb, string? Target = null, s
     /// </summary>
     public string? Group { get; init; }
 
+    /// <summary>
+    /// What <see cref="Group"/> is called where a reader has to read it, in the window's language — or null, where the group's own
+    /// name says it. The group is what the options are known by, so it stays the same whichever language is shown.
+    /// </summary>
+    public string? GroupTip { get; init; }
+
     /// <summary>Whether this option is what the content says now.</summary>
     public bool Current { get; init; }
 

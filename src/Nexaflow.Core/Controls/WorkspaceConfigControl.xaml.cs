@@ -3,6 +3,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -184,7 +185,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
         // Unique name => a fresh, empty config folder (avoids a re-used "New Workspace" dir picking up
         // a previous workspace's saved provider/model).
         var workspace = WorkspaceManager.Instance.AddWorkspace(
-            WorkspaceManager.Instance.UniqueWorkspaceName("New Workspace"));
+            WorkspaceManager.Instance.UniqueWorkspaceName(Str.Get("Shell.Workspace.DefaultName")));
         workspace.Icon  = icon;
         workspace.Color = RandomSwatchColor();
         WorkspaceManager.Instance.Workspaces.Move(WorkspaceManager.Instance.Workspaces.Count - 1, 0);
@@ -253,13 +254,13 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
         if (_editToOriginal.TryGetValue(edit, out var original)
             && WorkspaceManager.Instance.IsWorkspaceInUse(original))
         {
-            shell?.ShowErrorToast("This workspace is open and can't be removed.");
+            shell?.ShowErrorToast(Str.Get("Shell.Workspace.InUse"));
             return;
         }
 
         // Confirm via the in-shell overlay (above the Options popup), never an OS MessageBox.
         if (shell is not null)
-            shell.ShowConfirmation("Remove workspace", $"Remove workspace “{edit.Name}”?",
+            shell.ShowConfirmation(Str.Get("Shell.Workspace.Remove.Title"), Str.Format("Shell.Workspace.Remove.AskFormat", edit.Name),
                 () => _editWorkspaces.Remove(edit), null);
         else
             _editWorkspaces.Remove(edit);

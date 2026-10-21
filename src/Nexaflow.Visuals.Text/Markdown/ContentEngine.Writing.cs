@@ -5,6 +5,7 @@ using System.Windows;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -150,7 +151,7 @@ public sealed partial class ContentEngine
         }
         catch (Exception error)
         {
-            return Unreadable(state.Source, 0, $"This could not be read: {error.Message}", _style, only, Room);
+            return Unreadable(state.Source, 0, Str.Format("Text.Content.CouldNotRead", error.Message), _style, only, Room);
         }
     }
 

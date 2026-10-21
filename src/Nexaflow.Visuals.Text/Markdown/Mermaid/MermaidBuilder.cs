@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -343,8 +344,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>Every line of a diagram shown as it is written that says anything — not its header, a comment or a directive.</summary>
     private static IReadOnlyList<(ContentPart Part, string Reason)> Unread(MermaidBlock block)
     {
-        var keyword = block.Keyword?.Text is { Length: > 0 } named ? named : "diagram";
-        var reason = $"Nothing written here is something a {keyword} draws, so it is shown as it is written.";
+        var reason = block.Keyword?.Text is { Length: > 0 } named
+            ? Str.Format("Text.Mermaid.NothingDrawn", named)
+            : Str.Get("Text.Mermaid.NothingDrawnUnnamed");
 
         return [.. block.Reading.Root.SelfAndDescendants()
             .Where(part => part.Kind == MermaidKinds.Line && part.Stated() is { Kind: not (Kinds.Comment or MermaidKinds.Directive or MermaidKinds.Header) })

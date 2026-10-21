@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -171,10 +172,11 @@ public partial class RibbonControl : UserControl
         InternalDeleteCommand = new RelayCommand<RibbonItem>(item =>
         {
             if (item is null) return;
-            var label = string.IsNullOrEmpty(item.Label) ? "this button" : $"\"{item.Label}\"";
             Shell?.ShowConfirmation(
-                "Delete ribbon button",
-                $"Remove {label} from the ribbon?",
+            Str.Get("Shell.Ribbon.Delete.Title"),
+            string.IsNullOrEmpty(item.Label)
+                ? Str.Get("Shell.Ribbon.Delete.AskUnnamed")
+                : Str.Format("Shell.Ribbon.Delete.AskFormat", item.Label),
                 () => ViewModel.Items.Remove(item),
                 () => { });
         });

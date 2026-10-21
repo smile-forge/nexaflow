@@ -11,6 +11,7 @@ using Nexaflow.Markdown.Chemistry.Depiction;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Chemistry.Stages;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Chemistry;
 
@@ -65,7 +66,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         [
             .. troubled.Select(part => (part, part.Trouble!)),
             .. entries.Where(entry => entry.Structure is null && !entry.Part.SelfAndDescendants().Any(troubled.Contains))
-                      .Select(entry => (entry.Part, "Nothing here is a molecule: no atom is written in it.")),
+                      .Select(entry => (entry.Part, Str.Get("Text.Smiles.NoMolecule"))),
         ];
         if (blamed.Count > 0) return AsSource(blamed);
 

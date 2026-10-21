@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -41,11 +42,11 @@ public sealed class SearchQueryHandler : IQueryHandler
     public async Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not ISearchable page)
-            return "This page doesn't support searching.";
+            return Str.Get("Shell.AiBar.Search.Unsupported");
 
         // Parsed with the page's own recognisers, so it only ever receives term kinds it can honour.
         var request = SearchSyntax.ParseRequest(input, page.TermRecognizers);
-        if (request.Terms.Count == 0) return "Nothing to search for.";
+        if (request.Terms.Count == 0) return Str.Get("Shell.AiBar.Search.Nothing");
 
         var outcome = await page.SearchAsync(request, display: true, CancellationToken.None);
 

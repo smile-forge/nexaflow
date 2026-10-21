@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Shell;
 using System.Windows.Threading;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -45,7 +46,7 @@ public static class JumpListService
             jumpList.JumpItems.Add(new JumpTask
             {
                 Title            = cfg.Name,
-                Description      = $"Open the “{cfg.Name}” workspace",
+                Description      = Str.Format("Shell.JumpList.OpenFormat", cfg.Name),
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,

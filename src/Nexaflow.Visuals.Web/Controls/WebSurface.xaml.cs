@@ -1,4 +1,5 @@
 using Microsoft.Web.WebView2.Core;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Globalization;
 using System.IO;
@@ -166,8 +167,8 @@ public partial class WebSurface : UserControl, IDisposable
         IsAvailable    = false;
         RuntimeMissing = IsRuntimeMissing(ex);
         FailureMessage = RuntimeMissing
-            ? "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the page can't be shown here."
-            : "The embedded browser couldn't be started on this PC.";
+            ? Str.Get("Web.Surface.RuntimeMissing")
+            : Str.Get("Web.Surface.CouldNotStart");
 
         Unavailable?.Invoke(this, new WebSurfaceUnavailableEventArgs(ex, RuntimeMissing, FailureMessage));
     }

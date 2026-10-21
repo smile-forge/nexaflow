@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -139,7 +140,7 @@ public class AiStatusDot : ContentControl
             _dot.Visibility          = Visibility.Visible;
             _dot.Fill                = ThemeBrush("AiStatus.Busy");
             _busySb.Begin();
-            ToolTip = "AI busy…";
+            ToolTip = Str.Get("Shell.AiBar.Status.Busy");
             return;
         }
 
@@ -149,7 +150,7 @@ public class AiStatusDot : ContentControl
             _symbolBorder.Visibility = Visibility.Visible;
             _symbolBorder.Background  = ThemeBrush("AiStatus.Handler");
             _symbolText.Text          = sym;
-            ToolTip = $"Handler: {sym}";
+            ToolTip = Str.Format("Shell.AiBar.Status.HandlerFormat", sym);
             return;
         }
 
@@ -159,7 +160,7 @@ public class AiStatusDot : ContentControl
             _dot.Visibility          = Visibility.Visible;
             _dot.Fill                = ListenBrush();
             _listenSb.Begin();
-            ToolTip = "Listening…";
+            ToolTip = Str.Get("Shell.AiBar.Status.Listening");
             return;
         }
 
@@ -167,6 +168,6 @@ public class AiStatusDot : ContentControl
         _symbolBorder.Visibility = Visibility.Collapsed;
         _dot.Visibility          = Visibility.Visible;
         _dot.Fill                = ThemeBrush("AiStatus.Ready");
-        ToolTip = "AI ready";
+        ToolTip = Str.Get("Shell.AiBar.Status.Ready");
     }
 }

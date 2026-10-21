@@ -1,6 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -66,7 +67,10 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
     private static string Describe(DefaultTabDescriptor t, bool split)
     {
         var title = string.IsNullOrWhiteSpace(t.Title) ? t.PageKind : t.Title!;
-        return split ? $"{title}  ·  {(t.Pane == 1 ? "Right pane" : "Left pane")}" : title;
+        return split
+            ? Str.Format("Shell.Workspace.DefaultTabs.RowFormat", title,
+                         t.Pane == 1 ? Str.Get("Shell.Workspace.DefaultTabs.RightPane") : Str.Get("Shell.Workspace.DefaultTabs.LeftPane"))
+            : title;
     }
 
     private void UpdateEmptyState()

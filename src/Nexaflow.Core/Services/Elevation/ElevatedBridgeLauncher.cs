@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Elevation.Contracts;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services.Elevation;
 
@@ -31,11 +32,11 @@ public sealed class ElevatedBridgeLauncher
     public async Task<ElevatedResult> RunAsync(ElevatedRequest request, CancellationToken ct = default)
     {
         if (request is null || request.Operations.Count == 0)
-            return ElevatedResult.Fail(ElevatedErrorKind.Unexpected, "No operations to run.");
+            return ElevatedResult.Fail(ElevatedErrorKind.Unexpected, Str.Get("Shell.Elevation.NothingToRun"));
 
         if (!File.Exists(_bridgePath))
             return ElevatedResult.Fail(ElevatedErrorKind.BridgeNotFound,
-                $"Privilege bridge not found at {_bridgePath}.");
+                Str.Format("Shell.Elevation.BridgeMissingFormat", _bridgePath));
 
         var pipeName = "nexaflow-elevation-" + Guid.NewGuid().ToString("N");
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -66,11 +67,11 @@ public sealed class ElevatedBridgeLauncher
             catch (Win32Exception ex)
             {
                 return ElevatedResult.Fail(ElevatedErrorKind.BridgeLaunchFailed,
-                    $"Failed to launch the elevated helper: {ex.Message}");
+                    Str.Format("Shell.Elevation.LaunchFailedFormat", ex.Message));
             }
 
             if (bridge is null)
-                return ElevatedResult.Fail(ElevatedErrorKind.BridgeLaunchFailed, "Elevated helper did not start.");
+                return ElevatedResult.Fail(ElevatedErrorKind.BridgeLaunchFailed, Str.Get("Shell.Elevation.DidNotStart"));
 
             // Wait for the bridge to connect — bounded so a never-arriving helper can't hang the caller.
             using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
@@ -82,12 +83,12 @@ public sealed class ElevatedBridgeLauncher
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
-                    return ElevatedResult.Fail(ElevatedErrorKind.Cancelled, "The elevated request was cancelled.");
+                    return ElevatedResult.Fail(ElevatedErrorKind.Cancelled, Str.Get("Shell.Elevation.Cancelled"));
                 }
                 catch (OperationCanceledException)
                 {
                     return ElevatedResult.Fail(ElevatedErrorKind.Timeout,
-                        "The elevated helper did not connect in time.");
+                        Str.Get("Shell.Elevation.Timeout"));
                 }
             }
 
@@ -101,16 +102,16 @@ public sealed class ElevatedBridgeLauncher
             var hello = await PipeFraming.ReadAsync<BridgeHello>(server, ioCts.Token);
             if (hello is null || !TokensMatch(hello.Token, token))
                 return ElevatedResult.Fail(ElevatedErrorKind.HandshakeFailed,
-                    "The elevated helper failed authentication.");
+                    Str.Get("Shell.Elevation.HandshakeFailed"));
 
             await PipeFraming.WriteAsync(server, request, ioCts.Token);
             var result = await PipeFraming.ReadAsync<ElevatedResult>(server, ioCts.Token);
             return result ?? ElevatedResult.Fail(ElevatedErrorKind.Unexpected,
-                "The elevated helper returned no result.");
+                Str.Get("Shell.Elevation.NoResult"));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return ElevatedResult.Fail(ElevatedErrorKind.Cancelled, "The elevated request was cancelled.");
+            return ElevatedResult.Fail(ElevatedErrorKind.Cancelled, Str.Get("Shell.Elevation.Cancelled"));
         }
         catch (Exception ex)
         {

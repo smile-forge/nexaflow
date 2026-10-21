@@ -243,7 +243,7 @@ internal sealed class ProviderPickStep : ObservableObject, IWizardStep
         };
     }
 
-    public string Title      => "Choose a provider";
+    public string Title      => Str.Get("Shell.Wizard.Provider.Title");
     public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
     public object Content     => _content;
     public bool   IsComplete  => _ctx.ChosenProvider is not null;
@@ -261,7 +261,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
 
     public ProviderConfigStep(WorkspaceSetupContext ctx) => _ctx = ctx;
 
-    public string Title => "Provider settings";
+    public string Title => Str.Get("Shell.Wizard.ProviderConfig.Title");
     public bool Applies => _ctx.Harness != WorkspaceHarness.Owned;
 
     public bool IsComplete =>
@@ -305,7 +305,7 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
         };
     }
 
-    public string Title      => "Choose a model";
+    public string Title      => Str.Get("Shell.Wizard.Model.Title");
     public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
     public object Content     => _content;
     public bool   IsComplete  => !string.IsNullOrEmpty(_content.SelectedModel);
@@ -376,7 +376,7 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
 
     private readonly WizardModelKindsContent _content = new();
 
-    public string Title      => "Choose its other models";
+    public string Title      => Str.Get("Shell.Wizard.Kinds.Title");
     public bool   Applies    => ctx.Harness != WorkspaceHarness.Owned && Offered().Any();
     public object Content    => _content;
     public bool   IsComplete => !_content.IsLoading;
@@ -461,10 +461,10 @@ public partial class SetupWizardViewModel : ObservableObject
 
     public IWizardStep   CurrentStep    => _steps[CurrentIndex];
     public bool          IsLastStep     => NextApplying(CurrentIndex) is null;
-    public string        NextButtonText => IsLastStep ? "Finish" : "Next";
+    public string        NextButtonText => IsLastStep ? Str.Get("Shell.Wizard.Finish") : Str.Get("Shell.Wizard.Next");
     public int           StepNumber     => _steps.Take(CurrentIndex + 1).Count(s => s.Applies);
     public int           StepCount      => _steps.Count(s => s.Applies);
-    public string        StepIndicator  => $"Step {StepNumber} of {StepCount}";
+    public string        StepIndicator  => Str.Format("Shell.Wizard.StepFormat", StepNumber, StepCount);
     public bool          ShowBack       => PreviousApplying(CurrentIndex) is not null;
 
     private int? NextApplying(int from)
@@ -560,11 +560,11 @@ public partial class SetupWizardViewModel : ObservableObject
         // what happened and what was recovered, so the steps that follow read as re-verification.
         var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
         if (unreadable.Count > 0)
-            steps.Add(new MarkdownStep("Recovered", RecoveryNotes(unreadable)));
+            steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.Recovered.Title"), RecoveryNotes(unreadable)));
 
         // 1. What's New — only after a version bump (not on a brand-new install).
         if (TryLoadWhatsNew(out var whatsNew))
-            steps.Add(new MarkdownStep("What's New", whatsNew));
+            steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.WhatsNew.Title"), whatsNew));
 
         // 2. GLOBAL feature configs that opt into the wizard via [MandatorySetup], excluding the
         //    Workspaces list. Show one when it is brand-new (defaulted — first run / new feature, which
@@ -610,22 +610,7 @@ public partial class SetupWizardViewModel : ObservableObject
     /// defaults, that the damaged files were kept, and that the rest of the wizard confirms what replaced
     /// them. Workspace data folders survive a lost list, so the conversations and notes are still there.</summary>
     private static string RecoveryNotes(IReadOnlyList<string> unreadable)
-        => $"""
-            ## Some settings could not be read
-
-            Nexaflow could not read {string.Join(", ", unreadable.Select(n => $"`{n}`"))} this time, so
-            those settings are back at their defaults. Each damaged file has been kept beside its folder
-            under `%APPDATA%\Smile\nexaflow`, and the details are in the crash log, so nothing has been
-            thrown away.
-
-            Your workspaces' own data — conversations, notes, ribbon layouts and provider settings — lives
-            in its own folder per workspace and was not affected. A workspace whose entry was lost has been
-            rebuilt from that folder, so it is back with its contents intact; its symbol and colour were
-            stored in the file that was lost, so those have been picked afresh.
-
-            The remaining steps let you confirm what replaced the settings that were lost. You can skip
-            them and set everything up later in Options.
-            """;
+        => Str.Format("Shell.Wizard.Recovered.NotesFormat", string.Join(", ", unreadable.Select(n => $"`{n}`")));
 
     /// <summary>
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any

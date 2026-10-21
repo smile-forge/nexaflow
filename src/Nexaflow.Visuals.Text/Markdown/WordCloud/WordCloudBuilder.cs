@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.WordCloud;
@@ -142,7 +143,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
             var colour = ink.For(at++);
 
             if (Place(board, word, ((WordCloudWordNode)word.Node).Size, turn, colour) is { } set) placed.Add(set);
-            else trouble.Add(Say(word, $"There was no room left in the cloud for {word.Text}.", DiagnosticSeverity.Warning));
+            else trouble.Add(Say(word, Str.Format("Text.WordCloud.NoRoom", word.Text), DiagnosticSeverity.Warning));
         }
 
         // Sized to what was actually drawn, not the room offered — else a small cloud in a wide column would
@@ -259,7 +260,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
         if (found is null)
         {
-            trouble = $"There is no picture at `{named}` — or this block was drawn with no document to find it beside.";
+            trouble = Str.Format("Text.WordCloud.NoPicture", named);
             return null;
         }
 

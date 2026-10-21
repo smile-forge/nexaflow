@@ -1,4 +1,5 @@
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.AI;
 
@@ -6,15 +7,15 @@ internal static class AiAbilityNames
 {
     public static string Friendly(AiAbility a) => a switch
     {
-        AiAbility.Disambiguation   => "Disambiguation",
-        AiAbility.GeneralIntelligence => "General Intelligence",
-        AiAbility.ImageRecognition => "Image Recognition",
-        AiAbility.SpeechIn         => "Speech In",
-        AiAbility.SpeechOut        => "Speech Out",
-        AiAbility.ImageGeneration            => "Image Generation",
-        AiAbility.HighQualityImageGeneration => "Image Generation (HQ)",
-        AiAbility.VideoGeneration            => "Video Generation",
-        AiAbility.HighQualityVideoGeneration => "Video Generation (HQ)",
+        AiAbility.Disambiguation             => Str.Get("Shell.Ability.Disambiguation"),
+        AiAbility.GeneralIntelligence        => Str.Get("Shell.Ability.GeneralIntelligence"),
+        AiAbility.ImageRecognition           => Str.Get("Shell.Ability.ImageRecognition"),
+        AiAbility.SpeechIn                   => Str.Get("Shell.Ability.SpeechIn"),
+        AiAbility.SpeechOut                  => Str.Get("Shell.Ability.SpeechOut"),
+        AiAbility.ImageGeneration            => Str.Get("Shell.Ability.ImageGeneration"),
+        AiAbility.HighQualityImageGeneration => Str.Get("Shell.Ability.ImageGenerationHq"),
+        AiAbility.VideoGeneration            => Str.Get("Shell.Ability.VideoGeneration"),
+        AiAbility.HighQualityVideoGeneration => Str.Get("Shell.Ability.VideoGenerationHq"),
         _                                    => a.ToString()
     };
 

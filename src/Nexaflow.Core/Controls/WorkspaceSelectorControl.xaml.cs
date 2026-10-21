@@ -1,4 +1,5 @@
 using Nexaflow.Core.Models;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -102,11 +103,11 @@ public partial class WorkspaceSelectorControl : UserControl
         if (!CanSwitch) return;
 
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
-        AddMenuItem(menu, "Configure workspace…", ConfigureCommand);
-        AddMenuItem(menu, "Use Tabset as Default", UseTabsetAsDefaultCommand);
+        AddMenuItem(menu, Str.Get("Shell.Workspace.Menu.Configure"), ConfigureCommand);
+        AddMenuItem(menu, Str.Get("Shell.Workspace.Menu.UseTabset"), UseTabsetAsDefaultCommand);
         if (menu.Items.Count > 0 && NewWorkspaceCommand is not null)
             menu.Items.Add(new Separator());
-        AddMenuItem(menu, "New workspace…", NewWorkspaceCommand);
+        AddMenuItem(menu, Str.Get("Shell.Workspace.Menu.New"), NewWorkspaceCommand);
         if (menu.Items.Count == 0) return;
 
         menu.IsOpen = true;
