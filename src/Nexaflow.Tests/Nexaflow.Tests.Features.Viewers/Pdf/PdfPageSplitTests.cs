@@ -78,6 +78,29 @@ public class PdfPageSplitTests
     [TestMethod]
     [TestCategory("Unit")]
     [CoversNode("pdf-page-split")]
+    public void APageSplit_IsMadeFromItsSheet_AndASheetJoinedBack_FromItsParts()
+    {
+        var source = new PdfSourceId(0);
+        var sheets = PdfPageArrangement.Of([new PdfArrangedPage(new PdfPageId(1), source, 1), new PdfArrangedPage(new PdfPageId(2), source, 2)]);
+        var halves = PdfPagePart.Split(2, across: true);
+        var split = sheets.Replace([0],
+        [
+            new PdfArrangedPage(new PdfPageId(3), source, 1, halves[0]),
+            new PdfArrangedPage(new PdfPageId(4), source, 1, halves[1]),
+        ]);
+
+        var made = sheets.MadeFrom(split);
+        CollectionAssert.AreEqual(new[] { 0 }, made[0].ToArray());
+        CollectionAssert.AreEqual(new[] { 0 }, made[1].ToArray());
+        Assert.AreEqual(0, made[2].Count, "the second sheet is the same page, not one made from it");
+
+        var joined = split.MadeFrom(sheets);
+        CollectionAssert.AreEqual(new[] { 0, 1 }, joined[0].ToArray(), "undone, the sheet is made from both its halves");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
     public async Task EachPage_IsSplitInItsOwnPlace_TheWayItIsLonger_AsOneEdit()
     {
         using var session = await Opened();

@@ -139,6 +139,21 @@ public class PagedLayoutElementTests
     }
 
     [TestMethod]
+    public void ThePageBeingReadSplit_TheReaderGoesToTheFirstPageMadeFromIt_WhereverItWent()
+    {
+        UiThread.Run(() =>
+        {
+            var source = new Rearranging(3, new Size(600, 800));
+            var element = Shown(source);
+
+            // A booklet's first sheet, unfolded: its right half is read first, its left half last.
+            source.Arrange([11, 1, 2, 10], new Dictionary<int, int[]> { [10] = [0], [11] = [0] });
+
+            Assert.AreEqual(0, element.CurrentPage, "the sheet being read became the first page and the last; it is read on in the first");
+        });
+    }
+
+    [TestMethod]
     public void APageInsertedBeforeTheReader_KeepsTheirPlace_AndOnlyPagesNearThemAreAskedFor()
     {
         UiThread.Run(() =>
@@ -233,12 +248,20 @@ public class PagedLayoutElementTests
 
         public Size PageSize(int index) => size;
 
-        /// <summary>Puts the pages made as <paramref name="order"/>, a number not made before being a new page.</summary>
-        public void Arrange(List<int> order)
+        /// <summary>
+        /// Puts the pages made as <paramref name="order"/>, a number not made before being a new page — made, where
+        /// <paramref name="madeFrom"/> says so, from the numbers it names.
+        /// </summary>
+        public void Arrange(List<int> order, IReadOnlyDictionary<int, int[]>? madeFrom = null)
         {
             var before = order.Select(page => _order.IndexOf(page) is var was and >= 0 ? was : (int?)null).ToList();
+            var from = order
+                .Select(page => madeFrom?.GetValueOrDefault(page) is { } numbers
+                    ? (IReadOnlyList<int>)numbers.Select(number => _order.IndexOf(number)).ToList()
+                    : [])
+                .ToList();
             _order = order;
-            Rearranged?.Invoke(this, new PagesRearranged(before));
+            Rearranged?.Invoke(this, new PagesRearranged(before, from));
         }
 
         public Task<LaidPage> LayAsync(int index, CancellationToken ct)

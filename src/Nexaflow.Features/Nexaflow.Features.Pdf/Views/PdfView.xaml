@@ -335,6 +335,7 @@
                                     <DataTemplate>
                                         <StackPanel Margin="0,4"
                                                     DataContextChanged="Thumbnail_DataContextChanged"
+                                                    Loaded="Thumbnail_Loaded"
                                                     Unloaded="Thumbnail_Unloaded">
                                             <Grid Width="{Binding SheetWidth}"
                                                   Height="{Binding SheetHeight}"

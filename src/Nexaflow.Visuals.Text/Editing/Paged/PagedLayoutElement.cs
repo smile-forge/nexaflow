@@ -265,7 +265,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         {
             var was = Math.Clamp(CurrentPage, 0, _sizes.Length - 1);
             into = _offset.Y / zoom - _tops[was];
-            reading = Landing(before, was, out stayed);
+            reading = Landing(rearranged, was, out stayed);
         }
 
         _lifetime.Cancel();
@@ -309,11 +309,13 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     }
 
     /// <summary>
-    /// Where the page that was at <paramref name="was"/> is now; or, when it is gone, the first page after it that is still
-    /// there; or the last page. <paramref name="stayed"/> says whether it is the same page.
+    /// Where the reader goes once the pages are rearranged, from page <paramref name="was"/>: the same page where it still
+    /// is (<paramref name="stayed"/>); else the first page made from it — a page split into parts is read on in its first
+    /// part, wherever its parts went; else the next page that is left after it; else the last.
     /// </summary>
-    private static int? Landing(IReadOnlyList<int?> before, int was, out bool stayed)
+    private static int? Landing(PagesRearranged rearranged, int was, out bool stayed)
     {
+        var before = rearranged.Before;
         int? next = null;
         int? nextWas = null;
         for (var i = 0; i < before.Count; i++)
@@ -333,6 +335,9 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         }
 
         stayed = false;
+        for (var i = 0; i < rearranged.MadeFrom.Count; i++)
+            if (rearranged.MadeFrom[i].Contains(was)) return i;
+
         return next ?? (before.Count > 0 ? before.Count - 1 : null);
     }
 

@@ -37,6 +37,11 @@ internal readonly record struct PdfPagePart(double Left, double Top, double Widt
     /// <summary>The part's size on a page shown <paramref name="shown"/> in size.</summary>
     public Size Of(Size shown) => new(shown.Width * Width, shown.Height * Height);
 
+    /// <summary>Whether this part and <paramref name="other"/> share some of the page.</summary>
+    public bool Overlaps(PdfPagePart other) =>
+        Left < other.Left + other.Width && other.Left < Left + Width
+        && Top < other.Top + other.Height && other.Top < Top + Height;
+
     /// <summary>
     /// The part in the page's default user space, for a page whose crop box is <paramref name="crop"/> and which is
     /// shown turned <paramref name="rotation"/> degrees clockwise.
