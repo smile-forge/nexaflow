@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -33,6 +34,29 @@ public interface IPagedLayoutSource
     /// </summary>
     Task<string> TextAsync(int index, CancellationToken ct);
 }
+
+/// <summary>
+/// A source whose pages can be rearranged — moved, removed, inserted — while it is shown. It stays the same source and
+/// says where each page was, so the host keeps the reader on the page they were reading; laying the pages, and keeping
+/// what it has laid so a page that only moved is not laid again, is the source's own business.
+/// </summary>
+public interface IRearrangingPagedSource : IPagedLayoutSource
+{
+    /// <summary>The pages were rearranged; <see cref="IPagedLayoutSource.PageCount"/> and every page's index are new.</summary>
+    event EventHandler<PagesRearranged>? Rearranged;
+}
+
+/// <summary>
+/// How a source's pages were rearranged: for each page now, by its index, the index it had before — null for a page
+/// that is new.
+/// </summary>
+public sealed class PagesRearranged(IReadOnlyList<int?> before) : EventArgs
+{
+    public IReadOnlyList<int?> Before { get; } = before;
+}
+
+/// <summary>A link on a page was pressed: the page it is on (0-based), and its target as the page's tree names it.</summary>
+public sealed record PageLink(int Page, string Href);
 
 /// <summary>One page, laid out.</summary>
 /// <param name="Tree">The page's layout, in device-independent pixels at full size, its origin the page's top left.</param>

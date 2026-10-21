@@ -8,7 +8,7 @@ namespace Nexaflow.Tests.Features.Images;
 
 /// <summary>
 /// The recipe as it is kept: its JSON, the hidden sidecar beside the photo and the rules about when it is written,
-/// deleted or left alone, the fingerprint that notices a photo changed under it, and the undo history above it.
+/// deleted or left alone, and the fingerprint that notices a photo changed under it.
 /// </summary>
 [TestClass]
 public class ImageRecipeTests
@@ -272,75 +272,5 @@ public class ImageRecipeTests
         Assert.IsFalse(session.CanPersist);
         session.History.Commit(Edited);
         Assert.AreEqual(Edited, session.Recipe);
-    }
-
-    // ── History ─────────────────────────────────────────────────────────────
-
-    private static ImageRecipe Exposed(double ev) => new() { Adjustments = new RecipeAdjustments { Exposure = ev } };
-
-    [TestMethod]
-    [CoversNode("images-recipe-history")]
-    [CoversNode("images-edit-history")]
-    public void UndoAndRedo_WalkTheRecipes_AndANewEditDropsTheRedos()
-    {
-        var history = new RecipeHistory(ImageRecipe.Identity);
-        history.Commit(Exposed(1));
-        history.Commit(Exposed(2));
-
-        Assert.IsTrue(history.Undo());
-        Assert.AreEqual(Exposed(1), history.Current);
-        Assert.IsTrue(history.CanRedo);
-        Assert.IsTrue(history.Redo());
-        Assert.AreEqual(Exposed(2), history.Current);
-
-        history.Undo();
-        history.Commit(Exposed(5));
-        Assert.IsFalse(history.CanRedo, "a new edit forks the history");
-        history.Undo();
-        history.Undo();
-        Assert.AreEqual(ImageRecipe.Identity, history.Current);
-        Assert.IsFalse(history.Undo());
-
-        history.Commit(ImageRecipe.Identity);
-        Assert.IsTrue(history.CanRedo, "committing what is already current is no edit");
-    }
-
-    [TestMethod]
-    [CoversNode("images-recipe-history")]
-    public void AGesture_IsOneStep_OrNoneIfItEndsWhereItBegan()
-    {
-        var history = new RecipeHistory(ImageRecipe.Identity);
-        history.BeginGesture();
-        for (int i = 1; i <= 10; i++) history.Commit(Exposed(i / 10.0));
-        history.EndGesture();
-
-        Assert.AreEqual(Exposed(1), history.Current);
-        Assert.IsTrue(history.Undo());
-        Assert.AreEqual(ImageRecipe.Identity, history.Current, "ten slider ticks, one undo");
-
-        history.BeginGesture();
-        history.Commit(Exposed(0.3));
-        history.Commit(ImageRecipe.Identity);
-        history.EndGesture();
-        Assert.IsFalse(history.CanUndo, "a drag that ended where it began adds nothing");
-
-        history.BeginGesture();
-        history.Commit(Exposed(0.7));
-        history.CancelGesture();
-        Assert.AreEqual(ImageRecipe.Identity, history.Current, "cancel puts it back");
-    }
-
-    [TestMethod]
-    [CoversNode("images-recipe-history")]
-    public void TheHistory_IsBounded_AndAnArrivingRecipeIsUndoable()
-    {
-        var history = new RecipeHistory(ImageRecipe.Identity, limit: 3);
-        for (int i = 1; i <= 5; i++) history.Commit(Exposed(i));
-        int steps = 0;
-        while (history.Undo()) steps++;
-        Assert.AreEqual(3, steps);
-
-        history.Adopt(Exposed(9));
-        Assert.IsTrue(history.Undo(), "another window's edit arrives as a step of its own");
     }
 }

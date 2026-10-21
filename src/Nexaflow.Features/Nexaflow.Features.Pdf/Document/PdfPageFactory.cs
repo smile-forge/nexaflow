@@ -50,6 +50,18 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
             $"{nameof(PdfPageFactory)} reads documents opened with {nameof(PdfReadingOptions)}.");
     }
 
+    /// <summary>
+    /// The page's own crop box — or, while a part of the page is read, the part, so the page is read as that part.
+    /// </summary>
+    protected override CropBox GetCropBox(DictionaryToken dictionary, PageTreeMembers pageTreeMembers, MediaBox mediaBox)
+    {
+        var own = base.GetCropBox(dictionary, pageTreeMembers, mediaBox);
+        if (_caches.ReadingPart is not { } part || part == PdfPagePart.Whole) return own;
+
+        var rotation = dictionary.TryGet(NameToken.Rotate, PdfScanner, out NumericToken? rotate) ? rotate.Int : pageTreeMembers.Rotation;
+        return new CropBox(part.InUserSpace(own.Bounds, rotation));
+    }
+
     protected override PdfPageNode ProcessPage(
         int pageNumber, DictionaryToken dictionary, NamedDestinations namedDestinations, MediaBox mediaBox,
         CropBox cropBox, UserSpaceUnit userSpaceUnit, PageRotationDegrees rotation, TransformationMatrix initialMatrix,
@@ -91,6 +103,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
         }
 
         var toPage = PdfSpace.ToMatrix(initialMatrix) * flip;
+        var visible = cropBox.GetVisibleBounds(rotation);
+        var shown = new Rect(0, 0, visible.Width, visible.Height);
         var annotations = new List<PdfAnnotationNode>();
         foreach (var annotation in read)
         {
@@ -102,7 +116,10 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
                 continue;
 
             var rect = Rectangle(annotation.AnnotationDictionary) ?? annotation.Rectangle;
-            var bounds = PdfSpace.Transform(new Rect(new Point(rect.Left, rect.Bottom), new Point(rect.Right, rect.Top)), toPage);
+    var bounds = PdfSpace.Transform(new Rect(new Point(rect.Left, rect.Bottom), new Point(rect.Right, rect.Top)), toPage);
+
+            // An annotation the page's crop box leaves out is no part of the page shown.
+            if (!bounds.IntersectsWith(shown)) continue;
 
             PdfGroupNode? appearance = null;
             try
@@ -174,7 +191,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     private static PdfLinkTarget? Target(PdfAction? action) => action switch
     {
         UriAction uri                                     => new PdfUriTarget(uri.Uri),
-        AbstractGoToAction { Destination: { } destination } => new PdfPageTarget(destination.PageNumber, destination.Coordinates?.Top),
+        AbstractGoToAction { Destination: { } destination } => new PdfPageTarget(destination.PageNumber, destination.Coordinates?.Top, destination.Coordinates?.Left),
         _                                                   => null,
     };
 

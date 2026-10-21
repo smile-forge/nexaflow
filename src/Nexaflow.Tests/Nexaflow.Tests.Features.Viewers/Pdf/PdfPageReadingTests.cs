@@ -257,7 +257,7 @@ public class PdfPageReadingTests
             {
                 using var scope = PdfDocumentScope.TryOpen(path, CancellationToken.None);
                 Assert.IsNotNull(scope);
-                var source = new PdfPageSource(new OpenScope(scope), scope.Pages.ReadDocument(CancellationToken.None), Brushes.White);
+                var source = PdfPageSource.Of(new OpenScope(scope), scope.Pages.ReadDocument(CancellationToken.None), Brushes.White);
                 var sheet = new Size(400, 600);
                 var paginator = new PdfPaginator(source, sheet, CancellationToken.None);
 

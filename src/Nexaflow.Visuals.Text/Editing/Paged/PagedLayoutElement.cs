@@ -47,7 +47,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
 
     public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
         nameof(Source), typeof(IPagedLayoutSource), typeof(PagedLayoutElement),
-        new PropertyMetadata(null, (d, _) => ((PagedLayoutElement)d).Reload()));
+        new PropertyMetadata(null, (d, e) => ((PagedLayoutElement)d).SourceChanged(e)));
 
     public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(
         nameof(Zoom), typeof(double), typeof(PagedLayoutElement),
@@ -105,7 +105,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
 
     private PagePlace? _anchor;
     private PagePlace? _focus;
-    private string? _pressedLink;
+    private PageLink? _pressedLink;
     private bool _dragged;
     private IReadOnlyList<PageRange> _highlights = [];
     private int _currentHighlight = -1;
@@ -190,8 +190,8 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     /// <summary>The page being read (0-based): the one across the upper third of the viewport.</summary>
     public int CurrentPage => (int)GetValue(CurrentPageProperty);
 
-    /// <summary>A link on a page was pressed: its target, as the page's tree names it.</summary>
-    public event EventHandler<string>? LinkActivated;
+    /// <summary>A link on a page was pressed: the page it is on, and its target as the page's tree names it.</summary>
+    public event EventHandler<PageLink>? LinkActivated;
 
     /// <summary>The selection changed.</summary>
     public event EventHandler? SelectionChanged;
@@ -209,6 +209,18 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     public bool HasSelection => _anchor is { } a && _focus is { } f && a != f;
 
     // ── Pages and their places ───────────────────────────────────────────────────────────────────────────────────
+
+    private void SourceChanged(DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is IRearrangingPagedSource old) old.Rearranged -= OnRearranged;
+        if (e.NewValue is IRearrangingPagedSource rearranging) rearranging.Rearranged += OnRearranged;
+        Reload();
+    }
+
+    private void OnRearranged(object? sender, PagesRearranged rearranged)
+    {
+        if (ReferenceEquals(sender, Source)) Rearrange(rearranged);
+    }
 
     private void Reload()
     {
@@ -231,6 +243,97 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         for (var i = 0; i < count; i++) _sizes[i] = source!.PageSize(i);
         _offset = default;
         Arranged();
+    }
+
+    /// <summary>
+    /// The source's pages were rearranged. The reader stays on the page they were reading, at the same height in it — or
+    /// at the top of the next page that is still there when theirs is gone. The pages shown stay shown at their new places until the
+    /// source lays them again; everything else the host held of the old order — what it laid, the selection, the hits —
+    /// is let go.
+    /// </summary>
+    private void Rearrange(PagesRearranged rearranged)
+    {
+        var source = Source;
+        if (source is null) return;
+
+        var before = rearranged.Before;
+        var zoom = Zoom;
+        int? reading = null;
+        var stayed = false;
+        var into = 0.0;
+        if (_sizes.Length > 0)
+        {
+            var was = Math.Clamp(CurrentPage, 0, _sizes.Length - 1);
+            into = _offset.Y / zoom - _tops[was];
+            reading = Landing(before, was, out stayed);
+        }
+
+        _lifetime.Cancel();
+        _lifetime = new CancellationTokenSource();
+        foreach (var laying in _laying.Values) laying.Cancel();
+        _laying.Clear();
+        _laid.Clear();
+        _recent.Clear();
+        _texts.Clear();
+        _anchor = _focus = null;
+        _highlights = [];
+        _currentHighlight = -1;
+
+        var kept = new Dictionary<int, Shown>();
+        for (var i = 0; i < before.Count; i++)
+        {
+            if (before[i] is not { } old || !_shown.Remove(old, out var shown)) continue;
+            shown.Index = i;
+            using (shown.Overlay.RenderOpen()) { }
+            kept[i] = shown;
+        }
+
+        foreach (var gone in _shown.Values) _visuals.Remove(gone.Visual);
+        _shown.Clear();
+        foreach (var shown in kept) _shown[shown.Key] = shown.Value;
+
+        _sizes = new Size[source.PageCount];
+        for (var i = 0; i < _sizes.Length; i++) _sizes[i] = source.PageSize(i);
+        Arranged();
+
+        if (reading is not { } page || page >= _sizes.Length) return;
+        if (stayed)
+        {
+            SetVerticalOffset((_tops[page] + into) * zoom);
+            if (CurrentPage != page) SetValue(CurrentPageKey, page);
+        }
+        else
+        {
+            GoToPage(page);
+        }
+    }
+
+    /// <summary>
+    /// Where the page that was at <paramref name="was"/> is now; or, when it is gone, the first page after it that is still
+    /// there; or the last page. <paramref name="stayed"/> says whether it is the same page.
+    /// </summary>
+    private static int? Landing(IReadOnlyList<int?> before, int was, out bool stayed)
+    {
+        int? next = null;
+        int? nextWas = null;
+        for (var i = 0; i < before.Count; i++)
+        {
+            if (before[i] is not { } old) continue;
+            if (old == was)
+            {
+                stayed = true;
+                return i;
+            }
+
+            if (old > was && (nextWas is null || old < nextWas))
+            {
+                next = i;
+                nextWas = old;
+            }
+        }
+
+        stayed = false;
+        return next ?? (before.Count > 0 ? before.Count - 1 : null);
     }
 
     /// <summary>Recomputes where every page sits, at full size, after a page size or the gap changed.</summary>
@@ -579,7 +682,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
 
         if (!PageAt(point, out var index, out var local) || !_laid.TryGetValue(index, out var laid)) return;
 
-        _pressedLink = Link(laid.Tree.Root, local);
+        _pressedLink = Link(laid.Tree.Root, local) is { } href ? new PageLink(index, href) : null;
 
         var place = new PagePlace(index, Offset(laid, local));
         if (e.ClickCount == 2 && Words(laid, local) is { } word)
@@ -824,7 +927,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
             Visual.Children.Add(Overlay);
         }
 
-        public int Index { get; }
+        public int Index { get; set; }
         public ContainerVisual Visual { get; } = new();
         public DrawingVisual Page { get; } = new();
         public DrawingVisual Overlay { get; } = new();

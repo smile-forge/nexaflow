@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Scratchpad.Services;
 
@@ -14,10 +15,7 @@ namespace Nexaflow.Features.Scratchpad.Services;
 /// </summary>
 public static class DroppedMedia
 {
-    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".ico"
-    };
+    private static readonly HashSet<string> ImageExtensions = new(DecodablePictures.Extensions, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>True when the dropped/pasted data is a single bare http(s) URL (e.g. dragged or copied
     /// from a browser address bar), returning it in <paramref name="url"/>.</summary>

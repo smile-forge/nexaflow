@@ -2,14 +2,17 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
+using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing.Paged;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -39,7 +42,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         ViewModel.NavigateToPage = (page, offsetFromTop) =>
             Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
         ViewModel.Host           = this;   // what opens beside the document — its scans' Markdown — opens in its window
-        Pages.LinkActivated += (_, href) => FollowLink(href);
+        Pages.LinkActivated += (_, link) => FollowLink(link);
         Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
         Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
         DependencyPropertyDescriptor.FromProperty(PagedLayoutElement.CurrentPageProperty, typeof(PagedLayoutElement))
@@ -58,6 +61,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
                 case nameof(PdfViewModel.FoundRanges): ShowFindHits(reveal: false); break;
                 case nameof(PdfViewModel.FindIndex):   ShowFindHits(reveal: true); break;
                 case nameof(PdfViewModel.Pages):       OpenPending(); break;
+                case nameof(PdfViewModel.CurrentPage): RevealCurrentThumbnail(); break;
             }
         };
 
@@ -256,23 +260,31 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     /// <summary>A link on a page: a place in this document is scrolled to, anything else opened as an address.</summary>
-    private void FollowLink(string href)
+    private void FollowLink(PageLink link)
     {
-        if (PdfLinks.TryRead(href, out var target))
+        if (PdfLinks.TryRead(link.Href, out var target))
         {
-            ViewModel.GoToTarget(target);
+            ViewModel.GoToTarget(link.Page, target);
             return;
         }
 
-        if (!Uri.TryCreate(href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
+        if (!Uri.TryCreate(link.Href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
             return;
 
         try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
         catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenLinkFormat", ex.Message)); }
     }
 
-    private void OpenExternal_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Opens the file in the default PDF application — the file as saved, so with unsaved page edits the reader is asked
+    /// first.
+    /// </summary>
+    private async void OpenExternal_Click(object sender, RoutedEventArgs e)
     {
+        if (ViewModel.IsDirty
+            && !await _shell.ConfirmAsync(Str.Get("Pdf.OpenExternal.UnsavedTitle"), Str.Get("Pdf.OpenExternal.UnsavedMessage")))
+            return;
+
         try
         {
             Process.Start(new ProcessStartInfo(ViewModel.FileUri.LocalPath) { UseShellExecute = true });
@@ -297,4 +309,149 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     public void Dispose() => ViewModel.Dispose();
+
+    // ── Pages tab ─────────────────────────────────────────────────────────
+
+    /// <summary>The line drawn in the gap a right-click between two pages names, while its menu is open.</summary>
+    private readonly InsertionMarker _gapMarker = new();
+
+    /// <summary>How wide, in pixels, a page's thumbnail is drawn: its sheet at this screen's scale.</summary>
+    private int ThumbnailPixels() =>
+        (int)Math.Ceiling(PdfPageThumbnail.SheetBox * VisualTreeHelper.GetDpi(this).DpiScaleX);
+
+    /// <summary>A row was given a page — its own, or a recycled row another's: that page's picture is asked for.</summary>
+    private void Thumbnail_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is PdfPageThumbnail old) ViewModel.PagesPanel.Unrealized(old);
+        if (e.NewValue is PdfPageThumbnail page) ViewModel.PagesPanel.Realized(page, ThumbnailPixels());
+    }
+
+    private void Thumbnail_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: PdfPageThumbnail page }) ViewModel.PagesPanel.Unrealized(page);
+    }
+
+    /// <summary>A click on a page with no keys held goes to it; a click with Ctrl or Shift only selects.</summary>
+    private void ThumbnailRow_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers == ModifierKeys.None && sender is ListBoxItem { DataContext: PdfPageThumbnail page })
+            ViewModel.PagesPanel.GoToCommand.Execute(page);
+    }
+
+    /// <summary>
+    /// Fills the menu for where it opened: on a page, deleting the pages selected — the page itself, unless it is one of
+    /// them — and inserting before or after it; between two pages, inserting there, the gap marked while the menu is open.
+    /// </summary>
+    private void Thumbnails_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var panel = ViewModel.PagesPanel;
+        var menu = Thumbnails.ContextMenu;
+        menu.Items.Clear();
+        if (!panel.CanEdit || panel.Pages.Count == 0)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (RowUnder(e.OriginalSource) is { DataContext: PdfPageThumbnail page } row)
+        {
+            if (!page.IsSelected)
+            {
+                Thumbnails.SelectedItems.Clear();
+                row.IsSelected = true;
+            }
+
+            var index = panel.Pages.IndexOf(page);
+            var selected = panel.SelectedCount;
+            menu.Items.Add(MenuItemFor(
+                selected == 1 ? Str.Get("Pdf.Menu.DeletePage") : Str.Format("Pdf.Menu.DeletePagesFormat", selected),
+        "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
+                menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageBefore"), "Pdf_Thumb_InsertImageBefore", panel.InsertImagesAtCommand, index));
+            menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageAfter"), "Pdf_Thumb_InsertImageAfter", panel.InsertImagesAtCommand, index + 1));
+            menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertPdfBefore"), "Pdf_Thumb_InsertPdfBefore", panel.InsertPdfsAtCommand, index));
+            menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertPdfAfter"), "Pdf_Thumb_InsertPdfAfter", panel.InsertPdfsAtCommand, index + 1));
+            return;
+        }
+
+        var gap = ItemGaps.GapAt(Thumbnails, Mouse.GetPosition(Thumbnails));
+        _gapMarker.Show(Thumbnails, gap);
+        menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageHere"), "Pdf_Gap_InsertImage", panel.InsertImagesAtCommand, gap));
+        menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertPdfHere"), "Pdf_Gap_InsertPdf", panel.InsertPdfsAtCommand, gap));
+    }
+
+    private void ThumbnailsMenu_Closed(object sender, RoutedEventArgs e) => _gapMarker.Clear();
+
+    /// <summary>Delete deletes the pages selected; Alt+Up and Alt+Down move them a place, together.</summary>
+    private void Thumbnails_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var panel = ViewModel.PagesPanel;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var alt = Keyboard.Modifiers == ModifierKeys.Alt;
+
+        if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            if (panel.DeleteSelectedCommand.CanExecute(null)) panel.DeleteSelectedCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (alt && key is Key.Up or Key.Down)
+        {
+            var step = key == Key.Up ? -1 : 1;
+            if (panel.MoveSelectionCommand.CanExecute(step)) panel.MoveSelectionCommand.Execute(step);
+            if (panel.Pages.FirstOrDefault(page => page.IsSelected) is { } moved) Thumbnails.ScrollIntoView(moved);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) undo and redo page edits, Ctrl+S saves and Ctrl+Shift+S saves as — except in a
+    /// text box, whose own undo and keys come first.
+    /// </summary>
+    private void View_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase) return;
+        var modifiers = Keyboard.Modifiers;
+        if (!modifiers.HasFlag(ModifierKeys.Control)) return;
+        var shift = modifiers.HasFlag(ModifierKeys.Shift);
+
+        System.Windows.Input.ICommand? command = e.Key switch
+        {
+            Key.Z when !shift => ViewModel.UndoCommand,
+            Key.Z             => ViewModel.RedoCommand,
+            Key.Y             => ViewModel.RedoCommand,
+            Key.S when !shift => ViewModel.SaveCommand,
+            Key.S             => ViewModel.SaveAsCommand,
+            _                 => null,
+        };
+
+        if (command is null) return;
+        if (command.CanExecute(null)) command.Execute(null);
+        e.Handled = true;
+    }
+
+    /// <summary>The page being read, shown in the Pages tab while it is open.</summary>
+    private void RevealCurrentThumbnail()
+    {
+        if (!PagesTab.IsSelected || ViewModel.CurrentPage < 1 || ViewModel.CurrentPage > ViewModel.PagesPanel.Pages.Count) return;
+        Thumbnails.ScrollIntoView(ViewModel.PagesPanel.Pages[ViewModel.CurrentPage - 1]);
+    }
+
+    private static ListBoxItem? RowUnder(object source)
+    {
+        for (var at = source as DependencyObject; at is not null; at = VisualTreeHelper.GetParent(at) ?? LogicalTreeHelper.GetParent(at))
+        {
+            if (at is ListBoxItem row) return row;
+            if (at is ListBox) return null;
+        }
+
+        return null;
+    }
+
+    private static MenuItem MenuItemFor(string header, string automationId, System.Windows.Input.ICommand command, object? parameter)
+    {
+        var item = new MenuItem { Header = header, Command = command, CommandParameter = parameter };
+        AutomationProperties.SetAutomationId(item, automationId);
+        return item;
+    }
 }

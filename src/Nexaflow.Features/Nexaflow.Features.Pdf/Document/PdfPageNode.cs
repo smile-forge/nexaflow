@@ -25,10 +25,11 @@ internal sealed record PdfPageNode(
     int Number, Size Size, Matrix FromUser, PdfGroupNode Content, IReadOnlyList<PdfAnnotationNode> Annotations, string Text,
     IReadOnlyList<PdfUnsupported> Unsupported);
 
-/// <summary>A page of a document before its content is read: enough to lay out the page's place.</summary>
-/// <param name="Number">The page's 1-based number in the document it was read from.</param>
-/// <param name="Size">The page as shown, in points.</param>
-internal readonly record struct PdfPageSlot(int Number, Size Size);
+/// <summary>
+/// A page before its content is read: its number, its size as shown, and the crop box and rotation it is shown by — what
+/// a part of it is measured against.
+/// </summary>
+internal readonly record struct PdfPageSlot(int Number, Size Size, UglyToad.PdfPig.Core.PdfRectangle Crop, int Rotation);
 
 /// <summary>
 /// A document as objects: the pages it has, in the order it shows them, and its form fields. A page's content is
