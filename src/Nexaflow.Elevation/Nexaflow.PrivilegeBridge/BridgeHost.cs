@@ -13,6 +13,8 @@ internal static class BridgeHost
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args is [UsbRestoreAllSwitch]) return RestoreUsbDriversForUninstall();
+
         // args[0] = pipe name, args[1] = one-time token (both non-sensitive; the request travels over the pipe).
         if (args.Length < 2 || string.IsNullOrWhiteSpace(args[0]) || string.IsNullOrWhiteSpace(args[1]))
             return 2;
@@ -58,5 +60,21 @@ internal static class BridgeHost
             // The launcher treats a lost pipe / nonzero exit as an Unexpected/Timeout result on its side.
             return 3;
         }
+    }
+
+    /// <summary>The installer's switch: give every USB interface Nexaflow took over back its driver.</summary>
+    public const string UsbRestoreAllSwitch = "--usb-restore-all";
+
+    /// <summary>
+    /// Uninstalling runs this, elevated, before the app's files go (spec §9.2): the same restore-all the app asks for,
+    /// with no pipe and no client — it takes no input but the switch, and works only from the machine ledger. 0 when
+    /// every binding is restored or there were none.
+    /// </summary>
+    static int RestoreUsbDriversForUninstall()
+    {
+        var request = ElevatedRequest.Single(ElevatedOps.UsbRestoreAll);
+        var result = new OperationRegistry().Run(request.Operations[0]);
+        Console.WriteLine(result.Message);
+        return result.Success ? 0 : 1;
     }
 }

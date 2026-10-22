@@ -6,6 +6,7 @@ using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Plugins;
+using Nexaflow.IO.Usb.Binding;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UsbProbe;
@@ -102,6 +103,9 @@ internal sealed class FakeFolderTool(string id, string? function, params string[
     public IReadOnlyList<string> ShownFolders => folders;
 }
 
+/// <summary>A tool that works on a function's driver, as take-over does.</summary>
+internal sealed class FakeDriverTool(string id, string? function) : FakeTool(id, function), IUsbDriverTool;
+
 /// <summary>A tool host for a tool tested on its own: confirms as told, picks what it is given, records the rest.</summary>
 internal sealed class RecordingHost : IUsbToolHost
 {
@@ -113,6 +117,10 @@ internal sealed class RecordingHost : IUsbToolHost
     public readonly List<(string Kind, IReadOnlyDictionary<string, string> Parameters)> Opened = [];
 
     public UsbIdsDatabase? Names { get; init; } = UsbIdsDatabase.LoadBundled();
+
+    public FakeBroker Broker { get; init; } = new();
+
+    public IUsbDeviceBroker DriverBroker => Broker;
 
     public Task RunOnUiAsync(Action action)
     {
@@ -149,4 +157,31 @@ internal sealed class RecordingHost : IUsbToolHost
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions) => Task.FromResult(SavedFile);
     public void OpenPage(string pageKind, IReadOnlyDictionary<string, string> parameters) => Opened.Add((pageKind, parameters));
     public void Log(IUsbTool tool, string message) => Logged.Add(message);
+}
+
+/// <summary>A take-over broker that changes nothing: it refuses what the test tells it to, answers each change as the
+/// test sets, keeps the bindings the test gives it, and records what it was asked.</summary>
+internal sealed class FakeBroker : IUsbDeviceBroker
+{
+    public readonly Dictionary<string, string> Refusals = new(StringComparer.OrdinalIgnoreCase);
+    public readonly List<UsbBindingRecord> Bindings = [];
+    public readonly List<string> Asked = [];
+    public UsbBindingOutcomeKind Answer = UsbBindingOutcomeKind.Succeeded;
+
+    public string? RefusalReason(string interfaceInstanceId) => Refusals.GetValueOrDefault(interfaceInstanceId);
+
+    public Task<UsbBindingOutcome> BindGenericAsync(string interfaceInstanceId, GenericUsbDriverKind kind, CancellationToken ct) =>
+        Outcome($"bind {interfaceInstanceId} {kind}");
+
+    public Task<UsbBindingOutcome> RestoreAsync(string interfaceInstanceId, CancellationToken ct) => Outcome($"restore {interfaceInstanceId}");
+
+    public Task<UsbBindingOutcome> RestoreAllAsync(CancellationToken ct) => Outcome("restore all");
+
+    public IReadOnlyList<UsbBindingRecord> GetBindings() => Bindings;
+
+    Task<UsbBindingOutcome> Outcome(string asked)
+    {
+        Asked.Add(asked);
+        return Task.FromResult(new UsbBindingOutcome(Answer, $"{asked}: {Answer}", []));
+    }
 }

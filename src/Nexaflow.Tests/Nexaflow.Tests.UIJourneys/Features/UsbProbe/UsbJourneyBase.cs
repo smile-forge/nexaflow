@@ -9,6 +9,7 @@ using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Windows;
+using Nexaflow.Tests.Features.UI;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -16,10 +17,10 @@ namespace Nexaflow.Tests.Features.UsbProbe.UI;
 
 /// <summary>
 /// What the USB journeys share. The machine's USB devices are read once per run, in this process, before any app is
-/// launched — so a journey knows which device it drives and goes straight to it by its port path, and a journey whose
-/// hardware is not plugged in says so without launching anything.
+/// launched — so a journey knows which devices it drives and goes straight to each by its port path, and skips what is
+/// not plugged in. Options is in reach too, for the USB section of it.
 /// </summary>
-public abstract class UsbJourneyBase : UiJourneyTestBase
+public abstract class UsbJourneyBase : OptionsOverlayJourney
 {
     static readonly Lazy<IReadOnlyList<UsbDeviceNode>> Machine = new(() =>
     {
@@ -35,10 +36,14 @@ public abstract class UsbJourneyBase : UiJourneyTestBase
     protected static readonly string[] AudioOutControls =
         ["UsbAudio_Signal", "UsbAudio_Frequency", "UsbAudio_Level", "UsbAudio_Channel", "UsbAudio_Play", "UsbAudio_Stop", "UsbAudio_Identify"];
     protected static readonly string[] AudioInControls = ["UsbAudio_Meters", "UsbAudio_Duration", "UsbAudio_Record"];
+    protected static readonly string[] RawControls =
+        ["UsbRaw_Pipes", "UsbRaw_Template", "UsbRaw_Direction", "UsbRaw_Type", "UsbRaw_Recipient", "UsbRaw_Request", "UsbRaw_Value",
+         "UsbRaw_Index", "UsbRaw_Length", "UsbRaw_SendControl", "UsbRaw_Session", "UsbRaw_ClearSession", "UsbRaw_SaveSession"];
 
     /// <summary>Each tool's controls, checked when its tile is on the page. The ones shown only mid-action — a copy's
     /// Cancel, Stop recording, a WAV's chooser — or only where the device allows — watching a HID collection's input,
-    /// which Windows refuses for keyboards and mice — are listed for what they are and not expected.</summary>
+    /// which Windows refuses for keyboards and mice; restoring a driver Nexaflow holds; an endpoint reader or writer
+    /// where the function has such an endpoint — are listed for what they are and not expected.</summary>
     protected static readonly (string Tool, string[] Always, string[] Sometimes)[] ToolControls =
     [
         ("storage", StorageControls, ["Store_Crumb", "Store_Cancel", "Store_LastResult"]),
@@ -48,6 +53,10 @@ public abstract class UsbJourneyBase : UiJourneyTestBase
                 ["UsbHid_Reports", "UsbHid_StartMonitor", "UsbHid_Clear", "UsbHid_StopMonitor", "UsbHid_FeatureId", "UsbHid_ReadFeature",
                  "UsbHid_FeatureHex", "UsbHid_SendFeature", "UsbHid_OutputHex", "UsbHid_SendOutput"]),
         ("serial", ["UsbSerial_OpenTerminal"], []),
+        ("take over", ["UsbTakeOver_TakeOver"], ["UsbTakeOver_Restore", "UsbTakeOver_RestoreAll"]),
+        ("raw", RawControls,
+                ["UsbRaw_Data", "UsbRaw_LetGo", "UsbRaw_ReadPipe", "UsbRaw_StartRead", "UsbRaw_StopRead", "UsbRaw_WritePipe",
+                 "UsbRaw_PayloadText", "UsbRaw_Repeat", "UsbRaw_Interval", "UsbRaw_Payload", "UsbRaw_Write", "UsbRaw_StopWrite"]),
     ];
 
     /// <summary>Where this journey's screenshots go, under the temp folder.</summary>
@@ -88,6 +97,23 @@ public abstract class UsbJourneyBase : UiJourneyTestBase
         if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(tabId)) is not { } tab) return false;
         tab.Patterns.SelectionItem.Pattern.Select();
         return WaitForFs(() => tab.Patterns.SelectionItem.Pattern.IsSelected.Value, 2);
+    }
+
+    /// <summary>Closes every serial terminal and device page open, which leaves the USB page in front — so the next step
+    /// starts where a person's would, with no other page's controls about. True once the USB page shows.</summary>
+    protected bool BackToUsbPage()
+    {
+        foreach (var kind in new[] { "Serial", "UsbDevice" })
+            for (int open = CountOf($"CloseTab_{kind}"); open > 0; open--)
+            {
+                if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId($"CloseTab_{kind}")) is not { } close) break;
+                if (close.Patterns.Invoke.PatternOrDefault is { } invoke) invoke.Invoke();
+                else close.Click();
+                int before = open;
+                if (!WaitForFs(() => CountOf($"CloseTab_{kind}") < before, 3)) return false;
+            }
+        if (WaitForId("UsbProbeView", 2) is null) MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabItem_UsbProbe"))?.Click();
+        return WaitForId("UsbProbeView", 5) is not null;
     }
 
     /// <summary>The device page's tools are offered off the UI thread: true once its tiles, or the note saying why there

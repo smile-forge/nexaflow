@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Nexaflow.Icons;
+using Nexaflow.IO.Usb.Binding;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 
@@ -85,6 +86,10 @@ public interface IUsbToolHost
 {
     /// <summary>usb.ids, for naming HID usages and classes; null when none is loaded.</summary>
     UsbIdsDatabase? Names { get; }
+
+    /// <summary>Driver take-over and restore. Its changes go through the elevated bridge, one UAC prompt each; a host that
+    /// must ask nothing of the user gives one that refuses them.</summary>
+    IUsbDeviceBroker DriverBroker { get; }
 
     /// <summary>Runs <paramref name="action"/> on the UI thread — the only place a tool changes what is bound.</summary>
     Task RunOnUiAsync(Action action);

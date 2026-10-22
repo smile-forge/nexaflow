@@ -16,10 +16,11 @@ namespace Nexaflow.Tests.Features.UI;
 /// </remarks>
 public abstract class OptionsOverlayJourney : UiJourneyTestBase
 {
-    /// <summary>Opens the modal overlay and returns its section list.</summary>
-    protected AutomationElement OpenOptions()
+    /// <summary>Opens the modal overlay and returns its section list, once the page the app launched into has loaded.</summary>
+    /// <param name="launchedViewId">That page's view: the file browser's tree for the default tab.</param>
+    protected AutomationElement OpenOptions(string launchedViewId = "DirectoryTree")
     {
-        Assert.IsNotNull(WaitForId("DirectoryTree", 15), "Default FileSystem tab did not load.");
+        Assert.IsNotNull(WaitForId(launchedViewId, 15), $"The tab the app launched into ({launchedViewId}) did not load.");
 
         CheckInvoke("Options button (open)", "Chrome_OptionsButton");
         CheckPresent("Options overlay",      "Chrome_OptionsPanel");

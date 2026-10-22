@@ -31,6 +31,7 @@ public class CoverageGuardTests
         ["UsbProbe.HidTools"]       = "UsbProbe",
         ["UsbProbe.SerialLink"]     = "UsbProbe",
         ["UsbProbe.PortableTools"]  = "UsbProbe",
+        ["UsbProbe.RawTools"]       = "UsbProbe",
     };
 
     [TestMethod]

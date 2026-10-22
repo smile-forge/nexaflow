@@ -62,6 +62,24 @@ internal static class UsbProbeSamples
             Children = [new UsbChildNode(@"USBSTOR\DISK&VEN_SANDISK&PROD_ULTRA\4C530001&0", "DiskDrive", "disk", "SanDisk Ultra USB Device")],
         }]);
 
+    public const string GadgetId = @"USB\VID_CAFE&PID_0001\GADGET1";
+
+    /// <summary>A vendor-defined gadget's device descriptor: VID CAFE, PID 0001, class FF.</summary>
+    public const string GadgetDevice = "12 01 00 02 FF 00 00 40 FE CA 01 00 00 01 01 02 03 01";
+
+    /// <summary>One vendor-defined interface with a bulk endpoint each way, 0x81 IN and 0x01 OUT.</summary>
+    const string GadgetConfiguration = "09 02 20 00 01 01 00 80 32 09 04 00 00 02 FF 00 00 00 07 05 81 02 40 00 00 07 05 01 02 40 00 00";
+
+    /// <summary>A vendor-defined gadget on the hub's port 3, one function that is the whole device: with no driver, or on
+    /// the generic driver given — WinUSB with the device interface it registers.</summary>
+    public static UsbDeviceNode Gadget(string? service = null)
+    {
+        var driver = Driver(service, service is null ? null : "winusb.inf");
+        var gadget = Device(GadgetId, HubId, 3, [2, 3], GadgetDevice, GadgetConfiguration, UsbSpeed.High, false, UsbDeviceStrings.Unread,
+            c => [Function(GadgetId, null, c, driver) with { DeviceInterfaceGuids = service is null ? [] : [new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817")] }]);
+        return gadget with { Driver = driver };
+    }
+
     public static UsbInventorySnapshot Tree(params UsbDeviceNode[] devices)
     {
         var connected = devices.Select(d => d.Location.PortPath).ToHashSet();

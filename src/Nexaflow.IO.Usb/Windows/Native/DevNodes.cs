@@ -53,6 +53,8 @@ internal static unsafe class DevNodes
 
     public static Guid? Guid(uint devInst, in DevPropKey key) => Read<Guid?>(devInst, key, TypeGuid, static d => new Guid(d[..16]));
 
+    public static uint? UInt32(uint devInst, in DevPropKey key) => Read<uint?>(devInst, key, TypeUInt32, static d => BinaryPrimitives.ReadUInt32LittleEndian(d));
+
     /// <summary>CM_POWER_DATA.PD_MostRecentPowerState.</summary>
     public static UsbPowerState Power(uint devInst) =>
         Read<UsbPowerState?>(devInst, DevPropKeys.PowerData, TypeBinary, static d => d.Length >= 8

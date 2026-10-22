@@ -409,18 +409,13 @@ public static class HidHex
 {
     public static bool TryParse(string text, out byte[] bytes, out string? error)
     {
-        var digits = new StringBuilder();
-        foreach (var token in text.Split([' ', ',', ';', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries))
+        if (string.IsNullOrWhiteSpace(text))
         {
-            var t = token.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? token[2..] : token;
-            digits.Append(t.Length % 2 == 1 ? "0" + t : t);
+            bytes = [];
+            error = Str.Get("HidTools.Hex.Empty");
+            return false;
         }
-        var s = digits.ToString();
-        bytes = [];
-        if (s.Length == 0) { error = Str.Get("HidTools.Hex.Empty"); return false; }
-        if (!s.All(Uri.IsHexDigit)) { error = Str.Get("HidTools.Hex.NotHex"); return false; }
-        bytes = Convert.FromHexString(s);
-        error = null;
-        return true;
+        error = UsbHex.TryParse(text, out bytes) ? null : Str.Get("HidTools.Hex.NotHex");
+        return error is null;
     }
 }

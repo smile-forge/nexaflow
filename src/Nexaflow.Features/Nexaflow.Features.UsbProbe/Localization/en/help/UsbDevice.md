@@ -22,6 +22,14 @@ One USB device on its own page: what it is, what you can do with it now, what it
 - **Audio input** meters every channel live, and [Record…](locate:UsbAudio_Record) saves a few seconds to a WAV exactly as the device sent it.
 - **HID** shows each collection's report layout as the HID class driver decoded it, [watches its input](locate:UsbHid_StartMonitor) live, and reads and sends feature and output reports. Sending a report asks first. Windows keeps keyboards and mice to itself, so their input cannot be watched here; their layout and feature reports can.
 - **Serial port** names the COM port of a serial device — or of a phone's modem — and [opens the serial terminal](locate:UsbSerial_OpenTerminal) on it.
+- **Driver** shows the driver Windows has on a part of the device, and [Take over…](locate:UsbTakeOver_TakeOver) puts that part on WinUSB, Windows' own generic driver, so Nexaflow can talk to it directly. It says first what stops working while it is taken over — an audio device stops playing, a serial port goes away — and Windows asks for administrator permission. Another of the same model plugged in later gets WinUSB too. [Restore its driver…](locate:UsbTakeOver_Restore) gives it back, and [Restore all…](locate:UsbTakeOver_RestoreAll) gives back every part Nexaflow took over on this PC, with one permission prompt. Hubs, disks, keyboards and mice in use are never taken over. Uninstalling Nexaflow restores them all.
+- **Raw access** talks to a part on WinUSB — one Nexaflow took over, or a device that asked for WinUSB itself:
+  - [Send](locate:UsbRaw_SendControl) a control transfer: a standard read from the list, or any request typed in field by field.
+  - [Read](locate:UsbRaw_StartRead) a bulk or interrupt endpoint as data arrives, and pause it.
+  - [Send…](locate:UsbRaw_Write) hex or text to an endpoint, once or repeated.
+  - Every transfer goes into the session below it, newest first, and [Save log…](locate:UsbRaw_SaveSession) saves the whole session as text.
+  - Anything that sends data to the device asks first. Requests and data its maker did not document can change its settings, erase it, or start a firmware update.
+  - The part stays open — no other program can open it — until you [let it go](locate:UsbRaw_LetGo) or close the page.
 - Anything on the device no tool covers is listed last, with what it is and what a tool for it would use.
 
 ## Interfaces
@@ -29,9 +37,9 @@ One USB device on its own page: what it is, what you can do with it now, what it
 
 ## Diagnostics
 - Problems Windows or the descriptors report: problem codes in plain words, descriptors that do not add up, strings the device did not answer for. [Show me](locate:UsbDevice_Tab_Diagnostics,UsbDevice_Problems)
-- Everything the live tools did — copies, recordings, reports sent — with the time. [Show me](locate:UsbDevice_Log)
+- Everything the live tools did — copies, recordings, reports sent, drivers changed, control transfers and writes — with the time. [Show me](locate:UsbDevice_Log)
 - [Read device again](locate:UsbDevice_ReRead) asks the device for its descriptors and strings, waking it if it slept.
 - [Copy](locate:UsbDevice_CopyDebug) or [save](locate:UsbDevice_SaveDebug) the device's debug details for the Nexaflow developers: its descriptors raw, what Windows made of it, its HID report descriptors, what each live tool sees, and what they did. Send them when a device does not work as it should. Serial numbers and volume labels are left out.
 
 ## Asking the assistant
-- The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report.
+- The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report, sending a control request or writing to an endpoint, and taking a part over or restoring its driver — which Windows also asks permission for.

@@ -11,6 +11,7 @@ internal static unsafe partial class Kernel32
     public const uint FileShareRead = 0x1;
     public const uint FileShareWrite = 0x2;
     public const uint OpenExisting = 3;
+    public const uint FileFlagOverlapped = 0x40000000;
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     public static partial SafeFileHandle CreateFile(string fileName, uint access, uint share, nint securityAttributes, uint disposition, uint flags, nint template);
@@ -65,6 +66,7 @@ internal static class DevPropKeys
     public static readonly DevPropKey ClassGuid = new(Device, 10);
     public static readonly DevPropKey DriverKey = new(Device, 11);
     public static readonly DevPropKey FriendlyName = new(Device, 14);
+    public static readonly DevPropKey Address = new(Device, 30);
     public static readonly DevPropKey PowerData = new(Device, 32);
     public static readonly DevPropKey LocationPaths = new(Device, 37);
     public static readonly DevPropKey DriverVersion = new(Driver, 3);

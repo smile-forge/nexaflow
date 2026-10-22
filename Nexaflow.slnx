@@ -138,6 +138,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.HidTools/Nexaflow.Features.UsbProbe.HidTools.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.RawTools/Nexaflow.Features.UsbProbe.RawTools.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.UsbProbe.SerialLink/Nexaflow.Features.UsbProbe.SerialLink.csproj">
       <Platform Project="x64" />
     </Project>

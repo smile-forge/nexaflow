@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common.Stores;
+using Nexaflow.IO.Usb.Binding;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.IO.Usb.Inventory;
@@ -42,6 +43,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     readonly UsbIdsStore _names;
     readonly IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>> _providers;
     readonly IShellServices _shell;
+    readonly IUsbDeviceBroker _broker;
     readonly CancellationTokenSource _lifetime = new();
     readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
     readonly HashSet<Uri> _templates = [];
@@ -58,12 +60,13 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     bool _started, _pageShown, _disposed;
 
     public UsbDeviceViewModel(IUsbDeviceInventory inventory, UsbIdsStore names,
-        IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>> providers, IShellServices shell, string target)
+        IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>> providers, IShellServices shell, IUsbDeviceBroker broker, string target)
     {
         _inventory = inventory;
         _names = names;
         _providers = providers;
         _shell = shell;
+        _broker = broker;
         _target = UsbLocationPath.Normalize(target);
         _maps = new UsbDescriptorMapCache(names.Current);
         _browser = new UsbBrowser(UsbInventorySnapshot.Empty, _maps);
@@ -361,7 +364,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
             Tiles.Add(tile);
         }
 
-        var uncovered = device.IsEjected ? [] : Uncovered(device, offered.Select(o => o.Tool.FunctionInstanceId));
+        var uncovered = device.IsEjected ? [] : Uncovered(device, offered.Select(o => o.Tool));
         if (uncovered.Count > 0) Tiles.Add(new UsbUncoveredTile(uncovered));
 
         NoTools = Tiles.Count > 0 ? null
@@ -371,10 +374,11 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         SyncInView();
     }
 
-    /// <summary>The functions no tool works through — hubs and usbccgp's split aside, which are plumbing.</summary>
-    internal static IReadOnlyList<UsbUncoveredFunction> Uncovered(UsbDeviceNode device, IEnumerable<string?> claimedBy)
+    /// <summary>The functions no tool works with — hubs and usbccgp's split aside, which are plumbing, and driver tools
+    /// aside, which change how a function is reached but use it no more than before.</summary>
+    internal static IReadOnlyList<UsbUncoveredFunction> Uncovered(UsbDeviceNode device, IEnumerable<IUsbTool> tools)
     {
-        var claimed = claimedBy.ToList();
+        var claimed = tools.Where(t => t is not IUsbDriverTool).Select(t => t.FunctionInstanceId).ToList();
         bool wholeDevice = claimed.Contains(null);
         var set = claimed.OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
         var uncovered = new List<UsbUncoveredFunction>();
@@ -384,7 +388,7 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
             if (wholeDevice && device.Functions.Count == 1) continue;
             var cls = device.ClassOf(function);
             if (cls.Class == UsbClassCodes.Hub) continue;
-            uncovered.Add(new UsbUncoveredFunction(FunctionLabel(device, function.InstanceId) ?? cls.Name, cls.Name, UsbClassGuidance.For(cls, function.Mode)));
+            uncovered.Add(new UsbUncoveredFunction(FunctionLabel(device, function.InstanceId) ?? cls.Name, cls.Name, UsbClassGuidance.For(cls, function.Mode, function.Driver.Service)));
         }
         return uncovered;
     }
@@ -496,6 +500,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
     sealed class ToolHost(UsbDeviceViewModel page) : IUsbToolHost
     {
         public UsbIdsDatabase? Names => page._names.Current;
+
+        public IUsbDeviceBroker DriverBroker => page._broker;
 
         public Task RunOnUiAsync(Action action) => page._shell.RunOnUiAsync(action);
 

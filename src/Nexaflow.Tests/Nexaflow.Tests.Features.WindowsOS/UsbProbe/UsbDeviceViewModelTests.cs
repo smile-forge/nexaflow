@@ -58,7 +58,7 @@ public class UsbDeviceViewModelTests
     async Task<UsbDeviceViewModel> PageAsync(string target, params IUsbToolProvider[] providers)
     {
         var handles = providers.Select((p, i) => (ISubfeatureHandle<IUsbToolProvider>)new FakeHandle<IUsbToolProvider>(p, $"p{i}")).ToList();
-        var vm = new UsbDeviceViewModel(_inventory, new UsbIdsStore(_dir, () => null), handles, _shell, target);
+        var vm = new UsbDeviceViewModel(_inventory, new UsbIdsStore(_dir, () => null), handles, _shell, new FakeBroker(), target);
         await vm.StartAsync();
         await vm.Offered;
         return vm;
@@ -98,7 +98,7 @@ public class UsbDeviceViewModelTests
         var hid = HidTools();
 
         var handles = new IUsbToolProvider[] { hid, broken }.Select((p, i) => (ISubfeatureHandle<IUsbToolProvider>)new FakeHandle<IUsbToolProvider>(p, $"p{i}")).ToList();
-        var vm = new UsbDeviceViewModel(_inventory, new UsbIdsStore(_dir, () => null), handles, _shell, "1-2.4");
+        var vm = new UsbDeviceViewModel(_inventory, new UsbIdsStore(_dir, () => null), handles, _shell, new FakeBroker(), "1-2.4");
         vm.TemplatesNeeded += templates.Add;
         await vm.StartAsync();
         await vm.Offered;
@@ -115,6 +115,19 @@ public class UsbDeviceViewModelTests
 
         StringAssert.Contains(vm.Log.Single().Message, "no driver for this", "a broken provider is logged, and the others' tools still come");
         Assert.IsNull(vm.NoTools, "a tab with tiles needs no explanation");
+    }
+
+    [TestMethod]
+    public async Task ADriverTool_DoesNotCoverItsFunction_SoWhatTheFunctionIsIsStillSaid()
+    {
+        string serial = UsbProbeSamples.LgId.Replace("9A39", "9A39&MI_01");
+        var takeOver = new FakeProvider("takeover", (_, _) => [new FakeDriverTool("test.takeover", serial)]);
+
+        var vm = await PageAsync("1-2.4", HidTools(), takeOver);
+
+        Assert.AreEqual(2, vm.Tiles.OfType<UsbToolTile>().Count(), "the driver tool has its tile");
+        StringAssert.Contains(vm.Tiles.OfType<UsbUncoveredTile>().Single().Functions.Single().Name, "interface 1",
+            "taking a function over or not, no tool uses it, and the page says what one would use");
     }
 
     [TestMethod]

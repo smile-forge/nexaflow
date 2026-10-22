@@ -26,6 +26,16 @@ public static class UsbFunctionLayout
     }
 
     /// <summary>
+    /// The COM port a function is, while it is one: its Device Parameters' PortName counts only under the Ports or Modem
+    /// class. Windows leaves the name behind when another driver takes the function — WinUSB after a take-over — and a
+    /// port that no longer exists is not one to open a terminal on.
+    /// </summary>
+    public static string? ComPortOf(string? className, string? portName) =>
+        string.Equals(className, "Ports", StringComparison.OrdinalIgnoreCase) || string.Equals(className, "Modem", StringComparison.OrdinalIgnoreCase)
+            ? portName
+            : null;
+
+    /// <summary>
     /// The interfaces a function owns. A non-composite device owns every interface of its configuration; an
     /// <c>MI_xx</c> function owns interface xx, or the whole association xx belongs to — usually the one xx opens,
     /// but usbccgp may name the function after a later interface (a C930e's audio is MI_03 over IAD 2–3).

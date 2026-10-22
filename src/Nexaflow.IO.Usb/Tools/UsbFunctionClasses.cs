@@ -40,18 +40,23 @@ public static class UsbFunctionClasses
 
 /// <summary>
 /// What to say about a function no live tool covers: what it is, why nothing here talks to it, and what a tool for it
-/// would use. Phase 2 covers storage, audio, HID and serial; this is the honest answer for the rest.
+/// would use. The live tools cover storage, phones, audio, HID, serial and anything on WinUSB; this is the honest
+/// answer for the rest.
 /// </summary>
 public static class UsbClassGuidance
 {
-    public static string For(UsbClassTriple triple, UsbFunctionMode mode)
+    /// <param name="service">The function's driver service — which generic driver, when it is on one.</param>
+    public static string For(UsbClassTriple triple, UsbFunctionMode mode, string? service)
     {
         if (mode == UsbFunctionMode.NoDriver)
             return "Windows has no driver for this function, so nothing on this machine can use it yet. Installing its driver, "
-                 + "or taking it over with a generic driver for raw access, would change that.";
+                 + "or taking it over with WinUSB for raw access, would change that.";
         if (mode == UsbFunctionMode.GenericRaw)
-            return "It is on a generic driver (WinUSB or libusb), so raw access reaches it: control, bulk and interrupt transfers "
-                 + "with no driver change.";
+            return string.Equals(service, "WinUSB", StringComparison.OrdinalIgnoreCase)
+                ? "It is on WinUSB, so a program can talk to it directly: Raw access does, once WinUSB has registered a device "
+                + "interface for it."
+                : $"It is on {service}, a generic driver reached through libusb. Raw access here goes through WinUSB, so nothing "
+                + "on this page talks to it.";
 
         return (triple.Class, triple.SubClass, triple.Protocol) switch
         {

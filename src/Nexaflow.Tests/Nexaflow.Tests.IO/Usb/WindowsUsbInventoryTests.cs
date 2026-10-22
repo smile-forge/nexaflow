@@ -26,6 +26,9 @@ public class WindowsUsbInventoryTests
         {
             Assert.AreEqual(hub.PortCount, hub.Ports.Count, $"{hub.InstanceId}: every port is listed, empty or not");
             Assert.IsTrue(hub.Bus >= 1, $"{hub.InstanceId} is on no bus");
+            foreach (var port in hub.Ports.Where(p => p.Connected))
+                Assert.IsTrue(snapshot.Devices.Any(d => string.Equals(d.Location.HubInstanceId, hub.InstanceId, StringComparison.OrdinalIgnoreCase) && d.Location.Port == port.Number),
+                    $"{hub.InstanceId} port {port.Number}: something is plugged in but no device was placed there — with a driver or without");
         }
         foreach (var device in snapshot.Devices)
         {
