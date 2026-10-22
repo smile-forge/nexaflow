@@ -79,11 +79,29 @@ internal sealed class ConversationLog : IDisposable
                 $"The conversation is {conversation.Tokens + tokens} tokens, longer than {_model.Spec.Id}'s context of {context}.");
         lock (_gate)
         {
-            while (_live.Sum(c => c.Tokens) + tokens > context && _kept.Count > 0) DropOldest();
-            if (_live.Sum(c => c.Tokens) + tokens > context)
+            while (Held + tokens > context && _kept.Count > 0) DropOldest();
+            if (Held + tokens > context)
                 throw new HostRequestException(HostErrorKind.Refused, $"{_model.Spec.Id}'s context is held by the conversations it is answering.");
         }
     }
+
+    /// <summary>
+    /// Makes room in the cache for the token each conversation being answered reads next, as replies are written: the kept
+    /// conversations go, oldest first, until there is. False where the conversations being answered hold it all — a reply
+    /// that reaches it has filled what it can read.
+    /// </summary>
+    public bool MakeRoomForNext()
+    {
+        int context = _model.Context.Tokens;
+        lock (_gate)
+        {
+            while (Held + _live.Count > context && _kept.Count > 0) DropOldest();
+            return Held + _live.Count <= context;
+        }
+    }
+
+    /// <summary>The cells every conversation holds — those being answered, and those kept for a next request.</summary>
+    private int Held => _live.Sum(c => c.Tokens) + _kept.Sum(c => c.Tokens);
 
     private void DropOldest()
     {

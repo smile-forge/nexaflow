@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 
 using Nexaflow.Core.Services.Generation;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Documents.Processing;
 using Nexaflow.Visuals.Common.Localization;
@@ -37,14 +38,14 @@ internal sealed class SummarizeDocumentTool(DocumentJob job) : IClientTool
     }
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) =>
-        job.RunAsync(arguments, name => Str.Format("Shell.Documents.SummaryNameFormat", name) + ".md",
+        job.RunAsync(arguments, DocumentWorkKind.Summary, null, name => Str.Format("Shell.Documents.SummaryNameFormat", name) + ".md",
                      [DocumentGistPass.Shelf, SummaryQuestion.Shelf],
                      async work =>
                      {
                          var gist = await new DocumentGistPass(work.Model, work.Notes, work.Progress).SayAsync(work.Reading, ct);
                          var summary = await new SectionPass(work.Model, work.Notes, new SummaryQuestion(), work.Progress).RunAsync(work.Reading, gist, ct);
 
-                         return SummaryMarkdown.Write(summary, gist, System.IO.Path.GetFileNameWithoutExtension(work.Path), work.Path);
+                         return new DocumentMade(SummaryMarkdown.Write(summary, gist, System.IO.Path.GetFileNameWithoutExtension(work.Path), work.Path));
                      },
                      ct);
 

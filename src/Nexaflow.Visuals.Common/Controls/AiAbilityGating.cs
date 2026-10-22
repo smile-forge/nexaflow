@@ -7,7 +7,7 @@ namespace Nexaflow.Visuals.Common.Controls;
 /// <summary>
 /// Puts a control behind an AI ability gate — any object with an <c>IsEnabled</c> and a <c>DisabledTip</c> that it raises
 /// changes of, as <c>IAiAbilityGate</c> is: the control is enabled as the gate is, and while it is disabled its tooltip is
-/// the gate's, saying how to enable it, its own coming back once it is enabled. A null gate leaves the control as it is,
+/// the gate's, saying how to enable it, its own coming back once it is enabled — bound as it was. A null gate leaves the control as it is,
 /// so one template serves controls that need no ability.
 /// </summary>
 /// <example><c>&lt;Button Command="{Binding SolveCommand}" vcc:AiAbilityGating.Gate="{Binding Answering}"/&gt;</c></example>
@@ -57,14 +57,27 @@ public static class AiAbilityGating
         bool showing = (bool)element.GetValue(ShowingTipProperty);
         if (!(bool)element.GetValue(GateEnabledProperty) && element.GetValue(DisabledTipProperty) is string tip)
         {
-            if (!showing) element.SetValue(OwnTipProperty, element.ToolTip);
+            // A bound tip is kept as its binding — an expression belongs to the one property it was made for.
+            if (!showing && element.ReadLocalValue(FrameworkElement.ToolTipProperty) is var own)
+                element.SetValue(OwnTipProperty, own is BindingExpressionBase bound ? bound.ParentBindingBase : own);
             element.SetValue(ShowingTipProperty, true);
             element.ToolTip = tip;
         }
         else if (showing)
         {
             element.SetValue(ShowingTipProperty, false);
-            element.ToolTip = element.GetValue(OwnTipProperty);
+            Restore(element, element.GetValue(OwnTipProperty));
         }
+    }
+
+    /// <summary>
+    /// The control's own tooltip back as it was before the gate's stood in for it: bound again where it was bound — a tip that
+    /// says what is under way, a string that follows the reader's language — set again where it was set, cleared where it had none.
+    /// </summary>
+    private static void Restore(FrameworkElement element, object? own)
+    {
+        if (own is BindingBase bound) element.SetBinding(FrameworkElement.ToolTipProperty, bound);
+        else if (own == DependencyProperty.UnsetValue) element.ClearValue(FrameworkElement.ToolTipProperty);
+        else element.ToolTip = own;
     }
 }

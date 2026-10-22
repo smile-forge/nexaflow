@@ -112,4 +112,17 @@ public class ProtectedTextTests
         Assert.IsNull(ProtectedText.Problem(text.Masked, Answer), "what a shown mark shows is not the answer's to keep");
         Assert.AreEqual("Ouvrez un fichier `.md`.\n", text.Rebuilt(Answer), "the code moves to where French puts it, as it was written");
     }
+
+    [TestMethod]
+    public void AMarkAnAnswerMadeUp_IsTakenOut_AndOneWrittenAsNoMark_IsAProblem()
+    {
+        const string Plain = "die Ladung Q erfüllt sie";
+
+        Assert.AreEqual("the charge Q satisfies it", ProtectedText.Mended(Plain, "the charge ⟦1⟧ Q satisfies it"), "a mark it made up stands for nothing");
+        Assert.IsNull(ProtectedText.Problem(Plain, ProtectedText.Mended(Plain, "the charge ⟦1⟧ Q satisfies it")));
+        Assert.AreEqual("keep ⟦0⟧ here", ProtectedText.Mended("behalte ⟦0⟧ hier", "keep ⟦0⟧ here"), "its own marks stay as it gave them");
+
+        StringAssert.Contains(ProtectedText.Problem("die Gleichungen ⟦3⟧ und ⟦4⟧", "the equations ⟦3,4⟧"), "⟦3,4⟧ is no mark",
+            "something written as a mark that is none never reaches the document");
+    }
 }

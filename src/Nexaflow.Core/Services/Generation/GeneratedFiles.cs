@@ -86,10 +86,11 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
     /// draft named <paramref name="name"/>, beside copies of what its links and pictures name beside <paramref name="from"/> so
     /// they still show, its Save as starting in <paramref name="from"/>'s folder; then opens it.
     /// </summary>
-    public async Task<MadeFile> KeepDocumentAsync(string markdown, string? asked, string name, string from, CancellationToken ct)
+    public async Task<MadeFile> KeepDocumentAsync(string markdown, string? asked, string name, string from, string? attachments, CancellationToken ct)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(markdown);
         var folder = Path.GetDirectoryName(Path.GetFullPath(from))!;
+        var files = VirtualFileSystem.Instance;
 
         if (!string.IsNullOrWhiteSpace(asked) && scope.ResolveInFolder(Target(asked, Path.GetFileNameWithoutExtension(name), ".md")) is { } target)
         {
@@ -103,12 +104,13 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
 
         foreach (var attached in Nexaflow.Markdown.Packaging.MarkdownAttachments.Paths(markdown))
         {
-            var source = Path.Combine(folder, attached);
-            if (!File.Exists(source)) continue;
+            // Read where the document reads it — beside it, or inside its package — so a draft shows what the document shows.
+            var source = Path.Combine(attachments ?? folder, attached);
+            if (!files.Exists(source)) continue;
 
             var copy = Path.Combine(beside, attached);
             Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
-            File.Copy(source, copy, overwrite: true);
+            await File.WriteAllBytesAsync(copy, files.ReadAllBytes(source), ct);
         }
 
         await show(new DraftFile(draft, folder));

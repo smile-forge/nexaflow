@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
 
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Documents.Processing;
 using Nexaflow.Visuals.Common.Localization;
@@ -53,7 +54,7 @@ internal sealed class AskDocumentTool(DocumentJob job) : IClientTool
         if (ToolArgs.Str(arguments, QuestionParameter) is not { Length: > 0 } asked)
             return Task.FromResult(ToolResult.Error("no question", $"Give the '{QuestionParameter}' to answer from the document."));
 
-        return job.WorkAsync(arguments, async work =>
+        return job.WorkAsync(arguments, DocumentWorkKind.Question, null, async work =>
         {
             var record = await DocumentRecord.ReadAsync(work.Notes, SummaryQuestion.Shelf, work.Reading, ct);
             if (record is null)
