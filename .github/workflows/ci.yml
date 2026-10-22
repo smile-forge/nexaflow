@@ -157,6 +157,12 @@ jobs:
       # The MSTest/MTP test exes take --filter directly. The TFM map is per-project because they genuinely
       # differ — Initiatives and Maths are plain net10.0 (WPF-free subjects), IO/Providers/AiHost/Visuals/Components
       # are net10.0-windows (no WinRT), the rest carry the Windows SDK TFM.
+      #
+      # tools/ci/Invoke-UnitTests.ps1 runs them. Each suite writes a TRX report, and every failed test in it is
+      # re-run once by name: failed twice is an ::error titled with the test's name and fails the job; passed the
+      # second time is a "Flaky test" ::warning and a line in flakes.json, and the job stays green. The runner has
+      # 4 cores against a developer's 32, so a test that leans on real time fails here and nowhere else — the retry
+      # keeps it off PRs that never touched it, and making it deterministic is the fix. See docs/testing.md.
       - name: Run unit tests
         shell: pwsh
         run: |
@@ -174,13 +180,16 @@ jobs:
             'Nexaflow.Tests.Providers'         = 'net10.0-windows'
             'Nexaflow.Tests.AiHost'            = 'net10.0-windows'
           }
-          $failed = $false
-          foreach ($proj in $tests.Keys) {
-            $exe = "src/Nexaflow.Tests/$proj/bin/x64/Release/$($tests[$proj])/$proj.exe"
-            Write-Host "::group::$proj"
-            & $exe --filter 'TestCategory!=Desktop&TestCategory!=Interactive'
-            if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::$proj failed (exit $LASTEXITCODE)" }
-            Write-Host '::endgroup::'
-          }
-          if ($failed) { exit 1 }
+          ./tools/ci/Invoke-UnitTests.ps1 -Suites $tests -ResultsDirectory "$env:RUNNER_TEMP/test-results" `
+            -Commit '${{ github.event.pull_request.head.sha || github.sha }}'
+
+      # The TRX reports and flakes.json, kept whether the tests passed or failed; a flake's entry names the
+      # test, its project, the commit and this run.
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
 
