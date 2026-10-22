@@ -181,9 +181,11 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             }
 
             if (request.MaxNewTokens is { } most && generated >= most) return Stop(StopReason.MaxTokens, continuable: false, token);
-            // Full when its cells fill the cache, or when its positions reach what the model was trained to read — which
-            // a reply written in a window, holding few cells, can come to first.
-            if (conversation.Tokens + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext)
+            // Full when its cells fill the cache, when its positions reach what the model was trained to read — which a
+            // reply written in a window, holding few cells, can come to first — or when the conversations being answered
+            // hold every cell the kept ones could give up.
+            if (conversation.Tokens + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext
+                || !model.Conversations.MakeRoomForNext())
                 return Stop(StopReason.ContextFull, continuable: false, token);
             await rounds.AdvanceAsync(token, ct);
             ct.ThrowIfCancellationRequested();
