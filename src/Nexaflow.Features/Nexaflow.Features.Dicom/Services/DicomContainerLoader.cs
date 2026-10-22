@@ -3,6 +3,7 @@ using System.Threading;
 using FellowOakDicom;
 using FellowOakDicom.Media;
 using Nexaflow.Features.Dicom.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.Services;
 
@@ -29,7 +30,7 @@ internal static class DicomContainerLoader
     {
         DicomBootstrap.EnsureInitialized();
 
-        var (files, title) = ResolveFiles(paths, ct);
+        var (files, title, displayTitle) = ResolveFiles(paths, ct);
 
         var instances = new List<(DicomInstanceInfo Info, DicomDataset Ds)>();
         var warnings = new List<string>();
@@ -47,12 +48,14 @@ internal static class DicomContainerLoader
             }
         }
 
-        return BuildContainer(title, instances, warnings);
+        return BuildContainer(title, displayTitle, instances, warnings);
     }
 
     // ── File resolution ───────────────────────────────────────────────────
 
-    private static (IReadOnlyList<string> Files, string Title) ResolveFiles(
+    /// <summary>The instance files to read, the container's English title and the title a person reads. The two
+    /// differ only for a multi-selection, whose title is a phrase; a folder or file is titled by its name.</summary>
+    private static (IReadOnlyList<string> Files, string Title, string DisplayTitle) ResolveFiles(
         IReadOnlyList<string> paths, CancellationToken ct)
     {
         if (paths.Count == 1)
@@ -63,14 +66,14 @@ internal static class DicomContainerLoader
                 // A real folder: a DICOMDIR index is the fast path; otherwise scan it.
                 var dicomdir = Path.Combine(p, "DICOMDIR");
                 if (File.Exists(dicomdir))
-                    return (ReadDicomDir(dicomdir), new DirectoryInfo(p).Name);
-                return (EnumerateDicomFiles(p, ct), new DirectoryInfo(p).Name);
+                    return Named(ReadDicomDir(dicomdir), new DirectoryInfo(p).Name);
+                return Named(EnumerateDicomFiles(p, ct), new DirectoryInfo(p).Name);
             }
             if (DicomIo.IsDirectory(p))                       // a virtual folder inside an archive (.zip)
-                return (EnumerateDicomFiles(p, ct), LeafName(p));
+                return Named(EnumerateDicomFiles(p, ct), LeafName(p));
             if (IsDicomDirFile(p))
-                return (ReadDicomDir(p), DicomDirTitle(p));
-            return ([p], Path.GetFileName(p));
+                return Named(ReadDicomDir(p), DicomDirTitle(p));
+            return Named([p], Path.GetFileName(p));
         }
 
         // Multi-selection: expand any folders (real or in-archive), keep DICOM files.
@@ -81,8 +84,12 @@ internal static class DicomContainerLoader
             if (Directory.Exists(p) || DicomIo.IsDirectory(p)) files.AddRange(EnumerateDicomFiles(p, ct));
             else if (DicomIo.IsDicom(p)) files.Add(p);
         }
-        return (files, $"DICOM ({files.Count} instances)");
+        return (files, $"DICOM ({files.Count} instances)", Str.Format("Dicom.Page.SelectionTitleFormat", files.Count));
     }
+
+    /// <summary>A folder's or a file's resolution: its name is its title in every language.</summary>
+    private static (IReadOnlyList<string> Files, string Title, string DisplayTitle) Named(IReadOnlyList<string> files, string name)
+        => (files, name, name);
 
     private static string LeafName(string path)
         => Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } n ? n : path;
@@ -195,7 +202,7 @@ internal static class DicomContainerLoader
     // ── Tree assembly ─────────────────────────────────────────────────────
 
     private static DicomContainer BuildContainer(
-        string title, List<(DicomInstanceInfo Info, DicomDataset Ds)> instances, List<string> warnings)
+        string title, string displayTitle, List<(DicomInstanceInfo Info, DicomDataset Ds)> instances, List<string> warnings)
     {
         var patients = new List<DicomNode>();
         var images = new List<DicomNode>();
@@ -204,6 +211,11 @@ internal static class DicomContainerLoader
         var studyCount = 0;
         var seriesCount = 0;
 
+        // Fallbacks the tree shows, looked up once per load rather than once per node.
+        var unknownName = Str.Get("Dicom.Tree.UnknownPatientName");
+        var noPatientId = Str.Get("Dicom.Tree.NoPatientId");
+        var untitledStudy = Str.Get("Dicom.Tree.Study");
+
         // Group preserving first-seen order at each level.
         var byPatient = GroupOrdered(instances, x => DicomTags.Str(x.Ds, DicomTag.PatientID, "(no id)"));
         var patientIndex = 0;
@@ -211,14 +223,14 @@ internal static class DicomContainerLoader
         {
             patientIndex++;
             var pDs = patientItems[0].Ds;
-            var name = DicomTags.PersonName(pDs, DicomTag.PatientName);
-            var pid = DicomTags.Str(pDs, DicomTag.PatientID, "(no id)");
+            var name = DicomTags.PersonName(pDs, DicomTag.PatientName, unknownName);
+            var pid = DicomTags.Str(pDs, DicomTag.PatientID, noPatientId);
 
             var patient = new DicomNode
             {
                 Kind = DicomNodeKind.Patient,
                 Label = $"{name}  ·  {pid}",
-                SafeLabel = $"Patient {patientIndex}",
+                SafeLabel = Str.Format("Dicom.Tree.PatientFormat", patientIndex),
                 IsPhi = true,
             };
 
@@ -227,7 +239,7 @@ internal static class DicomContainerLoader
             {
                 studyCount++;
                 var sDs = studyItems[0].Ds;
-                var studyDesc = DicomTags.Str(sDs, DicomTag.StudyDescription, "Study");
+                var studyDesc = DicomTags.Str(sDs, DicomTag.StudyDescription, untitledStudy);
                 var studyDate = DicomTags.Date(sDs, DicomTag.StudyDate);
                 var study = new DicomNode
                 {
@@ -244,14 +256,15 @@ internal static class DicomContainerLoader
                     modalities.Add(modality);
                     var seriesNo = DicomTags.Int(seDs, DicomTag.SeriesNumber);
                     var seriesDesc = DicomTags.Str(seDs, DicomTag.SeriesDescription);
-                    var seriesLabel = $"Series {seriesNo}: {modality}".TrimEnd();
-                    if (!string.IsNullOrEmpty(seriesDesc)) seriesLabel += $" — {seriesDesc}";
+                    var seriesLabel = string.IsNullOrEmpty(seriesDesc)
+                        ? Str.Format("Dicom.Tree.SeriesFormat", seriesNo, modality)
+                        : Str.Format("Dicom.Tree.SeriesDescribedFormat", seriesNo, modality, seriesDesc);
 
                     var series = new DicomNode
                     {
                         Kind = DicomNodeKind.Series,
                         Label = seriesLabel,
-                        Detail = $"{seriesItems.Count} instance{(seriesItems.Count == 1 ? "" : "s")}",
+                        Detail = InstanceCountText(seriesItems.Count),
                     };
 
                     // Order slices by InstanceNumber so the tree — and scroll-wheel stepping — follow the stack.
@@ -277,14 +290,20 @@ internal static class DicomContainerLoader
                 patient.Children.Add(study);
             }
 
-            patient.Detail = $"{patient.Children.Count} stud{(patient.Children.Count == 1 ? "y" : "ies")}";
+            patient.Detail = StudyCountText(patient.Children.Count);
             patients.Add(patient);
         }
 
+        // The assistant reads the summary in English; the contents header shows the same line in the shown language.
         var summary =
             $"{patients.Count} patient{P(patients.Count)} · {studyCount} stud{(studyCount == 1 ? "y" : "ies")} · " +
             $"{seriesCount} series · {images.Count} image{P(images.Count)}" +
             (reports.Count > 0 ? $", {reports.Count} report{P(reports.Count)}" : "") +
+            (modalities.Count > 0 ? $" · {string.Join('/', modalities)}" : "");
+        var displaySummary =
+            $"{PatientCountText(patients.Count)} · {StudyCountText(studyCount)} · " +
+            $"{SeriesCountText(seriesCount)} · {ImageCountText(images.Count)}" +
+            (reports.Count > 0 ? $", {ReportCountText(reports.Count)}" : "") +
             (modalities.Count > 0 ? $" · {string.Join('/', modalities)}" : "");
 
         var container = new DicomContainer
@@ -292,7 +311,9 @@ internal static class DicomContainerLoader
             Images = images,
             Reports = reports,
             Title = title,
+            DisplayTitle = displayTitle,
             Summary = summary,
+            DisplaySummary = displaySummary,
             Warnings = warnings,
         };
         foreach (var p in patients) container.Patients.Add(p);
@@ -308,27 +329,50 @@ internal static class DicomContainerLoader
             return new DicomNode
             {
                 Kind = DicomNodeKind.Image,
-                Label = $"Image {DicomTags.Int(ds, DicomTag.InstanceNumber, instNo)}",
-                Detail = info.Frames > 1 ? $"{info.Frames} frames" : string.Empty,
+                Label = Str.Format("Dicom.Tree.ImageFormat", DicomTags.Int(ds, DicomTag.InstanceNumber, instNo)),
+                Detail = info.Frames > 1 ? Str.Format("Dicom.Count.Frames", info.Frames) : string.Empty,
                 FilePath = info.FilePath,
                 Instance = info,
             };
         }
 
-        var kindLabel = info.IsEncapsulatedDocument
-            ? (info.EncapsulatedMimeType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true ? "PDF report" : "Encapsulated document")
-            : "Report";
+        var number = DicomTags.Int(ds, DicomTag.InstanceNumber, instNo);
+        var label = !info.IsEncapsulatedDocument
+            ? Str.Format("Dicom.Tree.ReportFormat", number)
+            : info.EncapsulatedMimeType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
+                ? Str.Format("Dicom.Tree.PdfReportFormat", number)
+                : Str.Format("Dicom.Tree.EncapsulatedDocumentFormat", number);
         return new DicomNode
         {
             Kind = DicomNodeKind.Report,
-            Label = $"{kindLabel} {DicomTags.Int(ds, DicomTag.InstanceNumber, instNo)}",
+            Label = label,
             Detail = info.EncapsulatedMimeType ?? info.Modality,
             FilePath = info.FilePath,
             Instance = info,
         };
     }
 
+    /// <summary>The English plural suffix, for the assistant's summary.</summary>
     private static string P(int n) => n == 1 ? "" : "s";
+
+    // Counted nouns as a person reads them, in the shown language.
+    private static string PatientCountText(int n)
+        => n == 1 ? Str.Format("Dicom.Count.PatientOne", n) : Str.Format("Dicom.Count.PatientMany", n);
+    private static string StudyCountText(int n)
+        => n == 1 ? Str.Format("Dicom.Count.StudyOne", n) : Str.Format("Dicom.Count.StudyMany", n);
+    private static string SeriesCountText(int n)
+        => n == 1 ? Str.Format("Dicom.Count.SeriesOne", n) : Str.Format("Dicom.Count.SeriesMany", n);
+    // A container of reports alone counts zero images, which some languages write in the singular.
+    private static string ImageCountText(int n) => n switch
+    {
+        0 => Str.Format("Dicom.Count.ImageNone", n),
+        1 => Str.Format("Dicom.Count.ImageOne", n),
+        _ => Str.Format("Dicom.Count.ImageMany", n),
+    };
+    private static string ReportCountText(int n)
+        => n == 1 ? Str.Format("Dicom.Count.ReportOne", n) : Str.Format("Dicom.Count.ReportMany", n);
+    private static string InstanceCountText(int n)
+        => n == 1 ? Str.Format("Dicom.Count.InstanceOne", n) : Str.Format("Dicom.Count.InstanceMany", n);
 
     /// <summary>Groups items by a key while preserving the order in which keys first appear.</summary>
     private static List<(string Key, List<T> Items)> GroupOrdered<T>(IEnumerable<T> items, Func<T, string> keyOf)

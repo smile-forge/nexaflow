@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
@@ -19,7 +20,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;
     public string Icon => "📦";
-    public string DisplayName => "Zip It";
+    public string DisplayName => Str.Get("Compressed.Action.ZipIt");
 
     public bool RequiresRefresh => false;   // the queue refreshes when the operation finishes
     public bool CanPerformAction => true;
@@ -29,7 +30,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
     // what puts it on a selection of files, one or many, as well as on folders.
     public static string? StaticExperienceId => "/";
     public string ExperienceId => "/";
-    public string ExperienceDescription => "All files";
+    public string ExperienceDescription => Str.Get("Compressed.Experience.AllFiles");
     public bool OpensViewer => false;
     // The bytes are read off disk: a file materialised out of an archive is one lone temp copy, with none
     // of the neighbours the selection names.
@@ -51,7 +52,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         var name    = Path.GetFileName(trimmed);
         if (string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(name))
         {
-            shell.ShowError("Cannot zip a drive root.");
+            shell.ShowError(Str.Get("Compressed.ZipIt.DriveRoot"));
             return false;
         }
 
@@ -61,8 +62,8 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         var  baseName = isFolder ? name : Path.GetFileNameWithoutExtension(name);
 
         return isFolder
-            ? Compress(parent, baseName, $"'{name}'", name, trimmed, null)
-            : Compress(parent, baseName, $"'{name}'", name, null, [trimmed]);
+            ? Compress(parent, baseName, ZipSubject.Named(name), trimmed, null)
+            : Compress(parent, baseName, ZipSubject.Named(name), null, [trimmed]);
     }
 
     /// <summary>Compresses the whole selection — files, folders or a mix — into ONE archive beside it,
@@ -77,7 +78,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
             items[0].TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrEmpty(parent))
         {
-            shell.ShowError("Cannot zip a drive root.");
+            shell.ShowError(Str.Get("Compressed.ZipIt.DriveRoot"));
             return false;
         }
 
@@ -85,15 +86,15 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         // root there is no such name to borrow.
         var folderName = Path.GetFileName(
             parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        var baseName = string.IsNullOrEmpty(folderName) ? "Archive" : folderName;
+        var baseName = string.IsNullOrEmpty(folderName) ? Str.Get("Compressed.ZipIt.DefaultName") : folderName;
 
-        return Compress(parent, baseName, $"{items.Count} items", $"{items.Count} items", null, items);
+        return Compress(parent, baseName, ZipSubject.Selection(items.Count), null, items);
     }
 
     /// <summary>Writes an archive of the configured format at a free name under <paramref name="parent"/>,
     /// reporting any refusal or failure against <paramref name="subject"/>. Exactly one of
     /// <paramref name="sourceDir"/> and <paramref name="sources"/> is given.</summary>
-    private bool Compress(string parent, string baseName, string subject, string rowLabel,
+    private bool Compress(string parent, string baseName, ZipSubject subject,
                           string? sourceDir, IReadOnlyList<string>? sources)
     {
         string dest;
@@ -104,13 +105,13 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
 
             if (!VirtualFileSystem.Instance.CanCreate(Path.GetFileName(dest)))
             {
-                shell.ShowError($"No installed provider can create a '{config.DefaultFormat}' archive.");
+                shell.ShowError(Str.Format("Compressed.ZipIt.NoProviderFormat", config.DefaultFormat));
                 return false;
             }
         }
         catch (Exception ex)
         {
-            shell.ShowError($"Could not zip {subject}: {ex.Message}");
+            shell.ShowError(subject.Failure(ex.Message));
             return false;
         }
 
@@ -123,12 +124,12 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         try { File.Create(dest).Dispose(); }
         catch (Exception ex)
         {
-            shell.ShowError($"Could not zip {subject}: {ex.Message}");
+            shell.ShowError(subject.Failure(ex.Message));
             return false;
         }
 
         _ = operations.Run(
-            new FileOperationRequest("Compressing", rowLabel, Path.GetFileName(dest), dest),
+            new FileOperationRequest(Str.Get("Compressed.Operation.Compressing"), subject.RowLabel, Path.GetFileName(dest), dest),
             (progress, ct) => Task.Run(() => Build(dest, subject, sourceDir, sources, progress, ct),
                                        CancellationToken.None));
         return true;
@@ -139,7 +140,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
     /// A run that does not finish takes the placeholder with it, so a cancelled zip leaves nothing behind
     /// — the temp is already the VFS's to clear.
     /// </summary>
-    private static TransferResult Build(string dest, string subject, string? sourceDir,
+    private static TransferResult Build(string dest, ZipSubject subject, string? sourceDir,
                                         IReadOnlyList<string>? sources,
                                         IProgress<TransferProgress> progress, CancellationToken ct)
     {
@@ -158,7 +159,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         {
             Discard(dest);
             return new TransferResult(true, 0, 0,
-                [new TransferItemFailure(dest, "compress", 0, $"Could not zip {subject}: {ex.Message}")],
+                [new TransferItemFailure(dest, "compress", 0, subject.Failure(ex.Message))],
                 [], [], []);
         }
     }
@@ -169,7 +170,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
     }
 
     /// <summary>The original blocking path, kept for when there is no progress row to run in.</summary>
-    private bool CompressNow(string dest, string subject, string? sourceDir, IReadOnlyList<string>? sources)
+    private bool CompressNow(string dest, ZipSubject subject, string? sourceDir, IReadOnlyList<string>? sources)
     {
         try
         {
@@ -179,7 +180,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         }
         catch (Exception ex)
         {
-            shell.ShowError($"Could not zip {subject}: {ex.Message}");
+            shell.ShowError(subject.Failure(ex.Message));
             return false;
         }
     }
@@ -196,5 +197,21 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         for (int n = 1; File.Exists(dest) || Directory.Exists(dest); n++)
             dest = Path.Combine(parent, $"{baseName} ({n}){ext}");
         return dest;
+    }
+
+    /// <summary>What one Zip It is of: a single item by its name, or a selection by its count. The progress
+    /// row and every failure sentence name it from here, each as one whole sentence of the language pack.</summary>
+    private readonly record struct ZipSubject(string? Name, int Count)
+    {
+        public static ZipSubject Named(string name) => new(name, 1);
+        public static ZipSubject Selection(int count) => new(null, count);
+
+        /// <summary>The progress row's subject: the item's own name, or "3 items".</summary>
+        public string RowLabel => Name ?? Str.Format("Compressed.ZipIt.ItemsFormat", Count);
+
+        /// <summary>The sentence a failure to zip this subject is reported in.</summary>
+        public string Failure(string reason) => Name is not null
+            ? Str.Format("Compressed.ZipIt.FailedNamedFormat", Name, reason)
+            : Str.Format("Compressed.ZipIt.FailedItemsFormat", Count, reason);
     }
 }

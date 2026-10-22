@@ -2,6 +2,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -43,7 +44,7 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
         // The last remaining workspace can't be deleted — disable the button rather than fail on click.
         bool canDelete       = WorkspaceManager.Instance.Workspaces.Count > 1;
         DeleteButton.IsEnabled = canDelete;
-        DeleteButton.ToolTip   = canDelete ? null : "The last workspace can't be deleted.";
+        DeleteButton.ToolTip   = canDelete ? null : Str.Get("Shell.Workspace.LastOne");
 
         Revalidate();
         RaiseChanged();
@@ -113,13 +114,14 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
         try
         {
             int n = ConversationStore.ExportAll(_target.ConversationsDir, dest);
-            shell?.ShowInfoToast("Export conversations",
-                n == 0 ? "This workspace has no conversations to export."
-                       : $"Exported {n} conversation{(n == 1 ? "" : "s")} to {dest}.");
+            shell?.ShowInfoToast(Str.Get("Shell.Workspace.Conversations.ExportTitle"),
+            n == 0 ? Str.Get("Shell.Workspace.Conversations.None")
+            : n == 1 ? Str.Format("Shell.Workspace.Conversations.ExportedOneFormat", dest)
+            : Str.Format("Shell.Workspace.Conversations.ExportedFormat", n, dest));
         }
         catch (Exception ex)
         {
-            shell?.ShowErrorToast($"Could not export conversations: {ex.Message}");
+            shell?.ShowErrorToast(Str.Format("Shell.Workspace.Conversations.FailedFormat", ex.Message));
         }
     }
 

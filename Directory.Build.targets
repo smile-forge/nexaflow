@@ -17,7 +17,8 @@
                            Or !Exists('$(MSBuildThisFileDirectory)external\AngouriMath\Sources\AngouriMath\AngouriMath.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-xml\xml\src\parser.c')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\src\TreeSitter.csproj')
-                           Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\tree-sitter-native\tree-sitter\lib\src\lib.c') )">
+ Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\tree-sitter-native\tree-sitter\lib\src\lib.c')
+                          Or !Exists('$(MSBuildThisFileDirectory)external\PdfPig\src\UglyToad.PdfPig\UglyToad.PdfPig.csproj') )">
     <Message Importance="high"
              Text="Nexaflow: external/ submodules are not initialised — populating them (fresh worktree)…" />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\ensure-submodules.ps1&quot;"

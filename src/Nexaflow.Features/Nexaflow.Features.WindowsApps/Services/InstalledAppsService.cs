@@ -1,4 +1,5 @@
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 
@@ -40,10 +41,10 @@ public sealed class InstalledAppsService
     }
 
     public Task<AppOperationResult> UninstallAsync(InstalledApp app, CancellationToken ct) =>
-        Route(app, s => s.UninstallAsync(app, ct), "Uninstall");
+        Route(app, s => s.UninstallAsync(app, ct), Str.Get("WindowsApps.Menu.Uninstall"));
 
     public Task<AppOperationResult> ModifyAsync(InstalledApp app, CancellationToken ct) =>
-        Route(app, s => s.ModifyAsync(app, ct), "Modify");
+        Route(app, s => s.ModifyAsync(app, ct), Str.Get("WindowsApps.Menu.Modify"));
 
     public Task<bool> DeleteRecordAsync(InstalledApp app, CancellationToken ct)
     {

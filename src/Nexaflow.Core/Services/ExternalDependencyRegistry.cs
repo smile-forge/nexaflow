@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -73,7 +74,7 @@ public sealed class ExternalDependencyRegistry
                 return r.Status;
 
         return ExternalDependencyStatus.Unknown(
-            IsReady ? "No feature declares a component with this id." : "Components have not been probed yet.");
+            IsReady ? Str.Get("Shell.Components.Undeclared") : Str.Get("Shell.Components.NotProbed"));
     }
 
     private void ProbeAll()
@@ -95,8 +96,8 @@ public sealed class ExternalDependencyRegistry
     /// </summary>
     internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types)
     {
-        // Keyed on the component's id, not the declaring type: WebView2 is declared by both the PDF reader
-        // and the Web tab, and the user cares about one runtime, listed once, naming both.
+        // Keyed on the component's id, not the declaring type: one runtime can be declared by several features,
+        // and the user cares about it listed once, naming each.
         var merged = new Dictionary<string, Accumulator>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var type in types)
@@ -140,13 +141,13 @@ public sealed class ExternalDependencyRegistry
     {
         try
         {
-            return decl.Probe() ?? ExternalDependencyStatus.Unknown("The check returned nothing.");
+            return decl.Probe() ?? ExternalDependencyStatus.Unknown(Str.Get("Shell.Components.NoAnswer"));
         }
         catch (Exception ex)
         {
             // A probe that throws has told us nothing about the component, so it must not read as Missing —
             // that would put a scary red row on the About page for a bug in the check itself.
-            return ExternalDependencyStatus.Unknown($"The check failed: {ex.Message}");
+            return ExternalDependencyStatus.Unknown(Str.Format("Shell.Components.CheckFailedFormat", ex.Message));
         }
     }
 

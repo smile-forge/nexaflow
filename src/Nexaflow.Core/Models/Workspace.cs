@@ -148,7 +148,7 @@ public sealed partial class Workspace : ObservableObject
     {
         if (RibbonService is not null) return;
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
-        if (AiConfig.AddDefaultSpeechIn() | AiConfig.AddDefaultDocuments())
+        if (AiConfig.BringUpToDate())
             ConfigManager.Instance.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);

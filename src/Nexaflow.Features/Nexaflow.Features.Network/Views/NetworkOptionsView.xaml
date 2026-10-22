@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignHeight="460" d:DesignWidth="620">
@@ -14,20 +15,20 @@
          config is the live one, and a change the user then cancelled would already have happened. -->
     <StackPanel x:Name="Root">
 
-        <TextBlock Text="Sending" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock Text="{loc:Str Network.Options.Sending}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
         <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}"
-                   Text="Everything the Network page sends goes through one guard. Switched off, the page still shows what this PC already knows about its neighbours, but nothing is sent: no discovery traffic and no device actions."/>
+                   Text="{loc:Str Network.Options.SendingNote}"/>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
             <ToggleButton Style="{StaticResource ToggleSwitch}"
                           AutomationProperties.AutomationId="NetOpt_Enabled"
                           IsChecked="{Binding Enabled, Mode=TwoWay}"/>
-            <TextBlock Text="Let the Network page send" Margin="8,0,0,0" VerticalAlignment="Center"
+            <TextBlock Text="{loc:Str Network.Options.Enabled}" Margin="8,0,0,0" VerticalAlignment="Center"
                        Foreground="{StaticResource TextBrush}"/>
         </StackPanel>
 
-        <TextBlock Text="Adapters" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock Text="{loc:Str Network.Options.Adapters}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
         <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}"
-                   Text="An adapter you stop using is left out of discovery, and nothing may be sent through it. An address sweep pings every address on a network, one after another, to find devices that never talk to this PC. Intrusion detection sees that, so allow it only on networks you look after. The permission is for the network the adapter is on now — the same adapter on another network needs its own."/>
+                   Text="{loc:Str Network.Options.AdaptersNote}"/>
 
         <ItemsControl ItemsSource="{Binding Adapters}">
             <ItemsControl.ItemTemplate>
@@ -51,11 +52,11 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <CheckBox Content="Use for discovery"
+                                <CheckBox Content="{loc:Str Network.Options.UseForDiscovery}"
                                           Foreground="{StaticResource TextBrush}"
                                           AutomationProperties.AutomationId="{Binding Id, StringFormat='NetOpt_Use_{0}'}"
                                           IsChecked="{Binding Use, Mode=TwoWay}"/>
-                                <CheckBox Content="Allow an address sweep on this network" Margin="0,6,0,0"
+                                <CheckBox Content="{loc:Str Network.Options.AllowSweep}" Margin="0,6,0,0"
                                           Foreground="{StaticResource TextBrush}"
                                           AutomationProperties.AutomationId="{Binding Id, StringFormat='NetOpt_Sweep_{0}'}"
                                           IsEnabled="{Binding SweepAvailable}"
@@ -67,7 +68,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <TextBlock Text="Limits" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+        <TextBlock Text="{loc:Str Network.Options.Limits}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,12,0,4"/>
         <Grid Margin="0,0,0,4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -79,14 +80,14 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"
-                       Text="Most packets one discovery run may send"
+                       Text="{loc:Str Network.Options.MaxPackets}"
                        Foreground="{StaticResource TextBrush}"/>
             <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}"
                      AutomationProperties.AutomationId="NetOpt_MaxPackets"
                      Text="{Binding MaxPacketsPerRun, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,0,0" VerticalAlignment="Center"
-                       Text="Longest one discovery run may take, in seconds"
+                       Text="{loc:Str Network.Options.MaxSeconds}"
                        Foreground="{StaticResource TextBrush}"/>
             <TextBox Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Style="{StaticResource DarkTextBox}"
                      AutomationProperties.AutomationId="NetOpt_MaxSeconds"

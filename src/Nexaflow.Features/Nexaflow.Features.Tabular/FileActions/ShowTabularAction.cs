@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.FileActions;
 
@@ -12,10 +13,10 @@ public sealed class ShowTabularAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "▦";
-    public string DisplayName            => "As Table";
+    public string DisplayName            => Str.Get("Tabular.Action.AsTable");
     public static string? StaticExperienceId => "/tabular";
     public string ExperienceId           => "/tabular";
-    public string ExperienceDescription  => "Tabular viewer for CSV / TSV files";
+    public string ExperienceDescription  => Str.Get("Tabular.Action.ExperienceDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

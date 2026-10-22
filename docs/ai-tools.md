@@ -170,6 +170,18 @@ makers decode it with in `ReplyDecoding`:
   (`LlamaSampler.Banned`).
 - **Its marks kept.** Each block opens with special tokens naming its kind and box, sent as text
   (`WritesControlTokens`).
+- **Pages read together.** Every reply a model is writing advances in one llama.cpp call a token (`TokenRounds`): each
+  conversation is a sequence of the model's one cache, and a round reads the token each chose last into its own
+  sequence and chooses each one's next from its own row of scores — its window and its repeat ban its own — the
+  likeliest read straight from the scores (`LlamaScores`). A round starts once every reply in it has chosen, and is one
+  GPU step at the highest priority among them. `PageReader` keeps `IPageReading.PagesAtOnce` pages in flight — three
+  for the reader, whose pictures and windows then fill under two thirds of its cache. A 368-page textbook reads in 5.2
+  minutes on an RTX PRO 6000, 0.85 s a page, where one page at a time takes 7.7. Each page's picture is a step of its
+  own, and is best left one: the projector encodes a page's five tiles in about 220 ms of the card's compute, batched
+  or one at a time, and encoded alongside the rounds it only shares the card with them — each tile takes nearly three
+  times as long, and the whole reads no faster.
+  Read together, a page's text is the same, though a box's edge can move by a thousandth or a near tie tip the other
+  way: the step's sums are taken in another order for three than for one (`PagesReadTogether_ReadAsEachDoesAlone`).
 
 The detector is a request of its own, `FindTextInPicture`, on the CPU — its catalog part says `runsOnCpu` — prepared and
 read into regions as PaddleOCR does (`TextFinding`). `PageReadingTests` holds the host to the reference: the same
@@ -185,7 +197,8 @@ on a page read; the viewer offers Convert to Markdown only for a page.
 
 **For features.** `IPageReading` finds text (`TextOnPicture`: its regions, and whether they make a page —
 `PageReading.IsPage`, 15 regions over 3 % of the picture) and reads a page into `PageBlock`s as it goes (`PageMarks`).
-`Visuals.Text`'s `PageReader` reads pages into Markdown (`PageMarkdown`), cuts the figures (`PageFigures`) and asks
+`Visuals.Text`'s `PageReader` reads pages into Markdown (`PageMarkdown`), `IPageReading.PagesAtOnce` of them at once and
+written in page order, cuts the figures (`PageFigures`), numbered in page order too, and asks
 `IAIService.AskAboutPictureAsync` for each as Mermaid, kept only when `MermaidDiagrams.Troubles` finds nothing wrong
 (`DiagramDrawing`). `PageConversion` converts a feature's pages (`PageSource`): the reading kept in the temp folder by
 what was read and the models, a draft written from it — `<source>.md`, only the figures its text shows in

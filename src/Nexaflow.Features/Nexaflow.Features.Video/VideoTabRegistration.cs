@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
 using Nexaflow.Features.Video.Views;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video;
 
@@ -30,7 +31,7 @@ public sealed class VideoTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Video" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Video.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {
@@ -61,7 +62,7 @@ public sealed class VideoTabRegistration : IPageRegistration
             // A fatal engine error closes the tab with a notice rather than leaving a broken player open.
             vm.FatalError += message =>
             {
-                _shell.ShowNotification($"Couldn't play \"{title}\": {message}");
+                _shell.ShowNotification(Str.Format("Video.Notice.PlayFailedFormat", title, message));
                 _shell.CloseTab(page);
             };
 

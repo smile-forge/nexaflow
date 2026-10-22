@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common.Cloud;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -21,6 +23,8 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     private long          _sizeBytes;
     private DateTime      _modified;
+    private CloudFileState _cloudState;
+    private long          _statusRevision;
 
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
@@ -32,6 +36,23 @@ public class FileSystemEntry : INotifyPropertyChanged
     /// <c>IThisPcItemProvider</c>. Not "a Windows volume": the whole feature keys the This PC
     /// presentation (type/size columns, the drive-only context menu) off this flag.</summary>
     public bool IsThisPcItem { get; init; }
+
+    /// <summary>A row inside an archive or another container the folder view opens: not on disk, so its icon is read
+    /// from its name alone.</summary>
+    public bool InContainer { get; init; }
+
+    /// <summary>Where the row stands with its cloud sync provider, as the folder's listing said; None outside a synced folder.</summary>
+    public CloudFileState CloudState { get => _cloudState; init => _cloudState = value; }
+
+    /// <summary>Moved on when the shell says the file changed in a way its listing may not show, so its provider is asked again.</summary>
+    public long StatusRevision => _statusRevision;
+
+    /// <summary>Has the row's sync status asked of its provider again, the next time it is drawn.</summary>
+    public void RecheckStatus()
+    {
+        _statusRevision++;
+        OnPropertyChanged(nameof(StatusRevision));
+    }
 
     /// <summary>Set when this row came from an <c>IThisPcItemProvider</c> — the item's id. Null for a
     /// physical drive, so the two kinds of top-level row can still be told apart.</summary>
@@ -91,9 +112,18 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     // ── Computed display properties ────────────────────────────────────────────
 
-    public string TypeLabel => IsThisPcItem
-        ? _driveKindLabel
-        : IsDirectory ? Str.Get("WindowsFileSystem.Entry.Folder") : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
+    /// <summary>
+    /// The shell's name for what this is ("Text Document", "File folder"), as Explorer's Type column shows it. The enumerator
+    /// sets it off the UI thread; a row built anywhere else reads it from the shell the first time it is wanted.
+    /// </summary>
+    public string TypeName
+    {
+        get => _typeName ??= ShellFileTypes.NameFor(IsDirectory ? string.Empty : Path.GetExtension(Name), IsDirectory);
+        init => _typeName = value;
+    }
+    private string? _typeName;
+
+    public string TypeLabel => IsThisPcItem ? _driveKindLabel : TypeName;
 
     public string SizeLabel
     {
@@ -115,7 +145,7 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     /// <summary>
     /// Takes on what <paramref name="fresh"/> — a new reading of the same path — says: its name (a rename that only changed
-    /// case keeps the path), size, time and companion, telling the view about each that changed. False where it is no longer
+    /// case keeps the path), size, time, companion and cloud sync state, telling the view about each that changed. False where it is no longer
     /// the same kind of thing, a folder where there was a file or a different row of This PC, and cannot stand for it.
     /// </summary>
     public bool TakeOn(FileSystemEntry fresh)
@@ -124,8 +154,10 @@ public class FileSystemEntry : INotifyPropertyChanged
 
         if (fresh.Name != Name)
         {
-            Name = fresh.Name;
+            Name      = fresh.Name;
+            _typeName = fresh._typeName;
             OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(TypeName));
             OnPropertyChanged(nameof(TypeLabel));
         }
         if (fresh.SizeBytes != _sizeBytes)
@@ -141,6 +173,11 @@ public class FileSystemEntry : INotifyPropertyChanged
             OnPropertyChanged(nameof(ModifiedLabel));
         }
         if (fresh.Companion != Companion) Companion = fresh.Companion;
+        if (fresh._cloudState != _cloudState)
+        {
+            _cloudState = fresh._cloudState;
+            OnPropertyChanged(nameof(CloudState));
+        }
 
         return true;
     }

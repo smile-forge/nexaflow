@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.Syntax;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Code;
 
@@ -29,7 +30,7 @@ public static class CodeIntelligenceMarkdown
         CollectImports(outline, imports, new HashSet<string>());
         if (imports.Count > 0)
         {
-            sb.AppendLine("## Dependencies").AppendLine();
+            sb.Append("## ").AppendLine(Str.Get("Code.Map.Dependencies")).AppendLine();
             foreach (var imp in imports)
             {
                 if (imp.ResolvedPath is { } rp)
@@ -43,7 +44,7 @@ public static class CodeIntelligenceMarkdown
 
         if ((outline.Types.Count > 0 || outline.Embedded.Count > 0) && fileUri is not null)
         {
-            sb.AppendLine("## Structure").AppendLine();
+            sb.Append("## ").AppendLine(Str.Get("Code.Map.Structure")).AppendLine();
             sb.AppendLine("```mermaid");
             sb.AppendLine("classDiagram");
             // LR ranks the diagram left-to-right, which stacks the (usually unrelated) classes of a file into a
@@ -67,7 +68,7 @@ public static class CodeIntelligenceMarkdown
 
         if (outline.TopLevel.Count > 0 && fileUri is not null)
         {
-            sb.AppendLine("## Members").AppendLine();
+            sb.Append("## ").AppendLine(Str.Get("Code.Map.Members")).AppendLine();
             foreach (var m in outline.TopLevel)
                 sb.AppendLine($"- [{LinkLabel(MemberLabel(m))}]({fileUri}#ast={Uri.EscapeDataString(m.AstPath)})");
             sb.AppendLine();
@@ -127,7 +128,7 @@ public static class CodeIntelligenceMarkdown
             AppendTypeBox(sb, "    ", SafeId($"{ns}__{t.Name}"), t.Name, t.Members, fileUri);
 
         if (e.Outline.TopLevel.Count > 0)
-            AppendTypeBox(sb, "    ", SafeId($"{ns}__free"), $"{e.Language} · line {e.HostLine}",
+            AppendTypeBox(sb, "    ", SafeId($"{ns}__free"), Str.Format("Code.Map.EmbeddedFormat", e.Language, e.HostLine),
                 e.Outline.TopLevel, fileUri);
 
         sb.AppendLine("  }");

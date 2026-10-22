@@ -124,6 +124,7 @@ New-Item -ItemType Directory -Force -Path $OutputDir, $IntermediateDir | Out-Nul
 # --- compile ------------------------------------------------------------------------------------
 # One cmd session for the whole batch: vcvars64 takes seconds and would otherwise be paid per artefact.
 #
+# /std:c11 because the runtime (v0.27+) uses _Static_assert, which MSVC only accepts in C11 mode.
 # /O1 not /O2 on purpose. These are generated table-driven parsers, some enormous - the C# grammar's
 # parser.c alone is 31 MB - and /O2 spends a very long time on them for no measurable parse-time win.
 $lines = @(
@@ -147,7 +148,7 @@ foreach ($t in $stale) {
     $def  = if ($t.Def) { " /DEF:`"$(ConvertTo-WinPath $t.Def)`"" } else { '' }
 
     $lines += "echo   $($t.Name)"
-    $lines += "cl /nologo /O1 /W3 /LD /DNDEBUG $incs /Fo`"$fo\`" /Fe`"$dll`" $srcs /link /IMPLIB:`"$imp`"$def"
+    $lines += "cl /nologo /std:c11 /O1 /W3 /LD /DNDEBUG $incs /Fo`"$fo\`" /Fe`"$dll`" $srcs /link /IMPLIB:`"$imp`"$def"
     $lines += "if errorlevel 1 exit /b 1"
 }
 $lines += 'exit /b 0'

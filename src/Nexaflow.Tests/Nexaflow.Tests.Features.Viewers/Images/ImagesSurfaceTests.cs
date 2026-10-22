@@ -146,10 +146,14 @@ public class ImagesSurfaceTests
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
-    private static string[] WriteImages(out string dir, int count)
+    /// <summary>
+    /// <paramref name="count"/> files to delete, in a folder of their own. The folder is the test host's to remove when
+    /// it exits: a picture the view model is still reading holds its file, so a test deleting its folder as it ends
+    /// races that read.
+    /// </summary>
+    private static string[] WriteImages(int count)
     {
-        dir = Path.Combine(TestTemp.Root, "neximg_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
+        var dir = TestTemp.CreateSubdirectory("neximg_").FullName;
         var paths = new string[count];
         for (var i = 0; i < count; i++)
         {
@@ -163,47 +167,39 @@ public class ImagesSurfaceTests
     [CoversNode("images-delete")]
     public async Task DecliningTheConfirmation_LeavesTheFileAndTheSetAlone()
     {
-        var paths = WriteImages(out var dir, 2);
-        try
-        {
-            var shell = Substitute.For<IShellServices>();
-            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-            var vm = Make(shell, paths);
+        var paths = WriteImages(2);
+        var shell = Substitute.For<IShellServices>();
+        shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+        using var vm = Make(shell, paths);
 
-            await vm.DeleteCommand.ExecuteAsync(0);
+        await vm.DeleteCommand.ExecuteAsync(0);
 
-            Assert.IsTrue(File.Exists(paths[0]), "a declined delete must not touch the file");
-            Assert.AreEqual(2, vm.TotalImages);
-            Assert.AreEqual(2, vm.Thumbnails.Count);
-            shell.DidNotReceiveWithAnyArgs().ShowError(default!);
-        }
-        finally { Directory.Delete(dir, recursive: true); }
+        Assert.IsTrue(File.Exists(paths[0]), "a declined delete must not touch the file");
+        Assert.AreEqual(2, vm.TotalImages);
+        Assert.AreEqual(2, vm.Thumbnails.Count);
+        shell.DidNotReceiveWithAnyArgs().ShowError(default!);
     }
 
     [TestMethod]
     [CoversNode("images-delete")]
     public async Task ConfirmingRecyclesTheFile_AndRePointsEveryView()
     {
-        var paths = WriteImages(out var dir, 3);
-        try
-        {
-            var shell = Substitute.For<IShellServices>();
-            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-            var vm = Make(shell, paths);
-            vm.GoToIndexCommand.Execute(2);   // viewing the last image
+        var paths = WriteImages(3);
+        var shell = Substitute.For<IShellServices>();
+        shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        using var vm = Make(shell, paths);
+        vm.GoToIndexCommand.Execute(2);   // viewing the last image
 
-            await vm.DeleteCommand.ExecuteAsync(0);   // delete one *before* it
+        await vm.DeleteCommand.ExecuteAsync(0);   // delete one *before* it
 
-            Assert.IsFalse(File.Exists(paths[0]), "the file goes to the Recycle Bin");
-            Assert.AreEqual(2, vm.TotalImages);
-            Assert.AreEqual(2, vm.Thumbnails.Count);
-            Assert.AreEqual(2, vm.Dots.Count);
-            Assert.AreEqual(1, vm.CurrentIndex, "the view follows the image it was on, now one slot earlier");
-            Assert.AreEqual("img2.png", vm.CurrentFileName);
-            CollectionAssert.AreEqual(new[] { 0, 1 }, vm.Thumbnails.Select(t => t.Index).ToArray(),
-                                      "indices are re-numbered, or the next delete hits the wrong file");
-        }
-        finally { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+        Assert.IsFalse(File.Exists(paths[0]), "the file goes to the Recycle Bin");
+        Assert.AreEqual(2, vm.TotalImages);
+        Assert.AreEqual(2, vm.Thumbnails.Count);
+        Assert.AreEqual(2, vm.Dots.Count);
+        Assert.AreEqual(1, vm.CurrentIndex, "the view follows the image it was on, now one slot earlier");
+        Assert.AreEqual("img2.png", vm.CurrentFileName);
+        CollectionAssert.AreEqual(new[] { 0, 1 }, vm.Thumbnails.Select(t => t.Index).ToArray(),
+                                  "indices are re-numbered, or the next delete hits the wrong file");
     }
 
     [TestMethod]
@@ -219,5 +215,19 @@ public class ImagesSurfaceTests
 
         shell.Received().ShowError(Arg.Is<string>(m => m == Str.Format("Images.Delete.FailedFormat", Path.GetFileName(missing))));
         Assert.AreEqual(1, vm.TotalImages, "a failed delete must not drop the image from the view anyway");
+    }
+
+    [TestMethod]
+    [CoversNode("images-copy")]
+    public async Task APictureThatCannotBeRead_IsReported_AndNothingIsCopied()
+    {
+        var shell = Substitute.For<IShellServices>();
+        var missing = Path.Combine(TestTemp.Root, $"nexaflow_missing_{Guid.NewGuid():N}.png");
+        var vm = Make(shell, missing);
+
+        await vm.CopyPictureCommand.ExecuteAsync(0);
+
+        shell.Received().ShowError(Arg.Is<string>(m => m == Str.Format("Images.Copy.FailedFormat", Path.GetFileName(missing))));
+        shell.DidNotReceive().ShowNotification(Arg.Any<string>());
     }
 }

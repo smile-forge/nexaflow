@@ -86,7 +86,7 @@
             <DockPanel LastChildFill="True">
                 <!-- Left cluster -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                    <Button Command="{Binding TogglePlayPauseCommand}" ToolTip="Play / Pause"
+                    <Button Command="{Binding TogglePlayPauseCommand}" ToolTip="{loc:Str Video.Transport.PlayPause}"
                             AutomationProperties.AutomationId="Video_PlayPause">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TransportButton}">
@@ -101,15 +101,15 @@
                     </Button>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding StepBackCommand}"
                             AutomationProperties.AutomationId="Video_StepBack"
-                            Content="⏪" ToolTip="Back 5s"/>
+                            Content="⏪" ToolTip="{loc:Str Video.Transport.Back}"/>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding StepForwardCommand}"
                             AutomationProperties.AutomationId="Video_StepForward"
-                            Content="⏩" ToolTip="Forward 5s"/>
+                            Content="⏩" ToolTip="{loc:Str Video.Transport.Forward}"/>
                 </StackPanel>
 
                 <!-- Right cluster -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Command="{Binding ToggleMuteCommand}" ToolTip="Mute"
+                    <Button Command="{Binding ToggleMuteCommand}" ToolTip="{loc:Str Video.Transport.Mute}"
                             AutomationProperties.AutomationId="Video_Mute">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TransportButton}">
@@ -124,14 +124,14 @@
                     </Button>
                     <Slider Width="70" Minimum="0" Maximum="100" Value="{Binding Volume, Mode=TwoWay}"
                             AutomationProperties.AutomationId="Video_Volume"
-                            IsMoveToPointEnabled="True" VerticalAlignment="Center" ToolTip="Volume"/>
+                            IsMoveToPointEnabled="True" VerticalAlignment="Center" ToolTip="{loc:Str Video.Transport.Volume}"/>
 
                     <!-- Playback speed -->
                     <Grid>
                         <Button x:Name="SpeedButton" Style="{StaticResource TransportButton}"
                                 AutomationProperties.AutomationId="Video_Speed"
                                 Command="{Binding ToggleSpeedMenuCommand}" Content="{Binding RateLabel}"
-                                ToolTip="Playback speed"/>
+                                ToolTip="{loc:Str Video.Transport.Speed}"/>
                         <Popup IsOpen="{Binding IsSpeedMenuOpen, Mode=TwoWay}" StaysOpen="False"
                                PlacementTarget="{Binding ElementName=SpeedButton}" Placement="Top"
                                AllowsTransparency="True" PopupAnimation="Fade">
@@ -160,7 +160,7 @@
                         <Button x:Name="SubtitleButton" Style="{StaticResource TransportButton}"
                                 AutomationProperties.AutomationId="Video_Subtitles"
                                 Command="{Binding ToggleSubtitleMenuCommand}" Content="CC" FontSize="13"
-                                ToolTip="Subtitles"/>
+                                ToolTip="{loc:Str Video.Transport.Subtitles}"/>
                         <Popup IsOpen="{Binding IsSubtitleMenuOpen, Mode=TwoWay}" StaysOpen="False"
                                PlacementTarget="{Binding ElementName=SubtitleButton}" Placement="Top"
                                AllowsTransparency="True" PopupAnimation="Fade">
@@ -183,16 +183,16 @@
 
                     <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleSceneStripCommand}"
                             AutomationProperties.AutomationId="Video_SceneStripToggle"
-                            Content="🎞" ToolTip="Show / hide scene strip"/>
+                            Content="🎞" ToolTip="{loc:Str Video.Transport.SceneStrip}"/>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleInfoPanelCommand}"
                             AutomationProperties.AutomationId="Video_InfoToggle"
-                            Content="ⓘ" ToolTip="Codec / media info"/>
+                            Content="ⓘ" ToolTip="{loc:Str Video.Transport.Info}"/>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding CutOutFrameCommand}"
                             AutomationProperties.AutomationId="Video_CutOutFrame"
                             Content="✂" ToolTip="{loc:Str Video.CutOutFrame}"/>
                     <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleFullScreenCommand}"
                             AutomationProperties.AutomationId="Video_Fullscreen"
-                            Content="⛶" ToolTip="Fullscreen"/>
+                            Content="⛶" ToolTip="{loc:Str Video.Transport.Fullscreen}"/>
                 </StackPanel>
 
                 <!-- Centre: time + scrubber (fills remaining space) -->

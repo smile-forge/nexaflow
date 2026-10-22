@@ -10,14 +10,15 @@ using FlaUI.Core.WindowsAPI;
 namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
 /// <summary>
-/// The one UI journey for the file browser: the tab loads, the create overlay makes each kind of thing it
-/// offers, renaming a file can be started and then cancelled without touching it, and a template defined in
-/// Options turns up in that overlay and produces a file with the right content.
+/// The one UI journey for the file browser, in one launch of the app: the tab loads, the create overlay makes each kind
+/// of thing it offers, renaming a file can be started and then cancelled without touching it, a band selects rows, a
+/// template defined in Options turns up in that overlay and produces a file with the right content, the Define New wizard
+/// walks its pages, the list reads as Explorer's does and keeps up with changes made outside the app, and the operations
+/// panel shows a copy, a zip and an extraction (<c>FileSystemJourneyTests.Operations.cs</c>).
 /// <para>
-/// This was three classes and seven test methods, each launching its own Nexaflow to assert one or two
-/// things about the same view. The launches were the runtime. Running them in sequence against one app also
-/// puts the templated-create case where it belongs — after the ordinary create cases, using the overlay they
-/// just proved works, rather than re-establishing all of it from scratch.
+/// Launching the app is most of a journey's cost, so every pass runs against the one app, in an order where each uses
+/// what the one before proved works — the templated create reuses the overlay the ordinary creates opened, and the
+/// operations panel comes last because it opens a second file browser.
 /// </para>
 /// <para>
 /// Checks are soft (<see cref="UiJourneyTestBase.Check"/> and friends) so one broken control still reports
@@ -32,9 +33,12 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("win-file-system")]
-public class FileSystemJourneyTests : UiJourneyTestBase
+public partial class FileSystemJourneyTests : UiJourneyTestBase
 {
     private const string TemplateBody = "TEMPLATE-CONTENT-XYZ";
+
+    /// <summary>The operations pass waits on real copies, zips and extractions of hundreds of megabytes.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(6);
 
     private string _folder = null!;
     private string _sourceTemplate = null!;
@@ -58,6 +62,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
     {
         try { if (Directory.Exists(_folder)) Directory.Delete(_folder, true); } catch { }
         try { if (File.Exists(_sourceTemplate)) File.Delete(_sourceTemplate); } catch { }
+        TryDelete(_operationsRoot);
     }
 
     /// <summary>
@@ -105,6 +110,21 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
     }
 
+    /// <summary>Clicks the list's top row, so the selection is that one row.</summary>
+    private bool SelectTopRow()
+    {
+        var top = WaitForId("FileListView", 6)?
+            .FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.DataItem))
+            .OrderBy(row => row.BoundingRectangle.Top)
+            .FirstOrDefault();
+        if (top is null) return false;
+
+        top.Click();
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(150);
+        return true;
+    }
+
     /// <summary>
     /// Band-selects rows by dragging from the empty space below them, and reports how many ended up
     /// selected — <c>-1</c> when the gesture could not be posed at all (no list, no rows, or the rows
@@ -115,7 +135,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         var list = WaitForId("FileListView", 6);
         if (list is null) return -1;
 
-        var rows = list.FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem))
+        var rows = list.FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.DataItem))
                        .OrderBy(r => r.BoundingRectangle.Top)
                        .ToArray();
         if (rows.Length <= rowsToCover) return -1;
@@ -164,6 +184,9 @@ public class FileSystemJourneyTests : UiJourneyTestBase
     [CoversNode("winfs-create-template")]
     [CoversNode("winfs-act-rename")]
     [CoversNode("winfs-marquee-select")]
+    [CoversNode("winfs-file-icons")]
+    [CoversNode("winfs-folder-watch")]
+    [CoversNode("file-operations-panel")]
     public void FileSystem_Controls_RespondInOnePass()
     {
         // ── The tab loads with its primary elements ──────────────────────────────────────
@@ -285,9 +308,11 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         {
             Check("Dragging a band up over three rows selects exactly those three", () => banded == 3);
 
-            int withCtrl = BandSelectUpwards(rowsToCover: 2, holdCtrl: true);
+            // One row picked at the top, then a Ctrl+band over the bottom two: three if the band added to the
+            // selection, two if it replaced it. A second band over rows the first already held could not tell.
+            int withCtrl = SelectTopRow() ? BandSelectUpwards(rowsToCover: 2, holdCtrl: true) : -1;
             Check("Ctrl+band adds to the selection instead of replacing it",
-                  () => withCtrl < 0 || withCtrl > 3);
+                  () => withCtrl < 0 || withCtrl == 3);
         }
 
         // ── A template defined in Options reaches the create overlay ─────────────────────
@@ -349,8 +374,62 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         }
 
         RunDefineNewWizardPass();
+        RunListingPass();
+        RunOperationsPanelPass();
 
         AssertJourney();
+    }
+
+    /// <summary>
+    /// The list as it reads: a file's Type is the shell's name for its kind, there is no Status column outside a folder a
+    /// sync provider keeps, every row wears its shell icon (a picture of the list is kept to look at — an icon is drawn, not
+    /// a control the automation tree can read), and a file made or deleted by something other than the app appears and
+    /// goes without a refresh.
+    /// </summary>
+    private void RunListingPass()
+    {
+        NavigateFileBrowserTo(_folder);
+        var list = WaitForId("FileListView", 8);
+        if (list is null)
+        {
+            Check("the file list is on screen for the listing pass", () => false);
+            return;
+        }
+
+        // What a kind of file is called depends on what is installed — the sandbox has nothing for .txt, so the shell
+        // calls it "TXT File" — but a folder is always the shell's "File folder", and a file is never its bare extension.
+        Check("Type is the shell's name for each kind: a folder is a 'File folder', a file not its bare extension", () =>
+        {
+            FindInFileList("MadeByTest", Affordable(8));
+            return TypeShownFor(list, "MadeByTest") == "File folder"
+                && TypeShownFor(list, "hello.txt") is { Length: > 0 } text && text != "TXT";
+        });
+
+        Check("no Status column outside a synced folder", () =>
+            list.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.HeaderItem).And(cf.ByName("Status"))) is null);
+
+        ShootWindowArea("fs-journey", "file-list");
+
+        // The folder has been open since the create pass, so the shell is long since listening to it.
+        var outside = Path.Combine(_folder, "made-elsewhere.txt");
+        File.WriteAllText(outside, "x");
+        Check("a file made outside the app is listed without a refresh",
+              () => FindInFileList("made-elsewhere.txt", Affordable(10)) is not null);
+
+        File.Delete(outside);
+        Check("and is gone from the list once deleted",
+              () => WaitForFs(() => list.FindFirstDescendant(cf => cf.ByName("made-elsewhere.txt")) is null, Affordable(10)));
+    }
+
+    /// <summary>The Type cell of <paramref name="name"/>'s row: each row's cells read Name, Type, Size, Modified.</summary>
+    private static string? TypeShownFor(AutomationElement list, string name)
+    {
+        var row = list.FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.DataItem))
+                      .FirstOrDefault(item => item.FindFirstDescendant(cf => cf.ByName(name)) is not null);
+        var texts = row?.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Text))
+                        .Select(text => text.Name ?? string.Empty)
+                        .ToArray();
+        return texts is { Length: > 1 } ? texts[1] : null;
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Views;
 
@@ -51,7 +52,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         else
             env = _config.Environments.FirstOrDefault();
 
-        var title = env?.TabTitle is { Length: > 0 } t ? t : "Console";
+        var title = env?.TabTitle is { Length: > 0 } t ? t : Str.Get("Console.Page.Title");
         var vm    = new CmdTerminalViewModel(_config, _shellServices, _aiService, initialPath, env, pickerPending);
 
         var tab = new Page

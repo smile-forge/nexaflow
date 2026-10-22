@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Notebook.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Notebook.ViewModels;
 
@@ -14,7 +15,7 @@ public sealed partial class NotebookCellViewModel : ObservableObject
         Kind   = cell.Kind;
         Source = cell.Source.TrimEnd('\n');
         GrammarId = cell.Kind == NotebookCellKind.Code ? grammarId : null;
-        Label  = cell.Kind == NotebookCellKind.Code ? $"In [{(cell.ExecutionCount?.ToString() ?? " ")}]" : "";
+        Label  = cell.Kind == NotebookCellKind.Code ? Str.Format("Notebook.Cell.InputLabelFormat", cell.ExecutionCount?.ToString() ?? " ") : "";
         Outputs = cell.Outputs;
     }
 

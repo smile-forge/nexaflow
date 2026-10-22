@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Core.Controls.WorkspaceIdentityControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              x:Name="Root">
     <UserControl.Resources>
@@ -67,9 +68,9 @@
          list pulls from the control itself (ElementName=Root). -->
     <StackPanel x:Name="EditPanel" MaxWidth="540" HorizontalAlignment="Left">
 
-        <TextBlock Text="Identity" FontSize="14" FontWeight="SemiBold"
+        <TextBlock Text="{loc:Str Shell.Workspace.Identity.Title}" FontSize="14" FontWeight="SemiBold"
                    Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
-        <TextBlock Text="Name, symbol and colour shown in the workspace selector and the ribbon accent."
+        <TextBlock Text="{loc:Str Shell.Workspace.Identity.Intro}"
                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                    TextWrapping="Wrap" Margin="0,0,0,16"/>
 
@@ -89,7 +90,7 @@
             </Border>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="Name" Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{loc:Str Shell.Workspace.Name}" Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11" Margin="0,0,0,4"/>
                 <TextBox Style="{StaticResource DarkTextBox}" FontSize="13"
                          AutomationProperties.AutomationId="identity_Name"
@@ -97,7 +98,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0" Width="64">
-                <TextBlock Text="Symbol" Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{loc:Str Shell.Workspace.Symbol}" Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11" Margin="0,0,0,4"/>
                 <TextBox Style="{StaticResource DarkTextBox}" FontSize="13" MaxLength="3"
                          AutomationProperties.AutomationId="identity_Icon"
@@ -106,7 +107,7 @@
         </Grid>
 
         <!-- Colour: swatch bank + hex value -->
-        <TextBlock Text="Colour" Foreground="{StaticResource TextMutedBrush}"
+        <TextBlock Text="{loc:Str Shell.Workspace.Colour}" Foreground="{StaticResource TextMutedBrush}"
                    FontSize="11" Margin="0,0,0,6"/>
         <Grid>
             <Grid.ColumnDefinitions>
@@ -146,28 +147,28 @@
                      Style="{StaticResource DarkTextBox}" FontSize="12"
                      AutomationProperties.AutomationId="identity_Color"
                      Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Hex colour (e.g. #5B8CFF)"/>
+                     ToolTip="{loc:Str Shell.Workspace.HexTip}"/>
         </Grid>
 
         <!-- Conversations: export to markdown -->
         <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,22,0,16"/>
-        <TextBlock Text="Conversations" FontSize="13" FontWeight="SemiBold"
+        <TextBlock Text="{loc:Str Shell.Workspace.Conversations.Title}" FontSize="13" FontWeight="SemiBold"
                    Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
-        <TextBlock Text="Save every conversation in this workspace as markdown files (one per conversation) to a folder you choose."
+        <TextBlock Text="{loc:Str Shell.Workspace.Conversations.Intro}"
                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                    TextWrapping="Wrap" Margin="0,0,0,8"/>
-        <Button Content="Export conversations…" Style="{StaticResource NeutralButton}"
+        <Button Content="{loc:Str Shell.Workspace.Conversations.Export}" Style="{StaticResource NeutralButton}"
                 HorizontalAlignment="Left" Click="OnExportClick"
                 AutomationProperties.AutomationId="identity_Export"/>
 
         <!-- Danger zone: delete workspace -->
         <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,22,0,16"/>
-        <TextBlock Text="Delete workspace" FontSize="13" FontWeight="SemiBold"
+        <TextBlock Text="{loc:Str Shell.Workspace.DeleteZone.Title}" FontSize="13" FontWeight="SemiBold"
                    Foreground="{StaticResource DangerBrush}" Margin="0,0,0,4"/>
-        <TextBlock Text="Permanently removes this workspace along with every conversation held in it, and closes all of its open windows. This action is irreversible."
+        <TextBlock Text="{loc:Str Shell.Workspace.DeleteZone.Detail}"
                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                    TextWrapping="Wrap" Margin="0,0,0,8"/>
-        <Button x:Name="DeleteButton" Content="Delete Workspace" Style="{StaticResource DangerButton}"
+        <Button x:Name="DeleteButton" Content="{loc:Str Shell.Workspace.DeleteZone.Button}" Style="{StaticResource DangerButton}"
                 HorizontalAlignment="Left" Click="OnDeleteClick"
                 AutomationProperties.AutomationId="identity_Delete"/>
     </StackPanel>

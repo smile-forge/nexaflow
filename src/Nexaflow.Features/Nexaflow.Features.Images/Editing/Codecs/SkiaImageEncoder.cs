@@ -35,7 +35,7 @@ public sealed class SkiaImageEncoder(MetadataTransfer metadata) : IImageEncoder
         using (var canvas = new SKCanvas(flat))
         {
             canvas.Clear(SKColors.White);
-            canvas.DrawImage(picture, 0, 0);
+            canvas.DrawImage(picture, 0, 0, SKSamplingOptions.Default, null);
         }
         using var pixmap = flat.PeekPixels();
         using var data = pixmap.Encode(new SKJpegEncoderOptions(Math.Clamp(options.Quality, 1, 100),

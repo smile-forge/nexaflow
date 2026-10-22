@@ -47,6 +47,9 @@ public class MarkdownInlineTests
         ("a bare url", "see https://example.org for more"),
         ("an entity", "a &amp; b &#39;c&#39;"),
         ("an escape", "a \\* b \\_ c"),
+        ("typography", "\"quoted\" and 'single' -- an aside --- and more... <<guillemets>>"),
+        ("quotes nothing pairs", "it's \"open and 'more"),
+        ("an emoji", "ship it :rocket: at 10:30"),
         ("a heading's hashes", "# A Title"),
         ("an item's bullet", "- a thing"),
         ("a ticked item", "- [x] done"),
@@ -283,6 +286,95 @@ public class MarkdownInlineTests
     {
         // What is drawn is a box; what is there is three characters, and ticking one writes over them.
         Assert.AreEqual("[x]", Ticked("- [x] done").Print());
+    }
+
+    // ── Typography and emoji ────────────────────────────────────────────────
+
+    [TestMethod]
+    public void QuotesThatPairAreTypographyFacingEachOther()
+    {
+        var quotes = Every("say \"hi\" and 'bye' <<ciao>>", MarkdownKinds.Typographic);
+
+        CollectionAssert.AreEqual(new[] { "\"", "\"", "'", "'", "<<", ">>" }, quotes.Select(quote => quote.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { MarkdownRoles.LeftQuote, MarkdownRoles.RightQuote, MarkdownRoles.LeftQuote, MarkdownRoles.RightQuote,
+                                          MarkdownRoles.LeftQuote, MarkdownRoles.RightQuote },
+                                  quotes.Select(quote => quote.Role).ToArray());
+    }
+
+    [TestMethod]
+    public void AQuoteNothingPairsIsACharacterOfTheWordsAroundIt()
+    {
+        // An apostrophe stands inside a word, so it opens and closes nothing; a quote that opens what nothing closes is put back.
+        Assert.AreEqual(0, Every("it's \"open", MarkdownKinds.Typographic).Count);
+        Assert.AreEqual("it's \"open", One("it's \"open", MarkdownKinds.Word).Text, "and is one word with the words either side");
+    }
+
+    [TestMethod]
+    public void QuotesArePairedAcrossEmphasis_AsMarkdigPairsThem()
+    {
+        // The closing quote is inside emphasis the opening one is outside of: the emphasis is made first, and still the two pair.
+        var read = MarkdownInline.Read("This is \"a *text\" with an emphasis*");
+
+        Assert.AreEqual(2, read.SelfAndDescendants().Count(node => node.Kind == MarkdownKinds.Typographic));
+        Assert.AreEqual(1, read.SelfAndDescendants().Count(node => node.Kind == MarkdownKinds.Emphasis));
+    }
+
+    [TestMethod]
+    public void AQuoteOpenedInsideAPairThatOutlastsItIsTheCharacterItIs()
+    {
+        // The single quote opens inside the doubles, and the doubles close first: it is left as typed, and so is the one after.
+        var quotes = Every("This is a \"text 'with\" a another text'", MarkdownKinds.Typographic);
+
+        CollectionAssert.AreEqual(new[] { "\"", "\"" }, quotes.Select(quote => quote.Text).ToArray());
+    }
+
+    [TestMethod]
+    public void TwoOrThreeDashesAreADashAndThreeStopsAnEllipsis()
+    {
+        CollectionAssert.AreEqual(new[] { "--", "---", "..." }, Every("a -- b --- c...", MarkdownKinds.Typographic).Select(piece => piece.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { "---" }, Every("a----b", MarkdownKinds.Typographic).Select(piece => piece.Text).ToArray(),
+                                  "four are an em dash and a hyphen");
+        Assert.AreEqual(0, Every("a-b. c.. d", MarkdownKinds.Typographic).Count, "one hyphen and two stops are themselves");
+    }
+
+    [TestMethod]
+    public void NothingInCodeOrAnAddressIsTypography()
+    {
+        Assert.AreEqual(0, Every("`\"a\" -- b...`", MarkdownKinds.Typographic).Count);
+        Assert.AreEqual(0, Every("<https://a--b.example/c...d>", MarkdownKinds.Typographic).Count);
+        Assert.AreEqual(0, Every("see https://a--b.example now", MarkdownKinds.Typographic).Count);
+    }
+
+    [TestMethod]
+    public void TwoDoubleQuotesAreStillACitation()
+    {
+        Assert.AreEqual(1, Every("as \"\"somebody\"\" said", MarkdownKinds.Citation).Count);
+        Assert.AreEqual(0, Every("as \"\"somebody\"\" said", MarkdownKinds.Typographic).Count);
+    }
+
+    [TestMethod]
+    public void AnEmojiIsANameBetweenColons_AndStandsForTheEmoji()
+    {
+        var emoji = One("ship it :rocket:", MarkdownKinds.Shortcode);
+
+        Assert.AreEqual(":rocket:", emoji.Text);
+        Assert.AreEqual("\U0001F680", MarkdownStandIns.Decoded(emoji));
+    }
+
+    [TestMethod]
+    public void ATimeAColonAfterAWordAndANameNobodyGaveAreNoEmoji()
+    {
+        Assert.AreEqual(0, Every("at 10:30:00", MarkdownKinds.Shortcode).Count);
+        Assert.AreEqual(0, Every("x:rocket:x", MarkdownKinds.Shortcode).Count);
+        Assert.AreEqual(0, Every("a :nothing_is_called_this: here", MarkdownKinds.Shortcode).Count);
+    }
+
+    [TestMethod]
+    public void WhatTypographyStandsForIsTheTypographersCharacter()
+    {
+        var drawn = Every("\"a\" 'b' -- --- ... <<c>>", MarkdownKinds.Typographic).Select(MarkdownStandIns.Decoded).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "“", "”", "‘", "’", "–", "—", "…", "«", "»" }, drawn);
     }
 
     // ── What nobody finished typing ─────────────────────────────────────────

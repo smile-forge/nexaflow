@@ -5,8 +5,10 @@
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
              xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
@@ -21,6 +23,7 @@
 
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
 
             <Style x:Key="NavArrowStyle" TargetType="Button">
                 <Setter Property="Background" Value="#55000000"/>
@@ -47,14 +50,22 @@
                 </Setter>
             </Style>
 
-            <!-- Right-click → Delete menus (defined before the templates that reference them, so the
+            <!-- Right-click → Copy / Delete menus (defined before the templates that reference them, so the
                  top-down StaticResource lookup can resolve them). -->
-            <ContextMenu x:Key="ThumbDeleteMenu" x:Shared="False">
+            <ContextMenu x:Key="ThumbPictureMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Copy}"
+                          Command="{Binding PlacementTarget.Tag.CopyPictureCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                <Separator/>
                 <MenuItem Header="{loc:Str Images.Menu.Delete}"
                           Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                           CommandParameter="{Binding PlacementTarget.DataContext.Index, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             </ContextMenu>
-            <ContextMenu x:Key="CurrentDeleteMenu" x:Shared="False">
+            <ContextMenu x:Key="CurrentPictureMenu" x:Shared="False">
+                <MenuItem Header="{loc:Str Images.Menu.Copy}"
+                          Command="{Binding PlacementTarget.DataContext.CopyPictureCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                <Separator/>
                 <MenuItem Header="{loc:Str Images.Menu.Delete}"
                           Command="{Binding PlacementTarget.DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                           CommandParameter="{Binding PlacementTarget.DataContext.CurrentIndex, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
@@ -64,7 +75,7 @@
                  ItemContainerStyle; the card fills its container. Accent border on hover or when selected. -->
             <DataTemplate x:Key="ThumbCard" DataType="{x:Type vm:ImageThumbItem}">
                 <Border Cursor="Hand" BorderThickness="1.5" CornerRadius="4" ToolTip="{Binding FileName}"
-                        ContextMenu="{StaticResource ThumbDeleteMenu}"
+                        ContextMenu="{StaticResource ThumbPictureMenu}"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -273,48 +284,59 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <Grid Margin="12,0">
 
-                <!-- Sub-view selector (browsing only) -->
-                <Border x:Name="SubViewSelector" HorizontalAlignment="Left" VerticalAlignment="Center"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
-                        Visibility="{Binding ShowsSubViewSelector, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.CarouselTip}"
-                                     AutomationProperties.AutomationId="Image_ViewCarousel"
-                                     IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Carousel}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="▣" FontSize="13" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Str Images.Toolbar.Carousel}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </RadioButton>
-                        <Border Style="{StaticResource SegDivider}"/>
-                        <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.AlbumTip}"
-                                     AutomationProperties.AutomationId="Image_ViewAlbum"
-                                     IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Album}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="▦" FontSize="13" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Str Images.Toolbar.Album}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </RadioButton>
-                        <Border Style="{StaticResource SegDivider}"/>
-                        <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.ExploreTip}"
-                                     AutomationProperties.AutomationId="Image_ViewExplore"
-                                     IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Explore}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="◫" FontSize="13" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Str Images.Toolbar.Explore}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </RadioButton>
-                        <Border Style="{StaticResource SegDivider}"/>
-                        <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.CollageTip}"
-                                     AutomationProperties.AutomationId="Image_ViewCollage"
-                                     IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Collage}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="❖" FontSize="13" VerticalAlignment="Center"/>
-                                <TextBlock Text="{loc:Str Images.Toolbar.Collage}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </RadioButton>
-                    </StackPanel>
-                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <!-- Details: what the picture's file says about it, in a panel on the left (I) — browsing and editing alike -->
+                    <ToggleButton IsChecked="{Binding Details.IsOpen, Mode=TwoWay}" ToolTip="{loc:Str Images.Details.Tip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,8,0"
+                                  AutomationProperties.AutomationId="Image_Details" AutomationProperties.Name="{loc:Str Images.Details.Title}">
+                        <StackPanel Orientation="Horizontal">
+                            <icons:IconGlyph Icon="fluent:info" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Details.Title}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <!-- Sub-view selector (browsing only) -->
+                    <Border x:Name="SubViewSelector" VerticalAlignment="Center"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                            Visibility="{Binding ShowsSubViewSelector, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.CarouselTip}"
+                                         AutomationProperties.AutomationId="Image_ViewCarousel"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Carousel}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="▣" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Str Images.Toolbar.Carousel}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <Border Style="{StaticResource SegDivider}"/>
+                            <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.AlbumTip}"
+                                         AutomationProperties.AutomationId="Image_ViewAlbum"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Album}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="▦" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Str Images.Toolbar.Album}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <Border Style="{StaticResource SegDivider}"/>
+                            <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.ExploreTip}"
+                                         AutomationProperties.AutomationId="Image_ViewExplore"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Explore}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="◫" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Str Images.Toolbar.Explore}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <Border Style="{StaticResource SegDivider}"/>
+                            <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Toolbar.CollageTip}"
+                                         AutomationProperties.AutomationId="Image_ViewCollage"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Collage}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="❖" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:Str Images.Toolbar.Collage}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
 
                 <!-- A mark when the shown photo carries edits; its name is the tab's and the breadcrumb's -->
                 <Border Padding="6,1" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource Surface2Brush}"
@@ -333,9 +355,11 @@
                             <TextBlock Text="{loc:Str Images.Toolbar.Edit}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <!-- Make a video from this picture: shown where the workspace has a model that carries a picture on -->
-                    <Grid Margin="0,0,8,0" Visibility="{Binding MakeVideo.CanMake, Converter={StaticResource BoolToVis}}">
+                    <!-- Make a video from this picture: enabled where the workspace has a model that carries a picture on, and saying how to
+                         enable it where it has none -->
+                    <Grid Margin="0,0,8,0">
                         <Button x:Name="MakeVideoButton" Command="{Binding MakeVideo.OpenCommand}" ToolTip="{loc:Str Images.Toolbar.VideoTip}"
+                                vcc:AiAbilityGating.Gate="{Binding MakeVideo}"
                                 Style="{StaticResource ToolbarButtonStyle}" AutomationProperties.AutomationId="Image_MakeVideo">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🎬" FontSize="12" VerticalAlignment="Center"/>
@@ -448,10 +472,56 @@
                             AutomationProperties.AutomationId="Image_EditSave">
                         <TextBlock Text="{loc:Str Images.Edit.Save}"/>
                     </Button>
-                    <Button Command="{Binding Editor.SaveCopyCommand}" ToolTip="{loc:Str Images.Edit.SaveCopyTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
+                    <Button Command="{Binding Editor.SaveCopyCommand}" ToolTip="{loc:Str Images.Edit.SaveCopyTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Image_EditSaveCopy">
                         <TextBlock Text="{loc:Str Images.Edit.SaveCopy}"/>
                     </Button>
+                    <!-- Save options: what a save keeps and the quality it writes — decided where saving is, not among the tools -->
+                    <Grid Margin="0,0,10,0">
+                        <Button x:Name="SaveOptionsButton" Command="{Binding Editor.OpenSaveOptionsCommand}" ToolTip="{loc:Str Images.Edit.SaveOptions.Tip}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                AutomationProperties.AutomationId="Image_EditSaveOptions" AutomationProperties.Name="{loc:Str Images.Edit.SaveOptions.Title}">
+                            <Grid>
+                                <icons:IconGlyph Icon="fluent:settings" FontSize="14"/>
+                                <!-- What Save will not do is said inside: marked here so it is not missed. -->
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource WarningBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-5,0"
+                                         Visibility="{Binding Editor.SaveNote, Converter={StaticResource NullToCollapsed}}"/>
+                            </Grid>
+                        </Button>
+                        <Popup IsOpen="{Binding Editor.IsSaveOptionsOpen, Mode=TwoWay}" StaysOpen="False"
+                               PlacementTarget="{Binding ElementName=SaveOptionsButton}" Placement="Bottom"
+                               AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Margin="0,6,0,0" Padding="14,0,14,14" Width="320"
+                                    Thumb.DragStarted="SaveOptions_DragStarted" Thumb.DragCompleted="SaveOptions_DragCompleted">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.SaveOptions.Title}"/>
+                                    <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Export.Hint}"/>
+
+                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.MetadataHeader}"/>
+                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.StripMetadata, Mode=TwoWay}"
+                                              Content="{loc:Str Images.Edit.Export.Strip}" AutomationProperties.AutomationId="Image_EditStripMetadata"/>
+                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.StripHint}"/>
+
+                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.Quality}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <views:AdjustmentSlider Minimum="50" Maximum="100" SmallChange="1" LargeChange="5" DefaultValue="92" VerticalAlignment="Center"
+                                                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                                                Value="{Binding Editor.Quality, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditQuality"/>
+                                        <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.Quality}"/>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.QualityHint}"/>
+
+                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,14,0,0" Foreground="{StaticResource WarningBrush}"
+                                               Text="{Binding Editor.SaveNote}" Visibility="{Binding Editor.SaveNote, Converter={StaticResource NullToCollapsed}}"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <Button Command="{Binding ExitEditModeCommand}" ToolTip="{loc:Str Images.Edit.DoneTip}" Style="{StaticResource ToolbarButtonStyle}"
                             AutomationProperties.AutomationId="Image_EditDone">
                         <TextBlock Text="{loc:Str Images.Edit.Done}"/>
@@ -529,22 +599,62 @@
                     <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
+            <!-- The open panel's tools wait for models not here yet: their download, offered once. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.PickingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.PickingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.PickingModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_PickingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.PickingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.ErasingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.ErasingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.ErasingModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_ErasingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.ErasingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Editor.RestoringModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.RestoringModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.RestoringModels.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_RestoringModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Editor.RestoringModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
             <!-- Converting the page to Markdown: how far it has got, its download, or why it could not -->
             <pages:PageConversionBar DataContext="{Binding ReadPage.Conversion}"/>
         </StackPanel>
 
-        <!-- ══ Content: exactly one sub-view is shown ══ -->
+        <!-- ══ Content: the Details panel on the left when it is open, and exactly one sub-view beside it ══ -->
         <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <views:ImageDetailsPanel DataContext="{Binding Details}" Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"/>
 
             <!-- ── Carousel ── -->
-            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}" PreviewMouseWheel="OnPreviewMouseWheel">
+            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}" PreviewMouseWheel="OnPreviewMouseWheel" Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Grid x:Name="CarouselImageHost" Grid.Row="0" ClipToBounds="True" Background="Transparent"
-                      ContextMenu="{StaticResource CurrentDeleteMenu}" SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
+                      ContextMenu="{StaticResource CurrentPictureMenu}" SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
                     <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
                     <!-- Prev / Next -->
@@ -628,7 +738,8 @@
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Background="{StaticResource BgBrush}"
                           PreviewMouseLeftButtonUp="ThumbSelect_Click"
-                          MouseDoubleClick="AlbumThumb_MouseDoubleClick">
+                          MouseDoubleClick="AlbumThumb_MouseDoubleClick"
+                          Grid.Column="1">
                 <ItemsControl ItemsSource="{Binding Thumbnails}" Margin="8" ItemTemplate="{StaticResource ThumbCard}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -646,7 +757,7 @@
             </ScrollViewer>
 
             <!-- ── Explore: thumbnail strip (left) + selected image (right) ── -->
-            <Grid x:Name="ExploreSurface" Visibility="{Binding IsExplore, Converter={StaticResource BoolToVis}}">
+            <Grid x:Name="ExploreSurface" Visibility="{Binding IsExplore, Converter={StaticResource BoolToVis}}" Grid.Column="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="300" MinWidth="160"/>
                     <ColumnDefinition Width="4"/>
@@ -676,7 +787,7 @@
                 <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
 
                 <Grid x:Name="ExploreImageHost" Grid.Column="2" ClipToBounds="True" Background="{StaticResource BgBrush}"
-                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentDeleteMenu}"
+                      MouseWheel="ExploreImage_MouseWheel" ContextMenu="{StaticResource CurrentPictureMenu}"
                       SizeChanged="ImageHost_SizeChanged" IsVisibleChanged="ImageHost_IsVisibleChanged">
                     <Control Template="{StaticResource FeaturedImageTemplate}" Focusable="False" IsTabStop="False"/>
 
@@ -692,7 +803,8 @@
                                 Background="{StaticResource BgBrush}" Focusable="True"
                                 ZoomOnPlainWheel="True"
                                 MinScale="0.2" MaxScale="5"
-                                SizeChanged="Collage_SizeChanged">
+                                SizeChanged="Collage_SizeChanged"
+                                Grid.Column="1">
                 <vcl:PanZoomSurface.SurfaceContent>
                     <ItemsControl ItemsSource="{Binding Thumbnails}"
                                   MouseLeftButtonDown="CollageCard_MouseDown">
@@ -722,7 +834,7 @@
             </vcl:PanZoomSurface>
 
             <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
-            <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"/>
+            <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" Grid.Column="1"/>
 
         </Grid>
     </Grid>

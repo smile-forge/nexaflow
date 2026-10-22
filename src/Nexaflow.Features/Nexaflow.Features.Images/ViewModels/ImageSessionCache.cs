@@ -48,6 +48,9 @@ public sealed class ImageSessionCache(ImageEditingServices editing, int capacity
         return session;
     }
 
+    /// <summary>The session open for <paramref name="path"/>, left where it stands in the cache; null if none is open.</summary>
+    public ImageEditSession? Peek(string path) => Find(path);
+
 
     private ImageEditSession? Find(string path) =>
         _sessions.FirstOrDefault(s => string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase));

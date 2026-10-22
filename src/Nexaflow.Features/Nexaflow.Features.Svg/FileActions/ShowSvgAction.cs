@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Svg.FileActions;
 
@@ -14,10 +15,10 @@ public sealed class ShowSvgAction(IShellServices shell) : IFileAction, ICacheabl
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
     public string Icon => "🎨";
-    public string DisplayName => "As SVG";
+    public string DisplayName => Str.Get("Svg.Action.AsSvg");
     public static string? StaticExperienceId => "/svg";
     public string ExperienceId => "/svg";
-    public string ExperienceDescription => "SVG vector viewer: pan/zoom crisp vector art with dimensions and element count (.svg/.svgz)";
+    public string ExperienceDescription => Str.Get("Svg.Action.ExperienceDescription");
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
     public bool OpensViewer => true;

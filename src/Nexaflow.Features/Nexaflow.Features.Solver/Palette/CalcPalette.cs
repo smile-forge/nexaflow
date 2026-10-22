@@ -1,3 +1,5 @@
+using Nexaflow.Visuals.Common.Localization;
+
 namespace Nexaflow.Features.Solver.Palette;
 
 /// <summary>
@@ -12,6 +14,12 @@ namespace Nexaflow.Features.Solver.Palette;
 /// What a key <i>does</i> matters as much as what it says — see <see cref="KeyInsert"/>. A function
 /// brackets your selection instead of replacing it, a factorial follows the number rather than
 /// erasing it, and a square does nothing when there is nothing to square.
+/// </para>
+/// <para>
+/// A page is built each time it is read rather than held. Its tooltips are in the reader's language,
+/// and a language change restarts the window, not the process, so a page fixed once for the process
+/// would go on speaking the language it was first built in. Building one is a few dozen small records,
+/// paid on a page switch, never per frame.
 /// </para>
 /// </summary>
 public static class CalcPalette
@@ -35,139 +43,143 @@ public static class CalcPalette
     public const string AngleToggleId = "calc.angle";
 
     /// <summary>The default page.</summary>
-    public static PaletteGroup Main { get; } = new("calc.main", "Main",
+    public static PaletteGroup Main => new("calc.main", "Main",
     [
-        Cmd("2nd", SecondPageId, "Inverse and hyperbolic functions"),
-        Cmd("π e", ConstPageId, "Constants"),
-        Key("(", "(", "Open bracket", PaletteKeyKind.Operator),
-        Key(")", ")", "Close bracket", PaletteKeyKind.Operator),
-        Cmd("⌫", BackspaceId, "Delete the character before the caret"),
-        Cmd("C", ClearId, "Clear the definition"),
-        Key("÷", " / ", "Divide", PaletteKeyKind.Operator),
-        Key("×", " * ", "Multiply", PaletteKeyKind.Operator),
+        Cmd("2nd", SecondPageId, Str.Get("Solver.Calc.SecondPage")),
+        Cmd("π e", ConstPageId, Str.Get("Solver.Calc.ConstPage")),
+        Key("(", "(", Str.Get("Solver.Calc.OpenBracket"), PaletteKeyKind.Operator),
+        Key(")", ")", Str.Get("Solver.Calc.CloseBracket"), PaletteKeyKind.Operator),
+        Cmd("⌫", BackspaceId, Str.Get("Solver.Calc.Backspace")),
+        Cmd("C", ClearId, Str.Get("Solver.Calc.Clear")),
+        Key("÷", " / ", Str.Get("Solver.Calc.Divide"), PaletteKeyKind.Operator),
+        Key("×", " * ", Str.Get("Solver.Calc.Multiply"), PaletteKeyKind.Operator),
 
-        Fn("sin", "sin", "Sine of the selection, or of what you type next"),
-        Fn("cos", "cos", "Cosine"),
-        Fn("tan", "tan", "Tangent"),
+        Fn("sin", "sin", Str.Get("Solver.Calc.Sine")),
+        Fn("cos", "cos", Str.Get("Solver.Calc.Cosine")),
+        Fn("tan", "tan", Str.Get("Solver.Calc.Tangent")),
         Digit("7"), Digit("8"), Digit("9"),
-        Key("−", " - ", "Subtract", PaletteKeyKind.Operator),
-        Post("xʸ", "^", "Raise what precedes it to a power", PaletteKeyKind.Operator),
+        Key("−", " - ", Str.Get("Solver.Calc.Subtract"), PaletteKeyKind.Operator),
+        Post("xʸ", "^", Str.Get("Solver.Calc.Power"), PaletteKeyKind.Operator),
 
-        Fn("ln", "ln", "Natural logarithm"),
-        Fn("log", "log", "Logarithm — log(base, value)"),
-        Wrap("eˣ", "e^(", ")", "e to a power", PaletteKeyKind.Function),
+        Fn("ln", "ln", Str.Get("Solver.Calc.NaturalLog")),
+        Fn("log", "log", Str.Get("Solver.Calc.Log")),
+        Wrap("eˣ", "e^(", ")", Str.Get("Solver.Calc.Exp"), PaletteKeyKind.Function),
         Digit("4"), Digit("5"), Digit("6"),
-        Key("+", " + ", "Add", PaletteKeyKind.Operator),
-        Fn("√", "sqrt", "Square root"),
+        Key("+", " + ", Str.Get("Solver.Calc.Add"), PaletteKeyKind.Operator),
+        Fn("√", "sqrt", Str.Get("Solver.Calc.SquareRoot")),
 
         Key("π", "pi", "3.14159…", PaletteKeyKind.Constant),
         Key("e", "e", "2.71828…", PaletteKeyKind.Constant),
-        Post("n!", "!", "Factorial of what precedes it", PaletteKeyKind.Function),
+        Post("n!", "!", Str.Get("Solver.Calc.Factorial"), PaletteKeyKind.Function),
         Digit("1"), Digit("2"), Digit("3"),
-        Post("%", "%", "Remainder — follows a number", PaletteKeyKind.Operator),
-        Post("x²", "^2", "Square what precedes it", PaletteKeyKind.Operator),
+        Post("%", "%", Str.Get("Solver.Calc.Remainder"), PaletteKeyKind.Operator),
+        Post("x²", "^2", Str.Get("Solver.Calc.Square"), PaletteKeyKind.Operator),
 
-        Cmd("DEG", AngleToggleId, "Switch between degrees and radians"),
-        Fn("|x|", "abs", "Absolute value of the selection"),
-        Fn("⌊x⌋", "floor", "Round down"),
+        Cmd("DEG", AngleToggleId, Str.Get("Solver.Calc.AngleToggle")),
+        Fn("|x|", "abs", Str.Get("Solver.Calc.Abs")),
+        Fn("⌊x⌋", "floor", Str.Get("Solver.Calc.Floor")),
         Digit("0"), Digit("."),
-        Key(",", ", ", "Separator — also separates a list of numbers for the stats chips", PaletteKeyKind.Operator),
-        Key("x", "x", "The variable x", PaletteKeyKind.Symbol),
-        Key("y", "y", "The variable y", PaletteKeyKind.Symbol),
+        Key(",", ", ", Str.Get("Solver.Calc.ListSeparator"), PaletteKeyKind.Operator),
+        Variable("x"),
+        Variable("y"),
     ]);
 
     /// <summary>Behind the <c>2nd</c> key: inverses and hyperbolics.</summary>
-    public static PaletteGroup Second { get; } = new("calc.second.page", "2nd",
+    public static PaletteGroup Second => new("calc.second.page", "2nd",
     [
-        Cmd("2nd", SecondPageId, "Back to the main keys"),
-        Cmd("π e", ConstPageId, "Constants"),
-        Key("(", "(", "Open bracket", PaletteKeyKind.Operator),
-        Key(")", ")", "Close bracket", PaletteKeyKind.Operator),
-        Cmd("⌫", BackspaceId, "Delete the character before the caret"),
-        Cmd("C", ClearId, "Clear the definition"),
-        Key("÷", " / ", "Divide", PaletteKeyKind.Operator),
-        Key("×", " * ", "Multiply", PaletteKeyKind.Operator),
+        Cmd("2nd", SecondPageId, Str.Get("Solver.Calc.MainPage")),
+        Cmd("π e", ConstPageId, Str.Get("Solver.Calc.ConstPage")),
+        Key("(", "(", Str.Get("Solver.Calc.OpenBracket"), PaletteKeyKind.Operator),
+        Key(")", ")", Str.Get("Solver.Calc.CloseBracket"), PaletteKeyKind.Operator),
+        Cmd("⌫", BackspaceId, Str.Get("Solver.Calc.Backspace")),
+        Cmd("C", ClearId, Str.Get("Solver.Calc.Clear")),
+        Key("÷", " / ", Str.Get("Solver.Calc.Divide"), PaletteKeyKind.Operator),
+        Key("×", " * ", Str.Get("Solver.Calc.Multiply"), PaletteKeyKind.Operator),
 
-        Fn("sin⁻¹", "arcsin", "Inverse sine"),
-        Fn("cos⁻¹", "arccos", "Inverse cosine"),
-        Fn("tan⁻¹", "arctan", "Inverse tangent"),
+        Fn("sin⁻¹", "arcsin", Str.Get("Solver.Calc.ArcSine")),
+        Fn("cos⁻¹", "arccos", Str.Get("Solver.Calc.ArcCosine")),
+        Fn("tan⁻¹", "arctan", Str.Get("Solver.Calc.ArcTangent")),
         Digit("7"), Digit("8"), Digit("9"),
-        Key("−", " - ", "Subtract", PaletteKeyKind.Operator),
-        Wrap("ˣ√", "^(1/", ")", "Nth root — the root goes in the brackets", PaletteKeyKind.Operator),
+        Key("−", " - ", Str.Get("Solver.Calc.Subtract"), PaletteKeyKind.Operator),
+        Wrap("ˣ√", "^(1/", ")", Str.Get("Solver.Calc.NthRoot"), PaletteKeyKind.Operator),
 
-        Fn("sinh", "sinh", "Hyperbolic sine"),
-        Fn("cosh", "cosh", "Hyperbolic cosine"),
-        Fn("tanh", "tanh", "Hyperbolic tangent"),
+        Fn("sinh", "sinh", Str.Get("Solver.Calc.HyperbolicSine")),
+        Fn("cosh", "cosh", Str.Get("Solver.Calc.HyperbolicCosine")),
+        Fn("tanh", "tanh", Str.Get("Solver.Calc.HyperbolicTangent")),
         Digit("4"), Digit("5"), Digit("6"),
-        Key("+", " + ", "Add", PaletteKeyKind.Operator),
-        Post("∛", "^(1/3)", "Cube root of what precedes it", PaletteKeyKind.Operator),
+        Key("+", " + ", Str.Get("Solver.Calc.Add"), PaletteKeyKind.Operator),
+        Post("∛", "^(1/3)", Str.Get("Solver.Calc.CubeRoot"), PaletteKeyKind.Operator),
 
-        Fn("sec", "sec", "Secant"),
-        Fn("csc", "csc", "Cosecant"),
-        Fn("cot", "cot", "Cotangent"),
+        Fn("sec", "sec", Str.Get("Solver.Calc.Secant")),
+        Fn("csc", "csc", Str.Get("Solver.Calc.Cosecant")),
+        Fn("cot", "cot", Str.Get("Solver.Calc.Cotangent")),
         Digit("1"), Digit("2"), Digit("3"),
-        Key("mod", " mod ", "Remainder after division", PaletteKeyKind.Operator),
-        Post("x³", "^3", "Cube what precedes it", PaletteKeyKind.Operator),
+        Key("mod", " mod ", Str.Get("Solver.Calc.Modulo"), PaletteKeyKind.Operator),
+        Post("x³", "^3", Str.Get("Solver.Calc.Cube"), PaletteKeyKind.Operator),
 
-        Cmd("DEG", AngleToggleId, "Switch between degrees and radians"),
-        Fn("⌈x⌉", "ceil", "Round up"),
-        Fn("sgn", "signum", "Sign of a number"),
+        Cmd("DEG", AngleToggleId, Str.Get("Solver.Calc.AngleToggle")),
+        Fn("⌈x⌉", "ceil", Str.Get("Solver.Calc.Ceiling")),
+        Fn("sgn", "signum", Str.Get("Solver.Calc.Sign")),
         Digit("0"), Digit("."),
-        Key(",", ", ", "Separator", PaletteKeyKind.Operator),
-        Key("a", "a", "The variable a", PaletteKeyKind.Symbol),
-        Key("n", "n", "The variable n", PaletteKeyKind.Symbol),
+        Key(",", ", ", Str.Get("Solver.Calc.Separator"), PaletteKeyKind.Operator),
+        Variable("a"),
+        Variable("n"),
     ]);
 
     /// <summary>Behind the <c>π e</c> key: the constants worth not having to look up.</summary>
-    public static PaletteGroup Constants { get; } = new("calc.const.page", "Constants",
+    public static PaletteGroup Constants => new("calc.const.page", "Constants",
     [
-        Cmd("2nd", SecondPageId, "Inverse and hyperbolic functions"),
-        Cmd("π e", ConstPageId, "Back to the main keys"),
-        Key("(", "(", "Open bracket", PaletteKeyKind.Operator),
-        Key(")", ")", "Close bracket", PaletteKeyKind.Operator),
-        Cmd("⌫", BackspaceId, "Delete the character before the caret"),
-        Cmd("C", ClearId, "Clear the definition"),
-        Key("÷", " / ", "Divide", PaletteKeyKind.Operator),
-        Key("×", " * ", "Multiply", PaletteKeyKind.Operator),
+        Cmd("2nd", SecondPageId, Str.Get("Solver.Calc.SecondPage")),
+        Cmd("π e", ConstPageId, Str.Get("Solver.Calc.MainPage")),
+        Key("(", "(", Str.Get("Solver.Calc.OpenBracket"), PaletteKeyKind.Operator),
+        Key(")", ")", Str.Get("Solver.Calc.CloseBracket"), PaletteKeyKind.Operator),
+        Cmd("⌫", BackspaceId, Str.Get("Solver.Calc.Backspace")),
+        Cmd("C", ClearId, Str.Get("Solver.Calc.Clear")),
+        Key("÷", " / ", Str.Get("Solver.Calc.Divide"), PaletteKeyKind.Operator),
+        Key("×", " * ", Str.Get("Solver.Calc.Multiply"), PaletteKeyKind.Operator),
 
-        Key("π", "pi", "Pi — 3.14159…", PaletteKeyKind.Constant),
-        Key("τ", "(2 * pi)", "Tau — two pi", PaletteKeyKind.Constant),
-        Key("e", "e", "Euler's number — 2.71828…", PaletteKeyKind.Constant),
+        Key("π", "pi", Str.Get("Solver.Calc.Pi"), PaletteKeyKind.Constant),
+        Key("τ", "(2 * pi)", Str.Get("Solver.Calc.Tau"), PaletteKeyKind.Constant),
+        Key("e", "e", Str.Get("Solver.Calc.Euler"), PaletteKeyKind.Constant),
         Digit("7"), Digit("8"), Digit("9"),
-        Key("−", " - ", "Subtract", PaletteKeyKind.Operator),
-        Post("xʸ", "^", "Raise what precedes it to a power", PaletteKeyKind.Operator),
+        Key("−", " - ", Str.Get("Solver.Calc.Subtract"), PaletteKeyKind.Operator),
+        Post("xʸ", "^", Str.Get("Solver.Calc.Power"), PaletteKeyKind.Operator),
 
-        Key("φ", "((1 + sqrt(5)) / 2)", "Golden ratio — 1.61803…", PaletteKeyKind.Constant),
+        Key("φ", "((1 + sqrt(5)) / 2)", Str.Get("Solver.Calc.GoldenRatio"), PaletteKeyKind.Constant),
         Key("√2", "sqrt(2)", "1.41421…", PaletteKeyKind.Constant),
         Key("√3", "sqrt(3)", "1.73205…", PaletteKeyKind.Constant),
         Digit("4"), Digit("5"), Digit("6"),
-        Key("+", " + ", "Add", PaletteKeyKind.Operator),
-        Fn("√", "sqrt", "Square root"),
+        Key("+", " + ", Str.Get("Solver.Calc.Add"), PaletteKeyKind.Operator),
+        Fn("√", "sqrt", Str.Get("Solver.Calc.SquareRoot")),
 
-        Key("i", "i", "The imaginary unit", PaletteKeyKind.Constant),
-        Key("∞", "+oo", "Infinity", PaletteKeyKind.Constant),
-        Key("½", "(1/2)", "One half", PaletteKeyKind.Constant),
+        Key("i", "i", Str.Get("Solver.Calc.ImaginaryUnit"), PaletteKeyKind.Constant),
+        Key("∞", "+oo", Str.Get("Solver.Calc.Infinity"), PaletteKeyKind.Constant),
+        Key("½", "(1/2)", Str.Get("Solver.Calc.Half"), PaletteKeyKind.Constant),
         Digit("1"), Digit("2"), Digit("3"),
-        Post("%", "%", "Remainder — follows a number", PaletteKeyKind.Operator),
-        Post("x²", "^2", "Square what precedes it", PaletteKeyKind.Operator),
+        Post("%", "%", Str.Get("Solver.Calc.Remainder"), PaletteKeyKind.Operator),
+        Post("x²", "^2", Str.Get("Solver.Calc.Square"), PaletteKeyKind.Operator),
 
-        Cmd("DEG", AngleToggleId, "Switch between degrees and radians"),
-        Key("⅓", "(1/3)", "One third", PaletteKeyKind.Constant),
-        Key("¼", "(1/4)", "One quarter", PaletteKeyKind.Constant),
+        Cmd("DEG", AngleToggleId, Str.Get("Solver.Calc.AngleToggle")),
+        Key("⅓", "(1/3)", Str.Get("Solver.Calc.Third"), PaletteKeyKind.Constant),
+        Key("¼", "(1/4)", Str.Get("Solver.Calc.Quarter"), PaletteKeyKind.Constant),
         Digit("0"), Digit("."),
-        Key(",", ", ", "Separator", PaletteKeyKind.Operator),
-        Key("x", "x", "The variable x", PaletteKeyKind.Symbol),
-        Key("y", "y", "The variable y", PaletteKeyKind.Symbol),
+        Key(",", ", ", Str.Get("Solver.Calc.Separator"), PaletteKeyKind.Operator),
+        Variable("x"),
+        Variable("y"),
     ]);
 
     /// <summary>The three pages, in toggle order.</summary>
-    public static IReadOnlyList<PaletteGroup> Pages { get; } = [Main, Second, Constants];
+    public static IReadOnlyList<PaletteGroup> Pages => [Main, Second, Constants];
 
     private static PaletteKey Key(string label, string insert, string tooltip, PaletteKeyKind kind)
         => new(label, insert, tooltip, kind);
 
     private static PaletteKey Digit(string d)
-        => new(d, d, $"Type {d}", PaletteKeyKind.Digit);
+        => new(d, d, Str.Format("Solver.Calc.DigitFormat", d), PaletteKeyKind.Digit);
+
+    /// <summary>A single-letter variable, typed as itself.</summary>
+    private static PaletteKey Variable(string name)
+        => new(name, name, Str.Format("Solver.Calc.VariableFormat", name), PaletteKeyKind.Symbol);
 
     /// <summary>A named function: brackets the selection, or a placeholder ready to be typed over.</summary>
     private static PaletteKey Fn(string label, string name, string tooltip)

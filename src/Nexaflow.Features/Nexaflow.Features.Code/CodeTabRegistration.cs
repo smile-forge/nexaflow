@@ -1,6 +1,7 @@
 using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Code.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
 namespace Nexaflow.Features.Code;
@@ -24,7 +25,7 @@ public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices 
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var ast   = pageParams?.GetValueOrDefault("ast");
-        var title = string.IsNullOrEmpty(path) ? "Code" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Code.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {

@@ -10,6 +10,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -652,7 +653,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         into.Acts(new LayoutActions
         {
             Click = new LayoutIntent(MarkdownVerbs.Tick, done ? "off" : "on",
-                                     done ? "Not done after all" : "Done"),
+                                     done ? Str.Get("Text.Markdown.TaskUndone") : Str.Get("Text.Markdown.TaskDone")),
         });
 
         into.Covers(new Rect(0, 0, side, side));

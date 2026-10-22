@@ -140,10 +140,10 @@ public class DocumentToolsTests
     }
 
     [TestMethod]
-    public void AGridSavedBeforeTheDocumentsRow_StartsItWithAnalysissChain()
+    public void AGridSavedBeforeTheDocumentsRow_StartsItWithGeneralIntelligencesChain()
     {
         var config = new AiConfig();
-        config.Assignments[nameof(AiAbility.Analysis)] = AbilityChain.Of("local", "claude");
+        config.Assignments[nameof(AiAbility.GeneralIntelligence)] = AbilityChain.Of("local", "claude");
 
         Assert.IsTrue(config.AddDefaultDocuments());
         CollectionAssert.AreEqual(new[] { "local", "claude" }, config.Assignments[nameof(AiAbility.Documents)].ColumnIds.ToArray());

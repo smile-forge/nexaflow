@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>System Info — Nexaflow help</title>
-<meta name="description" content="Reports what this machine is: its Windows build, hardware, displays, disks and security settings.">
+<meta name="description" content="Reports what this machine is: its Windows build, hardware, displays, what it can run AI models on, disks and security settings.">
 <link rel="stylesheet" href="../../assets/site.css">
 </head>
 <body>
@@ -17,13 +17,19 @@
 <nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
 <header class="page-head">
   <h1>System Info</h1>
-  <p class="lede">Reports what this machine is: its Windows build, hardware, displays, disks and security settings.</p>
+  <p class="lede">Reports what this machine is: its Windows build, hardware, displays, what it can run AI models on, disks and security settings.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#the-cards">The cards</a></li><li><a href="#where-the-facts-come-from">Where the facts come from</a></li><li><a href="#refreshing">Refreshing</a></li><li><a href="#searching-the-facts">Searching the facts</a></li><li><a href="#asking-about-this-machine">Asking about this machine</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#the-cards">The cards</a></li><li><a href="#where-the-facts-come-from">Where the facts come from</a></li><li><a href="#refreshing">Refreshing</a></li><li><a href="#checking-this-machine">Checking this machine</a></li><li><a href="#searching-the-facts">Searching the facts</a></li><li><a href="#asking-about-this-machine">Asking about this machine</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="the-cards">The cards</h2>
 <ul>
-<li>Facts are grouped into cards, in this order: Operating System, Hardware, Display, Storage, Windows Security.</li>
+<li>Facts are grouped into cards, in this order: Operating System, Hardware, Display, Local AI, Storage, Windows Security.</li>
+<li>The Local AI card says where each model Nexaflow runs itself in this workspace runs: which graphics card and how
+much of its memory it holds, how long a conversation a language model is given there, and whether the models kept
+loaded make way for a picture while it is drawn. A model with no room on any card runs on the processor, more
+slowly, and one that cannot run there either is marked as too large. The card also names the other language models
+this machine fits, then each graphics card with how much of its memory goes to models, any NPU, and the CUDA driver
+version on NVIDIA machines.</li>
 <li>A fact the machine will not answer for reads as a dash rather than being left blank.</li>
 <li>A volume with less than 10% free is flagged on the Storage card.</li>
 <li>Windows Security items are marked healthy or worth attention as well as reported: Secure Boot, Virtualization-based Security (VBS), Memory Integrity (HVCI), Credential Guard, Kernel DMA Protection and TPM.</li>
@@ -33,6 +39,9 @@
 <li>Most are read from WMI. The Windows display version (24H2 and the like), the build number and the registered owner come from the registry.</li>
 <li>Secure Boot is read from the registry, and the TPM through the TPM Base Services API, so both are reported without administrator rights.</li>
 <li>Graphics memory is read from the display driver's registry key, because the WMI figure caps at 4 GB.</li>
+<li>The Local AI card reads graphics cards and NPUs from DirectX's adapter list, which every vendor reports to, and the
+CUDA version from NVIDIA's driver itself. Once Nexaflow's AI host is running, the graphics cards are the ones it
+found, each with the memory that was free when it started, less what it keeps for itself.</li>
 <li>Where Windows does not report Device Guard at all, VBS and Kernel DMA Protection read Unknown instead of being dropped.</li>
 </ul>
 <h2 id="refreshing">Refreshing</h2>
@@ -40,6 +49,16 @@
 <li>The page gathers once when the tab opens. Nothing on it updates by itself afterwards.</li>
 <li>Read everything again with Refresh. <span class="locate" title="In the app this points at SysInfo_Refresh">Show me</span></li>
 <li>Gathering appears next to the title while it runs, and Refresh does nothing until it finishes.</li>
+</ul>
+<h2 id="checking-this-machine">Checking this machine</h2>
+<ul>
+<li>Where the workspace runs models of Nexaflow's own, the Local AI card offers Check this machine. <span class="locate" title="In the app this points at SysInfo_SectionAction">Show me</span></li>
+<li>It loads each model where the card says it runs, then has each do its work once: a reply, a sentence spoken and
+heard back, and a picture drawn. The button says which step it is on.</li>
+<li>Throughout, it reads how much memory each graphics card holds, and compares that with what the models were expected to hold.</li>
+<li>It ends by opening its report in a tab — the machine, where each model ran, how long each step took, and the memory.
+The report and its picture are kept in the reports folder beside the AI host's logs, ready to be sent to whoever
+looks into the machine.</li>
 </ul>
 <h2 id="searching-the-facts">Searching the facts</h2>
 <ul>
@@ -57,7 +76,7 @@
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

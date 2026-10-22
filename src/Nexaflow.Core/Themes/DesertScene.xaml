@@ -1,0 +1,23 @@
+<vcc:AnimatedScene x:Class="Nexaflow.Core.Themes.DesertScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- The sky, zenith to horizon: a dusty blue thinning through the haze that hangs over sand into the
+                 warm gold of the horizon. It holds the horizon colour from 0.50 down because BuildScene paints the
+                 dunes over everything below it, and that gold is DesertScene.Haze — the colour every distant
+                 thing fades toward, so the far dunes dissolve into the sky rather than meeting it on an edge. -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#7593AA" Offset="0"/>
+                <GradientStop Color="#93AAB6" Offset="0.12"/>
+                <GradientStop Color="#C2BFA8" Offset="0.26"/>
+                <GradientStop Color="#E3C795" Offset="0.40"/>
+                <GradientStop Color="#EECF9C" Offset="0.50"/>
+                <GradientStop Color="#EECF9C" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</vcc:AnimatedScene>

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
 
@@ -11,9 +12,9 @@ public sealed class OpenAsDiskAction(IShellServices shell) : IFileAction, ICache
 {
     public static string? StaticExperienceId => "/disk";
     public string ExperienceId => "/disk";
-    public string ExperienceDescription => "Virtual disk image";
+    public string ExperienceDescription => Str.Get("VirtualDisk.Action.AsDiskDescription");
 
-    public string DisplayName => "As Disk";
+    public string DisplayName => Str.Get("VirtualDisk.Action.AsDisk");
     public string Icon => "💽";
 
     public bool IsDestructive => false;

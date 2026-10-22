@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -110,7 +111,11 @@ public partial class ConsoleEnvironmentsEditorControl
 
             // Invariant: at least one environment so the picker is meaningful.
             if (_envs.Count == 0)
-                _envs.Add(new EnvRow(new TerminalEnvironment { Name = "Default", TabTitle = "Console" }));
+                _envs.Add(new EnvRow(new TerminalEnvironment
+                {
+                    Name     = Str.Get("Console.Environments.DefaultName"),
+                    TabTitle = Str.Get("Console.Page.Title"),
+                }));
             EnvList.ItemsSource = _envs;
 
             _bindings.CollectionChanged += OnBindingsChanged;
@@ -178,8 +183,8 @@ public partial class ConsoleEnvironmentsEditorControl
     {
         var row = new EnvRow(new TerminalEnvironment
         {
-            Name     = ConsoleEnvironmentEditing.UniqueName("New Environment", _envs.Select(r => r.Name)),
-            TabTitle = "Console",
+            Name     = ConsoleEnvironmentEditing.UniqueName(Str.Get("Console.Environments.NewName"), _envs.Select(r => r.Name)),
+            TabTitle = Str.Get("Console.Page.Title"),
         });
         _envs.Add(row);
         EnvList.SelectedItem = row;
@@ -349,7 +354,7 @@ public partial class ConsoleEnvironmentsEditorControl
         }
 
         /// <summary>The list-row subtitle: the initial command, or a note when there is none.</summary>
-        public string Summary => string.IsNullOrWhiteSpace(_initialCommand) ? "no startup command" : _initialCommand!.Trim();
+        public string Summary => string.IsNullOrWhiteSpace(_initialCommand) ? Str.Get("Console.Environments.NoStartupCommand") : _initialCommand!.Trim();
 
         private static Dictionary<string, string> ParseOverrides(string? text)
         {

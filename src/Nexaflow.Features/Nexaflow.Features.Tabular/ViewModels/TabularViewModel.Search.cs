@@ -4,6 +4,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Search;
 using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Visuals.Common.Localization;
 using System.Globalization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
@@ -101,13 +102,13 @@ public sealed partial class TabularViewModel : ISearchable
         for (var i = 0; i < row.Cells.Length; i++)
         {
             if (!matcher.Matches(row.Cells[i])) continue;
-            var header = i < Columns.Count ? Columns[i].Header : $"column {i + 1}";
+            var header = i < Columns.Count ? Columns[i].Header : Str.Format("Tabular.Search.ColumnFormat", i + 1);
             return new SearchHit(row.AbsoluteIndex.ToString(CultureInfo.InvariantCulture),
-                                 $"row {row.AbsoluteIndex + 1}",
-                                 $"{header}: {row.Cells[i]}");
+                                 Str.Format("Tabular.Search.RowFormat", row.AbsoluteIndex + 1),
+                                 Str.Format("Tabular.Search.CellFormat", header, row.Cells[i]));
         }
         return new SearchHit(row.AbsoluteIndex.ToString(CultureInfo.InvariantCulture),
-                             $"row {row.AbsoluteIndex + 1}",
+                             Str.Format("Tabular.Search.RowFormat", row.AbsoluteIndex + 1),
                              string.Join(" | ", row.Cells));
     }
 

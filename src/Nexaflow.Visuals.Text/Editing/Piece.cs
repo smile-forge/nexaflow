@@ -91,8 +91,8 @@ public readonly record struct Piece
     public ReadOnlySpan<LayoutMark> Marks => _tree is null ? default : _tree.MarksOf(_at);
 
     /// <summary>
-    /// How it is drawn beyond its marks — turned, or snapped to a pixel grid — or nothing, which is nearly
-    /// always. See <see cref="LayoutPaint"/>.
+    /// How it is drawn beyond its marks — turned, snapped to a pixel grid, clipped, faded or masked — or nothing, which is
+    /// nearly always. See <see cref="LayoutPaint"/>.
     /// </summary>
     public LayoutPaint? Painting => _tree?.PaintOf(_at);
 

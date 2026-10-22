@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB — Nexaflow help</title>
+<meta name="description" content="Every USB bus, hub, port and device on this PC, and everything each one says about itself — down to a single byte of a descriptor.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>USB</h1>
+  <p class="lede">Every USB bus, hub, port and device on this PC, and everything each one says about itself — down to a single byte of a descriptor.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#getting-around">Getting around</a></li><li><a href="#places-and-paths">Places and paths</a></li><li><a href="#what-a-device-says">What a device says</a></li><li><a href="#descriptors-byte-by-byte">Descriptors, byte by byte</a></li><li><a href="#live">Live</a></li><li><a href="#device-names">Device names</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="getting-around">Getting around</h2>
+<ul>
+<li>The tree on the left holds the buses and the devices plugged in, a hub opening onto what hangs off it; what a device is made of is in the list and on its own page. <span class="locate" title="In the app this points at Usb_Tree">Show me</span></li>
+<li>The list shows what the open place holds. Double-click a row, or press Enter, to open it; click its blank space to clear the selection. <span class="locate" title="In the app this points at Usb_Listing">Show me</span></li>
+<li>Right-click a place in the tree or a row in the list for what it offers: open it, open its device page, read it again, or copy its USB path, its device instance ID or its VID:PID.</li>
+<li>A device's right-click also copies or saves its debug details: everything it and Windows report about it, raw, with what each live tool sees. They are for the Nexaflow developers — send them when a device is not supported as it should be. Serial numbers and volume labels are left out.</li>
+<li><span class="locate" title="In the app this points at Usb_Up">Up</span> (or Backspace) goes to the place that holds this one; the breadcrumbs above the page go anywhere along the way.</li>
+<li>Type <code>&gt;</code> in the AI bar followed by a place to go there: <code>&gt; 3-10.2</code>, <code>&gt; 046d:0843</code>, <code>&gt; webcam</code>, <code>&gt; COM5</code>.</li>
+<li><span class="locate" title="In the app this points at Usb_OpenDevice">Open device</span> opens the selected device on its own page, with its live tools: storage, phone files, audio, HID and serial.</li>
+</ul>
+<h2 id="places-and-paths">Places and paths</h2>
+<ul>
+<li><code>3</code> is bus 3: one host controller and the root hub on it. Its rows are its ports, empty or not.</li>
+<li><code>3-10.2</code> is the device on port 2 of the hub on port 10 of bus 3 — the port path Windows shows nowhere else.</li>
+<li>Inside a device: <code>config1</code> is its first configuration, <code>if0.1</code> interface 0 in alternate setting 1, <code>ep0x81</code> an endpoint, <code>bos</code> its BOS descriptors. An interface association groups the interfaces of one function — a camera's video, a headset's audio.</li>
+<li>The tab remembers where it is: a restored session opens at the same place.</li>
+</ul>
+<h2 id="what-a-device-says">What a device says</h2>
+<ul>
+<li>Select a row to see everything about it below the list. <span class="locate" title="In the app this points at Usb_Detail">Show me</span></li>
+<li>Overview has the device's identity, where it is plugged in and how fast, its power, what Windows bound to it — service, INF, version, provider, problem code, instance and hardware IDs — and a plain-language summary of what it is. <span class="locate" title="In the app this points at Usb_Tab_Overview">Show me</span></li>
+<li>An interface's Overview shows the Windows function that owns it: the driver, the COM port of a serial adapter, the devices Windows made from it.</li>
+<li>Microsoft OS descriptors say whether the device declares itself WinUSB-ready, which means raw access needs no driver change.</li>
+</ul>
+<h2 id="descriptors-byte-by-byte">Descriptors, byte by byte</h2>
+<ul>
+<li>Descriptor shows the selected descriptor's fields — offset, name, size, value and what the value means — beside the bytes they came from. <span class="locate" title="In the app this points at Usb_Tab_Descriptor, Usb_Fields">Show me</span></li>
+<li>Point at a field and its bytes light up in the hex view; point at a byte and the field it belongs to is named below. <span class="locate" title="In the app this points at Usb_Hex">Show me</span></li>
+<li>Audio, video (UVC), HID, CDC serial and network, and DFU class descriptors are decoded; anything else is shown as bytes with its header named.</li>
+<li>A descriptor shorter or longer than its standard says is shown as it is, with the problem named, rather than hidden.</li>
+</ul>
+<h2 id="live">Live</h2>
+<ul>
+<li>Plug a device in and it appears at once — the tree opens onto it — marked NEW until you look at it. Unplug one and it goes; if you were inside it, the page moves to the nearest place that still exists.</li>
+<li>A drive Windows has ejected (“Safe to remove”) stays in its port, shown as ejected, until it is unplugged.</li>
+<li>Driver changes show at once too, and so does what Windows makes of a device: a phone unlocked into file transfer.</li>
+<li>Reading the tree needs no administrator rights and sends nothing to any device: Windows already holds everything shown.</li>
+<li>A device that was asleep may not have given its strings. <span class="locate" title="In the app this points at Usb_ReRead">Read device again</span> asks it, waking it. That and debug details, which ask a HID device for its report descriptors, are all this page ever sends a device, and both send only standard GET_DESCRIPTOR requests.</li>
+</ul>
+<h2 id="device-names">Device names</h2>
+<ul>
+<li>Vendor, product and class names come from usb.ids. Options → USB checks linux-usb.org for a newer list when the page opens, at most once a month, and can check at once.</li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<ul>
+<li>The assistant sees where you are and what is listed, and can explore on its own: list any place, describe a device with every decoded field, find devices by name or VID:PID, and open a place on the page.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

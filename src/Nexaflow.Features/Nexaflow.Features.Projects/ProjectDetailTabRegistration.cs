@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
 using Nexaflow.Features.Projects.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects;
 
@@ -49,11 +50,11 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
 
         var tab = new Page
         {
-            Title = $"Project {folder}",
+            Title = Str.Format("Projects.Page.DetailTitleFormat", folder),
             Icon  = "📋",
             Breadcrumbs =
             {
-                new BreadcrumbSegment { Label = "Projects", TargetPageKind = "Projects" },
+                new BreadcrumbSegment { Label = Str.Get("Projects.Page.Title"), TargetPageKind = "Projects" },
                 new BreadcrumbSegment { Label = folder },
             },
         };
@@ -63,6 +64,7 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
             var ops  = new ProjectOperations(_config, root);
             var vm   = new ProjectDetailViewModel(ops, _config, folder, _shellServices, _aiService);
             var page = new ProjectDetailView(vm);
+            tab.Closed += (_, _) => vm.Release();
             vm.OpenFilesRequested += p =>
                 _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = p }, page);
             return page;

@@ -2,11 +2,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Pdf.Document;
+using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.Features.Pdf.Rendering;
+using Nexaflow.Features.Pdf.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Editing.Paged;
 using Nexaflow.Visuals.Text.Pages;
 using System;
 using System.Collections.Generic;
@@ -22,14 +27,12 @@ using UglyToad.PdfPig;
 namespace Nexaflow.Features.Pdf.ViewModels;
 
 /// <summary>
-/// Drives the PDF reader tab. The page itself is rendered by the shared browser surface (Edge renders PDFs
-/// natively, toolbar and all); everything this view-model adds is what the renderer can't tell anyone —
-/// the document's properties and table of contents in the side panel, and a tool surface that lets the AI
-/// actually read the text, look at a page, and pull out a figure.
+/// Drives the PDF reader tab: the document's pages, read as objects and laid on the shared layout tree for the paged
+/// host to show; the document's properties and table of contents in the side panel; finding text; and a tool surface
+/// that lets the AI read the text, look at a page, and pull out a figure.
 /// <para>
-/// The document is opened once for the tab's lifetime and every reader serialised behind one lock: PdfPig's
-/// <see cref="PdfDocument"/> is not thread-safe, and re-parsing the cross-reference table per question is
-/// the difference between a fast answer and a slow one on a large report.
+/// The document is a <see cref="PdfDocumentSession"/>: the file and the pages in their order, each source opened once
+/// for the tab's lifetime and read behind its own lock.
 /// </para>
 /// </summary>
 public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDisposable
@@ -46,24 +49,28 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     private const double ScannedPageCoverage = 0.90;
 
+    /// <summary>How wide, in pixels, a page is drawn when the AI asks to look at it.</summary>
+    private const int PagePictureWidth = 1600;
+
+    /// <summary>How many pixels a page is drawn at for page reading, per point: 200 dots an inch.</summary>
+    private const double ReadingResolution = 200.0 / 72;
+
+    /// <summary>The longest side, in pixels, a page is drawn at for page reading, however large the page.</summary>
+    private const int ReadingSide = 2400;
+
     private readonly IShellServices _shell;
     private readonly PdfConfig _config;
     private readonly CancellationTokenSource _cts = new();
-    private readonly SemaphoreSlim _docLock = new(1, 1);
-    private readonly Timer _idleTimer;
-
-    private readonly string _path;          // as opened — may be virtual (inside an archive)
+    private string _path;          // as opened, then as last saved as — may be virtual (inside an archive)          // as opened — may be virtual (inside an archive)
     private readonly string? _tempCopy;     // materialised copy to delete on dispose, if we made one
 
-    private PdfDocumentScope? _scope;
-    private bool _scopeFailed;              // TryOpen already said no; don't keep retrying per tool call
-    private DateTime _lastUsedUtc = DateTime.UtcNow;
+    private readonly PdfDocumentSession _session;
     private bool _disposed;
 
-    /// <summary>The file:// URI the renderer navigates to.</summary>
-    public Uri FileUri { get; }
+    /// <summary>The document as a real file — what the default PDF application is handed.</summary>
+    public Uri FileUri { get; private set; }
 
-    public string FileName { get; }
+    public string FileName { get; private set; }
 
     // ── Panel state ───────────────────────────────────────────────────────
 
@@ -85,6 +92,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>The document's scanned pages, by number: no text on them, one picture over each.</summary>
     private IReadOnlyList<int> _scans = [];
 
+    // The pages the reading last asked for, and the pages of the reading whose texts the conversion holds — the whole
+    // document's, or its scans' — so each text is known by its page.
+    private IReadOnlyList<int> _askedPages = [];
+    private IReadOnlyList<int> _readPages = [];
+
     /// <summary>The document has scanned pages, and this machine can read them — the notice above it says so.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsScansNotice))]
@@ -95,8 +107,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     [NotifyPropertyChangedFor(nameof(ShowsScansNotice))]
     private bool _scansNoticeDismissed;
 
-    /// <summary>The notice above the document that its scanned pages have no text, and can be converted to Markdown.</summary>
-    public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed;
+    /// <summary>
+    /// The notice above the document that its scanned pages have no text, and can be converted to Markdown — put away
+    /// while the conversion's own banner says how it is getting on, so the offer and its progress are never shown together.
+    /// </summary>
+    public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed && !Conversion.HasStatus;
 
     /// <summary>The tab showing the document, set by its view: what opens beside it opens in its window.</summary>
     public IPageView? Host { get; set; }
@@ -119,37 +134,54 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         ? Str.Get("Pdf.Panel.Reading")
         : Str.Get("Pdf.Panel.NoContents");
 
-    /// <summary>
-    /// Whether the renderer honours "go to page N". Probed on the first jump: some builds of the embedded
-    /// PDF viewer ignore a page fragment entirely, and a table of contents whose rows do nothing when
-    /// clicked is worse than one that plainly isn't clickable.
-    /// </summary>
-    [ObservableProperty] private bool _canNavigateToPage = true;
+    // ── Pages ─────────────────────────────────────────────────────────────
 
-    /// <summary>True while a shell overlay covers the page; the native browser HWND has to hide for it.</summary>
+    /// <summary>The document's pages, once its page slots are read; what the paged host shows.</summary>
+    [ObservableProperty] private IPagedLayoutSource? _pages;
+
+    /// <summary>How many pages the document has; zero until it is read.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SurfaceVisible))]
-    private bool _isCovered;
+    [NotifyPropertyChangedFor(nameof(PageCountText))]
+    [NotifyCanExecuteChangedFor(nameof(SaveAsCommand), nameof(ExtractImagesCommand))]
+    private int _pageCount;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SurfaceVisible))]
-    private bool _surfaceAvailable = true;
+    /// <summary>"of N", beside the page being read.</summary>
+    public string PageCountText => Str.Format("Pdf.Toolbar.PageCountFormat", PageCount);
 
-    public bool SurfaceVisible => SurfaceAvailable && !IsCovered;
+    /// <summary>The page being read, 1-based, as the paged host reports it.</summary>
+    [ObservableProperty] private int _currentPage = 1;
+
+    /// <summary>True when the document could not be read at all — damaged past recovery, or locked with a password.</summary>
+    [ObservableProperty] private bool _isUnreadable;
 
     [ObservableProperty] private string _failureMessage = string.Empty;
-    [ObservableProperty] private bool   _runtimeMissing;
+
+    private PdfPageSource? _source;
+
+    // ── Finding text ──────────────────────────────────────────────────────
+
+    /// <summary>What the reader is looking for.</summary>
+    [ObservableProperty] private string _findText = string.Empty;
+
+    /// <summary>Where a search stands: searching, how many hits, or none.</summary>
+    [ObservableProperty] private string _findStatus = string.Empty;
+
+    /// <summary>Every hit of the last search, page by page in reading order.</summary>
+    public IReadOnlyList<PageRange> FoundRanges { get; private set; } = [];
+
+    /// <summary>The hit being looked at, or -1.</summary>
+    [ObservableProperty] private int _findIndex = -1;
+
+    private string _foundFor = string.Empty;
+    private CancellationTokenSource? _finding;
 
     // ── View-supplied hooks ───────────────────────────────────────────────
 
     /// <summary>
-    /// Set by the view: moves the rendered view to a 1-based page, optionally to a position measured down
-    /// from the top of it. False = the renderer wouldn't move.
+    /// Set by the view: scrolls the paged host to a 1-based page, optionally to a position measured down from the top
+    /// of it in points.
     /// </summary>
-    public Func<int, double?, CancellationToken, Task<bool>>? NavigateToPageAsync { get; set; }
-
-    /// <summary>Set by the view: captures what the renderer is currently showing, as a PNG.</summary>
-    public Func<CancellationToken, Task<byte[]?>>? CapturePageAsync { get; set; }
+    public Action<int, double?>? NavigateToPage { get; set; }
 
     /// <param name="reading">Page reading, which reads the document's scanned pages into Markdown, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws the scanned pages' diagrams again.</param>
@@ -160,17 +192,23 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _config  = config;
         FileName = Path.GetFileName(path);
         Conversion = new PageConversion(reading, ai, shell);
+        Conversion.TextRead += () => _readPages = _askedPages;
+        Conversion.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PageConversion.HasStatus)) OnPropertyChanged(nameof(ShowsScansNotice));
+        };
 
-        // A PDF inside an archive is virtual and the renderer can't load it; materialise a real copy and
-        // remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
+        // A PDF inside an archive is virtual and the default PDF application can't open it; materialise a real copy
+        // and remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
         var real = RealizeLocalFile(path);
         _tempCopy = string.Equals(real, path, StringComparison.OrdinalIgnoreCase) ? null : real;
         FileUri   = new Uri(real);
-
-        // Thread-pool timer, not a DispatcherTimer: closing an idle document is background housekeeping and
-        // must not depend on (or touch) the UI thread.
-        _idleTimer = new Timer(_ => CloseDocumentIfIdle(), null,
-            TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        _session  = new PdfDocumentSession(path);
+        PagesPanel = new PdfPagesPanel(_session, shell, page => GoToPage(page), () => _source);
+        _session.Changed         += OnArrangementChanged;
+        _session.DocumentChanged += () => _ = _shell.RunOnUiAsync(() => _ = RefreshDocumentPanelAsync());
+        _session.DirtyChanged    += OnDirtyChanged;
+        _session.Moved           += OnMoved;
     }
 
     private static string RealizeLocalFile(string filePath)
@@ -185,11 +223,58 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private PdfDocumentInfo? _info;
 
     /// <summary>
-    /// Reads everything cheap about the document and fills the panel. Runs entirely off the UI thread; the
-    /// renderer paints in parallel and never waits for this.
+    /// Reads the document's page slots, for the pages to be shown, and everything cheap about it for the panel. Runs
+    /// entirely off the UI thread; the pages appear as soon as their slots are read, before the panel is filled.
     /// </summary>
-    public async Task LoadAsync()
+    /// <param name="paper">What pages are laid on, from the theme.</param>
+    public async Task LoadAsync(System.Windows.Media.Brush paper)
     {
+        var opened = false;
+        try
+        {
+            opened = await _session.OpenAsync(_cts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { /* falls through to the unreadable state */ }
+
+        if (_disposed) return;
+
+        if (!opened)
+        {
+            IsUnreadable   = true;
+            FailureMessage = Str.Get("Pdf.Fallback.Unreadable");
+        }
+        else
+        {
+            _source   = new PdfPageSource(_session.Arrangement, _session.Opened(), paper);
+            PageCount = _source.PageCount;
+            Pages     = _source;
+            PagesPanel.Show(_session.Arrangement);
+            PagesPanel.MarkCurrent(CurrentPage);
+
+            try
+            {
+                PagesPanel.CanEdit = !await ReadScopeAsync(scope => PdfDocumentFacts.HasXfa(scope.Document), _cts.Token);
+            }
+            catch (OperationCanceledException) { return; }
+        }
+
+        await RefreshDocumentPanelAsync();
+    }
+
+    /// <summary>The panel's reading of the document under way, superseded by the next.</summary>
+    private CancellationTokenSource? _refreshing;
+
+    /// <summary>
+    /// Reads, off the UI thread, what the panel shows about the document as it now stands — its properties and outline —
+    /// and then its scans: once the document opens, and again each time an edit changes it.
+    /// </summary>
+    private async Task RefreshDocumentPanelAsync()
+    {
+        _refreshing?.Cancel();
+        var refreshing = _refreshing = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        var ct = refreshing.Token;
+
         var oversize = OversizeMessage();
         if (oversize is not null)
         {
@@ -199,30 +284,38 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             return;
         }
 
+        IsMetadataLoading = true;
+        OnPropertyChanged(nameof(ContentsEmptyMessage));
+
         PdfDocumentInfo? info = null;
         try
         {
-            info = await WithDocumentAsync(doc => PdfMetadataReader.Read(doc, _cts.Token), _cts.Token);
+            info = await WithDocumentAsync(doc => PdfMetadataReader.Read(doc, ct), ct);
         }
         catch (OperationCanceledException) { return; }
         catch { /* falls through to the unreadable message */ }
 
-        if (_disposed) return;
+        if (_disposed || refreshing != _refreshing) return;
+
+        _info = info;
+        Properties.Clear();
+        Contents.Clear();
 
         if (info is null)
         {
-            PanelStatus = Str.Get("Pdf.Panel.Unreadable");
+            PanelStatus       = Str.Get("Pdf.Panel.Unreadable");
+            HasProperties     = false;
+            HasContents       = false;
             IsMetadataLoading = false;
             OnPropertyChanged(nameof(ContentsEmptyMessage));
             return;
         }
 
-        _info = info;
         foreach (var row in BuildPropertyRows(info)) Properties.Add(row);
         foreach (var entry in info.Outline)
             Contents.Add(new PdfOutlineItem(entry.Title, entry.Level, entry.PageNumber, entry.OffsetFromTop)
             {
-                CanJump = entry.PageNumber is not null && CanNavigateToPage,
+                CanJump = entry.PageNumber is not null && _source is not null,
             });
 
         HasProperties     = Properties.Count > 0;
@@ -230,52 +323,237 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         PanelStatus       = string.Empty;
         IsMetadataLoading = false;
         OnPropertyChanged(nameof(ContentsEmptyMessage));
-        await FindScansAsync();
+        await FindScansAsync(ct);
     }
 
     /// <summary>Finds the document's scanned pages, once its metadata is shown: a page at a time, so a long document's
     /// search waits behind whatever else reads it.</summary>
-    private async Task FindScansAsync()
+    private async Task FindScansAsync(CancellationToken ct)
     {
+        _scans   = [];
+        HasScans = false;
         if (!Conversion.Available) return;
+        IReadOnlyList<int> scans;
         try
         {
-            _scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, _cts.Token), _cts.Token);
+            scans = await WithDocumentAsync(doc => PdfScans.Find(doc, ScannedPageCoverage, ct), ct) ?? [];
         }
         catch (OperationCanceledException) { return; }
         catch { return; }   // a document whose pages will not parse has no scans to offer
-        if (_disposed || _scans.Count == 0) return;
+        if (_disposed || ct.IsCancellationRequested || scans.Count == 0) return;
+        _scans       = scans;
         ScansSummary = Str.Format("Pdf.Scans.Notice", _scans.Count, _info?.PageCount ?? _scans.Count);
-        HasScans = true;
+        HasScans     = true;
     }
 
-    /// <summary>Converts the scanned pages to Markdown — read now, or found read before — and opens it in the right-hand pane.</summary>
+    // ── Page edits ────────────────────────────────────────────────────────
+
+    /// <summary>The Pages tab: every page's thumbnail, and the page edits.</summary>
+    public PdfPagesPanel PagesPanel { get; }
+
+    /// <summary>Whether the pages are not as the file has them: there is something to save.</summary>
+    public bool IsDirty => _session.IsDirty;
+
+    /// <summary>A save under way.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(SaveAsCommand))]
+    private bool _isSaving;
+
+    /// <summary><see cref="IsDirty"/> changed: the tab marks its title.</summary>
+    public event Action<bool>? DirtyChanged;
+
+    /// <summary>The document was saved as another file, which the tab now shows.</summary>
+    public event Action<string>? Moved;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo() => _session.Undo();
+
+    private bool CanUndo() => _session.CanUndo;
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo() => _session.Redo();
+
+    private bool CanRedo() => _session.CanRedo;
+
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private Task Save() => SaveToAsync(null);
+
+    private bool CanSave() => IsDirty && !IsSaving;
+
+    [RelayCommand(CanExecute = nameof(CanSaveAs))]
+    private async Task SaveAs()
+    {
+        var target = await _shell.PickSaveFileAsync(FileName, [".pdf"], Path.GetDirectoryName(_path));
+        if (target is not null) await SaveToAsync(target);
+    }
+
+    private bool CanSaveAs() => PageCount > 0 && !IsSaving;
+
+    /// <summary>
+    /// Writes the document's images into a folder the reader picks, as the file browser's Extract images does — of the
+    /// document as it now stands. With edits unsaved, a copy of it is written for the extraction, which runs on after
+    /// the tab is closed and deletes the copy once read; otherwise the file itself is read.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExtractImages))]
+    private async Task ExtractImages()
+    {
+        var target = await _shell.PickFolderAsync(Path.GetDirectoryName(_path));
+        if (string.IsNullOrEmpty(target)) return;
+
+        var source = new PdfImageSource(_path, FileName);
+        if (IsDirty)
+        {
+            var copy = DraftLocation.NewFile(FileName);
+            try
+            {
+                await _session.WriteCopyAsync(copy, _cts.Token);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or UnauthorizedAccessException or PdfEditRefusedException)
+            {
+                TryDeleteDraft(copy);
+                if (ex is not OperationCanceledException) _shell.ShowError(Str.Get("Pdf.Extract.Failed"));
+                return;
+            }
+
+            source = new PdfImageSource(copy, FileName, Draft: true);
+        }
+
+        PdfImageExport.Queue(_shell, [source], target);
+    }
+
+    private bool CanExtractImages() => PageCount > 0;
+
+    private static void TryDeleteDraft(string draft)
+    {
+        try
+        {
+            if (Path.GetDirectoryName(draft) is { } folder && Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    /// <summary>
+    /// Saves the document over its file, or as <paramref name="target"/>: once the reader has agreed to what a save
+    /// changes beyond the pages — an encrypted file written plain, a signed one's signatures invalidated.
+    /// </summary>
+    private async Task SaveToAsync(string? target)
+    {
+        IsSaving = true;
+        try
+        {
+            var warnings = await _session.WarningsAsync(_cts.Token);
+            if (warnings.HasFlag(PdfSaveWarnings.Encrypted)
+                && !await _shell.ConfirmAsync(Str.Get("Pdf.Save.EncryptedTitle"), Str.Get("Pdf.Save.EncryptedMessage"), _cts.Token))
+                return;
+            if (warnings.HasFlag(PdfSaveWarnings.Signed)
+                && !await _shell.ConfirmAsync(Str.Get("Pdf.Save.SignedTitle"), Str.Get("Pdf.Save.SignedMessage"), _cts.Token))
+                return;
+
+            await _session.SaveAsync(target, _cts.Token);
+            if (_tempCopy is not null) FileUri = new Uri(RealizeLocalFile(_path));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _shell.ShowError(Str.Format("Pdf.Save.FailedFormat", FileName, ex.Message));
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>
+    /// The pages were rearranged: the reader is told where each page went and keeps its place, the thumbnails follow, and
+    /// a search is run again over the pages as they now are.
+    /// </summary>
+    private void OnArrangementChanged(PdfPageArrangement previous, PdfPageArrangement next)
+    {
+        if (_source is null) return;
+
+        _source.Rearrange(next, _session.Opened());
+        PageCount = next.Count;
+        PagesPanel.Show(next);
+        PagesPanel.MarkCurrent(CurrentPage);
+        if (_foundFor.Length > 0) _ = FindAllAsync(_foundFor);
+
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnDirtyChanged(bool dirty)
+    {
+        OnPropertyChanged(nameof(IsDirty));
+        SaveCommand.NotifyCanExecuteChanged();
+        DirtyChanged?.Invoke(dirty);
+    }
+
+    private void OnMoved(string path)
+    {
+        _path    = path;
+        FileName = Path.GetFileName(path);
+        FileUri  = new Uri(RealizeLocalFile(path));
+        OnPropertyChanged(nameof(FileName));
+        OnPropertyChanged(nameof(FileUri));
+        Moved?.Invoke(path);
+    }
+
+    partial void OnCurrentPageChanged(int value) => PagesPanel.MarkCurrent(value);
+
+    /// <summary>Converts the whole document to Markdown with page reading — every page, whether its text is its own or a scan's.</summary>
     [RelayCommand]
-    private Task ConvertScans() => _scans.Count == 0 ? Task.CompletedTask : Conversion.ConvertAsync(Scanned(), Host);
+    private Task ConvertDocument() =>
+        PageCount == 0 ? Task.CompletedTask : Conversion.ConvertAsync(PagesToRead(Enumerable.Range(1, PageCount).ToList(), "pages"), Host);
 
     [RelayCommand]
     private void DismissScansNotice() => ScansNoticeDismissed = true;
 
-    /// <summary>The scanned pages as pages to read: named by the file as it is now, their pictures taken out when read.</summary>
-    private PageSource Scanned()
+    /// <summary>
+    /// The pages numbered <paramref name="numbers"/>, to read: each drawn as the reader draws it when the reading reaches it.
+    /// They are named by this file as it now stands and by <paramref name="what"/> of it they are — the whole document, or
+    /// its scans — so a reading kept for them is found again.
+    /// </summary>
+    private PageSource PagesToRead(IReadOnlyList<int> numbers, string what)
     {
         var file = new FileInfo(_path);
-        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}";
-        var scans = _scans;
-        return new PageSource(key, _path, async ct => await WithDocumentAsync(doc =>
+        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}|{_session.Arrangement.GetHashCode()}|{what}";
+        _askedPages = numbers;
+        return new PageSource(key, _path, numbers.Count, (at, ct) => PagePictureAsync(numbers[at], ct),
+            PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
+    }
+
+    /// <summary>
+    /// Page <paramref name="number"/> as page reading reads it, written to a temporary PNG: drawn as the reader draws it —
+    /// its colours through their profiles, its scans however they are encoded, masked and turned as the page is shown — at
+    /// <see cref="ReadingResolution"/>, or a scanned page at its own resolution where that is finer, its longest side held to
+    /// <see cref="ReadingSide"/>. Null where the page cannot be drawn.
+    /// </summary>
+    private async Task<string?> PagePictureAsync(int number, CancellationToken ct)
+    {
+        if (_source is not { } source || number < 1 || number > source.PageCount) return null;
+
+        var size = source.PageSize(number - 1);
+        var points = new System.Windows.Size(size.Width / PdfPageLayout.DipsPerPoint, size.Height / PdfPageLayout.DipsPerPoint);
+        var perPoint = ReadingResolution;
+        if (_scans.Contains(number) && await WithDocumentAsync(doc => PdfScans.ScanResolution(doc, number), ct) is { } scanned)
+            perPoint = Math.Max(perPoint, scanned);
+        perPoint = Math.Min(perPoint, ReadingSide / Math.Max(points.Width, points.Height));
+
+        byte[]? png;
+        try
         {
-            var pictures = new List<string>();
-            foreach (int number in scans)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (PdfScans.Picture(doc, number) is not { } picture) continue;
-                string file = Path.Combine(Path.GetTempPath(), $"nexaflow-scan-{Guid.NewGuid():N}{(picture[0] == 0xFF ? ".jpg" : ".png")}");
-                File.WriteAllBytes(file, picture);
-                pictures.Add(file);
-            }
-            return (IReadOnlyList<string>)pictures;
-        }, ct) ?? [],   // a document that no longer opens has no pages to read
-        PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
+            png = await source.PictureAsync(number - 1, Math.Max(1, (int)Math.Round(points.Width * perPoint)), ct);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;   // the document is no longer readable
+        }
+        if (png is not { Length: > 0 }) return null;
+
+        string picture = Path.Combine(Path.GetTempPath(), $"nexaflow-page-{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(picture, png, ct);
+        return picture;
     }
 
     /// <summary>
@@ -344,77 +622,38 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// needed. Returns default when the document can't be opened at all — every caller has to be able to
     /// say so honestly rather than reporting an empty document.
     /// </summary>
-    private async Task<T?> WithDocumentAsync<T>(Func<PdfDocument, T> read, CancellationToken ct)
-    {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
-        var token = linked.Token;
-
-        await _docLock.WaitAsync(token);
-        try
-        {
-            return await Task.Run(() =>
-            {
-                if (_scope is null && !_scopeFailed)
-                {
-                    _scope = PdfDocumentScope.TryOpen(_path, token);
-                    _scopeFailed = _scope is null;
-                }
-
-                _lastUsedUtc = DateTime.UtcNow;
-                return _scope is null ? default : read(_scope.Document);
-            }, token);
-        }
-        finally
-        {
-            _docLock.Release();
-        }
-    }
+    private Task<T?> WithDocumentAsync<T>(Func<PdfDocument, T> read, CancellationToken ct) =>
+        ReadScopeAsync(scope => read(scope.Document), ct);
 
     /// <summary>
-    /// Drops the parsed document after a spell of inactivity. A large scan holds a sizeable object graph and
-    /// a file handle open; a background tab nobody has asked anything about in five minutes shouldn't. The
-    /// next read reopens it.
+    /// Runs <paramref name="read"/> against the document as it now stands, off the UI thread and under its lock; default
+    /// when it cannot be opened at all.
     /// </summary>
-    private void CloseDocumentIfIdle()
+    private async Task<T?> ReadScopeAsync<T>(Func<PdfDocumentScope, T> read, CancellationToken ct)
     {
-        if (_disposed || _scope is null) return;
-        if (DateTime.UtcNow - _lastUsedUtc < TimeSpan.FromMinutes(5)) return;
-
-        if (!_docLock.Wait(0)) return;   // busy — try again on the next tick rather than blocking one
-        try
-        {
-            if (DateTime.UtcNow - _lastUsedUtc >= TimeSpan.FromMinutes(5))
-            {
-                _scope?.Dispose();
-                _scope = null;
-                _scopeFailed = false;   // a fresh open may well succeed; the earlier one wasn't a verdict
-            }
-        }
-        finally { _docLock.Release(); }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+        return await _session.Document.ReadAsync(read, linked.Token).ConfigureAwait(false);
     }
 
     // ── Page navigation ───────────────────────────────────────────────────
 
+    /// <summary>Scrolls the reader to a 1-based page, optionally to a position that many points down it.</summary>
+    /// <returns>False when the page is not one of the document's, or nothing is showing it.</returns>
+    public bool GoToPage(int page, double? offsetFromTop = null)
+    {
+        if (NavigateToPage is null || page < 1 || page > PageCount) return false;
+        NavigateToPage(page, offsetFromTop);
+        return true;
+    }
+
     /// <summary>
-    /// Moves the rendered view to <paramref name="page"/>. False means it wouldn't move — the caller must
-    /// say so rather than pretend. The first failure latches <see cref="CanNavigateToPage"/> off, which
-    /// turns the Contents rows into plain labels instead of links that do nothing.
+    /// Follows a link to a place in this document from the page it is on (0-based): the page its own document names, where
+    /// that page now is, at the height it names when that page has been read.
     /// </summary>
-    public async Task<bool> GoToPageAsync(int page, CancellationToken ct, double? offsetFromTop = null)
-    {
-        if (NavigateToPageAsync is null || !CanNavigateToPage) return false;
-        if (page < 1) return false;
-
-        var moved = await NavigateToPageAsync(page, offsetFromTop, ct);
-        if (!moved) DisablePageNavigation();
-        return moved;
-    }
-
-    private void DisablePageNavigation()
-    {
-        CanNavigateToPage = false;
-        foreach (var item in Contents) item.CanJump = false;
-    }
+    internal bool GoToTarget(int fromPage, PdfPageTarget target) =>
+        _source is { } source && fromPage >= 0 && fromPage < source.PageCount
+        && source.Locate(source.Arrangement[fromPage].Source, target) is { } at
+        && GoToPage(at.Index + 1, at.Offset);
 
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;
@@ -465,7 +704,10 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             if (info.Author is { } author) sb.Append($", by {author}");
         }
 
+        if (_session.IsDirty) sb.Append(" with unsaved page edits");
         sb.Append('.');
+
+        if (PageCount > 0) sb.Append($" The reader is showing page {CurrentPage} of {PageCount}.");
 
         sb.Append(Contents.Count > 0
             ? $" It has a table of contents with {Contents.Count} entries."
@@ -575,7 +817,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             ],
             ToolSafety.SafeOperation,
             GetImageToolAsync,
-            parallelizable: false),
+            parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "pdf_page_image",
@@ -584,7 +826,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             [new ClientToolParameter("page", "Page to look at, 1-based.", Type: "number")],
             ToolSafety.SafeOperation,
             PageImageToolAsync,
-            parallelizable: false),
+            parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "pdf_view_page",
@@ -736,14 +978,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         return ToolResult.Ok($"Found \"{query}\" in {FileName}.", sb.ToString());
     }
 
-    /// <summary>A scanned page's text as page reading read it; null for a page not read, or not a scan.</summary>
+    /// <summary>The text page reading read on page <paramref name="page"/>, in the reading the conversion holds; null where it holds none of it.</summary>
     private string? ScanText(int page)
     {
-            if (Conversion.PageTexts is not { } texts) return null;
-            for (int at = 0; at < _scans.Count && at < texts.Count; at++)
-                if (_scans[at] == page) return texts[at];
-            return null;
-        }
+        if (Conversion.PageTexts is not { } texts) return null;
+        for (int at = 0; at < _readPages.Count && at < texts.Count; at++)
+            if (_readPages[at] == page) return texts[at];
+        return null;
+    }
 
     /// <summary>Where <paramref name="query"/> stands in the scanned pages' read text, each with a little around it.</summary>
     private IEnumerable<(int Page, string Snippet)> ScanHits(string query, int most)
@@ -765,7 +1007,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     {
         if (_scans.Count == 0) return ToolResult.Ok($"{FileName} has no scanned pages.", "Every page has text of its own: read it with pdf_read_text.");
         if (!Conversion.Available) return ToolResult.Error("Page reading cannot run on this machine.");
-        if (await _shell.RunOnUiAsync(() => Conversion.ReadAsync(Scanned(), ct)) is not { Pages: var texts })
+        if (await _shell.RunOnUiAsync(() => Conversion.ReadAsync(PagesToRead(_scans, "scans"), ct)) is not { Pages: var texts })
             return ToolResult.Error(Conversion.Status ?? "The scanned pages could not be read.");
 
         var sb = new StringBuilder();
@@ -882,18 +1124,14 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                                                   $"{FileName} page {page}")] };
         }
 
-        if (CanNavigateToPage && CapturePageAsync is not null)
+        if (_source is not null && page >= 1 && page <= PageCount)
         {
-            var moved = await GoToPageAsync(page, ct);
-            if (moved)
-            {
-                var png = await CapturePageAsync(ct);
-                if (png is { Length: > 0 })
-                    return ToolResult.Ok(
-                        $"Captured page {page} as rendered.",
-                        $"A picture of page {page} of {FileName} as it is rendered on screen is attached.")
-                        with { Images = [new ContextImage(png, "image/png", $"{FileName} page {page}")] };
-            }
+            var png = await _source.PictureAsync(page - 1, PagePictureWidth, ct);
+            if (png is { Length: > 0 })
+                return ToolResult.Ok(
+                    $"Drew page {page} as the reader shows it.",
+                    $"A picture of page {page} of {FileName}, drawn as the reader shows it, is attached.")
+                    with { Images = [new ContextImage(png, "image/png", $"{FileName} page {page}")] };
         }
 
         if (embedded is { Count: > 0 })
@@ -901,7 +1139,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             var take = embedded.Take(3).ToList();
             return ToolResult.Ok(
                 $"Returned {take.Count} image(s) embedded on page {page}.",
-                $"The renderer couldn't be photographed, so here is what page {page} of {FileName} embeds "
+                $"The page couldn't be drawn, so here is what page {page} of {FileName} embeds "
                 + $"({take.Count} of {embedded.Count} image(s)) — this is what the page contains, not how it looks.")
                 with
             {
@@ -911,7 +1149,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         }
 
         return ToolResult.Error(
-            $"Page {page} has no embedded image and the on-screen renderer isn't available to photograph. "
+            $"Page {page} has no embedded image and couldn't be drawn. "
             + "Try pdf_read_text for this page instead.");
     }
 
@@ -965,21 +1203,17 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         catch { return false; }
     }
 
-    private async Task<ToolResult> ViewPageToolAsync(JsonObject args, CancellationToken ct)
+    private Task<ToolResult> ViewPageToolAsync(JsonObject args, CancellationToken ct)
     {
         if (ReadInt(args, "page") is not int page)
-            return ToolResult.Error("No page number was given.");
+            return Task.FromResult(ToolResult.Error("No page number was given."));
 
-        if (NavigateToPageAsync is null)
-            return ToolResult.Error("The on-screen reader isn't available, so it can't be moved.");
-        if (!CanNavigateToPage)
-            return ToolResult.Error("This document's renderer doesn't support jumping to a page, so the view "
-                                  + "can't be moved. You can still read any page with pdf_read_text.");
+        if (NavigateToPage is null)
+            return Task.FromResult(ToolResult.Error("The on-screen reader isn't showing the document, so it can't be moved."));
 
-        var moved = await GoToPageAsync(page, ct);
-        return moved
+        return Task.FromResult(GoToPage(page)
             ? ToolResult.Ok($"Showed page {page}.", $"The reader is now showing page {page} of {FileName}.")
-            : ToolResult.Error($"The reader wouldn't move to page {page}.");
+            : ToolResult.Error($"{FileName} has no page {page}; it has {PageCount}."));
     }
 
     private ToolResult Unreadable()
@@ -1011,30 +1245,126 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _disposed = true;
 
         try { _cts.Cancel(); } catch { }
-        _idleTimer.Dispose();
-
-        // Under the lock so a read in flight isn't parsing a document being torn out from under it. If it
-        // doesn't yield in time, close anyway: _cts is already cancelled, so the reader is unwinding, and a
-        // tab closing must not wait on it indefinitely.
-        var held = false;
-        try { held = _docLock.Wait(TimeSpan.FromSeconds(2)); } catch { }
-
-        try
-        {
-            _scope?.Dispose();
-            _scope = null;
-        }
-        catch { }
-        finally
-        {
-            if (held) _docLock.Release();
-        }
-
-        _docLock.Dispose();
+        PagesPanel.Dispose();
+        _session.Dispose();
         _cts.Dispose();
 
         // Only a copy we made ourselves — never the user's file.
         if (_tempCopy is not null)
             try { File.Delete(_tempCopy); } catch { }
     }
+
+    // ── Finding text ──────────────────────────────────────────────────────
+
+    /// <summary>The next hit of <see cref="FindText"/>, searching the document first when the text changed.</summary>
+    [RelayCommand]
+    private Task FindNextAsync() => FindStepAsync(forward: true);
+
+    /// <summary>The previous hit of <see cref="FindText"/>, searching the document first when the text changed.</summary>
+    [RelayCommand]
+    private Task FindPreviousAsync() => FindStepAsync(forward: false);
+
+    private async Task FindStepAsync(bool forward)
+    {
+        var query = FindText.Trim();
+        if (query.Length == 0 || _source is null)
+        {
+            ClearFind();
+            return;
+        }
+
+        if (!string.Equals(query, _foundFor, StringComparison.Ordinal))
+        {
+            await FindAllAsync(query);
+            return;
+        }
+
+        if (FoundRanges.Count == 0) return;
+        FindIndex = (FindIndex + (forward ? 1 : -1) + FoundRanges.Count) % FoundRanges.Count;
+        FindStatus = Str.Format("Pdf.Find.ResultFormat", FindIndex + 1, FoundRanges.Count);
+    }
+
+    /// <summary>
+    /// Every hit of <paramref name="query"/>, page by page from the page being read round to the one before it, so the
+    /// first hit shown is the nearest ahead. A page's text is the text the reader selects, so a hit is a stretch of it the
+    /// reader can wash. Hits are shown as each page is searched; a new search abandons this one.
+    /// </summary>
+    private async Task FindAllAsync(string query)
+    {
+        _finding?.Cancel();
+        var finding = _finding = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _foundFor = query;
+        FoundRanges = [];
+        FindIndex = -1;
+        OnPropertyChanged(nameof(FoundRanges));
+        FindStatus = Str.Get("Pdf.Find.Searching");
+
+        var hits = new List<PageRange>();
+        var start = Math.Clamp(CurrentPage - 1, 0, Math.Max(0, PageCount - 1));
+        try
+        {
+            for (var step = 0; step < PageCount; step++)
+            {
+                var index = (start + step) % PageCount;
+                var text = await _source!.TextAsync(index, finding.Token);
+                for (var at = text.IndexOf(query, StringComparison.CurrentCultureIgnoreCase);
+                     at >= 0;
+                     at = text.IndexOf(query, at + query.Length, StringComparison.CurrentCultureIgnoreCase))
+                    hits.Add(new PageRange(index, at, query.Length));
+
+                if (hits.Count > 0 && FindIndex < 0)
+                {
+                    Publish(hits, 0);
+                    FindStatus = Str.Format("Pdf.Find.ResultFormat", 1, hits.Count);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (finding != _finding) return;
+        Publish(hits, hits.Count == 0 ? -1 : Math.Max(FindIndex, 0));
+        FindStatus = hits.Count == 0
+            ? Str.Get("Pdf.Find.None")
+            : Str.Format("Pdf.Find.ResultFormat", FindIndex + 1, hits.Count);
+    }
+
+    private void Publish(List<PageRange> hits, int index)
+    {
+        // Hits are kept in reading order, which is not the order they were found in when the search started part-way.
+        FoundRanges = [.. hits.OrderBy(static h => h.Page).ThenBy(static h => h.Start)];
+        OnPropertyChanged(nameof(FoundRanges));
+        FindIndex = index < 0 ? -1 : FirstFrom(CurrentPage - 1, index);
+    }
+
+    /// <summary>The hit to show first: the first on or after the page being read.</summary>
+    private int FirstFrom(int page, int fallback)
+    {
+        for (var i = 0; i < FoundRanges.Count; i++)
+            if (FoundRanges[i].Page >= page) return i;
+        return Math.Min(fallback, FoundRanges.Count - 1);
+    }
+
+    /// <summary>Drops the search and its hits.</summary>
+    [RelayCommand]
+    private void ClearFind()
+    {
+        _finding?.Cancel();
+        _foundFor = string.Empty;
+        FoundRanges = [];
+        OnPropertyChanged(nameof(FoundRanges));
+        FindIndex = -1;
+        FindStatus = string.Empty;
+    }
+
+    // ── Printing ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The document's pages for a printer whose sheets print <paramref name="sheet"/> (device-independent pixels); a print
+    /// still going when the tab closes is abandoned with it.
+    /// </summary>
+    internal System.Windows.Documents.DocumentPaginator? Paginator(System.Windows.Size sheet) =>
+        _source is null ? null : new PdfPaginator(_source, sheet, _cts.Token);
 }

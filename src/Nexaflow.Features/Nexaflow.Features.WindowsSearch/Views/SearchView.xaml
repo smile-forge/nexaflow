@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}"
-             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+                          xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
@@ -309,20 +310,8 @@
                                                  an opaque disc), not beside it — a mark floating next to
                                                  the icon reads as separate content rather than status. -->
                                             <Grid Width="22" Height="18" Margin="4,0,6,0" VerticalAlignment="Center">
-                                                <TextBlock FontSize="13"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Text" Value="📄"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsFolder}" Value="True">
-                                                                    <Setter Property="Text" Value="📁"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
+                                                <vcc:FileIcon Path="{Binding FilePath}" IsFolder="{Binding IsFolder}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                                                 <Border Width="12" Height="12"
                                                         CornerRadius="6"

@@ -27,6 +27,7 @@ namespace Nexaflow.Tests.Core.UI;
 public class SetupWizardTests
 {
     private string          _configDir = null!;
+    private string          _aiDir     = null!;
     private Application      _app       = null!;
     private UIA3Automation   _automation = null!;
     private IDisposable?     _gate;
@@ -45,8 +46,11 @@ public class SetupWizardTests
 
         _automation = new UIA3Automation();
 
-        var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
-        psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh => first-run wizard
+        var psi = new ProcessStartInfo(BuiltOutput.App) { UseShellExecute = false };
+        psi.EnvironmentVariables[AppLaunchRecipe.ConfigDirVariable] = _configDir;   // isolated, fresh => first-run wizard
+        _aiDir = Path.Combine(_configDir, "ai");                                    // and an empty model store of its own
+        Directory.CreateDirectory(_aiDir);
+        psi.EnvironmentVariables["NEXAFLOW_AI_DIR"] = _aiDir;
         _app = Application.Launch(psi);
     }
 
@@ -59,7 +63,7 @@ public class SetupWizardTests
         _gate = null;
 
         // Surface any unhandled exception the wizard logged (the dated crash logs live in the isolated dir).
-        var crash = UITestBase.ReadCrashLogs(_configDir);
+        var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
@@ -96,14 +100,9 @@ public class SetupWizardTests
         ClickNext(wizard);
 
         // ── Who runs the AI — asked only on a machine that can run Nexaflow's own model. This journey sets up a
-        // provider, so it takes that choice; Both and Nexaflow alone are there beside it. ──
-        WaitUntil(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardProviderList")) is not null
-                     || wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged")) is not null);
-        if (wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged"))?.AsRadioButton() is { } bridged)
+        // provider, so it takes that choice; Nexaflow's own models are there beside it, chosen until then. ──
+        if (ReachHarness(wizard) is { } bridged)
         {
-            Assert.IsTrue(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Mixed"))?.AsRadioButton().IsChecked == true,
-                          "Both is offered first");
-            Assert.IsNotNull(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Owned")), "Nexaflow alone is offered");
             bridged.Click();
             ClickNext(wizard);
         }
@@ -174,15 +173,22 @@ public class SetupWizardTests
         Assert.AreEqual(baseUrl, claude.GetProperty("BaseUrl").GetString(), "Claude BaseUrl not persisted.");
 
         var ai = ReadConfig(defaultDir, "ai-abilities");
-        var column = ai.GetProperty("Columns").EnumerateArray().Single();
+        // A setup that takes a provider alone gives it every reasoning row and nothing else: Claude offers no other kind of
+        // model, so no other row is filled. The Local column keeps a model chosen for each job this machine runs, ticked in no row.
+        var columns = ai.GetProperty("Columns").EnumerateArray().ToList();
+        static bool IsLocal(string? id) => id!.StartsWith("local-", StringComparison.Ordinal);
+        var column = columns.Single(c => !IsLocal(c.GetProperty("Id").GetString()));
         Assert.AreEqual("Claude",     column.GetProperty("ProviderName").GetString(), "AI column provider wrong.");
         Assert.AreEqual(chosenModel,  column.GetProperty("Model").GetString(),        "AI column model wrong.");
         var columnId = column.GetProperty("Id").GetString();
         var assignments = ai.GetProperty("Assignments");
         Assert.IsTrue(assignments.EnumerateObject().Any(), "No ability assignments written.");
-        foreach (var a in assignments.EnumerateObject())
-            CollectionAssert.AreEqual(new[] { columnId }, a.Value.EnumerateArray().Select(id => id.GetString()).ToArray(),
-                $"Ability '{a.Name}' not assigned to the chosen model alone.");
+        string[] languageRoles = ["Disambiguation", "GeneralIntelligence", "ImageRecognition"];
+        foreach (var role in languageRoles)
+            CollectionAssert.AreEqual(new[] { columnId }, assignments.GetProperty(role).EnumerateArray().Select(id => id.GetString()).ToArray(),
+                $"Ability '{role}' not assigned to the chosen model alone.");
+        Assert.IsFalse(assignments.EnumerateObject().SelectMany(a => a.Value.EnumerateArray()).Any(id => IsLocal(id.GetString())),
+                       "The Local column is ticked in no row.");
 
         var persona = ReadConfig(defaultDir, "ai-persona");
         Assert.AreEqual(personaName,   persona.GetProperty("Name").GetString(),         "Persona name not persisted.");
@@ -194,6 +200,68 @@ public class SetupWizardTests
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("ws-harness-choice")]
+    public void ChoosingOwnModels_OffersTheirDownload_AndLaterDownloadsNothing()
+    {
+        var wizard = WaitForWindow("Nexaflow Setup");
+        ClickNext(wizard);   // What's New
+        ClickNext(wizard);   // Shell settings
+        if (ReachHarness(wizard) is null) Assert.Inconclusive("This machine has no GPU Nexaflow's own model fits, so the wizard does not offer it.");
+        ClickNext(wizard);   // Nexaflow's own models, as chosen
+
+        var later = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardDownloads_Later"))?.AsButton());
+        Assert.IsFalse(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled,
+                       "the step waits on a choice: download now, or later");
+        later.Invoke();
+        WaitUntil(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled);
+
+        wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardSkipButton")).AsButton().Invoke();
+        WaitUntil(() => GetWindow("Nexaflow Setup") is null);
+        Thread.Sleep(3000);
+        Assert.AreEqual(0, Directory.EnumerateFiles(_aiDir, "*", SearchOption.AllDirectories).Count(), "Later downloads nothing");
+    }
+
+    [TestMethod]
+    [CoversNode("ws-harness-choice")]
+    public void DownloadNow_StartsTheModelsDownloading_InTheStep()
+    {
+        var wizard = WaitForWindow("Nexaflow Setup");
+        ClickNext(wizard);   // What's New
+        ClickNext(wizard);   // Shell settings
+        if (ReachHarness(wizard) is null) Assert.Inconclusive("This machine has no GPU Nexaflow's own model fits, so the wizard does not offer it.");
+        ClickNext(wizard);   // Nexaflow's own models, as chosen
+
+        WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardDownloads_Later"))?.AsButton());
+        var now = wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardDownloads_Now"))?.AsButton();
+        if (now is not { IsOffscreen: false })
+        {
+            Assert.Inconclusive("This machine's drive has too little room for the models, so only Later is offered.");
+            return;
+        }
+        now.Invoke();
+
+        // The models download into the store's folder — the run's own — and the wizard can be finished meanwhile.
+        WaitUntil(() => Directory.EnumerateFiles(_aiDir, "*", SearchOption.AllDirectories).Any());
+        Assert.IsTrue(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled,
+                      "the wizard can be finished while the downloads go on");
+    }
+
+    /// <summary>Waits for the step after the shell's settings: who runs the AI where this machine can run Nexaflow's own model —
+    /// returning its cloud choice once it has checked that Nexaflow's own models are chosen, and that there are only the two —
+    /// or the provider list where it cannot, returning null.</summary>
+    private RadioButton? ReachHarness(Window wizard)
+    {
+        WaitUntil(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardProviderList")) is not null
+                     || wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged")) is not null);
+        if (wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Bridged"))?.AsRadioButton() is not { } bridged) return null;
+        Assert.IsTrue(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardHarness_Owned"))?.AsRadioButton().IsChecked == true,
+                      "Nexaflow's own models are offered first, and chosen");
+        Assert.AreEqual(2, wizard.FindAllDescendants(cf => cf.ByControlType(ControlType.RadioButton)).Length,
+                        "two choices: Nexaflow's own models, or a cloud provider");
+        return bridged;
+    }
 
     /// <summary>Sets a text field by automation id. For LostFocus-bound fields pass propertyChanged:false
     /// and tab away afterwards; here all callers are PropertyChanged-bound or handle focus themselves.</summary>
@@ -267,8 +335,4 @@ public class SetupWizardTests
         using var doc = JsonDocument.Parse(File.ReadAllText(file!));
         return doc.RootElement.Clone();
     }
-
-    /// <summary>Resolves Nexaflow.exe via the shared harness locator (layout-independent walk-up —
-    /// this class had its own fixed-depth copy that broke when the x64 pin added a path level).</summary>
-    private static string FindAppExe() => UITestBase.FindAppExe();
 }

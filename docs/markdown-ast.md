@@ -390,8 +390,9 @@ root); the options of one choice come back under one `LayoutIntent.Group`, the o
 press on one comes back through the engine as a choosing edit on the same piece and part (`ContentEngine.Choose`), so
 what a ribbon does is written in the handler that answers the keys.
 
-Markdown's own offer is Insert: every language that names a block to start from (`ContentLanguage.DisplayName`, `Icon`
-— a Fluent UI System Icons name — and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) sits behind the
+Markdown's own offer is Insert: every language that names a block to start from (`ContentLanguage.DisplayName` — read
+as it is shown, in the window's language, while the invariant `Name` keys the offer — `Icon`, a Fluent UI System Icons
+name, and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) sits behind the
 ribbon's one Insert button, which opens a sub-ribbon of their icons; choosing one writes its block after the block the
 ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surface adds nothing to the ribbon of its
 own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the

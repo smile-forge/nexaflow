@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Text.FileActions;
@@ -15,10 +16,10 @@ public sealed class ShowTextAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📄";
-    public string DisplayName            => "As Text";
+    public string DisplayName            => Str.Get("Text.Viewer.Action.AsText");
     public static string? StaticExperienceId => "/text";
     public string ExperienceId           => "/text";
-    public string ExperienceDescription  => "Read-only text viewer for files of any size";
+    public string ExperienceDescription  => Str.Get("Text.Viewer.Action.AsTextDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

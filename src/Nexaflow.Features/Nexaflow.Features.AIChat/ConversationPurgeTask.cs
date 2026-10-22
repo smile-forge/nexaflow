@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat;
 
@@ -17,7 +18,7 @@ public sealed class ConversationPurgeTask : IBackgroundTask
         _cutoff = cutoff;
     }
 
-    public string Description => "Purging old conversations";
+    public string Description => Str.Get("AIChat.Task.Purging");
 
     public async Task RunAsync(CancellationToken ct)
     {

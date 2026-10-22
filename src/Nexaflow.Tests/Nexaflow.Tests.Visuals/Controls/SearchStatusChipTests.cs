@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Visuals.Controls;
 
@@ -145,12 +146,12 @@ public partial class SearchStatusChipTests   // partial: the nested fake's [Rela
         Settle(chip);
 
         var count = (TextBlock)ById(chip, "Log_SearchMatchCount")!;
-        Assert.AreEqual("7 match(es)", count.Text);
+        Assert.AreEqual(Str.Format("Common.SearchChip.Matches", 7), count.Text);
         Assert.AreEqual(Visibility.Visible, ((UIElement)ById(chip, "Log_SearchPrevious")!).Visibility);
         Assert.AreEqual(Visibility.Visible, ((UIElement)ById(chip, "Log_SearchNext")!).Visibility);
 
         // The term is rendered beside the count so "7 match(es) for alpha42" reads as one sentence.
-        var term = Descendants(chip).OfType<TextBlock>().FirstOrDefault(t => t.Text == " for alpha42");
+        var term = Descendants(chip).OfType<TextBlock>().FirstOrDefault(t => t.Text == Str.Format("Common.SearchChip.For", "alpha42"));
         Assert.IsNotNull(term, "the searched term is not shown");
     });
 

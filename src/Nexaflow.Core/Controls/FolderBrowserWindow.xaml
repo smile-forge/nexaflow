@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
-        Title="Select Folder"
+xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+Title="{loc:Str Shell.Picker.SelectFolder}"
         Width="640" Height="600"
         MinWidth="520" MinHeight="440"
         WindowStyle="None"
@@ -84,7 +85,8 @@
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding Glyph}" FontSize="12.5" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <vcc:FileIcon Path="{Binding IconPath}" IsFolder="True" Fallback="{Binding Glyph}"
+                                      Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding DisplayName}"
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource TextBrush}"/>

@@ -19,7 +19,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("qr-block-syntax")]
 public class QrBlockReaderTests
 {
     private static QrBlock Parse(string source)
@@ -244,6 +243,7 @@ public class QrBlockReaderTests
     // ΓöÇΓöÇ Settings ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void Settings_DefaultWhenUnstated()
     {
         var block = Parse(
@@ -260,6 +260,7 @@ public class QrBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void Settings_AreReadFromTheBlock()
     {
         var block = Parse(
@@ -281,6 +282,7 @@ public class QrBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void ErrorCorrection_AcceptsEveryLevel()
     {
         (string Letter, QrErrorCorrection Level)[] levels =
@@ -296,6 +298,7 @@ public class QrBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void Colour_AcceptsShortHexAndAnAlphaChannel()
     {
         Assert.AreEqual(new HexColor(0xFF, 0xAA, 0xBB, 0xCC), Parse("type: text\ntext: x\ndark: #abc").Settings.Dark);
@@ -304,6 +307,7 @@ public class QrBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void BlankLinesAndComments_AreSkipped() =>
         Assert.AreEqual("x", Parse(
             """
@@ -315,6 +319,7 @@ public class QrBlockReaderTests
             """).Payload);
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void ValueKeepsEverythingAfterTheFirstColon() =>
         Assert.AreEqual("https://example.com/a:b?q=1:2", Parse(
             """
@@ -325,14 +330,17 @@ public class QrBlockReaderTests
     // ΓöÇΓöÇ Diagnostics ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void MissingType_SaysWhatTheTypesAre() =>
         StringAssert.Contains(Rejects("text: hello"), "wifi");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void UnknownType_NamesIt() =>
         StringAssert.Contains(Rejects("type: barcode\ntext: x"), "barcode");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void MistypedSettingKey_IsRefused_NotIgnored()
     {
         // The failure this guards against is silent: a code that renders at the default size while the
@@ -341,22 +349,27 @@ public class QrBlockReaderTests
     }
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void FieldOfAnotherType_IsRefused() =>
         StringAssert.Contains(Rejects("type: url\nurl: https://x.test\nssid: Home"), "ssid");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void MissingRequiredField_NamesIt() =>
         StringAssert.Contains(Rejects("type: wifi\npassword: hunter2"), "ssid");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void LineWithoutAColon_IsRefused() =>
         StringAssert.Contains(Rejects("type: text\njust some prose"), "just some prose");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void EmptyBlock_IsRefused() =>
         StringAssert.Contains(Rejects("   \n\n"), "empty");
 
     [TestMethod]
+    [CoversNode("qr-block-syntax")]
     public void BadSettingValues_AreEachExplained()
     {
         StringAssert.Contains(Rejects("type: text\ntext: x\nec: Z"),           "L, M, Q or H");

@@ -184,12 +184,15 @@ internal sealed class MarkdownTokenizer
             '&' => MarkdownEntities.Length(_text.AsSpan(0, to), at) is > 0 and var length
                 ? new MarkdownToken(MarkdownTokenKind.Entity, at, at + length)
                 : (MarkdownToken?)null,
-            '<' => this.Autolink(at, to) ?? this.Html(at),
+            '<' => this.Autolink(at, to) ?? this.Html(at) ?? this.Angled(at, to),
             '[' => new MarkdownToken(MarkdownTokenKind.Open, at, at + 1),
             ']' => new MarkdownToken(MarkdownTokenKind.Close, at, at + 1),
             '!' when at + 1 < to && _text[at + 1] == '[' => new MarkdownToken(MarkdownTokenKind.Picture, at, at + 2),
             '$' => this.Formula(at, to),
+            // One double quote is a quote; two are a citation's marks.
+            '"' when at + 1 >= to || _text[at + 1] != '"' => this.Quotation(at, to),
             '*' or '_' or '~' or '^' or '+' or '=' or '"' => this.Run(at, to),
+            '\'' or '>' or '-' or '.' or ':' => this.Punctuated(at, to),
             'h' or 'f' or 'm' or 't' or 'w' when !plain => this.Bare(at, to),
             _ => null,
         };
@@ -221,6 +224,10 @@ internal sealed class MarkdownTokenizer
             }
 
             if (character < 128 ? Stops[character] : false) break;
+
+            // Punctuation SmartyPants or the emoji extension can read stops the words only where they read something, so a
+            // sentence's full stop or a word's apostrophe leaves the words it stands in one run.
+            if (character is '\'' or '>' or '-' or '.' or ':' && this.Punctuated(next, to) is not null) break;
 
             if (character is 'h' or 'f' or 'm' or 't' or 'w' && Bares(_text[next - 1]) && Prefixed(_text.AsSpan(next, to - next))) break;
 
@@ -630,10 +637,7 @@ internal sealed class MarkdownTokenizer
         _ => new Emphasis(2, 2, false),
     };
 
-    /// <summary>
-    /// A run of one emphasis character, and whether it can open or close — CommonMark's flanking, with the characters on
-    /// either side as Markdig sees them: an entity next to the run is what it stands for.
-    /// </summary>
+    /// <summary>A run of one emphasis character, and whether it can open or close (<see cref="Flanked"/>).</summary>
     private MarkdownToken? Run(int at, int to)
     {
         var mark = _text[at];
@@ -646,6 +650,21 @@ internal sealed class MarkdownTokenizer
         if (this.Before(at) == mark && (at - 2 < _lines[_line].From || _text[at - 2] != '\\')) return new MarkdownToken(MarkdownTokenKind.Text, at, end);
         if (end - at < emphasis.Least) return new MarkdownToken(MarkdownTokenKind.Text, at, end);
 
+        this.Flanked(at, end, to, emphasis.WithinWords, out var opens, out var closes);
+
+        return opens || closes
+            ? new MarkdownToken(MarkdownTokenKind.Run, at, end, Mark: mark, Opens: opens, Closes: closes)
+            : new MarkdownToken(MarkdownTokenKind.Text, at, end);
+    }
+
+    /// <summary>
+    /// Whether the marks from <paramref name="at"/> to <paramref name="end"/> can open and whether they can close — CommonMark's
+    /// flanking, with the characters on either side as Markdig sees them: an entity next to them is what it stands for. Marks that
+    /// may not stand inside a word, as <c>_</c> may not, open only where they cannot close and close only where they cannot open,
+    /// unless punctuation stands on the other side.
+    /// </summary>
+    private void Flanked(int at, int end, int to, bool withinWords, out bool opens, out bool closes)
+    {
         var before = this.EntityBefore(at) ?? this.RuneBefore(at);
         var after = this.EntityAfter(end, to) ?? this.RuneAt(end);
 
@@ -655,19 +674,14 @@ internal sealed class MarkdownTokenizer
         var beforeExcepted = beforePunctuation && Excepted(before);
         var afterExcepted = afterPunctuation && Excepted(after);
 
-        var opens = !afterSpace && (!afterPunctuation || afterExcepted || beforeSpace || beforePunctuation);
-        var closes = !beforeSpace && (!beforePunctuation || beforeExcepted || afterSpace || afterPunctuation);
+        opens = !afterSpace && (!afterPunctuation || afterExcepted || beforeSpace || beforePunctuation);
+        closes = !beforeSpace && (!beforePunctuation || beforeExcepted || afterSpace || afterPunctuation);
 
-        if (!emphasis.WithinWords)
-        {
-            var left = opens;
-            opens = opens && (!closes || beforePunctuation);
-            closes = closes && (!left || afterPunctuation);
-        }
+        if (withinWords) return;
 
-        return opens || closes
-            ? new MarkdownToken(MarkdownTokenKind.Run, at, end, Mark: mark, Opens: opens, Closes: closes)
-            : new MarkdownToken(MarkdownTokenKind.Text, at, end);
+        var left = opens;
+        opens = opens && (!closes || beforePunctuation);
+        closes = closes && (!left || afterPunctuation);
     }
 
     /// <summary>What an entity ending just before <paramref name="at"/> stands for, last character first — or null where none does.</summary>
@@ -731,6 +745,62 @@ internal sealed class MarkdownTokenizer
 
     /// <summary>The punctuation Markdig lets a run open or close against as if it were a letter: minus signs, plus, daggers.</summary>
     private static bool Excepted(Rune rune) => rune.Value is '−' or '-' or '+' or '†' or '‡';
+
+    // ── Typography ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// What SmartyPants or the emoji extension reads at <paramref name="at"/> — a quote, a guillemet, a dash, an ellipsis, an
+    /// emoji's shortcode — or null where the character is only itself. The one question both the token read there and a run of
+    /// words passing it ask, so the words stop only where something is.
+    /// </summary>
+    private MarkdownToken? Punctuated(int at, int to) => _text[at] switch
+    {
+        '\'' => this.Quotation(at, to),
+        '>' => this.Angled(at, to),
+        '-' => this.Dashed(at, to),
+        '.' => this.Ellipsis(at, to),
+        ':' => this.Shortcode(at, to),
+        _ => null,
+    };
+
+    /// <summary>
+    /// A quote, <c>'</c> or <c>"</c>, as SmartyPants reads one: by the flanking a run of <c>_</c> has, so none stands inside a
+    /// word — <c>it's</c> keeps its apostrophe — and one that could both open and close is the character it is. Which it is drawn
+    /// as is settled by whether another pairs it (<see cref="MarkdownQuotes"/>).
+    /// </summary>
+    private MarkdownToken? Quotation(int at, int to)
+    {
+        this.Flanked(at, at + 1, to, withinWords: false, out var opens, out var closes);
+
+        return opens != closes ? new MarkdownToken(MarkdownTokenKind.Quotation, at, at + 1, Mark: _text[at], Opens: opens, Closes: closes) : null;
+    }
+
+    /// <summary>A guillemet written as two angle brackets, <c>&lt;&lt;</c> opening and <c>&gt;&gt;</c> closing — or null.</summary>
+    private MarkdownToken? Angled(int at, int to) =>
+        at + 1 < to && _text[at + 1] == _text[at]
+            ? new MarkdownToken(MarkdownTokenKind.Quotation, at, at + 2, Mark: _text[at], Opens: _text[at] == '<', Closes: _text[at] == '>')
+            : null;
+
+    /// <summary>An en dash written <c>--</c> or an em dash written <c>---</c>, the longer read first — or null.</summary>
+    private MarkdownToken? Dashed(int at, int to)
+    {
+        if (at + 1 >= to || _text[at + 1] != '-') return null;
+
+        return new MarkdownToken(MarkdownTokenKind.Typographic, at, at + 2 < to && _text[at + 2] == '-' ? at + 3 : at + 2);
+    }
+
+    /// <summary>An ellipsis written <c>...</c> — or null.</summary>
+    private MarkdownToken? Ellipsis(int at, int to) =>
+        at + 2 < to && _text[at + 1] == '.' && _text[at + 2] == '.' ? new MarkdownToken(MarkdownTokenKind.Typographic, at, at + 3) : null;
+
+    /// <summary>An emoji written as its name between colons, never straight after a letter or a digit — or null.</summary>
+    private MarkdownToken? Shortcode(int at, int to)
+    {
+        if (Rune.IsLetterOrDigit(this.RuneBefore(at))) return null;
+
+        var length = MarkdownShortcodes.Length(_text.AsSpan(0, to), at);
+        return length > 0 ? new MarkdownToken(MarkdownTokenKind.Shortcode, at, at + length) : null;
+    }
 
     // ── Addresses written bare ───────────────────────────────────────────────
 

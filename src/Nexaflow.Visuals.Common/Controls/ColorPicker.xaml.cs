@@ -196,8 +196,8 @@ public partial class ColorPicker : UserControl
         // The bank lives in the app's resources; with no app (a headless test) there is simply nothing to offer.
         if (Application.Current is null) return;
         SetValue(SwatchesKey, SwatchPalette.Keys
-            .Select(key => (Key: key, Name: key["Swatch.".Length..]))
-            .Select(s => new SwatchChip(s.Key, s.Name, SwatchPalette.Resolve(s.Key), $"{AutomationPrefix}_Swatch{s.Name}"))
+            .Select(key => (Key: key, Id: key["Swatch.".Length..]))
+            .Select(s => new SwatchChip(s.Key, SwatchPalette.HueName(s.Key), SwatchPalette.Resolve(s.Key), $"{AutomationPrefix}_Swatch{s.Id}"))
             .ToList());
     }
 
@@ -327,7 +327,7 @@ public partial class ColorPicker : UserControl
         SelectionLabel.Text = Value.Kind switch
         {
             ColorSpecKind.Default => Str.Get("Common.ColorPicker.IsThemeDefault"),
-            ColorSpecKind.Swatch  => Str.Format("Common.ColorPicker.IsSwatch", Value.SwatchKey!["Swatch.".Length..]),
+            ColorSpecKind.Swatch  => Str.Format("Common.ColorPicker.IsSwatch", SwatchPalette.HueName(Value.SwatchKey!)),
             _                     => Str.Get("Common.ColorPicker.IsCustom"),
         };
 

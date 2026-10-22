@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
@@ -10,9 +11,9 @@ public sealed class OpenAsArchiveAction(IShellServices shell) : IFileAction, ICa
 {
     public static string? StaticExperienceId => "/archive";
     public string ExperienceId => "/archive";
-    public string ExperienceDescription => "Compressed archive";
+    public string ExperienceDescription => Str.Get("Compressed.Experience.Archive");
 
-    public string DisplayName => "As Archive";
+    public string DisplayName => Str.Get("Compressed.Action.AsArchive");
     public string Icon => "📦";
 
     public bool IsDestructive => false;

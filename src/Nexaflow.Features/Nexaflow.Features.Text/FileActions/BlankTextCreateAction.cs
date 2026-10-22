@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
 namespace Nexaflow.Features.Text.FileActions;
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Text.FileActions;
 public sealed class BlankTextCreateAction : IFileCreateAction, ICacheable
 {
     public string Icon          => "📄";
-    public string DisplayName   => "Text File";
+    public string DisplayName   => Str.Get("Text.Viewer.Action.NewTextFile");
     public string FileExtension => ".txt";
 
     public string? Create(string folderPath, string fileName)

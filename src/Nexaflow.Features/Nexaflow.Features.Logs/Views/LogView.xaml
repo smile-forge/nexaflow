@@ -4,6 +4,7 @@
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="LogView"
              Background="{StaticResource BgBrush}">
 
@@ -65,7 +66,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_HighlightFatal"
                                   IsChecked="{Binding HighlightFatal}"
-                                  ToolTip="Highlight FATAL lines">
+                                  ToolTip="{loc:Str Logs.Toolbar.HighlightFatalTip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Fatal.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="FATAL"/>
@@ -75,7 +76,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_HighlightError"
                                   IsChecked="{Binding HighlightError}"
-                                  ToolTip="Highlight ERROR lines">
+                                  ToolTip="{loc:Str Logs.Toolbar.HighlightErrorTip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Error.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="ERROR"/>
@@ -85,7 +86,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_HighlightWarning"
                                   IsChecked="{Binding HighlightWarning}"
-                                  ToolTip="Highlight WARN lines">
+                                  ToolTip="{loc:Str Logs.Toolbar.HighlightWarningTip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Warning.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="WARN"/>
@@ -95,7 +96,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_HighlightInfo"
                                   IsChecked="{Binding HighlightInfo}"
-                                  ToolTip="Highlight INFO lines">
+                                  ToolTip="{loc:Str Logs.Toolbar.HighlightInfoTip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Info.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="INFO"/>
@@ -105,7 +106,7 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_HighlightDebug"
                                   IsChecked="{Binding HighlightDebug}"
-                                  ToolTip="Highlight DEBUG/TRACE lines">
+                                  ToolTip="{loc:Str Logs.Toolbar.HighlightDebugTip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Debug.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="DEBUG"/>
@@ -119,7 +120,7 @@
                              AutomationProperties.AutomationId="Log_HighlightTerm"
                              Text="{Binding CustomHighlightTerm, UpdateSourceTrigger=PropertyChanged}"
                              MinWidth="100"
-                             ToolTip="Highlight all occurrences of this term">
+                             ToolTip="{loc:Str Logs.Toolbar.HighlightTermTip}">
                         <TextBox.Style>
                             <Style TargetType="TextBox" BasedOn="{StaticResource TbInput}">
                                 <Style.Triggers>
@@ -128,7 +129,7 @@
                                             <Setter.Value>
                                                 <VisualBrush AlignmentX="Left" Stretch="None">
                                                     <VisualBrush.Visual>
-                                                        <TextBlock Text="Highlight…"
+                                                        <TextBlock Text="{loc:Str Logs.Toolbar.HighlightTermPlaceholder}"
                                                                    Foreground="{StaticResource TextMutedBrush}"
                                                                    Margin="6,4"/>
                                                     </VisualBrush.Visual>
@@ -147,15 +148,15 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_Pause"
                                   IsChecked="{Binding IsPaused}"
-                                  ToolTip="Pause / resume auto-update from file">
-                        <TextBlock Text="⏸ Pause"/>
+                                  ToolTip="{loc:Str Logs.Toolbar.PauseTip}">
+                        <TextBlock Text="{loc:Str Logs.Toolbar.Pause}"/>
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Log_Follow"
                                   IsChecked="{Binding IsAutoScrolling}"
-                                  ToolTip="Auto-scroll to bottom on new content">
-                        <TextBlock Text="↓ Follow"/>
+                                  ToolTip="{loc:Str Logs.Toolbar.FollowTip}">
+                        <TextBlock Text="{loc:Str Logs.Toolbar.Follow}"/>
                     </ToggleButton>
 
                     <Separator Style="{StaticResource TbSep}"/>
@@ -164,12 +165,8 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Log_CopySelected"
                             Command="{Binding CopySelectedLinesCommand}"
-                            ToolTip="Copy selected lines to clipboard">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📋 Copy "/>
-                            <TextBlock Text="{Binding SelectedLineCount}"/>
-                            <TextBlock Text=" line(s)"/>
-                        </StackPanel>
+                            ToolTip="{loc:Str Logs.Toolbar.CopyLinesTip}">
+                        <TextBlock Text="{Binding SelectedLineCount, StringFormat={loc:Str Logs.Toolbar.CopyLinesFormat}}"/>
                     </Button>
 
                     <Separator Style="{StaticResource TbSep}"/>
@@ -216,12 +213,12 @@
                     <StackPanel Margin="10,12">
 
                         <!-- ── Regex filter ── -->
-                        <TextBlock Text="Filter"
+                        <TextBlock Text="{loc:Str Logs.Filter.Title}"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}"
                                    Margin="0,0,0,6"/>
 
-                        <TextBlock Text="Pattern (regex)"
+                        <TextBlock Text="{loc:Str Logs.Filter.Pattern}"
                                    FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,0,0,3"/>
@@ -233,7 +230,7 @@
                             <TextBox Grid.Column="0"
                                      AutomationProperties.AutomationId="Log_FilterRegex"
                                      Text="{Binding FilterRegex, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Fade lines not matching this regex">
+                                     ToolTip="{loc:Str Logs.Filter.PatternTip}">
                                 <TextBox.Style>
                                     <Style TargetType="TextBox" BasedOn="{StaticResource TbInput}">
                                         <Style.Triggers>
@@ -242,7 +239,7 @@
                                                     <Setter.Value>
                                                         <VisualBrush AlignmentX="Left" Stretch="None">
                                                             <VisualBrush.Visual>
-                                                                <TextBlock Text="regex…"
+                                                                <TextBlock Text="{loc:Str Logs.Filter.PatternPlaceholder}"
                                                                            Foreground="{StaticResource TextMutedBrush}"
                                                                            Margin="6,4"/>
                                                             </VisualBrush.Visual>
@@ -261,7 +258,7 @@
                                     Command="{Binding ClearFilterCommand}"
                                     Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}"
                                     Padding="6,4"
-                                    ToolTip="Clear filter"/>
+                                    ToolTip="{loc:Str Logs.Filter.ClearTip}"/>
                         </Grid>
 
                         <!-- ── Time range filter (shown only when timestamps detected) ── -->
@@ -269,12 +266,12 @@
 
                             <Separator Background="{StaticResource BorderBrush}" Margin="0,8,0,8"/>
 
-                            <TextBlock Text="Time Range"
+                            <TextBlock Text="{loc:Str Logs.Filter.TimeRange}"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextBrush}"
                                        Margin="0,0,0,6"/>
 
-                            <TextBlock Text="From"
+                            <TextBlock Text="{loc:Str Logs.Filter.From}"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Margin="0,0,0,3"/>
@@ -285,7 +282,7 @@
                             Text="{Binding FilterStartTime, UpdateSourceTrigger=PropertyChanged}"
                                      MinWidth="0"
                                      Margin="0,0,0,10"
-                                     ToolTip="Time (HH:mm:ss)">
+                                     ToolTip="{loc:Str Logs.Filter.TimeTip}">
                                 <TextBox.Style>
                                     <Style TargetType="TextBox" BasedOn="{StaticResource TbInput}">
                                         <Style.Triggers>
@@ -307,7 +304,7 @@
                                 </TextBox.Style>
                             </TextBox>
 
-                            <TextBlock Text="To"
+                            <TextBlock Text="{loc:Str Logs.Filter.To}"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Margin="0,0,0,3"/>
@@ -317,7 +314,7 @@
                             <TextBox Text="{Binding FilterEndTime, UpdateSourceTrigger=PropertyChanged}"
                                      MinWidth="0"
                                      Margin="0,0,0,12"
-                                     ToolTip="Time (HH:mm:ss)">
+                                     ToolTip="{loc:Str Logs.Filter.TimeTip}">
                                 <TextBox.Style>
                                     <Style TargetType="TextBox" BasedOn="{StaticResource TbInput}">
                                         <Style.Triggers>
@@ -342,14 +339,14 @@
                             <Button Style="{StaticResource TbBtn}"
                                     AutomationProperties.AutomationId="Log_ApplyTimeFilter"
                                     Command="{Binding ApplyTimeFilterCommand}"
-                                    Content="Apply"
+                                    Content="{loc:Str Logs.Filter.Apply}"
                                     HorizontalAlignment="Stretch"
                                     Margin="0,0,0,4"/>
 
                             <Button Style="{StaticResource TbBtn}"
                                     AutomationProperties.AutomationId="Log_ClearTimeFilter"
                                     Command="{Binding ClearTimeFilterCommand}"
-                                    Content="Clear"
+                                    Content="{loc:Str Logs.Filter.Clear}"
                                     HorizontalAlignment="Stretch"/>
 
                         </StackPanel>
@@ -370,15 +367,14 @@
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding IsLoadingHead, Converter={StaticResource BoolVis}}"
                             Margin="0,0,12,0">
-                    <TextBlock Text="⟳ Loading history…"
+                    <TextBlock Text="{loc:Str Logs.Status.LoadingHistory}"
                                Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11"/>
                 </StackPanel>
 
-                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">
-                    <Run Text="{Binding LineCount, Mode=OneWay}"/>
-                    <Run Text=" lines"/>
-                </TextBlock>
+                <TextBlock Text="{Binding LineCount, StringFormat={loc:Str Logs.Status.LinesFormat}}"
+                           FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}"/>
 
                 <Separator Style="{StaticResource TbSep}"/>
 
@@ -388,18 +384,17 @@
 
                 <Separator Style="{StaticResource TbSep}"/>
 
-                <TextBlock Text="{Binding ActiveParser.FormatName}"
+                <TextBlock Text="{Binding ActiveParser.FormatDisplayName}"
                            FontSize="11"
                            Foreground="{StaticResource TextMutedBrush}"/>
 
                 <Separator Style="{StaticResource TbSep}"
                            Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}"/>
 
-                <TextBlock Foreground="{StaticResource WarningBrush}"
+                <TextBlock Text="{Binding FilterRegex, StringFormat={loc:Str Logs.Status.FilterFormat}}"
+                           Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
-                           Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}">
-                    <Run Text="Filter: "/><Run Text="{Binding FilterRegex, Mode=OneWay}"/>
-                </TextBlock>
+                           Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}"/>
 
                 <!-- What a "?" search found. Sits beside the filter indicator because both answer
                      "why does the log look like this" — but they are independent layers. -->

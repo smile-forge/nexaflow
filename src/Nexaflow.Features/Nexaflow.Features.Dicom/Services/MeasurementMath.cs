@@ -1,5 +1,6 @@
 using System.Windows;
 using Nexaflow.Features.Dicom.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.Services;
 
@@ -94,7 +95,8 @@ internal static class MeasurementMath
         var mean = sum / n;
         var variance = Math.Max(0, sumSq / n - mean * mean);
         var sd = Math.Sqrt(variance);
-        var unit = sampler.IsHounsfield ? " HU" : "";
-        return $"mean {mean:0}{unit}, SD {sd:0}";
+        return sampler.IsHounsfield
+            ? Str.Format("Dicom.Measure.StatsHuFormat", mean, sd)
+            : Str.Format("Dicom.Measure.StatsFormat", mean, sd);
     }
 }

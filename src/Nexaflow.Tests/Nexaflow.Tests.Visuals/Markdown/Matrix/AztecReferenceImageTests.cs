@@ -31,11 +31,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("aztec-encoder")]
-[CoversNode("aztec-layout")]
 public class AztecReferenceImageTests
 {
     [TestMethod]
+    [CoversNode("aztec-layout")]
     public void ReferenceImagesDecodeToTheirText()
     {
         Check((path, expected, failures) =>
@@ -47,6 +46,8 @@ public class AztecReferenceImageTests
     }
 
     [TestMethod]
+    [CoversNode("aztec-encoder")]
+    [CoversNode("aztec-layout")]
     public void ReferenceImagesMatchOurEncoderModuleForModule()
     {
         Check((path, expected, failures) =>

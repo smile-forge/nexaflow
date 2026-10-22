@@ -10,7 +10,8 @@
 6. [Elevation / Privilege Bridge](#elevation--privilege-bridge)
 7. [Core Flows](#core-flows)
 8. [Large-file reading](#large-file-reading)
-9. [Architectural Findings](#architectural-findings)
+9. [Installer](#installer)
+10. [Architectural Findings](#architectural-findings)
 
 ---
 
@@ -50,9 +51,10 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 - `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
   view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
   instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
-- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, not
-  `Features.Common`; `Elevation.Contracts` is the fourth shared leaf (referenced by `Features.Common`
-  for the `IShellServices.RunElevatedAsync` signature).
+- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Media` / `Nexaflow.Syntax`,
+  not `Features.Common`; `Elevation.Contracts` is the fifth shared leaf (referenced by `Features.Common`
+  for the `IShellServices.RunElevatedAsync` signature). `Nexaflow.Media` holds media codecs Nexaflow carries as its
+  own memory-safe source rather than wraps as native libraries, each in a folder with its licence.
 
 ---
 
@@ -194,7 +196,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`) |
-| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
+| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
@@ -281,10 +283,24 @@ ships (`ModelCatalog`); the store fetches them. A provider that exposes its cata
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
 kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
 on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
-Speech In starts on the Local column when a workspace's grid has never had that row; the workspace settles its model
-as it loads — one of Nexaflow's own speech models, or whisper.cpp's base where the machine runs none
-(`LocalColumns.Settle`). The mic holds a conversation on any speech model but that one; on it, `DictationService`
-streams the microphone into the box.
+The grid's rows are the abilities (`AiAbility`, in Features.Common so features can name one): General Intelligence —
+the conversation and every one-shot piece of thinking — Disambiguation, Image Recognition, Speech In and Out, and the
+picture and video rows. Setup fills them by who runs the AI (`WorkspaceAiDefaults`): Nexaflow alone puts the Local
+column wherever it serves; a provider alone puts its language model in the reasoning rows and the models of its other
+kinds the user picked (`ModelKindsStep`) in theirs, the Local column keeping a model chosen for each job, ticked
+nowhere; both chain the two in the reasoning rows and give the Local column the rest. A grid saved by an earlier version
+is brought up to date as it is read (`AiConfig.BringUpToDate`): its Conversation row becomes General Intelligence, and
+Speech In starts on the Local column where it never had the row; the workspace settles that model as it loads — one of
+Nexaflow's own speech models, or whisper.cpp's base where the machine runs none (`LocalColumns.Settle`). The mic holds a
+conversation on any speech model but that one; on it, `DictationService` streams the microphone into the box.
+
+**What needs an ability.** `IAIService.StatusOf` says where an ability stands — unassigned, assigned but unreachable,
+waiting on the download of a model Nexaflow runs itself, downloading, or ready (`AbilityReadiness`) — and
+`AbilitiesChanged` says when that may have moved. A control that needs one binds a gate (`IAIService.Gate`, attached
+with `AiAbilityGating.Gate`): disabled while nothing serves the ability, its tooltip saying where to assign a model, and
+enabled while a model waits on its download, whose first use offers it (`MakeReadyAsync`) and stops there. A client tool
+declares what it needs (`IClientTool.Needs`): the agent loop leaves it out where nothing serves that, and one waiting on a
+download is offered behind `DownloadFirstTool`.
 
 All providers implement `IAiProvider` through their kind's contract (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 
@@ -772,6 +788,30 @@ re-rolling them.
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
 | One rectangular selection per window | `IO.Hdf5/PureHdf/PureHdfSource.cs` (`ReadBlock`) | N-D arrays: a table window is one hyperslab read, and `Hdf5Selection.Walk` streams a whole dataset in C order through bounded memory |
+
+---
+
+## Installer
+
+The installer is its own solution, `NexaflowSetup.slnx`: `nexaflowSetup` builds the MSI that carries the app (and fails
+on a broken product tree — `ValidateSnaplinks`), and `nexaflowBundle` the WiX Burn bundle released as the setup exe.
+The bundle's chain puts what the app needs from Windows in place before the MSI. Each prerequisite is an `ExePackage`
+whose installer is downloaded only when a registry search finds the machine without it; it is permanent (uninstalling
+Nexaflow leaves it) and vital (a failure stops the chain before the MSI).
+
+| Prerequisite | Needed by | Detected by |
+|---|---|---|
+| .NET 10 Desktop Runtime (x64) | the app, which is framework-dependent | the bundled patch's value under `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App`, 32-bit view |
+| Visual C++ v14 Redistributable (x64) | the native libraries — llama.cpp, ONNX Runtime and onnxruntime-genai in the AI host, whisper, assimp — which import `vcruntime140`, `msvcp140` and `vcomp140`; a clean Windows has none of them | `Installed` = 1 and a minimum `Minor` under `HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64`, 64-bit view |
+
+A DLL needs a Visual C++ runtime at least as new as the toolset that linked it, so the minimum is the newest linker
+version in those DLLs' PE headers; a native dependency built with a newer toolset raises it in `Bundle.wxs`. Every
+payload is pinned by hash, size and version to a versioned download URL, never a permanent `aka.ms` link: Burn refuses
+a download whose hash differs, and a permanent link moves to each new release. Exit code 1638 (a same-or-newer version
+is already installed) counts as success, and 3010 schedules a reboot.
+
+`Nexaflow.Tests.Sandbox` copies the host's Visual C++ runtime into the sandbox so it can run the app, so a missing
+prerequisite does not show there; checking a clean install of the bundle takes a plain `.wsb` sandbox.
 
 ---
 

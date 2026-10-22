@@ -116,7 +116,7 @@ public class ContentLanguageDrawingTests
 
         foreach (var language in insertable)
         {
-            var name = language.DisplayName;
+            var name = language.DisplayName?.Invoke();
             var lines = language.DefaultBlock!.ReplaceLineEndings("\n").Split('\n');
             var fence = lines[0]["```".Length..];
             var body = string.Join("\n", lines[1..^1]) + "\n";
@@ -141,7 +141,8 @@ public class ContentLanguageDrawingTests
         if (faults.Count > 0)
             Assert.Fail($"blocks to start from that do not:{System.Environment.NewLine}  " + string.Join(System.Environment.NewLine + "  ", faults));
 
-        Assert.AreEqual(insertable.Count, insertable.Select(language => language.DisplayName).Distinct().Count(), "every name is its own");
+        Assert.AreEqual(insertable.Count, insertable.Select(language => language.Name).Distinct().Count(), "every name is its own");
+        Assert.AreEqual(insertable.Count, insertable.Select(language => language.DisplayName?.Invoke()).Distinct().Count(), "and so is what a reader is told");
         Assert.IsTrue(Nexaflow.Visuals.Text.Markdown.Languages.Shipped.Diagrams.All(diagram => diagram.DefaultBlock is not null),
             "every diagram drawn can be started");
     });

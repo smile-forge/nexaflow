@@ -7,6 +7,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
@@ -47,30 +48,30 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
     private const string Stroke = "Stroke";
 
     /// <summary>Where the legend may go: what is offered, the front matter's word for it, and what it is read back as.</summary>
-    private static readonly (string Tip, string Written, PieLegend Read)[] Placings =
+    private static readonly (Func<string> Tip, string Written, PieLegend Read)[] Placings =
     [
-        ("Left", "left", PieLegend.Left),
-        ("Top", "top", PieLegend.Top),
-        ("Right", "right", PieLegend.Right),
-        ("Bottom", "bottom", PieLegend.Bottom),
-        ("Centre", "center", PieLegend.Centre),
+        (static () => Str.Get("Text.Pie.Legend.Left"), "left", PieLegend.Left),
+        (static () => Str.Get("Text.Pie.Legend.Top"), "top", PieLegend.Top),
+        (static () => Str.Get("Text.Pie.Legend.Right"), "right", PieLegend.Right),
+        (static () => Str.Get("Text.Pie.Legend.Bottom"), "bottom", PieLegend.Bottom),
+        (static () => Str.Get("Text.Pie.Legend.Centre"), "center", PieLegend.Centre),
     ];
 
     /// <summary>How big the hole may be, as a share of the radius.</summary>
-    private static readonly (string Tip, string Written, double Read)[] Holes =
+    private static readonly (Func<string> Tip, string Written, double Read)[] Holes =
     [
-        ("None", "0", 0),
-        ("20%", "0.2", 0.2),
-        ("50%", "0.5", 0.5),
-        ("80%", "0.8", 0.8),
+        (static () => Str.Get("Text.Pie.Hole.None"), "0", 0),
+        (static () => Str.Format("Text.Pie.Hole.Share", 0.2), "0.2", 0.2),
+        (static () => Str.Format("Text.Pie.Hole.Share", 0.5), "0.5", 0.5),
+        (static () => Str.Format("Text.Pie.Hole.Share", 0.8), "0.8", 0.8),
     ];
 
     /// <summary>How thick the lines between the wedges may be.</summary>
-    private static readonly (string Tip, string Written, double Read)[] Strokes =
+    private static readonly (Func<string> Tip, string Written, double Read)[] Strokes =
     [
-        ("None", "0", 0),
-        ("Thin", "2", 2),
-        ("Thick", "4", 4),
+        (static () => Str.Get("Text.Pie.Stroke.None"), "0", 0),
+        (static () => Str.Get("Text.Pie.Stroke.Thin"), "2", 2),
+        (static () => Str.Get("Text.Pie.Stroke.Thick"), "4", 4),
     ];
 
     /// <inheritdoc/>
@@ -104,28 +105,28 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         if (kinds.Contains(MermaidPiece.Legend))
             return
             [
-                .. Placings.Select(placing => Offer(Legend, placing.Written, placing.Tip, Placed(placing.Read), config.Legend == placing.Read)),
+                .. Placings.Select(placing => Offer(Legend, Str.Get("Text.Pie.Legend"), placing.Written, placing.Tip(), Placed(placing.Read), config.Legend == placing.Read)),
                 .. Pasting(ask),
             ];
 
         if (kinds.Contains(PiePiece.Slices) || kinds.Contains(PiePiece.Shares))
             return
             [
-                .. Holes.Select(hole => Offer(Hole, hole.Written, hole.Tip, Holed(hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001)),
-                .. Strokes.Select(stroke => Offer(Stroke, stroke.Written, stroke.Tip, Stroked(stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001)),
+                .. Holes.Select(hole => Offer(Hole, Str.Get("Text.Pie.Hole"), hole.Written, hole.Tip(), Holed(hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001)),
+                .. Strokes.Select(stroke => Offer(Stroke, Str.Get("Text.Pie.Stroke"), stroke.Written, stroke.Tip(), Stroked(stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001)),
             ];
 
         return [.. Pasting(ask)];
 
-        static LayoutIntent Offer(string group, string written, string tip, Geometry shape, bool current) =>
-            new($"pie.{group.ToLowerInvariant()}.{written}", null, tip) { Group = group, Current = current, Shape = shape };
+        static LayoutIntent Offer(string group, string groupTip, string written, string tip, Geometry shape, bool current) =>
+            new($"pie.{group.ToLowerInvariant()}.{written}", null, tip) { Group = group, GroupTip = groupTip, Current = current, Shape = shape };
     }
 
     /// <summary>Paste, where the caret stands in a label, a value or the title — the only places in the chart words go.</summary>
     private static IEnumerable<LayoutIntent> Pasting(ContentAsk ask)
     {
         if (ask.Caret is { } caret && Places(ask.Part).Any(place => place.Start <= caret && caret <= place.End))
-            yield return new LayoutIntent(LayoutVerbs.Paste, null, "Paste");
+            yield return new LayoutIntent(LayoutVerbs.Paste, null, Str.Get("Text.Ribbon.Paste"));
     }
 
     // ── What each option is drawn as ────────────────────────────────────────

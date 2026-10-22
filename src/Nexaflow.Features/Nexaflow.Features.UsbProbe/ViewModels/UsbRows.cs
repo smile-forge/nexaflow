@@ -6,6 +6,7 @@ using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 
@@ -132,7 +133,7 @@ public sealed partial class UsbListRow : ObservableObject, IClipboardText
     public IconRef Icon => UsbIcons.Of(Location);
     public string Name => Location.Name;
     public string Summary => Location.Summary;
-    public string Kind => Location.Entry is { } entry && Location.Kind == UsbLocationKind.Descriptor ? entry.Kind : Location.Kind.ToString();
+    public string Kind => Location.Entry is { } entry && Location.Kind == UsbLocationKind.Descriptor ? entry.Kind : KindLabel(Location.Kind);
     public string Port => Location.Kind switch
     {
         UsbLocationKind.Device or UsbLocationKind.Port => Location.Path,
@@ -140,7 +141,7 @@ public sealed partial class UsbListRow : ObservableObject, IClipboardText
         _ => "",
     };
     public string Ids => Location.Device is { } d && Location.Kind == UsbLocationKind.Device ? $"{d.VendorId:X4}:{d.ProductId:X4}" : "";
-    public string Speed => Location.Kind == UsbLocationKind.Device ? Location.Device!.Speed.ToString() : "";
+    public string Speed => Location.Kind == UsbLocationKind.Device ? SpeedLabel(Location.Device!.Speed) : "";
     public string Driver => Location.Kind == UsbLocationKind.Device ? UsbLocationText.Modes(Location.Device!) : "";
     public string Power => Location.Kind == UsbLocationKind.Device ? UsbLocationText.Power(Location.Device!.Power) : "";
     public string Offset => Location.Kind == UsbLocationKind.Descriptor && Location.Entry is { } e ? e.Offset.ToString() : "";
@@ -156,4 +157,25 @@ public sealed partial class UsbListRow : ObservableObject, IClipboardText
 
     /// <summary>The device a row stands for, if it is one — what makes it count as "new".</summary>
     internal UsbDeviceNode? Device => Location.Kind == UsbLocationKind.Device ? Location.Device : null;
+
+    static string KindLabel(UsbLocationKind kind) => kind switch
+    {
+        UsbLocationKind.Root => Str.Get("UsbProbe.Kind.Root"),
+        UsbLocationKind.Bus => Str.Get("UsbProbe.Kind.Bus"),
+        UsbLocationKind.Port => Str.Get("UsbProbe.Kind.Port"),
+        UsbLocationKind.Device => Str.Get("UsbProbe.Kind.Device"),
+        UsbLocationKind.Configuration => Str.Get("UsbProbe.Kind.Configuration"),
+        UsbLocationKind.Bos => Str.Get("UsbProbe.Kind.Bos"),
+        _ => Str.Get("UsbProbe.Kind.Descriptor"),
+    };
+
+    static string SpeedLabel(UsbSpeed speed) => speed switch
+    {
+        UsbSpeed.Low => Str.Get("UsbProbe.Speed.Low"),
+        UsbSpeed.Full => Str.Get("UsbProbe.Speed.Full"),
+        UsbSpeed.High => Str.Get("UsbProbe.Speed.High"),
+        UsbSpeed.Super => Str.Get("UsbProbe.Speed.Super"),
+        UsbSpeed.SuperPlus => Str.Get("UsbProbe.Speed.SuperPlus"),
+        _ => Str.Get("UsbProbe.Speed.Unknown"),
+    };
 }

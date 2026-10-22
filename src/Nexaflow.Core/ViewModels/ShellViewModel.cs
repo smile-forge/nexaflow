@@ -73,7 +73,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         ChatInputFocusRequested?.Invoke();
     }
 
-    void IWindowHost.ShowError(string message) => ShowError("Error", message);
+    void IWindowHost.ShowError(string message) => ShowError(Str.Get("Shell.Errors.Error"), message);
     void IWindowHost.ShowNotification(string message)
         => MessageCenter.Instance.Post(new NotificationItem { Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
@@ -355,7 +355,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
-    public void ShowErrorToast(string message) => ShowError("Settings", message);
+    public void ShowErrorToast(string message) => ShowError(Str.Get("Shell.Errors.Settings"), message);
 
     /// <summary>Posts a transient informational toast (e.g. "Exported N conversations").</summary>
     public void ShowInfoToast(string title, string message)
@@ -723,7 +723,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _dictation.TranscriptUpdated += (_, text) =>
             _ui.Invoke(() => AiInputText = text);
         _dictation.Failed += (_, msg) =>
-            _ui.Invoke(() => ShowError("Voice", msg));
+            _ui.Invoke(() => ShowError(Str.Get("Shell.Errors.Voice"), msg));
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -732,7 +732,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         Voice.Ended += reason =>
         {
             AiInputText = string.Empty;
-            if (reason is not null) ShowError("Voice", reason);
+            if (reason is not null) ShowError(Str.Get("Shell.Errors.Voice"), reason);
         };
         Voice.PropertyChanged += (_, e) =>
         {
@@ -809,7 +809,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeVoiceAvailable()
     {
         var ai = CurrentRuntime.AiService;
-        VoiceAvailable = ai?.SpeechToText is not null;
+        VoiceAvailable = ai?.StatusOf(AiAbility.SpeechIn).IsUsable == true;
         VoiceConverses = ai?.CanConverse(SpokenLanguage()) == true;
     }
 
@@ -982,7 +982,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                             ?? (IReadOnlyList<string>)[];
                 var ctx = new RibbonExecutionContext(
                     paths,
-                    msg           => ShowError("Ribbon Action", msg),
+                    msg           => ShowError(Str.Get("Shell.Ribbon.ActionError"), msg),
                     (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
                     ()            => Ribbon?.Items.Remove(item));
                 executor.Execute(item.PageParams, ctx);
@@ -1012,7 +1012,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                         ?? (IReadOnlyList<string>)[];
             var ctx = new RibbonExecutionContext(
                 paths,
-                msg           => ShowError("Ribbon Action", msg),
+                msg           => ShowError(Str.Get("Shell.Ribbon.ActionError"), msg),
                 (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
                 ()            => Ribbon?.Items.Remove(item));
             executor.Execute(item.PageParams, ctx);
@@ -1167,10 +1167,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         workspace.DefaultTabs = tabs;
         WorkspaceManager.Instance.SaveWorkspaces();
 
-        ShowInfoToast("Default tabs set",
-            tabs.Count == 0
-                ? "This workspace will start with no tabs open."
-                : $"Saved {tabs.Count} tab{(tabs.Count == 1 ? "" : "s")} as this workspace's startup layout.");
+        ShowInfoToast(Str.Get("Shell.Workspace.DefaultTabs.Set"),
+        tabs.Count == 0 ? Str.Get("Shell.Workspace.DefaultTabs.SavedNone")
+        : tabs.Count == 1 ? Str.Get("Shell.Workspace.DefaultTabs.SavedOne")
+        : Str.Format("Shell.Workspace.DefaultTabs.SavedFormat", tabs.Count));
     }
 
     /// <summary>Snapshots the current tabs grouped by pane (index 0 = left/primary, 1 = the right split),
@@ -1211,20 +1211,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public void RequestDeleteWorkspace(Workspace workspace)
     {
         var mgr = WorkspaceManager.Instance;
-        if (mgr.Workspaces.Count <= 1) { ShowErrorToast("The last workspace can't be deleted."); return; }
+        if (mgr.Workspaces.Count <= 1) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
         var liveWs = mgr.FindLiveWorkspace(workspace);
 
         var message = ReferenceEquals(liveWs, CurrentRuntime) && liveWs is not null
-            ? $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
-              + "conversation in it. This window switches to another workspace; its other windows close."
-            : liveWs is not null
-            ? $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
-              + "conversation in it, and closes all of its open windows."
-            : $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
-              + "conversation in it.";
+        ? Str.Format("Shell.Workspace.Delete.AskActiveFormat", workspace.Name)
+        : liveWs is not null
+        ? Str.Format("Shell.Workspace.Delete.AskOpenFormat", workspace.Name)
+        : Str.Format("Shell.Workspace.Delete.AskFormat", workspace.Name);
 
-        ShowConfirmation("Delete workspace", message, onConfirm: () => DeleteWorkspace(workspace, liveWs));
+        ShowConfirmation(Str.Get("Shell.Workspace.DeleteZone.Title"), message, onConfirm: () => DeleteWorkspace(workspace, liveWs));
     }
 
     private void DeleteWorkspace(Workspace workspace, WorkspaceRuntime? liveWs)
@@ -1237,7 +1234,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             // the delete, so the app is never left window-less (closing the last window shuts it down) and
             // the list-refresh that follows finds this runtime already on a workspace that still exists.
             var fallback = mgr.Workspaces.FirstOrDefault(w => !ReferenceEquals(w, workspace));
-            if (fallback is null) { ShowErrorToast("The last workspace can't be deleted."); return; }
+            if (fallback is null) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
             _shellServices.CloseOtherWindows(this);
             mgr.SwitchWorkspace(CurrentRuntime!, fallback);
@@ -1397,7 +1394,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (pageVm is null || pageVm.IsContextReady) return;
         if (pageVm is not INotifyPropertyChanged inpc) return;
 
-        handler.ReportProgress("Waiting for data collection…");
+        handler.ReportProgress(Str.Get("Shell.AiResponse.WaitingForData"));
 
         var tcs = new TaskCompletionSource();
         void OnChanged(object? _, PropertyChangedEventArgs __)
@@ -1510,7 +1507,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             {
                 string? won;
                 try   { won = await clearWinner.ProcessAsync(effective, prefixed, pageVm); }
-                catch (Exception ex) { ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+                catch (Exception ex) { ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
 
                 // Only a handler with something to SAY needs the surface. One that renders its own result —
                 // a search filling its list — stays silent, and the overlay never appears.
@@ -1535,7 +1532,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             if (scored.Count > 0)
             {
                 try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
-                catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+                catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
             }
 
             // A query handler matched — run it; its result is the final answer.
@@ -1543,7 +1540,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             {
                 string? result;
                 try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
-                catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+                catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
 
                 if (result is not null) handler.ShowFinal(result);
                 else                    handler.Abort();
@@ -1559,10 +1556,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, options, sendToken);
             }
             catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
-            catch (Exception ex)               { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+            catch (Exception ex)               { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
 
             if (response is null)
             {
+                // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
+                if (!sendToken.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
+                {
+                    handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
+                    return TurnOutcome.Completed;
+                }
                 handler.Abort();
                 return sendToken.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
             }
@@ -1617,8 +1620,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [RelayCommand]
     private void ClearAiInput() => AiInputText = string.Empty;
 
-    // Mic is usable when the host can run Whisper and no AI request is processing.
-    // While recording, AiIsBusy stays false so this remains true (to allow stop).
+    // Mic is usable when Speech In has a model — one still to download counts, the first press offering it — and no AI
+    // request is processing. While recording, AiIsBusy stays false so this remains true (to allow stop).
     private bool CanToggleVoice => Voice.IsActive || (VoiceAvailable && !AiIsBusy);
 
     /// <summary>
@@ -1632,6 +1635,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (_dictation.IsRecording) { await _dictation.StopAsync(); return; }   // manual early stop; it also stops by itself after a silence
 
         var ai = CurrentRuntime.AiService;
+        if (ai is null || !await ai.MakeReadyAsync(AiAbility.SpeechIn)) return;   // a model still to download offers it, and stops here
         string language = SpokenLanguage();
         if (ai is not null && ai.CanConverse(language))
         {
@@ -1642,7 +1646,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             }
             catch (Exception ex)
             {
-                ShowError("Voice", ex.Message);
+                ShowError(Str.Get("Shell.Errors.Voice"), ex.Message);
             }
             return;
         }

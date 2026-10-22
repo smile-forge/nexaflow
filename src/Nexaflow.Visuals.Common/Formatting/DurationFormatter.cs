@@ -1,4 +1,5 @@
 using System;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Common.Formatting;
 
@@ -8,9 +9,9 @@ public static class DurationFormatter
     /// <summary>Coarse uptime: days+hours+minutes, hours+minutes, or minutes — whichever the span warrants.</summary>
     public static string FormatUptime(TimeSpan up)
     {
-        if (up.TotalDays  >= 1) return $"{(int)up.TotalDays}d {up.Hours}h {up.Minutes}m";
-        if (up.TotalHours >= 1) return $"{up.Hours}h {up.Minutes}m";
-        return $"{up.Minutes}m";
+        if (up.TotalDays  >= 1) return Str.Format("Common.Duration.DaysHoursMinutes", (int)up.TotalDays, up.Hours, up.Minutes);
+        if (up.TotalHours >= 1) return Str.Format("Common.Duration.HoursMinutes", up.Hours, up.Minutes);
+        return Str.Format("Common.Duration.Minutes", up.Minutes);
     }
 
     /// <summary>Media transport time: <c>m:ss</c> under an hour, else <c>h:mm:ss</c> (negative clamps
@@ -29,9 +30,15 @@ public static class DurationFormatter
     /// <c>less than a minute</c>, <c>about 12 minutes</c>, <c>about 2 hours</c>.</summary>
     public static string FormatEta(TimeSpan left)
     {
-        if (left < TimeSpan.FromMinutes(1)) return "less than a minute";
-        if (left < TimeSpan.FromHours(1))   return $"about {(int)Math.Round(left.TotalMinutes)} minutes";
-        if (left < TimeSpan.FromDays(1))    return $"about {(int)Math.Round(left.TotalHours)} hours";
-        return "over a day";
+        if (left < TimeSpan.FromMinutes(1)) return Str.Get("Common.Eta.UnderAMinute");
+        if (left < TimeSpan.FromHours(1))
+            return Math.Round(left.TotalMinutes) is var minutes && minutes <= 1
+                ? Str.Get("Common.Eta.AboutAMinute")
+                : Str.Format("Common.Eta.AboutMinutes", (int)minutes);
+        if (left < TimeSpan.FromDays(1))
+            return Math.Round(left.TotalHours) is var hours && hours <= 1
+                ? Str.Get("Common.Eta.AboutAnHour")
+                : Str.Format("Common.Eta.AboutHours", (int)hours);
+        return Str.Get("Common.Eta.OverADay");
     }
 }

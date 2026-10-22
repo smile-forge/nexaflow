@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Nexaflow.Features.Common;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -162,20 +163,20 @@ Unloaded       += OnUnloaded;
             }
 
             if (!hasSuggestion)
-                menu.Items.Add(new MenuItem { Header = "No suggestions", IsEnabled = false });
+                menu.Items.Add(new MenuItem { Header = Str.Get("Shell.AiBar.Spell.NoSuggestions"), IsEnabled = false });
 
             menu.Items.Add(new Separator());
-            var ignore = new MenuItem { Header = "Ignore All" };
+            var ignore = new MenuItem { Header = Str.Get("Shell.AiBar.Spell.IgnoreAll") };
             ignore.Click += (_, _) => error.IgnoreAll();
             menu.Items.Add(ignore);
             menu.Items.Add(new Separator());
         }
 
-        menu.Items.Add(CommandItem("Cut",        ApplicationCommands.Cut));
-        menu.Items.Add(CommandItem("Copy",       ApplicationCommands.Copy));
-        menu.Items.Add(CommandItem("Paste",      ApplicationCommands.Paste));
+        menu.Items.Add(CommandItem(Str.Get("Shell.Text.Cut"),       ApplicationCommands.Cut));
+        menu.Items.Add(CommandItem(Str.Get("Shell.Text.Copy"),      ApplicationCommands.Copy));
+        menu.Items.Add(CommandItem(Str.Get("Shell.Text.Paste"),     ApplicationCommands.Paste));
         menu.Items.Add(new Separator());
-        menu.Items.Add(CommandItem("Select All", ApplicationCommands.SelectAll));
+        menu.Items.Add(CommandItem(Str.Get("Shell.Text.SelectAll"), ApplicationCommands.SelectAll));
 
         return menu;
     }

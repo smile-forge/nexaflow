@@ -172,9 +172,9 @@ internal sealed class LiveConversation : IDisposable
         if (next is { } chosen) Next = chosen;
     }
 
-    /// <summary>Reads the token generated last and chooses the one after it — forgetting, when it keeps only so much of
-    /// what it writes, the written token that has left the window.</summary>
-    public void Advance(int token)
+    /// <summary>The token generated last, ready to be read in a round (<see cref="TokenRounds"/>) — forgetting first, when
+    /// it keeps only so much of what it writes, the written token that leaves the window as it is read.</summary>
+    public SequenceToken Readying(int token)
     {
         if (_window is { } window && _written >= window)
         {
@@ -182,8 +182,16 @@ internal sealed class LiveConversation : IDisposable
             _context.Forget(Sequence, oldest, oldest + 1);
             Tokens--;
         }
-        ReadTokens([token], sample: true);
+        return new SequenceToken(Sequence, Positions, token);
+    }
+
+    /// <summary>The token <see cref="Readying"/> gave has been read, and <paramref name="next"/> chosen after it.</summary>
+    public void Advanced(int next)
+    {
+        Tokens++;
+        Positions++;
         _written++;
+        Next = next;
     }
 
     /// <summary>From here on each token written sees all that was read before it but only the last

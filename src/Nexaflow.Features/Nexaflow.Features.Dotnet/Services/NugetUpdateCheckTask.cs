@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dotnet.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -23,7 +24,7 @@ public sealed class NugetUpdateCheckTask(DotnetTarget target) : IBackgroundTask
     /// <summary>True when the check actually ran (vs. failing because the target wasn't restored).</summary>
     public bool Checked { get; private set; }
 
-    public string Description => $"Checking NuGet updates: {target.DisplayName}";
+    public string Description => Str.Format("Dotnet.Task.CheckingUpdatesFormat", target.DisplayName);
 
     public async Task RunAsync(CancellationToken ct)
     {

@@ -19,10 +19,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.4.0" />
+    <PackageReference Include="MSTest" Version="4.5.1" />
     <PackageReference Include="NSubstitute" Version="6.2.0" />
+    <!-- PDFium, Chrome's PDF renderer, as the fidelity sweep's second reference beside Windows' own. -->
+    <PackageReference Include="PDFiumCore" Version="157.0.8100" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+    <!-- JpxDecodeBench samples its own stacks through EventPipe and reads them back. -->
+    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.750501" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.8" />
   </ItemGroup>
 
   <ItemGroup>

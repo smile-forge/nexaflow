@@ -1,4 +1,17 @@
 {
+  "Code.Page.Title": "Code",
+
+  "Code.Action.AsCode": "As Code",
+  "Code.Action.AsCodeDescription": "Editable code editor with syntax highlighting and a structure panel",
+
+  "Code.Map.Title": "Code map",
+  "Code.Map.HideTip": "Hide the code map",
+  "Code.Map.ShowTip": "Show the code map",
+  "Code.Map.Dependencies": "Dependencies",
+  "Code.Map.Structure": "Structure",
+  "Code.Map.Members": "Members",
+  "Code.Map.EmbeddedFormat": "{0} · line {1}",
+
   "Code.Config.CodeEditor": "Code Editor",
   "Code.Config.CodeEditor.MaxEditableFileSize": "Max editable file size",
   "Code.Config.CodeEditor.Megabytes": "{0} MB"

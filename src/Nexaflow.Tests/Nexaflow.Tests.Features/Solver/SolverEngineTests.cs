@@ -333,7 +333,7 @@ public class SolverEngineTests
         var result = await registry.SolveAsync(chip, input, CancellationToken.None);
 
         Assert.IsTrue(result.IsError);
-        StringAssert.Contains(result.Markdown, "Problem Solving",
+        StringAssert.Contains(result.Markdown, "General Intelligence",
             "an empty cell tells the user nothing; naming the ability tells them where to go");
     }
 

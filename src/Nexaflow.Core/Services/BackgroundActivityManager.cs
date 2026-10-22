@@ -12,8 +12,8 @@ namespace Nexaflow.Core.Services;
 /// without knowing about WPF.  Thread-safe: any thread can call
 /// <see cref="StartActivity"/>; all collection mutations are marshalled to
 /// the UI dispatcher.
-/// Starts with an "Idle" placeholder; replaces it when work begins and
-/// restores it when all in-flight activities complete.
+/// Starts with a blank idle placeholder, which <see cref="Controls.ActivityTicker"/> words as "Idle"; replaces it
+/// when work begins and restores it when all in-flight activities complete.
 /// </summary>
 public sealed class BackgroundActivityManager : IBackgroundActivityManager
 {
@@ -141,11 +141,9 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
 
     private void InsertIdlePlaceholder()
     {
-        _idlePlaceholder = new BackgroundTask
-        {
-            Description = "Idle",
-            Status      = TaskStatus.Completed
-        };
+        // Says nothing of its own: the ticker words it as a window draws it (ActivityTicker.Shown). The manager is built before
+        // the string table and outlives the window a language switch restarts, so words fixed here would be the key, or stale.
+        _idlePlaceholder = new BackgroundTask { Status = TaskStatus.Completed };
         Tasks.Insert(0, _idlePlaceholder);
     }
 

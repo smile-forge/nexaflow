@@ -1,6 +1,7 @@
 using Nexaflow.Core;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 
@@ -16,8 +17,8 @@ public class AiAbilityGridViewModelTests
     private static ProviderModelPair Column(string id, string provider = "Prov")
         => new() { Id = id, ProviderName = provider, Model = "m" };
 
-    private static AiAbilityRowViewModel Conversation(AiAbilityGridViewModel grid)
-        => grid.Rows.Single(r => r.Ability == AiAbility.Conversation);
+    private static AiAbilityRowViewModel GeneralIntelligence(AiAbilityGridViewModel grid)
+        => grid.Rows.Single(r => r.Ability == AiAbility.GeneralIntelligence);
 
     private static AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, string columnId)
         => row.Cells.Single(c => c.Column.Id == columnId);
@@ -27,7 +28,7 @@ public class AiAbilityGridViewModelTests
     {
         var config = new AiConfig { Columns = [Column("a"), Column("b")] };
         var grid   = new AiAbilityGridViewModel(config);
-        var row    = Conversation(grid);
+        var row    = GeneralIntelligence(grid);
 
         Cell(row, "b").ToggleCommand.Execute(null);
         Cell(row, "a").ToggleCommand.Execute(null);
@@ -38,7 +39,7 @@ public class AiAbilityGridViewModelTests
 
         grid.Apply();
 
-        CollectionAssert.AreEqual(new[] { "b", "a" }, config.Assignments["Conversation"].ColumnIds.ToArray());
+        CollectionAssert.AreEqual(new[] { "b", "a" }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
         Assert.IsFalse(grid.HasChanges, "the grid now matches what it saved");
     }
 
@@ -48,9 +49,9 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("a"), Column("b"), Column("c")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("a", "b", "c") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("a", "b", "c") },
         };
-        var row = Conversation(new AiAbilityGridViewModel(config));
+        var row = GeneralIntelligence(new AiAbilityGridViewModel(config));
 
         Cell(row, "a").ToggleCommand.Execute(null);
 
@@ -65,15 +66,15 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("a"), Column("b")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("a", "b"), ["Analysis"] = AbilityChain.Of("a") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("a", "b"), ["ImageRecognition"] = AbilityChain.Of("a") },
         };
         var grid = new AiAbilityGridViewModel(config);
 
         grid.RemoveColumnCommand.Execute(grid.Columns.Single(c => c.Id == "a"));
         grid.Apply();
 
-        CollectionAssert.AreEqual(new[] { "b" }, config.Assignments["Conversation"].ColumnIds.ToArray());
-        Assert.IsTrue(config.Assignments["Analysis"].IsEmpty);
+        CollectionAssert.AreEqual(new[] { "b" }, config.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
+        Assert.IsTrue(config.Assignments["ImageRecognition"].IsEmpty);
     }
 
     [TestMethod]
@@ -82,9 +83,9 @@ public class AiAbilityGridViewModelTests
         var config = new AiConfig
         {
             Columns     = [Column("b")],
-            Assignments = { ["Conversation"] = AbilityChain.Of("gone", "b") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("gone", "b") },
         };
-        var row = Conversation(new AiAbilityGridViewModel(config));
+        var row = GeneralIntelligence(new AiAbilityGridViewModel(config));
 
         CollectionAssert.AreEqual(new[] { "b" }, row.Chain.ToArray());
     }
@@ -119,8 +120,8 @@ public class AiAbilityGridViewModelTests
         CollectionAssert.AreEqual(new[] { "stt" }, speechIn.Chain.ToArray(), "a language model cannot hear");
         Assert.IsFalse(Cell(speechIn, "llm").IsUsable);
         Assert.IsFalse(Cell(speechIn, "llm").ToggleCommand.CanExecute(null));
-        Assert.IsTrue(Cell(Conversation(grid), "llm").IsUsable);
-        Assert.IsFalse(Cell(Conversation(grid), "stt").IsUsable);
+        Assert.IsTrue(Cell(GeneralIntelligence(grid), "llm").IsUsable);
+        Assert.IsFalse(Cell(GeneralIntelligence(grid), "stt").IsUsable);
     }
 
     [TestMethod]
@@ -147,7 +148,7 @@ public class AiAbilityGridViewModelTests
 
         CollectionAssert.AreEqual(new[] { "draw" }, grid.Rows.Single(r => r.Ability == AiAbility.ImageGeneration).Chain.ToArray());
         CollectionAssert.AreEqual(new[] { "film" }, grid.Rows.Single(r => r.Ability == AiAbility.VideoGeneration).Chain.ToArray());
-        Assert.IsFalse(Cell(Conversation(grid), "draw").IsUsable, "a model that draws does not converse");
+        Assert.IsFalse(Cell(GeneralIntelligence(grid), "draw").IsUsable, "a model that draws does not converse");
     }
 
     private sealed class Residing(string name, DataResidency residency) : ILlmProvider
@@ -158,5 +159,19 @@ public class AiAbilityGridViewModelTests
             => AsyncEnumerable.Empty<LlmStreamEvent>();
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    [TestMethod]
+    public void ARowWithNothingAssigned_IsMarkedDisabled_UntilACellIsClicked_AndAgainWhenItIsClickedOff()
+    {
+        var config = new AiConfig { Columns = [Column("a")] };
+        var row    = GeneralIntelligence(new AiAbilityGridViewModel(config));
+        Assert.IsTrue(row.IsUnassigned);
+
+        Cell(row, "a").ToggleCommand.Execute(null);
+        Assert.IsFalse(row.IsUnassigned);
+
+        Cell(row, "a").ToggleCommand.Execute(null);
+        Assert.IsTrue(row.IsUnassigned, "clicking a model the row has takes it out");
     }
 }

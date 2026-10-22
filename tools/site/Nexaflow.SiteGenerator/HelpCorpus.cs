@@ -97,6 +97,9 @@ internal sealed class HelpCorpus
         ["WindowsRegistry"] = new("Run your machine", "win-registry"),
         ["WindowsApps"] = new("Run your machine", "windowsapps"),
         ["Network"] = new("Run your machine", "network"),
+        ["UsbProbe"] = new("Run your machine", "usbprobe"),
+        ["UsbDevice"] = new("Run your machine"),
+        ["Serial"] = new("Run your machine", "serial"),
 
         ["ProductManager"] = new("Keep track", "product"),
         ["ProductIntegrity"] = new("Keep track"),

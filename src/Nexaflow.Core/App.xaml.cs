@@ -32,6 +32,7 @@ using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Providers.AiHost;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -310,8 +311,7 @@ public partial class App : Application
             {
                 var ai = new AiConfig();
                 ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
-                ai.AddDefaultSpeechIn();   // the workspace saves it
-                ai.AddDefaultDocuments();
+                ai.BringUpToDate();   // the workspace saves it
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Concat(LocalColumns.Assemblies)   // every workspace has the Local column
@@ -426,17 +426,14 @@ public partial class App : Application
         var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
         if (unreadable.Count == 0) return;
 
-        var body = $"Could not read: {string.Join(", ", unreadable)}. "
-                 + "Those settings are back at their defaults — the damaged files are kept beside them, and "
-                 + $"the details are in the log at {CrashLog.Instance.CurrentPath}.";
+        var body = Str.Format("Shell.Notifications.UnreadableFormat", string.Join(", ", unreadable), CrashLog.Instance.CurrentPath);
 
         if (recoveredWorkspaces.Count > 0)
-            body += $" Recovered {recoveredWorkspaces.Count} workspace(s) from their data folders, with "
-                  + $"their conversations and settings intact: {string.Join(", ", recoveredWorkspaces)}.";
+        body += " " + Str.Format("Shell.Notifications.RecoveredFormat", recoveredWorkspaces.Count, string.Join(", ", recoveredWorkspaces));
 
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title     = "Some settings could not be read",
+            Title     = Str.Get("Shell.Notifications.UnreadableTitle"),
             Body      = body,
             Severity  = MessageSeverity.Warning,
             ShowToast = true,
@@ -478,8 +475,8 @@ public partial class App : Application
             {
                 MessageCenter.Instance.Post(new NotificationItem
                 {
-                    Title     = "Something went wrong",
-                    Body      = "An unexpected error was caught and logged; the app stayed open. If this keeps happening, please report it.",
+                    Title     = Str.Get("Shell.Notifications.FaultTitle"),
+                    Body      = Str.Get("Shell.Notifications.FaultBody"),
                     Severity  = MessageSeverity.Error,
                     ShowToast = true,
                 });
@@ -703,11 +700,11 @@ public partial class App : Application
             // it; if none is open yet (daemon) it waits in the inbox and toasts when a window opens.
             MessageCenter.Instance.Post(new NotificationItem
             {
-                Title     = $"Update available — {version}",
+                Title     = Str.Format("Shell.Notifications.UpdateFormat", version),
                 Body      = changeLog ?? string.Empty,
                 Severity  = MessageSeverity.Update,
                 ShowToast = true,
-                Actions   = [new MessageAction("Update", new AsyncRelayCommand(DownloadAndInstallUpdate), IsPrimary: true)],
+                Actions   = [new MessageAction(Str.Get("Shell.Notifications.Update"), new AsyncRelayCommand(DownloadAndInstallUpdate), IsPrimary: true)],
             });
         }
         catch { }

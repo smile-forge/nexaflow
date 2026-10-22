@@ -57,6 +57,7 @@
 <ul>
 <li>Only the actions that apply to the device in hand are offered.</li>
 <li>Ping reports how long the round trip took. No answer is recorded as a result too, since some devices refuse pings by policy.</li>
+<li>Wake switches on a device that is asleep or off, by sending its network adapter a Wake-on-LAN packet. It is offered for any device with a hardware address, asks before sending, and then waits up to 45 seconds for the device to answer a ping. It works only where the device has Wake-on-LAN enabled and this PC is on the network the device was seen on.</li>
 <li>Web page, Model, Maker and Service URL open an address the device published, as an ordinary tab. Each appears only where the device published that address.</li>
 <li>Each run gets its own tab in the panel, which you can close. Running the same action again replaces its tab.</li>
 <li>What an action learns stays with the device through the next discovery, and the panel stays on the device you were reading.</li>
@@ -70,7 +71,7 @@
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

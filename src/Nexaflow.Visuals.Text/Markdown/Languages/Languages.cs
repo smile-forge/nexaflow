@@ -42,6 +42,7 @@ using Nexaflow.Syntax;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -139,7 +140,7 @@ internal static class Shipped
     /// <summary><paramref name="diagram"/>, drawn by <paramref name="builder"/>.</summary>
     private static ContentLanguage Diagram(MermaidDiagram diagram, Type builder)
     {
-        var (name, icon, block) = Starting(diagram);
+        var (shown, icon, block) = Starting(diagram);
 
         // Which parser reads this diagram, and which writes back into it, are MermaidDiagrams' to say and nobody else's.
         var reads = MermaidDiagrams.ParserFor(diagram);
@@ -154,29 +155,30 @@ internal static class Shipped
                 Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
                 Transpile = MermaidDiagrams.TranspilerFor(diagram),
-                DisplayName = name,
+                Name = shown is null ? null : "mermaid." + diagram.ToString().ToLowerInvariant(),
+                DisplayName = shown,
                 Icon = icon,
                 DefaultBlock = block,
             };
     }
 
     /// <summary>What a reader calls <paramref name="diagram"/>, what it is drawn as, and a block of it to start from.</summary>
-    private static (string? Name, IconRef Icon, string? Block) Starting(MermaidDiagram diagram) => diagram switch
+    private static (Func<string>? Shown, IconRef Icon, string? Block) Starting(MermaidDiagram diagram) => diagram switch
     {
-        MermaidDiagram.Flowchart => ("Flowchart", IconRef.Fluent("flowchart"), """
+        MermaidDiagram.Flowchart => (static () => Str.Get("Text.Language.Flowchart"), IconRef.Fluent("flowchart"), """
             ```mermaid
             flowchart TD
                 A[Start] --> B[Done]
             ```
             """),
-        MermaidDiagram.Pie => ("Pie chart", IconRef.Fluent("data_pie"), """
+        MermaidDiagram.Pie => (static () => Str.Get("Text.Language.Pie"), IconRef.Fluent("data_pie"), """
             ```mermaid
             pie
                 title Pets
                 "Dogs" : 40
             ```
             """),
-        MermaidDiagram.Quadrant => ("Quadrant chart", IconRef.Fluent("sub_grid"), """
+        MermaidDiagram.Quadrant => (static () => Str.Get("Text.Language.Quadrant"), IconRef.Fluent("sub_grid"), """
             ```mermaid
             quadrantChart
                 title Priorities
@@ -185,13 +187,13 @@ internal static class Shipped
                 Idea: [0.3, 0.7]
             ```
             """),
-        MermaidDiagram.Sequence => ("Sequence diagram", IconRef.Fluent("arrow_swap"), """
+        MermaidDiagram.Sequence => (static () => Str.Get("Text.Language.Sequence"), IconRef.Fluent("arrow_swap"), """
             ```mermaid
             sequenceDiagram
                 Alice->>Bob: Hello
             ```
             """),
-        MermaidDiagram.Gantt => ("Gantt chart", IconRef.Fluent("gantt_chart"), """
+        MermaidDiagram.Gantt => (static () => Str.Get("Text.Language.Gantt"), IconRef.Fluent("gantt_chart"), """
             ```mermaid
             gantt
                 title Plan
@@ -200,7 +202,7 @@ internal static class Shipped
                     First task :a1, 2026-01-05, 5d
             ```
             """),
-        MermaidDiagram.GitGraph => ("Git graph", IconRef.Fluent("branch_fork"), """
+        MermaidDiagram.GitGraph => (static () => Str.Get("Text.Language.GitGraph"), IconRef.Fluent("branch_fork"), """
             ```mermaid
             gitGraph
                 commit
@@ -208,21 +210,21 @@ internal static class Shipped
                 commit
             ```
             """),
-        MermaidDiagram.Mindmap => ("Mind map", IconRef.Fluent("text_bullet_list_tree"), """
+        MermaidDiagram.Mindmap => (static () => Str.Get("Text.Language.Mindmap"), IconRef.Fluent("text_bullet_list_tree"), """
             ```mermaid
             mindmap
               root((Idea))
                 Thought
             ```
             """),
-        MermaidDiagram.State => ("State diagram", IconRef.Fluent("flowchart_circle"), """
+        MermaidDiagram.State => (static () => Str.Get("Text.Language.State"), IconRef.Fluent("flowchart_circle"), """
             ```mermaid
             stateDiagram-v2
                 [*] --> Idle
                 Idle --> [*]
             ```
             """),
-        MermaidDiagram.Class => ("Class diagram", IconRef.Fluent("diagram"), """
+        MermaidDiagram.Class => (static () => Str.Get("Text.Language.Class"), IconRef.Fluent("diagram"), """
             ```mermaid
             classDiagram
                 class Animal {
@@ -231,7 +233,7 @@ internal static class Shipped
                 }
             ```
             """),
-        MermaidDiagram.Requirement => ("Requirement diagram", IconRef.Fluent("clipboard_task_list_ltr"), """
+        MermaidDiagram.Requirement => (static () => Str.Get("Text.Language.Requirement"), IconRef.Fluent("clipboard_task_list_ltr"), """
             ```mermaid
             requirementDiagram
                 requirement first {
@@ -242,14 +244,14 @@ internal static class Shipped
                 }
             ```
             """),
-        MermaidDiagram.Kanban => ("Kanban board", IconRef.Fluent("grid_kanban"), """
+        MermaidDiagram.Kanban => (static () => Str.Get("Text.Language.Kanban"), IconRef.Fluent("grid_kanban"), """
             ```mermaid
             kanban
               todo[To do]
                 task1[First task]
             ```
             """),
-        MermaidDiagram.XyChart => ("XY chart", IconRef.Fluent("data_bar_vertical"), """
+        MermaidDiagram.XyChart => (static () => Str.Get("Text.Language.XyChart"), IconRef.Fluent("data_bar_vertical"), """
             ```mermaid
             xychart-beta
                 title "Sales"
@@ -258,14 +260,14 @@ internal static class Shipped
                 bar [3, 5, 4]
             ```
             """),
-        MermaidDiagram.Radar => ("Radar chart", IconRef.Fluent("radar"), """
+        MermaidDiagram.Radar => (static () => Str.Get("Text.Language.Radar"), IconRef.Fluent("radar"), """
             ```mermaid
             radar-beta
                 axis a["Speed"], b["Power"], c["Range"]
                 curve x["Model X"]{3, 4, 2}
             ```
             """),
-        MermaidDiagram.Ishikawa => ("Ishikawa diagram", IconRef.Fluent("food_fish"), """
+        MermaidDiagram.Ishikawa => (static () => Str.Get("Text.Language.Ishikawa"), IconRef.Fluent("food_fish"), """
             ```mermaid
             ishikawa-beta
                 Problem
@@ -273,20 +275,20 @@ internal static class Shipped
                     Detail
             ```
             """),
-        MermaidDiagram.Sankey => ("Sankey diagram", IconRef.Fluent("flow"), """
+        MermaidDiagram.Sankey => (static () => Str.Get("Text.Language.Sankey"), IconRef.Fluent("flow"), """
             ```mermaid
             sankey
 
             Source,Target,10
             ```
             """),
-        MermaidDiagram.Er => ("Entity relationship diagram", IconRef.Fluent("database"), """
+        MermaidDiagram.Er => (static () => Str.Get("Text.Language.Er"), IconRef.Fluent("database"), """
             ```mermaid
             erDiagram
                 CUSTOMER ||--o{ ORDER : places
             ```
             """),
-        MermaidDiagram.Venn => ("Venn diagram", IconRef.Fluent("shape_intersect"), """
+        MermaidDiagram.Venn => (static () => Str.Get("Text.Language.Venn"), IconRef.Fluent("shape_intersect"), """
             ```mermaid
             venn-beta
                 set A
@@ -294,14 +296,14 @@ internal static class Shipped
                 union A,B["Both"]
             ```
             """),
-        MermaidDiagram.Cynefin => ("Cynefin framework", IconRef.Fluent("shape_organic"), """
+        MermaidDiagram.Cynefin => (static () => Str.Get("Text.Language.Cynefin"), IconRef.Fluent("shape_organic"), """
             ```mermaid
             cynefin-beta
                 complex
                     "Run an experiment"
             ```
             """),
-        MermaidDiagram.Architecture => ("Architecture diagram", IconRef.Fluent("server"), """
+        MermaidDiagram.Architecture => (static () => Str.Get("Text.Language.Architecture"), IconRef.Fluent("server"), """
             ```mermaid
             architecture-beta
                 service api(server)[API]
@@ -309,7 +311,7 @@ internal static class Shipped
                 api:R -- L:db
             ```
             """),
-        MermaidDiagram.Swimlane => ("Swimlane diagram", IconRef.Fluent("layout_column_three"), """
+        MermaidDiagram.Swimlane => (static () => Str.Get("Text.Language.Swimlane"), IconRef.Fluent("layout_column_three"), """
             ```mermaid
             swimlane-beta
                 subgraph team[Team]
@@ -319,14 +321,14 @@ internal static class Shipped
                 start --> done
             ```
             """),
-        MermaidDiagram.Timeline => ("Timeline", IconRef.Fluent("timeline"), """
+        MermaidDiagram.Timeline => (static () => Str.Get("Text.Language.Timeline"), IconRef.Fluent("timeline"), """
             ```mermaid
             timeline
                 title History
                 2026 : Started
             ```
             """),
-        MermaidDiagram.Journey => ("User journey", IconRef.Fluent("person_walking"), """
+        MermaidDiagram.Journey => (static () => Str.Get("Text.Language.Journey"), IconRef.Fluent("person_walking"), """
             ```mermaid
             journey
                 title My day
@@ -334,14 +336,14 @@ internal static class Shipped
                   Make tea: 5: Me
             ```
             """),
-        MermaidDiagram.Block => ("Block diagram", IconRef.Fluent("square_multiple"), """
+        MermaidDiagram.Block => (static () => Str.Get("Text.Language.Block"), IconRef.Fluent("square_multiple"), """
             ```mermaid
             block-beta
               columns 2
               A B
             ```
             """),
-        MermaidDiagram.C4 => ("C4 diagram", IconRef.Fluent("building"), """
+        MermaidDiagram.C4 => (static () => Str.Get("Text.Language.C4"), IconRef.Fluent("building"), """
             ```mermaid
             C4Context
             title System context
@@ -350,7 +352,7 @@ internal static class Shipped
             Rel(user, app, "Uses")
             ```
             """),
-        MermaidDiagram.C4Sequence => ("C4 sequence", IconRef.Fluent("building_multiple"), """
+        MermaidDiagram.C4Sequence => (static () => Str.Get("Text.Language.C4Sequence"), IconRef.Fluent("building_multiple"), """
             ```mermaid
             C4Sequence
             title Sequence
@@ -372,7 +374,8 @@ internal static class Shipped
         Stages: static (_, _) => [],
         Builder: typeof(NomnomlBuilder))
             {
-                DisplayName = "UML (nomnoml)",
+                Name = "nomnoml",
+                                DisplayName = static () => Str.Get("Text.Language.Nomnoml"),
                 Icon = IconRef.Fluent("draw_shape"),
                 DefaultBlock = """
                     ```nomnoml
@@ -393,7 +396,8 @@ internal static class Shipped
         static word => "qr".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         new EncodeQr()) with
         {
-            DisplayName = "QR code",
+            Name = "qr",
+                        DisplayName = static () => Str.Get("Text.Language.Qr"),
             Icon = IconRef.Fluent("qr_code"),
             DefaultBlock = """
                 ```qr
@@ -408,7 +412,8 @@ internal static class Shipped
         static word => word?.Trim().ToLowerInvariant() is "aztec" or "aztec-code",
         new EncodeAztec()) with
         {
-            DisplayName = "Aztec code",
+            Name = "aztec",
+                        DisplayName = static () => Str.Get("Text.Language.Aztec"),
             Icon = IconRef.Fluent("scan_dash"),
             DefaultBlock = """
                 ```aztec
@@ -423,7 +428,8 @@ internal static class Shipped
         static word => word?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix",
         new EncodeDataMatrix()) with
         {
-            DisplayName = "Data Matrix",
+            Name = "datamatrix",
+                        DisplayName = static () => Str.Get("Text.Language.DataMatrix"),
             Icon = IconRef.Fluent("scan_type"),
             DefaultBlock = """
                 ```datamatrix
@@ -438,7 +444,8 @@ internal static class Shipped
         static word => "pdf417".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         new EncodePdf417()) with
         {
-            DisplayName = "PDF417",
+            Name = "pdf417",
+                        DisplayName = static () => Str.Get("Text.Language.Pdf417"),
             Icon = IconRef.Fluent("scan_table"),
             DefaultBlock = """
                 ```pdf417
@@ -460,7 +467,8 @@ internal static class Shipped
         Builder: typeof(BarcodeBuilder))
         {
             Writable = true,
-            DisplayName = "Barcode",
+            Name = "barcode",
+                        DisplayName = static () => Str.Get("Text.Language.Barcode"),
             Icon = IconRef.Fluent("barcode_scanner"),
             DefaultBlock = """
                 ```barcode
@@ -477,7 +485,8 @@ internal static class Shipped
         Stages: static (_, _) => SmilesPipeline.Of().Stages,
         Builder: typeof(SmilesBuilder))
             {
-                DisplayName = "Chemical structure",
+                Name = "smiles",
+                                DisplayName = static () => Str.Get("Text.Language.Smiles"),
                 Icon = IconRef.Fluent("molecule"),
                 DefaultBlock = """
                     ```smiles
@@ -496,7 +505,8 @@ internal static class Shipped
             Writable = true,
             Editing = new EditedBy(LatexEdits.Instance),
             Transpile = Transpiles.By<TexParser>(),
-            DisplayName = "Formula",
+            Name = "latex",
+                        DisplayName = static () => Str.Get("Text.Language.Latex"),
             Icon = IconRef.Fluent("math_formula"),
             DefaultBlock = """
                 ```latex
@@ -515,7 +525,8 @@ internal static class Shipped
                 Writable = true,
                 Editing = AbcEdits.Instance,
                 Transpile = Transpiles.By<AbcParser>(),
-                DisplayName = "Tune (ABC)",
+                Name = "abc",
+                                DisplayName = static () => Str.Get("Text.Language.Abc"),
                 Icon = IconRef.Fluent("music_note_1"),
                 DefaultBlock = """
                     ```abc
@@ -536,7 +547,8 @@ internal static class Shipped
         Stages: static (tree, show) => LilyPondPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: typeof(LilyPondBuilder))
             {
-                DisplayName = "Score (LilyPond)",
+                Name = "lilypond",
+                                DisplayName = static () => Str.Get("Text.Language.LilyPond"),
                 Icon = IconRef.Fluent("music_note_2"),
                 DefaultBlock = """
                     ```lilypond
@@ -552,7 +564,7 @@ internal static class Shipped
     /// <summary>A table of values against a pair of axes, drawn the way its fence names.</summary>
     public static ContentLanguage Plot(PlotFence fence)
     {
-        var (name, icon, block) = Starting(fence);
+        var (shown, icon, block) = Starting(fence);
 
         return new(
             Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
@@ -560,16 +572,17 @@ internal static class Shipped
             Stages: (_, _) => PlotPipeline.Of(fence).Stages,
             Builder: typeof(PlotBuilder))
             {
-                DisplayName = name,
+                Name = shown is null ? null : "plot." + fence.ToString().ToLowerInvariant(),
+                DisplayName = shown,
                 Icon = icon,
                 DefaultBlock = block,
             };
     }
 
     /// <summary>What a reader calls a plot drawn the way <paramref name="fence"/> names, what it is drawn as, and a block of one to start from.</summary>
-    private static (string? Name, IconRef Icon, string? Block) Starting(PlotFence fence) => fence switch
+    private static (Func<string>? Shown, IconRef Icon, string? Block) Starting(PlotFence fence) => fence switch
     {
-        PlotFence.Scatter => ("Scatter plot", IconRef.Fluent("data_scatter"), """
+        PlotFence.Scatter => (static () => Str.Get("Text.Language.Scatter"), IconRef.Fluent("data_scatter"), """
             ```scatter
             x  y
             1  2
@@ -577,7 +590,7 @@ internal static class Shipped
             3  5
             ```
             """),
-        PlotFence.Bubble => ("Bubble chart", IconRef.Fluent("bubble_multiple"), """
+        PlotFence.Bubble => (static () => Str.Get("Text.Language.Bubble"), IconRef.Fluent("bubble_multiple"), """
             ```bubble
             x  y  size
             1  2  10
@@ -585,7 +598,7 @@ internal static class Shipped
             3  3  15
             ```
             """),
-        PlotFence.Heatmap => ("Heat map", IconRef.Fluent("grid"), """
+        PlotFence.Heatmap => (static () => Str.Get("Text.Language.Heatmap"), IconRef.Fluent("grid"), """
             ```heatmap
             month  year  count
             Jan    2025  12
@@ -594,7 +607,7 @@ internal static class Shipped
             Feb    2026  36
             ```
             """),
-        PlotFence.Density2d => ("Density plot", IconRef.Fluent("data_area"), """
+        PlotFence.Density2d => (static () => Str.Get("Text.Language.Density2d"), IconRef.Fluent("data_area"), """
             ```density2d
             x     y
             -1.2  -0.9
@@ -617,7 +630,8 @@ internal static class Shipped
         Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Inputs.Pictures), new ResolveCloud(), new ResolveWords()],
         Builder: typeof(WordCloudBuilder))
             {
-                DisplayName = "Word cloud",
+                Name = "wordcloud",
+                                DisplayName = static () => Str.Get("Text.Language.WordCloud"),
                 Icon = IconRef.Fluent("cloud_words"),
                 DefaultBlock = """
                     ```wordcloud

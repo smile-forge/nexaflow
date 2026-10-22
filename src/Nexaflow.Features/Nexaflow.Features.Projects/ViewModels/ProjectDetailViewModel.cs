@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 
@@ -26,6 +27,12 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 
     /// <summary>The workspace config — child VMs resolve statuses through it.</summary>
     public ProjectsConfig Config => _config;
+
+    /// <summary>Whether the workspace has a model to take a task or plan one: General Intelligence. Null without an AI service.</summary>
+    public IAiAbilityGate? Answering { get; }
+
+    /// <summary>Lets go of <see cref="Answering"/>, which follows the workspace's models, when the tab closes.</summary>
+    public void Release() => Answering?.Dispose();
 
     // ── Project header ──
     [ObservableProperty] private string  _projectName  = string.Empty;
@@ -62,6 +69,7 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
         FolderName   = folderName;
         _shell       = shell;
         _ai          = ai;
+        Answering    = ai?.Gate(AiAbility.GeneralIntelligence);
         _projectPath = System.IO.Path.Combine(ops.RootPath, folderName);
         Load();
     }
@@ -114,10 +122,9 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     {
         if (_shell is null) return;   // no shell (e.g. tests) → leave read-only, banner offers Upgrade
         var ok = await _shell.ConfirmAsync(
-            "Upgrade project format?",
-            "This project uses the old format. Upgrading rolls the previous scope / notes / plan fields into " +
-            "the new markdown fields and enables editing. Your data is preserved.",
-            "Upgrade", "Keep as-is");
+            Str.Get("Projects.Detail.UpgradeTitle"),
+            Str.Get("Projects.Detail.UpgradeMessage"),
+            Str.Get("Projects.Detail.Upgrade"), Str.Get("Projects.Detail.UpgradeKeep"));
         if (ok) DoUpgrade();
     }
 
@@ -231,8 +238,9 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     {
         if (item is null || IsReadOnly) return;
         if (_shell is null) return;   // no shell (e.g. tests) → nothing can confirm, so nothing is deleted
-        if (!await _shell.ConfirmAsync("Delete backlog item", $"Delete \"{item.Title}\"? This cannot be undone.",
-                "Delete", "Cancel"))
+        if (!await _shell.ConfirmAsync(Str.Get("Projects.Detail.DeleteTitle"),
+                Str.Format("Projects.Detail.DeleteMessageFormat", item.Title),
+                Str.Get("Projects.Detail.Delete"), Str.Get("Projects.Detail.Cancel")))
             return;
 
         _svc.RemoveToDo(FolderName, item.Id);
@@ -272,7 +280,9 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 
         var record = new ConversationRecord
         {
-            Title = (plan ? "Plan: " : "Task: ") + item.Title,
+            Title = plan
+                ? Str.Format("Projects.Detail.PlanConversationFormat", item.Title)
+                : Str.Format("Projects.Detail.TaskConversationFormat", item.Title),
             Context =
             [
                 new ContextRef

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.FileActions;
 
@@ -18,10 +19,10 @@ public sealed class ShowAudioAction : IFileAction, ICacheable
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => true;
     public string Icon                  => "🎵";
-    public string DisplayName           => "As Audio";
+    public string DisplayName           => Str.Get("Audio.Action.AsAudio");
     public static string? StaticExperienceId => "/audio";
     public string ExperienceId          => "/audio";
-    public string ExperienceDescription => "Audio player: playback, spectrum + waveform, lyrics, tag editor";
+    public string ExperienceDescription => Str.Get("Audio.Action.AsAudioDescription");
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
     public bool   OpensViewer           => true;

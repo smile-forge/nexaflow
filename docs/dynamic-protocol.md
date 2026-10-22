@@ -18,6 +18,7 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 | **Round-trips against real captures** | **all ten of the corpus** — TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER), TLS 1.2 hellos (RFC 5246), SSDP (UPnP 1.1) |
 | **Authored but not yet built** | the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
+| **Run by the product** | `SsdpProbe` writes and reads `ssdp.json`; `WakeOnLanAction` writes `wol.json` (the Wake-on-LAN magic packet). Each description ships beside the assembly that runs it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.IO/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.IO/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
 

@@ -37,6 +37,18 @@ internal enum MarkdownTokenKind : byte
     /// <summary>A run of one of the characters emphasis is written with, and whether it can open or close.</summary>
     Run,
 
+    /// <summary>
+    /// A quote SmartyPants reads — a <c>'</c> or a lone <c>"</c> that can open or close but not both, or a guillemet written as
+    /// <c>&lt;&lt;</c> or <c>&gt;&gt;</c> — curled only where another pairs it.
+    /// </summary>
+    Quotation,
+
+    /// <summary>Punctuation SmartyPants draws as the typographer's: <c>--</c>, <c>---</c>, <c>...</c>.</summary>
+    Typographic,
+
+    /// <summary>An emoji written as its name between colons, <c>:smile:</c>.</summary>
+    Shortcode,
+
     /// <summary>A <c>[</c>.</summary>
     Open,
 

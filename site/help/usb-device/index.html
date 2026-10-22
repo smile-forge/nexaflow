@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB device — Nexaflow help</title>
+<meta name="description" content="One USB device on its own page: what it is, what you can do with it now, what it is made of, and what is wrong with it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>USB device</h1>
+  <p class="lede">One USB device on its own page: what it is, what you can do with it now, what it is made of, and what is wrong with it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#getting-here">Getting here</a></li><li><a href="#overview">Overview</a></li><li><a href="#live-tools">Live tools</a></li><li><a href="#interfaces">Interfaces</a></li><li><a href="#diagnostics">Diagnostics</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="getting-here">Getting here</h2>
+<ul>
+<li>On the USB page, select a device (or anything inside one) and choose <span class="locate" title="In the app this points at Usb_OpenDevice">Open device</span>.</li>
+<li><span class="locate" title="In the app this points at UsbDevice_ShowInTree">Show in USB tree</span> goes back to the device's place on the USB page.</li>
+<li>The page follows the device, not the port: unplug it and the page says so and stops its tools; plug it back in — the same port or another — and it picks it up again.</li>
+<li>A drive Windows has ejected (“Safe to remove”) is still in its port but no longer in use: the page says it is ejected, and its tools come back when it is plugged in again.</li>
+</ul>
+<h2 id="overview">Overview</h2>
+<ul>
+<li>What the device is, in plain words, and its identity, connection, power and driver facts. <span class="locate" title="In the app this points at UsbDevice_Tab_Overview">Show me</span></li>
+</ul>
+<h2 id="live-tools">Live tools</h2>
+<ul>
+<li>Each thing the device can do gets a tile: open it to use it, shut it to stop what is live in it. Tiles sit side by side when the window is wide enough. <span class="locate" title="In the app this points at UsbDevice_Tab_Tools, UsbDevice_Tiles">Show me</span></li>
+<li><strong>Mass storage</strong> browses the device's volumes as the file browser browses a disk: a folder tree beside the open folder, a path bar, sortable columns, and right-click menus with Copy path. Double-click or Enter opens a folder, or a file in its viewer; Backspace goes up; F2 renames; Delete deletes. <span class="locate" title="In the app this points at Store_Entries">Show me</span></li>
+<li>Copy files and folders to this PC, or onto the device — with Add files (one or several), Add folder, or by dragging them in. Every copy is read back from where it landed and checked against the original's SHA-256, and a copy that does not match is removed. Copying onto the device, renaming and deleting each ask first.</li>
+<li><strong>Phone files</strong> browses what a phone or camera shares over MTP — its internal storage, an SD card — in the same way, with the same checked copies. A file on the phone is fetched to this PC and checked before it opens. A locked phone shares nothing: unlock it and choose File transfer in its USB settings, and its storage shows here as soon as it does.</li>
+<li><strong>Audio output</strong> plays a tone, a 20 Hz – 20 kHz sweep or a WAV file on every channel or one, at a level you set. <span class="locate" title="In the app this points at UsbAudio_Identify">Identify channels</span> sounds each channel in turn and names it as it plays.</li>
+<li><strong>Audio input</strong> meters every channel live, and <span class="locate" title="In the app this points at UsbAudio_Record">Record…</span> saves a few seconds to a WAV exactly as the device sent it.</li>
+<li><strong>HID</strong> shows each collection's report layout as the HID class driver decoded it, <span class="locate" title="In the app this points at UsbHid_StartMonitor">watches its input</span> live, and reads and sends feature and output reports. Sending a report asks first. Windows keeps keyboards and mice to itself, so their input cannot be watched here; their layout and feature reports can.</li>
+<li><strong>Serial port</strong> names the COM port of a serial device — or of a phone's modem — and <span class="locate" title="In the app this points at UsbSerial_OpenTerminal">opens the serial terminal</span> on it.</li>
+<li>Anything on the device no tool covers is listed last, with what it is and what a tool for it would use.</li>
+</ul>
+<h2 id="interfaces">Interfaces</h2>
+<ul>
+<li>The device's configurations, interface associations, interfaces and endpoints, each with its facts — the Windows function that owns it and that function's driver — and its descriptor field by field beside its bytes. <span class="locate" title="In the app this points at UsbDevice_Tab_Interfaces, UsbDevice_Structure">Show me</span></li>
+</ul>
+<h2 id="diagnostics">Diagnostics</h2>
+<ul>
+<li>Problems Windows or the descriptors report: problem codes in plain words, descriptors that do not add up, strings the device did not answer for. <span class="locate" title="In the app this points at UsbDevice_Tab_Diagnostics, UsbDevice_Problems">Show me</span></li>
+<li>Everything the live tools did — copies, recordings, reports sent — with the time. <span class="locate" title="In the app this points at UsbDevice_Log">Show me</span></li>
+<li><span class="locate" title="In the app this points at UsbDevice_ReRead">Read device again</span> asks the device for its descriptors and strings, waking it if it slept.</li>
+<li><span class="locate" title="In the app this points at UsbDevice_CopyDebug">Copy</span> or <span class="locate" title="In the app this points at UsbDevice_SaveDebug">save</span> the device's debug details for the Nexaflow developers: its descriptors raw, what Windows made of it, its HID report descriptors, what each live tool sees, and what they did. Send them when a device does not work as it should. Serial numbers and volume labels are left out.</li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<ul>
+<li>The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Images;
 
@@ -11,10 +12,7 @@ namespace Nexaflow.Features.Images;
 /// </summary>
 public static class ImageFileTypes
 {
-    public static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".tiff", ".tif", ".webp"
-    };
+    public static readonly HashSet<string> Extensions = new(DecodablePictures.Extensions, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Globs (one per extension) for <see cref="Common.IFolderAction.ContainsFileGlobs"/>.</summary>
     public static readonly string[] Globs = Extensions.Select(e => "*" + e).ToArray();

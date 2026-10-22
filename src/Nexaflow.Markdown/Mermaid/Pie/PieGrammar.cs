@@ -9,10 +9,11 @@ namespace Nexaflow.Markdown.Mermaid.Pie;
 /// a <c>title</c> of its own, and a slice per line — a label in quotes, a colon, and a number.
 ///
 /// <para>
-/// The rules are Mermaid's: a value is a number greater than nought, and slices are drawn clockwise in the order they
-/// are written. A value that is neither is still read as a slice, with the reason on the number — the label is what
-/// the reader is looking at, and hiding the whole line because its value is wrong would leave nothing to fix. A value
-/// not yet written is no complaint at all: it is a slice still being written.
+/// The rules are Mermaid's: a value is a number of nought or more, and slices are drawn clockwise in the order they
+/// are written. A slice worth nought is a slice like any other that takes none of the chart. A value that is not a
+/// number, or is less than nought, is still read as a slice, with the reason on the number — the label is what the
+/// reader is looking at, and hiding the whole line because its value is wrong would leave nothing to fix. A value not
+/// yet written is no complaint at all: it is a slice still being written.
 /// </para>
 /// </summary>
 public sealed class PieGrammar : IMermaidGrammar
@@ -67,7 +68,7 @@ public sealed class PieGrammar : IMermaidGrammar
         if (!line.Token(":")) return line.Shown("A pie slice needs a colon between its label and its value.");
 
         line.Room();
-        line.Amount(PieRoles.Value, MermaidNumber.Positive("A pie slice is worth more than nought, or it is not a slice."));
+        line.Amount(PieRoles.Value, MermaidNumber.Where(number => number >= 0, "A pie slice cannot be worth less than nought."));
         return line.Read(PieKinds.Slice);
     }
 }

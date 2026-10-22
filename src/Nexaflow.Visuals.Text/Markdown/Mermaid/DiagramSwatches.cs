@@ -27,9 +27,9 @@ internal static class DiagramSwatches
     /// <summary>The colour that is no colour, which is how a reader is shown it.</summary>
     public static Color Nothing => Colors.Transparent;
 
-    /// <summary>The bank, each colour under the name it is offered by.</summary>
-    public static IEnumerable<(string Name, Color Shade)> Bank() =>
-        SwatchPalette.Keys.Select(key => (Named(key), DiagramColour.ColorOf(SwatchPalette.Resolve(key), Colors.Gray)));
+    /// <summary>The bank, each colour under the invariant name a diagram's choices are keyed by and the label a reader sees.</summary>
+    public static IEnumerable<(string Name, string Label, Color Shade)> Bank() =>
+    SwatchPalette.Keys.Select(key => (Named(key), SwatchPalette.HueName(key), DiagramColour.ColorOf(SwatchPalette.Resolve(key), Colors.Gray)));
 
     /// <summary>The colour the bank holds by a name, written as a diagram writes one — or null for a name it holds none by.</summary>
     public static string? Hex(string name) =>

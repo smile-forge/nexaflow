@@ -83,6 +83,15 @@ public interface IShellServices
     IFileWatch WatchFile(string path, Action onChanged);
 
     /// <summary>
+    /// Watches the folder at <paramref name="path"/> — its own entries, not its subfolders' — for whatever the shell hears of
+    /// there: entries made, deleted, renamed or changed, and a sync provider's word that a file's sync state moved, which no
+    /// file-system watcher sees. <paramref name="onChanged"/> runs on this workspace's UI thread, once per burst, with what
+    /// changed. Watch only while the view is loaded, and dispose the handle to stop; the folder is registered once however
+    /// many views watch it, and torn down with the workspace.
+    /// </summary>
+    IDisposable WatchFolder(string path, Action<FolderChange> onChanged);
+
+    /// <summary>
     /// Runs <paramref name="action"/> on this workspace's UI thread — inline if the caller is already on
     /// it, otherwise marshalled — completing when it has run. For feature code that produces work on a
     /// background thread the shell does not own (e.g. a PTY read loop) and needs to touch UI state;

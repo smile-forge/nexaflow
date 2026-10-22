@@ -185,7 +185,7 @@ reference.
 ## Calling the shell — `IShellServices`
 
 The active runtime's handle (injected into registrations and file actions): `OpenTab` / `CloseTab` /
-`FindTab`, notifications + prompts, `QueueBackgroundTask`, `WatchFile`, `RunOnUiAsync`,
+`FindTab`, notifications + prompts, `QueueBackgroundTask`, `WatchFile`, `WatchFolder`, `RunOnUiAsync`,
 `DiscoverImplementations<T>`. To change a tab's own title/breadcrumbs/params, mutate the observable `Page`
 directly. The full, documented surface is in `Services/IShellServices.cs`.
 
@@ -268,8 +268,13 @@ one-liners, or derive from `ClientToolBase` for richer ones (abstract `Name`/`De
 no parameters, `SafeOperation`, non-parallelizable — override what differs). `ToolSafety.SafeOperation` tools auto-run
 (even ones that mutate visible or not-yet-committed state); `ToolSafety.RequiresApproval` ones are
 approved via `IToolApprovalCoordinator` before running, and each `ToolResult` is fed back to the model. Return
-an error `ToolResult` (don't throw) for an expected failure. Canonical example:
-`Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
+an error `ToolResult` (don't throw) for an expected failure. A tool whose result needs a model to take it in declares
+it in `Needs` — a picture needs `AiAbility.ImageRecognition`, a recording `AiAbility.SpeechIn` — and is left out where
+nothing serves it. Canonical example: `Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
+
+A control that needs an ability — a button that asks a model something — binds a gate from `IAIService.Gate(…)` with
+`vcc:AiAbilityGating.Gate="{Binding …}"`: it is disabled, saying where to assign a model, while the workspace has none,
+and its first press offers a download its model waits on (`IAiAbilityGate.MakeReadyAsync`). Dispose the gate with the page.
 
 ---
 
@@ -350,7 +355,8 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 ### Shell services & lifecycle (`Services/`)
 | Interface | What it's for |
 |---|---|
-| `IShellServices` | The active workspace's shell handle: open/close/find tabs, notifications, prompts, `WatchFile`, `RunOnUiAsync`, `GetDependencyStatus`. |
+| `IShellServices` | The active workspace's shell handle: open/close/find tabs, notifications, prompts, `WatchFile`, `WatchFolder`, `RunOnUiAsync`, `GetDependencyStatus`. |
+| `FolderChange` | What `IShellServices.WatchFolder` reports: the entries the shell named, or `Whole` when it said the folder itself changed; `Touches(path)` answers for either. |
 | `IFileWatch` | Handle from `IShellServices.WatchFile`; `Enabled = false` holds + coalesces callbacks, dispose to unwatch. |
 | `IBackgroundTask` | Self-contained background work handed to `IShellServices.QueueBackgroundTask` (runs off the UI thread). |
 | `IShellAware` | A custom config-editor control that needs the shell handed to it (for the themed file/folder pickers). |
@@ -388,7 +394,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFeatureConfig` | Marks a POCO as a config section (global by default; `[WorkspaceScopedConfig]` makes it per-workspace). |
 | `IConfigMigration` | Opt-in hook to fix up shape changes when a config is migrated forward across an assembly-version bump. |
 | `ICustomConfigApply` | A custom Options control participating in the Save flow (`Apply()`). |
-| `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes (else it's assumed always-dirty). |
+| `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes. Every control that implements `ICustomConfigApply` implements it too — one that applies without it would count as always changed, so closing Options would always ask to save. |
 | `IConfigValidation` | A custom Options control reporting whether its state is valid (blocks Save while any section is invalid). |
 
 ### Theming
@@ -418,13 +424,32 @@ scales without flattening. Markdown gets this for free: `MarkdownSurface.BaseFon
 setting, so every markdown surface in the app honours Options with no wiring, and only a host that adds zoom has to
 set it.
 
+**A list of files draws each row's icon with `FileIcon`** (`Visuals.Common.Controls`), never a hand-picked glyph per
+extension. Bind `Path` and `IsFolder` (and `Stamp` to the row's last-write time where it has one); a row inside an
+archive or a disk image sets `NameOnly`, so it is drawn from its extension and the disk is never touched. The row shows
+its `Fallback` glyph until the shell's icon is in hand. Behind it, `ShellFileIcons` draws each kind of file once and
+each file that draws its own icon (a program, a shortcut, a customised folder) by its path, on one background thread
+that waits for a scroll to settle and draws the rows on screen first — so a virtualised list asks only for what is in
+view, and a recycled row is never handed its old path's icon. A Type column takes its text from
+`ShellFileTypes.NameFor`, the shell's own name for the kind ("Text Document"), safe to call from a background enumerator.
+
+**A file list in a cloud-synced folder shows sync status with `CloudStatusIcon`**, beside `FileIcon`. Read the folder
+with `DirectoryListing` (`IO.Common.Listing`), not `DirectoryInfo`: it keeps each entry's reparse tag, so every
+`ListedEntry` already carries its `CloudState` — online only, available, always kept, sync pending — with no call per
+file. Bind that as `Listed`, the path as `Path`, and a revision the list moves on when the shell says the file changed
+as `Revision`. The provider's own word (errors, transfers, excluded, sharing) costs a property read per file, so the
+control asks for it only for rows on screen, through the same queue the icons use, and shows the listing's state until it
+arrives. `CloudPlaceholders.IsInSyncRoot` says whether a folder needs the column at all. Keep the list current with
+`IShellServices.WatchFolder` while the view is loaded: it hears sync providers' notifications as well as file changes,
+which a `FileSystemWatcher` does not.
+
 
 ### External components (`Dependencies/`)
 | Interface | What it's for |
 |---|---|
 | `IExternalDependency` | A feature declares a third-party runtime/tool it needs present on the machine (Edge WebView2, libvlc, the `dotnet` CLI). Discovered by reflection like `IThemeContribution`; Core probes each off the UI thread and lists them in **Options → About → System components**. |
 
-Two features may declare the **same** `Id` — WebView2 is declared by both `Pdf` and `Web`. The registry keys
+Two features may declare the **same** `Id` — one runtime that several features need. The registry keys
 on the id and merges them into one row naming both, and `Required` beats `Optional` whichever is seen first.
 Keep the wording identical across co-declarations; `ExternalDependencyRulesTests` fails the build if it drifts,
 if a declaration has no parameterless constructor, or if a probe throws.

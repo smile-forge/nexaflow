@@ -8,6 +8,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
@@ -62,19 +63,19 @@ public partial class ProductView : UserControl, IPageView
     private void VersionMenu_Click(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu { PlacementTarget = VersionMenuButton, Placement = PlacementMode.Bottom };
-        menu.Items.Add(Item("📸  Take snapshot", () => ViewModel.ShowTakeSnapshotCommand.Execute(null)));
-        var del = Item("🗑  Delete this snapshot", () => ViewModel.DeleteSnapshotCommand.Execute(null));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.TakeSnapshot"), () => ViewModel.ShowTakeSnapshotCommand.Execute(null)));
+        var del = Item(Str.Get("ProductManager.Menu.DeleteSnapshot"), () => ViewModel.DeleteSnapshotCommand.Execute(null));
         del.IsEnabled = ViewModel.SelectedVersion != ProductStore.CurrentVersion;
         menu.Items.Add(del);
         menu.Items.Add(new Separator());
-        var restructure = Item("🧩  Restructure…", () => ViewModel.ShowRestructureCommand.Execute(null));
+        var restructure = Item(Str.Get("ProductManager.Menu.Restructure"), () => ViewModel.ShowRestructureCommand.Execute(null));
         restructure.IsEnabled = ViewModel.IsEditable;
         menu.Items.Add(restructure);
-        menu.Items.Add(Item("🔗  Validate snaplinks", () => ViewModel.OpenIntegrityCommand.Execute(null)));
-        menu.Items.Add(Item("🕸  Open graph", () => ViewModel.OpenGraphCommand.Execute(null)));
-        menu.Items.Add(Item("🔄  Regenerate graph", () => ViewModel.GenerateGraphCommand.Execute(null)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.ValidateSnaplinks"), () => ViewModel.OpenIntegrityCommand.Execute(null)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.OpenGraph"), () => ViewModel.OpenGraphCommand.Execute(null)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.RegenerateGraph"), () => ViewModel.GenerateGraphCommand.Execute(null)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Item("⚙  Settings…", () => ViewModel.ShowSettingsCommand.Execute(null)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.Settings"), () => ViewModel.ShowSettingsCommand.Execute(null)));
         menu.IsOpen = true;
     }
 
@@ -87,27 +88,27 @@ public partial class ProductView : UserControl, IPageView
 
         if (id == ProductViewModel.ProductRootSentinel)
         {
-            menu.Items.Add(Item("Add root node", () => ViewModel.AddChild(null)));
+            menu.Items.Add(Item(Str.Get("ProductManager.Menu.AddRootNode"), () => ViewModel.AddChild(null)));
             menu.IsOpen = true;
             return;
         }
 
-        menu.Items.Add(Item("Add child node", () => ViewModel.AddChild(id)));
-        menu.Items.Add(Item("Rename…",        () => ViewModel.RenameNode(id)));
-        menu.Items.Add(Item("Delete…",        () => ViewModel.DeleteNodeCommand.Execute(id)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.AddChildNode"), () => ViewModel.AddChild(id)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.Rename"),       () => ViewModel.RenameNode(id)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.Delete"),       () => ViewModel.DeleteNodeCommand.Execute(id)));
         menu.Items.Add(new Separator());
-        var promote = Item("Promote (out a level)",  () => ViewModel.PromoteNode(id));
+        var promote = Item(Str.Get("ProductManager.Menu.Promote"), () => ViewModel.PromoteNode(id));
         promote.IsEnabled = ViewModel.CanPromoteNode(id);
         menu.Items.Add(promote);
-        var demote = Item("Demote (under previous)",  () => ViewModel.DemoteNode(id));
+        var demote = Item(Str.Get("ProductManager.Menu.Demote"), () => ViewModel.DemoteNode(id));
         demote.IsEnabled = ViewModel.CanDemoteNode(id);
         menu.Items.Add(demote);
-        menu.Items.Add(Item("Insert parent above…",   () => ViewModel.InsertParentAbove(id)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.InsertParent"), () => ViewModel.InsertParentAbove(id)));
         menu.Items.Add(new Separator());
         foreach (var s in StatusInfo.All)
         {
             var captured = s;
-            menu.Items.Add(Item($"Status: {StatusInfo.Display(s)}", () => ViewModel.SetNodeStatus(id, captured)));
+            menu.Items.Add(Item(Str.Format("ProductManager.Menu.StatusFormat", StatusInfo.Display(s)), () => ViewModel.SetNodeStatus(id, captured)));
         }
         menu.IsOpen = true;
     }
@@ -135,7 +136,7 @@ public partial class ProductView : UserControl, IPageView
             menu.Items.Add(Item(SnaplinkFileLabel(link), () => ViewModel.OpenSnaplink(captured)));
         }
         if (box.Snaplinks.Count > 0) menu.Items.Add(new Separator());
-        menu.Items.Add(Item("Modify…", () => box.EditSnaplinksCommand.Execute(null)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.ModifySnaplinks"), () => box.EditSnaplinksCommand.Execute(null)));
         menu.IsOpen = true;
     }
 
@@ -150,7 +151,7 @@ public partial class ProductView : UserControl, IPageView
             menu.Items.Add(Item(SnaplinkFileLabel(link), () => ViewModel.OpenSnaplink(link)));
         }
         if (ViewModel.Snaplinks.Count > 0) menu.Items.Add(new Separator());
-        menu.Items.Add(Item("Modify…", () => ViewModel.EditNodeSnaplinks()));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.ModifySnaplinks"), () => ViewModel.EditNodeSnaplinks()));
         menu.IsOpen = true;
     }
 
@@ -209,7 +210,7 @@ public partial class ProductView : UserControl, IPageView
         var node = NodeUnder(e.OriginalSource as DependencyObject);
         if (node is null || node.IsProductRoot) return;
         var menu = new ContextMenu { PlacementTarget = sender as UIElement };
-        menu.Items.Add(Item("Delete…", () => ViewModel.DeleteNodeCommand.Execute(node.Id)));
+        menu.Items.Add(Item(Str.Get("ProductManager.Menu.Delete"), () => ViewModel.DeleteNodeCommand.Execute(node.Id)));
         menu.IsOpen = true;
         e.Handled = true;
     }

@@ -19,3 +19,7 @@
 	path = external/usbids
 	url = https://github.com/smile-forge/usbids.git
 	branch = nexaflow
+[submodule "external/PdfPig"]
+	path = external/PdfPig
+	url = https://github.com/smile-forge/PdfPig.git
+	branch = nexaflow

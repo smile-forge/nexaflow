@@ -119,9 +119,9 @@ public class PdfImageReaderTests
 }
 
 /// <summary>
-/// PdfPig ships DCTDecode, JBIG2Decode and JPXDecode as stubs that decline, with each real decoder in its own
-/// package. Nothing else in the suite would notice them going missing — a scanned document would just quietly
-/// yield no images — so the substitution is asserted directly.
+/// PdfPig ships DCTDecode, JBIG2Decode and JPXDecode as stubs that decline, and Nexaflow substitutes real decoders:
+/// Nexaflow.Media's, for all three. Nothing else in the suite would notice them going
+/// missing — a scanned document would just quietly yield no images — so the substitution is asserted directly.
 /// </summary>
 [TestClass]
 [CoversNode("pdf-image-filters")]

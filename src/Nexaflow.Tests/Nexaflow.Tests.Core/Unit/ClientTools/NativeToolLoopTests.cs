@@ -102,7 +102,7 @@ public class NativeToolLoopTests
         svc.LoadAbilityConfig(new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "native", Model = "m" }],
-            Assignments = { ["Conversation"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
+            Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("c1"), ["Disambiguation"] = AbilityChain.Of("c1") },
         });
         return svc;
     }

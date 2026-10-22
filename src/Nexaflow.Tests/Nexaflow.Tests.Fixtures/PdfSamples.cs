@@ -95,6 +95,7 @@ public sealed class PdfSamples : ISampleSet
         SampleFile.Raw("outline.pdf", BuildOutlineDocument()),
         SampleFile.Raw("outline-named.pdf", BuildNamedDestinationOutlineDocument()),
         SampleFile.Raw("two-column.pdf", BuildTwoColumnDocument()),
+        SampleFile.Raw("two-up.pdf", BuildTwoUpDocument()),
         SampleFile.Raw("corrupt.pdf", BuildCorruptDocument()),
     ];
 
@@ -331,6 +332,26 @@ public sealed class PdfSamples : ISampleSet
 
         pdf.Stream(4, null, Ascii(content.ToString()));
         pdf.Object(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        return pdf.Finish(rootObject: 1, infoObject: null);
+    }
+
+    /// <summary>
+    /// A four-page booklet printed two to a side on two landscape Letter sheets, as a saddle stitch prints it: the first
+    /// side holds page four and page one, the second page two and page three. Each page is one line saying which it is,
+    /// and the second sheet has a panel of artwork running over the fold, as an advert spread across two pages has.
+    /// </summary>
+    private static byte[] BuildTwoUpDocument()
+    {
+        var pdf = new PdfBuilder();
+
+        pdf.Object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        pdf.Object(2, "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>");
+        pdf.Object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>");
+        pdf.Stream(4, null, Ascii("BT /F1 20 Tf 72 300 Td (page four) Tj ET BT /F1 20 Tf 468 300 Td (page one) Tj ET"));
+        pdf.Object(5, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>");
+        pdf.Stream(6, null, Ascii("q 0.2 g 300 400 192 120 re f Q BT /F1 20 Tf 72 300 Td (page two) Tj ET BT /F1 20 Tf 468 300 Td (page three) Tj ET"));
+        pdf.Object(7, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
 
         return pdf.Finish(rootObject: 1, infoObject: null);
     }

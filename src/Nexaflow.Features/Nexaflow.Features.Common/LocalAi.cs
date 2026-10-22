@@ -9,6 +9,10 @@ namespace Nexaflow.Features.Common;
 /// <param name="Fitting">The language models this machine can run besides the workspace's, by name.</param>
 public sealed record LocalAiSetup(IReadOnlyList<LocalAiGpu> Gpus, IReadOnlyList<LocalAiModel> Models, IReadOnlyList<string> Fitting);
 
+/// <summary>A GPU the AI host runs models on.</summary>
+/// <param name="Device">Its index among the host's GPUs, as a model's <see cref="LocalAiModel.Device"/> names it.</param>
+/// <param name="Name">Its name, as its driver gives it.</param>
+/// <param name="TotalBytes">The memory it has.</param>
 /// <param name="BudgetBytes">What the AI host lets models hold on it together.</param>
 public sealed record LocalAiGpu(int Device, string Name, long TotalBytes, long BudgetBytes);
 
@@ -31,5 +35,7 @@ public sealed record LocalAiCheck(string ReportPath, bool Passed);
 /// <summary>What a check of the machine is doing.</summary>
 public enum LocalAiCheckStage { Describing, Loading, Replying, Speaking, Hearing, Drawing, Filming }
 
+/// <summary>Where a check of the machine has got.</summary>
+/// <param name="Stage">What it is doing.</param>
 /// <param name="Model">The model it is loading, for <see cref="LocalAiCheckStage.Loading"/>.</param>
 public sealed record LocalAiCheckProgress(LocalAiCheckStage Stage, string? Model = null);

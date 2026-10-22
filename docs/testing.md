@@ -179,9 +179,10 @@ All under `src/Nexaflow.Tests/`:
 | Project | Target | Covers | References |
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.UIJourneys` | `net10.0-windows10.0.19041.0`, MSTest exe | **Every test that launches the app.** `Core\` for the shell, `Features\<Feature>\` for the rest | `Nexaflow.Tests.Fixtures` **and nothing else** — a journey knows the app as a running process, never as an assembly |
+| `Nexaflow.Tests.Sandbox` | `net10.0-windows` exe | Not a test project: [runs the journeys in Windows Sandbox](#running-journeys-in-windows-sandbox) and drives the app there | FlaUI + `Nexaflow.Tests.Fixtures` **and nothing else** — like the journeys, it knows the app as a running process |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
+| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts`, `Nexaflow.Media` (codecs) | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info, USB devices and their live tools, the serial terminal | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
@@ -192,7 +193,7 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.AiHost` | `net10.0-windows`, MSTest exe | The AI host — its pipe protocol, the client's lifecycle and watchdogs against a host faked in-process, and the real `Nexaflow.AiHost.exe`, copied into `AiHost\` beside the tests as it sits beside the app | `AiHost.Contracts`, `AiHost.Client`, the host exe (`HelperFolder`), `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open), `ViewerMap`, and [`TestTemp`](#files-a-test-writes-testtemp) (where every test's files go). Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
+| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open), `ViewerMap`, [`TestTemp`](#files-a-test-writes-testtemp) (where every test's files go), and how the built app is found and started for a journey (`BuiltOutput`, `AppLaunchRecipe`). Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 **TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`** — where an
 integral's limits go, which face a letter comes from, how far a sized delimiter grows — measured on what the builder
@@ -262,12 +263,62 @@ dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
-UI journeys are never part of the inner loop — they take over the mouse and keyboard. Run them last, on a machine you
-are not using, and after the other suites (which build the fixtures they open):
+UI journeys are never part of the inner loop — they take over the mouse and keyboard. Run them last, after the other
+suites (which build the fixtures they open), either [in Windows Sandbox](#running-journeys-in-windows-sandbox) or on a
+machine you are not using:
 
 ```powershell
 src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
 ```
+
+### Running journeys in Windows Sandbox
+
+`Nexaflow.Tests.Sandbox` runs the journeys inside Windows Sandbox, so the real mouse and keyboard input they send lands
+on the sandbox's desktop instead of yours. It also launches the app there to look at and drive — by hand in the
+sandbox's window, or through its verbs, which is how an assistant takes a screenshot or clicks while debugging a
+journey. Build the solution, then:
+
+```powershell
+$sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/Nexaflow.Tests.Sandbox.exe'
+& $sbx start                                  # boot it; its window opens maximised beside your work
+& $sbx run "FullyQualifiedName~HelpJourney"   # follow the console; the exit code is the runner's
+& $sbx launch --tab SystemInfo                # the app, started exactly as a journey starts it
+& $sbx shot --window                          # prints the PNG's path
+& $sbx tree RibbonBarControl --depth 2        # control type, name, #AutomationId, bounds
+& $sbx click Ribbon_Processes                 # a target is an AutomationId, name:<text>, or x,y
+& $sbx type "hello" --into AiInputBox
+& $sbx key ctrl+a
+& $sbx stop
+```
+
+- **The window stays open.** The sandbox has a desktop only while its window is connected: closed, there is nothing
+  to capture or drive, and `show` reopens it. `start` puts it on the first monitor that is not the primary
+  (`--monitor DELL` names one) and hands the foreground back, so your typing stays on your desktop.
+- **One exe is both ends.** On the host it starts and stops the sandbox through `wsb`; inside, `agent` serves the verbs
+  from the session folder, `TestResults\sandbox\<started>\` (git-ignored), which also holds each run's console and TRX
+  (`runs\`), the screenshots (`shots\`) and the agent's log. Drive it through the verbs, never by writing those files.
+- **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from your build and
+  write `test-samples` and their results back exactly as on the host; your .NET, read-only; and the host's Visual C++
+    runtime and Edge WebView2 runtime, which the clean image lacks. WebView2 is mapped read-only where a per-machine
+    install puts it, and the sandbox's `BrowserExecutableFolder` policy points every app at it — the loader finds no
+    runtime by that folder alone or by `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, but takes the policy — so the Web viewer and
+    its journeys run there. Not the clipboard, printers or camera — and the microphone only
+    with `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+  - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
+    finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
+    value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed
+    as it is.
+- **Smart App Control follows the host.** The clean image boots with it on, which refuses an agent freshly built here,
+  unsigned and with no reputation yet. Off on your machine, `start` turns it off in the sandbox before the agent starts;
+  on, the sandbox keeps it, and a rebuild of the agent can be refused there.
+- **A `start` that gives up leaves the sandbox up.** Without an agent after four minutes it says so and exits, and the
+  sandbox and its window stay for you to look at; `stop` them. The window shares no handle with `start`, so a caller
+  reading `start`'s output sees it end when it ends.
+- **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
+  `shot`, `tree` and `status` still answer, so a running journey can be watched.
+- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox
+  user is an administrator with UAC off, so an elevation never prompts.
+- It needs the Windows Sandbox feature and its app's `wsb` command.
 
 ### Files a test writes (`TestTemp`)
 
@@ -446,6 +497,118 @@ tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept
 Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the
 default because a Debug build checks every pipeline stage's output against its input, which a user never pays for.
 
+### Measuring JPEG 2000 decoding (opt-in, by hand)
+
+`JpxDecodeBench` measures the JPEG 2000 images in PDFs, sampled to a fixed few of each size (`-PerSize`, six by
+default) or named (`-Only`, parts of their names separated by semicolons), with `Nexaflow.Media`'s decoder — the
+managed JPEG 2000 decoder the PDF reader decodes them with — beside libopenjp2, the C library it follows, called in
+process from the same bytes. The PDFs are
+the 151 JPX test documents of the PDF filter Nexaflow used to build, which the script fetches at a pinned commit,
+and the baseline PDF corpus `NEXAFLOW_PDF_CORPUS` names (`-PdfCorpus`) when it is set; `-Corpus` names other
+folders instead. Every PDF is scanned for its JPEG 2000 images first, keeping only where each is, and only the
+sample's bytes are read, so a corpus of any size costs little memory. It is two measurements, each a process of
+its own:
+
+- **Timing** sets both decodes side by side sample for sample first, and times only an image both decode alike:
+  the managed decode on one thread and with its own threading, the reader's whole `JPXDecode` filter, and
+  libopenjp2 on one thread and on one per processor, with totals per size of image so a fixed cost and a per-pixel
+  cost show apart, and what each managed decode allocates. The sample is decoded over and over for some seconds
+  before anything is timed, so the JIT has replaced the decoder's first code with its optimised code — without it a
+  small image is timed in the few runs before that happens, several times slower than it decodes.
+- **Profiling** samples the managed decode through EventPipe and puts each sample to a stage — tier-1 code blocks,
+  tier-2 packets, the inverse wavelet, the inverse colour transform, the tile coder, codestream parsing, image
+  output — on every thread, with a thread waiting on the jobs it handed out told apart from one working: once for
+  the filter as the reader runs it, once for the serial decode. It runs with `DOTNET_ReadyToRun=0`, because a
+  precompiled framework method (a wait, a copy, an allocation) carries no name in a sample, and its time would be
+  counted to the code that called it. It counts allocations by stage and type from the collector's allocation
+  ticks. A stage's share is sound; within a stage, the method a sample names is not: a thread is sampled where it
+  can be stopped, so a loop's time shows on the next call it makes — a clear, a copy — and a change inside a stage
+  is weighed by timing it, not by its samples.
+
+Each writes one JSON file, and a log of how far it has got, and asserts nothing.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jpx-bench
+```
+
+`JpxComparisonSweep` (`-Compare`) is the check that the managed decoder matches libopenjp2: it decodes **every**
+JPEG 2000 image in the corpus with both, from the same bytes, and sets their components side by side; the managed
+decoder decodes it again with its own threading, as the reader does, and that is held to its serial decode. An image
+they disagree on is kept as a file beside the run's `jpx-compare-*.json`, and the script prints the disagreements
+grouped by what `opj_dump` says the codestream uses — wavelet, code-block style, precision, colour transform, tiling,
+palette — so a cause shows as one group rather than thousands of images. Images go out one a thread on threads of
+the sweep's own, not the thread pool the decoder hands its code blocks to. A change to the decoder is not done
+while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-JpxBench.ps1 -OpenJpeg <folder> -PdfCorpus <folder> -Compare
+```
+
+`-OpenJpeg` is an OpenJPEG checkout outside the repository: cloned at `-Tag` when it is absent and built with MSVC
+when it has no `openjp2.dll`, so the baseline is a release build of the library a run names. As with the markdown bench, compare
+runs taken on one machine in one configuration.
+
+### Measuring JPEG decoding (opt-in, by hand)
+
+`DctDecodeBench` measures the JPEG (`DCTDecode`) images in PDFs, sampled to a fixed number of each size (`-PerSize`,
+forty by default) or named (`-Only`), with `Nexaflow.Media`'s decoder — a port of libjpeg-turbo, which the PDF reader
+decodes every JPEG with — beside libjpeg-turbo's TurboJPEG library, called in process from the same bytes, and beside
+Windows' own codec. The PDFs are the baseline corpus `NEXAFLOW_PDF_CORPUS` names, or the folders `-Corpus` names;
+the corpus is scanned and sampled as the JPEG 2000 bench scans it, through the same `PdfImageRun`. Each image is
+decoded by ours and by libjpeg-turbo and their samples set side by side first, and only an image both decode alike
+is timed: ours serially and with its own threading, the reader's whole `DCTDecode` filter, libjpeg-turbo with its
+SIMD code (which decodes on one thread), and — for a grey or RGB image — WIC, decoded and converted to bytes as a
+reader would ask it, with whether WIC's samples match libjpeg-turbo's. It records what each of ours allocates, and
+totals per size of image.
+
+```powershell
+tools/bench/Run-DctBench.ps1 -LibJpegTurbo <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\dct-bench
+```
+
+`DctComparisonSweep` (`-Compare`) is the check that the decoder matches libjpeg-turbo: it decodes **every** JPEG in
+the corpus with both, with libjpeg's default output and none of the PDF's colour rules, and sets the samples side by
+side; ours decodes it again with its own threading, and that is held to its serial decode. Two outcomes agree in all
+but name and are counted apart: an image whose components no TurboJPEG pixel format holds (two), and one libjpeg-turbo
+fails on only after writing its output, where ours keeps that output with a warning. Any other disagreement is kept as
+a file beside the run's `dct-compare-*.json`. A change to the decoder is not done while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-DctBench.ps1 -LibJpegTurbo <folder> -Compare
+```
+
+`-LibJpegTurbo` is a libjpeg-turbo checkout outside the repository: cloned at `-Tag` (3.1.1, the release the decoder
+was ported from) when it is absent, and built with MSVC and NASM — its SIMD code required — when it has no
+`turbojpeg.dll`.
+
+### Measuring JBIG2 decoding (opt-in, by hand)
+
+`Jbig2DecodeBench` measures the JBIG2 (`JBIG2Decode`) images in PDFs, sampled to a fixed number of each size
+(`-PerSize`, forty by default) or named (`-Only`), with `Nexaflow.Media`'s decoder — a port of PDFBox's, which the PDF
+reader decodes every JBIG2 image with — beside jbig2dec, the decoder Ghostscript and MuPDF are built on, called in
+process from the same bytes and the same `JBIG2Globals`. The PDFs are the baseline corpus `NEXAFLOW_PDF_CORPUS` names,
+or the folders `-Corpus` names, scanned and sampled through the same `PdfImageRun` as the JPEG and JPEG 2000 benches.
+Each image is decoded by ours and by jbig2dec and their bits set side by side first, and only an image both decode
+alike is timed: ours with its globals read afresh, as jbig2dec's are; the reader's whole `JBIG2Decode` filter, which
+keeps a document's globals from one page to the next; and jbig2dec — all on one thread, as JBIG2 decodes. It records
+what ours allocates, and totals per size of image.
+
+```powershell
+tools/bench/Run-Jbig2Bench.ps1 -Jbig2dec <folder> -Label "what changed"   # Release; runs kept in %LOCALAPPDATA%\Nexaflow\jbig2-bench
+```
+
+`Jbig2ComparisonSweep` (`-Compare`) is the check that the decoder matches jbig2dec: it decodes **every** JBIG2 image in
+the corpus with both, to its JBIG2 page — before the reader lays it out at the PDF's size and inverts it — and sets the
+bits side by side. Any disagreement is kept as a file, with its globals, beside the run's `jbig2-compare-*.json`. A
+change to the decoder is not done while a sweep finds a disagreement.
+
+```powershell
+tools/bench/Run-Jbig2Bench.ps1 -Jbig2dec <folder> -Compare
+```
+
+`-Jbig2dec` is a jbig2dec checkout outside the repository — jbig2dec is AGPL, measured against and never carried:
+cloned at `-Tag` (0.20, the release `Jbig2Dec` expects) when it is absent, and built as a DLL with MSVC when it has no
+`nexaflow-dll/jbig2.dll`.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
@@ -614,6 +777,27 @@ them:
   `SourceText`, `StructuralEdit`, XAML value highlighting.
 - **`Search/`** — `Nexaflow.Search`: the `?` bar's query syntax and term parsing (globs vs regex).
 - **`Elevation/`** — `Elevation.Contracts` DTO round-trips.
+- **`Media/`** — `Nexaflow.Media`'s JPEG 2000 decoder against images libopenjp2's `opj_compress` encoded
+  (`Media/Jpeg2000/Fixtures/`), each chosen for a part of the standard: precisions, subsampling, tiles off the
+  origin, precincts, every progression order, every code-block style, markers and tile-parts, the JP2 container, the
+  irreversible path. A lossless image must decode to exactly the source the tests regenerate; a lossy one to the hash
+  of what `opj_decompress` decodes it to (`expected.json`); a parallel decode to the serial one. The MQ coder is held
+  to ITU-T T.88's test sequence on its own. `Jpeg2000FixtureMaker` writes the fixtures and is inconclusive unless
+  `NEXAFLOW_OPENJPEG` names an OpenJPEG checkout built as `tools/bench/Run-JpxBench.ps1` builds it — run it after
+  changing `Jpeg2000Fixture.All`, and commit what it writes. Its JPEG decoder against images libjpeg-turbo's
+  compressor encoded (`Media/Jpeg/Fixtures/`): every colour space and subsampling, progressive, arithmetic, restart
+  intervals, lossless predictors and point transforms, and damaged files cut short or corrupted. Each must decode to
+  the hash of what libjpeg-turbo decodes it to, warning where libjpeg warns; a lossless one to its source as well; a
+  parallel decode to the serial one. The vector inverse DCT is held to the scalar one over random blocks.
+  `JpegFixtureMaker` writes the fixtures and is inconclusive unless `NEXAFLOW_TURBOJPEG` names a `turbojpeg.dll`
+  built as `tools/bench/Run-DctBench.ps1` builds it. Its JBIG2 decoder against SerenityOS's JBIG2 test files
+  (`Media/Jbig2/Fixtures/`, downloaded, with their README and licence): every generic region template with and
+  without typical prediction and adaptive pixels, MMR, refinement, text regions and symbol dictionaries in both
+  codings with aggregation, custom tables and carried contexts, halftone regions, striped pages, random access — each
+  a coding of one picture, which each must decode to bit for bit without a warning. A file split as a PDF embeds it
+  decodes with its globals, and one globals serves many decodes at once; files cut short decode with a warning,
+  every byte of a few files flipped in turn gives a page or a `Jbig2Exception`, and a page claiming more than the
+  memory limit is refused before it is allocated.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 
@@ -862,6 +1046,8 @@ feature projects, and the desktop-heap hazard above is worst there. Mutation tes
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
 | Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
 | UI test base (app launch, isolated config) | `Nexaflow.Tests.UIJourneys/Infrastructure/UITestBase.cs` |
+| How the app is found and started for a journey | `Nexaflow.Tests.Fixtures/BuiltOutput.cs` + `AppLaunchRecipe.cs` |
+| Journeys and the app in Windows Sandbox | `Nexaflow.Tests.Sandbox/` |
 | File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.UIJourneys/Infrastructure/FileSystemUiTestBase.cs` |
 | Machine-wide UI gate (semaphore, consent, DPI, foreground) | `Nexaflow.Tests.Fixtures/UiTestGate.cs` |
 | Fixtures the journeys open | `Nexaflow.Tests.Fixtures/UiFixtures.cs` + `RequiredFixture.cs` |

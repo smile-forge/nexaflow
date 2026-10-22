@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.ProductManager.ViewModels"
              xmlns:local="clr-namespace:Nexaflow.Features.ProductManager.Views"
-             xmlns:ctrl="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:ctrl="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common" xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -82,9 +82,9 @@
                     </Grid.ColumnDefinitions>
                     <ComboBox Grid.Column="0" Style="{StaticResource DarkComboBox}" Width="170" HorizontalAlignment="Left"
                               ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion}"
-                              ToolTip="Product version — Current maps to the repo's working tree"/>
+                              ToolTip="{loc:Str ProductManager.Toolbar.VersionTip}"/>
                     <Button Grid.Column="1" x:Name="VersionMenuButton" Style="{StaticResource IconBtn}"
-                            Width="28" Height="28" Click="VersionMenu_Click" ToolTip="Version actions" AutomationProperties.AutomationId="Product_VersionMenu">
+                            Width="28" Height="28" Click="VersionMenu_Click" ToolTip="{loc:Str ProductManager.Toolbar.VersionMenuTip}" AutomationProperties.AutomationId="Product_VersionMenu">
                         <TextBlock Text="⋮" FontSize="16"/>
                     </Button>
                 </Grid>
@@ -105,10 +105,10 @@
                             </Style>
                         </StackPanel.Style>
                         <TextBlock Text="🧭" FontSize="40" HorizontalAlignment="Center" Opacity="0.4"/>
-                        <TextBlock Text="No components yet" Foreground="{StaticResource TextMutedBrush}"
+                        <TextBlock Text="{loc:Str ProductManager.Empty.NoComponents}" Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="13" Margin="0,8,0,12" HorizontalAlignment="Center"/>
                         <Button Style="{StaticResource GhostButton}" Click="AddRoot_Click" HorizontalAlignment="Center" AutomationProperties.AutomationId="Product_AddRoot">
-                            <TextBlock Text="+ Add root node"/>
+                            <TextBlock Text="{loc:Str ProductManager.Empty.AddRootNode}"/>
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -162,7 +162,7 @@
                                                            Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"/>
                                                 <Button Grid.Column="1" Command="{Binding RemoveCommand}" IsEnabled="{Binding IsEditable}"
-                                                        Width="16" Height="16" ToolTip="Remove concern" AutomationProperties.AutomationId="Product_ConcernRemove">
+                                                        Width="16" Height="16" ToolTip="{loc:Str ProductManager.Detail.Concern.RemoveTip}" AutomationProperties.AutomationId="Product_ConcernRemove">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
                                                             <Setter Property="Opacity" Value="0"/>
@@ -182,7 +182,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Button Grid.Column="0" Command="{Binding CycleCommand}" IsEnabled="{Binding IsEditable}"
-                                                        HorizontalAlignment="Left" Cursor="Hand" ToolTip="Click to cycle status" AutomationProperties.AutomationId="Product_ConcernCycle">
+                                                        HorizontalAlignment="Left" Cursor="Hand" ToolTip="{loc:Str ProductManager.Detail.CycleStatusTip}" AutomationProperties.AutomationId="Product_ConcernCycle">
                                                     <Button.Template>
                                                         <ControlTemplate TargetType="Button">
                                                             <Border Background="{Binding StatusBrush}" CornerRadius="4" Padding="8,3">
@@ -193,7 +193,7 @@
                                                     </Button.Template>
                                                 </Button>
                                                 <Button Grid.Column="1" Click="ConcernAttach_Click" Tag="{Binding}"
-                                                        Width="18" Height="18" Margin="6,0,0,0" ToolTip="Snaplinks" AutomationProperties.AutomationId="Product_ConcernAttach">
+                                                        Width="18" Height="18" Margin="6,0,0,0" ToolTip="{loc:Str ProductManager.Detail.Concern.SnaplinksTip}" AutomationProperties.AutomationId="Product_ConcernAttach">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
                                                             <!-- persistent once it has snaplinks; otherwise revealed (dim) on hover, to add the first -->
@@ -234,13 +234,13 @@
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
-                            <TextBlock Text="+ concern"/>
+                            <TextBlock Text="{loc:Str ProductManager.Detail.Concern.Add}"/>
                         </Button>
                     </StackPanel>
 
                     <!-- Needs your attention (collapses entirely when nothing is faulted) -->
                     <StackPanel Visibility="{Binding HasNeedsAttention, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="NEEDS YOUR ATTENTION" Style="{StaticResource SectionLabel}"
+                        <TextBlock Text="{loc:Str ProductManager.Detail.NeedsAttention}" Style="{StaticResource SectionLabel}"
                                    Foreground="{StaticResource DangerBrush}"/>
                         <Border Background="{StaticResource SurfaceBrush}" CornerRadius="8" Padding="2">
                             <ItemsControl ItemsSource="{Binding NeedsAttention}">
@@ -248,7 +248,7 @@
                                     <DataTemplate>
                                         <Button Command="{Binding DataContext.NavigateToNodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding Id}" Cursor="Hand" HorizontalContentAlignment="Stretch"
-                                                ToolTip="Go to this item"
+                                                ToolTip="{loc:Str ProductManager.Detail.NeedsAttentionGoTip}"
                                                 AutomationProperties.AutomationId="Product_AttentionRow">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
@@ -292,7 +292,7 @@
                     <!-- ── Product-root sections: count widgets, where a node shows PROPERTIES ──
                          Open-ended strip: integrity is the first tile; more metrics slot in via RootWidgets. -->
                     <StackPanel Visibility="{Binding IsRootSelected, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="{loc:Str ProductManager.Detail.Checks}" Style="{StaticResource SectionLabel}"/>
                         <ItemsControl ItemsSource="{Binding RootWidgets}" Margin="0,2,0,0">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
@@ -335,7 +335,7 @@
                                 IsEnabled="{Binding IsEditable}">
 
                         <!-- Properties (grouped panel; attachments via the 🔗 at the bottom-right) -->
-                        <TextBlock Text="PROPERTIES" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="{loc:Str ProductManager.Detail.Properties}" Style="{StaticResource SectionLabel}"/>
                         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,2,0,0">
                             <StackPanel>
@@ -346,12 +346,12 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Title" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{loc:Str ProductManager.Detail.Title}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                         <TextBox Text="{Binding DetailTitle, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}" Margin="0,2,0,0"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="8,0,0,0">
                                         <Button Command="{Binding CycleDetailStatusCommand}" IsEnabled="{Binding CanCycleStatus}"
-                                                HorizontalAlignment="Right" Cursor="Hand" ToolTip="Click to cycle status" AutomationProperties.AutomationId="Product_StatusCycle">
+                                                HorizontalAlignment="Right" Cursor="Hand" ToolTip="{loc:Str ProductManager.Detail.CycleStatusTip}" AutomationProperties.AutomationId="Product_StatusCycle">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="{Binding DetailStatusBrush}" CornerRadius="4" Padding="10,5">
@@ -362,15 +362,15 @@
                                             </Button.Template>
                                         </Button>
                                         <!-- a parent's status is rolled up from its children — read-only -->
-                                        <TextBlock Text="derived" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
+                                        <TextBlock Text="{loc:Str ProductManager.Detail.Derived}" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
                                                    HorizontalAlignment="Right" Margin="0,2,2,0"
                                                    Visibility="{Binding IsStatusDerived, Converter={StaticResource BoolVis}}"/>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="Description" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{loc:Str ProductManager.Detail.Description}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                 <TextBox Text="{Binding DetailDescription, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}"
                                          AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" Margin="0,2,0,8"/>
-                                <TextBlock Text="Note (rationale / repro)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{loc:Str ProductManager.Detail.Note}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                 <TextBox Text="{Binding DetailNote, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}"
                                          AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" Margin="0,2,0,0"/>
 
@@ -379,7 +379,7 @@
                                     <TextBlock Text="{Binding NodeSnaplinkCount}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                                VerticalAlignment="Center" Margin="0,0,4,0"
                                                Visibility="{Binding HasNodeSnaplinks, Converter={StaticResource BoolVis}}"/>
-                                    <Button Click="NodeAttach_Click" Width="22" Height="22" ToolTip="Attachments (snaplinks)" AutomationProperties.AutomationId="Product_NodeAttach">
+                                    <Button Click="NodeAttach_Click" Width="22" Height="22" ToolTip="{loc:Str ProductManager.Detail.AttachmentsTip}" AutomationProperties.AutomationId="Product_NodeAttach">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
                                                 <Setter Property="Opacity" Value="0"/>
@@ -409,36 +409,36 @@
         </Grid>
 
         <!-- Take-snapshot overlay -->
-        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="Take snapshot" CardWidth="360"
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="{loc:Str ProductManager.Snapshot.Take}" CardWidth="360"
                         IsOpen="{Binding TakeSnapshotVisible}" CancelCommand="{Binding CancelTakeSnapshotCommand}">
             <StackPanel>
-                <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
+                <TextBlock Text="{loc:Str ProductManager.Snapshot.Explain}"
                            FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{loc:Str ProductManager.Snapshot.VersionLabel}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Return" Command="{Binding ConfirmTakeSnapshotCommand}"/>
                     </TextBox.InputBindings>
                 </TextBox>
-                <Button Content="Take snapshot" Command="{Binding ConfirmTakeSnapshotCommand}"
+                <Button Content="{loc:Str ProductManager.Snapshot.Take}" Command="{Binding ConfirmTakeSnapshotCommand}"
                         Style="{StaticResource GhostButton}" Margin="0,0,0,6" AutomationProperties.AutomationId="Product_SnapshotTake"/>
-                <Button Content="Cancel" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SnapshotCancel"/>
+                <Button Content="{loc:Str ProductManager.Dialog.Cancel}" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SnapshotCancel"/>
             </StackPanel>
         </ctrl:ModalCard>
 
         <!-- Settings overlay -->
-        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="Product settings" CardWidth="360"
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="{loc:Str ProductManager.Settings.Header}" CardWidth="360"
                         IsOpen="{Binding SettingsVisible}" CancelCommand="{Binding CancelSettingsCommand}">
             <StackPanel>
-                <TextBlock Text="Export folder (relative to the product root)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{loc:Str ProductManager.Settings.ExportFolder}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBox Text="{Binding SettingsExportDir, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Return" Command="{Binding ConfirmSettingsCommand}"/>
                     </TextBox.InputBindings>
                 </TextBox>
-                <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes · 🔗 = needs a snaplink when done)" FontSize="11"
+                <TextBlock Text="{loc:Str ProductManager.Settings.Concerns}" FontSize="11"
                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                 <ItemsControl ItemsSource="{Binding SettingsConcerns}" MaxHeight="180">
                     <ItemsControl.Template>
@@ -456,12 +456,12 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <CheckBox Grid.Column="0" IsChecked="{Binding IsDefault}" VerticalAlignment="Center"
-                                          ToolTip="Default — auto-added to new nodes as 'should'"/>
+                                          ToolTip="{loc:Str ProductManager.Settings.DefaultTip}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Margin="8,0,0,0"
                                            Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="2" Content="🔗" IsChecked="{Binding RequiresSnaplink}" VerticalAlignment="Center" Margin="8,0,0,0"
-                                          ToolTip="Requires a snaplink — validation fails if a node marks this concern done/faulted with no snaplink"/>
-                                <Button Grid.Column="3" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="Remove concern" Margin="8,0,0,0" AutomationProperties.AutomationId="Product_SettingsConcernRemove">
+                                          ToolTip="{loc:Str ProductManager.Settings.RequiresSnaplinkTip}"/>
+                                <Button Grid.Column="3" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="{loc:Str ProductManager.Detail.Concern.RemoveTip}" Margin="8,0,0,0" AutomationProperties.AutomationId="Product_SettingsConcernRemove">
                                     <TextBlock Text="✕" FontSize="9"/>
                                 </Button>
                             </Grid>
@@ -481,12 +481,12 @@
                         </TextBox.InputBindings>
                     </TextBox>
                     <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding AddSettingsConcernCommand}" AutomationProperties.AutomationId="Product_SettingsConcernAdd">
-                        <TextBlock Text="+ Add"/>
+                        <TextBlock Text="{loc:Str ProductManager.Settings.AddConcern}"/>
                     </Button>
                 </Grid>
-                <Button Content="Save" Command="{Binding ConfirmSettingsCommand}"
+                <Button Content="{loc:Str ProductManager.Settings.Save}" Command="{Binding ConfirmSettingsCommand}"
                         Style="{StaticResource GhostButton}" Margin="0,0,0,6" AutomationProperties.AutomationId="Product_SettingsSave"/>
-                <Button Content="Cancel" Command="{Binding CancelSettingsCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SettingsCancel"/>
+                <Button Content="{loc:Str ProductManager.Dialog.Cancel}" Command="{Binding CancelSettingsCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SettingsCancel"/>
             </StackPanel>
         </ctrl:ModalCard>
 
@@ -510,7 +510,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{Binding ConcernSnaplinksTitle}" Foreground="{StaticResource TextBrush}"
                                FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseConcernSnaplinksCommand}" ToolTip="Close" AutomationProperties.AutomationId="Product_SnaplinksCloseX">
+                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseConcernSnaplinksCommand}" ToolTip="{loc:Str ProductManager.Dialog.Close}" AutomationProperties.AutomationId="Product_SnaplinksCloseX">
                         <TextBlock Text="✕" FontSize="12"/>
                     </Button>
                 </Grid>
@@ -537,10 +537,10 @@
                                     </Border>
                                     <TextBlock Grid.Column="1" Text="{Binding Display}" FontSize="12" VerticalAlignment="Center"
                                                Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
-                                    <Button Grid.Column="2" Style="{StaticResource IconBtn}" Command="{Binding OpenCommand}" ToolTip="Open in a new tab" AutomationProperties.AutomationId="Product_SnaplinkOpen">
+                                    <Button Grid.Column="2" Style="{StaticResource IconBtn}" Command="{Binding OpenCommand}" ToolTip="{loc:Str ProductManager.Snaplinks.OpenTip}" AutomationProperties.AutomationId="Product_SnaplinkOpen">
                                         <TextBlock Text="↗" FontSize="11"/>
                                     </Button>
-                                    <Button Grid.Column="3" Style="{StaticResource IconBtn}" Command="{Binding RemoveCommand}" ToolTip="Remove" Margin="2,0,0,0" AutomationProperties.AutomationId="Product_SnaplinkRemove">
+                                    <Button Grid.Column="3" Style="{StaticResource IconBtn}" Command="{Binding RemoveCommand}" ToolTip="{loc:Str ProductManager.Snaplinks.RemoveTip}" Margin="2,0,0,0" AutomationProperties.AutomationId="Product_SnaplinkRemove">
                                         <TextBlock Text="✕" FontSize="9"/>
                                     </Button>
                                 </Grid>
@@ -573,9 +573,9 @@
                     </TabControl.Resources>
 
                     <!-- ── Link file ── -->
-                    <TabItem Header="Link file">
+                    <TabItem Header="{loc:Str ProductManager.Snaplinks.LinkFile}">
                         <StackPanel Margin="0,10,0,0">
-                            <TextBlock Text="Pick a file, then a heading / class / method" FontSize="11"
+                            <TextBlock Text="{loc:Str ProductManager.Snaplinks.PickHint}" FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                             <Grid Height="230" DataContext="{Binding Picker}">
                                 <Grid.ColumnDefinitions>
@@ -625,13 +625,13 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <TextBlock Text="+ Add selected"/>
+                                <TextBlock Text="{loc:Str ProductManager.Snaplinks.AddSelected}"/>
                             </Button>
                         </StackPanel>
                     </TabItem>
 
                     <!-- ── Link URL ── -->
-                    <TabItem Header="Link URL">
+                    <TabItem Header="{loc:Str ProductManager.Snaplinks.LinkUrl}">
                         <StackPanel Margin="0,10,0,0">
                             <TextBox Style="{StaticResource DarkTextBox}" Margin="0,0,0,8"
                                      Text="{Binding NewSnaplinkUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -639,7 +639,7 @@
                             <Border AllowDrop="True" DragOver="UrlDrop_DragOver" Drop="UrlDrop_Drop"
                                     Height="150" CornerRadius="6" Background="{StaticResource BgBrush}"
                                     BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" Margin="0,0,0,8">
-                                <TextBlock Text="Drop a URL here" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                <TextBlock Text="{loc:Str ProductManager.Snaplinks.DropUrl}" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
                             </Border>
                             <Button Command="{Binding AddConcernUrlCommand}" HorizontalAlignment="Left" AutomationProperties.AutomationId="Product_SnaplinkAddUrl">
@@ -652,13 +652,13 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <TextBlock Text="🔗 Add URL"/>
+                                <TextBlock Text="{loc:Str ProductManager.Snaplinks.AddUrl}"/>
                             </Button>
                         </StackPanel>
                     </TabItem>
                 </TabControl>
 
-                <Button Content="Close" Command="{Binding CloseConcernSnaplinksCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SnaplinksClose"/>
+                <Button Content="{loc:Str ProductManager.Dialog.Close}" Command="{Binding CloseConcernSnaplinksCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_SnaplinksClose"/>
             </StackPanel>
         </ctrl:ModalCard>
 
@@ -677,15 +677,15 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Restructure" Foreground="{StaticResource TextBrush}"
+                    <TextBlock Grid.Column="0" Text="{loc:Str ProductManager.Restructure.Header}" Foreground="{StaticResource TextBrush}"
                                FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseRestructureCommand}" ToolTip="Close" AutomationProperties.AutomationId="Product_RestructureCloseX">
+                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseRestructureCommand}" ToolTip="{loc:Str ProductManager.Dialog.Close}" AutomationProperties.AutomationId="Product_RestructureCloseX">
                         <TextBlock Text="✕" FontSize="12"/>
                     </Button>
                 </Grid>
                 <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
-                           Text="Drag a node onto another to re-parent it. Drop on the product (or empty space) to make it top-level."/>
-                <Button DockPanel.Dock="Bottom" Content="Done" Margin="0,10,0,0"
+                           Text="{loc:Str ProductManager.Restructure.Explain}"/>
+                <Button DockPanel.Dock="Bottom" Content="{loc:Str ProductManager.Restructure.Done}" Margin="0,10,0,0"
                         Command="{Binding CloseRestructureCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Product_RestructureDone"/>
                 <Border Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
                     <TreeView ItemsSource="{Binding RestructureRoots}" Background="Transparent" BorderThickness="0"

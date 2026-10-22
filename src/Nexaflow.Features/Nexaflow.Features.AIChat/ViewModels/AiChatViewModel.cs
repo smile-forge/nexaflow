@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -28,10 +29,27 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
     /// <summary>Conversation rows for the active filter, newest first.</summary>
     public ObservableCollection<ConversationRowViewModel> Items { get; } = [];
 
-    /// <summary>Date-range filter options shown in the header dropdown.</summary>
-    public IReadOnlyList<string> Filters { get; } = ["Today", "Last 7 days", "This month", "This year"];
+    // The date ranges' invariant ids — what SelectedFilter holds and FilterCutoff reads, whatever the language.
+    private const string TodayFilter     = "Today";
+    private const string Last7DaysFilter = "Last 7 days";
+    private const string ThisMonthFilter = "This month";
+    private const string ThisYearFilter  = "This year";
 
-    [ObservableProperty] private string _selectedFilter = "Last 7 days";
+    /// <summary>One date range the header dropdown offers: its invariant <paramref name="Id"/> and the
+    /// <paramref name="Label"/> shown for it.</summary>
+    public sealed record DateFilterChoice(string Id, string Label);
+
+    /// <summary>Date-range filter options shown in the header dropdown, each id beside the words shown for it.</summary>
+    public IReadOnlyList<DateFilterChoice> Filters { get; } =
+    [
+        new(TodayFilter,     Str.Get("AIChat.Browser.Filter.Today")),
+        new(Last7DaysFilter, Str.Get("AIChat.Browser.Filter.Last7Days")),
+        new(ThisMonthFilter, Str.Get("AIChat.Browser.Filter.ThisMonth")),
+        new(ThisYearFilter,  Str.Get("AIChat.Browser.Filter.ThisYear")),
+    ];
+
+    /// <summary>The selected range's id — one of the <see cref="Filters"/> ids, never its label.</summary>
+    [ObservableProperty] private string _selectedFilter = Last7DaysFilter;
 
     /// <summary>The row whose analysis overlay is open, or null when the overlay is closed.</summary>
     [ObservableProperty]
@@ -39,6 +57,9 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
     private ConversationRowViewModel? _analysisOverlayItem;
 
     public bool IsAnalysisOverlayOpen => AnalysisOverlayItem is not null;
+
+    /// <summary>Whether the workspace has a model to hold a conversation and summarise one: General Intelligence.</summary>
+    public IAiAbilityGate Answering { get; }
 
     public AiChatViewModel(IAIService aiService, IShellServices shell, AiChatConfig config, Page ownerPage)
     {
@@ -49,6 +70,11 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         // Live-update a row when its background analysis finishes (no manual refresh needed).
         _aiService.ConversationArtifactSaved += OnArtifactSaved;
         ownerPage.Closed += (_, _) => _aiService.ConversationArtifactSaved -= OnArtifactSaved;
+
+        // A model assigned or taken away changes what a row with no summary says of it.
+        Answering = _aiService.Gate(AiAbility.GeneralIntelligence);
+        Answering.PropertyChanged += (_, _) => { foreach (var row in Items) _ = row.LoadAsync(); };
+        ownerPage.Closed += (_, _) => Answering.Dispose();
 
         // Purge conversations past the retention window, then reflect the result in the list.
         if (_config.RetentionCutoff() is { } cutoff)
@@ -106,8 +132,8 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
     {
         if (row is null) return;
         _shell.ShowConfirmation(
-            "Delete conversation",
-            $"Permanently delete \"{row.Title}\"? This can't be undone.",
+            Str.Get("AIChat.Browser.Delete.Title"),
+            Str.Format("AIChat.Browser.Delete.MessageFormat", row.Title),
             () =>
             {
                 _ = _aiService.DeleteConversationAsync(row.Record.Id);
@@ -133,7 +159,7 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         Items.Clear();
         foreach (var r in RecordsToList().OrderByDescending(ConversationPurgeTask.LastActivity))
         {
-            var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled);
+            var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled, () => Answering.IsEnabled ? null : Answering.DisabledTip);
             Items.Add(row);
             _ = row.LoadAsync();
         }
@@ -141,10 +167,10 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
 
     private DateTime FilterCutoff() => SelectedFilter switch
     {
-        "Today"      => DateTime.Today,
-        "This month" => new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1),
-        "This year"  => new DateTime(DateTime.Now.Year, 1, 1),
-        _            => DateTime.Now.AddDays(-7),   // "Last 7 days" (default)
+        TodayFilter     => DateTime.Today,
+        ThisMonthFilter => new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1),
+        ThisYearFilter  => new DateTime(DateTime.Now.Year, 1, 1),
+        _               => DateTime.Now.AddDays(-7),   // Last7DaysFilter (default)
     };
 
     // ── IPageViewModel ────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ public static class MarkdownSpecs
         "AlertBlockSpecs",
         "AutoLinks",
         "DefinitionListSpecs",
+        "EmojiSpecs",
         "EmphasisExtraSpecs",
         "FigureFooterAndCiteSpecs",
         "GridTableSpecs",
@@ -32,6 +33,7 @@ public static class MarkdownSpecs
         "MathSpecs",
         "PipeTableSpecs",
         "PipeTableGfmSpecs",
+        "SmartyPantsSpecs",
         "TaskListSpecs",
         "YamlSpecs",
     ];

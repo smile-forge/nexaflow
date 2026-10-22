@@ -11,6 +11,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Visuals.Common.Dialogs;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 
@@ -225,7 +226,7 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
                     list.Add(new RegistryValue(name, kind, data));
                 }
                 if (!hasDefault)
-                    list.Insert(0, new RegistryValue("", RegistryValueKind.String, "(value not set)"));
+                    list.Insert(0, RegistryValue.UnsetDefault());
             }
             finally { if (subPath.Length > 0) key.Dispose(); }
         }
@@ -306,12 +307,13 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         if (value is null) return;
 
         var seed = ReadEditSeed(value.RawName, value.Kind);
-        ShowInputPrompt($"Edit {value.TypeLabel}", $"Value data for '{value.Name}':", seed,
+        ShowInputPrompt(Str.Format("WindowsRegistry.Prompt.EditValueTitleFormat", value.TypeLabel),
+            Str.Format("WindowsRegistry.Prompt.ValueDataFormat", value.DisplayName), seed,
             async text =>
             {
                 string wire;
                 try { wire = RegistryValueCodec.ParseUserInput(text, value.Kind); }
-                catch (Exception ex) { _shell.ShowError($"Invalid {value.TypeLabel} data: {ex.Message}"); return; }
+                catch (Exception ex) { _shell.ShowError(Str.Format("WindowsRegistry.Error.InvalidDataFormat", value.TypeLabel, ex.Message)); return; }
                 if (await WriteValueAsync(value.RawName, value.Kind, wire)) Refresh();
             },
             () => { });
@@ -322,11 +324,12 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     {
         if (!Enum.TryParse<RegistryValueKind>(kindName, out var kind)) return;
 
-        ShowInputPrompt($"New {RegistryValueCodec.TypeLabel(kind)}", "Value name:", "",
+        ShowInputPrompt(Str.Format("WindowsRegistry.Prompt.NewValueTitleFormat", RegistryValueCodec.TypeLabel(kind)),
+            Str.Get("WindowsRegistry.Prompt.ValueName"), "",
             async name =>
             {
                 name = name.Trim();
-                if (name.Length == 0) { _shell.ShowError("Value name cannot be empty."); return; }
+                if (name.Length == 0) { _shell.ShowError(Str.Get("WindowsRegistry.Error.EmptyValueName")); return; }
                 var wire = RegistryValueCodec.ParseUserInput("", kind);
                 if (await WriteValueAsync(name, kind, wire)) Refresh();
             },
@@ -341,8 +344,9 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         var root = CurrentRoot;
         var sub  = CurrentSubPath;
 
-        if (!await _shell.ConfirmAsync("Delete value", $"Delete value '{value.Name}'? This cannot be undone.",
-                "Delete", "Cancel", _cts.Token))
+        if (!await _shell.ConfirmAsync(Str.Get("WindowsRegistry.Confirm.DeleteValueTitle"),
+                Str.Format("WindowsRegistry.Confirm.DeleteValueFormat", value.DisplayName),
+                Str.Get("WindowsRegistry.Confirm.Delete"), Str.Get("WindowsRegistry.Confirm.Cancel"), _cts.Token))
             return;
 
         var args = new Dictionary<string, string>
@@ -378,11 +382,12 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     [RelayCommand]
     private void NewKey()
     {
-        ShowInputPrompt("New Key", "Key name:", "New Key",
+        ShowInputPrompt(Str.Get("WindowsRegistry.Prompt.NewKeyTitle"), Str.Get("WindowsRegistry.Prompt.KeyName"),
+            Str.Get("WindowsRegistry.Prompt.NewKeyDefaultName"),
             async name =>
             {
                 name = name.Trim();
-                if (name.Length == 0 || name.Contains('\\')) { _shell.ShowError("Invalid key name."); return; }
+                if (name.Length == 0 || name.Contains('\\')) { _shell.ShowError(Str.Get("WindowsRegistry.Error.InvalidKeyName")); return; }
                 var childSub = CurrentSubPath.Length == 0 ? name : $"{CurrentSubPath}\\{name}";
                 var args = new Dictionary<string, string>
                 {
@@ -406,11 +411,11 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         var leaf = LeafOf(CurrentSubPath);
         var parent = ParentOf(CurrentSubPath);
 
-        ShowInputPrompt("Rename Key", "New name:", leaf,
+        ShowInputPrompt(Str.Get("WindowsRegistry.Prompt.RenameKeyTitle"), Str.Get("WindowsRegistry.Prompt.NewName"), leaf,
             async name =>
             {
                 name = name.Trim();
-                if (name.Length == 0 || name.Contains('\\')) { _shell.ShowError("Invalid key name."); return; }
+                if (name.Length == 0 || name.Contains('\\')) { _shell.ShowError(Str.Get("WindowsRegistry.Error.InvalidKeyName")); return; }
                 if (string.Equals(name, leaf, StringComparison.Ordinal)) return;
                 var args = new Dictionary<string, string>
                 {
@@ -438,9 +443,9 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         var sub    = CurrentSubPath;
         var parent = ParentOf(sub);
 
-        if (!await _shell.ConfirmAsync("Delete key",
-                $"Delete '{CurrentKeyPath}' and all its subkeys and values? This cannot be undone.",
-                "Delete", "Cancel", _cts.Token))
+        if (!await _shell.ConfirmAsync(Str.Get("WindowsRegistry.Confirm.DeleteKeyTitle"),
+                Str.Format("WindowsRegistry.Confirm.DeleteKeyFormat", CurrentKeyPath),
+                Str.Get("WindowsRegistry.Confirm.Delete"), Str.Get("WindowsRegistry.Confirm.Cancel"), _cts.Token))
             return;
 
         var args = new Dictionary<string, string>
@@ -465,8 +470,8 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         if (file is null) return;
 
         var exitCode = await RunRegAsync($"export \"{CurrentKeyPath}\" \"{file}\" /y");
-        if (exitCode != 0) _shell.ShowError($"Export failed (reg.exe exit {exitCode}).");
-        else _shell.ShowNotification($"Exported to {file}");
+        if (exitCode != 0) _shell.ShowError(Str.Format("WindowsRegistry.Error.ExportFailedFormat", exitCode));
+        else _shell.ShowNotification(Str.Format("WindowsRegistry.Notification.ExportedFormat", file));
     }
 
     [RelayCommand]
@@ -478,11 +483,11 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
         // Try in-process; if reg.exe fails (commonly an access-denied write into a protected hive),
         // retry the import elevated via the bridge.
         var exitCode = await RunRegAsync($"import \"{file}\"");
-        if (exitCode == 0) { Refresh(); _shell.ShowNotification("Import complete."); return; }
+        if (exitCode == 0) { Refresh(); _shell.ShowNotification(Str.Get("WindowsRegistry.Notification.ImportComplete")); return; }
 
         var res = await _shell.RunElevatedAsync(
             ElevatedRequest.Single(ElevatedOps.RegImport, (ElevatedArgs.RegFile, file)), _cts.Token);
-        if (res.Success) { Refresh(); _shell.ShowNotification("Import complete."); }
+        if (res.Success) { Refresh(); _shell.ShowNotification(Str.Get("WindowsRegistry.Notification.ImportComplete")); }
         else if (!res.WasDeclined) _shell.ShowError(res.Message);
     }
 

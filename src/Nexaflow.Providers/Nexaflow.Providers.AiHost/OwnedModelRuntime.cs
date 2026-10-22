@@ -101,6 +101,8 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
     public bool IsFileOf(OwnedEntry model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
 
+    /// <summary>Fetches another build of a model that is here. The store refuses it when its drive has no room, and the
+    /// activity says so.</summary>
     private async Task<bool> FetchFilesAsync(OwnedEntry model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
         if (files.All(f => assets.Locate(f) is not null)) return true;
@@ -165,8 +167,8 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         _held = null;
     }
 
-    /// <summary>Has the host hold the model's parts as <paramref name="placement"/> places them — fetching a CPU build
-    /// the first time a part is placed on one. A part placed nowhere is unavailable until the plan changes.</summary>
+    /// <summary>Has the host hold the model's parts as <paramref name="placement"/> places them — fetching a CPU build of a model
+    /// that is here the first time a part is placed on one. A part placed nowhere is unavailable until the plan changes.</summary>
     public async Task ApplyAsync(Placement placement, CancellationToken ct)
     {
         if (_held is not { } model) return;
@@ -251,14 +253,15 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         => new(PartId(model, part), part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
                part.Projector);
 
-    /// <summary>A placed spec with its folder where the build it was placed as is on this machine — fetched, if it is
-    /// a build this machine has not needed before.</summary>
-    /// <exception cref="LlmProviderException">The build's files would not come.</exception>
+    /// <summary>A placed spec with its folder where the build it was placed as is on this machine — fetched, if it is another
+    /// build of a model that is here, one this machine has not needed before. A model that is not here is never fetched: its
+    /// download is the user's to start, through the app's downloads.</summary>
+    /// <exception cref="LlmProviderException">The model is not here, or the build's files would not come.</exception>
     private async Task<ModelSpec> ResolvedAsync(OwnedEntry model, ModelSpec placed, CancellationToken ct)
     {
         var part = model.Parts.First(p => PartId(model, p) == placed.Id && p.Folder == placed.Folder);
         var files = model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).ToList();
-        if (!await FetchFilesAsync(model, files, ct))
+        if (!files.All(f => assets.Locate(f) is not null) && (!IsHere(model) || !await FetchFilesAsync(model, files, ct)))
             throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
 
         // Its folder is where its files are: a file's path, less its place inside the part's folder — whatever root the

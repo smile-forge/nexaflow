@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.ViewModels;
 
@@ -36,10 +38,18 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     private IReadOnlyList<DicomNode>? _currentSeries;   // the series being scrolled (to persist W/L across it)
     private double _defaultWidth, _defaultCenter;        // the current image's native window (for Reset)
 
+    // The overlays are rebuilt for every rendered frame (cine, a window/level drag), so their wording is looked
+    // up once per tab rather than once per frame.
+    private readonly string _techOverlayFormat = Str.Get("Dicom.Overlay.TechFormat");
+    private readonly string _techOverlayFrameFormat = Str.Get("Dicom.Overlay.TechFrameFormat");
+    private readonly string _patientOverlayFormat = Str.Get("Dicom.Overlay.PatientFormat");
+    private readonly string _patientOverlayBirthFormat = Str.Get("Dicom.Overlay.PatientBirthFormat");
+    private readonly string _unknownPatientName = Str.Get("Dicom.Tree.UnknownPatientName");
+
     public MeasurementViewModel Measure { get; } = new();
 
     [ObservableProperty] private bool _isLoading = true;
-    [ObservableProperty] private string _statusText = "Loading…";
+    [ObservableProperty] private string _statusText = Str.Get("Dicom.Status.Loading");
     [ObservableProperty] private DicomContainer? _container;
     [ObservableProperty] private ObservableCollection<DicomNode> _patients = [];
 
@@ -106,14 +116,14 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         catch (Exception ex)
         {
             IsLoading = false;
-            StatusText = $"Could not read DICOM content: {ex.Message}";
+            StatusText = Str.Format("Dicom.Status.LoadFailedFormat", ex.Message);
             return;
         }
 
         Container = container;
         Patients = container.Patients;
         container.ApplyPhiMask(HidePatientInfo);
-        StatusText = container.IsEmpty ? "No DICOM content found." : container.Summary;
+        StatusText = container.IsEmpty ? Str.Get("Dicom.Status.Empty") : container.DisplaySummary;
         IsLoading = false;
         OnPropertyChanged(nameof(IsContextReady));
 
@@ -195,10 +205,15 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
             _renderer = null;
             CurrentBitmap = null;
             TechOverlay = node.Instance is { } i
-                ? $"Cannot render — {i.TransferSyntaxName} ({i.TransferSyntaxUid}): {ex.Message}"
+                ? Str.Format("Dicom.Overlay.RenderFailedFormat", TransferSyntaxLabel(i), i.TransferSyntaxUid, ex.Message)
                 : ex.Message;
         }
     }
+
+    /// <summary>The transfer syntax as the render-failure line names it: fo-dicom's name for it, or the shown
+    /// language's word when the instance carries none (no file meta information, so no UID).</summary>
+    private static string TransferSyntaxLabel(DicomInstanceInfo info)
+        => string.IsNullOrEmpty(info.TransferSyntaxUid) ? Str.Get("Dicom.Overlay.UnknownTransferSyntax") : info.TransferSyntaxName;
 
     private void ClearImage()
     {
@@ -249,8 +264,11 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     {
         var i = node.Instance;
         if (i is null) { TechOverlay = string.Empty; return; }
-        var frameText = FrameCount > 1 ? $"  ·  frame {FrameIndex + 1}/{FrameCount}" : "";
-        TechOverlay = $"{i.Modality}  {i.Columns}×{i.Rows}  ·  W {WindowWidth:0}/L {WindowCenter:0}{frameText}";
+        TechOverlay = FrameCount > 1
+            ? string.Format(CultureInfo.CurrentCulture, _techOverlayFrameFormat, i.Modality, i.Columns, i.Rows,
+                WindowWidth, WindowCenter, FrameIndex + 1, FrameCount)
+            : string.Format(CultureInfo.CurrentCulture, _techOverlayFormat, i.Modality, i.Columns, i.Rows,
+                WindowWidth, WindowCenter);
         PatientOverlay = BuildPatientOverlay();
     }
 
@@ -261,11 +279,12 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         try
         {
             var ds = DicomIo.Open(path, FileReadOption.SkipLargeTags).Dataset;
-            var name = DicomTags.PersonName(ds, DicomTag.PatientName);
+            var name = DicomTags.PersonName(ds, DicomTag.PatientName, _unknownPatientName);
             var id = DicomTags.Str(ds, DicomTag.PatientID, "—");
             var dob = DicomTags.Date(ds, DicomTag.PatientBirthDate);
-            var extra = string.IsNullOrEmpty(dob) ? "" : $"  ·  DOB {dob}";
-            return $"{name}  ·  ID {id}{extra}";
+            return string.IsNullOrEmpty(dob)
+                ? string.Format(CultureInfo.CurrentCulture, _patientOverlayFormat, name, id)
+                : string.Format(CultureInfo.CurrentCulture, _patientOverlayBirthFormat, name, id, dob);
         }
         catch { return string.Empty; }
     }
@@ -360,9 +379,10 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     {
         if (SelectedNode?.FilePath is not { } path) { _allTags = []; Tags = []; return; }
         var hide = HidePatientInfo;
+        var wording = DicomTagWording.ForDisplay();   // the drawer's words, in the shown language
         try
         {
-            _allTags = await Task.Run(() => DicomTagReader.Read(path, hide), _cts.Token);
+            _allTags = await Task.Run(() => DicomTagReader.Read(path, hide, wording), _cts.Token);
             ApplyTagFilter();
         }
         catch (OperationCanceledException) { }
@@ -396,24 +416,24 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     {
         if (node.Instance is not { IsEncapsulatedDocument: true } || node.FilePath is null)
         {
-            _shell.ShowNotification("This report has no embedded document to open.");
+            _shell.ShowNotification(Str.Get("Dicom.Report.NoDocument"));
             return;
         }
 
         try
         {
             var temp = ExtractEncapsulatedDocument(node);
-            if (temp is null) { _shell.ShowError("Could not extract the embedded report."); return; }
+            if (temp is null) { _shell.ShowError(Str.Get("Dicom.Report.ExtractFailed")); return; }
 
             // Register the temp file as originating from THIS DICOM page so the viewer that opens it shows a
             // breadcrumb pointing back here — not to the throwaway temp directory.
             OriginBreadcrumbs.Register(temp, DicomTabRegistration.StaticPageKind, _originParams,
-                                       Container?.Title ?? "DICOM");
+                                       Container?.DisplayTitle ?? "DICOM");
             _shell.HandleObject(temp);
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Could not open report: {ex.Message}");
+            _shell.ShowError(Str.Format("Dicom.Report.OpenFailedFormat", ex.Message));
         }
     }
 
@@ -511,7 +531,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
         new DelegateClientTool("dicom_capture_image",
             "Capture the current image at its present window/level as a PNG for you to look at.",
-            [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(CaptureImageResult())),
+            [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(CaptureImageResult())) { Needs = [AiAbility.ImageRecognition] },
     ];
 
     public ContextSecurityRisk GetContextSecurityRisk() => ContextSecurityRisk.Medium;
@@ -587,7 +607,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         if (SelectedNode?.FilePath is not { } path) return ToolResult.Error("No instance is selected.");
 
         // ALWAYS de-identified for the AI, regardless of the UI's Hide-patient toggle.
-        var tags = DicomTagReader.Read(path, hidePatient: true);
+        var tags = DicomTagReader.Read(path, hidePatient: true, DicomTagWording.Assistant);
         if (!string.IsNullOrEmpty(query))
             tags = tags.Where(t =>
                 t.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||

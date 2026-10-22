@@ -15,12 +15,12 @@ namespace Nexaflow.Tests.Features.Email;
 /// its writer set kept, and read as plain text, by the view and by the assistant, as the words it draws.
 /// </summary>
 [TestClass]
-[CoversNode("email-body")]
 public class EmailRichTextTests
 {
     private const string Rtf = @"{\rtf1\ansi{\colortbl ;\red255\green0\blue0;}\pard Hello {\b Bob},\par See the {\cf1 figures}.\par}";
 
     [TestMethod]
+    [CoversNode("email-body")]
     public void ARichTextBodyIsDrawnAsRtf()
     {
         Opened(new MsgBuilder().String(0x0037, "Figures").Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
@@ -33,6 +33,7 @@ public class EmailRichTextTests
     }
 
     [TestMethod]
+    [CoversNode("email-body")]
     public void WithNoPlainTextOfItsOwn_ItReadsAsTheWordsItsRtfDraws()
     {
         Opened(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
@@ -44,6 +45,7 @@ public class EmailRichTextTests
     }
 
     [TestMethod]
+    [CoversNode("email-body")]
     public void AnHtmlBodyIsDrawnAsMarkdown()
     {
         Opened(new MsgBuilder().Binary(0x1013, System.Text.Encoding.UTF8.GetBytes("<p>Hello</p>")), vm =>

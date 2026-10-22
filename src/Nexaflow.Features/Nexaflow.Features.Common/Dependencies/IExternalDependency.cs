@@ -53,8 +53,8 @@ public sealed record ExternalDependencyStatus(
 /// </para>
 ///
 /// <para>
-/// More than one feature may declare the SAME <see cref="Id"/> — WebView2 is needed by both the PDF
-/// reader and the Web tab. The registry keys on the id and merges the declaring features into one row,
+/// More than one feature may declare the SAME <see cref="Id"/> — one runtime several features need. The
+/// registry keys on the id and merges the declaring features into one row,
 /// so About shows a single entry naming everything that wants it.
 /// </para>
 /// </summary>

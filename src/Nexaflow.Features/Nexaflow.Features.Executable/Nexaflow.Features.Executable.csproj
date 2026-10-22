@@ -16,11 +16,14 @@
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />
+    <!-- The VFS: a browser path may be a mount (OneDrive, ::id\…) or an archive entry, which the scanner resolves
+         to the bytes it hands AMSI. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- root\SecurityCenter2 — names the registered antivirus product for the Analysis tab. -->
-    <PackageReference Include="System.Management" Version="10.0.11" />
+    <PackageReference Include="System.Management" Version="10.0.13" />
     <!-- Read-only XML view behind the manifest tab's "raw" toggle. XML has no tree-sitter grammar
          in this repo, but AvalonEdit ships a built-in .xshd for it. -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />

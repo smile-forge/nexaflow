@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.Features.Text.Views;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
 namespace Nexaflow.Features.Text;
@@ -18,7 +19,7 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Text.Viewer.Page.Title") : Path.GetFileName(path);
 
         // One VM per page (the factory runs once) so the dirty marker can ride on the tab title.
         var vm = new TextViewModel(path, shell);

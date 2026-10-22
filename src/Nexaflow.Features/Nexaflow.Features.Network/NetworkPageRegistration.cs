@@ -4,6 +4,7 @@ using Nexaflow.Features.Network.Views;
 using Nexaflow.IO.Network.Actions;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Network;
 
@@ -35,9 +36,9 @@ public sealed class NetworkPageRegistration(
     {
         var page = new Page
         {
-            Title = "Network",
+            Title = Str.Get("Network.Page.Title"),
             Icon = "🖧",
-            Breadcrumbs = { new BreadcrumbSegment { Label = "Network" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("Network.Page.Title") } },
         };
 
         NetworkViewModel? viewModel = null;

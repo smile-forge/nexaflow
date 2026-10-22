@@ -1,17 +1,17 @@
 # External source dependencies (git submodules) — runbook
 
 **Audience: me (the AI assistant).** If the user points me at this file, this is everything I need to
-work with Nexaflow's third-party source forks correctly — both **building Nexaflow against them** and
-**posting clean atomic PRs upstream** — without asking for a more detailed prompt. Read the whole file
-before touching anything under `external/`.
+work with Nexaflow's third-party source forks correctly — **building Nexaflow against them** and **keeping
+each change to them on its own branch in our fork** — without asking for a more detailed prompt. Read the
+whole file before touching anything under `external/`.
 
 A third-party dependency is a NuGet package wherever the published package will do. The ones here are the
 exceptions — each had to be built from source because its package was stale, broken or short of what Nexaflow needs —
 and Nexaflow consumes them via a fork the `smile-forge` org controls.
-Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the odd one out
+The .NET libraries are wired in with `ProjectReference` (never `PackageReference`); the odd one out
 (**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
 `.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
-below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
+below). This lets Nexaflow build against our version while keeping upstream sync working.
 **usbids** is the one that is data rather than code — no project at all, a single file embedded as a resource
 (its table is below).
 **Never vendor/copy this source into the tree — submodules only.**
@@ -26,29 +26,31 @@ slice patterns, so `= []` and `[.. var rest]` were parse errors; one slice patte
 making a 1,900-line file with ~90 methods invisible to the knowledge graph and the outline pane, with no
 exception or warning anywhere. Seven of the fourteen grammars Nexaflow registers were behind upstream.
 Upstream has been quiet for about a year and has no other maintainers, so treat our `nexaflow` branch as
-the long-term home rather than a staging area for PRs that may never be reviewed.
+the long-term home.
 
 ---
 
 ## Golden rules (read first, don't violate)
 
+0. **Nothing is ever posted upstream.** No pull request, issue, comment, review or discussion on an original
+   repository, ever — not as a step, not as an offer. Every change to external source stops at the
+   `smile-forge` fork: a `feat/*` branch, merged into `nexaflow`, pinned by Nexaflow.
 1. **`git -C <path>` for EVERY git command inside a submodule.** The desktop app pins the shell's working
    directory to the first folder used, so `cd` into a submodule does **not** take effect. Always
    `git -C <repo>/external/<name> …`.
 2. **`origin` = the `smile-forge` fork. `upstream` = the original repo.** The committed `.gitmodules` URL
-   is the fork, so the whole org (not one person) can push branches and open PRs.
+   is the fork, so the whole org (not one person) can push branches.
 3. **The fork's default branch stays pristine** — it tracks upstream and NEVER receives our commits. Only
    fast-forward it from `upstream`.
-4. **Every upstream-bound change lives on its own atomic feature branch off the upstream default branch.**
-   Focused and rebaseable — that's what becomes a PR.
+4. **Every change lives on its own atomic feature branch.** Focused and rebaseable, so it can be dropped from
+   `nexaflow` once upstream fixes the same thing itself.
 5. **`nexaflow` is the per-repo integration branch.** It merges our in-flight feature branches together and
    is the branch the submodule *tracks* (`git submodule set-branch`). **Nexaflow's build pins a commit on
-   (or reachable from) `nexaflow`. NEVER open a PR from `nexaflow`** — PRs come from the single-topic
-   feature branches only.
+   (or reachable from) `nexaflow`.**
 6. **Pin by commit; commit the pointer.** The Nexaflow superproject records a specific submodule commit
    (the gitlink) plus `.gitmodules`. Bumping the dependency = moving that gitlink and committing it.
-7. **Keep diffs PR-clean.** Don't reformat or touch upstream source you aren't deliberately changing.
-8. **Opening a PR / pushing is outward-facing — confirm with the user before `gh pr create` or any push.**
+7. **Keep diffs minimal.** Don't reformat or touch upstream source you aren't deliberately changing.
+8. **Pushing to the fork is outward-facing — confirm with the user before any push.**
 
 ---
 
@@ -68,7 +70,7 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Nexaflow consumer project | `src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Features.VirtualDisk.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
 | Wired project(s) | `Library/DiscUtils.Core`, `Library/DiscUtils.Containers`, `Library/DiscUtils.FileSystems` (Containers/FileSystems each pull the format libs). | **None — no `ProjectReference`.** The `BuildTreeSitterXml` target in `Nexaflow.Syntax.csproj` compiles `xml/src/{parser,scanner}.c` via `tools/build-tree-sitter-xml.ps1`. |
 | Do **NOT** reference | Test/Utilities projects; individual format libs (use the `Containers`/`FileSystems` meta-projects) | The `dtd/` grammar (we only build `xml/`); the Rust/Node/Swift/Python bindings |
-| Notes | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`** unless the upstream PR guide says otherwise. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
+| Notes | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`**. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
 
 …and the fourth, kept in its own table because its wiring is a hybrid the columns above can't express
 (a `ProjectReference` **plus** nested C submodules we compile):
@@ -112,11 +114,25 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | `upstream` (original) | `https://github.com/usbids/usbids.git` — a mirror of linux-usb.org's `usb.ids` |
 | **Upstream default branch** | **`master`** |
 | Tracked integration branch | `nexaflow` |
-| In-flight feature branches | *(none — `nexaflow` is a plain `upstream/master` commit)* |
+| In-flight feature branches | *(none — `nexaflow` is `upstream/master` with our `LICENSE` on top)* |
 | Nexaflow consumer project | `src/Nexaflow.IO.Usb/Nexaflow.IO.Usb.csproj` |
 | Wired project(s) | **None.** `usb.ids` is an `EmbeddedResource` (`LogicalName` `Nexaflow.IO.Usb.usb.ids`), read by `UsbIdsDatabase.LoadBundled`. At run time `UsbIdsStore` may replace it with a newer copy downloaded from linux-usb.org, so a stale submodule only means a stale first run. |
 | Do **NOT** reference | Nothing else in the repo is used. |
-| Notes | The vendor/product/class name database. A bump is recipe 6 — upstream commits a new `usb.ids` every few weeks — and needs no code change. The mirror's `LICENSE` file is GPL-3.0, while linux-usb.org offers `usb.ids` under GPL-2.0-or-later or BSD-3-Clause; which one Nexaflow ships it under is recorded in [ADR-001](adr/ADR-001-usb-raw-access.md). |
+| Notes | The vendor/product/class name database. A bump is recipe 6 — upstream commits a new `usb.ids` every few weeks — and needs no code change. linux-usb.org offers `usb.ids` under GPL-2.0-or-later or BSD-3-Clause; our fork's `LICENSE` quotes that and carries the BSD-3-Clause text Nexaflow ships it under, in place of the mirror's GPL-3.0 file ([ADR-001](adr/ADR-001-usb-raw-access.md)). |
+
+…and **PdfPig**, the PDF reader:
+
+| | **PdfPig** |
+|---|---|
+| `origin` (committed, our fork) | `https://github.com/smile-forge/PdfPig.git` |
+| `upstream` (original) | `https://github.com/UglyToad/PdfPig.git` |
+| **Upstream default branch** | **`master`** |
+| Tracked integration branch | `nexaflow` — upstream `master`, the integration shim, then our fixes |
+| In-flight feature branches | `feat/truetype-unicode-platform-cmap` — a TrueType font whose only Unicode cmap is on the Unicode platform (0, *) drew the wrong glyphs · `feat/seac-accented-characters` — an accented letter a font builds from a base and an accent (a CFF four-argument `endchar`, a Type 1 `seac`) drew empty, or without its accent · `feat/image-row-length` — an image whose data ran past its last row had its row length worked out from the data, and drew as noise · `feat/marked-content-references` — a named property list was resolved to its dictionary alone, so two optional content groups written alike, one shown and one hidden, could not be told apart · `feat/sampled-function-bit-order` — a sampled function's samples wider or narrower than a byte were read in the wrong bit order, so a 24-bit table tint drew dark brown · `feat/annotation-appearance-reference` — an annotation whose `/AP`, or whose dictionary of appearance states, was written by reference had no appearance, so it drew nothing · `feat/cmap-invalid-code-start` — a code no codespace range holds was read from the byte after its first, so every code after it in the string was read a byte late · `feat/form-state-balance` — a form XObject whose content left a `q` open, or restored past its own, changed the graphics state of everything its page drew after it · `feat/type1-fontinfo-comments` — a Type 1 font with comments among its FontInfo entries, as FontForge writes its copyright notices, lost its encoding, so none of its glyphs drew · `feat/jpx-colour-channels` — a JPEG 2000 image with no `/ColorSpace` took its channel count from the codestream, so an sRGB image with an opacity channel was read as CMYK and one through a palette as grey · `feat/image-sample-depth` — an image whose samples were neither 1, 2, 4, 8 nor 16 bits, as a 12-bit JPEG 2000 image's are, unpacked to nothing and drew black; stacked on `feat/image-row-length`, whose row code it replaces · `feat/smask-matte` — an image preblended with its soft mask's `/Matte` colour kept the matte as a fringe round its soft edges, its colour never unmixed after its Decode array · `feat/convert-leaves-samples` — the converter wrote into the samples an image hands every caller, so a second conversion of an inverted or Indexed image started from colours · `feat/document-assembly` — a document could be written from other documents' pages only page by page, losing everything that refers to its pages; `PdfDocumentAssembler` carries the outline, form, page labels, name trees, structure tree, article threads and optional content to where each page now is · `feat/image-transform` — an image could be placed only into a rectangle, so a JPEG turned by its EXIF orientation had to be decoded and written again to stand the right way up · `feat/page-crop-hook` — a page factory could not read a page through another crop box, so one page of several printed to a sheet could not be read as a page of its own · `feat/assembled-regions` — a page could be assembled only whole; an `AssembledPage` with a region is written as a page showing only that part of the sheet, its annotations, the links and outline items into it, its tagged content and its article beads going to the part they lie in; stacked on `feat/document-assembly` |
+| Nexaflow consumer project | `src/Nexaflow.Features/Nexaflow.Features.Pdf/Nexaflow.Features.Pdf.csproj` |
+| Wired project(s) | `src/UglyToad.PdfPig/UglyToad.PdfPig.csproj` (pulls Core, Fonts, Tokenization, Tokens) and `src/UglyToad.PdfPig.DocumentLayoutAnalysis/…csproj` (reading order) |
+| Do **NOT** reference | `tools/UglyToad.PdfPig.Package` (it repackages the projects above as the NuGet package), tests, benchmarks, examples |
+| Notes | **Why a submodule**: the package's TrueType lookup reads only the Windows (3, 1) Unicode cmap, so an embedded font that carries only a Unicode-platform one — common in macOS-written subsets — is drawn with capitals for lower case and letters missing; its CFF and Type 1 readers draw a composite accented letter empty or bare; and an image with more data than rows is read at the wrong row length; a named property list is known only by its dictionary, which two optional content groups can share; and a sampled function's samples other than a byte wide are read in the wrong bit order; an annotation's appearance written by reference is not found, and a code no codespace holds — a UTF-16 emoji in a UCS-2 string — puts the rest of its string a byte out, and a form XObject's unbalanced `q` or `Q` reaches into its caller's graphics state; and a Type 1 font with a comment inside its FontInfo has its encoding skipped, so a maths font like NewTXMI draws nothing; and an image's samples are read only at 1, 2, 4, 8 or 16 bits, while a JPEG 2000 image's depth is its codestream's, often 12; and an image preblended with its soft mask's matte colour is drawn with the matte still in it, and an image converted twice is decoded twice; all still so on upstream `master`. The PDF editor writes its pages through the fork's `PdfDocumentAssembler`, which upstream does not have. It is built from `master` rather than the last release because `master` carries the ICC colour management the reader draws through (`IIccProfileService`, which `PdfColourEngine` implements with Windows' colour engine) and no package does yet. Our `nexaflow` commits: (1) a **`Directory.Build.props`** at the root — integration-only, never upstreamed: PdfPig has none of its own, so the walk-up would apply Nexaflow's, and it sets `Optimize` in every configuration, because Nexaflow's Debug build is how the app runs day to day and an unoptimised PdfPig reads a page in about twice the time (symbols are still produced), and raises none of upstream's warnings (`WarningLevel` 0, `nullable` in `NoWarn`, no analyzers) so a Nexaflow build reports only Nexaflow's; (2) the fixes, each also on its own `feat/*` branch. Its test documents have names past `MAX_PATH` under a worktree, so it is checked out with `core.longpaths` (`ensure-submodules.ps1` passes it). Multi-targets up to `net9.0`, which the app resolves. Apache-2.0. JPEG (`DCTDecode`), JBIG2 (`JBIG2Decode`) and JPEG 2000 (`JPXDecode`) are not submodules: they are Nexaflow's own source in `src/Nexaflow.Media/Jpeg`, `src/Nexaflow.Media/Jbig2` and `src/Nexaflow.Media/Jpeg2000`. |
 
 To read the *current* pinned commits and tracked branch at any time:
 
@@ -133,14 +149,14 @@ git -C <repo>/external/<name> remote -v         # confirm origin=smile-forge, up
 ```
 upstream/<default>  ──●──●──●   (pristine; origin/<default> mirrors it; never our commits)
                        \   \
-        feat/topic-A ●──●   \       each single-topic branch = one upstream PR
+         feat/topic-A ●──●   \       each single-topic branch = one change
         feat/topic-B         ●──●   (both off upstream/<default>)
                               /
         nexaflow  ●──●──●──●─┘       integration: merges feat/* ; Nexaflow pins a commit here
 ```
 
 - Nexaflow's build follows the **pinned commit** (usually the `nexaflow` tip).
-- A PR is `smile-forge:feat/topic  →  <upstream-owner>:<default>` — one topic, rebaseable, never `nexaflow`.
+- Nothing goes from the fork to upstream: no branch here is ever opened as a pull request against it.
 
 ---
 
@@ -176,12 +192,12 @@ safety nets fix this so "create a worktree, open VS, hit F5" just works:
 Nothing special — the pinned commit is already checked out. Just build (see **Verify** below). If the
 submodule folder is empty, run recipe 0.
 
-### 2. Make a change I intend to upstream (THE core PR flow)
+### 2. Make a change to external source
 
-> **When upstream has stopped taking PRs, branch off `nexaflow` instead.** Branching off a pristine
-> default buys PR-cleanliness nobody is spending, and costs a merge conflict every time our branch has
-> already touched the same region. Base on `nexaflow`, keep the commit atomic, and rebase onto the
-> upstream default *if and when* a PR is actually wanted.
+> **Branch off the upstream default** while it is moving, so the change can be dropped cleanly once upstream
+> fixes the same thing. **Where upstream has gone quiet, branch off `nexaflow`** — a pristine base then only
+> costs a merge conflict every time our branch has already touched the same region. Either way, keep the
+> commit atomic. Nothing is posted upstream (golden rule 0).
 
 Example: change DiscUtils. Swap `master` → the row's upstream default.
 ```bash
@@ -189,16 +205,14 @@ SM=<repo>/external/DiscUtils
 git -C "$SM" fetch upstream
 git -C "$SM" switch -c feat/<topic> upstream/master     # atomic branch off the pristine default
 #   …or, where upstream has stopped merging: git -C "$SM" switch -c feat/<topic> nexaflow
-# …edit files under $SM, keeping the diff minimal and PR-clean…
+# …edit files under $SM, keeping the diff minimal…
 git -C "$SM" add -A
 git -C "$SM" commit -m "<focused message>"
 # push to OUR fork (confirm with user first — outward-facing):
 git -C "$SM" push -u origin feat/<topic>
-# open the PR into UPSTREAM from our fork's branch (confirm with user first):
-gh pr create --repo LTRData/DiscUtils --base LTRData.DiscUtils-initial \
-             --head smile-forge:feat/<topic> --title "…" --body "…"
 ```
-Keep one concern per branch/PR. If several concerns, make several `feat/*` branches.
+Keep one concern per branch. If several concerns, make several `feat/*` branches. Then recipe 3 — that is
+where the change ends.
 
 ### 3. Get an in-flight change into Nexaflow's build (integration + repin)
 Nexaflow builds the pinned commit, so merge the feature branch into `nexaflow`, then move the pin.
@@ -211,9 +225,9 @@ git -C "$SM" push origin nexaflow              # (confirm push with user)
 git -C <repo> add external/DiscUtils           # stages the new gitlink
 git -C <repo> commit -m "Bump DiscUtils: <topic>"
 ```
-Rule of thumb: `nexaflow` = "what Nexaflow builds against right now" = union of our merged-but-maybe-not-yet-
-upstreamed work. When a PR merges upstream, you can later drop that branch from `nexaflow` and repin to a
-plain `upstream/<default>` commit that now contains it.
+Rule of thumb: `nexaflow` = "what Nexaflow builds against right now" = union of our feature branches. When
+upstream fixes the same thing itself, drop that branch from `nexaflow` and repin to a plain
+`upstream/<default>` commit that contains the fix.
 
 ### 4. Keep the fork's default branch pristine / current with upstream
 ```bash
@@ -313,7 +327,7 @@ the solution is missing an entry, so this cannot rot again.
 `tree-sitter-xml` is a **C** grammar, not a .NET library — there is no `.csproj`, so rule "`ProjectReference`,
 never `PackageReference`" cannot apply. It is instead **compiled from source on build**. Everything else about
 the submodule convention (org fork, `upstream` remote, `nexaflow` integration branch, pin-by-commit, atomic
-`feat/*` branches for upstream PRs) is unchanged.
+`feat/*` branches) is unchanged.
 
 - **Who builds it:** the `BuildTreeSitterNatives` target in `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj`,
   which shells out to `tools/build-tree-sitter-natives.ps1`. That one script builds **everything native**:
@@ -444,7 +458,7 @@ dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Nexaflow.Te
 ```
 
 Expect **0 errors**. Pre-existing warnings are fine (Core `MVVMTK0045`, `MSTEST0044`, and upstream
-nullable warnings) — don't "fix" upstream warnings; keep diffs PR-clean.
+nullable warnings) — don't "fix" upstream warnings; keep diffs minimal.
 
 Finally: confirm the working tree is clean and the pins are what you intend —
 `git -C <repo> status` and `git -C <repo> submodule status`.

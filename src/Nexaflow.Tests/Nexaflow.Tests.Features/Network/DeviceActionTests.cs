@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using Nexaflow.Features.Network.Actions;
 using Nexaflow.IO.Network.Actions;
+using Nexaflow.IO.Network.Adapters;
 using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
 using Nexaflow.IO.Network.Probes;
@@ -25,10 +27,12 @@ namespace Nexaflow.Tests.Features.Network;
 [CoversNode("network-discovery")]
 public class DeviceActionTests
 {
-    private sealed class Host(IGuardedTransport transport) : IDeviceActionHost, IProbeLog
+    private sealed class Host(IGuardedTransport transport, params NetworkAdapterInfo[] adapters)
+        : IDeviceActionHost, IProbeLog
     {
         public List<string> Opened { get; } = [];
         public IGuardedTransport Transport => transport;
+        public IReadOnlyList<NetworkAdapterInfo> Adapters => adapters;
         public IProbeLog Log => this;
 
         public Task OpenAsync(string url, CancellationToken ct) { Opened.Add(url); return Task.CompletedTask; }
@@ -55,8 +59,15 @@ public class DeviceActionTests
                 new PingOutcome(GuardDecision.Allow(), pingAnswers, rtt ?? TimeSpan.FromMilliseconds(7)));
         }
 
+        public List<(SendIntent Intent, byte[] Payload)> Sent { get; } = [];
+
         public Task<GuardDecision> SendUdpAsync(SendIntent i, ReadOnlyMemory<byte> p, CancellationToken ct)
-            => Task.FromResult(GuardDecision.Allow());
+        {
+            if (refuse is { } no) return Task.FromResult(no);
+
+            Sent.Add((i, p.ToArray()));
+            return Task.FromResult(GuardDecision.Allow());
+        }
         public IAsyncEnumerable<ReceivedDatagram> SendAndCollectAsync(SendIntent i, ReadOnlyMemory<byte> p, TimeSpan w, CancellationToken ct)
             => AsyncEnumerable.Empty<ReceivedDatagram>();
         public IAsyncEnumerable<ReceivedDatagram> ListenMulticastAsync(IPAddress g, int port, string id, CancellationToken ct)
@@ -92,6 +103,35 @@ public class DeviceActionTests
 
         return graph.Observe(obs)!;
     }
+
+    /// <summary>The network every machine here was found on.</summary>
+    private const string Segment = "192.168.1.0/24";
+
+    /// <summary>
+    /// A machine as the neighbour table reports one: a hardware address on <see cref="Segment"/>, and the IPv4
+    /// address it had there.
+    /// </summary>
+    private static DeviceNode Machine(string mac, DeviceGraph? graph = null)
+    {
+        var obs = new ProbeObservation { SourceProbe = "network.arp", ObservedUtc = DateTimeOffset.UtcNow };
+        obs.Identities.Add(new IdentityClaim(IdentityKind.Mac, mac, Segment, Confidence.Asserted));
+        obs.Identities.Add(new IdentityClaim(IdentityKind.Ip, "192.168.1.42", Segment, Confidence.Strong));
+        obs.Facts.Add(new DeviceFact
+        {
+            Key = new FactKey("net", "ipv4"), Value = FactValue.OfAddress("192.168.1.42"),
+            SourceProbe = "network.arp", ObservedUtc = DateTimeOffset.UtcNow, Confidence = Confidence.Strong,
+        });
+
+        return (graph ?? new DeviceGraph()).Observe(obs)!;
+    }
+
+    /// <summary>This machine's adapter on <see cref="Segment"/>, at .10.</summary>
+    private static NetworkAdapterInfo Lan() => new()
+    {
+        Id = "{lan}", Name = "Ethernet", Description = "test adapter",
+        Type = NetworkInterfaceType.Ethernet, Status = OperationalStatus.Up, MacAddress = "02:00:00:00:00:01",
+        Addresses = { new AdapterAddress(IPAddress.Parse("192.168.1.10"), 24) },
+    };
 
     // ── What is offered ───────────────────────────────────────────────────────
 
@@ -255,6 +295,112 @@ public class DeviceActionTests
     }
 
     // ── What they declare ─────────────────────────────────────────────────────
+
+    // ── Waking ────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public void A_wake_is_offered_to_anything_with_a_hardware_address()
+    {
+        Assert.IsTrue(new WakeOnLanAction().AppliesTo(Machine("aa:bb:cc:dd:ee:ff")));
+        Assert.IsFalse(new WakeOnLanAction().AppliesTo(Device(("net.ipv4", "192.168.1.42"))),
+            "an address with no hardware behind it names no adapter to wake");
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public async Task A_wake_is_a_broadcast_on_the_network_the_device_was_seen_on()
+    {
+        var wire = new Wire();
+
+        await new WakeOnLanAction().PerformAsync(Machine("aa:bb:cc:dd:ee:ff"), new Host(wire, Lan()),
+                                                 CancellationToken.None);
+
+        var (sent, payload) = wire.Sent.Single();
+
+        Assert.AreEqual(IPAddress.Parse("192.168.1.255"), sent.Target,
+            "the directed broadcast of that network — the one broadcast the guard permits");
+        Assert.AreEqual(IPAddress.Parse("192.168.1.10"), sent.Via,
+            "sent from this machine's own address there, so it leaves on that segment and no other");
+        Assert.IsTrue(sent.Broadcast, "a send that reaches every host has to say so");
+        Assert.AreEqual(9, sent.Port);
+        Assert.AreEqual(SendLayer.Udp, sent.Layer);
+        Assert.AreEqual(SendInitiator.User, sent.Initiator);
+        Assert.IsFalse(string.IsNullOrEmpty(sent.ContentHash), "which exact description wrote the octets");
+
+        // Six of 0xFF and the address sixteen times — written by wol.json, checked here against the format.
+        byte[] mac = [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        CollectionAssert.AreEqual(
+            Enumerable.Repeat((byte)0xff, 6).Concat(Enumerable.Repeat(mac, 16).SelectMany(m => m)).ToArray(),
+            payload);
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public async Task And_a_device_on_a_network_this_PC_is_not_on_is_sent_nothing()
+    {
+        // A broadcast reaches one segment. Sending it out of whatever adapter there is would wake nothing and
+        // look as though it had tried.
+        var wire = new Wire();
+
+        var result = await new WakeOnLanAction().PerformAsync(Machine("aa:bb:cc:dd:ee:ff"), new Host(wire),
+                                                              CancellationToken.None);
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, Segment);
+        Assert.AreEqual(0, wire.Sent.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public async Task A_machine_that_answers_after_the_wake_is_recorded_as_there()
+    {
+        // A magic packet is never answered; a machine that woke says so by being there. So the action asks.
+        var graph = new DeviceGraph();
+        var device = Machine("aa:bb:cc:dd:ee:ff", graph);
+        var wire = new Wire(pingAnswers: true);
+
+        var result = await new WakeOnLanAction().PerformAsync(device, new Host(wire, Lan()), CancellationToken.None);
+
+        Assert.IsTrue(result.Ok);
+        StringAssert.Contains(result.Message, "answered");
+        CollectionAssert.AreEqual(new[] { IPAddress.Parse("192.168.1.42") }, wire.Pinged, "the address it last had");
+
+        var reachable = result.Learned!.Facts.Single(f => f.Key.Name == "reachable");
+        Assert.AreEqual("true", reachable.Value.Text);
+        Assert.IsNotNull(reachable.Ttl, "a machine that answered once is not always there");
+
+        // Identified by the hardware address that was woken, so it lands on the node that was clicked.
+        Assert.AreEqual(device.Id, graph.Observe(result.Learned)!.Id);
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public async Task And_a_refused_wake_says_why_and_waits_for_nothing()
+    {
+        var no = GuardDecision.Deny(GuardRefusal.Disabled, "Network actions are switched off.");
+        var wire = new Wire(refuse: no);
+
+        var result = await new WakeOnLanAction().PerformAsync(Machine("aa:bb:cc:dd:ee:ff"), new Host(wire, Lan()),
+                                                              CancellationToken.None);
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "switched off");
+        Assert.AreEqual(0, wire.Pinged.Count, "nothing was sent, so there is nothing to wait for");
+        Assert.IsNull(result.Learned);
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-wol")]
+    public void A_wake_changes_the_device_so_it_is_agreed_to_first()
+    {
+        // Switching a machine on is not asking it something. IsDestructive is what the page confirms before
+        // running, and a wake is exactly the kind of thing that should not happen on a stray click.
+        IDeviceAction wake = new WakeOnLanAction();
+
+        Assert.IsTrue(wake.IsDestructive);
+        Assert.AreEqual(ProbeCost.Light, wake.Cost, "one datagram on one segment");
+    }
 
     [TestMethod]
     [CoversNode("network-action-ping")]

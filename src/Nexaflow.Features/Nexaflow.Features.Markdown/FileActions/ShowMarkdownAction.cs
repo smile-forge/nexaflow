@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Markdown.FileActions;
@@ -18,7 +19,7 @@ public class ShowMarkdownAction : IFileAction, ICacheable
     public string DisplayName            => "Markdown";
     public static string? StaticExperienceId => "/text/markdown";
     public string ExperienceId           => "/text/markdown";
-    public string ExperienceDescription  => "Markdown editor";
+    public string ExperienceDescription  => Str.Get("Markdown.Action.EditorDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

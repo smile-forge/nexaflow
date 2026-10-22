@@ -50,9 +50,9 @@ public class PieGrammarTests : MermaidGrammarContract
         ("no space around the colon", "pie\n  \"Dogs\":386"),
         ("a label with a colon in it", "pie\n  \"Dogs: big ones\" : 386"),
         ("an empty label", "pie\n  \"\" : 386"),
+        ("a value of nought", "pie\n  \"Dogs\" : 386\n  \"Cats\" : 0"),
         // What nobody means to write.
         ("a negative value", "pie\n  \"Dogs\" : -386"),
-        ("a value of nought", "pie\n  \"Dogs\" : 0"),
         ("a value that is not a number", "pie\n  \"Dogs\" : lots"),
         ("no value at all", "pie\n  \"Dogs\" :"),
         ("no value yet, and the space left for it", "pie\n  \"Dogs\" : "),
@@ -114,12 +114,21 @@ public class PieGrammarTests : MermaidGrammarContract
     }
 
     [TestMethod]
+    public void ASliceWorthNoughtIsASliceLikeAnyOther()
+    {
+        // Mermaid's own pie takes nought, which is what a count of nothing — nothing broken, say — is written as.
+        var slice = Slices("pie\n  \"Faulted\" : 0").Single();
+
+        Assert.AreEqual("0", Value(slice).Text);
+        Assert.IsNull(slice.SelfAndDescendants().FirstOrDefault(node => node.Trouble is not null));
+    }
+
+    [TestMethod]
     public void AValueThatIsNotWorthAnythingSaysSoOnTheNumber()
     {
         foreach (var (source, reason) in new[]
                  {
-                     ("pie\n  \"Dogs\" : -386", "more than nought"),
-                     ("pie\n  \"Dogs\" : 0", "more than nought"),
+                     ("pie\n  \"Dogs\" : -386", "less than nought"),
                      ("pie\n  \"Dogs\" : lots", "not a number"),
                  })
         {

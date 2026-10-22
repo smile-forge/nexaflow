@@ -38,15 +38,13 @@ public class PdfScansTests
     }
 
     [TestMethod]
-    public void AScansPicture_IsOneAReaderDecodes()
+    public void AScansResolution_IsItsPixelsOverThePointsItIsPlacedAcross()
     {
         using var scope = Open("image-only.pdf");
 
-        var picture = PdfScans.Picture(scope.Document, 1);
+        var resolution = PdfScans.ScanResolution(scope.Document, 1);
 
-        Assert.IsNotNull(picture);
-        var frame = BitmapDecoder.Create(new MemoryStream(picture), BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
-        Assert.IsTrue(frame.PixelWidth > 0 && frame.PixelHeight > 0);
-        Assert.IsTrue(picture[0] == 0x89 || picture[0] == 0xFF, "PNG or JPEG, which the reader reads");
+        Assert.IsNotNull(resolution, "a scan's picture says what it was scanned at");
+        Assert.IsTrue(resolution > 0);
     }
 }

@@ -58,7 +58,7 @@ public class PageConversionTests
     /// <summary>Pages from <c>scan.png</c> in the test folder: one white picture each time they are asked for, noted in
     /// <paramref name="made"/>.</summary>
     private PageSource Scan(List<string> made, string? key = null) => new(
-        key ?? Guid.NewGuid().ToString(), Path.Combine(_dir, "scan.png"), _ =>
+        key ?? Guid.NewGuid().ToString(), Path.Combine(_dir, "scan.png"), 1, (_, _) =>
         {
             string page = Path.Combine(_dir, $"page-{Guid.NewGuid():N}.png");
             var pixels = new byte[200 * 200 * 4];
@@ -67,7 +67,7 @@ public class PageConversionTests
             encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(200, 200, 96, 96, PixelFormats.Bgra32, null, pixels, 200 * 4)));
             using (var file = File.Create(page)) encoder.Save(file);
             made.Add(page);
-            return Task.FromResult<IReadOnlyList<string>>([page]);
+            return Task.FromResult<string?>(page);
         },
         "Images", new Dictionary<string, string> { ["paths"] = Path.Combine(_dir, "scan.png") });
 
@@ -89,6 +89,53 @@ public class PageConversionTests
         await reading.Received(1).ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>());
         Assert.AreEqual(1, made.Count, "not read again");
         Assert.IsFalse(File.Exists(made.Single()), "the page's picture goes once it is read");
+    }
+
+    /// <summary>Pages read as many at once as page reading reads fastest — the later ones finishing first — are written in
+    /// page order, their figures numbered in it; the document reported so far never shows a page before those ahead of it,
+    /// and every page's picture goes once its figures are cut.</summary>
+    [TestMethod]
+    public async Task PagesReadAtOnce_AreWrittenInPageOrder_TheirFiguresNumberedSo()
+    {
+        const int pages = 7;
+        int begun = 0, reading = 0, most = 0;
+        var reader = Substitute.For<IPageReading>();
+        reader.PagesAtOnce.Returns(3);
+        reader.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            int page = Interlocked.Increment(ref begun);
+            int now = Interlocked.Increment(ref reading);
+            lock (reader) most = Math.Max(most, now);
+            IReadOnlyList<PageBlock> blocks = [new PageBlock(PageBlockKind.Text, 0.1, 0.1, 0.9, 0.2, $"Page {page}."),
+                                               new PageBlock(PageBlockKind.Figure, 0.1, 0.3, 0.5, 0.6, "")];
+            call.Arg<IProgress<PageBlock>?>()?.Report(blocks[0]);
+            await Task.Delay((pages - page) * 15);
+            call.Arg<IProgress<PageBlock>?>()?.Report(blocks[1]);
+            Interlocked.Decrement(ref reading);
+            return blocks;
+        });
+        var made = new List<string>();
+        var scan = Scan(made) with { Pages = pages };
+        var reports = new List<string>();
+
+        var read = await new PageReader(reader, null).ReadAsync(scan, Path.Combine(_dir, "figures"), "figures",
+                                                                new Collected(so => { lock (reports) reports.Add(so.Markdown); }), CancellationToken.None);
+
+        Assert.AreEqual(3, most, "three pages read at once");
+        Assert.AreEqual(string.Join("\n\n", Enumerable.Range(1, pages).Select(p => $"Page {p}.\n\n![figure {p}](figures/figure-{p}.png)")) + "\n", read.Markdown,
+                        "the pages in order, each page's figure numbered as it stands");
+        CollectionAssert.AreEqual(Enumerable.Range(1, pages).Select(p => $"Page {p}.\n").ToList(), read.Pages.ToList());
+        foreach (var so in reports)
+            for (int p = 2; p <= pages; p++)
+                if (so.Contains($"Page {p}.")) StringAssert.Contains(so, $"Page {p - 1}.", "no page shows before the one ahead of it");
+        Assert.AreEqual(pages, made.Count);
+        Assert.IsFalse(made.Any(File.Exists), "every picture goes once its page's figures are cut");
+    }
+
+    /// <summary>Each report as it is made, on the thread that makes it.</summary>
+    private sealed class Collected(Action<PagesSoFar> take) : IProgress<PagesSoFar>
+    {
+        public void Report(PagesSoFar value) => take(value);
     }
 
     [TestMethod]
@@ -169,5 +216,90 @@ public class PageConversionTests
         Assert.IsFalse(conversion.Available);
         Assert.IsFalse(conversion.CanDownload);
         Assert.AreEqual(Str.Get("Text.PageReading.Unavailable"), conversion.Status);
+    }
+
+    /// <summary>Page reading that reads the first page at once and then waits on every later one until it is stopped.</summary>
+    private static IPageReading FirstPageThenWaiting()
+    {
+        var reading = Reading(ToolModelsState.Ready);
+        int begun = 0;
+        reading.ReadPageAsync(Arg.Any<string>(), Arg.Any<IProgress<PageBlock>?>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            IReadOnlyList<PageBlock> blocks = [new PageBlock(PageBlockKind.Text, 0.1, 0.1, 0.9, 0.2, $"Page {Interlocked.Increment(ref begun)}.")];
+            if (begun > 1) await Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>());
+            call.Arg<IProgress<PageBlock>?>()?.Report(blocks[0]);
+            return blocks;
+        });
+        return reading;
+    }
+
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(25);
+        Assert.IsTrue(condition(), "the reading reached the point the test waits for");
+    }
+
+    /// <summary>Stop asks before it stops — the reading going on while it asks, and on as before when kept — and showing
+    /// what was read opens that much as a draft, the page still being read left out, without keeping it as the reading.</summary>
+    [TestMethod]
+    public async Task AStop_AsksFirst_AndShowingWhatWasRead_OpensItAsADraft()
+    {
+        var shell = Shell();
+        var caller = Substitute.For<IPageView>();
+        Dictionary<string, string>? opened = null;
+        shell.When(s => s.OpenTab("Markdown", Arg.Any<Dictionary<string, string>?>(), caller, true))
+             .Do(call => opened = call.Arg<Dictionary<string, string>?>());
+        var conversion = new PageConversion(FirstPageThenWaiting(), null, shell);
+
+        var converting = conversion.ConvertAsync(Scan([]) with { Pages = 3 }, caller);
+        await UntilAsync(() => conversion.HasSoFar);
+        Assert.AreEqual(Str.Get("Text.PageReading.Converting"), conversion.Heading, "the banner says what is under way");
+
+        conversion.StopCommand.Execute(null);
+        Assert.IsTrue(conversion.IsAskingToStop);
+        Assert.IsTrue(conversion.IsReading, "asking does not stop the reading");
+        conversion.KeepReadingCommand.Execute(null);
+        Assert.IsFalse(conversion.IsAskingToStop);
+        Assert.IsTrue(conversion.IsReading);
+
+        conversion.StopCommand.Execute(null);
+        conversion.ShowReadSoFarCommand.Execute(null);
+        await converting;
+
+        Assert.IsNotNull(opened, "what was read opens as a draft");
+        string text = File.ReadAllText(opened!["path"]);
+        StringAssert.Contains(text, "Page 1.");
+        Assert.IsFalse(text.Contains("Page 2."), "the page still being read is left out");
+        Assert.IsFalse(conversion.IsReading);
+        Assert.IsNull(conversion.Status, "the banner has nothing more to say");
+        Assert.IsNull(conversion.PageTexts, "a stopped reading is not the document's text");
+    }
+
+    /// <summary>Discarding a reading stops it and opens nothing, and the banner goes.</summary>
+    [TestMethod]
+    public async Task ADiscardedReading_OpensNothing_AndTheBannerGoes()
+    {
+        var shell = Shell();
+        var conversion = new PageConversion(FirstPageThenWaiting(), null, shell);
+
+        var converting = conversion.ConvertAsync(Scan([]) with { Pages = 3 }, null);
+        await UntilAsync(() => conversion.HasSoFar);
+        conversion.StopCommand.Execute(null);
+        conversion.DiscardReadingCommand.Execute(null);
+        await converting;
+
+        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(), Arg.Any<IPageView?>(), Arg.Any<bool>());
+        Assert.IsFalse(conversion.HasStatus, "the banner goes once the reading is let go");
+        Assert.IsFalse(conversion.IsAskingToStop);
+    }
+
+    /// <summary>How long a reading has left is the pace of the pages read so far, for each page still to read; it says
+    /// nothing before a page is read, or once every page is.</summary>
+    [TestMethod]
+    public void TheTimeLeft_IsThePaceOfThePagesRead_ForThoseStillToRead()
+    {
+        Assert.AreEqual(TimeSpan.FromMinutes(4), PageConversion.TimeLeft(TimeSpan.FromMinutes(1), 2, 10));
+        Assert.IsNull(PageConversion.TimeLeft(TimeSpan.FromSeconds(5), 0, 10), "no page read yet");
+        Assert.IsNull(PageConversion.TimeLeft(TimeSpan.FromMinutes(3), 10, 10), "every page read");
     }
 }

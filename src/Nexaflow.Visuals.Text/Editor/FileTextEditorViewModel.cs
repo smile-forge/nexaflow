@@ -20,6 +20,7 @@ using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Text.Editor.Commands;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Editor;
 
@@ -75,18 +76,18 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public List<EncodingOption> AvailableEncodings { get; } =
     [
         new("UTF-8",          new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)),
-        new("UTF-8 with BOM", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)),
+        new("UTF-8 with BOM", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), Str.Get("Text.Editor.Encoding.Utf8Bom")),
         new("UTF-16 LE",      Encoding.Unicode),
         new("UTF-16 BE",      Encoding.BigEndianUnicode),
         new("Latin-1",        Encoding.Latin1),
-        new("System Default", Encoding.Default),
+        new("System Default", Encoding.Default, Str.Get("Text.Editor.Encoding.SystemDefault")),
     ];
 
     // ── Line endings ─────────────────────────────────────────────────────────────
     [ObservableProperty] private LineEndingOption _selectedEol;
     public List<LineEndingOption> AvailableEols { get; } =
     [
-        new("Preserve EOL", LineEnding.Preserve),
+        new("Preserve EOL", LineEnding.Preserve, Str.Get("Text.Editor.Eol.Preserve")),
         new("LF",           LineEnding.Lf),
         new("CRLF",         LineEnding.CrLf),
         new("CR",           LineEnding.Cr),
@@ -157,6 +158,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         foreach (var group in groups)
             CommandGroups.Add(new EditorCommandGroupVm(
                 group.Key,
+                group.First().GroupTitle,
                 group.Select(c => new EditorCommandVm(c, this)).ToList()));
     }
 
@@ -188,7 +190,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ShowResult       = (label, value) =>
             {
                 try { Clipboard.SetText(value); } catch { /* clipboard briefly locked */ }
-                Shell.ShowNotification($"{label}: {value} (copied)"); // toasts via the notification service
+                Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value)); // toasts via the notification service
             },
             ShowError        = Shell.ShowError,
         };
@@ -196,8 +198,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         if (!cmd.CanExecute(ctx))
         {
             Shell.ShowError(cmd.Scope == TextEditScope.Selection && !ctx.HasSelection
-                ? "Select some text first."
-                : "The document is read-only.");
+                ? Str.Get("Text.Editor.SelectFirst")
+                : Str.Get("Text.Editor.DocumentReadOnly"));
             return;
         }
 
@@ -221,7 +223,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         LineEndingKind.Lf    => "LF",
         LineEndingKind.CrLf  => "CRLF",
         LineEndingKind.Cr    => "CR",
-        LineEndingKind.Mixed => "Mixed",
+        LineEndingKind.Mixed => Str.Get("Text.Editor.Eol.Mixed"),
         _                    => "—",
     };
 
@@ -245,8 +247,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             if (length > _maxEditableBytes)
             {
                 IsReadOnlyMode = true;
-                ReadOnlyReason = $"This file is {SizeFormatter.FormatBytes(length)} — too large to edit. "
-                               + "Open it As Text, or split it into smaller files first.";
+                ReadOnlyReason = Str.Format("Text.Editor.TooLarge", SizeFormatter.FormatBytes(length));
                 SetDocumentText(string.Empty);
                 return;
             }
@@ -268,7 +269,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         catch (Exception ex)
         {
             IsReadOnlyMode = true;
-            ReadOnlyReason = $"Could not open file: {ex.Message}";
+            ReadOnlyReason = Str.Format("Text.Editor.CouldNotOpen", ex.Message);
             SetDocumentText(string.Empty);
         }
         finally { IsLoaded = true; }
@@ -314,8 +315,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     private async Task ReloadForEncodingAsync()
     {
         if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
-        if (IsDirty && !await Shell.ConfirmAsync("Change encoding",
-                "Re-read the file with the new encoding and discard your unsaved changes?"))
+        if (IsDirty && !await Shell.ConfirmAsync(Str.Get("Text.Editor.ChangeEncoding"),
+                Str.Get("Text.Editor.ChangeEncodingAsk")))
             return;
         await LoadAsync();
     }
@@ -338,7 +339,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         }
         catch (Exception ex)
         {
-            Shell.ShowError($"Could not save '{FileName}': {ex.Message}");
+            Shell.ShowError(Str.Format("Text.Editor.CouldNotSave", FileName, ex.Message));
         }
     }
 
@@ -349,8 +350,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     [RelayCommand]
     private async Task Refresh()
     {
-        if (IsDirty && !await Shell.ConfirmAsync("Reload file",
-                "Reload from disk and discard your unsaved changes?"))
+        if (IsDirty && !await Shell.ConfirmAsync(Str.Get("Text.Editor.Reload"),
+                Str.Get("Text.Editor.ReloadAsk")))
             return;
         await LoadAsync();
     }
@@ -373,14 +374,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         catch { return; } // file briefly locked/removed — ignore this burst
         if (onDisk == Document.Text) return; // our own write, or a no-op change
 
-        if (IsDirty && !await Shell.ConfirmAsync("File changed on disk",
-                "Reload and discard your unsaved changes?"))
+        if (IsDirty && !await Shell.ConfirmAsync(Str.Get("Text.Editor.ChangedOnDisk"),
+                Str.Get("Text.Editor.ChangedOnDiskAsk")))
             return;
 
         SetDocumentText(onDisk);
         IsDirty = false;
         try { FileSizeText = SizeFormatter.FormatBytes(new FileInfo(FilePath).Length); } catch { }
-        BannerMessage = "Reloaded — the file changed on disk.";
+        BannerMessage = Str.Get("Text.Editor.Reloaded");
         BannerVisible = true;
         await Task.Delay(3000);
         BannerVisible = false;
@@ -660,7 +661,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         const int cap = 8000;
         var text = Document.Text;
         var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
-        return new ReadOnlyTextPreview(string.IsNullOrEmpty(FileName) ? "Editor" : FileName, meta, body);
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     // ── Dispose ────────────────────────────────────────────────────────────────

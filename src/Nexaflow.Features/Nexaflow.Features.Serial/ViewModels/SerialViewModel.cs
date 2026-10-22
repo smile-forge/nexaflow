@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.IO.Ports;
 using System.Text;
@@ -60,8 +61,8 @@ public sealed partial class SerialViewModel : ObservableObject, IPageViewModel, 
         BaudRates = [300, 1200, 2400, 4800, 9600, 19_200, 38_400, 57_600, 74_880, 115_200, 230_400, 250_000, 460_800, 500_000,
                      921_600, 1_000_000, 2_000_000];
         DataBitsChoices = [5, 6, 7, 8];
-        Parities = [.. Enum.GetValues<Parity>().Select(p => new SerialChoice<Parity>(p, p.ToString()))];
-        StopBitsChoices = [new(StopBits.One, "1"), new(StopBits.OnePointFive, "1.5"), new(StopBits.Two, "2")];
+        Parities = [.. Enum.GetValues<Parity>().Select(p => new SerialChoice<Parity>(p, ParityLabel(p)))];
+        StopBitsChoices = [new(StopBits.One, "1"), new(StopBits.OnePointFive, 1.5.ToString(CultureInfo.CurrentCulture)), new(StopBits.Two, "2")];
         Handshakes =
         [
             new(Handshake.None, Str.Get("Serial.Handshake.None")),
@@ -83,6 +84,15 @@ public sealed partial class SerialViewModel : ObservableObject, IPageViewModel, 
                 ?? new SerialPortInfo(port.ToUpperInvariant(), null, null);
         _status = Str.Get("Serial.Status.Closed");
     }
+
+    static string ParityLabel(Parity parity) => parity switch
+    {
+        Parity.Odd => Str.Get("Serial.Parity.Odd"),
+        Parity.Even => Str.Get("Serial.Parity.Even"),
+        Parity.Mark => Str.Get("Serial.Parity.Mark"),
+        Parity.Space => Str.Get("Serial.Parity.Space"),
+        _ => Str.Get("Serial.Parity.None"),
+    };
 
     /// <summary>The port in view changed — the registration re-titles the tab and re-keys it.</summary>
     public event Action? PortChanged;

@@ -46,6 +46,10 @@ public sealed class ConsoleConfig : IFeatureConfig
     private void EnsureSeeded()
     {
         if (Environments.Count == 0)
-            Environments.Add(new TerminalEnvironment { Name = "Command Prompt", TabTitle = "Console" });
+            Environments.Add(new TerminalEnvironment
+            {
+                Name     = Str.Get("Console.Environments.CommandPromptName"),
+                TabTitle = Str.Get("Console.Page.Title"),
+            });
     }
 }

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -63,7 +64,7 @@ public partial class ConversationViewModel : ISearchable
     private SearchOutcome RunSearch(TextSearchMatcher matcher, SearchRequest request, bool display)
     {
         if (Timeline.Count == 0)
-            return SearchOutcome.None("This conversation has no messages yet.");
+            return SearchOutcome.None(Str.Get("AIChat.Conversation.Search.NoMessages"));
 
         var hits = new List<int>();
         for (var i = 0; i < Timeline.Count; i++)
@@ -86,7 +87,7 @@ public partial class ConversationViewModel : ISearchable
                              .ToList();
             if (chosen.Count == 0) return Task.FromResult(false);
 
-            Apply(chosen, CurrentSearchTerm.Length == 0 ? $"{chosen.Count} selected" : CurrentSearchTerm);
+            Apply(chosen, CurrentSearchTerm.Length == 0 ? Str.Format("AIChat.Conversation.Search.SelectedFormat", chosen.Count) : CurrentSearchTerm);
             return Task.FromResult(true);
         });
 

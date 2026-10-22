@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Page = Nexaflow.Features.Common.Page;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.Views;
 
@@ -62,7 +63,7 @@ public partial class ConversationView : UserControl, IPageView
         menu.Items.Clear();
 
         var tabs = ViewModel.AvailableOpenTabs;
-        var openTabs = new MenuItem { Header = "Open tabs", IsEnabled = tabs.Count > 0 };
+        var openTabs = new MenuItem { Header = Str.Get("AIChat.Conversation.Context.OpenTabs"), IsEnabled = tabs.Count > 0 };
         foreach (var tab in tabs)
             openTabs.Items.Add(new MenuItem
             {
@@ -166,8 +167,8 @@ public partial class ConversationView : UserControl, IPageView
         var used = ViewModel.EstimatedTokens;
         var win  = ViewModel.ContextWindow;
         TokenFooter.Text = win is null
-            ? $"{used:N0} tokens / unknown context"
-            : $"{used:N0} / {win.Value:N0} tokens";
+            ? Str.Format("AIChat.Conversation.Footer.TokensUnknownFormat", used)
+            : Str.Format("AIChat.Conversation.Footer.TokensFormat", used, win.Value);
     }
 
     // ── Drop target ───────────────────────────────────────────────────────

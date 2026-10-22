@@ -275,6 +275,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/Nexaflow.Tests.Sandbox.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Nexaflow.Tests.Visuals.csproj">
       <Platform Project="x64" />
     </Project>
@@ -310,6 +313,11 @@
   <!-- WPF-free HDF5 reader over PureHDF: hierarchy, attributes, windowed dataset reads, and the
        .npy / .txt projection of datasets as files. Reaches the app through Nexaflow.Features.Hdf5. -->
   <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- WPF-free media codecs carried as Nexaflow's own memory-safe source, each in a folder with its licence:
+       Jpeg2000 decodes the JPXDecode images Nexaflow.Features.Pdf reads. -->
+  <Project Path="src/Nexaflow.Media/Nexaflow.Media.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- WPF-free compound file (MS-CFB) reader and writer — the container a .msg, a pre-2007 Office file and an .msi are
@@ -408,6 +416,26 @@
     add its closure here too.
   -->
   <Folder Name="/External/">
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig/UglyToad.PdfPig.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig.Core/UglyToad.PdfPig.Core.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig.DocumentLayoutAnalysis/UglyToad.PdfPig.DocumentLayoutAnalysis.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig.Fonts/UglyToad.PdfPig.Fonts.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig.Tokenization/UglyToad.PdfPig.Tokenization.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/PdfPig/src/UglyToad.PdfPig.Tokens/UglyToad.PdfPig.Tokens.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+
+
     <Project Path="external/DiscUtils/Library/DiscUtils.Btrfs/DiscUtils.Btrfs.csproj">
       <Platform Project="AnyCPU" />
     </Project>
@@ -487,6 +515,9 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/DiscUtils/Library/DiscUtils.Xva/DiscUtils.Xva.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/SourceGenerators/DiscUtils.SourceGenerator/DiscUtils.SourceGenerator.csproj">
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj">

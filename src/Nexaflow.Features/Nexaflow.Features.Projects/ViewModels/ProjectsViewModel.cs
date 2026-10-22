@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -26,6 +27,13 @@ public partial class ProjectSummaryItem : ObservableObject
     [ObservableProperty] private string _detailMarkdown = string.Empty; // status pie + description
     [ObservableProperty] private string _countsText   = string.Empty;
     [ObservableProperty] private string _lastModified = string.Empty;
+
+    /// <summary>How many backlog items the project has.</summary>
+    public int BacklogCount { get; init; }
+
+    /// <summary><see cref="BacklogCount"/> as the assistant reads it: English whatever the display language,
+    /// beside the shown <see cref="CountsText"/>.</summary>
+    public string CountsForModel => BacklogCount == 0 ? "No backlog items" : $"{BacklogCount} backlog item(s)";
 
     /// <summary>First two non-empty lines of the description, shown on the list row.</summary>
     public string DescriptionPreview
@@ -135,7 +143,10 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
             DisplayName    = string.IsNullOrWhiteSpace(info.Name) ? folder : info.Name,
             Description    = info.Description,
             DetailMarkdown = detail,
-            CountsText     = info.Backlog.Count == 0 ? "No backlog items" : $"{info.Backlog.Count} backlog item(s)",
+            BacklogCount   = info.Backlog.Count,
+            CountsText     = info.Backlog.Count == 0
+                                ? Str.Get("Projects.Backlog.None")
+                                : Str.Format("Projects.List.BacklogCountFormat", info.Backlog.Count),
             LastModified   = info.LastUpdate.HasValue
                                 ? info.LastUpdate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                 : "—",
@@ -175,15 +186,15 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
     {
         item ??= SelectedProject;
         if (item is null || _shell is null || IsMoving) return;
-        if (string.IsNullOrWhiteSpace(targetRoot)) { _shell.ShowError("The target folder is not configured."); return; }
+        if (string.IsNullOrWhiteSpace(targetRoot)) { _shell.ShowError(Str.Get("Projects.Move.TargetNotConfigured")); return; }
 
         var dest = Path.Combine(targetRoot, item.FolderName);
-        MovingMessage = "Moving project… please wait";
+        MovingMessage = Str.Get("Projects.Move.InProgress");
         IsMoving = true;
         _shell.MoveFolderInBackground(item.FolderPath, dest, MovingMessage, ok =>
         {
             IsMoving = false;
-            if (!ok) _shell.ShowError($"Could not move '{item.DisplayName}'.");
+            if (!ok) _shell.ShowError(Str.Format("Projects.Move.FailedFormat", item.DisplayName));
             Load();
         });
     }
@@ -200,7 +211,7 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
         var lines = Projects.Take(40).Select(p =>
         {
             var desc = string.IsNullOrWhiteSpace(p.DescriptionPreview) ? string.Empty : $" — {p.DescriptionPreview}";
-            return $"• {p.DisplayName} ({p.CountsText}){desc}";
+            return $"• {p.DisplayName} ({p.CountsForModel}){desc}";
         });
         var more     = ProjectCount > 40 ? $"\n(+{ProjectCount - 40} more)" : string.Empty;
         var selected = SelectedProject is { } s ? $" Selected: '{s.DisplayName}'." : string.Empty;
@@ -236,7 +247,7 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
                 var body = string.Join("\n", Projects.Select(p =>
                 {
                     var desc = string.IsNullOrWhiteSpace(p.DescriptionPreview) ? string.Empty : $" — {p.DescriptionPreview}";
-                    return $"- {p.DisplayName} [{p.FolderName}] ({p.CountsText}, updated {p.LastModified}){desc}";
+                    return $"- {p.DisplayName} [{p.FolderName}] ({p.CountsForModel}, updated {p.LastModified}){desc}";
                 }));
                 return Task.FromResult(ToolResult.Ok($"{Projects.Count} project(s)", body));
             }),

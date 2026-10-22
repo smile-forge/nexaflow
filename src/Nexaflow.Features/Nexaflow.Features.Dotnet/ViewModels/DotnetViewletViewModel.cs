@@ -13,6 +13,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Dotnet.ClientTools;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dotnet.ViewModels;
 
@@ -158,7 +159,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     public string RunTooltip => SelectedTarget switch
     {
         null                                        => "dotnet run",
-        { IsSolution: true } s when RunTarget is null => $"No runnable project in {s.DisplayName}",
+        { IsSolution: true } s when RunTarget is null => Str.Format("Dotnet.Toolbar.RunNoProjectTipFormat", s.DisplayName),
         _                                           => $"dotnet run — {RunTarget!.DisplayName}",
     };
 
@@ -185,7 +186,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Couldn't open {target.DisplayName}: {ex.Message}");
+            _shell.ShowError(Str.Format("Dotnet.Status.OpenFailedFormat", target.DisplayName, ex.Message));
         }
     }
 
@@ -222,8 +223,8 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             else
             {
                 StatusGlyph = "✗";
-                _shell.ShowError($"dotnet {verb} failed ({target.DisplayName})");
-                _shell.ShowNotification(Tail(result.Output));
+                _shell.ShowError(Str.Format("Dotnet.Status.VerbFailedFormat", verb, target.DisplayName));
+                _shell.ShowNotification(FailureDetail(result));
             }
             return result;
         }
@@ -295,11 +296,11 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     /// <summary>The progress label for a verb — "build" reads as "Building" while it runs.</summary>
     internal static string Gerund(string verb) => verb switch
     {
-        "restore" => "Restoring",
-        "build"   => "Building",
-        "run"     => "Running",
-        "test"    => "Testing",
-        "clean"   => "Cleaning",
+        "restore" => Str.Get("Dotnet.Progress.Restoring"),
+        "build"   => Str.Get("Dotnet.Progress.Building"),
+        "run"     => Str.Get("Dotnet.Progress.Running"),
+        "test"    => Str.Get("Dotnet.Progress.Testing"),
+        "clean"   => Str.Get("Dotnet.Progress.Cleaning"),
         _         => char.ToUpperInvariant(verb[0]) + verb[1..],
     };
 
@@ -385,7 +386,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
 
         var sb = new StringBuilder();
         foreach (var u in updates)
-            sb.AppendLine($"{u.Name}: {u.Current} > {u.Latest}");
+            sb.AppendLine(Str.Format("Dotnet.Caution.PackageLineFormat", u.Name, u.Current, u.Latest));
 
         UpdatesTooltip = sb.ToString().TrimEnd();
         _outdatedCount = updates.Count;
@@ -401,4 +402,10 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             return output.Trim();
         return string.Join(Environment.NewLine, lines[^maxLines..]);
     }
+
+    /// <summary>What the person reads after a verb fails: the tail of the transcript the model gets, with why
+    /// the command ended early told in the person's language.</summary>
+    private static string FailureDetail(DotnetCli.Result result) => Tail(result.TranscriptWith(
+        error => Str.Format("Dotnet.Status.StartFailedFormat", error),
+        seconds => Str.Format("Dotnet.Status.SilenceKilledFormat", seconds)));
 }

@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Video.ViewModels;
+using Nexaflow.Features.Video.Views;
+using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -76,5 +78,30 @@ public class VideoAiTests
         // stay distinguishable in the hub (aspect 4).
         StringAssert.Contains(vm.GetContext(), "clip.mp4");
         Assert.AreEqual(vm.FilePath, vm.GetSecurityContext());
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("video-ai-preview")]
+    public void ThePreview_RemindsOfTheVideo_AndIsFreshEachTime()
+    {
+        UiThread.Run(() =>
+        {
+            var vm = Make();
+            try
+            {
+                var first  = vm.CreateContextPreview();
+                var second = vm.CreateContextPreview();
+
+                Assert.IsInstanceOfType(first, typeof(VideoContextPreview));
+                Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own poster and duration");
+                Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
+
+                var shown = ContextPreviewProbe.VisibleTexts(first);
+                CollectionAssert.DoesNotContain(shown.ToList(), "clip.mp4", "the panel's header names the file");
+                CollectionAssert.DoesNotContain(shown.ToList(), vm.DurationDisplay, "no running time is claimed before the video has opened");
+            }
+            finally { vm.Dispose(); }
+        });
     }
 }

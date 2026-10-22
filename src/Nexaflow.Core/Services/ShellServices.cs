@@ -124,6 +124,9 @@ public sealed class ShellServices : IShellServices
 
     // Active file watches, deduped by full path: one FileChangeWatcher per path fans out to its subscribers.
     private readonly Dictionary<string, WatchGroup> _watchGroups = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Made on the first folder watched: it owns a window on this workspace's UI thread.</summary>
+    private ShellFolderWatcher? _folderWatcher;
     private IWindowHost? _focused;
 
     /// <summary>
@@ -427,12 +430,12 @@ public sealed class ShellServices : IShellServices
         var restore = new RelayCommand(() => RestoreSession(session));
         var note = new NotificationItem
         {
-            Title         = "Restore last session?",
-            Body          = "Reopen the tabs you had open when you last closed this workspace.",
+            Title         = Str.Get("Shell.Notifications.RestoreTitle"),
+            Body          = Str.Get("Shell.Notifications.RestoreBody"),
             Severity      = MessageSeverity.Info,
             Transient     = true,
             ToastDuration = TimeSpan.FromSeconds(3),
-            Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
+            Actions       = [new MessageAction(Str.Get("Shell.Notifications.Restore"), restore, IsPrimary: true)],
         };
         MessageCenter.Instance.Post(note);
     }
@@ -550,6 +553,9 @@ public sealed class ShellServices : IShellServices
         return handle;
     }
 
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) =>
+        (_folderWatcher ??= new ShellFolderWatcher(_ui)).Watch(path, onChanged);
+
     public Task RunOnUiAsync(Action action)
     {
         if (_ui.CheckAccess()) { action(); return Task.CompletedTask; }
@@ -583,6 +589,8 @@ public sealed class ShellServices : IShellServices
         foreach (var group in _watchGroups.Values)
             group.Watcher?.Dispose();
         _watchGroups.Clear();
+        _folderWatcher?.Dispose();
+        _folderWatcher = null;
     }
 
     private static string SafeFullPath(string path)
@@ -650,7 +658,7 @@ public sealed class ShellServices : IShellServices
     public void ShowError(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = "Error", Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowNotification(string message) =>

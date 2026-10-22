@@ -27,12 +27,12 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music.LilyPond;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("ly-layout")]
 public class LilyPondBuilderTests
 {
     // ── What every picture promises ─────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void EveryPieceOfThePictureNamesARealPartOfTheSourceOrNothingAtAll() => UiThread.Run(() =>
     {
         foreach (var (what, ly) in LilyPondConstructs.Everything)
@@ -79,6 +79,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void EveryConstructEngravesAStaff_AndNothingInItIsMarked() => UiThread.Run(() =>
     {
         foreach (var (what, ly) in LilyPondConstructs.Everything)
@@ -95,6 +96,7 @@ public class LilyPondBuilderTests
     // ── Bars come from the meter ────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void BarsAreClosedByTheMeter_WithNoBarLinesTyped() => UiThread.Run(() =>
     {
         // Not one '|' in the source. In LilyPond a bar line is implied, and getting this wrong is the biggest
@@ -103,6 +105,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ABarCheckNamesTheLineItChecks() => UiThread.Run(() =>
     {
         const string Ly = @"\relative c' { \time 4/4 c4 d e f | g1 }";
@@ -112,6 +115,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AndALineTheMeterImpliesNamesNothing() => UiThread.Run(() =>
     {
         var lines = All(Lay("{ c4 d e f g1 }"), "barline");
@@ -121,6 +125,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void APickupShortensTheFirstBarOnly() => UiThread.Run(() =>
     {
         CollectionAssert.AreEqual(new[] { 1, 4, 1 },
@@ -128,6 +133,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AMeterChangeRebarsWhatFollows() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 c4 d e f \time 3/4 g4 a b c d e }");
@@ -137,6 +143,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AWholeBarRestIsABarEach_AndSoIsASpacer() => UiThread.Run(() =>
     {
         var rests = Lay(@"\relative c' { \time 4/4 c1 R1*3 c1 }");
@@ -148,6 +155,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AWrittenBarLineLandsOnTheBarItFollows_EvenWhenTheMeterAlreadyClosedIt() => UiThread.Run(() =>
     {
         // The meter closes the bar after f; the \bar arrives afterwards and still has to be that bar's line.
@@ -160,6 +168,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ACadenzaHasNoMeter_AndOnlyAWrittenLineEndsABar() => UiThread.Run(() =>
     {
         var layout = Lay(@"{ \cadenzaOn \autoBeamOff c\breve c1 c2 c4 c8 c16 \bar ""|."" }");
@@ -171,6 +180,7 @@ public class LilyPondBuilderTests
     // ── Repeats ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ARepeatDrawsItsLines_AndItsEndingsTheirBrackets() => UiThread.Run(() =>
     {
         const string Ly = @"\relative c' { \time 4/4 \repeat volta 2 { c4 d e f } \alternative { { g1 } { a1 } } }";
@@ -183,6 +193,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void EndingsWrittenWithVoltaAreNumberedAsTheySay() => UiThread.Run(() =>
     {
         // LilyPond's own spelling since 2.24, and abc2ly's: each ending says which time through it is played.
@@ -197,6 +208,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AnUnfoldedRepeatIsWrittenOut_EveryTimeNamingTheSameNotes() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 \repeat unfold 3 { c4 d e f } }");
@@ -211,6 +223,7 @@ public class LilyPondBuilderTests
     // ── Beams come from the meter ───────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     [DataRow(@"{ \time 4/4 c8 d e f g a b c }", new[] { 4, 4 }, "eighths in fours in common time")]
     [DataRow(@"{ \time 6/8 c8 d e f g a }", new[] { 3, 3 }, "in threes in a compound meter")]
     [DataRow(@"{ \time 3/4 c8 d e f g a }", new[] { 6 }, "the whole bar under one beam in three-four, as LilyPond does")]
@@ -230,6 +243,7 @@ public class LilyPondBuilderTests
     // ── Accidentals are an engraving decision ───────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     [DataRow(@"\relative c' { \key g \major fis4 g a b }", 0, "the key signature already says F sharp")]
     [DataRow(@"\relative c' { \key g \major f4 g a b }", 1, "F natural in G major has to be cancelled")]
     [DataRow(@"\relative c' { \time 4/4 fis4 fis fis fis | fis4 g a b }", 2, "printed once a bar, and again after the bar line")]
@@ -242,6 +256,7 @@ public class LilyPondBuilderTests
     // ── Keys and meter ──────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     [DataRow("c", "major", 0)]
     [DataRow("g", "major", 1)]
     [DataRow("f", "major", 1)]
@@ -258,6 +273,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     [DataRow(@"{ \time 4/4 c1 }", 1, "common time is the C sign")]
     [DataRow(@"{ \time 2/2 c1 }", 1, "cut time is the ¢ sign")]
     [DataRow(@"{ c1 }", 1, "LilyPond's default meter is 4/4, as C")]
@@ -270,6 +286,7 @@ public class LilyPondBuilderTests
     // ── What hangs on a note ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ATieAndASlurAreCurves() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 c4~ c2. | c4( d e f) }");
@@ -279,12 +296,14 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void MarksAreDrawn_WhetherSpelledOrNamed() => UiThread.Run(() =>
     {
         Assert.AreEqual(4, All(Lay(@"\relative c' { c4-. d-> e\fermata f\trill }"), "articulation").Count);
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ATupletIsNumbered_AndItsTimeScaledSoTheBarStillAddsUp() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 \tuplet 3/2 { c8 d e } \tuplet 3/2 { f8 g a } c4 c4 }");
@@ -294,6 +313,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AChordKeepsEveryNote_OnOneStem() => UiThread.Run(() =>
     {
         var notes = All(Lay(@"\relative c' { \time 4/4 <c e g>2 <g c e>2 }"), "note");
@@ -304,6 +324,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void GraceNotesGoWithTheNoteAfterThem_AndTakeNoTime() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 \grace d8 c4 d e f }");
@@ -313,6 +334,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void TextIsPlacedAboveOrBelow() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 c4^""Fine"" d_""dolce"" e4 f4 }");
@@ -327,6 +349,7 @@ public class LilyPondBuilderTests
     // ── Words and chord names ───────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AChordNameSitsOverTheNoteItStartsOn_AndNamesWhatWroteIt() => UiThread.Run(() =>
     {
         const string Ly = "<<\n  \\new ChordNames \\chordmode { c1 | g1:7 }\n  \\new Staff \\relative c' { \\time 4/4 c4 e g c | b4 d g b }\n>>";
@@ -338,6 +361,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AChordNameIsSpelledTheWayALeadSheetSpellsIt() => UiThread.Run(() =>
     {
         const string Ly = "<<\n  \\new ChordNames \\chordmode { d2:m7 bes2:maj g1:m }\n  \\new Staff \\relative c' { \\time 4/4 c2 d2 | e1 }\n>>";
@@ -346,6 +370,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void LyricsLineUpUnderTheNotes_EachNamingItsSyllable() => UiThread.Run(() =>
     {
         const string Ly = "\\relative c' { \\time 4/4 c4 d e f | g4 a b c }\n\\addlyrics { One two three four five six sev -- en }";
@@ -357,6 +382,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ASyllablesDurationIsNotPrinted_ButAFullStopIs() => UiThread.Run(() =>
     {
         var syllables = All(Lay("\\relative c' { \\time 4/4 c4 d e f }\n\\addlyrics { Ly4 -- rics4. in sky. }"), "syllable");
@@ -364,6 +390,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ARestTakesNoSyllable_AndASlurHoldsOneOverWhatItJoins() => UiThread.Run(() =>
     {
         var layout = Lay("\\relative c' { \\time 4/4 c4 r4 d4( e4) | f1 }\n\\addlyrics { one two three }");
@@ -377,6 +404,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void VersesStack_AndLyricsToFindTheirVoiceByName() => UiThread.Run(() =>
     {
         var stacked = All(Lay("\\relative c' { \\time 4/4 c4 d e f }\n\\addlyrics { one two three four }\n\\addlyrics { ein zwei drei vier }"), "syllable");
@@ -395,6 +423,7 @@ public class LilyPondBuilderTests
     // ── Staves ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void EachNewStaffIsAStaff_WithItsOwnClefAndName_AndTheyAreBracketed() => UiThread.Run(() =>
     {
         var layout = Lay("""
@@ -419,6 +448,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void TwoVoicesOnOneStaffEngraveTheFirst() => UiThread.Run(() =>
     {
         var layout = Lay(@"\new Staff { \time 4/4 << { c'4 d' e' f' } \\ { a4 b c' d' } >> }");
@@ -428,6 +458,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void ADefinitionIsPlayedWhereItIsUsed_InTheMeterThatPlaceIsIn() => UiThread.Run(() =>
     {
         // The melody is written with no meter of its own; where it is used, \global has just set three-four.
@@ -438,6 +469,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void AFileOfDefinitionsEngravesItsRichest() => UiThread.Run(() =>
     {
         var layout = Lay("global = { \\time 4/4 }\ncf = \\relative { \\clef bass \\global c4 c' b a | g a f d }");
@@ -447,6 +479,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void Exercise3_EngravesBothStavesOfThePianoStaff() => UiThread.Run(() =>
     {
         var layout = Lay(
@@ -470,6 +503,7 @@ public class LilyPondBuilderTests
     // ── The header ──────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void TheHeaderGoesWhereLilyPondPrintsEachField_NamingWhatWasWritten() => UiThread.Run(() =>
     {
         const string Ly = "\\header {\n  title = \"Speed the Plough\"\n  subtitle = \"a reel\"\n  composer = \"Trad.\"\n  poet = \"Reel\"\n}\n\\relative c' { c4 d e f }";
@@ -486,6 +520,7 @@ public class LilyPondBuilderTests
     // ── Tolerance ───────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void SchemeDynamicsAndSettingsAreSkipped_NotFatal() => UiThread.Run(() =>
     {
         var layout = Lay("""
@@ -505,6 +540,7 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    [CoversNode("ly-layout")]
     public void CommentsAreNotMusic() => UiThread.Run(() =>
     {
         Assert.AreEqual(4, All(Lay("% a comment with c4 d4 in it\n\\relative c' { c4 d %{ e f %} e f }"), "note").Count);
@@ -518,6 +554,7 @@ public class LilyPondBuilderTests
     /// duration mis-scaled — moves a head, and this is where it shows.
     /// </summary>
     [TestMethod]
+    [CoversNode("ly-layout")]
     [CoversNode("lilypond")]
     public void TheSameTuneInBothNotations_EngravesTheSame() => UiThread.Run(() =>
     {

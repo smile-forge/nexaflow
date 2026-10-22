@@ -53,7 +53,7 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-background-").FullName;
 
-        var version = FileVersionInfo.GetVersionInfo(FindAppExe()).FileVersion ?? "1.0.0.0";
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var workspaces = Path.Combine(configDir, "workcontexts");
         Directory.CreateDirectory(workspaces);
         File.WriteAllText(Path.Combine(workspaces, $"config_{version}.json"), $$"""
@@ -84,7 +84,7 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
                 { "Id": "draw", "ProviderName": "Nexaflow", "Model": "z-image-turbo",  "Kind": "ImageGeneration", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
               "Assignments": {
-                "Conversation":               [ "chat" ],
+                "GeneralIntelligence":        [ "chat" ],
                 "Disambiguation":             [ "chat" ],
                 "HighQualityImageGeneration": [ "draw" ]
               }

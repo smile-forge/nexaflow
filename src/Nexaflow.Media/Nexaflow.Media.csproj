@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- WPF-free media codecs Nexaflow carries as its own source: decoders inherited from elsewhere, kept memory-safe
+       managed code and grown here rather than wrapped as native libraries. Each lives in a folder of its own with
+       its licence beside it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <!-- Optimised in every configuration: a codec is the hottest code a page with a picture runs, and Nexaflow's
+         Debug build is how the app is run day to day. Symbols are still produced. -->
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Jpeg2000\LICENSE" />
+    <None Include="Jpeg\LICENSE.md" />
+    <None Include="Jpeg\README.ijg" />
+    <None Include="Jbig2\LICENSE" />
+    <None Include="Jbig2\NOTICE" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Components" />
+  </ItemGroup>
+
+</Project>

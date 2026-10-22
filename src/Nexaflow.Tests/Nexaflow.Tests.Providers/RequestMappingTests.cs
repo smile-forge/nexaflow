@@ -311,7 +311,7 @@ public class RequestMappingTests
 
         Assert.AreEqual(5, messages.Count);
         var call = messages[2].ToolCalls!.Single();
-        Assert.AreEqual(("c1", "delete_file", "old"), (call.Id, call.Function!.Name, call.Function.Arguments!["name"].ToString()));
+        Assert.AreEqual(("c1", "delete_file", "old"), (call.Id, call.Function!.Name, call.Function.Arguments!["name"]?.ToString()));
         Assert.AreEqual((ChatRole.Tool, "deleted", "delete_file"), (messages[3].Role, messages[3].Content, messages[3].ToolName));
         Assert.AreEqual(ChatRole.User, messages[4].Role);
     }

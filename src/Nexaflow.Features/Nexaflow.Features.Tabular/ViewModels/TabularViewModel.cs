@@ -17,10 +17,11 @@ using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Features.Tabular.Templates;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 
-public sealed partial class TabularViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class TabularViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const long  SmallFileThresholdBytes = 100_000;
     private const int   VisibleWindowSize       = 150;
@@ -39,6 +40,10 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     private FileSample?       _sample;
     private readonly string?  _initialTransformsJson;
 
+    /// <summary>The detected shape in the detector's English, for <see cref="GetContext"/>;
+    /// <see cref="DetectedShapeLabel"/> is the person's.</summary>
+    private string            _detectedShapeForContext = "Detecting…";
+
     private readonly TabularTemplatesConfig _templates;
     private List<TabularTemplate> _pendingChoices = new();
 
@@ -54,7 +59,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     [ObservableProperty] private string  _filePath    = string.Empty;
     [ObservableProperty] private string  _fileName    = string.Empty;
     [ObservableProperty] private string  _encodingName = "?";
-    [ObservableProperty] private string  _detectedShapeLabel = "Detecting…";
+    [ObservableProperty] private string  _detectedShapeLabel = Str.Get("Tabular.Shape.Detecting");
     [ObservableProperty] private long    _fileSizeBytes;
     [ObservableProperty] private int?    _knownRowCount;
     [ObservableProperty] private int     _estimatedRowCount;
@@ -65,7 +70,16 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     /// <c>FileLength / AverageLineByteSize</c>. Falls back to a single-window minimum.</summary>
     public int TotalRowCount => KnownRowCount ?? System.Math.Max(EstimatedRowCount, VisibleWindowSize);
 
-    partial void OnKnownRowCountChanged(int? value)     => OnPropertyChanged(nameof(TotalRowCount));
+    /// <summary>The footer's row count: the file's total once known, otherwise that it is still being counted.</summary>
+    public string RowCountLabel => KnownRowCount is { } rows
+        ? Str.Format("Tabular.Footer.RowsFormat", rows)
+        : Str.Get("Tabular.Footer.RowsCounting");
+
+    partial void OnKnownRowCountChanged(int? value)
+    {
+        OnPropertyChanged(nameof(TotalRowCount));
+        OnPropertyChanged(nameof(RowCountLabel));
+    }
     partial void OnEstimatedRowCountChanged(int value)  => OnPropertyChanged(nameof(TotalRowCount));
     [ObservableProperty] private bool    _isSmallMode;
     [ObservableProperty] private bool    _isLoading = true;
@@ -132,7 +146,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         var sb = new System.Text.StringBuilder();
         sb.Append($"Tabular file '{FileName}' — {EncodingName}, {DescribeDelimiter()}-delimited, " +
                   $"{KnownRowCount?.ToString() ?? "still counting"} rows, " +
-                  $"{Columns.Count} columns. Detected shape: {DetectedShapeLabel}. " +
+                  $"{Columns.Count} columns. Detected shape: {_detectedShapeForContext}. " +
                   $"Mode: {(IsSmallMode ? "small (full-file, sortable)" : "large (windowed)")}.");
 
         if (Columns.Count > 0)
@@ -169,6 +183,33 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
         sb.Append("\nUse read_rows to read the actual cell values for any range of rows.");
         return sb.ToString();
+    }
+
+    /// <summary>The most rows the context preview shows.</summary>
+    private const int PreviewRowCount = 8;
+
+    /// <summary>
+    /// A reminder of the table for the conversation context panel: its size in rows and columns, then a few of its
+    /// first columns over the rows the user selected — or, with none selected, the rows where the grid stands. The
+    /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
+    /// what it shows.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var rows = KnownRowCount is { } known ? known.ToString("N0") : $"~{EstimatedRowCount:N0}";
+        var meta = SelectedRowIndices.Count > 0
+            ? Str.Format("Tabular.Preview.SizeSelectedFormat", rows, Columns.Count, SelectedRowIndices.Count)
+            : Str.Format("Tabular.Preview.SizeFormat", rows, Columns.Count);
+
+        var atFocus = Window.SkipWhile(r => r.AbsoluteIndex < FocalRow);
+        var shown = SelectedRowIndices.Count > 0
+            ? Window.Where(r => SelectedRowIndices.Contains(r.AbsoluteIndex))
+            : atFocus.Any() ? atFocus : Window;
+        var body = TabularPreviewTable.Format(
+            Columns.Select(c => c.Header).ToList(),
+            shown.Take(PreviewRowCount).Select(r => r.Cells));
+
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     public string? GetSecurityContext() => FilePath;
@@ -263,7 +304,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         try
         {
             IsLoading = true;
-            StatusMessage = "Reading sample…";
+            StatusMessage = Str.Get("Tabular.Status.ReadingSample");
             BuildBreadcrumb();
 
             _sample = await Task.Run(() => LineSamplingReader.Read(FilePath));
@@ -275,10 +316,11 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 1,
                 _sample.FileLength / System.Math.Max(_sample.AverageLineByteSize, 1));
 
-            StatusMessage = "Detecting shape…";
+            StatusMessage = Str.Get("Tabular.Status.DetectingShape");
             var shapes = ShapeDetector.DetectAll(_sample);
             var raw    = await PickShapeAsync(shapes);
-            DetectedShapeLabel = raw.Label;
+            _detectedShapeForContext = raw.Label;
+            DetectedShapeLabel       = TabularDisplayText.ShapeLabel(raw);
 
             // Build the DataShape: raw shape + raw header tokens (untrimmed; transforms re-tokenize).
             // First, see if any of the leading "#" comment lines was actually a header in
@@ -301,9 +343,11 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                         // above it; the promoted comment itself is consumed by the readers'
                         // HasHeader skip — counting it in both leadingCommentCount AND
                         // HasHeader eats data row 0 (the very first real row).
-                        commentsToSkip      = i;
+                        commentsToSkip           = i;
+                        // Both labels describe the shape as detected, before its comment row became the header.
+                        _detectedShapeForContext = raw.Label + " (header from comment row)";
+                        DetectedShapeLabel       = Str.Format("Tabular.Shape.HeaderFromCommentFormat", TabularDisplayText.ShapeLabel(raw));
                         raw = raw with { HasHeader = true };
-                        DetectedShapeLabel  = raw.Label + " (header from comment row)";
                         break;
                     }
                 }
@@ -315,8 +359,8 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             if (commentsToSkip > 0)
             {
                 HasComments     = true;
-                CommentTooltip  = "File begins with comment line(s) — skipped:\n\n" +
-                                  string.Join("\n", _sample.LeadingCommentLines.Take(commentsToSkip));
+                CommentTooltip  = Str.Format("Tabular.Status.CommentsSkippedFormat",
+                                             string.Join("\n", _sample.LeadingCommentLines.Take(commentsToSkip)));
             }
 
             // Replay any transforms supplied at construction (ribbon-pin replay path) BEFORE
@@ -385,13 +429,13 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 IsChooseMode = true;
                 RebuildPanelTemplates();
                 IsTemplatePanelOpen = true;
-                _shell.ShowNotification("Multiple templates match this file — choose one to apply.");
+                _shell.ShowNotification(Str.Get("Tabular.Templates.MultipleMatch"));
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
-            _shell.ShowError($"Failed to open tabular file: {ex.Message}");
+            StatusMessage = Str.Format("Tabular.Status.ErrorFormat", ex.Message);
+            _shell.ShowError(Str.Format("Tabular.Status.OpenFailedFormat", ex.Message));
         }
         finally
         {
@@ -700,8 +744,8 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         if (index < 0 || index >= Columns.Count) return;
         var current = Columns[index].Header;
         _shell.ShowPrompt(
-            title:        "Rename column",
-            label:        "New name:",
+            title:        Str.Get("Tabular.Rename.Title"),
+            label:        Str.Get("Tabular.Rename.Label"),
             initialValue: current,
             onConfirm:    async name => await RenameColumnAsync(index, name),
             onCancel:     () => { });
@@ -746,7 +790,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         _templates.Templates.Add(tmpl);
         _shell.SaveFeatureConfig(_templates);
         IsTemplatePopupOpen = false;
-        _shell.ShowNotification($"Saved template '{tmpl.Name}'.");
+        _shell.ShowNotification(Str.Format("Tabular.Templates.SavedFormat", tmpl.Name));
     }
 
     /// <summary>Toolbar toggle for the Apply-Template side panel.</summary>
@@ -769,8 +813,8 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         if (!item.IsCompatible)
         {
             bool ok = await _shell.ConfirmAsync(
-                "Apply template?",
-                "This template was built from a differently-shaped file and may not line up. Apply anyway?");
+                Str.Get("Tabular.Templates.ApplyIncompatibleTitle"),
+                Str.Get("Tabular.Templates.ApplyIncompatibleMessage"));
             if (!ok) return;
         }
         await ApplyTemplateChainAsync(item.Template);

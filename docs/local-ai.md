@@ -407,20 +407,29 @@ maps roles to models:
   cannot run it; choosing one that is not here downloads it with its runtime first, the job keeping its model meanwhile,
   and a job no row used starts on it in every row. Downloads are the app's (`LocalModelDownloads`): one for each model
   however many jobs or workspaces chose it, going on after the page closes and shown again when it opens, with about how
-  long is left read from the last few seconds' speed. The setup wizard starts the downloads of what it chose. The
+  long is left read from the last few seconds' speed. The setup wizard asks who runs a new workspace's AI — Nexaflow's
+  own models or a cloud provider, the two together being set per ability in the grid later — and, for its own models,
+  shows a **Download models** step: the language model, speech in and speech out with the runtime they share, each with
+  what it adds to the download (files on disk left out, the CUDA pack once), the room it takes on the store's drive and
+  what is free, then *Download now* (the app's downloads, followed in the step, going on after the wizard closes) or
+  *Later* (each model offering its download on first use). Where the drive is short only *Later* is offered. After an
+  update, the same step offers what every workspace's Local column now holds and lacks, each model once
+  (`LocalDownloadPlan`). Pictures, video and the picture tools are offered on first use. The
   Downloaded models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are
   never a provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
   the machine's GPUs is listed greyed, never chosen.
 
-In a mixed workspace the frequent, cheap roles — Disambiguation, tool ranking, Analysis, ImageRecognition — default
-to the owned model, which is where API cost actually goes.
+In a workspace that mixes both — set up in the grid, not the wizard — the frequent, cheap roles — Disambiguation, tool
+ranking, Analysis, ImageRecognition — default to the owned model, which is where API cost actually goes.
 
 ### Light work here, heavy work elsewhere
 
-A Conversation, Problem Solving or Analysis row holding both a model on this machine and one elsewhere is not a fallback
-chain: each request goes to the model that suits it (`RequestTriage`). A row of one kind — only models here, or only
-models elsewhere — always uses its first available model.
+A General Intelligence row holding both a model on this machine and one elsewhere is not a fallback chain: each request
+goes to the model that suits it (`RequestTriage`), the Disambiguation model judging it. Light work runs here, and should
+the model here get stuck the one elsewhere takes the request over; heavy work goes elsewhere, and should that model fail
+the user is told — it is never handed down. A row of one kind — only models here, or only models elsewhere — always uses
+its first available model.
 
 **How long a reply may be, and how it ends.** A reply has no fixed limit: it may be as long as the model's context leaves
 room for, its reasoning included. What stops one that has stopped going anywhere is the host's `CircleWatch`: the same
@@ -450,7 +459,7 @@ about that." straight away and reasoned over. Typed requests always reason.
 Every judgement — routing, weighing, a spoken yes or no — is asked without reasoning.
 
 **Long conversations are condensed, not cut.** When the conversation a run continues outgrows half the model's context,
-its older part is condensed by the Analysis model into notes (`IAIService.CondenseConversationAsync`, a part at a time
+its older part is condensed by the General Intelligence model into notes (`IAIService.CondenseConversationAsync`, a part at a time
 where it is longer than the model reads at once); the newest quarter is kept word for word, the notes before it, and the
 AI bar's and the voice conversation's history keep the condensed form. The Conversation page keeps two histories apart:
 earlier sessions are the analysis made when they closed, and this session's older messages, once they outgrow half the
@@ -484,7 +493,7 @@ The harness hands the model what it needs to act and nothing it has to dig for:
 - **The tools follow the work.** A page with more than four tools has the Disambiguation model pick the few the next
   step needs — again whenever an instruction is added or a step's calls are answered, from everything asked and what
   the calls did. Tools the model had listed with `get_client_commands` stay offered.
-- **A call that cannot be read is rewound, not argued with.** It is written again by the Conversation model in a small
+- **A call that cannot be read is rewound, not argued with.** It is written again by the General Intelligence model in a small
   context of its own — the call as written, why it did not read, and an example built from the tool's definition — and
   the call written again takes the attempt's place, so the conversation only ever holds calls that read. Only when that
   fails is the model told why. JSON the model reads is written unescaped (`café`, not `caf\u00E9`).
@@ -872,8 +881,7 @@ Phase 1 is useful on its own — streaming improves the cloud path before any lo
 - onnxruntime-genai's Engine (paged KV, prefix caching, continuous batching) is in its C API only; C# would need our
   own P/Invoke layer. The `Generator` API works without it.
 - onnxruntime-genai defects above; exports per execution provider; architecture support lagging releases. Media on a
-  continuing generator is unsupported in 0.17.1 (an image mid-conversation is dropped without an error) — worth an
-  upstream issue, with the Whisper builder's turbo fix as an upstream PR.
+  continuing generator is unsupported in 0.17.1 (an image mid-conversation is dropped without an error).
 - Every diffusion and music model needs a hand-written C# pipeline (scheduler, tokenizer, sampler).
 - Licences do not block a non-commercial project. espeak-ng (GPL) runs only in our build; whether its generated
   pronunciations may ship as data is worth confirming — Wiktionary's IPA (CC BY-SA, as Crane uses for German) is the

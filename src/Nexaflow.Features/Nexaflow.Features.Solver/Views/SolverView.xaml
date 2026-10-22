@@ -5,6 +5,7 @@
              xmlns:vcv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:local="clr-namespace:Nexaflow.Features.Solver.Views"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="SolverView"
              Background="Transparent">
 
@@ -143,7 +144,7 @@
              nothing. Instantiating the view only once the answer exists reproduces the ordering
              that works everywhere else in the app — a document built before its first layout. -->
         <DataTemplate x:Key="ResultBusyTemplate">
-            <TextBlock Text="Working…" FontSize="12" FontStyle="Italic"
+            <TextBlock Text="{loc:Str Solver.Result.Working}" FontSize="12" FontStyle="Italic"
                        Foreground="{StaticResource TextMutedBrush}"/>
         </DataTemplate>
 
@@ -184,11 +185,11 @@
                     <vc:VerticalTabControl x:Name="ModeRail" Grid.Column="0" Width="74" RailWidth="74"
                                            VerticalAlignment="Top"
                                            SelectionChanged="OnModeRailSelectionChanged">
-                        <vc:VerticalTabItem Header="Calc"  Tag="Calc"
+                        <vc:VerticalTabItem Header="{loc:Str Solver.Mode.Calc}"  Tag="Calc"
                                             AutomationProperties.AutomationId="Solver_Mode_Calc"/>
-                        <vc:VerticalTabItem Header="Latex" Tag="Latex"
+                        <vc:VerticalTabItem Header="{loc:Str Solver.Mode.Latex}" Tag="Latex"
                                             AutomationProperties.AutomationId="Solver_Mode_Latex"/>
-                        <vc:VerticalTabItem Header="Text"  Tag="Text"
+                        <vc:VerticalTabItem Header="{loc:Str Solver.Mode.Text}"  Tag="Text"
                                             AutomationProperties.AutomationId="Solver_Mode_Text"/>
                     </vc:VerticalTabControl>
 
@@ -237,7 +238,7 @@
                                                      Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
-                                                     Placeholder="Type a formula…"/>
+                                                     Placeholder="{loc:Str Solver.Definition.LatexPlaceholder}"/>
 
                             <!-- Named for the prose it holds rather than for its tab: an x:Name of
                                  TextInput would hide UIElement.TextInput on the generated class. -->
@@ -247,7 +248,7 @@
                                                      Markdown="{Binding TextText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
-                                                     Placeholder="Describe the problem…"/>
+                                                     Placeholder="{loc:Str Solver.Definition.TextPlaceholder}"/>
 
                             <!-- Source toggle, then Clear. The calculator has a C key, but the Latex
                                  and Text tabs are driven from the keyboard and had no way to empty the
@@ -259,19 +260,19 @@
                                 <ToggleButton AutomationProperties.AutomationId="Solver_SourceToggle"
                                               Style="{StaticResource TbToggle}"
                                               Content="&lt;/&gt;"
-                                              ToolTip="Type the source instead of the rendered form"
+                                              ToolTip="{loc:Str Solver.Definition.SourceToggleTip}"
                                               Margin="0,0,4,0"
                                               IsChecked="{Binding ShowsSource, Mode=TwoWay}"/>
 
                                 <Button AutomationProperties.AutomationId="Solver_ClearDefinition"
                                         Command="{Binding ClearDefinitionCommand}"
                                         Style="{StaticResource IconButton}"
-                                        Content="&#x2715;" ToolTip="Clear the definition"
+                                        Content="&#x2715;" ToolTip="{loc:Str Solver.Definition.ClearTip}"
                                         Visibility="{Binding HasText, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
 
                             <!-- Calc has no placeholder of its own, so it gets one here. -->
-                            <TextBlock Text="Type something to solve."
+                            <TextBlock Text="{loc:Str Solver.Definition.CalcPlaceholder}"
                                        IsHitTestVisible="False"
                                        Margin="12,10,0,0" FontSize="13"
                                        Foreground="{StaticResource TextMutedBrush}"
@@ -413,7 +414,7 @@
                                   AutomationProperties.AutomationId="Solver_TogglePalette"
                                   IsChecked="{Binding IsPaletteOpen, Mode=TwoWay}"
                                   Style="{StaticResource PaletteFoldChevron}"
-                                  ToolTip="Show or hide the palette"/>
+                                  ToolTip="{loc:Str Solver.Palette.ToggleTip}"/>
                 </Grid>
 
                 <!-- Chip strip -->
@@ -428,6 +429,7 @@
                                     <Button Style="{StaticResource SolverChipButton}"
                                             Command="{Binding RunCommand}"
                                             ToolTip="{Binding Description}"
+                                            vc:AiAbilityGating.Gate="{Binding Gate}"
                                             AutomationProperties.AutomationId="{Binding AutomationId}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"
@@ -441,7 +443,7 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <TextBlock Text="Nothing recognises this yet — keep typing."
+                    <TextBlock Text="{loc:Str Solver.Chips.Empty}"
                                FontSize="12" Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center"
                                Visibility="{Binding HasNoChips, Converter={StaticResource BoolToVis}}"/>
@@ -479,15 +481,15 @@
                                     <DockPanel Grid.Row="0" Margin="0,0,0,6">
                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                             <Button Style="{StaticResource IconButton}" Content="⎘"
-                                                    ToolTip="Copy this answer"
+                                                    ToolTip="{loc:Str Solver.Result.CopyTip}"
                                                     Command="{Binding CopyCommand}"
                                                     AutomationProperties.AutomationId="Solver_Result_Copy"/>
                                             <Button Style="{StaticResource IconButton}" Content="↥"
-                                                    ToolTip="Use this answer as the definition"
+                                                    ToolTip="{loc:Str Solver.Result.UseAsDefinitionTip}"
                                                     Command="{Binding UseAsDefinitionCommand}"
                                                     AutomationProperties.AutomationId="Solver_Result_UseAsDefinition"/>
                                             <Button Style="{StaticResource IconButton}" Content="✕"
-                                                    ToolTip="Remove this result"
+                                                    ToolTip="{loc:Str Solver.Result.RemoveTip}"
                                                     Command="{Binding RemoveCommand}"
                                                     AutomationProperties.AutomationId="Solver_Result_Remove"/>
                                         </StackPanel>
@@ -525,7 +527,7 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <TextBlock Text="Pick a chip above and the answer appears here."
+            <TextBlock Text="{loc:Str Solver.Result.Empty}"
                        FontSize="13" Foreground="{StaticResource TextMutedBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding HasResults, Converter={StaticResource InvBoolVis}}"/>

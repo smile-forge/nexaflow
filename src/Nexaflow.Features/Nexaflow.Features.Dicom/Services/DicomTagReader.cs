@@ -23,9 +23,13 @@ internal static class DicomTagReader
         DicomTag.IssuerOfPatientID,
     ];
 
-    public static IReadOnlyList<DicomTagItem> Read(string path, bool hidePatient)
+    /// <summary>Reads the instance at <paramref name="path"/> into drawer rows. <paramref name="wording"/> supplies the
+    /// words written in place of a value (an unnamed tag, a masked identifier, a sequence, binary data): the drawer
+    /// passes <see cref="DicomTagWording.ForDisplay"/>; left out, it is the assistant's English.</summary>
+    public static IReadOnlyList<DicomTagItem> Read(string path, bool hidePatient, DicomTagWording? wording = null)
     {
         var list = new List<DicomTagItem>();
+        var words = wording ?? DicomTagWording.Assistant;
         DicomDataset ds;
         try { ds = DicomIo.Open(path, FileReadOption.SkipLargeTags).Dataset; }
         catch { return list; }
@@ -33,13 +37,13 @@ internal static class DicomTagReader
         foreach (var item in ds)
         {
             var tag = item.Tag;
-            var name = string.IsNullOrEmpty(tag.DictionaryEntry?.Name) ? "Private / Unknown" : tag.DictionaryEntry.Name;
+            var name = string.IsNullOrEmpty(tag.DictionaryEntry?.Name) ? words.UnknownName : tag.DictionaryEntry.Name;
             var vr = item.ValueRepresentation?.Code ?? string.Empty;
 
             string value;
-            if (hidePatient && Identifying.Contains(tag)) value = "••• (hidden)";
-            else if (item is DicomSequence seq) value = $"‹sequence: {seq.Items.Count} item(s)›";
-            else value = FormatValue(ds, tag);
+            if (hidePatient && Identifying.Contains(tag)) value = words.HiddenValue;
+            else if (item is DicomSequence seq) value = words.SequenceValue(seq.Items.Count);
+            else value = FormatValue(ds, tag, words);
 
             list.Add(new DicomTagItem($"({tag.Group:X4},{tag.Element:X4})", name, vr, value));
         }
@@ -47,7 +51,7 @@ internal static class DicomTagReader
         return list;
     }
 
-    private static string FormatValue(DicomDataset ds, DicomTag tag)
+    private static string FormatValue(DicomDataset ds, DicomTag tag, DicomTagWording words)
     {
         try
         {
@@ -56,7 +60,7 @@ internal static class DicomTagReader
         }
         catch
         {
-            return "‹binary›";
+            return words.BinaryValue;
         }
     }
 }

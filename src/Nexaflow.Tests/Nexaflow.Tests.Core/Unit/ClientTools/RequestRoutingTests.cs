@@ -46,6 +46,9 @@ public class RequestRoutingTests
         /// <summary>How much of its context each reply says the conversation fills; null for a model that does not say.</summary>
         public int? Fills { get; init; }
 
+        /// <summary>Whether a request it is asked to answer fails, as a provider's error does.</summary>
+        public bool Fails { get; init; }
+
         public string Name => name;
         public DataResidency Residency => residency;
         public bool IsAvailable => true;
@@ -57,6 +60,7 @@ public class RequestRoutingTests
             if (last.Contains("Quick or think?")) { Judged++; return Said(Weighing); }
             if (last.Contains("Write the notes")) { Condensings.Add(last); return Said($"NOTES {Condensings.Count}: the user asked about foxes."); }
             if (last.Contains("Most relevant tool numbers")) return Said("1,2,3,4");
+            if (Fails) throw new LlmProviderException($"{name} could not answer.");
             Asked.Add([.. messages]);
             return Said(_replies.Count > 0 ? _replies.Dequeue() : "done", Fills);
         }
@@ -133,7 +137,7 @@ public class RequestRoutingTests
         foreach (var (model, id) in ids) svc.Register(id, model);
 
         var config = new AiConfig { Columns = [.. ids.Select(p => new ProviderModelPair { Id = p.Value, ProviderName = p.Key.Name, Model = "m" })] };
-        config.Assignments["Conversation"] = AbilityChain.Of([.. conversation.Select(m => ids[m])]);
+        config.Assignments["GeneralIntelligence"] = AbilityChain.Of([.. conversation.Select(m => ids[m])]);
         if (judge is not null) config.Assignments["Disambiguation"] = AbilityChain.Of(ids[judge]);
         svc.LoadAbilityConfig(config);
         return svc;
@@ -164,6 +168,30 @@ public class RequestRoutingTests
         var reply = await Service([local, cloud], judge: local).RunAgentAsync(new Page(), "Refactor the parser into three passes.", true, new User());
 
         Assert.AreEqual("from the cloud", reply!.Text, "the row's order gives way to the judgement");
+        Assert.AreEqual(0, local.Asked.Count);
+    }
+
+    [TestMethod]
+    public async Task LightWorkTheMachinesModelFails_IsTakenOverByTheLargerModel()
+    {
+        var cloud = new Model("Claude", DataResidency.LeavesMachine, "from the cloud");
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine) { Judgement = "small", Fails = true };
+
+        var user  = new User();
+        var reply = await Service([cloud, local], judge: local).RunAgentAsync(new Page(), "Rename notes.txt to todo.txt.", true, user);
+
+        Assert.AreEqual("from the cloud", reply!.Text);
+        Assert.IsTrue(cloud.Asked.Single().Any(m => m.Text.Contains("Nexaflow could not answer")), "the larger model is told why it took over");
+    }
+
+    [TestMethod]
+    public async Task HeavyWorkTheLargerModelFails_ReachesTheUser_NeverHandedDown()
+    {
+        var cloud = new Model("Claude", DataResidency.LeavesMachine) { Fails = true };
+        var local = new Model("Nexaflow", DataResidency.StaysOnMachine, "from here") { Judgement = "large" };
+
+        await Assert.ThrowsExactlyAsync<LlmProviderException>(
+            () => Service([cloud, local], judge: local).RunAgentAsync(new Page(), "Refactor the parser into three passes.", true, new User()));
         Assert.AreEqual(0, local.Asked.Count);
     }
 

@@ -1,3 +1,36 @@
 {
-  "Console.Config.Console": "Console"
+  "Console.Config.Console": "Console",
+
+  "Console.Page.Title": "Console",
+
+  "Console.Action.CmdHere": "Cmd Here",
+  "Console.Action.CmdHereTip": "Open a Console tab in this folder",
+
+  "Console.Environments.Title": "Console environments",
+  "Console.Environments.Intro": "An environment is a named shell setup — what it runs on entry and the variables it sets. Opening a console with “Cmd here” asks which environment to use, unless you’ve pinned one to that location below.",
+  "Console.Environments.Add": "+ Add",
+  "Console.Environments.Remove": "✕ Remove",
+  "Console.Environments.NoSelection": "Add or select an environment on the left.",
+  "Console.Environments.NewName": "New Environment",
+  "Console.Environments.DefaultName": "Default",
+  "Console.Environments.CommandPromptName": "Command Prompt",
+  "Console.Environments.NoStartupCommand": "no startup command",
+
+  "Console.Environments.Field.Name": "Name",
+  "Console.Environments.Field.NameTip": "A short, unique label for this environment. Shown in the environments list and in the “Cmd here” picker.",
+  "Console.Environments.Field.NameError": "Each environment needs a unique, non-empty name.",
+  "Console.Environments.Field.TabTitle": "Tab title",
+  "Console.Environments.Field.TabTitleTip": "Text shown on the console tab when this environment is launched. Leave empty to fall back to “Console”.",
+  "Console.Environments.Field.InitialCommand": "Initial command",
+  "Console.Environments.Field.InitialCommandTip": "A command sent automatically once the shell reaches its first prompt — e.g. activate a tool, set up the path, or print a banner. Leave empty for none.",
+  "Console.Environments.Field.Variables": "Environment variables",
+  "Console.Environments.Field.VariablesTip": "Variables overlaid on the shell for this environment. One per line as NAME=value. Applied to the process when the console launches.",
+  "Console.Environments.Field.VariablesHint": "One per line, e.g. NODE_ENV=development",
+
+  "Console.Environments.Locations.Header": "Default environment by location",
+  "Console.Environments.Locations.Help": "When you open a console with “Cmd here” and tick “Always use this environment for this location”, the choice is remembered here so that location skips the picker next time. Removing an entry makes that location ask again. Pinning one location never stops other locations from being asked.",
+  "Console.Environments.Locations.Hint": "These locations always launch with the listed environment, skipping the “Cmd here” picker.",
+  "Console.Environments.Locations.Empty": "No locations have a saved default yet. Open a console with “Cmd here” and tick “Always use this environment for this location” to add one.",
+  "Console.Environments.Locations.EnvTip": "Which environment this location launches with.",
+  "Console.Environments.Locations.RemoveTip": "Remove this location default (the location will ask again next time)"
 }

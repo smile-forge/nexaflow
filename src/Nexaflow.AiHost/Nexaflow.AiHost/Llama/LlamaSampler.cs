@@ -21,11 +21,7 @@ internal sealed unsafe class LlamaSampler : IDisposable
     public LlamaSampler(TokenSampling? sampling, int contextTokens, RepeatBan? ban = null)
     {
         _ban = ban;
-        if (sampling is null)
-        {
-            Handle = LlamaNative.SamplerGreedy();
-            return;
-        }
+        if (sampling is null) return;   // the likeliest each time, read straight from the scores
         Handle = LlamaNative.SamplerChain(LlamaNative.SamplerChainDefaults());
         if (sampling.PresencePenalty != 0) Add(LlamaNative.SamplerPenalties(contextTokens, 1f, 0f, sampling.PresencePenalty));
         if (sampling.TopK > 0)             Add(LlamaNative.SamplerTopK(sampling.TopK));
@@ -34,13 +30,18 @@ internal sealed unsafe class LlamaSampler : IDisposable
         Add(LlamaNative.SamplerDistribution(sampling.Seed ?? LlamaNative.DefaultSeed));
     }
 
+    /// <summary>llama.cpp's sampler chain; none where the request takes the likeliest token each time.</summary>
     public IntPtr Handle { get; private set; }
 
-    /// <summary>Chooses the token after the read that left <paramref name="context"/>'s last scores.</summary>
-    public int Sample(IntPtr context)
+    /// <summary>Chooses the token after the read that left <paramref name="context"/>'s scores for its
+    /// <paramref name="index"/>-th output — -1 the last — over a vocabulary of <paramref name="vocabulary"/> tokens.</summary>
+    public int Sample(IntPtr context, int index, int vocabulary)
     {
-        if (_ban is { } ban) Strike(LlamaNative.Logits(context, -1), ban);
-        int token = LlamaNative.SamplerSample(Handle, context, -1);
+        float* scores = LlamaNative.Logits(context, index);
+        if (_ban is { } ban) Strike(scores, ban);
+        int token = Handle == IntPtr.Zero
+            ? LlamaScores.Likeliest(new ReadOnlySpan<float>(scores, vocabulary))
+            : LlamaNative.SamplerSample(Handle, context, index);
         if (_ban is not null) _written.Add(token);
         return token;
     }

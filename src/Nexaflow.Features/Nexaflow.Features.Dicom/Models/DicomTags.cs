@@ -30,9 +30,9 @@ internal static class DicomTags
 
     /// <summary>
     /// DICOM <c>PatientName</c> is stored as <c>Family^Given^Middle^Prefix^Suffix</c>. Turn it into a
-    /// readable "Given Family" for display.
+    /// readable "Given Family" for display, or <paramref name="fallback"/> when it is absent.
     /// </summary>
-    public static string PersonName(DicomDataset ds, DicomTag tag, string fallback = "(unknown)")
+    public static string PersonName(DicomDataset ds, DicomTag tag, string fallback)
     {
         var raw = Str(ds, tag);
         if (string.IsNullOrEmpty(raw)) return fallback;

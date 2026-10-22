@@ -12,9 +12,9 @@
     <Company>Smile-Forge</Company>
     <Product>Nexaflow</Product>
     <Description>Nexaflow is an open-source Windows shell replacement</Description>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
-    <Version>1.7.0</Version>
+    <AssemblyVersion>1.8.0.0</AssemblyVersion>
+    <FileVersion>1.8.0.0</FileVersion>
+    <Version>1.8.0</Version>
     <NeutralLanguage>en</NeutralLanguage>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Nexaflow</AssemblyName>
@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="NAudio" Version="3.0.1" />
+    <PackageReference Include="NAudio" Version="3.2.0" />
     <PackageReference Include="Updatum" Version="1.4.0" />
   </ItemGroup>
 

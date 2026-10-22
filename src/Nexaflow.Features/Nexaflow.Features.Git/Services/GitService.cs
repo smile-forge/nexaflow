@@ -18,7 +18,8 @@ public sealed record GitStatus(
     string?                      LastCommitHash,
     string?                      LastCommitSubject,
     DateTimeOffset?              LastCommitWhen,
-    IReadOnlyList<string>        LocalBranches)
+    IReadOnlyList<string>        LocalBranches,
+    bool                         IsHeadDetached = false)   // HEAD is detached: Branch then holds libgit2's "(no branch)" marker
 {
     public int StagedCount    => Staged.Count;
     public int ModifiedCount  => Modified.Count;
@@ -148,7 +149,7 @@ public sealed class GitService(string folderPath)
 
         return new GitStatus(head.FriendlyName, upstream, ahead, behind,
                              staged, modified, untracked,
-                             tip?.Sha?[..7], tip?.MessageShort, tip?.Author.When, branches);
+                             tip?.Sha?[..7], tip?.MessageShort, tip?.Author.When, branches, repo.Info.IsHeadDetached);
     }
 
     /// <summary>

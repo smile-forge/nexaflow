@@ -12,7 +12,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Playback + DSP. NAudio matches the version Core already ships. -->
-    <PackageReference Include="NAudio" Version="3.0.1" />
+    <PackageReference Include="NAudio" Version="3.2.0" />
     <!-- Vorbis (.ogg) decode — MediaFoundation can't. NVorbis directly, not the NAudio.Vorbis
          wrapper: that package is built against NAudio 2.x. See VorbisWaveStream. -->
     <PackageReference Include="NVorbis" Version="0.10.5" />

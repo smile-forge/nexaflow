@@ -7,15 +7,15 @@ namespace Nexaflow.Features.Web.Dependencies;
 /// <summary>
 /// The Web tab is a WebView2 host, so it needs the Evergreen WebView2 runtime.
 /// <para>
-/// The PDF reader declares the SAME id — the registry merges them into one About row naming both features.
-/// Keep the name here and in <c>Nexaflow.Features.Pdf</c> identical, and take the description from
-/// <see cref="WebView2Runtime.Description"/>: the merge keeps whichever declaration it meets first, so drift
-/// between the two would show up as a message that changes depending on assembly load order.
+/// A feature that comes to host the browser too declares this SAME id, and the registry merges the declarations into one
+/// About row naming each. Such a declaration takes its name and its description from here and from
+/// <see cref="WebView2Runtime.Description"/>: the merge keeps whichever declaration it meets first, so drift between them
+/// would show up as a message that changes depending on assembly load order.
 /// </para>
 /// </summary>
 public sealed class WebView2Dependency : IExternalDependency
 {
-    /// <summary>Shared with the PDF reader's declaration — see the note above before changing it.</summary>
+    /// <summary>The runtime's one id, whichever feature declares it — see the note above before changing it.</summary>
     public const string DependencyId = "webview2-runtime";
 
     public string Id          => DependencyId;

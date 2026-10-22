@@ -4,6 +4,7 @@ using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Terminal;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -688,7 +689,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 }
                 catch (Exception ex)
                 {
-                    _shell.ShowError($"Could not set '{name}' for the user: {ex.Message}");
+                    _shell.ShowError(Str.Format("Terminal.EnvEdit.UserSetFailed", name, ex.Message));
                     return false;
                 }
 
@@ -1080,7 +1081,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         var active = await _shell.RunOnUiAsync(() => Task.FromResult(Tab?.IsActive ?? false));
         if (!active && Tab is { } tab)
             await _shell.RunOnUiAsync(() =>
-                _shell.ShowNotification("Console: a background command needs your attention — open the tab to see it.", tab));
+                _shell.ShowNotification(Str.Get("Terminal.Console.NeedsAttention"), tab));
     }
 
     // ── Capture helpers ────────────────────────────────────────────────────

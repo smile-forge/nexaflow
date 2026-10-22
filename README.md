@@ -6,7 +6,7 @@ Nexaflow replaces the scattered pile of apps you juggle every day — file explo
 
 The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
-![Version 1.6.0](https://img.shields.io/badge/version-1.6.0-brightgreen)
+![Version 1.8.0](https://img.shields.io/badge/version-1.8.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -43,7 +43,9 @@ A built-in file tree with full-text Windows Search and AI-assisted query refinem
 
 **📝 Editors and viewers that understand their content**
 
-A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
+A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), rich text (.rtf), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. PDFs, RTF and Outlook messages are read and drawn by Nexaflow itself, and a long document opens at once. This list keeps growing — understanding more formats, better, is an ongoing focus.
+
+Photos are edited without touching the file until you save: crop, straighten, adjust, mark up — and, on a capable graphics card, AI enhance, upscale and cut-out. A PDF or a picture of a page converts to Markdown, read on your machine.
 
 It isn't only diagrams. Sheet music engraved from ABC or LilyPond, QR codes, and five barcode families — all drawn from a fenced block, on your machine.
 
@@ -58,23 +60,19 @@ It isn't only diagrams. Sheet music engraved from ABC or LilyPond, QR codes, and
 
 An audio player with spectrum and waveform visualisation, `.lrc` lyrics, and ID3 tag editing. An interactive 3D model viewer supporting STL, OBJ, glTF/glb, FBX, and more. Native video playback. These aren't afterthoughts — they're part of making Nexaflow the one place you actually open things.
 
-**📦 Archives, in place**
-
-Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in the file tree. Open files inside them in their normal viewers. Edit and write changes back. Zip and unzip from the right-click menu.
-
 **⌨️ Terminal and system tools**
 
-A real PTY terminal with shell integration. A live Process Explorer. An installed-apps manager. A system-info dashboard, VirtualDisk mounting, and a registry editor. Inspect any `.exe`, `.dll` or `.sys` and see what it actually is — headers, sections, imports and exports. A Network tab discovers what's on your segments. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
+A real PTY terminal with shell integration. A live Process Explorer. An installed-apps manager. A system-info dashboard, VirtualDisk mounting, and a registry editor. Inspect any `.exe`, `.dll` or `.sys` and see what it actually is — headers, sections, imports and exports. A Network tab discovers what's on your segments. A USB page shows the machine's USB tree live, down to each device's descriptors, with tools for what a device offers — its drives, a phone's files, audio, HID reports — and a Serial terminal for any COM port. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
 
 **🗂️ Organisation built in**
 
 Lightweight project tracking with a backlog workflow. A Product Manager for tracking status across a product tree. A Scratchpad corkboard for loose notes and ideas. Multiple workspaces you can switch between — each with its own context intact.
 
-**🎨 Themes that go further than a colour swap**
+**🎨 Themes**
 
-Nine themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Several paint an illustrated scene behind your work, and the diagrams in your document take the theme's colours too. Text size is yours to set, and every text surface has its own zoom on top of it.
+Its always nice to have a choice and ours comes with colors and subtle animation to make you feel right at home.
 
-**[See all nine →](https://smile-forge.github.io/nexaflow/themes/)**
+**[See all of them →](https://smile-forge.github.io/nexaflow/themes/)**
 
 **🤖 An assistant looking at the same screen you are**
 
@@ -84,6 +82,10 @@ Reading runs on its own; anything that writes asks first, and deletes go to the 
 
 An AI input bar on every window, and a dedicated AI Chat tab with saved history. Pick from Claude, Gemini, OpenAI, or any local model via Ollama — or a combination. It's optional: Nexaflow is a workspace first, and every page works with no provider configured at all.
 
+**🧠 AI that runs on your machine**
+
+With a capable graphics card, Nexaflow runs its own models — no service to install, nothing sent anywhere. A language model for the assistant, sized to the card it finds; speech in and out for dictation and a voice conversation in English, French and German; pictures and video clips; and tools you use yourself — picture restoration, cut-out, and page reading. Put a local model and a cloud model side by side and they share the work: everyday requests stay on your machine, the heavy reasoning goes to the larger model. Pages that hold sensitive data ask before anything leaves the PC.
+
 **[How the AI works →](https://smile-forge.github.io/nexaflow/together/)**
 
 ---
@@ -92,7 +94,7 @@ An AI input bar on every window, and a dedicated AI Chat tab with saved history.
 
 **[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
 
-Requires Windows 10 or 11. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+Requires Windows 10 or 11. AI features are optional — use Nexaflow's own models on an NVIDIA graphics card, a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
 
 Every page's help is online too — the same text F1 shows you in the app: **[the full reference](https://smile-forge.github.io/nexaflow/help/)**.
 
@@ -130,7 +132,9 @@ Concretely:
 
 - **Deeper AI context** — giving the AI more of what it needs to be genuinely useful in the tab you're in, not just adjacent to it
 
-- **Native local model support** — ONNX / DirectML in-process inference, no external service required
+- **Local AI on more machines** — Nexaflow's own models on smaller cards and more vendors' GPUs
+
+- **The USB probe, finished** — raw access to a device, on more of the hardware testers bring us
 
 ---
 

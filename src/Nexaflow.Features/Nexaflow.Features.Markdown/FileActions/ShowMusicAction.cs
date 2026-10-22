@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Markdown.FileActions;
@@ -27,10 +28,10 @@ public class ShowMusicAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "🎼";
-    public string DisplayName            => "Music";
+    public string DisplayName            => Str.Get("Markdown.Action.Music");
     public static string? StaticExperienceId => "/text/music";
     public string ExperienceId           => "/text/music";
-    public string ExperienceDescription  => "Music notation editor";
+    public string ExperienceDescription  => Str.Get("Markdown.Action.MusicDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

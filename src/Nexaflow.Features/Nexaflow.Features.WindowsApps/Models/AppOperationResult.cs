@@ -1,3 +1,5 @@
+using Nexaflow.Visuals.Common.Localization;
+
 namespace Nexaflow.Features.WindowsApps.Models;
 
 /// <summary>
@@ -9,7 +11,10 @@ public sealed record AppOperationResult(bool Success, string? Error)
     public static readonly AppOperationResult Ok = new(true, null);
     public static AppOperationResult Fail(string error) => new(false, error);
 
-    /// <summary>The app's discovery source has no implementation for this operation.</summary>
+    /// <summary>
+    /// The app's discovery source has no implementation for <paramref name="operation"/> — the operation's
+    /// label as the person sees it.
+    /// </summary>
     public static AppOperationResult Unsupported(string operation) =>
-        new(false, $"{operation} isn't available for this kind of app.");
+        new(false, Str.Format("WindowsApps.Error.UnsupportedFormat", operation));
 }

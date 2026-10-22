@@ -86,7 +86,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         AiResponseText    = string.Empty;
         _originTab        = OriginTab();
         AgentContextPaths = [];
-        AiProgressText    = "Considering";
+        AiProgressText    = Str.Get("Shell.AiResponse.Considering");
         AiOverlayState    = AiOverlayState.Running;
         Open();
     });
@@ -135,7 +135,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
 
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
-        AiToolApprovalSummary = $"Approve plan: {plan.Title}";
+        AiToolApprovalSummary = Str.Format("Shell.AiResponse.ApprovePlanFormat", plan.Title);
         ApprovalIsPlan        = true;
         return ShowApprovalAndWait(ct);
     }
@@ -178,7 +178,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     [RelayCommand]
     private void AcceptToolBatch()
     {
-        AiProgressText = "Working";
+        AiProgressText = Str.Get("Shell.AiResponse.Working");
         AiOverlayState = AiOverlayState.Running;
         var tcs = _toolApprovalTcs;
         _toolApprovalTcs = null;
@@ -188,7 +188,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     [RelayCommand]
     private void DenyToolBatch()
     {
-        AiProgressText = $"Declined — asking {AiResponseAiName}";
+        AiProgressText = Str.Format("Shell.AiResponse.DeclinedFormat", AiResponseAiName);
         AiOverlayState = AiOverlayState.Running;
         var tcs = _toolApprovalTcs;
         _toolApprovalTcs = null;

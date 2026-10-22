@@ -10,7 +10,8 @@ namespace Nexaflow.AiHost.Generation;
 /// The model's next turn, streamed as it is generated. The conversation is continued where the model already holds
 /// it — what is new appended against what was read, media included — or read afresh; then tokens are generated one GPU
 /// step at a time until the model ends its turn, the request's limit, or the context's. Every read and every token is
-/// a step of its own, so speech gets in between.
+/// a step of its own — each token read in one round with every other reply the model is writing
+/// (<see cref="TokenRounds"/>) — so speech gets in between.
 /// </summary>
 internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Generate>
 {
@@ -140,6 +141,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var written = new StringBuilder();
         int prompt = conversation.Tokens, generated = 0, thought = 0;
         var circles = new CircleWatch();
+        using var rounds = model.Rounds.Join(conversation, request.Priority, async () => await gpu.NextAsync(request.Priority, model.Spec.Device, CancellationToken.None));
 
         Outcome Stop(StopReason reason, bool continuable, int token)
             => new(reason, written.ToString(), calls, generated, prompt, continuable, model.Model.TokenText(token));
@@ -183,11 +185,8 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             // a reply written in a window, holding few cells, can come to first.
             if (conversation.Tokens + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext)
                 return Stop(StopReason.ContextFull, continuable: false, token);
-            using (await gpu.NextAsync(request.Priority, model.Spec.Device, ct))
-            {
-                ct.ThrowIfCancellationRequested();
-                conversation.Advance(token);
-            }
+            await rounds.AdvanceAsync(token, ct);
+            ct.ThrowIfCancellationRequested();
         }
     }
 }

@@ -106,11 +106,11 @@ public class OwnedModelVoiceTests
 
     private static void AnsweredCleanly(AiResponse? response, RecordingModel model, FolderPage page)
     {
-        Assert.IsNotNull(response, "the run was cancelled or refused\n" + model.Transcript);
-        Assert.IsFalse(response.Text.Contains("_(stopped:"), $"the run stopped at a guard: {response.Text}\n{model.Transcript}");
+        var said = response?.Text ?? throw new AssertFailedException("the run was cancelled or refused, or answered with nothing\n" + model.Transcript);
+        Assert.IsFalse(said.Contains("_(stopped:"), $"the run stopped at a guard: {said}\n{model.Transcript}");
         Assert.IsTrue(model.MalformedBlocks <= Corrections,
             $"the model needed {model.MalformedBlocks} tries to write a tool block the harness could read\n{model.Transcript}");
-        Assert.AreEqual(0, ClientBlockParser.Parse(response.Text, [.. page.GetClientTools().Select(t => t.Name)]).ParseErrors.Count,
+        Assert.AreEqual(0, ClientBlockParser.Parse(said, [.. page.GetClientTools().Select(t => t.Name)]).ParseErrors.Count,
             "the answer holds a tool call nobody ran\n" + model.Transcript);
     }
 

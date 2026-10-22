@@ -110,7 +110,7 @@ public class SpeechInTests
                     new ProviderModelPair { Id = "voice", ProviderName = "Nexaflow", Model = "kokoro-82m", Kind = ModelKind.TextToSpeech },
                     new ProviderModelPair { Id = "chat", ProviderName = "Nexaflow", Model = "gemma-4-e4b-it", Kind = ModelKind.Language },
                 ],
-                Assignments = { ["SpeechIn"] = AbilityChain.Of(Local), ["SpeechOut"] = AbilityChain.Of("voice"), ["Conversation"] = AbilityChain.Of("chat") },
+                Assignments = { ["SpeechIn"] = AbilityChain.Of(Local), ["SpeechOut"] = AbilityChain.Of("voice"), ["GeneralIntelligence"] = AbilityChain.Of("chat") },
             });
             return service;
         }

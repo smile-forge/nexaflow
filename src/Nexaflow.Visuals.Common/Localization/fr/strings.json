@@ -1,5 +1,6 @@
 {
   "Common.Search.Placeholder": "Rechercher",
+  "Common.List.Copy": "Copier",
   "Common.ColorPicker.ThemeDefault": "Défaut du thème",
   "Common.ColorPicker.ThemeDefaultTip": "Utiliser la couleur propre au thème, qui change avec lui",
   "Common.ColorPicker.Eyedropper": "Choisir à l'écran",
@@ -13,5 +14,67 @@
   "Common.ColorPicker.IsCustom": "Couleur personnalisée",
   "Common.Draft.Notice": "Créé pour vous et pas encore enregistré : il n'est conservé que jusqu'à ce que Windows vide ses fichiers temporaires.",
   "Common.Draft.SaveAs": "Enregistrer sous…",
-  "Common.Draft.SaveAsTip": "Le garder où vous voulez"
+  "Common.Draft.SaveAsTip": "Le garder où vous voulez",
+
+
+  "Common.SearchChip.Matches": "{0} résultat(s)",
+  "Common.SearchChip.For": " pour {0}",
+  "Common.SearchChip.PreviousTip": "Résultat précédent",
+  "Common.SearchChip.NextTip": "Résultat suivant",
+  "Common.SearchChip.ClearTip": "Effacer la recherche",
+
+  "Common.Zoom.LabelTip": "Cliquez pour régler le zoom (Ctrl+molette ; Ctrl+0 le réinitialise)",
+
+  "Common.PanZoom.OverviewTip": "Vue d'ensemble — faites glisser pour déplacer la vue",
+  "Common.PanZoom.ZoomOutTip": "Zoom arrière",
+  "Common.PanZoom.ZoomInTip": "Zoom avant",
+  "Common.PanZoom.Fit": "Ajuster",
+  "Common.PanZoom.FitTip": "Ajuster à toute la vue",
+  "Common.PanZoom.ActualSizeTip": "Afficher en taille réelle",
+
+  "Common.Confirm.Confirm": "Confirmer",
+  "Common.Confirm.Cancel": "Annuler",
+
+  "Common.Duration.DaysHoursMinutes": "{0} j {1} h {2} min",
+  "Common.Duration.HoursMinutes": "{0} h {1} min",
+  "Common.Duration.Minutes": "{0} min",
+
+  "Common.Eta.UnderAMinute": "moins d'une minute",
+  "Common.Eta.AboutAMinute": "environ une minute",
+  "Common.Eta.AboutMinutes": "environ {0} minutes",
+  "Common.Eta.AboutAnHour": "environ une heure",
+  "Common.Eta.AboutHours": "environ {0} heures",
+  "Common.Eta.OverADay": "plus d'un jour",
+
+  "Common.Time.JustNow": "à l'instant",
+  "Common.Time.MinuteAgo": "il y a {0} minute",
+  "Common.Time.MinutesAgo": "il y a {0} minutes",
+  "Common.Time.HourAgo": "il y a {0} heure",
+  "Common.Time.HoursAgo": "il y a {0} heures",
+
+  "Common.Swatch.Blue": "Bleu",
+  "Common.Swatch.Cyan": "Cyan",
+  "Common.Swatch.Teal": "Sarcelle",
+  "Common.Swatch.Green": "Vert",
+  "Common.Swatch.Lime": "Citron vert",
+  "Common.Swatch.Yellow": "Jaune",
+  "Common.Swatch.Amber": "Ambre",
+  "Common.Swatch.Orange": "Orange",
+  "Common.Swatch.Red": "Rouge",
+  "Common.Swatch.Pink": "Rose",
+  "Common.Swatch.Purple": "Violet",
+"Common.Swatch.Slate": "Ardoise",
+
+"Common.CloudStatus.OnlineOnly": "Disponible en ligne",
+"Common.CloudStatus.Available": "Disponible sur cet appareil",
+"Common.CloudStatus.AlwaysAvailable": "Toujours disponible sur cet appareil",
+"Common.CloudStatus.SyncPending": "Synchronisation en attente",
+"Common.CloudStatus.PendingUpload": "En attente de chargement",
+"Common.CloudStatus.PendingDownload": "En attente de téléchargement",
+"Common.CloudStatus.Transferring": "Synchronisation en cours",
+"Common.CloudStatus.Error": "Erreur de synchronisation",
+"Common.CloudStatus.Warning": "Demande votre attention",
+"Common.CloudStatus.Excluded": "Non synchronisé",
+"Common.CloudStatus.Shared": "Partagé",
+"Common.CloudStatus.Public": "Partagé avec toute personne disposant du lien"
 }

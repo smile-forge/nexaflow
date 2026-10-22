@@ -112,7 +112,7 @@ public class DocumentTypingTests
         {
             var adds = Ribbon(editor, "Below").Offers.Where(offer => offer.Offer == LayoutOffer.Insert).ToList();
 
-            CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName).ToArray(),
+            CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName?.Invoke()).ToArray(),
                                       adds.Select(offer => offer.Tip).ToArray(), "one for each language, in the table's order");
             Assert.IsTrue(adds.All(offer => offer.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
         }));
@@ -124,7 +124,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Below");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + "_insert:Pie chart");
+            Press(ribbon, Inserting + "_insert:mermaid.pie");
 
             Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Markdown);
             Assert.AreEqual("Below:\n\n".Length + Pie.LastIndexOf("\n```", System.StringComparison.Ordinal), editor.Shown.Current.Caret,
@@ -139,7 +139,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Only");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + "_insert:Pie chart");
+            Press(ribbon, Inserting + "_insert:mermaid.pie");
 
             Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Markdown);
         }));

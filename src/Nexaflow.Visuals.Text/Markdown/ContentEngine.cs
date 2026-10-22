@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -362,7 +363,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         {
             var written = Stretch(body, text);
 
-            return new ContentInset(Unreadable(written, body.Start, $"This could not be read: {error.Message}",
+            return new ContentInset(Unreadable(written, body.Start, Str.Format("Text.Content.CouldNotRead", error.Message),
                                                style, !(language.Writable && writing), room));
         }
     }

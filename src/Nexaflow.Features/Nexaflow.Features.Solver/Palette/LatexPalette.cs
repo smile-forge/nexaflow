@@ -1,3 +1,5 @@
+using Nexaflow.Visuals.Common.Localization;
+
 namespace Nexaflow.Features.Solver.Palette;
 
 /// <summary>
@@ -28,45 +30,45 @@ public static class LatexPalette
     public const int Slots = 8;
 
     // ── Basics ──────────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Basics = Category("latex.basics", "Basics",
+    private static readonly PaletteGroup Basics = Category("latex.basics", static () => Str.Get("Solver.Latex.Basics"),
     [
-        Leaf("latex.basics.frac", "Fractions",
+        Leaf("latex.basics.frac", static () => Str.Get("Solver.Latex.Basics.Fractions"),
         [
             F("a/b", @"\frac{}{}", 3), F("a／b", @"\dfrac{}{}", 3), F("ᵃ⁄ᵇ", @"\tfrac{}{}", 3),
             F("⅟₊", @"\cfrac{}{}", 3), F("¹⁄₂", @"\nicefrac{}{}", 3), F("ₙCᵣ", @"\binom{}{}", 3),
             F("√", @"\sqrt{}", 1), O("/", "/"),
         ]),
-        Leaf("latex.basics.ops", "Operators",
+        Leaf("latex.basics.ops", static () => Str.Get("Solver.Latex.Basics.Operators"),
         [
             O("+", "+"), O("−", "-"), O("×", @"\times"), O("÷", @"\div"),
             O("⋅", @"\cdot"), O("±", @"\pm"), O("∓", @"\mp"), O("∘", @"\circ"),
         ]),
-        Leaf("latex.basics.rel", "Relations",
+        Leaf("latex.basics.rel", static () => Str.Get("Solver.Latex.Basics.Relations"),
         [
             O("=", "="), O("≠", @"\neq"), O("≈", @"\approx"), O("≡", @"\equiv"),
             O("<", "<"), O(">", ">"), O("≤", @"\leq"), O("≥", @"\geq"),
         ]),
-        Leaf("latex.basics.brackets", "Brackets",
+        Leaf("latex.basics.brackets", static () => Str.Get("Solver.Latex.Basics.Brackets"),
         [
             O("(", "("), O(")", ")"), O("[", "["), O("]", "]"),
             O("{", @"\{"), O("}", @"\}"), F("(  )", @"\left( \right)", 8), F("|  |", @"\left| \right|", 8),
         ]),
-        Leaf("latex.basics.powers", "Powers",
+        Leaf("latex.basics.powers", static () => Str.Get("Solver.Latex.Basics.Powers"),
         [
             F("a²", "^{2}"), F("a³", "^{3}"), F("aᵇ", "^{}", 1), F("aᵢ", "_{}", 1),
             F("√", @"\sqrt{}", 1), F("∛", @"\sqrt[3]{}", 1), F("ⁿ√", @"\sqrt[]{}", 3), F("eˣ", "e^{}", 1),
         ]),
-        Leaf("latex.basics.greek", "Greek",
+        Leaf("latex.basics.greek", static () => Str.Get("Solver.Latex.Basics.Greek"),
         [
             S("α", @"\alpha"), S("β", @"\beta"), S("θ", @"\theta"), S("π", @"\pi"),
             S("λ", @"\lambda"), S("μ", @"\mu"), S("σ", @"\sigma"), S("ω", @"\omega"),
         ]),
-        Leaf("latex.basics.sets", "Sets",
+        Leaf("latex.basics.sets", static () => Str.Get("Solver.Latex.Basics.Sets"),
         [
             S("∈", @"\in"), S("∉", @"\notin"), S("⊂", @"\subset"), S("⊆", @"\subseteq"),
             S("∪", @"\cup"), S("∩", @"\cap"), S("∅", @"\emptyset"), S("∖", @"\setminus"),
         ]),
-        Leaf("latex.basics.dots", "Dots",
+        Leaf("latex.basics.dots", static () => Str.Get("Solver.Latex.Basics.Dots"),
         [
             S("⋯", @"\cdots"), S("…", @"\ldots"), S("⋮", @"\vdots"), S("⋱", @"\ddots"),
             S("∞", @"\infty"), O("′", "'"), O("″", "''"), S("°", @"^{\circ}"),
@@ -74,44 +76,44 @@ public static class LatexPalette
     ]);
 
     // ── Numbers ─────────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Numbers = Category("latex.numbers", "Numbers",
+    private static readonly PaletteGroup Numbers = Category("latex.numbers", static () => Str.Get("Solver.Latex.Numbers"),
     [
-        Leaf("latex.numbers.constants", "Constants",
+        Leaf("latex.numbers.constants", static () => Str.Get("Solver.Latex.Numbers.Constants"),
         [
             S("π", @"\pi"), S("e", "e"), S("i", "i"), S("∞", @"\infty"),
             S("φ", @"\varphi"), S("τ", @"\tau"), S("ℏ", @"\hbar"), S("ℓ", @"\ell"),
         ]),
-        Leaf("latex.numbers.fractions", "Vulgar fractions",
+        Leaf("latex.numbers.fractions", static () => Str.Get("Solver.Latex.Numbers.Fractions"),
         [
             F("½", @"\frac{1}{2}"), F("⅓", @"\frac{1}{3}"), F("¼", @"\frac{1}{4}"), F("⅕", @"\frac{1}{5}"),
             F("⅔", @"\frac{2}{3}"), F("¾", @"\frac{3}{4}"), F("⅜", @"\frac{3}{8}"), F("⅝", @"\frac{5}{8}"),
         ]),
-        Leaf("latex.numbers.sets", "Number sets",
+        Leaf("latex.numbers.sets", static () => Str.Get("Solver.Latex.Numbers.Sets"),
         [
             S("ℝ", @"\mathbb{R}"), S("ℤ", @"\mathbb{Z}"), S("ℕ", @"\mathbb{N}"), S("ℚ", @"\mathbb{Q}"),
             S("ℂ", @"\mathbb{C}"), S("∅", @"\varnothing"), S("ℵ", @"\aleph"), S("ℶ", @"\beth"),
         ]),
-        Leaf("latex.numbers.compare", "Compare",
+        Leaf("latex.numbers.compare", static () => Str.Get("Solver.Latex.Numbers.Compare"),
         [
             O("≤", @"\leq"), O("≥", @"\geq"), O("≪", @"\ll"), O("≫", @"\gg"),
             O("≈", @"\approx"), O("∝", @"\propto"), O("∼", @"\sim"), O("≅", @"\cong"),
         ]),
-        Leaf("latex.numbers.modular", "Modular",
+        Leaf("latex.numbers.modular", static () => Str.Get("Solver.Latex.Numbers.Modular"),
         [
             O("mod", @"\bmod"), F("(mod n)", @"\pmod{}", 1), F("(n)", @"\pod{}", 1), O("mod", @"\mod"),
             Fn("gcd", @"\gcd"), O("≡", @"\equiv"), O("∤", @"\nmid"), O("|", "|"),
         ]),
-        Leaf("latex.numbers.scientific", "Scientific",
+        Leaf("latex.numbers.scientific", static () => Str.Get("Solver.Latex.Numbers.Scientific"),
         [
             F("×10ˣ", @"\times 10^{}", 1), F("a⁻¹", "^{-1}"), O("±", @"\pm"), O("≈", @"\approx"),
             O("⋅", @"\cdot"), O("≪", @"\ll"), O("≫", @"\gg"), S("°", @"^{\circ}"),
         ]),
-        Leaf("latex.numbers.factorials", "Factorials",
+        Leaf("latex.numbers.factorials", static () => Str.Get("Solver.Latex.Numbers.Factorials"),
         [
             O("n!", "!"), F("ₙCᵣ", @"\binom{}{}", 3), F("ₙCᵣ", @"\dbinom{}{}", 3), F("ₙCᵣ", @"\tbinom{}{}", 3),
             F("∏", @"\prod_{}^{}", 4), S("Γ", @"\Gamma"), Fn("gcd", @"\gcd"), O("mod", @"\bmod"),
         ]),
-        Leaf("latex.numbers.misc", "Misc",
+        Leaf("latex.numbers.misc", static () => Str.Get("Solver.Latex.Numbers.Misc"),
         [
             S("ℜ", @"\Re"), S("ℑ", @"\Im"), S("℘", @"\wp"), S("⊙", @"\odot"),
             S("†", @"\dagger"), S("‡", @"\ddagger"), S("§", @"\S"), S("¶", @"\P"),
@@ -119,47 +121,47 @@ public static class LatexPalette
     ]);
 
     // ── Calculus ────────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Calculus = Category("latex.calculus", "Calculus",
+    private static readonly PaletteGroup Calculus = Category("latex.calculus", static () => Str.Get("Solver.Latex.Calculus"),
     [
-        Leaf("latex.calc.derivatives", "Derivatives",
+        Leaf("latex.calc.derivatives", static () => Str.Get("Solver.Latex.Calculus.Derivatives"),
         [
             O("∂", @"\partial"), F("d/dx", @"\frac{d}{dx}"), F("∂/∂x", @"\frac{\partial}{\partial x}"),
             F("d²/dx²", @"\frac{d^{2}}{dx^{2}}"), O("′", "'"), O("″", "''"),
             F("ȧ", @"\dot{}", 1), F("ä", @"\ddot{}", 1),
         ]),
-        Leaf("latex.calc.integrals", "Integrals",
+        Leaf("latex.calc.integrals", static () => Str.Get("Solver.Latex.Calculus.Integrals"),
         [
             O("∫", @"\int"), F("∫ᵇₐ", @"\int_{}^{}", 4), O("∮", @"\oint"), O("∬", @"\iint"),
             O("∭", @"\iiint"), O("⨌", @"\iiiint"), O("∯", @"\oiint"), O("∰", @"\oiiint"),
         ]),
-        Leaf("latex.calc.big", "Big operators",
+        Leaf("latex.calc.big", static () => Str.Get("Solver.Latex.Calculus.BigOperators"),
         [
             F("∑", @"\sum_{}^{}", 4), F("∏", @"\prod_{}^{}", 4), O("∐", @"\coprod"), O("⋃", @"\bigcup"),
             O("⋂", @"\bigcap"), O("⨁", @"\bigoplus"), O("⨂", @"\bigotimes"), O("⋁", @"\bigvee"),
         ]),
-        Leaf("latex.calc.limits", "Limits",
+        Leaf("latex.calc.limits", static () => Str.Get("Solver.Latex.Calculus.Limits"),
         [
             F("lim", @"\lim_{x \to 0}", 8), F("lim ∞", @"\lim_{x \to \infty}"),
             F("limsup", @"\limsup_{n}", 1), F("liminf", @"\liminf_{n}", 1),
             Fn("sup", @"\sup"), Fn("inf", @"\inf"), Fn("max", @"\max"), Fn("min", @"\min"),
         ]),
-        Leaf("latex.calc.vector", "Vector",
+        Leaf("latex.calc.vector", static () => Str.Get("Solver.Latex.Calculus.Vector"),
         [
             O("∇", @"\nabla"), F("a⃗", @"\vec{}", 1), F("A⃗B", @"\overrightarrow{}", 1), F("â", @"\hat{}", 1),
             O("⋅", @"\cdot"), O("×", @"\times"), O("‖", @"\|"), O("⊥", @"\perp"),
         ]),
-        Leaf("latex.calc.differentials", "Differentials",
+        Leaf("latex.calc.differentials", static () => Str.Get("Solver.Latex.Calculus.Differentials"),
         [
             O("dx", @"\,dx"), O("dy", @"\,dy"), O("dt", @"\,dt"), O("dθ", @"\,d\theta"),
             O("∂x", @"\partial x"), O("dA", @"\,dA"), O("dV", @"\,dV"), O("dS", @"\,dS"),
         ]),
-        Leaf("latex.calc.series", "Series",
+        Leaf("latex.calc.series", static () => Str.Get("Solver.Latex.Calculus.Series"),
         [
             F("∑₀^∞", @"\sum_{n=0}^{\infty}"), F("∏₁^∞", @"\prod_{n=1}^{\infty}"),
             F("limₙ", @"\lim_{n \to \infty}"), S("⋯", @"\cdots"),
             S("⋯", @"\dotsb"), S("∞", @"\infty"), F("ₙCᵣ", @"\binom{n}{k}"), S("→", @"\to"),
         ]),
-        Leaf("latex.calc.complex", "Complex",
+        Leaf("latex.calc.complex", static () => Str.Get("Solver.Latex.Calculus.Complex"),
         [
             S("i", "i"), S("ℜ", @"\Re"), S("ℑ", @"\Im"), F("z̄", @"\bar{}", 1),
             Fn("arg", @"\arg"), F("e^iθ", @"e^{i\theta}"), F("|z|", @"\left| \right|", 8), S("∠", @"\angle"),
@@ -167,88 +169,89 @@ public static class LatexPalette
     ]);
 
     // ── Greek ───────────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Greek = Category("latex.greek", "Greek",
+    // The letter groups are named by the letters they hold, which read the same in every language.
+    private static readonly PaletteGroup Greek = Category("latex.greek", static () => Str.Get("Solver.Latex.Greek"),
     [
-        Leaf("latex.greek.lower1", "α – θ",
+        Leaf("latex.greek.lower1", static () => "α – θ",
         [
             S("α", @"\alpha"), S("β", @"\beta"), S("γ", @"\gamma"), S("δ", @"\delta"),
             S("ε", @"\varepsilon"), S("ζ", @"\zeta"), S("η", @"\eta"), S("θ", @"\theta"),
         ]),
-        Leaf("latex.greek.lower2", "ι – ρ",
+        Leaf("latex.greek.lower2", static () => "ι – ρ",
         [
             S("ι", @"\iota"), S("κ", @"\kappa"), S("λ", @"\lambda"), S("μ", @"\mu"),
             S("ν", @"\nu"), S("ξ", @"\xi"), S("π", @"\pi"), S("ρ", @"\rho"),
         ]),
-        Leaf("latex.greek.lower3", "σ – ω",
+        Leaf("latex.greek.lower3", static () => "σ – ω",
         [
             S("σ", @"\sigma"), S("τ", @"\tau"), S("υ", @"\upsilon"), S("φ", @"\varphi"),
             S("χ", @"\chi"), S("ψ", @"\psi"), S("ω", @"\omega"), S("ϑ", @"\vartheta"),
         ]),
-        Leaf("latex.greek.caps1", "Γ – Υ",
+        Leaf("latex.greek.caps1", static () => "Γ – Υ",
         [
             S("Γ", @"\Gamma"), S("Δ", @"\Delta"), S("Θ", @"\Theta"), S("Λ", @"\Lambda"),
             S("Ξ", @"\Xi"), S("Π", @"\Pi"), S("Σ", @"\Sigma"), S("Υ", @"\Upsilon"),
         ]),
-        Leaf("latex.greek.caps2", "Φ – Ω",
+        Leaf("latex.greek.caps2", static () => "Φ – Ω",
         [
             S("Φ", @"\Phi"), S("Ψ", @"\Psi"), S("Ω", @"\Omega"), S("∇", @"\nabla"),
         ]),
-        Leaf("latex.greek.variants", "Variants",
+        Leaf("latex.greek.variants", static () => Str.Get("Solver.Latex.Greek.Variants"),
         [
             S("ε", @"\epsilon"), S("ϵ", @"\varepsilon"), S("ϑ", @"\vartheta"), S("ϖ", @"\varpi"),
             S("ϱ", @"\varrho"), S("ς", @"\varsigma"), S("φ", @"\varphi"), S("ϕ", @"\phi"),
         ]),
-        Leaf("latex.greek.italiccaps", "Italic caps",
+        Leaf("latex.greek.italiccaps", static () => Str.Get("Solver.Latex.Greek.ItalicCaps"),
         [
             S("Γ", @"\varGamma"), S("Δ", @"\varDelta"), S("Θ", @"\varTheta"), S("Λ", @"\varLambda"),
             S("Ξ", @"\varXi"), S("Π", @"\varPi"), S("Σ", @"\varSigma"), S("Ω", @"\varOmega"),
         ]),
-        Leaf("latex.greek.hebrew", "Hebrew",
+        Leaf("latex.greek.hebrew", static () => Str.Get("Solver.Latex.Greek.Hebrew"),
         [
             S("ℵ", @"\aleph"), S("ℶ", @"\beth"), S("ℷ", @"\gimel"), S("ℸ", @"\daleth"),
         ]),
     ]);
 
     // ── Logic & sets ────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Logic = Category("latex.logic", "Logic & sets",
+    private static readonly PaletteGroup Logic = Category("latex.logic", static () => Str.Get("Solver.Latex.Logic"),
     [
-        Leaf("latex.logic.arrows", "Arrows",
+        Leaf("latex.logic.arrows", static () => Str.Get("Solver.Latex.Logic.Arrows"),
         [
             S("→", @"\rightarrow"), S("←", @"\leftarrow"), S("↔", @"\leftrightarrow"), S("↦", @"\mapsto"),
             S("⇒", @"\Rightarrow"), S("⇐", @"\Leftarrow"), S("⇔", @"\Leftrightarrow"), S("↪", @"\hookrightarrow"),
         ]),
-        Leaf("latex.logic.longarrows", "Long arrows",
+        Leaf("latex.logic.longarrows", static () => Str.Get("Solver.Latex.Logic.LongArrows"),
         [
             S("⟶", @"\longrightarrow"), S("⟵", @"\longleftarrow"), S("⟹", @"\Longrightarrow"),
             S("⟸", @"\Longleftarrow"), S("⟺", @"\Longleftrightarrow"), S("↑", @"\uparrow"),
             S("↓", @"\downarrow"), S("⇀", @"\rightharpoonup"),
         ]),
-        Leaf("latex.logic.logic", "Logic",
+        Leaf("latex.logic.logic", static () => Str.Get("Solver.Latex.Logic.Logic"),
         [
             S("∀", @"\forall"), S("∃", @"\exists"), S("∄", @"\nexists"), S("¬", @"\neg"),
             S("∧", @"\land"), S("∨", @"\lor"), S("⊤", @"\top"), S("⊥", @"\bot"),
         ]),
-        Leaf("latex.logic.implies", "Implication",
+        Leaf("latex.logic.implies", static () => Str.Get("Solver.Latex.Logic.Implication"),
         [
             S("→", @"\to"), S("⟹", @"\implies"), S("⟸", @"\impliedby"), S("⟺", @"\iff"),
             S("⊢", @"\vdash"), S("⊨", @"\models"),
         ]),
-        Leaf("latex.logic.setrel", "Set relations",
+        Leaf("latex.logic.setrel", static () => Str.Get("Solver.Latex.Logic.SetRelations"),
         [
             S("∈", @"\in"), S("∉", @"\notin"), S("∋", @"\ni"), S("⊂", @"\subset"),
             S("⊆", @"\subseteq"), S("⊃", @"\supset"), S("⊇", @"\supseteq"), S("⊄", @"\nsubseteq"),
         ]),
-        Leaf("latex.logic.setops", "Set operations",
+        Leaf("latex.logic.setops", static () => Str.Get("Solver.Latex.Logic.SetOperations"),
         [
             S("∪", @"\cup"), S("∩", @"\cap"), S("∖", @"\setminus"), S("∅", @"\emptyset"),
             S("⊕", @"\oplus"), S("⊗", @"\otimes"), S("∗", @"\ast"), S("⋆", @"\star"),
         ]),
-        Leaf("latex.logic.negated", "Negated",
+        Leaf("latex.logic.negated", static () => Str.Get("Solver.Latex.Logic.Negated"),
         [
             S("≮", @"\nless"), S("≯", @"\ngtr"), S("≰", @"\nleq"), S("≱", @"\ngeq"),
             S("≁", @"\nsim"), S("≇", @"\ncong"), S("∤", @"\nmid"), S("∦", @"\nparallel"),
         ]),
-        Leaf("latex.logic.order", "Order",
+        Leaf("latex.logic.order", static () => Str.Get("Solver.Latex.Logic.Order"),
         [
             S("≺", @"\prec"), S("≻", @"\succ"), S("≪", @"\ll"), S("≫", @"\gg"),
             S("≍", @"\asymp"), S("≃", @"\simeq"), S("∼", @"\sim"), S("∝", @"\propto"),
@@ -256,48 +259,48 @@ public static class LatexPalette
     ]);
 
     // ── Delimiters & accents ────────────────────────────────────────────────
-    private static readonly PaletteGroup Delimiters = Category("latex.delim", "Delimiters",
+    private static readonly PaletteGroup Delimiters = Category("latex.delim", static () => Str.Get("Solver.Latex.Delimiters"),
     [
-        Leaf("latex.delim.brackets", "Brackets",
+        Leaf("latex.delim.brackets", static () => Str.Get("Solver.Latex.Delimiters.Brackets"),
         [
             O("(", "("), O(")", ")"), O("[", "["), O("]", "]"),
             O("{", @"\{"), O("}", @"\}"), O("⟨", @"\langle"), O("⟩", @"\rangle"),
         ]),
-        Leaf("latex.delim.floors", "Floors & bars",
+        Leaf("latex.delim.floors", static () => Str.Get("Solver.Latex.Delimiters.Floors"),
         [
             O("⌊", @"\lfloor"), O("⌋", @"\rfloor"), O("⌈", @"\lceil"), O("⌉", @"\rceil"),
             O("|", "|"), O("‖", @"\|"), F("|x|", @"\lvert \rvert", 7), F("‖v‖", @"\lVert \rVert", 7),
         ]),
-        Leaf("latex.delim.auto", "Auto-sized",
+        Leaf("latex.delim.auto", static () => Str.Get("Solver.Latex.Delimiters.AutoSized"),
         [
             F("(  )", @"\left( \right)", 8), F("[  ]", @"\left[ \right]", 8),
             F("{  }", @"\left\{ \right\}", 9), F("|  |", @"\left| \right|", 8),
             F("‖  ‖", @"\left\| \right\|", 9), F("⟨  ⟩", @"\left\langle \right\rangle", 15),
             F("⌊  ⌋", @"\left\lfloor \right\rfloor", 15), F("  |ₐ", @"\left. \right|_{}", 1),
         ]),
-        Leaf("latex.delim.sizes", "Sizes",
+        Leaf("latex.delim.sizes", static () => Str.Get("Solver.Latex.Delimiters.Sizes"),
         [
             O("big", @"\big"), O("Big", @"\Big"), O("bigg", @"\bigg"), O("Bigg", @"\Bigg"),
             O("bigl", @"\bigl"), O("bigr", @"\bigr"), O("Bigl", @"\Bigl"), O("Bigr", @"\Bigr"),
         ]),
-        Leaf("latex.delim.accents", "Accents",
+        Leaf("latex.delim.accents", static () => Str.Get("Solver.Latex.Delimiters.Accents"),
         [
             F("â", @"\hat{}", 1), F("ā", @"\bar{}", 1), F("ȧ", @"\dot{}", 1), F("ä", @"\ddot{}", 1),
             F("ã", @"\tilde{}", 1), F("a⃗", @"\vec{}", 1), F("á", @"\acute{}", 1), F("à", @"\grave{}", 1),
         ]),
-        Leaf("latex.delim.wide", "Wide accents",
+        Leaf("latex.delim.wide", static () => Str.Get("Solver.Latex.Delimiters.WideAccents"),
         [
             F("â̂", @"\widehat{}", 1), F("ã̃", @"\widetilde{}", 1), F("a̅", @"\overline{}", 1),
             F("a̲", @"\underline{}", 1), F("ǎ", @"\check{}", 1), F("ă", @"\breve{}", 1),
             F("å", @"\mathring{}", 1), F("á", @"\acute{}", 1),
         ]),
-        Leaf("latex.delim.over", "Arrows over",
+        Leaf("latex.delim.over", static () => Str.Get("Solver.Latex.Delimiters.ArrowsOver"),
         [
             F("A⃗B", @"\overrightarrow{}", 1), F("A⃖B", @"\overleftarrow{}", 1),
             F("A⃡B", @"\overleftrightarrow{}", 1), F("AB⃗", @"\underrightarrow{}", 1),
             F("AB⃖", @"\underleftarrow{}", 1), F("AB⃡", @"\underleftrightarrow{}", 1),
         ]),
-        Leaf("latex.delim.extensible", "Labelled arrows",
+        Leaf("latex.delim.extensible", static () => Str.Get("Solver.Latex.Delimiters.LabelledArrows"),
         [
             F("→ᶠ", @"\xrightarrow{}", 1), F("←ᶠ", @"\xleftarrow{}", 1), F("⇒ᶠ", @"\xRightarrow{}", 1),
             F("⇐ᶠ", @"\xLeftarrow{}", 1), F("↔ᶠ", @"\xleftrightarrow{}", 1), F("↦ᶠ", @"\xmapsto{}", 1),
@@ -305,44 +308,44 @@ public static class LatexPalette
     ]);
 
     // ── Functions ───────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Functions = Category("latex.fn", "Functions",
+    private static readonly PaletteGroup Functions = Category("latex.fn", static () => Str.Get("Solver.Latex.Functions"),
     [
-        Leaf("latex.fn.trig", "Trig",
+        Leaf("latex.fn.trig", static () => Str.Get("Solver.Latex.Functions.Trig"),
         [
             Fn("sin", @"\sin"), Fn("cos", @"\cos"), Fn("tan", @"\tan"),
             Fn("cot", @"\cot"), Fn("sec", @"\sec"), Fn("csc", @"\csc"),
         ]),
-        Leaf("latex.fn.inverse", "Inverse",
+        Leaf("latex.fn.inverse", static () => Str.Get("Solver.Latex.Functions.Inverse"),
         [
             Fn("arcsin", @"\arcsin"), Fn("arccos", @"\arccos"), Fn("arctan", @"\arctan"),
             Fn("sin⁻¹", @"\sin^{-1}"), Fn("cos⁻¹", @"\cos^{-1}"), Fn("tan⁻¹", @"\tan^{-1}"),
         ]),
-        Leaf("latex.fn.hyperbolic", "Hyperbolic",
+        Leaf("latex.fn.hyperbolic", static () => Str.Get("Solver.Latex.Functions.Hyperbolic"),
         [
             Fn("sinh", @"\sinh"), Fn("cosh", @"\cosh"), Fn("tanh", @"\tanh"), Fn("coth", @"\coth"),
         ]),
-        Leaf("latex.fn.logs", "Logarithms",
+        Leaf("latex.fn.logs", static () => Str.Get("Solver.Latex.Functions.Logarithms"),
         [
             Fn("ln", @"\ln"), Fn("log", @"\log"), Fn("lg", @"\lg"),
             Fn("exp", @"\exp"), F("logₙ", @"\log_{}", 1), F("eˣ", "e^{}", 1),
         ]),
-        Leaf("latex.fn.named", "Named ops",
+        Leaf("latex.fn.named", static () => Str.Get("Solver.Latex.Functions.NamedOps"),
         [
             Fn("arg", @"\arg"), Fn("det", @"\det"), Fn("dim", @"\dim"), Fn("gcd", @"\gcd"),
             Fn("ker", @"\ker"), Fn("hom", @"\hom"), Fn("deg", @"\deg"), Fn("Pr", @"\Pr"),
         ]),
-        Leaf("latex.fn.bounds", "Bounds",
+        Leaf("latex.fn.bounds", static () => Str.Get("Solver.Latex.Functions.Bounds"),
         [
             Fn("sup", @"\sup"), Fn("inf", @"\inf"), Fn("max", @"\max"), Fn("min", @"\min"),
             F("limsup", @"\limsup_{n}", 1), F("liminf", @"\liminf_{n}", 1),
         ]),
-        Leaf("latex.fn.amslimits", "Categorical",
+        Leaf("latex.fn.amslimits", static () => Str.Get("Solver.Latex.Functions.Categorical"),
         [
             F("injlim", @"\injlim_{n}", 1), F("projlim", @"\projlim_{n}", 1),
             F("varinjlim", @"\varinjlim_{n}", 1), F("varprojlim", @"\varprojlim_{n}", 1),
             F("varliminf", @"\varliminf_{n}", 1), F("varlimsup", @"\varlimsup_{n}", 1),
         ]),
-        Leaf("latex.fn.probability", "Probability",
+        Leaf("latex.fn.probability", static () => Str.Get("Solver.Latex.Functions.Probability"),
         [
             Fn("Pr", @"\Pr"), S("𝔼", @"\mathbb{E}"), S("ℙ", @"\mathbb{P}"), O("|", "|"),
             O("∼", @"\sim"), S("μ", @"\mu"), S("σ", @"\sigma"), S("ρ", @"\rho"),
@@ -350,16 +353,16 @@ public static class LatexPalette
     ]);
 
     // ── Structures ──────────────────────────────────────────────────────────
-    private static readonly PaletteGroup Structures = Category("latex.struct", "Structures",
+    private static readonly PaletteGroup Structures = Category("latex.struct", static () => Str.Get("Solver.Latex.Structures"),
     [
-        Leaf("latex.struct.matrices", "Matrices",
+        Leaf("latex.struct.matrices", static () => Str.Get("Solver.Latex.Structures.Matrices"),
         [
             F("( )", Matrix("pmatrix")), F("[ ]", Matrix("bmatrix")), F("| |", Matrix("vmatrix")),
             F("‖ ‖", Matrix("Vmatrix")), F("{ }", Matrix("Bmatrix")), F("▦", Matrix("matrix")),
             F("small", Matrix("smallmatrix")),
             F("array", "\\begin{array}{cc}\n a & b \\\\\n c & d\n\\end{array}"),
         ]),
-        Leaf("latex.struct.align", "Cases & align",
+        Leaf("latex.struct.align", static () => Str.Get("Solver.Latex.Structures.CasesAlign"),
         [
             F("{ …", "\\begin{cases}\n a & x < 0 \\\\\n b & x \\ge 0\n\\end{cases}"),
             F("align", "\\begin{aligned}\n a &= b \\\\\n &= c\n\\end{aligned}"),
@@ -367,35 +370,35 @@ public static class LatexPalette
             O("&", " & "), F(@"\\", " \\\\\n"), F("text", @"\text{}", 1),
             F("stack", @"\substack{}", 1),
         ]),
-        Leaf("latex.struct.overunder", "Over & under",
+        Leaf("latex.struct.overunder", static () => Str.Get("Solver.Latex.Structures.OverUnder"),
         [
             F("over‾", @"\overbrace{}^{}", 4), F("under_", @"\underbrace{}_{}", 4),
             F("a̅", @"\overline{}", 1), F("a̲", @"\underline{}", 1),
             F("aᵇ", @"\overset{}{}", 3), F("aᵦ", @"\underset{}{}", 3), F("→ᶠ", @"\stackrel{}{}", 3),
         ]),
-        Leaf("latex.struct.fracstyles", "Fraction styles",
+        Leaf("latex.struct.fracstyles", static () => Str.Get("Solver.Latex.Structures.FractionStyles"),
         [
             F("a/b", @"\frac{}{}", 3), F("a／b", @"\dfrac{}{}", 3), F("ᵃ⁄ᵇ", @"\tfrac{}{}", 3),
             F("⅟₊", @"\cfrac{}{}", 3), F("¹⁄₂", @"\nicefrac{}{}", 3), F("³⁄₄", @"\sfrac{}{}", 3),
             F("ₙCᵣ", @"\binom{}{}", 3), F("ₙCᵣ", @"\dbinom{}{}", 3),
         ]),
-        Leaf("latex.struct.scripts", "Sub & superscript",
+        Leaf("latex.struct.scripts", static () => Str.Get("Solver.Latex.Structures.Scripts"),
         [
             F("aᵇ", "^{}", 1), F("aᵢ", "_{}", 1), F("aᵢᵇ", "_{}^{}", 4), F("a²", "^{2}"),
             F("a³", "^{3}"), F("a⁻¹", "^{-1}"), F("eˣ", "e^{}", 1), F("10ˣ", "10^{}", 1),
         ]),
-        Leaf("latex.struct.roots", "Roots",
+        Leaf("latex.struct.roots", static () => Str.Get("Solver.Latex.Structures.Roots"),
         [
             F("√", @"\sqrt{}", 1), F("∛", @"\sqrt[3]{}", 1), F("ⁿ√", @"\sqrt[]{}", 3), S("√", @"\surd"),
         ]),
-        Leaf("latex.struct.arrays", "Arrays",
+        Leaf("latex.struct.arrays", static () => Str.Get("Solver.Latex.Structures.Arrays"),
         [
             F("lcr", "\\begin{array}{lcr}\n a & b & c \\\\\n d & e & f\n\\end{array}"),
             F("│", "\\begin{array}{cc|c}\n 1 & 0 & 3 \\\\\n 0 & 1 & 4\n\\end{array}"),
             F("▤", "\\begin{array}{|c|c|}\n\\hline\n x & y \\\\\n\\hline\n\\end{array}"),
             O("─", @"\hline"), F("⋯", @"\hdotsfor{2}"), O("&", " & "), F(@"\\", " \\\\\n"),
         ]),
-        Leaf("latex.struct.multiline", "Multiline",
+        Leaf("latex.struct.multiline", static () => Str.Get("Solver.Latex.Structures.Multiline"),
         [
             F("multline", "\\begin{multline}\n a + b \\\\\n + c + d\n\\end{multline}"),
             F("split", "\\begin{split}\n a &= b \\\\\n &= c\n\\end{split}"),
@@ -427,18 +430,18 @@ public static class LatexPalette
     /// fixed ring and simply drops a ninth group, so the mistake shows up as a category nobody can
     /// reach rather than as anything that looks wrong.
     /// </summary>
-    private static PaletteGroup Category(string id, string label, IReadOnlyList<PaletteGroup> groups)
+    private static PaletteGroup Category(string id, Func<string> label, IReadOnlyList<PaletteGroup> groups)
         => groups.Count <= Slots
             ? new PaletteGroup(id, label, [], groups)
             : throw new InvalidOperationException(
-                $"the {label} category has {groups.Count} groups; the navigator shows at most {Slots}");
+                $"the {id} category has {groups.Count} groups; the navigator shows at most {Slots}");
 
     /// <summary>A group of symbols, padded out to the ring's eight positions.</summary>
-    private static PaletteGroup Leaf(string id, string label, IReadOnlyList<PaletteKey> keys)
+    private static PaletteGroup Leaf(string id, Func<string> label, IReadOnlyList<PaletteKey> keys)
         => keys.Count <= Slots
-            ? new PaletteGroup(id, label, PaletteText.Fill(keys, Slots))
+            ? new PaletteGroup(id, label, PaletteText.Fill(keys, Slots), [])
             : throw new InvalidOperationException(
-                $"the {label} group has {keys.Count} keys; the navigator shows at most {Slots}");
+                $"the {id} group has {keys.Count} keys; the navigator shows at most {Slots}");
 
     /// <summary>A symbol key. Inserted with a trailing space so commands don't run together.</summary>
     private static PaletteKey S(string label, string command)

@@ -153,20 +153,74 @@ public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, do
     /// </summary>
     public DoubleCollection? Dashes { get; init; }
 
+    /// <summary>
+    /// How the outline's ends, corners and dashes are drawn, or null for a pen's own — see <see cref="LayoutPen"/>.
+    /// </summary>
+    public LayoutPen? Outline { get; init; }
+
     /// <summary>A filled shape in whatever colour the content did not ask for.</summary>
     public static GeometryMark Filled(Geometry shape, Brush? fill = null) => new(shape, fill, null, 0);
 
     public override void PaintOn(DrawingContext dc, Brush fallback)
     {
-        Pen? pen = null;
-        if (Stroke is not null || Thickness > 0)
-        {
-            pen = new Pen(Stroke ?? fallback, Thickness);
-            if (Dashes is { Count: > 0 }) pen.DashStyle = new DashStyle(Dashes, 0);
-            pen.Freeze();
-        }
+        var pen = Stroke is not null || Thickness > 0 ? PenFor(Stroke ?? fallback) : null;
 
         dc.DrawGeometry(Fill is null && pen is not null ? null : Fill ?? fallback, pen, Shape);
+    }
+
+    /// <summary>
+    /// The pen the outline is drawn with in <paramref name="ink"/>, built and frozen the first time it is asked for and handed
+    /// over from then on. A page of outlines is painted again on every caret blink and every scroll, and a pen built for each
+    /// paint is a pen and its dashes made and frozen for every outline, every time.
+    /// </summary>
+    private Pen PenFor(Brush ink)
+    {
+        if (_penned is { } built && ReferenceEquals(built.Mark, this) && ReferenceEquals(built.Ink, ink)) return built.Pen!;
+
+        var pen = new Pen(ink, Thickness);
+
+        if (Outline is { } outline)
+        {
+            pen.StartLineCap = outline.StartCap;
+            pen.EndLineCap = outline.EndCap;
+            pen.DashCap = outline.DashCap;
+            pen.LineJoin = outline.Join;
+            pen.MiterLimit = outline.MiterLimit;
+        }
+
+        if (Dashes is { Count: > 0 }) pen.DashStyle = new DashStyle(Dashes, Outline?.DashOffset ?? 0);
+        pen.Freeze();
+
+        _penned = new Penned(this, ink, pen);
+        return pen;
+    }
+
+    private Penned _penned = Penned.None;
+
+    /// <summary>
+    /// The pen a mark last built, with what it was built for: the mark itself, because a copy made with <c>with</c> starts from
+    /// the original's fields and may differ in what its pen is made of, and the ink, because a mark in no colour of its own is
+    /// drawn in whatever the theme hands it.
+    ///
+    /// <para>
+    /// Equal to every other, so whether two marks are equal is still a question of what they draw, and never of whether one of
+    /// them has been painted yet.
+    /// </para>
+    /// </summary>
+    private sealed class Penned(GeometryMark? mark, Brush? ink, Pen? pen)
+    {
+        /// <summary>What a mark holds before it has built a pen.</summary>
+        public static readonly Penned None = new(null, null, null);
+
+        public GeometryMark? Mark { get; } = mark;
+
+        public Brush? Ink { get; } = ink;
+
+        public Pen? Pen { get; } = pen;
+
+        public override bool Equals(object? obj) => obj is Penned;
+
+        public override int GetHashCode() => 0;
     }
 }
 
@@ -195,10 +249,26 @@ public sealed record PictureMark(ImageSource Picture, Rect Bounds) : LayoutMark
 {
     public override Rect Covers => Bounds;
 
-    public override void PaintOn(DrawingContext dc, Brush fallback) => dc.DrawImage(Picture, Bounds);
+    public override void PaintOn(DrawingContext dc, Brush fallback) => Draw(dc, Bounds);
 
-    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) =>
-        dc.DrawImage(Picture, Rect.Offset(Bounds, offset));
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) => Draw(dc, Rect.Offset(Bounds, offset));
+
+    /// <summary>
+    /// The picture into <paramref name="box"/>, resampled by area: drawn smaller than its pixels, each pixel shown averages
+    /// the pixels it covers — what a scanned page's dither or a photograph fitted to a column must look like — where WPF's
+    /// default samples between neighbours and aliases. Software rendering resamples by Fant, hardware by mipmap. Its edges
+    /// fall on whole device pixels, unblended: they are its pixels' edges, and pictures laid edge to edge — a formula
+    /// exported as a strip of pictures a pixel tall — meet with no seam of the background showing through.
+    /// </summary>
+    private void Draw(DrawingContext dc, Rect box)
+    {
+        var drawing = new DrawingGroup();
+        RenderOptions.SetBitmapScalingMode(drawing, BitmapScalingMode.HighQuality);
+        RenderOptions.SetEdgeMode(drawing, EdgeMode.Aliased);
+        drawing.Children.Add(new ImageDrawing(Picture, box));
+        if (drawing.CanFreeze) drawing.Freeze();
+        dc.DrawDrawing(drawing);
+    }
 }
 
 /// <summary>

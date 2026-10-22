@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Projects.Views;
@@ -27,13 +28,19 @@ public sealed class CompletionStatusToBrushConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
-/// <summary><see cref="CompletionStatus"/> → display text (with the apostrophe in "shouldn't").</summary>
+/// <summary><see cref="CompletionStatus"/> → its display word, from the language pack.</summary>
 public sealed class CompletionStatusToDisplayConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is CompletionStatus s
-            ? (s == CompletionStatus.Shouldnt ? "shouldn't" : s.ToString().ToLowerInvariant())
-            : string.Empty;
+        => value is CompletionStatus s ? CriterionStatusLabel(s) : string.Empty;
+
+    private static string CriterionStatusLabel(CompletionStatus status) => status switch
+    {
+        CompletionStatus.Should   => Str.Get("Projects.Detail.Criterion.Should"),
+        CompletionStatus.Shouldnt => Str.Get("Projects.Detail.Criterion.Shouldnt"),
+        CompletionStatus.Done     => Str.Get("Projects.Detail.Criterion.Done"),
+        _                         => Str.Get("Projects.Detail.Criterion.Faulted"),
+    };
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }

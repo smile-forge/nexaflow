@@ -25,10 +25,9 @@ namespace Nexaflow.Tests.Features.Pdf.UI;
 /// </para>
 /// <para>
 /// Each panel assertion is on <em>content</em>, not on a control existing: the Properties tab has to show the
-/// document's real title, and the Contents tab has to list its real bookmarks. Clicking a Contents row is
-/// asserted only when the renderer accepts page navigation at all — the embedded PDF viewer is Edge's and its
-/// handling of a page fragment isn't contractual, so the journey records that it couldn't be checked rather
-/// than failing a build over someone else's renderer.
+/// document's real title, and the Contents tab has to list its real bookmarks. The pages are Nexaflow's own drawing,
+/// so every reader control is asserted on what it did: a Contents row and the page buttons move the page number,
+/// the zoom buttons change the zoom, and a search for a word the page carries reports its hit.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
 /// </summary>
@@ -66,10 +65,10 @@ public class PdfJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>Double-clicks a file in the browser — the default-open path, which is what we're testing.</summary>
-    private AutomationElement? DoubleClickOpen(string fileName, int seconds = 20)
+    private AutomationElement? DoubleClickOpen(string fileName, int seconds = 20, string? folder = null)
     {
         CloseReaderTab();
-        NavigateFileBrowserTo(PdfFolder);
+        NavigateFileBrowserTo(folder ?? PdfFolder);
 
         var row = WaitForName(fileName, 8);
         Assert.IsNotNull(row, $"File '{fileName}' not found in the file list.");
@@ -118,6 +117,8 @@ public class PdfJourneyTests : UiJourneyTestBase
     [CoversNode("pdf-open-action")]
     [CoversNode("pdf-panel-properties")]
     [CoversNode("pdf-panel-toc")]
+    [CoversNode("pdf-panel-pages")]
+    [CoversNode("pdf-page-edits")]
     public void Pdf_Controls_RespondInOnePass()
     {
         // ── A readable document: the panel, its content, and its toggle ──────────────────
@@ -125,10 +126,12 @@ public class PdfJourneyTests : UiJourneyTestBase
         Assert.IsNotNull(view, "Double-clicking a .pdf did not open the Nexaflow reader — check the "
                              + "/document/pdf/read filemap entry and ShowPdfAction.");
 
-        CheckPresent("Properties tab", "Pdf_Tab_Properties");
+        // The Pages tab is shown first; the properties are read on their own tab.
+        CheckPresent("Properties tab", "Pdf_Tab_Properties")?.Click();
+        Wait.UntilInputIsProcessed();
         CheckPresent("Contents tab", "Pdf_Tab_Contents");
         CheckPresent("Panel splitter", "Pdf_Splitter");
-        CheckPresent("File name", "Pdf_FileName");
+        CheckPresent("Extract the images", "Pdf_ExtractImages");
 
         // The panel's actual content: the title lives only in the document's /Info dictionary, so seeing it
         // proves PdfPig parsed the document rather than the view merely rendering.
@@ -137,6 +140,31 @@ public class PdfJourneyTests : UiJourneyTestBase
         // Hiding the panel has to actually hide it — a toggle that leaves the panel there is a defect.
         CheckDoes("Panel toggle", "Pdf_TogglePanel", () => WaitForId(PanelProxy, 2) is null);
         CheckDoes("Panel toggle (restore)", "Pdf_TogglePanel", () => WaitForId(PanelProxy, 4) is not null);
+
+        // ── The pages: drawn here, and sized and searched here ──────────────────────────
+        CheckPresent("Pages", "Pdf_Pages");
+        Check("Page count says the document has one page",
+              () => WaitForId("Pdf_PageCount", 6) is { } count && count.Name.Contains('1'));
+
+        var zoomBefore = WaitForId("Pdf_Zoom", 4)?.Name ?? string.Empty;
+        CheckDoes("Zoom in", "Pdf_ZoomIn", () => WaitForId("Pdf_Zoom", 2)?.Name is { } now && now != zoomBefore);
+        CheckDoes("Zoom out", "Pdf_ZoomOut", () => WaitForId("Pdf_Zoom", 2)?.Name == zoomBefore);
+        CheckDoes("Fit width", "Pdf_FitWidth", () => WaitForId("Pdf_Zoom", 2)?.Name is { Length: > 0 });
+        CheckDoes("Fit page", "Pdf_FitPage", () => WaitForId("Pdf_Zoom", 2)?.Name is { Length: > 0 });
+        CheckPresent("Print", "Pdf_Print");
+
+        var find = CheckPresent("Find box", "Pdf_Find");
+        if (find is not null)
+        {
+            find.AsTextBox().Text = PdfSamples.BodyNeedle;
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+            Wait.UntilInputIsProcessed();
+            Check("Find reports the word the page carries",
+                  () => WaitForId("Pdf_FindStatus", 8) is { } status && status.Name.Contains('1'));
+        }
+
+        CheckDoes("Find next", "Pdf_FindNext", () => WaitForId("Pdf_FindStatus", 4)?.Name is { Length: > 0 });
+        CheckDoes("Find previous", "Pdf_FindPrevious", () => WaitForId("Pdf_FindStatus", 4)?.Name is { Length: > 0 });
 
         // ── An outlined document: the contents tree ─────────────────────────────────────
         Assert.IsNotNull(DoubleClickOpen("outline.pdf"), "The reader did not open for outline.pdf.");
@@ -153,28 +181,144 @@ public class PdfJourneyTests : UiJourneyTestBase
         Check("Contents lists the nested bookmark",
               () => WaitForName(PdfSamples.OutlineChildTitle, 6) is not null);
 
-        // Clicking a row can only be asserted where the renderer honours page navigation. When it doesn't the
-        // rows are deliberately inert, and the journey says so instead of failing over it.
+        // A contents row goes to its page, and the page buttons step from there.
         var row = WaitForName(PdfSamples.OutlineSecondTitle, 6);
-        if (row is not null && row.IsEnabled)
+        Check("Contents lists the second chapter", () => row is not null);
+        if (row is not null)
         {
             row.Click();
             Wait.UntilInputIsProcessed();
-            Check("Clicking a contents row leaves the reader intact",
-                  () => WaitForId("PdfView", 6) is not null && !App.HasExited);
+            Check("Clicking a contents row goes to its page", () => PageNumberIs("3", 6));
         }
+
+        CheckDoes("Previous page", "Pdf_PreviousPage", () => PageNumberIs("2", 4));
+        CheckDoes("Next page", "Pdf_NextPage", () => PageNumberIs("3", 4));
 
         // ── A scanned document: the notice above it, where this machine can read pages ─────────
         Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
+
         if (WaitForId("Pdf_ConvertScans", 10) is not null)
         {
-            // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
+            // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the
+            // Markdown; while its banner speaks, the notice offering it is put away.
             CheckDoes("Convert the scanned pages to Markdown", "Pdf_ConvertScans",
                       () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+            if (WaitForId("PageConversion_Status", 1) is not null)
+                Check("The notice gives way to the conversion's banner", () => WaitForGone("Pdf_ConvertScans", 3));
             if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
             if (WaitForId("PageConversion_Stop", 1) is not null)
-                CheckDoes("Stop reading the scanned pages", "PageConversion_Stop", () => WaitForGone("PageConversion_Stop", 5));
-            CheckDoes("Hide the scans notice", "Pdf_ScansNoticeDismiss", () => WaitForGone("Pdf_ConvertScans", 3));
+            {
+                // Stop asks first, the reading going on while it does; kept, it goes on, and let go, the banner goes.
+                CheckDoes("Ask to stop reading the scanned pages", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
+                CheckDoes("Keep converting", "PageConversion_KeepReading", () => WaitForId("PageConversion_Stop", 3) is not null);
+                CheckDoes("Ask to stop again", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
+                CheckDoes("Discard what was read", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
+            }
+            if (WaitForId("Pdf_ConvertScans", 3) is not null)
+                CheckDoes("Hide the scans notice", "Pdf_ScansNoticeDismiss", () => WaitForGone("Pdf_ConvertScans", 3));
+        }
+
+        // Any document converts to Markdown, every page of it read, where this machine can read pages; stopped part-way,
+        // what was read so far can open as a draft.
+if (WaitForId("Pdf_ConvertDocument", 2) is not null)
+{
+    // A stopped reading lets go of the page it was on before the conversion is free again — until then both convert
+    // buttons stand disabled, so a stop above is waited out here rather than taken for a button that does nothing.
+    WaitForFs(() => WaitForId("Pdf_ConvertDocument", 1)?.IsEnabled == true, 30);
+    CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
+              () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
+    if (WaitForId("PageConversion_Stop", 1) is not null)
+    {
+        CheckDoes("Ask to stop reading the document", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
+        if (WaitForId("PageConversion_ShowSoFar", 1) is not null)
+            CheckDoes("Show what is converted so far", "PageConversion_ShowSoFar", () => WaitForId("Markdown_Save", 8) is not null);
+        else
+            CheckDoes("Discard the reading", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
+    }
+}
+
+        // ── Editing the pages: a copy of the outlined document, so the sample stays as it is ──
+        var copies = TestTemp.CreateSubdirectory("pdf-pages").FullName;
+        System.IO.File.Copy(TestSampleData.Path("pdf", "outline.pdf"), System.IO.Path.Combine(copies, "pages.pdf"));
+        Assert.IsNotNull(DoubleClickOpen("pages.pdf", folder: copies), "The reader did not open the copy to edit.");
+
+        var pagesTab = CheckPresent("Pages tab", "Pdf_Tab_Pages");
+        pagesTab?.Click();
+        Wait.UntilInputIsProcessed();
+
+        var thumbnails = CheckPresent("Page thumbnails", "Pdf_Thumbnails", 10);
+        Check("A thumbnail for every page", () => Thumbnails(thumbnails).Length == 3);
+        Check("Each thumbnail shows its page", () => ThumbnailsDrawn(thumbnails, 10));
+        Check("Each thumbnail is named for its page", () => Thumbnails(thumbnails) is { Length: 3 } named
+            && named.Select((row, index) => row.Name.EndsWith((index + 1).ToString(), StringComparison.Ordinal) && !row.Name.Contains("Nexaflow.")).All(ok => ok));
+        CheckPresent("Undo", "Pdf_Undo");
+        CheckPresent("Redo", "Pdf_Redo");
+        CheckPresent("Save as", "Pdf_SaveAs");
+
+        if (Thumbnails(thumbnails) is { Length: 3 } rows)
+        {
+            rows[1].Click();
+            Wait.UntilInputIsProcessed();
+            Check("Clicking a thumbnail goes to its page", () => PageNumberIs("2", 6));
+
+            // The page's own menu, and the menu between two pages.
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Delete the page", "Pdf_Thumb_Delete", 3);
+            CheckPresent("Insert a picture before it", "Pdf_Thumb_InsertImageBefore", 2);
+            CheckPresent("Insert a picture after it", "Pdf_Thumb_InsertImageAfter", 2);
+            CheckPresent("Insert a PDF before it", "Pdf_Thumb_InsertPdfBefore", 2);
+            CheckPresent("Insert a PDF after it", "Pdf_Thumb_InsertPdfAfter", 2);
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Wait.UntilInputIsProcessed();
+
+            var below = rows[2].BoundingRectangle;
+            RightClickAt(new System.Drawing.Point(below.X + below.Width / 2, below.Bottom + 6));
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Insert a picture between pages", "Pdf_Gap_InsertImage", 3);
+            CheckPresent("Insert a PDF between pages", "Pdf_Gap_InsertPdf", 2);
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Wait.UntilInputIsProcessed();
+
+            // Split the page: the bar it is set up in, cancelled; then split into halves, and undone.
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Split the page", "Pdf_Thumb_Split", 3)?.Click();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("How many pages each sheet holds", "Pdf_Split_Parts", 3);
+            CheckPresent("How the pages sit on the sheet", "Pdf_Split_Direction", 2);
+            CheckPresent("Unfold a booklet", "Pdf_Split_Booklet", 2);
+            CheckDoes("Cancel the split", "Pdf_Split_Cancel", () => WaitForId("Pdf_Split_Apply", 1) is null);
+
+            rows[1].RightClick();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("Split the page again", "Pdf_Thumb_Split", 3)?.Click();
+            Wait.UntilInputIsProcessed();
+            CheckDoes("Split it into halves", "Pdf_Split_Apply", () => PageCountIs('4', 4));
+            CheckDoes("Undo the split", "Pdf_Undo", () => PageCountIs('3', 4));
+
+            // Delete the page selected, undo it, redo it: the page count follows each. The split undone gave the
+            // page a new row, so the rows are found again.
+            (Thumbnails(thumbnails) is { Length: 3 } again ? again[1] : rows[1]).Click();
+            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
+            Wait.UntilInputIsProcessed();
+            Check("Delete takes the page out", () => PageCountIs('2', 6));
+            Check("The edits can be saved as another file", () => WaitForId("Pdf_SaveAs", 2)?.IsEnabled == true);
+            CheckDoes("Undo the delete", "Pdf_Undo", () => PageCountIs('3', 4));
+            CheckDoes("Redo the delete", "Pdf_Redo", () => PageCountIs('2', 4));
+
+            // Alt+Up moves the page selected up a place; the edit is staged until Save.
+            if (Thumbnails(thumbnails) is { Length: 2 } left)
+            {
+                left[1].Click();
+                Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.ALT, FlaUI.Core.WindowsAPI.VirtualKeyShort.UP);
+                Wait.UntilInputIsProcessed();
+            }
+
+            CheckDoes("Save the page edits", "Pdf_Save", () => WaitForId("Pdf_Save", 2)?.IsEnabled == false);
+
+            Assert.IsNotNull(DoubleClickOpen("pages.pdf", folder: copies), "The saved copy did not open again.");
+            Check("The saved file has the pages left", () => PageCountIs('2', 10));
         }
 
         // ── A corrupt document: the panel still opens, and says why it is empty ─────────
@@ -186,5 +330,56 @@ public class PdfJourneyTests : UiJourneyTestBase
               () => WaitForId("Pdf_PanelStatus", 10) is { } status && ValueOf(status).Length > 0);
 
         AssertJourney();
+    }
+
+    /// <summary>Whether the reader's page box shows <paramref name="page"/> within <paramref name="seconds"/>.</summary>
+    private bool PageNumberIs(string page, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            if (WaitForId("Pdf_PageNumber", 1) is { } box && ValueOf(box) == page) return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
+    }
+
+    /// <summary>Whether the toolbar's page count shows <paramref name="pages"/> within <paramref name="seconds"/>.</summary>
+    private bool PageCountIs(char pages, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            if (WaitForId("Pdf_PageCount", 1) is { } count && count.Name.Contains(pages)) return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
+    }
+
+    /// <summary>The rows of the Pages tab, top to bottom.</summary>
+    private static AutomationElement[] Thumbnails(AutomationElement? list) =>
+        list?.FindAllChildren(cf => cf.ByControlType(ControlType.ListItem)) ?? [];
+
+    /// <summary>
+    /// Whether every thumbnail in view shows its page's picture: a thumbnail's image has no size until its picture is
+    /// drawn into it.
+    /// </summary>
+    private static bool ThumbnailsDrawn(AutomationElement? list, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            var rows = Thumbnails(list);
+            if (rows.Length > 0 && rows.All(row => row.FindFirstDescendant(cf => cf.ByControlType(ControlType.Image)) is { BoundingRectangle.Width: > 0 }))
+                return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
     }
 }

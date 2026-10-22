@@ -221,6 +221,9 @@ internal sealed class MarkdownDelimiters
         /// <summary>Whether a link written as raw HTML is open — no address written bare is a link inside one.</summary>
         private bool _anchored;
 
+        /// <summary>Whether a quote was read — so the words, once read, have quotes to pair (<see cref="MarkdownQuotes"/>).</summary>
+        private bool _quoted;
+
         /// <summary>The thread's matching, or a new one where it is in use already.</summary>
         public static Matching Taken()
         {
@@ -271,6 +274,7 @@ internal sealed class MarkdownDelimiters
             _named.Clear();
             _replayed = 0;
             _anchored = false;
+            _quoted = false;
 
             var place = tokens.Start;
             var end = tokens.End;
@@ -313,6 +317,11 @@ internal sealed class MarkdownDelimiters
                         this.Anchors(token);
                         break;
 
+                    case MarkdownTokenKind.Quotation:
+                        this.Added(Shape.Token, token);
+                        _quoted = true;
+                        break;
+
                     // The next line's words start where its own characters do, past whatever its containers put in front of them.
                     case MarkdownTokenKind.Break or MarkdownTokenKind.HardBreak:
                         this.Added(Shape.Token, token);
@@ -329,7 +338,9 @@ internal sealed class MarkdownDelimiters
 
             this.Emphasise(-1);
 
-            return this.Pieces(_head, -1, _tokens.Start, end);
+            var pieces = this.Pieces(_head, -1, _tokens.Start, end);
+
+            return _quoted ? MarkdownQuotes.Paired(pieces) : pieces;
         }
 
         /// <summary>
@@ -823,6 +834,17 @@ internal sealed class MarkdownDelimiters
 
                 case MarkdownTokenKind.Entity:
                     return this.Leaf(MarkdownKinds.Entity, token.Start, token.End, Roles.Element);
+
+                // Punctuation drawn as the typographer's, and an emoji written as its name: each its own piece, like an entity. A quote
+                // says here which way it faces; whether anything pairs it is settled over the whole of the words (MarkdownQuotes).
+                case MarkdownTokenKind.Typographic:
+                    return this.Leaf(MarkdownKinds.Typographic, token.Start, token.End, Roles.Element);
+
+                case MarkdownTokenKind.Quotation:
+                    return this.Leaf(MarkdownKinds.Typographic, token.Start, token.End, token.Opens ? MarkdownRoles.LeftQuote : MarkdownRoles.RightQuote);
+
+                case MarkdownTokenKind.Shortcode:
+                    return this.Leaf(MarkdownKinds.Shortcode, token.Start, token.End, Roles.Element);
 
                 case MarkdownTokenKind.Html:
                     return this.Spanning(MarkdownKinds.Html, token.Start, token.End, Roles.Element);

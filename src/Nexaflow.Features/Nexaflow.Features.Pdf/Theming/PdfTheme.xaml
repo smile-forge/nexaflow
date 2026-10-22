@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Feature-owned theme tokens (merged below the active theme, so any theme may retune them by key).
+         A PDF page is paper: the document's own colours are drawn on it as the document gives them, so the paper is
+         white unless a theme decides readers want it otherwise. Selection and search hits are washed over the page's
+         ink, so they are translucent. -->
+
+    <Color x:Key="Pdf.PaperColor">#FFFFFFFF</Color>
+    <SolidColorBrush x:Key="Pdf.Paper" Color="{StaticResource Pdf.PaperColor}"/>
+
+    <Color x:Key="Pdf.SelectionColor">#553399FF</Color>
+    <SolidColorBrush x:Key="Pdf.Selection" Color="{StaticResource Pdf.SelectionColor}"/>
+
+    <Color x:Key="Pdf.FindHitColor">#66FFD700</Color>
+    <SolidColorBrush x:Key="Pdf.FindHit" Color="{StaticResource Pdf.FindHitColor}"/>
+
+    <Color x:Key="Pdf.FindCurrentColor">#99FF8C00</Color>
+    <SolidColorBrush x:Key="Pdf.FindCurrent" Color="{StaticResource Pdf.FindCurrentColor}"/>
+
+</ResourceDictionary>

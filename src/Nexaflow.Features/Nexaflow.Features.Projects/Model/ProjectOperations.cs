@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects.Model;
 
@@ -173,7 +174,7 @@ public class ProjectOperations : IProjectTools
         if (counts.Count == 0) return string.Empty;
         var sb = new StringBuilder();
         sb.AppendLine("```mermaid");
-        sb.AppendLine("pie showData title Backlog by status");
+        sb.Append("pie showData title ").AppendLine(Str.Get("Projects.List.StatusChartTitle"));
         foreach (var (def, count) in counts)
             sb.AppendLine($"    \"{def.Label.Replace('"', '\'')}\" : {count}");
         sb.AppendLine("```");

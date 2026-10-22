@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.13.1" />
     <!-- Editor surface (Editor/): the read-write Edit Text host. -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

@@ -340,6 +340,10 @@ public static class LayoutQuery
             var distance = piece.Region is null ? floor : DistanceTo(piece, point);
             if (distance > bestDistance) continue;
 
+            if (ToUncut(piece, where, point) is not { } cut) continue;
+            distance = Math.Max(distance, cut);
+            if (distance > bestDistance) continue;
+
             var depth = piece.Depth;
             if (distance == bestDistance && depth <= bestDepth) continue;
 
@@ -779,10 +783,48 @@ public static class LayoutQuery
 
     /// <summary>
     /// Whether a press lands in what a piece stands in, once its box has said it might: the shape it occupies, for a piece
-    /// that occupies one, and otherwise the box that already said yes.
+    /// that occupies one, and otherwise the box that already said yes — and in what every clip round it leaves of it.
     /// </summary>
     private static bool Inside(Piece piece, Point point) =>
-        piece.Region is not { } region || region.FillContains(Local(piece, point));
+        (piece.Region is not { } region || region.FillContains(Local(piece, point))) && Uncut(piece, point);
+
+    /// <summary>
+    /// Whether a point is inside the clip of a piece and of everything holding it — whether anything of the piece is painted
+    /// there at all. See <see cref="LayoutPaint.Clip"/>.
+    /// </summary>
+    private static bool Uncut(Piece piece, Point point)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at.Painting?.Clip is { } clip && !clip.FillContains(Local(at, point))) return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// How far a point is from what the clips round a piece leave of it, squared like the distance to a box: nought where no
+    /// clip cuts it or the point is inside every one, the furthest clip's distance where it is not, and null where a clip cuts
+    /// the piece away entirely — what is not painted is not there to be nearest to.
+    ///
+    /// <para>
+    /// The furthest clip, rather than the shape the clips and the piece leave between them: that is a boolean of shapes worked
+    /// out for every piece a press passes, where this is a measurement of each. It is never more than the true distance, and is
+    /// the true one wherever the piece reaches the clip's edge nearest the press — which is what a piece cut by a clip does.
+    /// </para>
+    /// </summary>
+    private static double? ToUncut(Piece piece, Rect where, Point point)
+    {
+        var furthest = 0d;
+
+        for (var at = piece; at.Exists; at = at.Parent)
+        {
+            if (at.Painting?.Clip is not { } clip) continue;
+            if (!where.IntersectsWith(Page(at, clip.Bounds))) return null;
+
+            if (!clip.FillContains(Local(at, point))) furthest = Math.Max(furthest, DistanceTo(at, clip, point));
+        }
+
+        return furthest;
+    }
 
     /// <summary>Whether a rectangle reaches what a piece stands in — see <see cref="Inside"/>.</summary>
     private static bool Touches(Piece piece, Rect area) =>
@@ -812,16 +854,29 @@ public static class LayoutQuery
     /// How far a point is from the shape a piece stands in, squared like the distance to a box: nought inside it, and
     /// otherwise the way to the nearest edge of its outline.
     /// </summary>
-    private static double DistanceTo(Piece piece, Point point)
+    private static double DistanceTo(Piece piece, Point point) => DistanceTo(piece, piece.Region!, point);
+
+    /// <summary>
+    /// How far a point of the page is from a shape said in a piece's own frame, squared like the distance to a box. Measured on
+    /// the page, so a shape inside something drawn smaller is as far off as it looks rather than as it was laid out; a shape
+    /// only moved there is asked in its own frame, which costs nothing to put it in.
+    /// </summary>
+    private static double DistanceTo(Piece piece, Geometry shape, Point point)
     {
-        // On the page, so a shape inside something drawn smaller is as far off as it looks rather than as it was laid out. A shape
-        // only moved there is asked in its own frame, which costs nothing to put it in.
         var frame = piece.Frame;
-        var (region, local) = frame.Shaped is null ? (piece.Region!, point - frame.Anchor) : (frame.Out(piece.Region!), point);
-        if (region.FillContains(local)) return 0;
+        return frame.Shaped is null ? DistanceTo(shape, point - frame.Anchor) : DistanceTo(frame.Out(shape), point);
+    }
+
+    /// <summary>
+    /// How far a point is from a shape, both in the shape's own frame, squared like the distance to a box: nought inside it,
+    /// and otherwise the way to the nearest edge of its outline.
+    /// </summary>
+    private static double DistanceTo(Geometry shape, Point local)
+    {
+        if (shape.FillContains(local)) return 0;
 
         var nearest = double.MaxValue;
-        foreach (var figure in region.GetFlattenedPathGeometry().Figures)
+        foreach (var figure in shape.GetFlattenedPathGeometry().Figures)
         {
             var from = figure.StartPoint;
             foreach (var segment in figure.Segments)

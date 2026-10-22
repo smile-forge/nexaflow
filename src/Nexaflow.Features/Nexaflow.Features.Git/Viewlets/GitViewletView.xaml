@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.Git.Converters"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Git_Viewlet">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -118,7 +119,7 @@
 
                 <TextBlock Grid.Column="0"
                            Style="{StaticResource LabelText}"
-                           Text="Branch"
+                           Text="{loc:Str Git.Viewlet.BranchLabel}"
                            Margin="0,0,5,0"/>
 
                 <Button x:Name="BranchButton"
@@ -152,7 +153,7 @@
                         Padding="5,1"
                         Margin="6,0,0,0"
                         VerticalAlignment="Center">
-                    <TextBlock Text="worktree"
+                    <TextBlock Text="{loc:Str Git.Viewlet.WorktreeBadge}"
                                FontSize="9"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource AccentBrush}"/>
@@ -169,22 +170,22 @@
                     <!-- Remove-worktree button — shown only for a linked worktree -->
                     <Button AutomationProperties.AutomationId="Git_RemoveWorktreeButton"
                         Style="{StaticResource DangerBtn}"
-                        Content="Remove"
+                        Content="{loc:Str Git.Viewlet.RemoveWorktree}"
                         Command="{Binding RemoveWorktreeCommand}"
                         Padding="6,2"
                         FontSize="10"
                         Visibility="{Binding IsWorktree, Converter={StaticResource BoolToVis}}"
-                        ToolTip="Remove this worktree (delete its folder and branch)"/>
+                        ToolTip="{loc:Str Git.Viewlet.RemoveWorktreeTip}"/>
 
                     <!-- Open-in-git-manager button — anchored bottom-right of the info column -->
                     <Button AutomationProperties.AutomationId="Git_ManagerButton"
                     Style="{StaticResource FlatBtn}"
-                    Content="Open"
+                    Content="{loc:Str Git.Viewlet.OpenManager}"
                     Command="{Binding OpenGitManagerCommand}"
                     Padding="6,2"
                     FontSize="10"
                     Visibility="{Binding ShowGitManager, Converter={StaticResource BoolToVis}}"
-                    ToolTip="Open in Git Manager"/>
+                    ToolTip="{loc:Str Git.Viewlet.OpenManagerTip}"/>
                 </StackPanel>
 
             </Grid>

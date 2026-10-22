@@ -61,7 +61,7 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
         File.WriteAllBytes(Path.Combine(_folder, FileName), [0x50, 0x4B, 0x05, 0x06, .. new byte[18]]);   // an empty zip
         Directory.CreateDirectory(Path.Combine(_folder, "old"));
 
-        var version = FileVersionInfo.GetVersionInfo(FindAppExe()).FileVersion ?? "1.0.0.0";
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
 
         // The workspace opens on the folder, so nothing has to be typed to get there.
         var workspaces = Path.Combine(configDir, "workcontexts");
@@ -97,10 +97,8 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
                 { "Id": "speak",  "ProviderName": "Nexaflow", "Model": "kokoro-82m",             "Kind": "TextToSpeech", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
               "Assignments": {
-                "Conversation":     [ "chat" ],
+                "GeneralIntelligence": [ "chat" ],
                 "Disambiguation":   [ "chat" ],
-                "ProblemSolving":   [ "chat" ],
-                "Analysis":         [ "chat" ],
                 "ImageRecognition": [ "chat" ],
                 "SpeechIn":         [ "local-speech-to-text" ],
                 "SpeechOut":        [ "speak" ]

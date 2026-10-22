@@ -158,8 +158,7 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
 
 4. **Add reference fixtures + run the consistency test.** Drop a source file and its ANSI-highlighted
    reference under `src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/syntax-tests/{source,highlighted}/<Lang>/`
-   (the corpus is from [bat](https://github.com/sharkdp/bat) — see
-   `src/Nexaflow.Core/Assets/ThirdPartyNotices.md`), then add
+   (the corpus is from [bat](https://github.com/sharkdp/bat), MIT / Apache-2.0), then add
    `"<Lang>"` to the folder list in `SyntaxHighlightConsistencyTests`. The test asserts that tokens the
    reference colours identically resolve to a single one of our roles; tune the query until it reports
    **0 violations**. Optionally add a `CodeSamples` entry + a targeted capture assertion in

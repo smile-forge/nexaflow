@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Core.Controls.ConfigEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -59,7 +60,7 @@
                          ToolTip="{Binding ValidationError}"/>
                 <Button Grid.Column="2" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
-                        ToolTip="Browse for folder…"
+                        ToolTip="{loc:Str Shell.Options.BrowseFolder}"
                         Command="{Binding BrowseFolderCommand}"
                         AutomationProperties.AutomationId="ConfigEditor_BrowseFolder">
                     <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
@@ -88,7 +89,7 @@
                          ToolTip="{Binding ValidationError}"/>
                 <Button Grid.Column="2" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
-                        ToolTip="Browse for file…"
+                        ToolTip="{loc:Str Shell.Options.BrowseFile}"
                         Command="{Binding BrowseFileCommand}"
                         AutomationProperties.AutomationId="ConfigEditor_BrowseFile">
                     <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>

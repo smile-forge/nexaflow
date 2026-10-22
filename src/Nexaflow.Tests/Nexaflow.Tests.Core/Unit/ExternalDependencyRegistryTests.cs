@@ -78,7 +78,7 @@ public class ExternalDependencyRegistryTests
         var reports = ExternalDependencyRegistry.BuildReports([typeof(AlphaRequired), typeof(BetaOptional)]);
 
         // One runtime, listed once. Listing it twice would read as two separate things to go and install —
-        // which is exactly what the PDF reader and the Web tab would produce for WebView2 without this.
+        // which is exactly what two features needing one runtime would produce without this.
         Assert.AreEqual(1, reports.Count);
         Assert.AreEqual("shared-thing", reports.Single().Id);
     }

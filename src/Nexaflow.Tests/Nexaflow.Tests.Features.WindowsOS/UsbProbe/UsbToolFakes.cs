@@ -106,7 +106,9 @@ internal sealed class FakeFolderTool(string id, string? function, params string[
 internal sealed class RecordingHost : IUsbToolHost
 {
     public bool Confirm = true;
-    public string? PickedFile, PickedFolder, SavedFile;
+    public string? PickedFile;
+    public string? PickedFolder { get; set; }
+    public string? SavedFile { get; set; }
     public readonly List<string> Confirmations = [], Logged = [];
     public readonly List<(string Kind, IReadOnlyDictionary<string, string> Parameters)> Opened = [];
 

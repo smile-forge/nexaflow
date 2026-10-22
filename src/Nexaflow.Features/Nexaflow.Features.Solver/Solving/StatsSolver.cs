@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 
@@ -19,7 +20,7 @@ public sealed class StatsSolver : ISolver
     public string Id => "stats";
 
     /// <inheritdoc/>
-    public string DisplayName => "Statistics";
+    public string DisplayName => Str.Get("Solver.Name.Statistics");
 
     /// <inheritdoc/>
     public int Order => 30;
@@ -31,11 +32,11 @@ public sealed class StatsSolver : ISolver
 
         return
         [
-            new SolverChip(Id, "summary", "stats", "Σ", $"Every statistic for these {values.Count} values", values),
-            new SolverChip(Id, "sum", "sum", "+", "Add them up", values),
-            new SolverChip(Id, "mean", "avg", "x̄", "The arithmetic mean", values),
-            new SolverChip(Id, "median", "median", "‖", "The middle value", values),
-            new SolverChip(Id, "stddev", "σ", "σ", "Sample standard deviation", values),
+            new SolverChip(Id, "summary", Str.Get("Solver.Chip.Stats"), "Σ", Str.Format("Solver.Chip.StatsTipFormat", values.Count), values),
+            new SolverChip(Id, "sum", Str.Get("Solver.Chip.Sum"), "+", Str.Get("Solver.Chip.SumTip"), values),
+            new SolverChip(Id, "mean", Str.Get("Solver.Chip.Mean"), "x̄", Str.Get("Solver.Chip.MeanTip"), values),
+            new SolverChip(Id, "median", Str.Get("Solver.Chip.Median"), "‖", Str.Get("Solver.Chip.MedianTip"), values),
+            new SolverChip(Id, "stddev", "σ", "σ", Str.Get("Solver.Chip.StdDevTip"), values),
         ];
     }
 
@@ -43,18 +44,18 @@ public sealed class StatsSolver : ISolver
     public Task<SolverResult> SolveAsync(SolverChip chip, SolverInput input, CancellationToken ct)
     {
         if (chip.Payload is not IReadOnlyList<double> values || values.Count < MinValues)
-            return Task.FromResult(SolverResult.Error("The definition changed — press the chip again."));
+            return Task.FromResult(SolverResult.Error(Str.Get("Solver.Result.DefinitionChanged")));
 
         var d = input.Decimals;
 
         return Task.FromResult(chip.Id switch
         {
             "summary" => new SolverResult(Summary(values, d)),
-            "sum" => Single("Sum", values.Sum(), d),
-            "mean" => Single("Mean", Mean(values), d),
-            "median" => Single("Median", Median(values), d),
-            "stddev" => Single("Standard deviation (sample)", StdDev(values), d),
-            _ => SolverResult.Error($"Unknown statistic '{chip.Id}'."),
+            "sum" => Single(Str.Get("Solver.Stats.Sum"), values.Sum(), d),
+            "mean" => Single(Str.Get("Solver.Stats.Mean"), Mean(values), d),
+            "median" => Single(Str.Get("Solver.Stats.Median"), Median(values), d),
+            "stddev" => Single(Str.Get("Solver.Stats.StandardDeviationSample"), StdDev(values), d),
+            _ => SolverResult.Error(Str.Format("Solver.Result.UnknownStatisticFormat", chip.Id)),
         });
     }
 
@@ -91,16 +92,16 @@ public sealed class StatsSolver : ISolver
         var mean = Mean(v);
 
         var sb = new StringBuilder();
-        sb.Append("| Statistic | Value |\n|---|---:|\n");
-        Row(sb, "Count", v.Count.ToString(CultureInfo.InvariantCulture));
-        Row(sb, "Sum", Format(v.Sum(), decimals));
-        Row(sb, "Mean", Format(mean, decimals));
-        Row(sb, "Median", Format(Median(v), decimals));
-        Row(sb, "Minimum", Format(sorted[0], decimals));
-        Row(sb, "Maximum", Format(sorted[^1], decimals));
-        Row(sb, "Range", Format(sorted[^1] - sorted[0], decimals));
-        Row(sb, "Variance (sample)", Format(Variance(v), decimals));
-        Row(sb, "Std deviation (sample)", Format(StdDev(v), decimals));
+        sb.Append("| ").Append(Str.Get("Solver.Stats.Statistic")).Append(" | ").Append(Str.Get("Solver.Stats.Value")).Append(" |\n|---|---:|\n");
+        Row(sb, Str.Get("Solver.Stats.Count"), v.Count.ToString(CultureInfo.InvariantCulture));
+        Row(sb, Str.Get("Solver.Stats.Sum"), Format(v.Sum(), decimals));
+        Row(sb, Str.Get("Solver.Stats.Mean"), Format(mean, decimals));
+        Row(sb, Str.Get("Solver.Stats.Median"), Format(Median(v), decimals));
+        Row(sb, Str.Get("Solver.Stats.Minimum"), Format(sorted[0], decimals));
+        Row(sb, Str.Get("Solver.Stats.Maximum"), Format(sorted[^1], decimals));
+        Row(sb, Str.Get("Solver.Stats.Range"), Format(sorted[^1] - sorted[0], decimals));
+        Row(sb, Str.Get("Solver.Stats.VarianceSample"), Format(Variance(v), decimals));
+        Row(sb, Str.Get("Solver.Stats.StdDevSample"), Format(StdDev(v), decimals));
         return sb.ToString();
 
         static void Row(StringBuilder sb, string name, string value)

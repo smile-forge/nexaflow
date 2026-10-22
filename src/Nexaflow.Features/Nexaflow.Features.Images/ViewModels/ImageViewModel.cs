@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Images.Details;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Erasing;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
@@ -21,6 +23,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -130,6 +133,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     /// <summary>The picture on screen read as a page of writing, its text beside it.</summary>
     public ReadPageViewModel ReadPage { get; }
+
+    /// <summary>What the picture's file says about it — camera, exposure, date, place — in the panel on the left.</summary>
+    public ImageDetailsViewModel Details { get; }
 
     // ── View state ────────────────────────────────────────────────────────
 
@@ -434,6 +440,38 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         RemoveAt(index);
     }
 
+    /// <summary>
+    /// Puts the picture at <paramref name="index"/> on the clipboard as it is shown — its edits drawn in, at full
+    /// resolution. An open photo is copied with its session's edits, any other with the edits its sidecar keeps.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyPicture(int index)
+    {
+        if (index < 0 || index >= _paths.Count) return;
+
+        var path = _paths[index];
+        var (recipe, made) = _sessions.Peek(path) is { } session
+            ? (session.Recipe, session.Made)
+            : _editing.Recipes.Load(path) is { Status: RecipeLoadStatus.Loaded, Recipe: { } kept }
+                ? (kept, KeptByTools(path, kept))
+                : (ImageRecipe.Identity, MadeByTools.None);
+        try
+        {
+            var png = await Task.Run(() => _editing.Exporter.Export(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
+            PictureClipboard.CopyPng(png);
+            _shell?.ShowNotification(Str.Get("Images.Copy.Done"));
+        }
+        catch (OperationCanceledException)
+        {
+            // The viewer closed while the picture was rendering.
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ImageDecodeException
+                                       or NotSupportedException or InvalidOperationException or ExternalException)
+        {
+            _shell?.ShowError(Str.Format("Images.Copy.FailedFormat", Path.GetFileName(path)));
+        }
+    }
+
     /// <summary>Drops the image at <paramref name="index"/> from every collection and re-points the view.</summary>
     private void RemoveAt(int index)
     {
@@ -531,11 +569,22 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _display.ErasedDecodeFailed += session => Eraser.Lost(session);
 
         Cutter = new PictureCutter(_editing, selection, shell, runOnUi);
-        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser);
+
+        // What each model-backed control waits for, and the download offered while a panel that needs it is open — unless a
+        // picture tool's banner, for an edit the recipe asks for, is offering the same.
+        var picking = new ModelsGate(selection, "Images.Models.Picking.", runOnUi);
+        var erasingModels = new ModelsGate(erasing, "Images.Models.Erasing.", runOnUi);
+        var restoring = new ModelsGate(pictures, "Images.Models.Restoring.", runOnUi);
+        picking.Defer(Remover, Eraser);
+        erasingModels.Defer(Eraser);
+        restoring.Defer(Restorer);
+
+        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser, picking, erasingModels, restoring);
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
                 EncodeCurrentPng);
             ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools, () => Host);
+            Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata), runOnUi);
 
         for (int i = 0; i < paths.Count; i++)
         {
@@ -674,6 +723,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Restorer.Follow(session);
         Remover.Follow(session);
         ReadPage.Follow(session);
+        FollowDetails();
 
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
@@ -695,6 +745,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Restorer.Follow(null);
         Remover.Follow(null);
         ReadPage.Follow(null);
+        FollowDetails();
         Cutter.Close();
     }
     session.Dispose();
@@ -730,6 +781,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Restorer.Follow(CurrentSession);
         Remover.Follow(CurrentSession);
         Editor.OnRecipeChanged();
+        FollowDetails();
         RequestRender();
 
         _thumbRefresh.Stop();
@@ -760,7 +812,17 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (!ReferenceEquals(CurrentSession, session)) return;
         Editor.OnSessionChanged();
         ReadPage.PictureDecoded(session);
+        FollowDetails();
         RequestRender();
+    }
+
+    /// <summary>The Details panel follows the picture on screen: its file, its size upright once decoded, and the size its edits save it at.</summary>
+    private void FollowDetails()
+    {
+        var source = CurrentSession?.Proxy?.SourceSize;
+        Details.Follow(CurrentSession?.Path,
+                       source is { } size ? new SKSizeI((int)Math.Round(size.Width), (int)Math.Round(size.Height)) : null,
+                       CurrentPixelSize());
     }
 
     // ── IContextPreview ───────────────────────────────────────────────────
@@ -828,9 +890,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
                 return Task.FromResult(ToolResult.Ok(
                         $"Captured '{CurrentFileName}'.",
                         $"The image \"{CurrentFileName}\" is attached for you to look at.")
-                    with { Images = [new ContextImage(png, "image/png", CurrentFileName)] });
+                with { Images = [new ContextImage(png, "image/png", CurrentFileName)] });
             },
-            exemptFromRepeatGuard: true),
+            exemptFromRepeatGuard: true) { Needs = [AiAbility.ImageRecognition] },
 
         // ── Metadata (text only) ──
         new DelegateClientTool(
@@ -1073,7 +1135,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             EnterEditMode();
             if (!IsEditing) return;
             open = true;
-            Editor.Tool = EditTool.Erase;
+            Editor.Tool = EditTool.Retouch;
             if (!string.IsNullOrEmpty(what)) finding = Cutter.FindNamedAsync(what);
         }
         if (_shell is not null) await _shell.RunOnUiAsync(Start);
@@ -1268,6 +1330,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (CurrentSession is { } current) CloseSession(current.Path);
         _sessions.Dispose();
         _display.Dispose();
+        MakeVideo.Dispose();
         if (_ownsEditing) _editing.Dispose();
         _cts.Dispose();
     }

@@ -6,6 +6,7 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ProjectsView"
              Background="{StaticResource BgBrush}">
 
@@ -132,9 +133,9 @@
                     AutomationProperties.AutomationId="Projects_DisabledPlaceholder"
                     Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolVis}}">
             <TextBlock Text="🗂" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
-            <TextBlock Text="Projects is disabled" Foreground="{StaticResource TextBrush}"
+            <TextBlock Text="{loc:Str Projects.List.Disabled}" Foreground="{StaticResource TextBrush}"
                        FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" HorizontalAlignment="Center"/>
-            <TextBlock Text="Enable this feature in settings to use it." Foreground="{StaticResource TextMutedBrush}"
+            <TextBlock Text="{loc:Str Projects.List.DisabledHint}" Foreground="{StaticResource TextMutedBrush}"
                        FontSize="13" Margin="0,6,0,0" HorizontalAlignment="Center"/>
         </StackPanel>
 
@@ -157,15 +158,15 @@
                 <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,4">
                     <Grid>
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource BucketTab}" Content="Projects"
+                            <RadioButton Style="{StaticResource BucketTab}" Content="{loc:Str Projects.List.Bucket.Projects}"
                                          AutomationProperties.AutomationId="Projects_BucketProjects"
                                          IsChecked="{Binding SelectedBucket, Converter={StaticResource EnumMatch},
                                                      ConverterParameter={x:Static vm:ProjectBucket.Projects}, Mode=TwoWay}"/>
-                            <RadioButton Style="{StaticResource BucketTab}" Content="Shelf"
+                            <RadioButton Style="{StaticResource BucketTab}" Content="{loc:Str Projects.List.Bucket.Shelf}"
                                          AutomationProperties.AutomationId="Projects_BucketShelf"
                                          IsChecked="{Binding SelectedBucket, Converter={StaticResource EnumMatch},
                                                      ConverterParameter={x:Static vm:ProjectBucket.Shelf}, Mode=TwoWay}"/>
-                            <RadioButton Style="{StaticResource BucketTab}" Content="Archives"
+                            <RadioButton Style="{StaticResource BucketTab}" Content="{loc:Str Projects.List.Bucket.Archive}"
                                          AutomationProperties.AutomationId="Projects_BucketArchive"
                                          IsChecked="{Binding SelectedBucket, Converter={StaticResource EnumMatch},
                                                      ConverterParameter={x:Static vm:ProjectBucket.Archive}, Mode=TwoWay}"/>
@@ -175,7 +176,7 @@
                             <vcc:SearchStatusChip PagePrefix="Projects" Margin="0,0,8,0"/>
                             <Button Style="{StaticResource IconButton}"
                                     AutomationProperties.AutomationId="Projects_Refresh"
-                                    ToolTip="Refresh" Command="{Binding RefreshCommand}">
+                                    ToolTip="{loc:Str Projects.List.Refresh}" Command="{Binding RefreshCommand}">
                                 <TextBlock Text="↻" FontSize="14"/>
                             </Button>
                         </StackPanel>
@@ -184,7 +185,7 @@
 
                 <!-- List -->
                 <Grid Grid.Row="1">
-                    <TextBlock Text="No projects here" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <TextBlock Text="{loc:Str Projects.List.Empty}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                                Visibility="{Binding ProjectCount, Converter={StaticResource ZeroVis}}"/>
 
@@ -222,7 +223,7 @@
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.3"
                             Visibility="{Binding SelectedProject, Converter={StaticResource NullCollapsed}}">
                     <TextBlock Text="🗂" FontSize="48" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Select a project" Foreground="{StaticResource TextMutedBrush}"
+                    <TextBlock Text="{loc:Str Projects.List.SelectProject}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="14" Margin="0,12,0,0" HorizontalAlignment="Center"/>
                 </StackPanel>
 
@@ -244,7 +245,7 @@
                                    FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="16,0,0,0">
-                            <TextBlock Text="Last modified" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{loc:Str Projects.List.LastModified}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                             <TextBlock Text="{Binding SelectedProject.LastModified}" FontSize="12"
                                        Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                         </StackPanel>
@@ -263,7 +264,7 @@
                                 Command="{Binding OpenProjectCommand}" CommandParameter="{Binding SelectedProject}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📂" FontSize="13" Margin="0,0,6,0"/>
-                                <TextBlock Text="Open Project"/>
+                                <TextBlock Text="{loc:Str Projects.List.OpenProject}"/>
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource GhostButton}" Margin="0,0,10,0"
@@ -271,7 +272,7 @@
                                 Command="{Binding OpenFilesCommand}" CommandParameter="{Binding SelectedProject}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🗁" FontSize="13" Margin="0,0,6,0"/>
-                                <TextBlock Text="Open Files"/>
+                                <TextBlock Text="{loc:Str Projects.List.OpenFiles}"/>
                             </StackPanel>
                         </Button>
 
@@ -280,13 +281,13 @@
                                 AutomationProperties.AutomationId="Projects_Archive"
                                 Visibility="{Binding CanArchiveOrShelf, Converter={StaticResource BoolVis}}"
                                 Command="{Binding ArchiveCommand}" CommandParameter="{Binding SelectedProject}">
-                            <TextBlock Text="Archive"/>
+                            <TextBlock Text="{loc:Str Projects.List.Archive}"/>
                         </Button>
                         <Button Style="{StaticResource GhostButton}" Margin="0,0,10,0"
                                 AutomationProperties.AutomationId="Projects_Shelf"
                                 Visibility="{Binding CanArchiveOrShelf, Converter={StaticResource BoolVis}}"
                                 Command="{Binding ShelfCommand}" CommandParameter="{Binding SelectedProject}">
-                            <TextBlock Text="Shelf"/>
+                            <TextBlock Text="{loc:Str Projects.List.Shelf}"/>
                         </Button>
 
                         <!-- Shelf / Archive bucket: Reactivate -->
@@ -294,7 +295,7 @@
                                 AutomationProperties.AutomationId="Projects_Reactivate"
                                 Visibility="{Binding CanReactivate, Converter={StaticResource BoolVis}}"
                                 Command="{Binding ReactivateCommand}" CommandParameter="{Binding SelectedProject}">
-                            <TextBlock Text="Reactivate"/>
+                            <TextBlock Text="{loc:Str Projects.List.Reactivate}"/>
                         </Button>
                     </StackPanel>
                 </Grid>

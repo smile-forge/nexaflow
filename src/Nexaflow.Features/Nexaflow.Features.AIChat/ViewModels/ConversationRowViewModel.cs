@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -11,8 +12,9 @@ public partial class ConversationRowViewModel : ObservableObject
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    private readonly IAIService _ai;
-    private readonly bool       _analysisEnabled;
+    private readonly IAIService    _ai;
+    private readonly bool          _analysisEnabled;
+    private readonly Func<string?> _disabledTip;
 
     public ConversationRecord Record { get; }
 
@@ -20,19 +22,21 @@ public partial class ConversationRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasAnalysis))]
     private ConversationAnalysis? _analysis;
 
-    [ObservableProperty] private string _summaryText = "Loading…";
+    [ObservableProperty] private string _summaryText = Str.Get("AIChat.Browser.Row.Loading");
 
-    public ConversationRowViewModel(ConversationRecord record, IAIService ai, bool analysisEnabled)
+    /// <param name="disabledTip">Why no conversation is summarised now — no model to do it — or null when one is.</param>
+    public ConversationRowViewModel(ConversationRecord record, IAIService ai, bool analysisEnabled, Func<string?> disabledTip)
     {
         Record           = record;
         _ai              = ai;
         _analysisEnabled = analysisEnabled;
+        _disabledTip     = disabledTip;
     }
 
-    public string Title        => Record.Title;
-    public string StartDisplay => Record.StartedAt.ToString("MMM d, HH:mm");
+    public string Title        => ConversationViewModel.DisplayTitle(Record);
+    public string StartDisplay => Record.StartedAt.ToString(Str.Get("AIChat.Browser.Row.DateFormat"));
     public string EndDisplay   => Record.Messages.Count > 0
-        ? Record.Messages.Max(m => m.Timestamp).ToString("MMM d, HH:mm")
+        ? Record.Messages.Max(m => m.Timestamp).ToString(Str.Get("AIChat.Browser.Row.DateFormat"))
         : StartDisplay;
     public int    MessageCount => Record.Messages.Count;
     public bool   HasAnalysis  => Analysis is not null;
@@ -42,7 +46,7 @@ public partial class ConversationRowViewModel : ObservableObject
     {
         if (!_analysisEnabled)
         {
-            SummaryText = "Summarization disabled…";
+            SummaryText = Str.Get("AIChat.Browser.Row.SummaryDisabled");
             return;
         }
 
@@ -54,8 +58,8 @@ public partial class ConversationRowViewModel : ObservableObject
         }
         catch { Analysis = null; }
 
-        SummaryText = Analysis is { Summary.Length: > 0 } a
-            ? a.Summary
-            : "No summary yet — open the conversation, chat, then close it to analyze.";
+        SummaryText = Analysis is { Summary.Length: > 0 } a ? a.Summary
+                    : _disabledTip() is { } disabled      ? disabled
+                    : Str.Get("AIChat.Browser.Row.NoSummary");
     }
 }

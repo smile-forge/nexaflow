@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Visuals.Common.Controls.ZoomChip"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization"
              x:Name="Self">
 
     <UserControl.Resources>
@@ -46,7 +47,7 @@
                    VerticalAlignment="Center"
                    Padding="6,3"
                    Cursor="Hand"
-                   ToolTip="Click to set zoom (Ctrl+scroll, Ctrl+0 resets)"
+                   ToolTip="{loc:Str Common.Zoom.LabelTip}"
                    MouseLeftButtonUp="ZoomLabel_Click"/>
 
         <Popup x:Name="ZoomPopup"

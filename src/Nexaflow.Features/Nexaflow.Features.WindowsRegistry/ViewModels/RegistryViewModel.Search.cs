@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 
@@ -127,7 +128,7 @@ public sealed partial class RegistryViewModel : ISearchable
             SearchMatchCount  = paths.Length;
             IsSearchTruncated = false;
             IsSearchActive    = true;
-            if (CurrentSearchTerm.Length == 0) CurrentSearchTerm = $"{paths.Length} selected";
+            if (CurrentSearchTerm.Length == 0) CurrentSearchTerm = Str.Format("WindowsRegistry.Search.SelectedFormat", paths.Length);
             GoToHit(0);
             return Task.FromResult(true);
         });

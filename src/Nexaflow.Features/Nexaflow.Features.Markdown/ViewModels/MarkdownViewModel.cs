@@ -45,9 +45,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     /// <summary>What Save As offers a document to be written as: a package first, its attachments in it, or a file beside
     /// its attachments. A file of one language — a tune, a formula — stays that.</summary>
-    private static readonly SaveFileType[] DocumentTypes =
+    private static SaveFileType[] DocumentTypes =>
     [
-        new("Markdown Package", MarkdownPackage.Extension),
+        new(Str.Get("Markdown.SaveAs.Package"), MarkdownPackage.Extension),
         new("Markdown", ".md"),
     ];
 
@@ -88,6 +88,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     /// <summary>The workspace's AI, which works through the whole document; null where the page was made without one.</summary>
     private readonly IAIService? _ai;
+
+    /// <summary>
+    /// Whether the workspace has a model to work through the whole document with — its Documents row — for Summarise and
+    /// Translate to bind; null without an AI service.
+    /// </summary>
+    public IAiAbilityGate? DocumentWork { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -151,6 +157,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath       = filePath;
         _shell         = shell;
         _ai            = ai;
+        DocumentWork   = ai?.Gate(AiAbility.Documents);
         InitialHeading = initialHeading;
         InitialPlace   = initialPlace;
         _draftFolder   = draftFolder;
@@ -216,7 +223,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            _shell.ShowError($"The document could not be saved: {ex.Message}");
+            _shell.ShowError(Str.Format("Markdown.Error.SaveFailedFormat", ex.Message));
             return;
         }
         FilePath = target;
@@ -244,9 +251,11 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
     }
 
-    /// <summary>Lets go of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
+    /// <summary>Lets go of what follows the workspace's models, and of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
     public void Release()
     {
+        DocumentWork?.Dispose();
+
         if (DocumentFolder is { } folder && folder.StartsWith(Path.Combine(Path.GetTempPath(), "nexaflow-mdz"), StringComparison.OrdinalIgnoreCase))
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
@@ -312,7 +321,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// background job, listed with the others and stoppable there; the summary opens beside it when made.
     /// </summary>
     [RelayCommand(CanExecute = nameof(WorksOnDocument))]
-    private void Summarize() => StartDocumentWork(ai => ai.SummarizeDocument(new DocumentAsked(FilePath, Markdown)));
+    private Task Summarize() => StartDocumentWorkAsync(ai => ai.SummarizeDocument(new DocumentAsked(FilePath, Markdown)));
 
     /// <summary>Asks which language to translate the document into.</summary>
     [RelayCommand(CanExecute = nameof(WorksOnDocument))]
@@ -327,28 +336,24 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <see cref="Summarize"/> is; the translation opens beside it when made.
     /// </summary>
     [RelayCommand]
-    private void Translate()
+    private async Task Translate()
     {
         if (TranslateInto.Trim() is not { Length: > 0 } language) return;
 
         IsTranslateOpen = false;
-        StartDocumentWork(ai => ai.TranslateDocument(new DocumentAsked(FilePath, Markdown), language));
+        await StartDocumentWorkAsync(ai => ai.TranslateDocument(new DocumentAsked(FilePath, Markdown), language));
     }
 
-    /// <summary>Sets the work going, or says why it cannot be: the workspace has no model in its Documents row.</summary>
-    private void StartDocumentWork(Action<IAIService> start)
+    /// <summary>
+    /// Sets the work going once the Documents model is ready: where it waits on a download, its first use offers it and the
+    /// work waits for it to land (<see cref="IAiAbilityGate.MakeReadyAsync"/>).
+    /// </summary>
+    private async Task StartDocumentWorkAsync(Action<IAIService> start)
     {
-        if (_ai is { WorksOnDocuments: true } ai)
-        {
-            try
-            {
-                start(ai);
-                return;
-            }
-            catch (InvalidOperationException) { /* the model went between asking and starting */ }
-        }
+        if (_ai is not { } ai || DocumentWork is not { } gate || !await gate.MakeReadyAsync()) return;
 
-        _shell.ShowNotification(Str.Get("Markdown.Documents.NoModel"));
+        try { start(ai); }
+        catch (InvalidOperationException ex) { _shell.ShowError(ex.Message); }
     }
 
     // ── Dirty tracking ────────────────────────────────────────────────────
@@ -398,7 +403,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            _shell.ShowError($"Could not save the picture to {path}: {e.Message}");
+            _shell.ShowError(Str.Format("Markdown.Error.PictureSaveFailedFormat", path, e.Message));
             return false;
         }
     }

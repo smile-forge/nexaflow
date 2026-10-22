@@ -138,7 +138,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
         Function = new Message.Function
         {
             Name      = call.Name,
-            Arguments = JsonSerializer.Deserialize<Dictionary<string, object>>(call.Arguments.ToJsonString()),
+            Arguments = JsonSerializer.Deserialize<Dictionary<string, object?>>(call.Arguments.ToJsonString()),
         },
     };
 

@@ -18,6 +18,8 @@ public enum ToolModelsState
 
 /// <summary>A picture to restore, by file: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</summary>
 /// <param name="Pixels">The file the picture is in.</param>
+/// <param name="Width">The picture's width, in pixels.</param>
+/// <param name="Height">The picture's height, in pixels.</param>
 /// <param name="Scale">1, 2 or 4: how many times its size it comes back — at 1, cleaned and kept at its size.</param>
 /// <param name="Faces">Whether the faces found in it are remade.</param>
 /// <param name="Into">The file the restored picture is written to, in the same form; replaced if it is there.</param>
@@ -126,6 +128,8 @@ public interface IPictureSelectionSession : IAsyncDisposable
 /// <summary>What to erase from a picture, by file.</summary>
 /// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
 /// <param name="Mask">The file the mask is in: one byte a pixel, row by row, erased where it is not 0.</param>
+/// <param name="Width">The picture's and the mask's width, in pixels.</param>
+/// <param name="Height">The picture's and the mask's height, in pixels.</param>
 /// <param name="Into">The file the erased picture is written to, in the picture's form; replaced if it is there.</param>
 public sealed record PictureEraseRequest(string Pixels, string Mask, int Width, int Height, string Into);
 
@@ -189,6 +193,10 @@ public interface IPageReading : IToolModels
     /// <summary>Where a picture — interleaved 8-bit RGBA, row by row — holds writing, and whether it is a page.</summary>
     /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture could not be read.</exception>
     Task<TextOnPicture> FindTextAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+
+    /// <summary>How many pages it reads at once to read many fastest: pages read together share each of the reader's steps,
+    /// so several take little longer a step than one. One where pages would only take turns.</summary>
+    int PagesAtOnce { get; }
 
     /// <summary>Reads the page in <paramref name="picture"/> — a PNG or JPEG file, at the resolution it was scanned or
     /// photographed at — into its blocks in reading order, each reported to <paramref name="read"/> as it is read.</summary>

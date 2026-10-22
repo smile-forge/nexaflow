@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Hosting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Services;
 
@@ -34,7 +35,7 @@ public sealed class GraphWarmUpTask(InitiativesHost host, Action<string?>? repor
     /// nobody can read that fast, and each one costs a marshal to the UI thread.</summary>
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(250);
 
-    public string Description => "Preparing the knowledge graph";
+    public string Description => Str.Get("ProductManager.Task.WarmUpGraph");
 
     public Task RunAsync(CancellationToken ct) => Task.Run(() =>
     {
@@ -49,8 +50,7 @@ public sealed class GraphWarmUpTask(InitiativesHost host, Action<string?>? repor
 
             if (!missing && workspace.Drifted == 0) return;   // nothing to say and nothing to do
 
-            var verb = missing ? "Building" : "Updating";
-            report?.Invoke($"{verb} the knowledge graph…");
+            report?.Invoke(missing ? Str.Get("ProductManager.Task.GraphBuilding") : Str.Get("ProductManager.Task.GraphUpdating"));
 
             var since = Stopwatch.StartNew();
             var options = new GraphBuildOptions
@@ -59,7 +59,9 @@ public sealed class GraphWarmUpTask(InitiativesHost host, Action<string?>? repor
                 {
                     if (since.Elapsed < Tick) return;
                     since.Restart();
-                    report?.Invoke($"{verb} the knowledge graph — {done:N0} of {total:N0} files");
+                    report?.Invoke(missing
+                        ? Str.Format("ProductManager.Task.GraphBuildingProgressFormat", done, total)
+                        : Str.Format("ProductManager.Task.GraphUpdatingProgressFormat", done, total));
                 },
             };
 

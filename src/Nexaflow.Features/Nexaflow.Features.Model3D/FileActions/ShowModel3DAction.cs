@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D.FileActions;
 
@@ -19,7 +20,7 @@ public sealed class ShowModel3DAction : IFileAction, ICacheable
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
     public string Icon => "🧊";
-    public string DisplayName => "As 3D Model";
+    public string DisplayName => Str.Get("Model3D.Action.As3DModel");
     public static string? StaticExperienceId => "/model3d";
     public string ExperienceId => "/model3d";
     public string ExperienceDescription => "3D model viewer: rotate/zoom/pan, wireframe, mesh stats and materials (STL/OBJ/glTF/FBX/3MF/Collada and many more)";

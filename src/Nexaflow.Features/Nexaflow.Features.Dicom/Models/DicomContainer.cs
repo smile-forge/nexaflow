@@ -18,11 +18,20 @@ public sealed class DicomContainer
     /// <summary>Every non-image (report / encapsulated document) instance.</summary>
     public IReadOnlyList<DicomNode> Reports { get; init; } = [];
 
-    /// <summary>Human title for the tab (folder or DICOMDIR name). Non-identifying.</summary>
+    /// <summary>Human title for the container (folder or DICOMDIR name), in English — the assistant's context
+    /// reads it. Non-identifying.</summary>
     public string Title { get; init; } = "DICOM";
 
-    /// <summary>Non-identifying one-liner: patient/study/series/image counts + modalities.</summary>
+    /// <summary><see cref="Title"/> as a person reads it, in the shown language — the breadcrumb a report opened
+    /// from here points back with.</summary>
+    public string DisplayTitle { get; init; } = "DICOM";
+
+    /// <summary>Non-identifying one-liner: patient/study/series/image counts + modalities, in English — the
+    /// assistant's context and tools read it.</summary>
     public string Summary { get; init; } = string.Empty;
+
+    /// <summary><see cref="Summary"/> as a person reads it, in the shown language — the contents header.</summary>
+    public string DisplaySummary { get; init; } = string.Empty;
 
     /// <summary>Any instances that failed to parse, with the reason — surfaced but non-fatal.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];

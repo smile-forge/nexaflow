@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Svg.FileActions;
 using Nexaflow.Features.Svg.ViewModels;
+using Nexaflow.Features.Svg.Views;
+using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -151,6 +153,33 @@ public class SvgSurfaceTests
         await vm.LoadAsync();
 
         Assert.AreSame(first, vm.Artifact, "re-entering the view must not re-parse and re-render the file");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("svg-ai-preview")]
+    public async Task ThePreview_RemindsOfTheArtwork_AndIsFreshEachTime()
+    {
+        var loading = new SvgViewModel(Sample("sample.svg"));
+        var loaded  = await LoadedAsync();
+
+        UiThread.Run(() =>
+        {
+            var first  = loaded.CreateContextPreview();
+            var second = loaded.CreateContextPreview();
+
+            Assert.IsInstanceOfType(first, typeof(SvgContextPreview));
+            Assert.AreSame(loaded, first.DataContext, "the preview binds to the page's own frozen drawing");
+            Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
+
+            var shown = ContextPreviewProbe.VisibleTexts(first).ToList();
+            CollectionAssert.Contains(shown, loaded.DimensionsText, "the artwork's size");
+            CollectionAssert.DoesNotContain(shown, "sample.svg", "the panel's header names the file");
+            CollectionAssert.DoesNotContain(shown, "🖼", "the art can be transparent, so the placeholder steps aside for it");
+
+            CollectionAssert.Contains(ContextPreviewProbe.VisibleTexts(loading.CreateContextPreview()).ToList(), "🖼",
+                "with no art yet, the placeholder holds its place");
+        });
     }
 }
 

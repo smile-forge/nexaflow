@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 
@@ -55,10 +56,13 @@ public sealed class AiSolver(IAIService ai) : ISolver
     public string Id => "ai";
 
     /// <inheritdoc/>
-    public string DisplayName => "AI";
+    public string DisplayName => Str.Get("Solver.Name.Ai");
 
     /// <inheritdoc/>
     public int Order => 90;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<AiAbility> Needs => [AiAbility.GeneralIntelligence];
 
     /// <inheritdoc/>
     public IReadOnlyList<SolverChip> CanSolve(SolverInput input)
@@ -67,8 +71,8 @@ public sealed class AiSolver(IAIService ai) : ISolver
 
         return
         [
-            new SolverChip(Id, "solve", "Solve", "✦", "Ask the AI to solve this"),
-            new SolverChip(Id, "steps", "Solve by steps", "✦", "Ask the AI to show its working"),
+            new SolverChip(Id, "solve", Str.Get("Solver.Chip.Solve"), "✦", Str.Get("Solver.Chip.SolveTip")),
+            new SolverChip(Id, "steps", Str.Get("Solver.Chip.SolveBySteps"), "✦", Str.Get("Solver.Chip.SolveByStepsTip")),
         ];
     }
 
@@ -83,8 +87,7 @@ public sealed class AiSolver(IAIService ai) : ISolver
 
             if (string.IsNullOrWhiteSpace(answer))
                 return SolverResult.Error(
-                    "No answer came back. Check that a model is assigned to **Problem Solving** or " +
-                    "**Analysis** in Manage AI.");
+                    Str.Get("Solver.Result.NoAnswer"));
 
             return new SolverResult(answer.Trim());
         }
@@ -94,7 +97,7 @@ public sealed class AiSolver(IAIService ai) : ISolver
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"The AI could not be reached: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.AiUnreachableFormat", e.Message));
         }
     }
 

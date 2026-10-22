@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels.Timeline;
 
@@ -72,13 +73,15 @@ public sealed partial class TimelineToolBatch : ObservableObject
 
     [ObservableProperty] private bool _isExpanded;
 
-    public string Header => $"Ran {Tools.Count} tool{(Tools.Count == 1 ? "" : "s")}";
+    public string Header => Tools.Count == 1
+        ? Str.Get("AIChat.Conversation.ToolBatch.RanOne")
+        : Str.Format("AIChat.Conversation.ToolBatch.RanFormat", Tools.Count);
 }
 
 /// <summary>The single live "Considering… / Running X…" line shown while the agent works.</summary>
 public sealed partial class TimelineActivity : ObservableObject
 {
-    [ObservableProperty] private string _text = "Considering";
+    [ObservableProperty] private string _text = Str.Get("AIChat.Conversation.Activity.Considering");
 }
 
 /// <summary>An inline approve/deny prompt for a tool batch (or plan). Resolves a decision task.</summary>

@@ -99,7 +99,7 @@ public static class ContentLanguages
     /// host has put one in place of one that ships, only the host's.
     /// </summary>
     public static IReadOnlyList<ContentLanguage> Insertable =>
-        [.. Table.Known.Where(known => known.DefaultBlock is not null).DistinctBy(known => known.DisplayName)];
+        [.. Table.Known.Where(known => known.DefaultBlock is not null).DistinctBy(known => known.Name)];
 
     /// <summary>
     /// The language <paramref name="part"/> holds content written in, where it holds content in one anything reads — a fence,

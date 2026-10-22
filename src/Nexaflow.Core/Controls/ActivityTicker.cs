@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Nexaflow.Core.Models;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -108,7 +109,7 @@ public class ActivityTicker : ContentControl
             _                    => ""
         };
 
-        _label.Text = prefix + latest.Description;
+        _label.Text = prefix + Shown(latest);
         _label.SetResourceReference(TextBlock.ForegroundProperty,
             latest.Status == TaskStatus.Failed ? "WarningBrush" : "TextMutedBrush");
 
@@ -118,4 +119,8 @@ public class ActivityTicker : ContentControl
 
         UpdateMarquee();
     }
+
+    /// <summary>What <paramref name="task"/> says, or "Idle" for the manager's idle line, which says nothing of its own: read here,
+    /// as the window draws it, so it is in the window's language.</summary>
+    private static string Shown(BackgroundTask task) => task.Description.Length > 0 ? task.Description : Str.Get("Shell.BackgroundTasks.Idle");
 }

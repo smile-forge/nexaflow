@@ -13,6 +13,7 @@ using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Network.ViewModels;
 
@@ -86,6 +87,11 @@ public sealed partial class PanelTab(string title, string note, bool canClose,
     public string Title { get; } = title;
     public string Note { get; } = note;
     public bool CanClose { get; } = canClose;
+
+    /// <summary>The action whose result this tab shows, so a second run replaces it by what it is rather than
+    /// by what it is called. Null for the discovery tab.</summary>
+    public string? ActionId { get; init; }
+
     public ObservableCollection<FactRow> Rows { get; } = [];
 
     [RelayCommand]
@@ -179,10 +185,10 @@ public sealed partial class NetworkViewModel : ObservableObject
         _guard.SetSweepConsent(_sweptNetworks);
 
         Status = Adapters.Count == 0
-            ? "No usable network adapter — nothing to discover on."
+            ? Str.Get("Network.Status.NoAdapter")
             : !config.Enabled
-                ? "Sending is switched off in Options → Network, so only what this PC already knows can be shown."
-                : $"{Adapters.Count} adapter(s), {Layers.Count} discovery layer(s). Nothing found yet.";
+                ? Str.Get("Network.Status.SendingOff")
+                : Str.Format("Network.Status.ReadyFormat", Adapters.Count, Layers.Count);
     }
 
     /// <summary>One installed discovery layer, and whether the user wants it.</summary>
@@ -270,7 +276,7 @@ public sealed partial class NetworkViewModel : ObservableObject
 
         if (PanelWidth.Value <= 0) PanelWidth = new GridLength(360);
 
-        var discovery = new PanelTab("Discovery", "", canClose: false);
+        var discovery = new PanelTab(Str.Get("Network.Panel.Discovery"), "", canClose: false);
         Fill(discovery, value.Node, value.Node.Facts.Where(f => f.SupersededUtc is null));
         Tabs.Add(discovery);
         ActiveTab = discovery;
@@ -296,7 +302,7 @@ public sealed partial class NetworkViewModel : ObservableObject
             {
                 Label = Named(fact.Key),
                 Value = Shown(fact),
-                Provenance = $"{whence} · {fact.Confidence} · {Ago(now - fact.ObservedUtc)}",
+                Provenance = $"{whence} · {ConfidenceLabel(fact.Confidence)} · {Ago(now - fact.ObservedUtc)}",
                 Contested = node.IsContested(fact.Key),
             });
         }
@@ -309,7 +315,7 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// <summary>What to print. Octets get a summary — a fact list is not the place for hex.</summary>
     private static string Shown(DeviceFact fact)
         => fact.Value.Kind == FactValueKind.Bytes
-            ? $"{fact.Value.Bytes?.Length ?? 0} bytes"
+            ? Str.Format("Network.Fact.BytesFormat", fact.Value.Bytes?.Length ?? 0)
             : Unit(fact);
 
     private static string Unit(DeviceFact fact)
@@ -318,9 +324,18 @@ public sealed partial class NetworkViewModel : ObservableObject
             : fact.Value.Text;
 
     private static string Ago(TimeSpan since)
-        => since.TotalSeconds < 90 ? $"{since.TotalSeconds:0}s ago"
-         : since.TotalMinutes < 90 ? $"{since.TotalMinutes:0}m ago"
-         : $"{since.TotalHours:0}h ago";
+        => since.TotalSeconds < 90 ? Str.Format("Network.Fact.AgoSecondsFormat", since.TotalSeconds)
+         : since.TotalMinutes < 90 ? Str.Format("Network.Fact.AgoMinutesFormat", since.TotalMinutes)
+         : Str.Format("Network.Fact.AgoHoursFormat", since.TotalHours);
+
+    /// <summary>How sure a fact is, in the reader's words. The enum's own name is the graph's, not the reader's.</summary>
+    private static string ConfidenceLabel(Confidence confidence) => confidence switch
+    {
+        Confidence.Guess => Str.Get("Network.Confidence.Guess"),
+        Confidence.Likely => Str.Get("Network.Confidence.Likely"),
+        Confidence.Strong => Str.Get("Network.Confidence.Strong"),
+        _ => Str.Get("Network.Confidence.Asserted"),
+    };
 
     // ── Doing something to one of them ────────────────────────────────────────
 
@@ -343,7 +358,7 @@ public sealed partial class NetworkViewModel : ObservableObject
 
         // A fresh budget per click: a user gesture is not part of a sweep's allowance and must not be
         // refused because a discovery earlier spent it.
-        var host = new ActionHost(new UdpTransport(_guard, new RunBudget()), _shell, Log);
+        var host = new ActionHost(new UdpTransport(_guard, new RunBudget()), Adapters, _shell, Log);
 
         try
         {
@@ -359,7 +374,8 @@ public sealed partial class NetworkViewModel : ObservableObject
         catch (Exception ex)
         {
             await _shell.RunOnUiAsync(() =>
-                Show(new PanelTab(action.DisplayName, $"Failed: {ex.Message}", canClose: true, Drop)));
+                Show(new PanelTab(action.DisplayName, Str.Format("Network.Panel.FailedFormat", ex.Message),
+                                  canClose: true, Drop) { ActionId = action.ActionId }));
         }
     }
 
@@ -373,7 +389,7 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// </remarks>
     private void Report(IDeviceAction action, DeviceRow target, DeviceActionResult result)
     {
-        var tab = new PanelTab(action.DisplayName, result.Message, canClose: true, Drop);
+        var tab = new PanelTab(action.DisplayName, result.Message, canClose: true, Drop) { ActionId = action.ActionId };
 
         if (result.Learned is not null)
         {
@@ -395,7 +411,7 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// <summary>Shows a tab, replacing an earlier one from the same action rather than stacking them.</summary>
     private void Show(PanelTab tab)
     {
-        if (Tabs.FirstOrDefault(t => t.CanClose && t.Title == tab.Title) is { } already) Tabs.Remove(already);
+        if (Tabs.FirstOrDefault(t => t.CanClose && t.ActionId == tab.ActionId) is { } already) Tabs.Remove(already);
 
         Tabs.Add(tab);
         ActiveTab = tab;
@@ -415,10 +431,12 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// action reaches the wire through the guard and the desktop through one method, and has no route to
     /// either besides what is on this object.
     /// </remarks>
-    private sealed class ActionHost(IGuardedTransport transport, IShellServices shell,
-                                    ObservableCollection<string> log) : IDeviceActionHost, IProbeLog
+    private sealed class ActionHost(IGuardedTransport transport, IReadOnlyList<NetworkAdapterInfo> adapters,
+                                    IShellServices shell, ObservableCollection<string> log)
+        : IDeviceActionHost, IProbeLog
     {
         public IGuardedTransport Transport => transport;
+        public IReadOnlyList<NetworkAdapterInfo> Adapters => adapters;
         public IProbeLog Log => this;
 
         // "Html" by name rather than by reference: a feature may not reference another feature, and a page
@@ -431,9 +449,11 @@ public sealed partial class NetworkViewModel : ObservableObject
             => shell.ConfirmAsync(title, message, ct);
 
         void IProbeLog.Info(string m) => Say(m);
-        void IProbeLog.Warn(string m) => Say("warning: " + m);
+        void IProbeLog.Warn(string m) => Say(Str.Format("Network.Log.WarningFormat", m));
         void IProbeLog.Error(string m, Exception? ex)
-            => Say($"error: {m}{(ex is null ? "" : " — " + ex.Message)}");
+            => Say(ex is null
+                ? Str.Format("Network.Log.ErrorFormat", m)
+                : Str.Format("Network.Log.ErrorDetailFormat", m, ex.Message));
 
         private void Say(string m) => shell.RunOnUiAsync(() => log.Add(m));
     }
@@ -445,7 +465,7 @@ public sealed partial class NetworkViewModel : ObservableObject
     {
         IsSweeping = true;
         DiscoverCommand.NotifyCanExecuteChanged();
-        Status = "Looking…";
+        Status = Str.Get("Network.Status.Looking");
 
         try
         {
@@ -508,10 +528,8 @@ public sealed partial class NetworkViewModel : ObservableObject
             .ToList();
 
         string summary = rows.Count == 0
-            ? "Nothing answered. The neighbour table may be empty on a quiet network, and some adapters "
-            + "refuse a multicast join — the log says which."
-            : $"{rows.Count} device(s) from {result.Observations} observation(s) "
-            + $"across {probes.Count} layer(s).";
+            ? Str.Get("Network.Status.NothingAnswered")
+            : Str.Format("Network.Status.FoundFormat", rows.Count, result.Observations, probes.Count);
 
         return (rows, [.. result.Log], summary);
     }

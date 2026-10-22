@@ -5,7 +5,8 @@
         xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
         xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
         xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
-        Title="Nexaflow Setup"
+        xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+        Title="{loc:Str Shell.Wizard.WindowTitle}"
         Width="780" Height="620"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -30,7 +31,7 @@
         <!-- Provider picker. -->
         <DataTemplate DataType="{x:Type vm:WizardProviderPickContent}">
             <StackPanel>
-                <TextBlock Text="Pick the AI provider to set up first. You can add more later."
+                <TextBlock Text="{loc:Str Shell.Wizard.Provider.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
                 <ListBox ItemsSource="{Binding Providers}"
@@ -48,50 +49,136 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Who runs the AI. -->
+        <!-- Who runs the AI: Nexaflow's own models, or a cloud provider. -->
         <DataTemplate DataType="{x:Type vm:WizardHarnessContent}">
             <StackPanel>
-                <TextBlock Text="Nexaflow can run a model itself on this machine, use a provider you choose, or both."
+                <TextBlock Text="{loc:Str Shell.Wizard.Harness.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,14" TextWrapping="Wrap"/>
-                <RadioButton GroupName="Harness" IsChecked="{Binding IsMixed, Mode=TwoWay}" Margin="0,0,0,12"
-                             AutomationProperties.AutomationId="WizardHarness_Mixed">
-                    <StackPanel>
-                        <TextBlock Text="Both" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Text="{Binding ModelName, StringFormat='{}{0} handles the frequent work — routing requests, analysing pages, describing images — and the provider you choose next holds the conversation. Each stands in for the other.'}"
-                                   FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </RadioButton>
                 <RadioButton GroupName="Harness" IsChecked="{Binding IsOwned, Mode=TwoWay}" Margin="0,0,0,12"
                              AutomationProperties.AutomationId="WizardHarness_Owned">
                     <StackPanel>
-                        <TextBlock Text="Nexaflow runs it" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Text="{Binding ModelName, StringFormat='{}{0} answers everything, on this machine. Nothing leaves it, and no subscription is needed; it is weaker than a frontier model.'}"
+                        <TextBlock Text="{loc:Str Shell.Wizard.Harness.Owned}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding OwnedText}"
                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton GroupName="Harness" IsChecked="{Binding IsBridged, Mode=TwoWay}" Margin="0,0,0,16"
                              AutomationProperties.AutomationId="WizardHarness_Bridged">
                     <StackPanel>
-                        <TextBlock Text="A provider you choose" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Text="Claude, OpenAI, Gemini, Ollama or Aria answers everything; nothing is downloaded."
+                        <TextBlock Text="{loc:Str Shell.Wizard.Harness.Bridged}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{loc:Str Shell.Wizard.Harness.BridgedDetail}"
                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </RadioButton>
                 <TextBlock Text="{Binding HardwareText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-                <TextBlock Text="{Binding DownloadText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
-                           Margin="0,4,0,0" Visibility="{Binding IsBridged, Converter={StaticResource InverseBoolVis}}"/>
+                <TextBlock Text="{loc:Str Shell.Wizard.Harness.DownloadsNext}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                           Margin="0,4,0,0" Visibility="{Binding IsOwned, Converter={StaticResource BoolVis}}"/>
+                <TextBlock Text="{loc:Str Shell.Wizard.Harness.BothLater}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                           Margin="0,12,0,0"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Download models: what the workspace's models on this machine still need, the room it takes, now or later. -->
+        <DataTemplate DataType="{x:Type vm:WizardModelDownloadContent}">
+            <StackPanel>
+                <TextBlock Text="{loc:Str Shell.Wizard.Downloads.Intro}"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,12" TextWrapping="Wrap"/>
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="220"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{StaticResource TextBrush}"/>
+                                    <TextBlock Text="{Binding Job}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Size}" FontSize="12" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                <StackPanel Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
+                                    <ProgressBar Height="4" Maximum="100" Value="{Binding Download.Percent, Mode=OneWay}"
+                                                 Visibility="{Binding Download.IsRunning, Converter={StaticResource BoolVis}, FallbackValue=Collapsed}"/>
+                                    <TextBlock Text="{Binding Progress}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding Total}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,4,0,4"/>
+                <TextBlock Text="{Binding Room}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,14"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="{loc:Str Shell.Wizard.Downloads.Now}" Height="32" Padding="16,0" Margin="0,0,8,0" FontSize="12"
+                            Style="{StaticResource TopBarAction}"
+                            AutomationProperties.AutomationId="WizardDownloads_Now"
+                            Visibility="{Binding Fits, Converter={StaticResource BoolVis}}"
+                            Command="{Binding DownloadNowCommand}"/>
+                    <Button Content="{loc:Str Shell.Wizard.Downloads.Later}" Height="32" Padding="16,0" FontSize="12"
+                            Style="{StaticResource TopBarAction}"
+                            AutomationProperties.AutomationId="WizardDownloads_Later"
+                            Command="{Binding LaterCommand}"/>
+                </StackPanel>
+                <TextBlock Text="{Binding Outcome}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"
+                           Foreground="{StaticResource TextBrush}"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- The provider's other kinds of model: one chosen for each, or none. -->
+        <DataTemplate DataType="{x:Type vm:WizardModelKindsContent}">
+            <StackPanel>
+                <TextBlock Text="{loc:Str Shell.Wizard.Kinds.Intro}"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,10" TextWrapping="Wrap"/>
+                <TextBlock Text="{loc:Str Shell.Wizard.LoadingModels}"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="13"
+                           Margin="0,0,0,8"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
+                <ItemsControl ItemsSource="{Binding Kinds}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource TextBrush}"/>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding Models}"
+                                          SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="{Binding AutomationId}"
+                                          AutomationProperties.Name="{Binding Label}">
+                                    <!-- The none entry is an invariant value beside the model names; only what it shows is translated. -->
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock x:Name="ModelName" Text="{Binding}"/>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding}" Value="{x:Static vm:WizardModelKindChoice.None}">
+                                                    <Setter TargetName="ModelName" Property="Text" Value="{loc:Str Shell.Wizard.Kinds.None}"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
         </DataTemplate>
 
         <!-- Model picker. -->
         <DataTemplate DataType="{x:Type vm:WizardModelPickContent}">
             <StackPanel>
-                <TextBlock Text="Choose the model to use for every ability (you can fine-tune this later in Configure)."
+                <TextBlock Text="{loc:Str Shell.Wizard.Model.Intro}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Margin="0,0,0,10" TextWrapping="Wrap"/>
                 <!-- Shown only while fetching; the list below is empty until it arrives, so they never overlap. -->
-                <TextBlock Text="Loading models…"
+                <TextBlock Text="{loc:Str Shell.Wizard.LoadingModels}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                            Margin="0,0,0,8"
                            Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
@@ -142,7 +229,7 @@
                     BorderThickness="0,1,0,0"
                     Padding="20,14">
                 <Grid>
-                    <Button Content="Back"
+                    <Button Content="{loc:Str Shell.Wizard.Back}"
                             HorizontalAlignment="Left"
                             Width="90" Height="34" FontSize="12"
                             Style="{StaticResource TopBarAction}"
@@ -150,7 +237,7 @@
                             Visibility="{Binding ShowBack, Converter={StaticResource BoolVis}}"
                             Command="{Binding BackCommand}"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Skip"
+                        <Button Content="{loc:Str Shell.Wizard.Skip}"
                                 Width="90" Height="34" Margin="0,0,8,0" FontSize="12"
                                 Style="{StaticResource TopBarAction}"
                                 AutomationProperties.AutomationId="WizardSkipButton"

@@ -23,7 +23,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Source;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("latex-source-map")]
 public class LatexLayoutTests
 {
     private const double Scale = 20;
@@ -37,6 +36,7 @@ public class LatexLayoutTests
     }
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void ACommandOwnsTheBackslashThatIntroducesIt() => UiThread.Run(() =>
     {
         // WpfMath hands the atom the span of the command's *name* — `alpha`, not `\alpha`. The layout
@@ -50,6 +50,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void AnEquationIsWhatItHolds() => UiThread.Run(() =>
     {
         // Reported from the app: \begin{equation} … \end{equation} would not draw. It is a display environment,
@@ -62,6 +63,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void AnEquationsNumberStandsAgainstTheRightOfItsBlock() => UiThread.Run(() =>
     {
         // The user's formula. \tag puts the number at the right margin wherever it was written, so it is set
@@ -82,6 +84,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void AnEquationsNumberGoesUnderItWhenThereIsNoRoomBeside() => UiThread.Run(() =>
     {
         const string latex = @"e^{i\pi} + 1 = 0 \tag{4.2}";
@@ -92,6 +95,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void WithNoBlockAnEquationsNumberFollowsIt() => UiThread.Run(() =>
     {
         const string latex = @"e^{i\pi} + 1 = 0 \tag{4.2}";
@@ -110,6 +114,7 @@ public class LatexLayoutTests
         laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == latex.IndexOf(@"\tag", StringComparison.Ordinal));
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void NestedConstructsKeepTheirOwnSpans() => UiThread.Run(() =>
     {
         // The whole feature rests on this: an exponent and a numerator have to be separately addressable,
@@ -125,6 +130,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void TheTreeNestsTheWayTheFormulaReads() => UiThread.Run(() =>
     {
         // Parentage is what the whole rework rests on: it is kept from the render walk rather than
@@ -145,6 +151,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void EachPartOfARootNamesADifferentPartOfTheSource() => UiThread.Run(() =>
     {
         // The shape this rework exists for. A root lays out as a degree, a sign and its contents: the node
@@ -168,6 +175,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void ScriptsAreDrawnRaisedAndSmall() => UiThread.Run(() =>
     {
         // The caret's shape is taken straight from these boxes, so if the typesetter ever stopped
@@ -181,6 +189,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void EveryPieceIsInsideTheReportedSize() => UiThread.Run(() =>
     {
         // Boxes can be laid out above or left of the origin; the layout normalises them, and a caret
@@ -199,6 +208,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void SelectingInsideARootStaysInsideIt() => UiThread.Run(() =>
     {
         // Reported from the app: nothing inside a root could be selected. WpfMath draws the radical sign
@@ -211,6 +221,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void SpacingMacrosDoNotBecomeSelectable() => UiThread.Run(() =>
     {
         // Reported from the app: this line kept selecting itself entirely. WpfMath gives a `\;`'s boxes
@@ -229,6 +240,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void AMatrixReportsItsCellsAsAGrid() => UiThread.Run(() =>
     {
         // Three rows, three columns, each cell its own glyph — what canvas-style selection needs.
@@ -254,6 +266,7 @@ public class LatexLayoutTests
     ];
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void EveryNamedOperatorIsAddressable() => UiThread.Run(() =>
     {
         // Reported from the app: \lim, \sup, \max and the integrals could not be selected at all. They are
@@ -275,6 +288,7 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void EveryTermOnALineIsSelectableOnItsOwn() => UiThread.Run(() =>
     {
         // Reported from the app, on the sample pages' own lines: whole terms could not be selected —
@@ -300,6 +314,7 @@ public class LatexLayoutTests
         WpfTeXEnvironment.Create(scale: Scale);
 
     [TestMethod]
+    [CoversNode("latex-source-map")]
     public void NothingToTypesetIsStillSomewhereToType() => UiThread.Run(() =>
     {
         // A builder always makes a layout. An empty formula is not "no formula" — it is a formula being

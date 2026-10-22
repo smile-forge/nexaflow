@@ -19,11 +19,11 @@
   <h1>Markdown</h1>
   <p class="lede">Nexaflow renders Markdown <strong>natively</strong> — no browser, no JavaScript, no round-trip to a web view. Open a <code>.md</code> file and you get a fast, scrollable, fully-styled document: headings, tables, task lists, callouts, real LaTeX math, and a complete family of diagrams drawn directly on the canvas.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#viewing-authoring">Viewing &amp; authoring</a></li><li><a href="#the-basics">The basics</a></li><li><a href="#tables-task-lists">Tables &amp; task lists</a></li><li><a href="#callouts">Callouts</a></li><li><a href="#rich-inline-extensions">Rich inline extensions</a></li><li><a href="#math">Math</a></li><li><a href="#more-in-a-document">More in a document</a></li><li><a href="#good-to-know">Good to know</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#viewing--authoring">Viewing &amp; authoring</a></li><li><a href="#the-basics">The basics</a></li><li><a href="#tables--task-lists">Tables &amp; task lists</a></li><li><a href="#callouts">Callouts</a></li><li><a href="#rich-inline-extensions">Rich inline extensions</a></li><li><a href="#math">Math</a></li><li><a href="#more-in-a-document">More in a document</a></li><li><a href="#good-to-know">Good to know</a></li></ul></nav>
 <article class="prose"><p>This page covers reading and writing a document. The drawing — diagrams, codes, chemistry and
 plots — is large enough to have pages of its own, listed under <a href="#more-in-a-document">More in a document</a>.</p>
 <hr />
-<h2 id="viewing-authoring">Viewing &amp; authoring</h2>
+<h2 id="viewing--authoring">Viewing &amp; authoring</h2>
 <p>Markdown opens in its own tab — there's nothing to configure.</p>
 <ul>
 <li><strong>Open</strong> — double-click any <code>.md</code> file in the file explorer (or open it from a project, a
@@ -33,6 +33,14 @@ place: type into a heading, a list, or a paragraph and it stays formatted as you
 <li><strong>Toggle the raw source</strong> — flip the toolbar switch to drop to plain Markdown source when you want
 to hand-tune the exact text (front-matter, a fiddly table, a diagram fence), then flip back.</li>
 <li><strong>Save</strong> — <code>Ctrl</code>+<code>S</code>. The tab tracks unsaved changes and the title shows when you're dirty.</li>
+<li><strong>Save as</strong> — <code>Ctrl</code>+<code>Shift</code>+<code>S</code> writes the document to a file you pick, and the tab becomes that file. A
+<strong>Markdown Package</strong> (<code>*.mdz</code>), offered first, keeps the document and the pictures and files it links to in one
+file, as a Word document keeps its pictures, so it reads the same wherever it goes. A <strong>Markdown</strong> file (<code>*.md</code>)
+has them copied beside it instead. <span class="locate" title="In the app this points at Markdown_SaveAs">Show me</span></li>
+<li><strong>Markdown Packages</strong> open in the editor like any Markdown file — from a folder, or from inside a zip or a disc
+image — and save back into themselves. One inside a disc image can't be written to: save it as a file elsewhere.</li>
+<li><strong>Drafts</strong> — a document made for you, such as a page of writing converted to Markdown, opens as a draft. Its first
+save asks where to keep it, starting beside what it was made from.</li>
 </ul>
 <p>Everything below works in both the rendered view and the preview — it's the same renderer.</p>
 <hr />
@@ -51,7 +59,7 @@ links, and block quotes — all themed to match the app.</p>
 </code></pre>
 <p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/feature-basics.png" alt="Rendered headings, emphasis, list and block quote" /></p>
 <hr />
-<h2 id="tables-task-lists">Tables &amp; task lists</h2>
+<h2 id="tables--task-lists">Tables &amp; task lists</h2>
 <p>Pipe tables support per-column alignment and inline formatting; task lists render as tidy
 check glyphs.</p>
 <pre><code class="language-markdown">| Feature     | Status | Notes              |
@@ -116,8 +124,14 @@ shaped word clouds, and correlation plots over your own data.</li>
 <ul>
 <li><strong>It's all local.</strong> Diagrams and math render on your machine — nothing is sent anywhere, and the
 renderer works offline.</li>
-<li><strong>Local images only.</strong> <code>![](../_img/Nexaflow.Features.Markdown/…)</code> loads local image files; remote <code>http(s)</code> and <code>data:</code> images are
+<li><strong>Local images only.</strong> <code>![](…)</code> loads local image files; remote <code>http(s)</code> and <code>data:</code> images are
 not fetched (you'll see the alt text instead).</li>
+<li><strong>Typography and emoji.</strong> Straight quotes are drawn curled where they pair, <code>--</code> and <code>---</code> as dashes, <code>...</code> as an
+ellipsis, and an emoji's name between colons as the emoji — <code>:rocket:</code> is 🚀. What you typed is still there, and
+pressing one shows it; a backslash in front keeps a character as typed (<code>\&quot;</code>, <code>\--</code>).</li>
+<li><strong>Picture sizes.</strong> Write a size after a bar at the end of a picture's words, as Obsidian does:
+<code>![a cat|300](cat.png)</code> draws it 300 wide in its own proportions, and <code>![a cat|300x200](cat.png)</code> 300 by 200.
+Without one, a picture is drawn its own size, brought down to fit the page and never blown up.</li>
 <li><strong>Copy or save a picture of a diagram.</strong> Rest the pointer on a pie chart, a Venn diagram, a formula or a
 chemical structure and a small toolbar appears at its top right: <strong>Copy</strong> puts a picture of it on the
 clipboard, and <strong>Save</strong> saves it as a PNG wherever you choose. The picture is the diagram as it reads —
@@ -137,7 +151,7 @@ to work, scan it from the app that owns the thing it describes before suspecting
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.7.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

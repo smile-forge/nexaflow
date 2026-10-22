@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 
@@ -41,7 +42,8 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
     public ObservableCollection<AppAddOn> AddOns { get; } = [];
     public ObservableCollection<AppVolume> Volumes { get; } = [];
 
-    public IReadOnlyList<BackgroundModeOption> BackgroundModes => BackgroundModeOption.All;
+    /// <summary>The background dropdown's choices, looked up once for this pane.</summary>
+    public IReadOnlyList<BackgroundModeOption> BackgroundModes { get; } = BackgroundModeOption.All;
 
     /// <summary>The drive Move would relocate the package to.</summary>
     [ObservableProperty] private AppVolume? _selectedVolume;
@@ -93,9 +95,9 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(family)) return;
 
         if (_service.BackgroundAccess.Set(family, value.Mode))
-            Status = $"Background permission set to “{value.Label}”.";
+            Status = Str.Format("WindowsApps.Advanced.Background.SetFormat", value.Label);
         else
-            _shell.ShowError($"Couldn't change the background permission for {Item.Name}.");
+            _shell.ShowError(Str.Format("WindowsApps.Advanced.Background.SetFailedFormat", Item.Name));
     }
 
     // ── Terminate / Repair / Reset ────────────────────────────────────────────
@@ -106,9 +108,12 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (!TryBegin(out var ops)) return;
 
         var task = new TerminateAppTask(ops, Item.App);
-        Run(task, () => Status = task.Killed == 0
-            ? $"{Item.Name} wasn't running."
-            : $"Stopped {task.Killed} {(task.Killed == 1 ? "process" : "processes")}.");
+        Run(task, () => Status = task.Killed switch
+        {
+            0 => Str.Format("WindowsApps.Advanced.Terminate.NotRunningFormat", Item.Name),
+            1 => Str.Format("WindowsApps.Advanced.Terminate.StoppedOneFormat", task.Killed),
+            _ => Str.Format("WindowsApps.Advanced.Terminate.StoppedManyFormat", task.Killed),
+        });
     }
 
     [RelayCommand(CanExecute = nameof(CanRunOperation))]
@@ -117,7 +122,10 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (!TryBegin(out var ops)) return;
 
         var task = new RepairAppTask(ops, Item.App);
-        Run(task, () => Report(task.Result, $"{Item.Name} was repaired.", "repair"));
+        Run(task, () => Report(
+            task.Result,
+            Str.Format("WindowsApps.Advanced.Repair.DoneFormat", Item.Name),
+            Str.Format("WindowsApps.Advanced.Repair.FailedFormat", Item.Name, task.Result.Error)));
     }
 
     [RelayCommand(CanExecute = nameof(CanRunOperation))]
@@ -126,16 +134,18 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (_ops is null || IsBusy) return;
 
         var confirmed = await _shell.ConfirmAsync(
-            $"Reset {Item.Name}?",
-            "This permanently deletes the app's data, settings and sign-in details, then reinstalls it " +
-            "from scratch. The app itself stays installed.",
-            "Reset", "Cancel");
+            Str.Format("WindowsApps.Advanced.Reset.ConfirmTitleFormat", Item.Name),
+            Str.Get("WindowsApps.Advanced.Reset.ConfirmMessage"),
+            Str.Get("WindowsApps.Advanced.Reset.Label"), Str.Get("WindowsApps.Dialog.Cancel"));
         if (!confirmed) return;
 
         if (!TryBegin(out var ops)) return;
 
         var task = new ResetAppTask(ops, Item.App);
-        Run(task, () => Report(task.Result, $"{Item.Name} was reset.", "reset"));
+        Run(task, () => Report(
+            task.Result,
+            Str.Format("WindowsApps.Advanced.Reset.DoneFormat", Item.Name),
+            Str.Format("WindowsApps.Advanced.Reset.FailedFormat", Item.Name, task.Result.Error)));
     }
 
     // ── Move ──────────────────────────────────────────────────────────────────
@@ -183,8 +193,11 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (SelectedVolume is not { } target || !TryBegin(out var ops)) return;
 
         var task = new MoveAppTask(ops, Item.App, target);
-        Run(task, () => Report(task.Result,
-                               $"{Item.Name} now lives on {target.MountPoint.TrimEnd('\\')}.", "move"));
+        var drive = target.MountPoint.TrimEnd('\\');
+        Run(task, () => Report(
+            task.Result,
+            Str.Format("WindowsApps.Advanced.Move.DoneFormat", Item.Name, drive),
+            Str.Format("WindowsApps.Advanced.Move.FailedFormat", Item.Name, task.Result.Error)));
     }
 
     // ── Add-ons ───────────────────────────────────────────────────────────────
@@ -214,9 +227,9 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         if (addOn is null || _ops is null || IsBusy) return;
 
         var confirmed = await _shell.ConfirmAsync(
-            $"Remove {addOn.Name}?",
-            $"This removes the add-on only — {Item.Name} stays installed.",
-            "Remove", "Cancel");
+            Str.Format("WindowsApps.Advanced.AddOns.ConfirmTitleFormat", addOn.Name),
+            Str.Format("WindowsApps.Advanced.AddOns.ConfirmMessageFormat", Item.Name),
+            Str.Get("WindowsApps.Advanced.AddOns.Remove"), Str.Get("WindowsApps.Dialog.Cancel"));
         if (!confirmed) return;
 
         if (!TryBegin(out var ops)) return;
@@ -224,7 +237,10 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         var task = new RemoveAddOnTask(ops, addOn);
         Run(task, () =>
         {
-            Report(task.Result, $"{addOn.Name} was removed.", "removal");
+            Report(
+                task.Result,
+                Str.Format("WindowsApps.Advanced.AddOns.RemovedFormat", addOn.Name),
+                Str.Format("WindowsApps.Advanced.AddOns.RemoveFailedFormat", Item.Name, task.Result.Error));
             if (task.Result.Success) AddOns.Remove(addOn);
         });
     }
@@ -251,14 +267,15 @@ public sealed partial class AppAdvancedOptionsViewModel : ObservableObject
         {
             IsBusy = false;
             if (ok) onDone();
-            else _shell.ShowError($"{task.Description} didn't finish.");
+            else _shell.ShowError(Str.Format("WindowsApps.Advanced.TaskUnfinishedFormat", task.Description));
         });
     }
 
-    private void Report(AppOperationResult result, string success, string what)
+    /// <summary>Shows <paramref name="success"/> under the buttons, or raises <paramref name="failure"/> as an error.</summary>
+    private void Report(AppOperationResult result, string success, string failure)
     {
         if (result.Success) Status = success;
-        else _shell.ShowError($"Couldn't {what} {Item.Name}: {result.Error}");
+        else _shell.ShowError(failure);
     }
 
     partial void OnIsBusyChanged(bool value)

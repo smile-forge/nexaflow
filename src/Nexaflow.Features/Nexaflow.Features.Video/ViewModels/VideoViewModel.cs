@@ -24,6 +24,7 @@ using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Features.Video.Views;
 
 namespace Nexaflow.Features.Video.ViewModels;
 
@@ -39,7 +40,7 @@ namespace Nexaflow.Features.Video.ViewModels;
 /// raises <see cref="FatalError"/> so the shell can close the tab with a notice.
 /// </para>
 /// </summary>
-public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int KeyframeCount = 32;
     private const uint ThumbWidth = 160, ThumbHeight = 90;
@@ -222,7 +223,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            await OnUi(() => { IsLoading = false; Fatal($"Couldn't open this video. {ex.Message}"); }).ConfigureAwait(false);
+            await OnUi(() => { IsLoading = false; Fatal(Str.Format("Video.Error.OpenFailedFormat", ex.Message)); }).ConfigureAwait(false);
         }
     }
 
@@ -377,7 +378,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     private void OnStopped(object? sender, EventArgs e) => _ = OnUi(() => IsPlaying = false);
 
     private void OnEncounteredError(object? sender, EventArgs e) =>
-        _ = OnUi(() => Fatal("Playback error: this file may use an unsupported codec or be corrupt."));
+        _ = OnUi(() => Fatal(Str.Get("Video.Error.Playback")));
 
     private void Fatal(string message)
     {
@@ -392,7 +393,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     private void RefreshSubtitleTracks()
     {
         SubtitleTracks.Clear();
-        SubtitleTracks.Add(new SubtitleTrackOption(null, "Off"));
+        SubtitleTracks.Add(new SubtitleTrackOption(null, Str.Get("Video.Subtitles.Off")));
         if (_mp is null) return;
 
         MediaTrackList? list = null;
@@ -404,7 +405,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             foreach (MediaTrack tr in list)
             {
                 n++;
-                var label = FirstNonEmpty(tr.Name, tr.Description, tr.Language) ?? $"Subtitle {n}";
+                var label = FirstNonEmpty(tr.Name, tr.Description, tr.Language) ?? Str.Format("Video.Subtitles.TrackFormat", n);
                 SubtitleTracks.Add(new SubtitleTrackOption(tr.Id, label));
             }
         }
@@ -419,45 +420,55 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         var sections = new List<MediaInfoSection>();
         var durLabel = Format(_media?.Duration ?? 0);
 
-        var file = new MediaInfoSection { Header = "File" };
-        file.Rows.Add(new("Name", FileName));
-        file.Rows.Add(new("Container", Path.GetExtension(_path).TrimStart('.').ToUpperInvariant()));
-        try { file.Rows.Add(new("Size", FormatBytes(new FileInfo(_path).Length))); } catch { }
-        file.Rows.Add(new("Duration", durLabel));
+        var file = new MediaInfoSection { Header = Str.Get("Video.Info.Section.File"), ReportHeader = "File" };
+        file.Rows.Add(new(Str.Get("Video.Info.Field.Name"), FileName) { ReportLabel = "Name" });
+        file.Rows.Add(new(Str.Get("Video.Info.Field.Container"), Path.GetExtension(_path).TrimStart('.').ToUpperInvariant())
+                      { ReportLabel = "Container" });
+        try { file.Rows.Add(new(Str.Get("Video.Info.Field.Size"), FormatBytes(new FileInfo(_path).Length)) { ReportLabel = "Size" }); } catch { }
+        file.Rows.Add(new(Str.Get("Video.Info.Field.Duration"), durLabel) { ReportLabel = "Duration" });
         sections.Add(file);
 
         string videoSummary = "", audioSummary = "";
 
-        AddTracks(TrackType.Video, "Video", sections, (sec, tr) =>
+        AddTracks(TrackType.Video, sections, (sec, tr) =>
         {
             var v = tr.Data.Video;
             if (_videoWidth == 0) { _videoWidth = v.Width; _videoHeight = v.Height; }
             var codec = CodecName(TrackType.Video, tr);
-            sec.Rows.Add(new("Codec", codec));
-            sec.Rows.Add(new("Resolution", $"{v.Width} × {v.Height}"));
+            sec.Rows.Add(new(Str.Get("Video.Info.Field.Codec"), codec) { ReportLabel = "Codec" });
+            sec.Rows.Add(new(Str.Get("Video.Info.Field.Resolution"), $"{v.Width} × {v.Height}") { ReportLabel = "Resolution" });
             if (v.FrameRateDen > 0)
-                sec.Rows.Add(new("Frame rate", $"{v.FrameRateNum / (double)v.FrameRateDen:0.##} fps"));
-            if (tr.Bitrate > 0) sec.Rows.Add(new("Bitrate", $"{tr.Bitrate / 1000} kbps"));
+                sec.Rows.Add(new(Str.Get("Video.Info.Field.FrameRate"), $"{v.FrameRateNum / (double)v.FrameRateDen:0.##} fps")
+                             { ReportLabel = "Frame rate" });
+            if (tr.Bitrate > 0)
+                sec.Rows.Add(new(Str.Get("Video.Info.Field.Bitrate"), $"{tr.Bitrate / 1000} kbps") { ReportLabel = "Bitrate" });
             if (videoSummary.Length == 0) videoSummary = $"{v.Width}×{v.Height} {codec}";
         });
 
-        AddTracks(TrackType.Audio, "Audio", sections, (sec, tr) =>
+        AddTracks(TrackType.Audio, sections, (sec, tr) =>
         {
             var a = tr.Data.Audio;
             var codec = CodecName(TrackType.Audio, tr);
-            sec.Rows.Add(new("Codec", codec));
-            sec.Rows.Add(new("Channels", ChannelLabel(a.Channels)));
-            if (a.Rate > 0) sec.Rows.Add(new("Sample rate", $"{a.Rate / 1000.0:0.#} kHz"));
-            if (!string.IsNullOrWhiteSpace(tr.Language)) sec.Rows.Add(new("Language", tr.Language!));
-            if (audioSummary.Length == 0) audioSummary = $"{codec} {ChannelLabel(a.Channels)}";
+            sec.Rows.Add(new(Str.Get("Video.Info.Field.Codec"), codec) { ReportLabel = "Codec" });
+            sec.Rows.Add(new(Str.Get("Video.Info.Field.Channels"), ChannelLabel(a.Channels))
+                         { ReportLabel = "Channels", ReportValue = ChannelReportLabel(a.Channels) });
+            if (a.Rate > 0)
+                sec.Rows.Add(new(Str.Get("Video.Info.Field.SampleRate"), $"{a.Rate / 1000.0:0.#} kHz") { ReportLabel = "Sample rate" });
+            if (!string.IsNullOrWhiteSpace(tr.Language))
+                sec.Rows.Add(new(Str.Get("Video.Info.Field.Language"), tr.Language!) { ReportLabel = "Language" });
+            if (audioSummary.Length == 0) audioSummary = $"{codec} {ChannelReportLabel(a.Channels)}";
         });
 
         int subtitleCount = 0;
-        AddTracks(TrackType.Text, "Subtitles", sections, (sec, tr) =>
+        AddTracks(TrackType.Text, sections, (sec, tr) =>
         {
             subtitleCount++;
-            sec.Rows.Add(new("Track", FirstNonEmpty(tr.Description, tr.Language, tr.Name) ?? tr.Id ?? "subtitle"));
-            if (!string.IsNullOrWhiteSpace(tr.Language)) sec.Rows.Add(new("Language", tr.Language!));
+            var track = FirstNonEmpty(tr.Description, tr.Language, tr.Name) ?? tr.Id;
+            sec.Rows.Add(track is null
+                ? new(Str.Get("Video.Info.Field.Track"), Str.Get("Video.Info.UnnamedSubtitleTrack")) { ReportLabel = "Track", ReportValue = "subtitle" }
+                : new MediaInfoRow(Str.Get("Video.Info.Field.Track"), track) { ReportLabel = "Track" });
+            if (!string.IsNullOrWhiteSpace(tr.Language))
+                sec.Rows.Add(new(Str.Get("Video.Info.Field.Language"), tr.Language!) { ReportLabel = "Language" });
         });
         _hasSubtitleTracks = subtitleCount > 0;
 
@@ -467,8 +478,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         return new MediaInfo { FileName = FileName, Sections = sections, Summary = summary };
     }
 
-    private void AddTracks(TrackType type, string label, List<MediaInfoSection> sections,
-                           Action<MediaInfoSection, MediaTrack> fill)
+    private void AddTracks(TrackType type, List<MediaInfoSection> sections, Action<MediaInfoSection, MediaTrack> fill)
     {
         if (_media is null) return;
         MediaTrackList? list = null;
@@ -479,13 +489,36 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             int n = 0;
             foreach (MediaTrack tr in list)
             {
-                var sec = new MediaInfoSection { Header = list.Count > 1 ? $"{label} #{++n}" : label };
+                int? number = list.Count > 1 ? ++n : null;
+                var sec = new MediaInfoSection
+                {
+                    Header       = TrackSectionHeader(type, number),
+                    ReportHeader = TrackSectionReportHeader(type, number),
+                };
                 try { fill(sec, tr); } catch { }
                 if (sec.Rows.Count > 0) sections.Add(sec);
             }
         }
         catch { }
         finally { (list as IDisposable)?.Dispose(); }
+    }
+
+    /// <summary>A track section's title as the info panel shows it — "Audio", or "Audio #2" among several.</summary>
+    private static string TrackSectionHeader(TrackType type, int? number) => (type, number) switch
+    {
+        (TrackType.Video, { } n) => Str.Format("Video.Info.Section.VideoNumberedFormat", n),
+        (TrackType.Video, null)  => Str.Get("Video.Info.Section.Video"),
+        (TrackType.Audio, { } n) => Str.Format("Video.Info.Section.AudioNumberedFormat", n),
+        (TrackType.Audio, null)  => Str.Get("Video.Info.Section.Audio"),
+        (_, { } n)               => Str.Format("Video.Info.Section.SubtitlesNumberedFormat", n),
+        _                        => Str.Get("Video.Info.Section.Subtitles"),
+    };
+
+    /// <summary>A track section's title in the English media-info report for the assistant.</summary>
+    private static string TrackSectionReportHeader(TrackType type, int? number)
+    {
+        var kind = type switch { TrackType.Video => "Video", TrackType.Audio => "Audio", _ => "Subtitles" };
+        return number is { } n ? $"{kind} #{n}" : kind;
     }
 
     private string CodecName(TrackType type, MediaTrack tr)
@@ -623,9 +656,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
                 sb.Append("Summary: ").Append(info.Summary).Append('\n');
             foreach (var section in info.Sections)
             {
-                sb.Append('\n').Append(section.Header).Append(":\n");
+                sb.Append('\n').Append(section.ReportHeader).Append(":\n");
                 foreach (var row in section.Rows)
-                    sb.Append("  ").Append(row.Label).Append(": ").Append(row.Value).Append('\n');
+                    sb.Append("  ").Append(row.ReportLabel).Append(": ").Append(row.ReportValue).Append('\n');
             }
         }
         else
@@ -743,7 +776,19 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         return string.IsNullOrWhiteSpace(s) ? codec.ToString() : s.ToUpperInvariant();
     }
 
+    /// <summary>The channel layout as the info panel shows it.</summary>
     private static string ChannelLabel(uint channels) => channels switch
+    {
+        0 => "—",
+        1 => Str.Get("Video.Info.Channels.Mono"),
+        2 => Str.Get("Video.Info.Channels.Stereo"),
+        6 => "5.1",
+        8 => "7.1",
+        _ => Str.Format("Video.Info.Channels.CountFormat", channels),
+    };
+
+    /// <summary>The channel layout in English, for the summary and the report the assistant reads.</summary>
+    private static string ChannelReportLabel(uint channels) => channels switch
     {
         0 => "—",
         1 => "Mono",
@@ -762,6 +807,13 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     private static Task Run(Action a) { a(); return Task.CompletedTask; }
 
     // ── Disposal ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A reminder of the video for the conversation context panel: its first frame and how long it runs — what the
+    /// conversation is about, not the player. The panel's header names the file. A fresh control each time the chip
+    /// is selected, per the contract; it binds to the poster the scene strip already made and owns none of it.
+    /// </summary>
+    public System.Windows.Controls.UserControl CreateContextPreview() => new VideoContextPreview { DataContext = this };
 
     public void Dispose()
     {

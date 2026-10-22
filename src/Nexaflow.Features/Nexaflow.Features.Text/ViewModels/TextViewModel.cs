@@ -16,6 +16,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Text.ViewModels;
 
@@ -63,7 +64,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         new("UTF-16 LE",      Encoding.Unicode),
         new("UTF-16 BE",      Encoding.BigEndianUnicode),
         new("Latin-1",        Encoding.Latin1),
-        new("System Default", Encoding.Default),
+        new("System Default", Encoding.Default) { Label = Str.Get("Text.Viewer.Encoding.SystemDefault") },
     ];
 
     // ── Display toggles ───────────────────────────────────────────────────────
@@ -86,13 +87,13 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     [ObservableProperty] private bool             _isSplitPanelOpen;
     [ObservableProperty] private SplitModeOption  _selectedSplitMode;
     [ObservableProperty] private string           _splitValue     = "1000";
-    [ObservableProperty] private string           _splitValueHint = "Lines per file";
+    [ObservableProperty] private string           _splitValueHint = Str.Get("Text.Viewer.Split.LinesPerFile");
 
     public IReadOnlyList<SplitModeOption> SplitModes { get; } =
     [
-        new(SplitMode.ByLineCount, "By line count"),
-        new(SplitMode.BySize,      "By size (MB)"),
-        new(SplitMode.ByRegex,     "At lines matching regex"),
+        new(SplitMode.ByLineCount, Str.Get("Text.Viewer.Split.ByLineCount")),
+        new(SplitMode.BySize,      Str.Get("Text.Viewer.Split.BySize")),
+        new(SplitMode.ByRegex,     Str.Get("Text.Viewer.Split.ByRegex")),
     ];
 
     // ── Search state ──────────────────────────────────────────────────────────
@@ -230,7 +231,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         catch (Exception ex)
         {
             _suppressDocChanges = true;
-            Document.Text = $"Error loading file: {ex.Message}";
+            Document.Text = Str.Format("Text.Viewer.Status.LoadFailedFormat", ex.Message);
             _suppressDocChanges = false;
         }
     }
@@ -379,8 +380,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         {
             if (IsDirty)
             {
-                var discard = await _shell.ConfirmAsync("Discard changes?",
-                    "You have unsaved edits. Discard them and stop editing?");
+                var discard = await _shell.ConfirmAsync(Str.Get("Text.Viewer.Edit.DiscardTitle"), Str.Get("Text.Viewer.Edit.DiscardAsk"));
                 if (!discard) return;
                 await DiscardAsync();
             }
@@ -391,9 +391,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
         if (!CanEdit)
         {
-            _shell.ShowError(IsLargeFile
-                ? "Large files inside archives can't be edited in place — extract or split first."
-                : "This file can't be edited.");
+            _shell.ShowError(NotEditableMessage());
             return;
         }
 
@@ -448,11 +446,11 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                 _winStartByte = w.StartByteOffset;
             }
 
-            _shell.ShowNotification($"Saved {FileName}.");
+            _shell.ShowNotification(Str.Format("Text.Viewer.Save.SavedFormat", FileName));
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Could not save '{FileName}': {ex.Message}");
+            _shell.ShowError(Str.Format("Text.Viewer.Save.FailedFormat", FileName, ex.Message));
         }
         finally
         {
@@ -497,7 +495,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private async void OnFileChanged()
     {
         if (IsEditing || IsBusy) return; // our own writes / an active edit session — ignore
-        FileChangedMessage         = "File changed on disk — reloading…";
+        FileChangedMessage         = Str.Get("Text.Viewer.Status.ChangedOnDisk");
         FileChangedBannerVisible   = true;
         await ReloadAsync();
         await Task.Delay(3000);
@@ -522,9 +520,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     partial void OnSelectedSplitModeChanged(SplitModeOption value)
         => (SplitValueHint, SplitValue) = value.Mode switch
         {
-            SplitMode.BySize  => ("Megabytes per file",            "10"),
-            SplitMode.ByRegex => ("Regex — new file at each match", "^"),
-            _                 => ("Lines per file",                "1000"),
+            SplitMode.BySize  => (Str.Get("Text.Viewer.Split.MegabytesPerFile"), "10"),
+            SplitMode.ByRegex => (Str.Get("Text.Viewer.Split.RegexHint"),        "^"),
+            _                 => (Str.Get("Text.Viewer.Split.LinesPerFile"),     "1000"),
         };
 
     [RelayCommand]
@@ -541,19 +539,19 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         {
             case SplitMode.BySize:
                 if (!double.TryParse(SplitValue, out var mb) || mb <= 0)
-                { _shell.ShowError("Enter a positive size in MB."); return; }
+                { _shell.ShowError(Str.Get("Text.Viewer.Split.PositiveSize")); return; }
                 options = new SplitOptions { Mode = mode, MaxBytesPerPart = (long)(mb * 1024 * 1024) };
                 break;
             case SplitMode.ByLineCount:
                 if (!int.TryParse(SplitValue, out var lines) || lines <= 0)
-                { _shell.ShowError("Enter a positive line count."); return; }
+                { _shell.ShowError(Str.Get("Text.Viewer.Split.PositiveLineCount")); return; }
                 options = new SplitOptions { Mode = mode, LinesPerPart = lines };
                 break;
             default:
                 if (string.IsNullOrWhiteSpace(SplitValue))
-                { _shell.ShowError("Enter a regex pattern."); return; }
+                { _shell.ShowError(Str.Get("Text.Viewer.Split.PatternRequired")); return; }
                 try { _ = new Regex(SplitValue); }
-                catch { _shell.ShowError("Invalid regex pattern."); return; }
+                catch { _shell.ShowError(Str.Get("Text.Viewer.Split.PatternInvalid")); return; }
                 options = new SplitOptions { Mode = mode, BoundaryPattern = SplitValue };
                 break;
         }
@@ -563,9 +561,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _shell.QueueBackgroundTask(task, ok =>
         {
             if (ok && task.Result is { OutputFiles.Count: > 0 } r)
-                _shell.ShowNotification($"Split '{FileName}' into {r.OutputFiles.Count} file(s).");
+                _shell.ShowNotification(Str.Format("Text.Viewer.Split.DoneFormat", FileName, r.OutputFiles.Count));
             else if (ok)
-                _shell.ShowNotification($"'{FileName}' produced no output (empty file).");
+                _shell.ShowNotification(Str.Format("Text.Viewer.Split.EmptyFormat", FileName));
         });
     }
 
@@ -680,7 +678,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         void Collect(long line, string text)
         {
             if (collect is null || collect.Count >= collectCap) return;
-            collect.Add(new SearchHit(line.ToString(CultureInfo.InvariantCulture), $"line {line + 1}", text.TrimEnd('\r')));
+            collect.Add(new SearchHit(line.ToString(CultureInfo.InvariantCulture), Str.Format("Text.Viewer.Search.LineFormat", line + 1), text.TrimEnd('\r')));
         }
     }
 
@@ -766,7 +764,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         {
             if (hits.Count >= SearchHitCap) break;
             var preview = IsLargeFile ? null : LineText((int)l);
-            hits.Add(new SearchHit(l.ToString(CultureInfo.InvariantCulture), $"line {l + 1}", preview));
+            hits.Add(new SearchHit(l.ToString(CultureInfo.InvariantCulture), Str.Format("Text.Viewer.Search.LineFormat", l + 1), preview));
         }
         return hits;
     }
@@ -1040,7 +1038,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         int n = await ApplyAiReplaceAsync(FindText, ReplaceText, UseRegex, MatchCase,
                                           0, Math.Max(0, LineCount - 1), CancellationToken.None);
         if (IsSearchActive) await ReRunSearchAsync();
-        _shell.ShowNotification(n == 0 ? "No matches to replace." : $"Replaced {n} occurrence(s).");
+        _shell.ShowNotification(n == 0
+            ? Str.Get("Text.Viewer.Find.NothingToReplace")
+            : Str.Format("Text.Viewer.Find.ReplacedFormat", n));
     }
 
     [RelayCommand]
@@ -1070,20 +1070,20 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     }
 
     private string NotEditableMessage() => IsLargeFile
-        ? "Large files inside archives can't be edited in place — extract or split first."
-        : "This file can't be edited.";
+        ? Str.Get("Text.Viewer.Edit.ArchiveLarge")
+        : Str.Get("Text.Viewer.Edit.NotEditable");
 
     [RelayCommand]
     private void GoToLine()
     {
         int max = Math.Max(1, LineCount);
-        _shell.ShowPrompt("Go to line", $"Line number (1–{max})", string.Empty,
+        _shell.ShowPrompt(Str.Get("Text.Viewer.GoToLine.Title"), Str.Format("Text.Viewer.GoToLine.PromptFormat", max), string.Empty,
             onConfirm: text =>
             {
                 if (int.TryParse(text?.Trim(), out var line) && line >= 1)
                     _ = NavigateToFileLineAsync(Math.Min(line, max) - 1);
                 else
-                    _shell.ShowError("Enter a valid line number.");
+                    _shell.ShowError(Str.Get("Text.Viewer.GoToLine.Invalid"));
             },
             onCancel: () => { });
     }
@@ -1312,12 +1312,19 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     /// and a capped snippet of the resident text. Built fresh each time — it never re-hosts the live editor.</summary>
     public System.Windows.Controls.UserControl CreateContextPreview()
     {
-        var meta = $"{LineCount:N0} line{(LineCount == 1 ? "" : "s")} · {SelectedEncoding.Name}" +
-                   (IsDirty ? " · unsaved edits" : IsEditing ? " · editing" : string.Empty);
+        var lines = LineCount == 1
+            ? Str.Format("Text.Viewer.Preview.LineOne", LineCount)
+            : Str.Format("Text.Viewer.Preview.LineMany", LineCount);
+        var state = IsDirty ? Str.Get("Text.Viewer.Preview.Unsaved")
+                  : IsEditing ? Str.Get("Text.Viewer.Preview.Editing")
+                  : null;
+        var meta = state is null
+            ? $"{lines} · {SelectedEncoding.Label}"
+            : $"{lines} · {SelectedEncoding.Label} · {state}";
         const int cap = 8000;
         var text = Document.Text;
-        var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
-        return new ReadOnlyTextPreview(string.IsNullOrEmpty(FileName) ? "Text" : FileName, meta, body);
+        var body = text.Length > cap ? text[..cap] + "\n" + Str.Get("Text.Viewer.Preview.Truncated") : text;
+        return new ReadOnlyTextPreview(meta, body);
     }
 
     public string? GetAiSystemPromptGuidance() =>

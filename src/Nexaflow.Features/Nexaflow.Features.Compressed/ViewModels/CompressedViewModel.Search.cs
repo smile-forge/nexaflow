@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.IO.Common;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.ViewModels;
 
@@ -69,10 +70,10 @@ public sealed partial class CompressedViewModel : ISearchable
     public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (!request.TryValidate(out var invalid))
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("Compressed.Search.InvalidRegexFormat", invalid)));
 
         if (request.Terms.Count == 0)
-            return Task.FromResult(SearchOutcome.Unsupported("Nothing to search for."));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Get("Compressed.Search.NothingToSearch")));
 
         // Marshalled even when not displaying: the tree is the bound row list, and the agent reads it from
         // its own thread.
@@ -82,7 +83,7 @@ public sealed partial class CompressedViewModel : ISearchable
     private SearchOutcome RunSearch(SearchRequest request, bool display)
     {
         if (_root is null)
-            return SearchOutcome.None($"No recognised archive is loaded in '{FileName}'.");
+            return SearchOutcome.None(Str.Format("Compressed.Search.NoArchiveFormat", FileName));
 
         var hits = new List<ArchiveNode>();
         Collect(_root, request, hits);
@@ -122,7 +123,7 @@ public sealed partial class CompressedViewModel : ISearchable
             var chosen = Descendants(_root).Where(n => wanted.Contains(n.ArchivePath)).ToList();
             if (chosen.Count == 0) return Task.FromResult(false);
 
-            Apply(chosen, CurrentSearchTerm.Length == 0 ? $"{chosen.Count} selected" : CurrentSearchTerm);
+            Apply(chosen, CurrentSearchTerm.Length == 0 ? Str.Format("Compressed.Search.SelectedFormat", chosen.Count) : CurrentSearchTerm);
             return Task.FromResult(true);
         });
     }

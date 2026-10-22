@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
@@ -24,16 +25,16 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// </summary>
 [TestClass]
 [CoversNode("images")]
-public class ImagesEditJourneyTests : UiJourneyTestBase
+public class ImagesEditJourneyTests : ImageEditJourneyBase
 {
     /// <summary>A recipe (a quarter turn) made against some other file, so the photo reads as changed since.</summary>
     private const string StaleRecipe =
         """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""";
 
-    /// <summary>The same, with the photo's background removed around whatever is called a mug: kept, it asks for picture
-    /// selection, which is never here.</summary>
+    /// <summary>The same, made on a machine with the AI models: the photo's background removed around whatever is called a
+    /// mug, and the photo AI-enhanced. Kept, it asks for picture selection and the picture tools, which are never here.</summary>
     private const string StaleCutOutRecipe =
-        """{ "version": 3, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 }, "cutOut": { "phrase": "mug" } }""";
+        """{ "version": 3, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 }, "cutOut": { "phrase": "mug" }, "restore": { "scale": 1 } }""";
 
     /// <summary>
     /// An AI folder of its own, empty: the picture tools are never here, so AI enhance always offers them for download —
@@ -73,11 +74,13 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
 
             // ── The photos changed since their recipes: keep one, discard the other ──
             CheckDoes("Keep the edits made against an earlier file", "Image_EditKeepChanged", () => WaitForFs(() => !Exists("Image_EditKeepChanged"), 3));
-            Check("The kept edits remove its background, and the banner offers picture selection",
-                  () => WaitForFs(() => WaitForId("Image_RemoveBackgroundAction", 1)?.IsEnabled == true, 5));
+            Check("The kept edits remove its background and enhance it: the banners offer picture selection and the picture tools",
+                  () => WaitForFs(() => WaitForId("Image_RemoveBackgroundAction", 1)?.IsEnabled == true && WaitForId("Image_RestoreAction", 1)?.IsEnabled == true, 5));
             CheckInvoke("Next photo", "Image_Next");
             CheckDoes("Discard the edits made against an earlier file", "Image_EditDiscardChanged", () => WaitForFs(() => !Exists("Image_EditDiscardChanged"), 3));
             CheckInvoke("Back to the first photo", "Image_Previous");
+
+
 
             // ── Floating tools: flips are remembered edits like turns ──
             CheckInvoke("Flip horizontally", "Image_FlipHorizontal");
@@ -109,14 +112,12 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
                 Check($"{slider} moves", () => MoveSlider(slider));
             CheckInvoke("Reset adjustments", "Image_EditResetAdjust");
 
-            // AI enhance: its strength and faces show with it, and the banner offers the picture tools, which are not here.
-            Check("AI enhance turns on, its strength and faces with it",
-                  () => SetToggle("Image_EditAiEnhance", true) && WaitForFs(() => Exists("Image_EditAiStrength"), 3));
-            Check("AI strength moves", () => MoveSlider("Image_EditAiStrength"));
-            Check("Repair faces toggles", () => SetToggle("Image_EditAiFaces", false) && SetToggle("Image_EditAiFaces", true));
-            Check("The banner offers the picture tools to download", () => WaitForFs(() => WaitForId("Image_RestoreAction", 1)?.IsEnabled == true, 5));
-            Check("AI enhance off, and the banner goes with it",
-                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3));
+            // AI enhance, kept from the edits, can still be turned off; then it waits for the picture tools, which the panel offers
+            // over the picture in place of the kept edits' banner — the AI tools journey turns it on where they are here.
+            Check("AI enhance from the kept edits turns off; its banner goes, and the panel's offer of the picture tools takes over",
+                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3)
+                        && WaitForFs(() => WaitForId("Image_RestoringModelsDownload", 1)?.IsEnabled == true, 3));
+            Check("AI enhance now waits for the picture tools", () => !Enabled("Image_EditAiEnhance"));
 
             // Markup: a text annotation typed, an arrow drawn, selected and deleted
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
@@ -130,7 +131,9 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             CheckPresent("Font list", "Image_EditFont");
             Check("Text size slider moves", () => MoveSlider("Image_EditTextSize"));
             Check("Text backing toggles", () => SetToggle("Image_EditTextBacking", true) && SetToggle("Image_EditTextBacking", false));
-            Check("A click places text, typed in the panel", () => ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
+            // The banners over the picture come and go with the panels, and the small sample stays where it was laid out: fit it
+            // to the canvas, so the canvas's centre is on the photo.
+            Check("The photo fitted, a click places text, typed in the panel", () => FitCanvas() && ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
             Check("Arrow tool draws an arrow", () => SelectRadio("Image_EditMarkupArrow") && DragOnCanvas(-8, -8, 8, 8));
             Check("Select tool picks the arrow", () => SelectRadio("Image_EditMarkupSelect") && ClickCanvas()
                                                        && WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditDeleteMarkup"))?.IsEnabled == true, 3));
@@ -146,53 +149,43 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
-            Check("AI upscale twice, which turns AI enhance on", () => SelectRadio("Image_EditUpscaleTwice") && WaitForFs(() => Exists("Image_RestoreAction"), 5));
-            Check("AI upscale four times", () => SelectRadio("Image_EditUpscaleFourTimes"));
-            Check("AI upscale off", () => SelectRadio("Image_EditUpscaleOff"));
-            Check("AI enhance off again, from Adjust", () => SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false)
-                                                            && WaitForGone("Image_RestoreAction", 3) && SelectRadio("Image_EditToolResize"));
+            Check("AI upscale waits for the picture tools, offered over the picture", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes")
+                                                                                          && Exists("Image_RestoringModelsDownload"));
+            Check("AI upscale stays off", () => SelectRadio("Image_EditUpscaleOff"));
 
-            // Cut out: picture selection is never here (the AI folder is the journey's own), so the tool offers it; its other
-            // controls stand ready for when it is.
-            Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
-            Check("A click on the photo asks for picture selection", () => ClickCanvas() && WaitForFs(() => WaitForId("Image_CutOutAction", 1)?.IsEnabled == true, 5));
-            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_CutOutPhrase", "mug")
-                                                              && WaitForFs(() => WaitForId("Image_CutOutFind", 1)?.IsEnabled == true, 3));
-            CheckInvoke("Find, which waits for picture selection", "Image_CutOutFind");
-            CheckPresent("Copy the cut-out", "Image_CutOutCopy");
-            CheckPresent("Save the cut-out", "Image_CutOutSave");
+            // Cut out: picture selection is never here (the AI folder is the journey's own), so everything that picks waits for it,
+            // saying why; the AI tools journey picks where it is here.
+            Check("Cut out waits for picture selection: what picks is disabled", () => SelectRadio("Image_EditToolCutOut")
+                  && WaitForFs(() => Exists("Image_CutOutPhrase"), 3) && !Enabled("Image_CutOutPhrase") && !Enabled("Image_CutOutFind")
+                  && !Enabled("Image_CutOutRemoveBackground") && !Enabled("Image_CutOutCopy") && !Enabled("Image_CutOutSave"));
             CheckInvoke("Clear what is picked", "Image_CutOutClear");
-            CheckPresent("Remove background, ready for something picked", "Image_CutOutRemoveBackground");
-            CheckDoes("Keep background puts it back, and the banner goes", "Image_CutOutKeepBackground",
-                      () => WaitForGone("Image_RemoveBackgroundAction", 3));
+            CheckDoes("Keep background puts it back; the kept edits' banner goes, and the panel's offer of picture selection takes over",
+                      "Image_CutOutKeepBackground",
+                      () => WaitForGone("Image_RemoveBackgroundAction", 3) && WaitForFs(() => WaitForId("Image_PickingModelsDownload", 1)?.IsEnabled == true, 3));
 
-            // Erase: picking waits for picture selection and AI for picture erasing, neither of which the journey's AI folder
-            // has; content-aware fill needs nothing, so a brushed step erases at once.
-            Check("Erase panel", () => SelectRadio("Image_EditToolErase") && WaitForFs(() => Exists("Image_EraseMarkPick"), 3));
-            Check("Picking: a click on the photo asks for picture selection",
-                  () => SelectRadio("Image_EraseMarkPick") && ClickCanvas() && WaitForFs(() => WaitForId("Image_ErasePickAction", 1)?.IsEnabled == true, 5));
-            Check("A phrase is typed, and Find takes it", () => TypeInto("Image_ErasePhrase", "mug")
-                                                              && WaitForFs(() => WaitForId("Image_EraseFind", 1)?.IsEnabled == true, 3));
-            CheckInvoke("Find, which waits for picture selection", "Image_EraseFind");
-            CheckInvoke("Clear what is marked", "Image_EraseClear");
-            Check("Brushing", () => SelectRadio("Image_EraseMarkBrush") && WaitForFs(() => Exists("Image_EraseBrushSize"), 3));
+            // Retouch: picking waits for picture selection and AI fill for picture erasing, neither of which the journey's AI folder
+            // has, so it opens on the brush and content-aware fill, which need nothing and erase at once; the AI tools journey picks
+            // and fills by AI where they are here.
+            Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
+                  && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
+            Check("AI fill waits for picture erasing, offered over the picture", () => !Enabled("Image_EraseFillAi")
+                  && WaitForFs(() => WaitForId("Image_ErasingModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));
             Check("Heal, which asks where to copy from", () => SelectRadio("Image_EraseFillHeal"));
-            Check("AI fill, a stroke brushed and erased: the banner offers picture erasing",
-                  () => SelectRadio("Image_EraseFillAi") && DragOnCanvas(-10, 0, 10, 0)
-                        && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
-                        && WaitForFs(() => WaitForId("Image_EraseAction", 1)?.IsEnabled == true, 5));
-            Check("Undo takes the step back, and the banner goes", () => PressNth("Image_EditUndo", 0) && WaitForGone("Image_EraseAction", 3));
-            Check("Content-aware fill, a stroke brushed and erased at once",
-                  () => SelectRadio("Image_EraseFillContentAware") && DragOnCanvas(-10, 4, 10, 4)
+            // A brush stroke has to start on the photo, and the edits above leave the small sample wherever they left the view: fit
+            // it to the canvas first, so the canvas's centre is on the photo.
+            Check("Content-aware fill, the photo fitted, a stroke brushed and erased at once",
+                  () => SelectRadio("Image_EraseFillContentAware") && FitCanvas() && DragOnCanvas(-10, 4, 10, 4)
                         && WaitForFs(() => WaitForId("Image_EraseApply", 1)?.IsEnabled == true, 3) && PressNth("Image_EraseApply", 0)
                         && WaitForGone("Image_EraseAction", 5));
+            CheckInvoke("Clear what is marked", "Image_EraseClear");
 
-            // Export options
-            Check("Export panel", () => SelectRadio("Image_EditToolExport"));
-            Check("Strip metadata toggles", () => SetToggle("Image_EditStripMetadata", true) && SetToggle("Image_EditStripMetadata", false));
-            Check("Quality slider moves", () => MoveSlider("Image_EditQuality"));
+            // Save options: beside Save rather than among the tools, in a popup
             Check("Back to the crop panel", () => SelectRadio("Image_EditToolCrop"));
+            CheckDoes("Save options open beside Save", "Image_EditSaveOptions", () => WaitFor(() => FindInAppWindows("Image_EditStripMetadata"), 3) is not null);
+            Check("Strip metadata toggles", () => ToggleAndBack("Image_EditStripMetadata"));
+            Check("Quality slider moves", () => MoveSlider("Image_EditQuality"));
+            Check("A click on the picture puts them away", () => ClickCanvas() && WaitForFs(() => FindInAppWindows("Image_EditStripMetadata") is null, 3));
 
             // History and compare
             CheckInvoke("Undo", "Image_EditUndo");
@@ -222,44 +215,5 @@ public class ImagesEditJourneyTests : UiJourneyTestBase
     {
         MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditSave"))?.AsButton().Invoke();
         return PressInDialog("Chrome_ConfirmOk");
-    }
-
-    /// <summary>The middle of the edit canvas — where the picture is fitted.</summary>
-    private Point? CanvasCentre()
-    {
-        var canvas = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditCanvas"));
-        if (canvas is null) return null;
-        var r = canvas.BoundingRectangle;
-        return new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
-    }
-
-    private bool ClickCanvas()
-    {
-        if (CanvasCentre() is not { } centre) return false;
-        Mouse.MoveTo(centre);
-        Mouse.Click(MouseButton.Left);
-        Wait.UntilInputIsProcessed();
-        Thread.Sleep(200);
-        return true;
-    }
-
-    private bool DragOnCanvas(int fromX, int fromY, int toX, int toY)
-    {
-        if (CanvasCentre() is not { } centre) return false;
-        Mouse.Drag(new Point(centre.X + fromX, centre.Y + fromY), new Point(centre.X + toX, centre.Y + toY), MouseButton.Left);
-        Wait.UntilInputIsProcessed();
-        Thread.Sleep(200);
-        return true;
-    }
-
-    /// <summary>Moves a slider to whichever end it is not already at.</summary>
-    private bool MoveSlider(string automationId)
-    {
-        var element = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
-        try { element?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView(); } catch { /* not in a scroller */ }
-        if (element?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
-        var target = range.Value.Value >= range.Maximum.Value ? range.Minimum.Value : range.Maximum.Value;
-        range.SetValue(target);
-        return WaitForFs(() => Math.Abs(range.Value.Value - target) < 0.01, 2);
     }
 }

@@ -123,6 +123,20 @@ public static class MarkdownKinds
     /// <summary><c>&amp;amp;</c> — a character spelled out because the text could not hold it.</summary>
     public const string Entity = "entity";
 
+    /// <summary>
+    /// Punctuation typed plainly and drawn as the typographer's, as SmartyPants draws it: <c>--</c> an en dash, <c>---</c> an em
+    /// dash, <c>...</c> an ellipsis, and a pair of quotes — <c>'…'</c>, <c>"…"</c>, <c>&lt;&lt;…&gt;&gt;</c> — curled, the opening
+    /// one <see cref="MarkdownRoles.LeftQuote"/> and the closing one <see cref="MarkdownRoles.RightQuote"/>. What is drawn is not
+    /// what was written, so a press on one shows the source, as it does for an <see cref="Entity"/>.
+    /// </summary>
+    public const string Typographic = "typographic";
+
+    /// <summary>
+    /// An emoji written as its name between colons, <c>:smile:</c>, drawn as the emoji (<see cref="MarkdownShortcodes"/>) — and,
+    /// like an <see cref="Entity"/>, a press on one shows the source.
+    /// </summary>
+    public const string Shortcode = "shortcode";
+
     /// <summary>The end of a line, hard or soft.</summary>
     public const string Break = "break";
 
@@ -256,6 +270,12 @@ public static class MarkdownRoles
 
     /// <summary>What the codes of an <see cref="MarkdownKinds.Encoded"/> run come to (<see cref="MarkdownKinds.Decoded"/>).</summary>
     public const string Decoded = "decoded";
+
+    /// <summary>A <see cref="MarkdownKinds.Typographic"/> quote that opens a pair: drawn ‘, “ or «.</summary>
+    public const string LeftQuote = "left-quote";
+
+    /// <summary>A <see cref="MarkdownKinds.Typographic"/> quote that closes a pair: drawn ’, ” or ».</summary>
+    public const string RightQuote = "right-quote";
 }
 
 /// <summary>Which way a column of a table is set, as the rule under its head says.</summary>

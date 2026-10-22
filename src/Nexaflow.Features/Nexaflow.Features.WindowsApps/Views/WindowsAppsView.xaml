@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsApps.ViewModels"
              xmlns:views="clr-namespace:Nexaflow.Features.WindowsApps.Views"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="WindowsAppsView"
              Background="{StaticResource BgBrush}">
 
@@ -164,7 +165,7 @@
                 <!-- Discovering… (animated dots) while loading -->
                 <StackPanel x:Name="LoadingStatus" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="Discovering" Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
+                    <TextBlock Text="{loc:Str WindowsApps.Header.Discovering}" Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
                     <TextBlock Width="20" Foreground="{StaticResource TextMutedBrush}" FontSize="13">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -196,7 +197,7 @@
                 <!-- App count once loaded -->
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="{Binding Apps.Count, StringFormat={}{0} applications}">
+                           Text="{Binding Apps.Count, StringFormat={loc:Str WindowsApps.Header.CountFormat}}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Style.Triggers>
@@ -208,7 +209,7 @@
                     </TextBlock.Style>
                 </TextBlock>
 
-                <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}"
+                <Button Grid.Column="1" Content="{loc:Str WindowsApps.Header.Refresh}" Command="{Binding RefreshCommand}"
                         AutomationProperties.AutomationId="WindowsApps_Refresh"
                         Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
@@ -231,7 +232,7 @@
                         <!-- Name -->
                         <GridViewColumn Width="320" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Name" Key="Name"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Name}" Key="Name"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -245,7 +246,7 @@
                         <!-- Publisher -->
                         <GridViewColumn Width="200" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Publisher" Key="Publisher"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Publisher}" Key="Publisher"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -257,7 +258,7 @@
                         <!-- Version -->
                         <GridViewColumn Width="110" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Version" Key="Version"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Version}" Key="Version"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -269,7 +270,7 @@
                         <!-- Install Date -->
                         <GridViewColumn Width="110" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Installed" Key="InstallDate"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Installed}" Key="InstallDate"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -281,7 +282,7 @@
                         <!-- Size -->
                         <GridViewColumn Width="90" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Size" Key="SizeBytes"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Size}" Key="SizeBytes"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -293,7 +294,7 @@
                         <!-- Source -->
                         <GridViewColumn Width="70" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Source" Key="SourceLabel"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsApps.Column.Source}" Key="SourceLabel"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
@@ -311,28 +312,28 @@
                                             Background="Transparent" BorderThickness="0"
                                             FontSize="16" Padding="6,0" Cursor="Hand"
                                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                                            ToolTip="Actions">
+                                            ToolTip="{loc:Str WindowsApps.Menu.ActionsTip}">
                                         <Button.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Open Location" Click="OpenLocationMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.OpenLocation}" Click="OpenLocationMenuItem_Click"
                                                           IsEnabled="{Binding HasLocation}"
                                                           Foreground="{StaticResource TextBrush}"/>
                                                 <!-- Win32 only: reopens the vendor installer in maintenance mode. -->
-                                                <MenuItem Header="Modify" Click="ModifyMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.Modify}" Click="ModifyMenuItem_Click"
                                                           Visibility="{Binding CanModify, Converter={StaticResource BoolToVis}}"
                                                           Foreground="{StaticResource TextBrush}"/>
                                                 <!-- Store only: both open the Advanced options pane. -->
-                                                <MenuItem Header="Move…" Click="MoveMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.Move}" Click="MoveMenuItem_Click"
                                                           Visibility="{Binding IsStore, Converter={StaticResource BoolToVis}}"
                                                           Foreground="{StaticResource TextBrush}"/>
-                                                <MenuItem Header="Advanced options" Click="AdvancedOptionsMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.AdvancedOptions}" Click="AdvancedOptionsMenuItem_Click"
                                                           Visibility="{Binding IsStore, Converter={StaticResource BoolToVis}}"
                                                           Foreground="{StaticResource TextBrush}"/>
-                                                <MenuItem Header="Remove from list" Click="DeleteRecordMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.RemoveFromList}" Click="DeleteRecordMenuItem_Click"
                                                           Visibility="{Binding IsOrphaned, Converter={StaticResource BoolToVis}}"
                                                           Foreground="{StaticResource WarningBrush}"/>
                                                 <Separator/>
-                                                <MenuItem Header="Uninstall" Click="UninstallMenuItem_Click"
+                                                <MenuItem Header="{loc:Str WindowsApps.Menu.Uninstall}" Click="UninstallMenuItem_Click"
                                                           Foreground="{StaticResource DangerBrush}"/>
                                             </ContextMenu>
                                         </Button.ContextMenu>

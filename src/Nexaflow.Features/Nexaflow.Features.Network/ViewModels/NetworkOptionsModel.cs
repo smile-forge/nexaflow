@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.IO.Network.Adapters;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Network.ViewModels;
 
@@ -92,8 +93,9 @@ public sealed partial class NetworkOptionsModel : ObservableObject
     public bool ShowLimitsHint => !IsValid;
 
     public string LimitsHint =>
-        $"A run may send {NetworkConfig.FewestPacketsPerRun}–{NetworkConfig.MostPacketsPerRun} packets and "
-      + $"take {NetworkConfig.ShortestRunSeconds}–{NetworkConfig.LongestRunSeconds} seconds.";
+        Str.Format("Network.Options.LimitsHintFormat",
+                   NetworkConfig.FewestPacketsPerRun, NetworkConfig.MostPacketsPerRun,
+                   NetworkConfig.ShortestRunSeconds, NetworkConfig.LongestRunSeconds);
 
     /// <summary>Raised whenever <see cref="HasChanges"/> or <see cref="IsValid"/> may have moved.</summary>
     public event EventHandler? Changed;

@@ -34,7 +34,11 @@ public class MarkdownDocumentWorkTests
 
         shell = Substitute.For<IShellServices>();
         ai = Substitute.For<IAIService>();
-        ai.WorksOnDocuments.Returns(works);
+
+        var gate = Substitute.For<IAiAbilityGate>();
+        gate.IsEnabled.Returns(works);
+        gate.MakeReadyAsync(Arg.Any<CancellationToken>()).Returns(works);
+        ai.Gate(Arg.Any<AiAbility[]>()).Returns(gate);
 
         return new MarkdownViewModel(path, shell, draftFolder: draft, ai: ai);
     }
@@ -82,14 +86,14 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-summarize")]
-    public void WithNoDocumentsModel_TheReaderIsToldWhereToChooseOne()
+    public void UntilTheDocumentsRowHasAModelReady_NothingIsSetGoing()
     {
-        var vm = Make(out var shell, out var ai, works: false);
+        var vm = Make(out _, out var ai, works: false);
 
         vm.SummarizeCommand.Execute(null);
 
         ai.DidNotReceiveWithAnyArgs().SummarizeDocument(default!);
-        shell.Received(1).ShowNotification(Arg.Any<string>());
+        ai.Received().Gate(Arg.Is<AiAbility[]>(asked => asked.SequenceEqual(new[] { AiAbility.Documents })));
     }
 
     [TestMethod]

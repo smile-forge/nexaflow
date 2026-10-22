@@ -28,7 +28,7 @@ internal static class SvgTools
             [],
             ToolSafety.SafeOperation,
             (_, ct) => Render(vm, ct),
-            exemptFromRepeatGuard: true),
+            exemptFromRepeatGuard: true) { Needs = [AiAbility.ImageRecognition] },
 
         new DelegateClientTool(
             "get_svg_info",

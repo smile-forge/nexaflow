@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dotnet.Dependencies;
 
@@ -13,10 +14,9 @@ public sealed class DotnetCliDependency : IExternalDependency
     public const string DependencyId = "dotnet-cli";
 
     public string Id          => DependencyId;
-    public string DisplayName => ".NET SDK (dotnet CLI)";
+    public string DisplayName => Str.Get("Dotnet.Dependency.Name");
 
-    public string Description =>
-        "Runs build, test and package commands for the .NET folder viewlet. Only that viewlet needs it.";
+    public string Description => Str.Get("Dotnet.Dependency.Description");
 
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
 
@@ -26,7 +26,7 @@ public sealed class DotnetCliDependency : IExternalDependency
         => ResolveOnPath("dotnet.exe") is { } path
             ? new ExternalDependencyStatus(ExternalDependencyState.Present, null, path)
             : new ExternalDependencyStatus(ExternalDependencyState.Missing, null,
-                "No dotnet.exe on PATH.");
+                Str.Get("Dotnet.Dependency.NotOnPath"));
 
     /// <summary>
     /// First match for <paramref name="exeName"/> on PATH, or null. Deliberately a PATH walk rather than

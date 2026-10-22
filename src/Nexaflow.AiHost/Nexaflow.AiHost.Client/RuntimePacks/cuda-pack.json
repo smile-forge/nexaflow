@@ -1,11 +1,11 @@
 {
   "models": [
     {
-      "id": "cuda-ort1.30.0-genai0.17.1",
-      "displayName": "CUDA runtime (ONNX Runtime 1.30.0, onnxruntime-genai 0.17.1, llama.cpp b11606, cuBLAS 13.8, cuDNN 9.27)",
+      "id": "cuda-ort1.31.0-genai0.18.0",
+      "displayName": "CUDA runtime (ONNX Runtime 1.31.0, onnxruntime-genai 0.18.0, llama.cpp b11606, cuBLAS 13.8, cuDNN 9.27)",
       "files": [
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cublas64_13.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cublas64_13.dll",
           "url": "https://files.pythonhosted.org/packages/a3/df/f1246959833e2c437db8be3e5b477f66b87f8817821ed40de6c7561c9a36/nvidia_cublas-13.8.0.4-py3-none-win_amd64.whl",
           "size": 54873200,
           "sha256": "60bbba8868290311e9c1657b2193ddec667744eb555ff843f87acb7c039f9efa",
@@ -16,7 +16,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cublasLt64_13.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cublasLt64_13.dll",
           "url": "https://files.pythonhosted.org/packages/a3/df/f1246959833e2c437db8be3e5b477f66b87f8817821ed40de6c7561c9a36/nvidia_cublas-13.8.0.4-py3-none-win_amd64.whl",
           "size": 493474416,
           "sha256": "cad63434448e7141629e240ea093ad596a7ef6a0f67b468ba9bc1df6e1eeee33",
@@ -27,7 +27,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 270448,
           "sha256": "0016bd73ac9192537ae5af6a3f05814316726dad1d1da44f113f0a9ef00ae34c",
@@ -38,7 +38,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_adv64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_adv64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 105226864,
           "sha256": "041cab1d6439d2558b4a7073a42dd95058d0395463ffb0d37275af11ec0af8d7",
@@ -49,7 +49,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_cnn64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_cnn64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 1533040,
           "sha256": "7dd1bcc6d8f00ad635f6a8a2cd076faba21626f3412e13c61a6bece3f88eacb1",
@@ -60,7 +60,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_engines_precompiled64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_engines_precompiled64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 231660656,
           "sha256": "5d9b829228ae18594dafedf718d9612606c8ce6d199aa7151bea53e863baeefe",
@@ -71,7 +71,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_engines_runtime_compiled64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_engines_runtime_compiled64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 39266928,
           "sha256": "8e65eeb0a4a3b7afa48ea3ca71c4b88e355199f85485b6fc0badcc97ebc552ef",
@@ -82,7 +82,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_engines_tensor_ir64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_engines_tensor_ir64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 156272,
           "sha256": "51afb44ce4b901ccdac1434f9fc9d8d707b690f39ae1e2a6ffca98c5fd9dfa96",
@@ -93,7 +93,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_ext64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_ext64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 130160,
           "sha256": "a0e0e2e8e8e4678956bbef93fdccc4730bd5edf9b23d38bff49030ebba1940a6",
@@ -104,7 +104,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_graph64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_graph64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 116132464,
           "sha256": "ccc90435b2fd37b5ddd6a9fa0fd053ad8f46c2dc8b0a6256ef0ebea7f3efbace",
@@ -115,7 +115,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_heuristic64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_heuristic64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 94795376,
           "sha256": "c0439ee74a3dbec8ecf56fecbc6ac2506efcce702453e36119649545d02509c3",
@@ -126,7 +126,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudnn_ops64_9.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudnn_ops64_9.dll",
           "url": "https://files.pythonhosted.org/packages/87/6a/e55ff0ac26a5c6e2b21f41c9d04ad096b4ed6da593fba7e25845c61b0532/nvidia_cudnn_cu13-9.27.0.42-py3-none-win_amd64.whl",
           "size": 37462128,
           "sha256": "2bd7f4122eaeccb85538c2a6f7923d7254ad77d7b7149fed0a8139f1e3cf0b07",
@@ -137,62 +137,62 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/onnxruntime.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.30.0/microsoft.ml.onnxruntime.gpu.windows.1.30.0.nupkg",
-          "size": 16921400,
-          "sha256": "ed0de29f6579482eb2d54674a5e51b77761e195a5e0d70dbadc916ab925a9ec1",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime.dll",
+          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.31.0/microsoft.ml.onnxruntime.gpu.windows.1.31.0.nupkg",
+          "size": 17719608,
+          "sha256": "00a206c08241370fdc363887428238fab1d926e9eef2539751c07c6e26059f01",
           "archive": {
             "entry": "runtimes/win-x64/native/onnxruntime.dll",
-            "size": 153100313,
-            "sha256": "f86f88d2dcdbc1411a5a4f345751c37a85f965300e150da6d882bea41ea7296d"
+            "size": 160447640,
+            "sha256": "6ef71832859a6fa1cdbd51d36be301641b6de609c72a2ab206b32f6cc209959d"
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/onnxruntime_providers_shared.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.30.0/microsoft.ml.onnxruntime.gpu.windows.1.30.0.nupkg",
-          "size": 21856,
-          "sha256": "7ee69db9b57ce7279fd0a3b2c2ecb262de2509faeaf48de65a73415f9a0ca6f9",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime_providers_shared.dll",
+          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.31.0/microsoft.ml.onnxruntime.gpu.windows.1.31.0.nupkg",
+          "size": 21816,
+          "sha256": "389a67bd9dd3a2647ad51392fce073a7886466344da43250ff24f9df89f8201c",
           "archive": {
             "entry": "runtimes/win-x64/native/onnxruntime_providers_shared.dll",
-            "size": 153100313,
-            "sha256": "f86f88d2dcdbc1411a5a4f345751c37a85f965300e150da6d882bea41ea7296d"
+            "size": 160447640,
+            "sha256": "6ef71832859a6fa1cdbd51d36be301641b6de609c72a2ab206b32f6cc209959d"
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/onnxruntime_providers_cuda.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.30.0/microsoft.ml.onnxruntime.gpu.windows.1.30.0.nupkg",
-          "size": 186986848,
-          "sha256": "9b4e3abd26420845561c548d48adb80dde730e8d585b8f9c7a2d14cddc806eaa",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime_providers_cuda.dll",
+          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.windows/1.31.0/microsoft.ml.onnxruntime.gpu.windows.1.31.0.nupkg",
+          "size": 196830520,
+          "sha256": "198309952e14aefc28c155de035df3e8c10252defb49b65a65ab122362e9e293",
           "archive": {
             "entry": "runtimes/win-x64/native/onnxruntime_providers_cuda.dll",
-            "size": 153100313,
-            "sha256": "f86f88d2dcdbc1411a5a4f345751c37a85f965300e150da6d882bea41ea7296d"
+            "size": 160447640,
+            "sha256": "6ef71832859a6fa1cdbd51d36be301641b6de609c72a2ab206b32f6cc209959d"
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/onnxruntime-genai.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.17.1/microsoft.ml.onnxruntimegenai.cuda.0.17.1.nupkg",
-          "size": 8645944,
-          "sha256": "b9896faca52adfba7b659e35c8e13ee20a3527e14d0b06061d3d0b42c320639c",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime-genai.dll",
+          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.18.0/microsoft.ml.onnxruntimegenai.cuda.0.18.0.nupkg",
+          "size": 8791864,
+          "sha256": "7d8d1ede75ae8f4b58e4beaba406a1dd7417c66fca2a7550da964f0ef7a51b7e",
           "archive": {
             "entry": "runtimes/win-x64/native/onnxruntime-genai.dll",
-            "size": 30864025,
-            "sha256": "3fc2ab68579c2a59a92f499e127e1c2d5c9aea533f8f1843cd354c583f7cd0f1"
+            "size": 260688580,
+            "sha256": "40fb99c2f6b9d56fd3df0de8a0fff5e92ad8cd8c5abe4ffdeac2d99d3b0316ec"
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/onnxruntime-genai-cuda.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.17.1/microsoft.ml.onnxruntimegenai.cuda.0.17.1.nupkg",
-          "size": 4909880,
-          "sha256": "e5d4b55076f7a836fb9eefcef5beb33e5d5360831f064321ec1c15ddfd96c7a5",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime-genai-cuda.dll",
+          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.18.0/microsoft.ml.onnxruntimegenai.cuda.0.18.0.nupkg",
+          "size": 4953440,
+          "sha256": "06c5531510fd30b6a366480cf9b6114dc2cb68e8aecf835413b54bba3b388ee6",
           "archive": {
             "entry": "runtimes/win-x64/native/onnxruntime-genai-cuda.dll",
-            "size": 30864025,
-            "sha256": "3fc2ab68579c2a59a92f499e127e1c2d5c9aea533f8f1843cd354c583f7cd0f1"
+            "size": 260688580,
+            "sha256": "40fb99c2f6b9d56fd3df0de8a0fff5e92ad8cd8c5abe4ffdeac2d99d3b0316ec"
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/ggml-cuda.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/ggml-cuda.dll",
           "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11606/llama-b11606-bin-win-cuda-13.4-x64.zip",
           "size": 148139008,
           "sha256": "42b42d786aa3a583256a9602d45ae872607e59926933bc807bf4b61001150b84",
@@ -203,7 +203,7 @@
           }
         },
         {
-          "path": "runtime/cuda-ort1.30.0-genai0.17.1/cudart64_13.dll",
+          "path": "runtime/cuda-ort1.31.0-genai0.18.0/cudart64_13.dll",
           "url": "https://files.pythonhosted.org/packages/86/00/d5436004268f049214193659ebc36550b5ef3925c3d13b4cc980e13be6f5/nvidia_cuda_runtime-13.4.92-py3-none-win_amd64.whl",
           "size": 551024,
           "sha256": "d26fd1c2629594759af569a5252f94e4568d4ebeca67dc323834deb141aa278a",

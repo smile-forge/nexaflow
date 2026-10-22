@@ -13,9 +13,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- SkiaSharp: the editing engine — decode, render (geometry, the SkSL adjustment filter, markup) and encode.
          x64 natives resolve because the solution is x64-pinned (Directory.Build.props). HarfBuzz shapes markup text. -->
-    <PackageReference Include="SkiaSharp" Version="3.119.2" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.2" />
-    <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.2" />
+    <PackageReference Include="SkiaSharp" Version="4.153.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="4.153.1" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" Version="4.153.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <!-- A picture of a page read into Markdown, in the panel page reading shares with the PDF viewer. -->
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
   </ItemGroup>
 
 </Project>

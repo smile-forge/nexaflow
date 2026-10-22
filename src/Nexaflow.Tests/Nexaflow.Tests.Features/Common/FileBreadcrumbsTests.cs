@@ -8,10 +8,10 @@ namespace Nexaflow.Tests.Features.Common;
 /// clickable parent crumb that opens a file-explorer tab at that folder.
 /// </summary>
 [TestClass]
-[CoversNode("chrome-breadcrumb-crosstab")]
 public class FileBreadcrumbsTests
 {
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void SetFileBreadcrumbs_SingleFile_ClickableParentThenFileName()
     {
         var page = new Page();
@@ -41,6 +41,7 @@ public class FileBreadcrumbsTests
     }
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void SetFileBreadcrumbs_NoDirectory_LeafOnly()
     {
         var page = new Page();
@@ -59,6 +60,7 @@ public class FileBreadcrumbsTests
     }
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void SetFileBreadcrumbs_CalledAgain_RebuildsRatherThanAppends()
     {
         var page = new Page();
@@ -71,22 +73,27 @@ public class FileBreadcrumbsTests
     }
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void CommonDirectory_AllSameFolder_ReturnsIt()
         => Assert.AreEqual(@"D:\pics", FileBreadcrumbs.CommonDirectory([@"D:\pics\a.jpg", @"D:\pics\b.jpg"]));
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void CommonDirectory_IsCaseInsensitive_FirstWins()
         => Assert.AreEqual(@"D:\Pics", FileBreadcrumbs.CommonDirectory([@"D:\Pics\a.jpg", @"D:\pics\b.jpg"]));
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void CommonDirectory_DifferentFolders_ReturnsNull()
         => Assert.IsNull(FileBreadcrumbs.CommonDirectory([@"D:\x\a.jpg", @"D:\y\b.jpg"]));
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void CommonDirectory_Empty_ReturnsNull()
         => Assert.IsNull(FileBreadcrumbs.CommonDirectory([]));
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void SetMultiFileBreadcrumbs_SameFolder_ClickableParentThenSummary()
     {
         var page = new Page();
@@ -99,6 +106,7 @@ public class FileBreadcrumbsTests
     }
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-crosstab")]
     public void SetMultiFileBreadcrumbs_MixedFolders_SummaryOnly()
     {
         var page = new Page();

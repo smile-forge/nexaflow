@@ -27,7 +27,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("graph-expandable-nodes")]
 public class FoldingDiagramTests
 {
     private const string Src =
@@ -88,6 +87,7 @@ public class FoldingDiagramTests
     }
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void AnOrdinaryFlowchartDrawsNoChips() => UiThread.Run(() =>
     {
         var surface = Shown("graph TD\n  a[\"A\"] --> b[\"B\"]\n");
@@ -97,6 +97,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void WhatIsPastTheFrontierIsNotDrawnAndWhatHoldsItCarriesAChip() => UiThread.Run(() =>
     {
         var surface = Shown(Src);
@@ -111,6 +112,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("diagram-bound-content")]
     public void PickingOutASuppliedNodeSaysWhichNode() => UiThread.Run(() =>
     {
         var surface = Shown(Src + "\n  {{More}}", host => host.DataSource = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
@@ -128,6 +130,7 @@ public class FoldingDiagramTests
         surface.Shown.Laid.Tree.Root.Placed().Any(at => at.Piece.Words?.Glyphs.Text == words && where.Contains(at.Where));
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void WhatWasOpenedIsForgottenOnlyWhenTheHostSaysSo() => UiThread.Run(() =>
     {
         var surface = Shown(Src);
@@ -140,6 +143,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void AClickLineIsFollowedOnOnePressWithNoChipInSight() => UiThread.Run(() =>
     {
         var followed = new List<string>();
@@ -181,6 +185,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void RightClickingOffersWhatThatOneThingCanDo() => UiThread.Run(() =>
     {
         var surface = Shown(Src);
@@ -197,6 +202,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void SomethingThatMeansNothingOffersNothingOfItsOwn() => UiThread.Run(() =>
     {
         var surface = Shown("graph TD\n  a[\"A\"] --> b[\"B\"]\n");
@@ -224,6 +230,7 @@ public class FoldingDiagramTests
     }
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void TooManyChildrenDrawTheFirstOfThemAndOneNodeOfferingTheRest() => UiThread.Run(() =>
     {
         var surface = Shown(Wide(10));
@@ -237,6 +244,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void ASetOfChildrenWithinTheCapDrawsNoSuchNode() => UiThread.Run(() =>
     {
         var surface = Shown(Wide(3));
@@ -246,6 +254,7 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
     public void ItIsDrawnAndNobodyWroteIt() => UiThread.Run(() =>
     {
         var surface = Shown(Wide(10));

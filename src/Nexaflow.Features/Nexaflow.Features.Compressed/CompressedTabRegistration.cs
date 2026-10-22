@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.ViewModels;
 using Nexaflow.Features.Compressed.Views;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed;
 
@@ -22,7 +23,7 @@ public sealed class CompressedTabRegistration(IShellServices shell) : IPageRegis
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Archive" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Compressed.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {

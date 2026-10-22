@@ -15,6 +15,7 @@ using Nexaflow.Features.ProductManager.Graph.Converters;
 using Nexaflow.Features.ProductManager.Graph.Layout;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
@@ -124,7 +125,7 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
     [NotifyPropertyChangedFor(nameof(CapNote))]
     private int _hiddenByCap;
 
-    public string CapNote => HiddenByCap > 0 ? $"+{HiddenByCap:N0} more (lower depth or focus closer)" : string.Empty;
+    public string CapNote => HiddenByCap > 0 ? Str.Format("ProductManager.Graph.Toolbar.CapNoteFormat", HiddenByCap) : string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsContextReady))]
@@ -176,7 +177,7 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
             if (_rootNode is null)
             {
                 HasError = true;
-                ErrorMessage = "This graph is empty. Regenerate it from the Product tab (⋮ → Generate graph).";
+                ErrorMessage = Str.Get("ProductManager.Graph.Error.Empty");
             }
             else
             {
@@ -188,7 +189,7 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
         catch (Exception ex)
         {
             HasError = true;
-            ErrorMessage = $"Couldn't open this graph: {ex.Message}";
+            ErrorMessage = Str.Format("ProductManager.Graph.Error.OpenFailedFormat", ex.Message);
         }
         finally
         {

@@ -36,6 +36,8 @@ internal sealed class FakeShellServices : IShellServices
     public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null, CancellationToken ct = default) => throw new NotSupportedException();
     public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration) => throw new NotSupportedException();
     public IFileWatch WatchFile(string path, Action onChanged) => throw new NotSupportedException();
+
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) => throw new NotSupportedException();
     public Task RunOnUiAsync(Action action) => throw new NotSupportedException();
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => throw new NotSupportedException();
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null) => throw new NotSupportedException();

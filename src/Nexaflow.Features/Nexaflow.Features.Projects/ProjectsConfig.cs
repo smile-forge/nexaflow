@@ -47,7 +47,7 @@ public sealed class ProjectsConfig : IFeatureConfig
            ?? new BacklogStatusDef
            {
                Key       = key ?? string.Empty,
-               Label     = string.IsNullOrEmpty(key) ? "(none)" : key,
+               Label     = string.IsNullOrEmpty(key) ? Str.Get("Projects.Status.None") : key,
                SwatchKey = "Swatch.Slate",
                IsValid   = false,
            };

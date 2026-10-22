@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.4.0" />
+    <PackageReference Include="MSTest" Version="4.5.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,8 +28,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The subjects: the shared component leaves that are neither IO nor UI. Nothing else — no Core,
-         no Features, no Visuals. -->
+    <!-- The subjects: the shared component leaves that are neither IO nor UI — Media's codecs among them.
+         Nothing else — no Core, no Features, no Visuals. -->
+    <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax.Compiler\Nexaflow.Syntax.Compiler.csproj" />
@@ -43,6 +44,24 @@
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JPEG 2000 images libopenjp2 encoded from sources the tests regenerate, and what libopenjp2 decodes the
+         lossy ones to. Static data, made by Jpeg2000FixtureMaker, so checked in rather than built per run. -->
+    <Content Include="Media\Jpeg2000\Fixtures\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- JPEGs libjpeg-turbo encoded from sources the tests regenerate, some damaged, and hashes of what libjpeg-turbo
+         decodes them to. Made by JpegFixtureMaker and checked in, as the JPEG 2000 ones are. -->
+    <Content Include="Media\Jpeg\Fixtures\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- SerenityOS's JBIG2 test files, each a coding of one picture, and that picture. Downloaded, not made: see the
+         README beside them. -->
+    <Content Include="Media\Jbig2\Fixtures\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

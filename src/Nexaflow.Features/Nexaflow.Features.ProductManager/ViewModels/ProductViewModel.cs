@@ -14,6 +14,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -39,7 +40,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
     public string ProductRoot { get; }
 
-    [ObservableProperty] private string _productName = "Product";
+    [ObservableProperty] private string _productName = Str.Get("ProductManager.Page.Title");
     [ObservableProperty] private string? _focusedNodeId;
 
     /// <summary>
@@ -104,7 +105,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
     // Integrity — the broken-snaplink count. The list (and the scan) live on the Integrity page.
     [ObservableProperty] private int _integrityIssueCount;
-    [ObservableProperty] private string _integrityCheckedLine = "Never validated.";
+    [ObservableProperty] private string _integrityCheckedLine = Str.Get("ProductManager.Detail.Integrity.NeverValidated");
 
     /// <summary>Count tiles for the product root. Open-ended — append another widget here as metrics arrive.</summary>
     public ObservableCollection<CountWidget> RootWidgets { get; } = [];
@@ -129,7 +130,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
     // ── Confirmation: both deletes ask the shell's window-modal question (arch review §E1) ──
     private Task<bool> ConfirmDeleteAsync(string title, string prompt)
-        => _shell.ConfirmAsync(title, prompt, "Delete", "Cancel");
+        => _shell.ConfirmAsync(title, prompt, Str.Get("ProductManager.Dialog.Delete"), Str.Get("ProductManager.Dialog.Cancel"));
 
     /// <summary>
     /// This page's hold on the product's live state — the tree loaded once and watched, and the knowledge graph
@@ -211,8 +212,8 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         var report = _store.LoadIntegrity();
         IntegrityIssueCount = report?.IssueCount ?? 0;
         IntegrityCheckedLine = report?.Generated is { } g && DateTime.TryParse(g, out var when)
-            ? $"Last validated {when:yyyy-MM-dd HH:mm} · {report.ScannedSnaplinks} snaplinks"
-            : "Never validated.";
+            ? Str.Format("ProductManager.Detail.Integrity.LastValidatedFormat", when, report.ScannedSnaplinks)
+            : Str.Get("ProductManager.Detail.Integrity.NeverValidated");
         RebuildWidgets();
     }
 
@@ -220,7 +221,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     {
         if (_integrityWidget is null)
         {
-            _integrityWidget = new CountWidget("🔗", "Integrity issues", IntegrityIssueCount, OpenIntegrity);
+            _integrityWidget = new CountWidget("🔗", Str.Get("ProductManager.Detail.Widget.IntegrityIssues"), IntegrityIssueCount, OpenIntegrity);
             RootWidgets.Add(_integrityWidget);
         }
         else _integrityWidget.Count = IntegrityIssueCount;
@@ -294,12 +295,12 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         var version = NewSnapshotVersion.Trim();
         if (version.Length == 0 || string.Equals(version, ProductStore.CurrentVersion, StringComparison.OrdinalIgnoreCase))
         {
-            _shell.ShowError("Enter a version number.");
+            _shell.ShowError(Str.Get("ProductManager.Error.EnterVersion"));
             return;
         }
         if (_git.IsRepo && _git.HasTag(version))
         {
-            _shell.ShowError($"Git tag '{version}' already exists.");
+            _shell.ShowError(Str.Format("ProductManager.Error.TagExistsFormat", version));
             return;
         }
 
@@ -317,10 +318,10 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         {
             var (ok, err) = _git.CommitAndTag([jsonPath, mdPath], $"Product snapshot {version}", version);
             _shell.ShowNotification(ok
-                ? $"Snapshot {version} exported, committed and tagged."
-                : $"Snapshot {version} exported to {_exportDir}; git step failed: {err}");
+        ? Str.Format("ProductManager.Notify.SnapshotTaggedFormat", version)
+        : Str.Format("ProductManager.Notify.SnapshotGitFailedFormat", version, _exportDir, err));
         }
-        else _shell.ShowNotification($"Snapshot {version} exported to {_exportDir}.");
+        else _shell.ShowNotification(Str.Format("ProductManager.Notify.SnapshotExportedFormat", version, _exportDir));
 
         SyncVersions();
         SelectedVersion = version;   // open the new (read-only) snapshot
@@ -355,7 +356,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private void ConfirmSettings()
     {
         var dir = SettingsExportDir.Trim().Replace('\\', '/').Trim('/');
-        if (dir.Length == 0) { _shell.ShowError("Enter an export folder (relative to the product root)."); return; }
+        if (dir.Length == 0) { _shell.ShowError(Str.Get("ProductManager.Error.EnterExportFolder")); return; }
         var live = _store.Load();
         live.Product.ExportDir = dir;
         live.Product.Concerns = SettingsConcerns
@@ -372,9 +373,9 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private async Task DeleteSnapshot()
     {
         var version = SelectedVersion;
-        if (version == ProductStore.CurrentVersion) { _shell.ShowError("Current isn't a snapshot."); return; }
-        if (!await ConfirmDeleteAsync("Delete snapshot",
-                $"Delete snapshot \"{version}\" from {_exportDir}? The git tag, if any, is left in place."))
+        if (version == ProductStore.CurrentVersion) { _shell.ShowError(Str.Get("ProductManager.Error.CurrentNotSnapshot")); return; }
+        if (!await ConfirmDeleteAsync(Str.Get("ProductManager.Dialog.DeleteSnapshot"),
+                Str.Format("ProductManager.Dialog.DeleteSnapshotPromptFormat", version, _exportDir)))
             return;
 
         _store.DeleteSnapshot(_exportDir, version);
@@ -519,8 +520,8 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
             ShouldStar   = new GridLength(sCount.Should,   GridUnitType.Star);
             FaultedStar  = new GridLength(sCount.Faulted,  GridUnitType.Star);
             ShouldntStar = new GridLength(sCount.Shouldnt, GridUnitType.Star);
-            Caption = $"{sCount.Percent}% shipping — {sCount.Done} done, {sCount.Should} should, " +
-                      $"{sCount.Faulted} faulted, {sCount.Shouldnt} shouldn't";
+            Caption = Str.Format("ProductManager.Detail.CaptionFormat",
+                sCount.Percent, sCount.Done, sCount.Should, sCount.Faulted, sCount.Shouldnt);
 
             NeedsAttention.SyncTo(ScopeNeedsAttention());
             HasNeedsAttention = NeedsAttention.Count > 0;
@@ -528,7 +529,9 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
             ShowVersionInfo = _snapshot is not null;
             VersionInfoLine = _snapshot is null
                 ? string.Empty
-                : $"Snapshot · {_snapshot.Date}" + (_snapshot.Tag is null ? "" : $" · tag {_snapshot.Tag}") + " · read-only";
+                : _snapshot.Tag is null
+                    ? Str.Format("ProductManager.Detail.SnapshotFormat", _snapshot.Date)
+                    : Str.Format("ProductManager.Detail.SnapshotTaggedFormat", _snapshot.Date, _snapshot.Tag);
 
             DetailTitle       = node?.Title       ?? string.Empty;
             DetailDescription = node?.Description  ?? string.Empty;
@@ -682,14 +685,14 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     }
 
     private void EditConcernSnaplinks(ConcernBox box)
-        => OpenSnaplinkEditor($"Snaplinks · {box.Tag}",
+        => OpenSnaplinkEditor(Str.Format("ProductManager.Snaplinks.TitleFormat", box.Tag),
             new SnaplinkEditTarget(() => box.Model.Snaplinks, v => box.Model.Snaplinks = v, box.RefreshSnaplinks));
 
     /// <summary>Opens the snaplink editor for the focused node's attachments (the property panel's 🔗).</summary>
     public void EditNodeSnaplinks()
     {
         if (!IsEditable || Focused is not { } node) return;
-        OpenSnaplinkEditor($"Attachments · {node.Title}",
+        OpenSnaplinkEditor(Str.Format("ProductManager.Snaplinks.AttachmentsTitleFormat", node.Title),
             new SnaplinkEditTarget(() => node.Snaplinks, v => node.Snaplinks = v, BuildDetail));
     }
 
@@ -773,7 +776,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     {
         if (!IsEditable) return;
         var parent = parentId is null or ProductRootSentinel ? null : parentId;
-        _shell.ShowPrompt("New node", "Title", string.Empty,
+        _shell.ShowPrompt(Str.Get("ProductManager.Dialog.NewNode"), Str.Get("ProductManager.Dialog.NodeTitleLabel"), string.Empty,
             title =>
             {
                 if (string.IsNullOrWhiteSpace(title)) return;
@@ -793,7 +796,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     public void RenameNode(string id)
     {
         if (!IsEditable || !_state.Nodes.TryGetValue(id, out var node)) return;
-        _shell.ShowPrompt("Rename node", "Title", node.Title,
+        _shell.ShowPrompt(Str.Get("ProductManager.Dialog.RenameNode"), Str.Get("ProductManager.Dialog.NodeTitleLabel"), node.Title,
             title => { if (!string.IsNullOrWhiteSpace(title)) { node.Title = title.Trim(); SaveTree(); RebuildAll(); } },
             () => { });
     }
@@ -815,8 +818,8 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private async Task DeleteNode(string id)
     {
         if (!IsEditable || id == ProductRootSentinel || !_state.Nodes.TryGetValue(id, out var node)) return;
-        if (!await ConfirmDeleteAsync("Delete node",
-                $"Delete \"{node.Title}\" and all its descendants? This cannot be undone."))
+        if (!await ConfirmDeleteAsync(Str.Get("ProductManager.Dialog.DeleteNode"),
+                Str.Format("ProductManager.Dialog.DeleteNodePromptFormat", node.Title)))
             return;
 
         var parent = node.Parent;
@@ -852,7 +855,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     public void InsertParentAbove(string id)
     {
         if (!IsEditable || !_state.Nodes.TryGetValue(id, out var node)) return;
-        _shell.ShowPrompt("Insert parent", "New parent title", string.Empty,
+        _shell.ShowPrompt(Str.Get("ProductManager.Dialog.InsertParent"), Str.Get("ProductManager.Dialog.InsertParentLabel"), string.Empty,
             title =>
             {
                 if (string.IsNullOrWhiteSpace(title)) return;

@@ -3,6 +3,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -13,10 +14,10 @@ public static class StatusInfo
 
     public static string Display(Status s) => s switch
     {
-        Status.Should   => "should",
-        Status.Shouldnt => "shouldn't",
-        Status.Done     => "done",
-        Status.Faulted  => "faulted",
+        Status.Should   => Str.Get("ProductManager.Status.Should"),
+        Status.Shouldnt => Str.Get("ProductManager.Status.Shouldnt"),
+        Status.Done     => Str.Get("ProductManager.Status.Done"),
+        Status.Faulted  => Str.Get("ProductManager.Status.Faulted"),
         _               => s.ToString().ToLowerInvariant()
     };
 

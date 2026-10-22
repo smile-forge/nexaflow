@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Common.Theming;
 
@@ -7,8 +8,11 @@ namespace Nexaflow.Visuals.Common.Theming;
 /// show, and the hex (for callers that persist or adapt to a colour string).</summary>
 public sealed record SwatchOption(string Key, string Hex, Brush Brush)
 {
-    /// <summary>Friendly hue name for a picker (the key without its <c>Swatch.</c> prefix).</summary>
+    /// <summary>The hue's invariant name (the key without its <c>Swatch.</c> prefix) — for ids and matching, never shown.</summary>
     public string Name => Key.StartsWith("Swatch.", StringComparison.Ordinal) ? Key["Swatch.".Length..] : Key;
+
+    /// <summary>The hue as a picker shows it, in the window's language.</summary>
+    public string HueName => SwatchPalette.HueName(Key);
 }
 
 /// <summary>
@@ -46,4 +50,22 @@ public static class SwatchPalette
         }
         return list;
     }
+
+    /// <summary>A swatch key's hue as a reader sees it, in the window's language; a key outside the bank comes back as itself.</summary>
+    public static string HueName(string key) => key switch
+    {
+        "Swatch.Blue" => Str.Get("Common.Swatch.Blue"),
+        "Swatch.Cyan" => Str.Get("Common.Swatch.Cyan"),
+        "Swatch.Teal" => Str.Get("Common.Swatch.Teal"),
+        "Swatch.Green" => Str.Get("Common.Swatch.Green"),
+        "Swatch.Lime" => Str.Get("Common.Swatch.Lime"),
+        "Swatch.Yellow" => Str.Get("Common.Swatch.Yellow"),
+        "Swatch.Amber" => Str.Get("Common.Swatch.Amber"),
+        "Swatch.Orange" => Str.Get("Common.Swatch.Orange"),
+        "Swatch.Red" => Str.Get("Common.Swatch.Red"),
+        "Swatch.Pink" => Str.Get("Common.Swatch.Pink"),
+        "Swatch.Purple" => Str.Get("Common.Swatch.Purple"),
+        "Swatch.Slate" => Str.Get("Common.Swatch.Slate"),
+        _ => key,
+    };
 }

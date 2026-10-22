@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="CompressedView"
              AllowDrop="True"
              Background="{StaticResource BgBrush}">
@@ -102,26 +103,26 @@
                         <TextBlock Text="{Binding Format}" Foreground="{StaticResource AccentBrush}"
                                    FontSize="12" Margin="0,2,0,14"/>
 
-                        <TextBlock Text="ENTRIES" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Entries}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding EntryCountText}" Foreground="{StaticResource TextBrush}" FontSize="13"/>
 
-                        <TextBlock Text="UNCOMPRESSED" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Uncompressed}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding TotalSizeText}" Foreground="{StaticResource TextBrush}" FontSize="13"/>
 
-                        <TextBlock Text="COMPRESSED" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Compressed}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding CompressedSizeText}" Foreground="{StaticResource TextBrush}" FontSize="13"/>
 
-                        <TextBlock Text="SAVED" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Saved}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding RatioText}" Foreground="{StaticResource TextBrush}" FontSize="13"/>
 
-                        <TextBlock Text="ENCRYPTION" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Encryption}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding EncryptionText}" Foreground="{StaticResource TextBrush}" FontSize="13"/>
 
-                        <TextBlock Text="SIGNATURE" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                        <TextBlock Text="{loc:Str Compressed.Meta.Signature}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                         <TextBlock Text="{Binding SignatureText}" Foreground="{StaticResource TextBrush}" FontSize="13" TextWrapping="Wrap"/>
 
                         <StackPanel Visibility="{Binding HasComment, Converter={StaticResource BoolVis}}">
-                            <TextBlock Text="COMMENT" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
+                            <TextBlock Text="{loc:Str Compressed.Meta.Comment}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,1"/>
                             <TextBlock Text="{Binding Comment}" Foreground="{StaticResource TextBrush}" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                     </StackPanel>
@@ -147,11 +148,11 @@
                             <ColumnDefinition Width="58"/>
                             <ColumnDefinition Width="140"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Name" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="1" Text="Size" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="2" Text="Packed" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="3" Text="Ratio" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="4" Text="Modified" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="0" Text="{loc:Str Compressed.Column.Name}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{loc:Str Compressed.Column.Size}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="{loc:Str Compressed.Column.Packed}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="3" Text="{loc:Str Compressed.Column.Ratio}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="4" Text="{loc:Str Compressed.Column.Modified}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold"/>
                     </Grid>
                 </Border>
 
@@ -215,18 +216,9 @@
                                             </Style>
                                         </Border.Style>
                                     </Border>
-                                    <TextBlock VerticalAlignment="Center" Margin="2,0,5,0" FontSize="13">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="📄"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsFolder}" Value="True">
-                                                        <Setter Property="Text" Value="📁"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <!-- Inside the archive, so drawn by its kind from the name alone. -->
+                                    <vcc:FileIcon VerticalAlignment="Center" Margin="2,0,5,0"
+                                                  Path="{Binding Name}" IsFolder="{Binding IsFolder}" NameOnly="True"/>
                                     <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                                                Foreground="{StaticResource TextBrush}" FontSize="13"
                                                TextTrimming="CharacterEllipsis">
@@ -268,15 +260,15 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Width="120">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <UniformGrid Columns="2" Margin="4,6" VerticalAlignment="Top">
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract"   Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="Compressed_Extract"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE710;" Content="Add file"  Command="{Binding AddFileCommand}" AutomationProperties.AutomationId="Compressed_AddFile"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE721;" Content="Test"      Command="{Binding TestCommand}" AutomationProperties.AutomationId="Compressed_Test"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72E;" Content="Encrypt"   Command="{Binding EncryptCommand}" AutomationProperties.AutomationId="Compressed_Encrypt"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE785;" Content="Decrypt"   Command="{Binding DecryptCommand}" AutomationProperties.AutomationId="Compressed_Decrypt"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE70F;" Content="Sign"      Command="{Binding SignCommand}" AutomationProperties.AutomationId="Compressed_Sign"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE73E;" Content="Sig Check" Command="{Binding VerifyCommand}" AutomationProperties.AutomationId="Compressed_Verify"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72C;" Content="Recompress" Command="{Binding RecompressCommand}" AutomationProperties.AutomationId="Compressed_Recompress"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE895;" Content="Convert"    Command="{Binding ConvertCommand}" AutomationProperties.AutomationId="Compressed_Convert"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="{loc:Str Compressed.Toolbar.Extract}"   Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="Compressed_Extract"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE710;" Content="{loc:Str Compressed.Toolbar.AddFile}"  Command="{Binding AddFileCommand}" AutomationProperties.AutomationId="Compressed_AddFile"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE721;" Content="{loc:Str Compressed.Toolbar.Test}"      Command="{Binding TestCommand}" AutomationProperties.AutomationId="Compressed_Test"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72E;" Content="{loc:Str Compressed.Toolbar.Encrypt}"   Command="{Binding EncryptCommand}" AutomationProperties.AutomationId="Compressed_Encrypt"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE785;" Content="{loc:Str Compressed.Toolbar.Decrypt}"   Command="{Binding DecryptCommand}" AutomationProperties.AutomationId="Compressed_Decrypt"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE70F;" Content="{loc:Str Compressed.Toolbar.Sign}"      Command="{Binding SignCommand}" AutomationProperties.AutomationId="Compressed_Sign"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE73E;" Content="{loc:Str Compressed.Toolbar.SigCheck}" Command="{Binding VerifyCommand}" AutomationProperties.AutomationId="Compressed_Verify"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72C;" Content="{loc:Str Compressed.Toolbar.Recompress}" Command="{Binding RecompressCommand}" AutomationProperties.AutomationId="Compressed_Recompress"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE895;" Content="{loc:Str Compressed.Toolbar.Convert}"    Command="{Binding ConvertCommand}" AutomationProperties.AutomationId="Compressed_Convert"/>
                     </UniformGrid>
                 </ScrollViewer>
             </Border>
@@ -352,7 +344,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <Button Content="Cancel" Command="{Binding CancelChoiceCommand}" Cursor="Hand"
+                <Button Content="{loc:Str Compressed.Choice.Cancel}" Command="{Binding CancelChoiceCommand}" Cursor="Hand"
                         AutomationProperties.AutomationId="Compressed_ChoiceCancel"
                         HorizontalAlignment="Right" Margin="0,6,0,0"
                         Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
@@ -371,11 +363,11 @@
                                  KeyDown="PasswordEntry_KeyDown"/>
                 </Border>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Cancel" Command="{Binding CancelPasswordCommand}" Cursor="Hand"
+                    <Button Content="{loc:Str Compressed.Password.Cancel}" Command="{Binding CancelPasswordCommand}" Cursor="Hand"
                             AutomationProperties.AutomationId="Compressed_PasswordCancel"
                             Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
                             BorderThickness="0" Padding="10,6" Margin="0,0,8,0"/>
-                    <Button Content="OK" Click="PasswordOk_Click" Cursor="Hand"
+                    <Button Content="{loc:Str Compressed.Password.Ok}" Click="PasswordOk_Click" Cursor="Hand"
                             AutomationProperties.AutomationId="Compressed_PasswordOk"
                             Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"
                             BorderThickness="0" Padding="18,6" FontWeight="SemiBold"/>
