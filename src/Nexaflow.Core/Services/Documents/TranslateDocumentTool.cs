@@ -63,7 +63,7 @@ internal sealed class TranslateDocumentTool(DocumentJob job) : IClientTool
                                     .TranslateAsync(work.Reading, gist, glossary, language, Str.Get("Shell.Documents.Untranslated"), ct);
 
                                 return new DocumentMade(translation.Text, translation.Untranslated.Count == 0 ? null
-                                    : "These parts are kept in the document's own language, a note before each, as no translation of them kept their markup: "
+                                    : "These parts are kept in the document's own language, a note before each, as no usable translation of them was had: "
                                       + string.Join("; ", translation.Untranslated.Select(where => $"“{where}”")) + ". Translating it again tries them again.");
                             },
                             ct);

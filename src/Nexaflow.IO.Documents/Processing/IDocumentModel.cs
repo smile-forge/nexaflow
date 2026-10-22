@@ -19,8 +19,23 @@ public interface IDocumentModel
     /// <summary>About how many characters a token comes to.</summary>
     int CharsPerToken { get; }
 
-    /// <summary>What the model answers <paramref name="asked"/> with, told <paramref name="instructions"/> first, and how its answer ended.</summary>
-    Task<DocumentReply> AnswerAsync(string instructions, string asked, CancellationToken ct);
+    /// <summary>
+    /// What the model answers <paramref name="asked"/> with, told <paramref name="instructions"/> first, and how its answer ended —
+    /// stopped once it runs past <paramref name="longest"/> characters, ending <see cref="DocumentReplyEnd.LengthLimit"/>. A model
+    /// can say the same thing over and over in ways nothing catches, and an answer longer than its question could need is that.
+    /// </summary>
+    Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct);
+}
+
+/// <summary>Asking a document model where the question sets no length of its own for the answer.</summary>
+public static class DocumentModelAnswers
+{
+    /// <summary>
+    /// What <paramref name="model"/> answers <paramref name="asked"/> with, held to what is left for an answer of what it is handed
+    /// at once (<see cref="DocumentBudget.Left"/>).
+    /// </summary>
+    public static Task<DocumentReply> AnswerAsync(this IDocumentModel model, string instructions, string asked, CancellationToken ct) =>
+        model.AnswerAsync(instructions, asked, DocumentBudget.Of(model).Left(instructions, asked), ct);
 }
 
 /// <summary>How a model's answer ended.</summary>
@@ -42,7 +57,8 @@ public enum DocumentReplyEnd
 }
 
 /// <summary>What a model answered, and how its answer ended.</summary>
-public sealed record DocumentReply(string Text, DocumentReplyEnd Ended)
+/// <param name="Failure">Why, for an answer that <see cref="DocumentReplyEnd.Failed"/>, where the model said.</param>
+public sealed record DocumentReply(string Text, DocumentReplyEnd Ended, string? Failure = null)
 {
     /// <summary>Whether it ran out of room before it finished — what it was asked was too much at once.</summary>
     public bool RanOut => Ended is DocumentReplyEnd.LengthLimit or DocumentReplyEnd.ContextFull;
@@ -71,7 +87,12 @@ public enum DocumentStep
 public readonly record struct DocumentProgress(DocumentStep Step, int Done, int Of);
 
 /// <summary>A whole-document job that cannot finish, saying where and why.</summary>
-public sealed class DocumentWorkException(string message) : Exception(message);
+public sealed class DocumentWorkException(string message) : Exception(message)
+{
+    /// <summary>A job stopped by a model that could not be asked <paramref name="what"/>, saying why where its reply did.</summary>
+    public static DocumentWorkException NotAsked(string what, DocumentReply reply) =>
+        new(reply.Failure is { Length: > 0 } why ? $"The model could not be asked {what}: {why}" : $"The model could not be asked {what}.");
+}
 
 /// <summary>The keys notes are kept under: a short hash of everything a note was worked out from.</summary>
 public static class DocumentKeys

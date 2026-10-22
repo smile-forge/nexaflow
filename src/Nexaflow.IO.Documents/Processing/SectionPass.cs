@@ -212,7 +212,7 @@ public sealed class SectionPass(IDocumentModel model, IDocumentNotes notes, ISec
 
         for (var again = false; ; again = true)
         {
-            if (reply.Ended == DocumentReplyEnd.Failed) throw new DocumentWorkException($"The model could not be asked about {named}.");
+            if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked($"about {named}", reply);
             if (question.Read(reply.Text) is { } said) return said;
             if (again) throw new DocumentWorkException($"The model did not answer as asked about {named}.");
 

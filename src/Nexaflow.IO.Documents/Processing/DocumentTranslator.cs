@@ -9,7 +9,7 @@ namespace Nexaflow.IO.Documents.Processing;
 /// <summary>A document translated (<see cref="DocumentTranslator"/>).</summary>
 /// <param name="Text">The translation: the document written again, its words in the other language.</param>
 /// <param name="Untranslated">
-/// Where the passages kept as the document writes them stand — those no translation kept the markup of — each section named
+/// Where the passages kept as the document writes them stand — those no usable translation was had for — each section named
 /// once, in the order written; empty where every passage was translated.
 /// </param>
 public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untranslated);
@@ -23,12 +23,13 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 /// passages as large as the model can translate at once (<see cref="DocumentBudget"/>), a block too long for one cut at its
 /// sentences. Every passage is handed the document's gist (<see cref="DocumentGist"/>), the glossary entries it uses
 /// (<see cref="DocumentGlossary"/>) and the passage before it with its translation, so the passages read as one text. An answer
-/// that does not keep every <c>⟦n⟧</c> once is asked for again, saying what was wrong, then a block at a time; one that ran out
-/// of room is asked for in halves. A block whose markup still does not read as it did once its words are put back is asked for
-/// again on its own. One that cannot be translated keeping its markup is kept as the document writes it, a note before it
+/// is held to twice the length of what it translates. One that does not keep every <c>⟦n⟧</c> once is asked for again, saying
+/// what was wrong, then in halves; one that ran out of room, or ran on past its length, is asked for in halves. A block whose
+/// markup still does not read as it did once its words are put back is asked for again on its own. One that cannot be
+/// translated keeping its markup, or for which no reply could be had, is kept as the document writes it, a note before it
 /// saying so, and named in what the translation comes to (<see cref="DocumentTranslation"/>) — the rest of the document is
-/// translated all the same, and asking again tries it again. Only a model that cannot be asked at all stops the job, what was
-/// translated before kept, so asking again carries on from there.
+/// translated all the same, and asking again tries it again. Only a model that cannot be asked at all, its replies failing
+/// one after another, stops the job, what was translated before kept, so asking again carries on from there.
 /// </para>
 /// </summary>
 public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
@@ -41,6 +42,12 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
     /// <summary>The shortest piece cut in two when no answer for it is right; one shorter is kept as written.</summary>
     private const int ShortestCut = 400;
+
+    /// <summary>How often a unit is asked for before it is asked for another way.</summary>
+    private const int Attempts = 2;
+
+    /// <summary>The most replies in a row that may fail — two passages', each asked twice — before the model is taken for gone.</summary>
+    private const int FailuresInARow = 2 * Attempts;
 
     /// <summary>The shelf translations into <paramref name="language"/> are kept on.</summary>
     public static string ShelfFor(string language) => "translation-" + DocumentKeys.Of(language.Trim().ToLowerInvariant())[..12];
@@ -149,7 +156,8 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     /// <summary>
     /// What a unit of pieces comes to in the job's language, a piece each — kept, unless <paramref name="fresh"/>, from when it
     /// was asked before. A mark an answer made up is taken out of it; an answer missing a piece or a <c>⟦n⟧</c> is asked for
-    /// again saying what was wrong, then in halves; one that ran out of room is asked for in halves too.
+    /// again saying what was wrong, then in halves; one that ran out of room is asked for in halves too, and one that could not
+    /// be had is asked for again, then kept as written.
     /// </summary>
     private async Task<IReadOnlyList<string>> UnitAsync(Job job, IReadOnlyList<Piece> unit, (string Source, string Target)? before, string? hint,
                                                         CancellationToken ct, bool fresh = false)
@@ -164,13 +172,25 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
             return stored;
 
         string? wrong = null;
+        var failed = false;
 
-        for (var attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < Attempts; attempt++)
         {
-            var reply = await model.AnswerAsync(Instructions(job, hits), Asked(job, unit, before, hint, wrong), ct);
+            var reply = await model.AnswerAsync(Instructions(job, hits), Asked(job, unit, before, hint, wrong), Longest(unit), ct);
 
-            if (reply.Ended == DocumentReplyEnd.Failed)
-                throw new DocumentWorkException($"The model could not be asked to translate the passage in “{unit[0].Passage.Where}”.");
+            // A reply that could not be had costs only its own passage, asked for once more first. Replies failing one after
+            // another are a model that cannot be asked at all — one that has answered nothing yet, from its first passage's
+            // asks — and stop the job, what was translated kept, so asking again carries on from there.
+            failed = reply.Ended == DocumentReplyEnd.Failed;
+            if (failed)
+            {
+                if (++job.FailedInARow >= (job.Answered ? FailuresInARow : Attempts))
+                    throw DocumentWorkException.NotAsked($"to translate the passage in “{unit[0].Passage.Where}”", reply);
+                continue;
+            }
+
+            job.FailedInARow = 0;
+            job.Answered = true;
 
             if (reply.RanOut) return await HalvesAsync(job, unit, before, hint, ct);
 
@@ -188,6 +208,9 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
             }
         }
 
+        // No reply to be had for it: kept as written, since asking for less of it is no likelier to be answered.
+        if (failed) return Untranslatable(job, unit);
+
         // Asked together and still wrong: in halves, each fewer pieces and marks for a model to keep track of — down to a piece
         // at a time where it takes that, and no further than it takes.
         if (unit.Count > 1)
@@ -198,7 +221,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
         // One piece still wrong: its halves, cut at a sentence, each with fewer marks to keep — but not one already short, where
         // what makes it hard is its marks, not its length: its passage is kept as written.
-        return unit[0].Text.Length < ShortestCut ? Untranslatable(job, unit[0]) : await HalvesAsync(job, unit, before, hint, ct);
+        return unit[0].Text.Length < ShortestCut ? Untranslatable(job, unit) : await HalvesAsync(job, unit, before, hint, ct);
     }
 
     /// <summary>
@@ -215,7 +238,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
         var piece = unit[0];
         var cut = DocumentCuts.Cut(piece.Text, Math.Max(1, piece.Text.Length / 2));
-        if (cut.Count < 2) return Untranslatable(job, piece);
+        if (cut.Count < 2) return Untranslatable(job, unit);
 
         var parts = cut.Select(text => new Piece(piece.Passage, text)).ToList();
         var answers = new List<string>();
@@ -225,14 +248,21 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     }
 
     /// <summary>
-    /// A piece no answer could be found for, its passage kept as written (<see cref="Job.Untranslatable"/>): what stands in for its
-    /// answer is never put back, and never kept, so asking again tries it again.
+    /// Pieces no answer could be found for, their passages kept as written (<see cref="Job.Untranslatable"/>): what stands in for
+    /// their answers is never put back, and never kept, so asking again tries them again.
     /// </summary>
-    private static IReadOnlyList<string> Untranslatable(Job job, Piece piece)
+    private static IReadOnlyList<string> Untranslatable(Job job, IReadOnlyList<Piece> unit)
     {
-        job.Untranslatable.Add(piece.Passage);
-        return [piece.Text];
+        foreach (var piece in unit) job.Untranslatable.Add(piece.Passage);
+        return [.. unit.Select(piece => piece.Text)];
     }
+
+    /// <summary>
+    /// The most an answer to <paramref name="unit"/> may run to: twice what it translates, with its @@ lines and a little over for
+    /// a short one. A translation runs longer than what it translates only so far; one past that is a model saying the same over
+    /// and over, and is stopped there, to be asked for in halves.
+    /// </summary>
+    private static int Longest(IReadOnlyList<Piece> unit) => 2 * unit.Sum(piece => piece.Text.Length) + 16 * unit.Count + 256;
 
     /// <summary>The answers to pieces cut from one text, joined back into one — a space where the cut fell after one.</summary>
     private static string Joined(IReadOnlyList<Piece> pieces, IReadOnlyList<string> answers)
@@ -373,9 +403,17 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     [GeneratedRegex(@"^[ \t]*@@[ \t]*(\d+)[ \t]*\r?$", RegexOptions.Multiline)]
     private static partial Regex Opens();
 
-    /// <summary>What every question of one translation shares, and the passages it found no answer for that kept their markup.</summary>
+    /// <summary>
+    /// What every question of one translation shares, the passages it found no answer for that kept their markup, and how its
+    /// replies have gone: whether any was had, and how many have failed since the last that was.
+    /// </summary>
     private sealed record Job(DocumentReading Reading, DocumentGist Gist, DocumentGlossary Glossary, string Language, string Shelf, DocumentBudget Budget,
-                              HashSet<Passage> Untranslatable);
+                              HashSet<Passage> Untranslatable)
+    {
+        public bool Answered { get; set; }
+
+        public int FailedInARow { get; set; }
+    }
 
     /// <summary>A block with words to translate: the block, its words with the rest held back, and the section it stands in.</summary>
     private sealed record Passage(ContentPart Block, ProtectedText Text, string Where);

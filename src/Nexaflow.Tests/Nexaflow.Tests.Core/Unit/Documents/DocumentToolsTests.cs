@@ -226,13 +226,26 @@ public class DocumentToolsTests
     public async Task TheModelSaysHowEachAnswerEnded()
     {
         var model = new WorkspaceDocumentModel(new Streaming([new LlmTextDelta("half"), new LlmReplyEnded(LlmReplyEnd.LengthLimit)]), "m", 8192);
-        var cut = await model.AnswerAsync("i", "a", CancellationToken.None);
+        var cut = await model.AnswerAsync("i", "a", 100, CancellationToken.None);
 
         Assert.AreEqual("half", cut.Text);
         Assert.IsTrue(cut.RanOut);
 
         var failing = new WorkspaceDocumentModel(new Streaming([], fails: true), "m", 8192);
-        Assert.AreEqual(DocumentReplyEnd.Failed, (await failing.AnswerAsync("i", "a", CancellationToken.None)).Ended);
+        var failed = await failing.AnswerAsync("i", "a", 100, CancellationToken.None);
+        Assert.AreEqual(DocumentReplyEnd.Failed, failed.Ended);
+        StringAssert.Contains(failed.Failure, "gone", "and says why");
+    }
+
+    [TestMethod]
+    public async Task AnAnswerRunningOnPastItsLongest_IsStoppedThere_AsOneThatRanOutOfRoom()
+    {
+        var streaming = new Streaming([.. Enumerable.Repeat<LlmStreamEvent>(new LlmTextDelta("again "), 1000), new LlmReplyEnded(LlmReplyEnd.Finished)]);
+        var reply = await new WorkspaceDocumentModel(streaming, "m", 8192).AnswerAsync("i", "a", 60, CancellationToken.None);
+
+        Assert.AreEqual(DocumentReplyEnd.LengthLimit, reply.Ended);
+        Assert.IsTrue(reply.Text.Length is > 60 and < 70, "read no further than the word that ran past it");
+        Assert.IsTrue(streaming.Stopped, "and the model's reply stopped too");
     }
 
     /// <summary>A model that says every document is the same one, summarises a part as "S", and translates by shouting.</summary>
@@ -242,7 +255,7 @@ public class DocumentToolsTests
         public int ContextTokens => 8192;
         public int CharsPerToken => 3;
 
-        public Task<DocumentReply> AnswerAsync(string instructions, string asked, CancellationToken ct) => Task.FromResult(new DocumentReply(
+        public Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct) => Task.FromResult(new DocumentReply(
             instructions.StartsWith("You say what a whole document is", StringComparison.Ordinal)
                 ? "GENRE: non-fiction\nTOPIC: pets\nAUDIENCE: owners\nINTENT: to inform\nREGISTER: neutral\nLANGUAGE: English"
           : instructions.StartsWith("You summarise", StringComparison.Ordinal) ? "S"
@@ -270,24 +283,36 @@ public class DocumentToolsTests
         public int ContextTokens => 8192;
         public int CharsPerToken => 3;
 
-        public Task<DocumentReply> AnswerAsync(string instructions, string asked, CancellationToken ct) =>
+        public Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct) =>
             Task.FromResult(new DocumentReply("Something about pets.", DocumentReplyEnd.Finished));
     }
 
-    /// <summary>A language model that streams what it is given, or fails.</summary>
+    /// <summary>A language model that streams what it is given, or fails — and says whether its reader left before the end.</summary>
     private sealed class Streaming(IReadOnlyList<LlmStreamEvent> said, bool fails = false) : ILlmProvider
     {
         public string Name => "Streaming";
         public DataResidency Residency => DataResidency.StaysOnMachine;
 
+        public bool Stopped { get; private set; }
+
         public async IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, [EnumeratorCancellation] CancellationToken ct = default)
         {
             if (fails) throw new LlmProviderException("gone");
 
-            foreach (var item in said)
+            var all = false;
+            try
             {
-                await Task.Yield();
-                yield return item;
+                foreach (var item in said)
+                {
+                    await Task.Yield();
+                    yield return item;
+                }
+
+                all = true;
+            }
+            finally
+            {
+                Stopped = !all;
             }
         }
 

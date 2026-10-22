@@ -9,7 +9,8 @@ namespace Nexaflow.Core.Services.Documents;
 /// <summary>
 /// The workspace's Documents model, held for a whole-document job: chosen once when the job starts, so every part of the
 /// document is read by the same model, asked as background work nobody waits on token by token, and asked to answer without
-/// reasoning first — the passes ask for what to write, not for thought about it.
+/// reasoning first — the passes ask for what to write, not for thought about it. An answer is read only as far as its question
+/// allows, whatever room the model itself would give it, and one that cannot be had says why.
 /// </summary>
 /// <param name="provider">The model.</param>
 /// <param name="key">Which model it is: its provider and its name.</param>
@@ -22,7 +23,7 @@ internal sealed class WorkspaceDocumentModel(ILlmProvider provider, string key, 
 
     public int CharsPerToken => RequestTriage.CharsPerToken;
 
-    public async Task<DocumentReply> AnswerAsync(string instructions, string asked, CancellationToken ct)
+    public async Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct)
     {
         var text = new StringBuilder();
         var ended = DocumentReplyEnd.Finished;
@@ -34,10 +35,13 @@ internal sealed class WorkspaceDocumentModel(ILlmProvider provider, string key, 
             {
                 if (said is LlmTextDelta delta) text.Append(delta.Text);
                 else if (said is LlmReplyEnded end) ended = Ended(end.Reason);
+
+                // Run on past the longest it may be, it is stopped here — leaving the stream stops it in the model too.
+                if (text.Length > longest) return new(text.ToString(), DocumentReplyEnd.LengthLimit);
             }
         }
         catch (OperationCanceledException) { throw; }
-        catch (LlmProviderException) { return new(text.ToString(), DocumentReplyEnd.Failed); }
+        catch (LlmProviderException ex) { return new(text.ToString(), DocumentReplyEnd.Failed, ex.Message); }
 
         return new(text.ToString(), ended);
     }

@@ -133,9 +133,9 @@ public sealed class DocumentGistPass(IDocumentModel model, IDocumentNotes notes,
         }
 
         if (gist is null)
-            throw new DocumentWorkException(reply.Ended == DocumentReplyEnd.Failed
-                ? "The model could not be asked what the document is."
-                : "The model did not say what the document is in the lines it was asked for.");
+            throw reply.Ended == DocumentReplyEnd.Failed
+                ? DocumentWorkException.NotAsked("what the document is", reply)
+                : new DocumentWorkException("The model did not say what the document is in the lines it was asked for.");
 
         await notes.WriteAsync(Shelf, key, gist.Said, ct);
         return gist;
