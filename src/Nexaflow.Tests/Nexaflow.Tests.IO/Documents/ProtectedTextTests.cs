@@ -125,4 +125,21 @@ public class ProtectedTextTests
         StringAssert.Contains(ProtectedText.Problem("die Gleichungen ⟦3⟧ und ⟦4⟧", "the equations ⟦3,4⟧"), "⟦3,4⟧ is no mark",
             "something written as a mark that is none never reaches the document");
     }
+
+    [TestMethod]
+    public void WhatIsWrong_IsTheSentencesRoundIt_BoundedBySentencesTheAnswerHasRight()
+    {
+        const string source = "A ⟦0⟧ a. B ⟦1⟧ b. C ⟦2⟧ c. D ⟦3⟧ d. E ⟦4⟧ e. F ⟦5⟧ f.";
+        const string doubled = "AA ⟦0⟧ aa. BB ⟦1⟧ bb. CC ⟦2⟧ cc. DD ⟦3⟧ ⟦3⟧ dd. EE ⟦4⟧ ee. FF ⟦5⟧ ff.";
+        const string missing = "AA ⟦0⟧ aa. BB ⟦1⟧ bb. CC ⟦2⟧ cc. DD dd. EE ⟦4⟧ ee. FF ⟦5⟧ ff.";
+
+        var wrong = ProtectedText.Wrong(source, doubled)!.Value;
+        Assert.AreEqual("C ⟦2⟧ c. D ⟦3⟧ d. E ⟦4⟧ e.", source[wrong.SourceFrom..wrong.SourceTo].Trim(), "the sentence holding it, and the right ones either side");
+        Assert.AreEqual("CC ⟦2⟧ cc. DD ⟦3⟧ ⟦3⟧ dd. EE ⟦4⟧ ee.", doubled[wrong.AnswerFrom..wrong.AnswerTo].Trim(), "and what translates them");
+
+        var lost = ProtectedText.Wrong(source, missing)!.Value;
+        Assert.AreEqual("CC ⟦2⟧ cc. DD dd. EE ⟦4⟧ ee.", missing[lost.AnswerFrom..lost.AnswerTo].Trim(), "a missing mark found by where the source has it");
+
+        Assert.IsNull(ProtectedText.Wrong(source, doubled.Replace("⟦3⟧ ⟦3⟧", "⟦3⟧")), "nothing wrong, nothing to ask for again");
+    }
 }

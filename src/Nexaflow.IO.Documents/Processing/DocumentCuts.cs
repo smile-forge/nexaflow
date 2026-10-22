@@ -36,6 +36,18 @@ public static class DocumentCuts
         return pieces;
     }
 
+    /// <summary>Where each sentence of <paramref name="text"/> ends, just after what ends it, in order — the text's own end last.</summary>
+    public static IReadOnlyList<int> SentenceEnds(string text)
+    {
+        var ends = new SortedSet<int> { text.Length };
+
+        foreach (var end in Ends)
+            for (var at = text.IndexOf(end, StringComparison.Ordinal); at >= 0; at = text.IndexOf(end, at + 1, StringComparison.Ordinal))
+                ends.Add(at + end.Length);
+
+        return [.. ends.Where(at => at > 0)];
+    }
+
     /// <summary>
     /// <paramref name="pieces"/> gathered, in order and a blank line apart, into stretches of at most <paramref name="room"/>
     /// characters; a piece longer than that is cut (<see cref="Cut"/>), each of its parts a stretch of its own.

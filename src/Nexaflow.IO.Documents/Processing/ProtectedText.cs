@@ -215,6 +215,86 @@ public sealed partial class ProtectedText
     }
 
     /// <summary>
+    /// Where what is wrong with <paramref name="answer"/> (<see cref="Problem"/>) stands in it, and what of
+    /// <paramref name="source"/> that part translates: the fewest whole sentences of each holding every mark missing, doubled, made
+    /// up or out of its pair, and every token written as a mark that is none — bounded by the nearest sentences either side whose
+    /// marks the answer holds once each and in the source's order, which are taken in too, since words may move across a mark from
+    /// one language to another but not out of their sentence. Those sentences can be asked for again on their own and put back,
+    /// the rest of the answer kept. Null where nothing is wrong.
+    /// </summary>
+    public static WrongStretch? Wrong(string source, string answer)
+    {
+        if (Problem(source, answer) is null) return null;
+
+        var sourceMarks = Mark().Matches(source).Select(mark => (Name: StandsFor(mark), At: mark.Index)).ToList();
+        var answerMarks = Mark().Matches(answer).Select(mark => (Name: StandsFor(mark), At: mark.Index)).ToList();
+        var inSource = sourceMarks.CountBy(mark => mark.Name).ToDictionary();
+        var inAnswer = answerMarks.CountBy(mark => mark.Name).ToDictionary();
+
+        // A mark is wrong where it is not there once in each; a tag closed out of its order, with its pair.
+        var wrong = sourceMarks.Concat(answerMarks).Select(mark => mark.Name)
+                               .Where(name => inSource.GetValueOrDefault(name) != 1 || inAnswer.GetValueOrDefault(name) != 1).ToHashSet();
+        var open = new Stack<string>();
+        foreach (var (name, _) in answerMarks.Where(mark => mark.Name[0] == '<'))
+        {
+            var pair = name.Trim('<', '/', '>');
+            if (name[1] != '/') open.Push(pair);
+            else if (open.Count > 0 && open.Peek() == pair) open.Pop();
+            else wrong.UnionWith([$"<{pair}>", $"</{pair}>"]);
+        }
+
+        // The marks right in both, in the source's order, as many as also stand in that order in the answer.
+        var anchors = InOrder([.. sourceMarks.Where(mark => !wrong.Contains(mark.Name))
+                                             .Select(mark => (Source: mark.At, Answer: answerMarks.First(given => given.Name == mark.Name).At))]);
+
+        // Each wrong thing by the gap between anchors it falls in.
+        var gaps = sourceMarks.Where(mark => wrong.Contains(mark.Name)).Select(mark => anchors.Count(anchor => anchor.Source < mark.At))
+            .Concat(answerMarks.Where(mark => wrong.Contains(mark.Name)).Select(mark => anchors.Count(anchor => anchor.Answer < mark.At)))
+            .Concat(Strays().Matches(answer).Where(stray => !Mark().IsMatch(stray.Value) && !source.Contains(stray.Value))
+                            .Select(stray => anchors.Count(anchor => anchor.Answer < stray.Index)))
+            .ToList();
+        if (gaps.Count == 0) return new WrongStretch(0, source.Length, 0, answer.Length);
+
+        var (first, last) = (gaps.Min(), gaps.Max());
+        var (sourceFrom, answerFrom) = first == 0 ? (0, 0) : (SentenceStart(source, anchors[first - 1].Source), SentenceStart(answer, anchors[first - 1].Answer));
+        var (sourceTo, answerTo) = last == anchors.Count ? (source.Length, answer.Length) : (SentenceEnd(source, anchors[last].Source), SentenceEnd(answer, anchors[last].Answer));
+
+        return new WrongStretch(sourceFrom, sourceTo, answerFrom, answerTo);
+    }
+
+    /// <summary>The longest run of <paramref name="anchors"/>, taken in the source's order, that stands in that order in the answer too.</summary>
+    private static List<(int Source, int Answer)> InOrder(List<(int Source, int Answer)> anchors)
+    {
+        var longest = new int[anchors.Count];
+        var after = new int[anchors.Count];
+
+        for (var at = 0; at < anchors.Count; at++)
+        {
+            (longest[at], after[at]) = (1, -1);
+            for (var before = 0; before < at; before++)
+                if (anchors[before].Answer < anchors[at].Answer && longest[before] + 1 > longest[at]) (longest[at], after[at]) = (longest[before] + 1, before);
+        }
+
+        var run = new List<(int Source, int Answer)>();
+        for (var at = anchors.Count == 0 ? -1 : Array.IndexOf(longest, longest.Max()); at >= 0; at = after[at]) run.Add(anchors[at]);
+        run.Reverse();
+        return run;
+    }
+
+    /// <summary>Where the sentence holding <paramref name="at"/> starts: just after the last sentence ending before it outside a mark.</summary>
+    private static int SentenceStart(string text, int at) => Ends(text).LastOrDefault(end => end <= at);
+
+    /// <summary>Where the sentence holding <paramref name="at"/> ends: just after the first sentence ending after it outside a mark.</summary>
+    private static int SentenceEnd(string text, int at) => Ends(text).First(end => end > at);
+
+    /// <summary>Where <paramref name="text"/>'s sentences end, leaving out what ends one inside a mark — a formula shown in it, say.</summary>
+    private static List<int> Ends(string text)
+    {
+        var marks = Mark().Matches(text).Select(mark => (From: mark.Index, To: mark.Index + mark.Length)).ToList();
+        return [.. DocumentCuts.SentenceEnds(text).Where(end => !marks.Any(mark => end > mark.From && end < mark.To))];
+    }
+
+    /// <summary>
     /// The block written again with <paramref name="answer"/> for its words: <see cref="Lead"/>, then the answer's words spelled by
     /// the parser where the words they stand in for stood, each tag and <c>⟦n⟧</c> the markup it held back, then <see cref="Trail"/>.
     /// Breaks between lines in the words are spaces, as they were handed over.
@@ -363,4 +443,14 @@ public sealed partial class ProtectedText
 
     [GeneratedRegex(@"\s*\n\s*")]
     private static partial Regex Breaks();
+}
+
+/// <summary>
+/// The part of an answer that is wrong, and the part of what it translates that it stands for (<see cref="ProtectedText.Wrong"/>):
+/// each a range of characters, from the first to just past the last.
+/// </summary>
+public readonly record struct WrongStretch(int SourceFrom, int SourceTo, int AnswerFrom, int AnswerTo)
+{
+    /// <summary>How much of what it translates the stretch takes in.</summary>
+    public int SourceLength => SourceTo - SourceFrom;
 }
