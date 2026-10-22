@@ -43,6 +43,8 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
     public const string Translation = "You translate a document";
     public const string Glossary = "You list the words";
     public const string GlossaryTranslation = "You translate the glossary";
+    public const string Choosing = "You find the parts";
+    public const string Answering = "You answer a question";
 
     public const string Said =
         "GENRE: non-fiction\nTOPIC: pets\nAUDIENCE: owners\nINTENT: to inform\nREGISTER: neutral\nTONE: warm\nVOICE: second person, present\nSTYLE: short sentences\nLANGUAGE: English";
@@ -88,4 +90,6 @@ internal sealed class MemoryNotes : IDocumentNotes
         Kept[(shelf, key)] = text;
         return Task.CompletedTask;
     }
+
+    public bool Holds(string shelf, string key) => Kept.ContainsKey((shelf, key));
 }

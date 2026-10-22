@@ -62,6 +62,9 @@ public enum DocumentStep
 
     /// <summary>Translating it, a passage at a time.</summary>
     Translation,
+
+    /// <summary>Answering a question about it: finding the parts that bear on it, then reading them.</summary>
+    Question,
 }
 
 /// <summary>How far a whole-document job has got: what it is doing, and how much of that is done — said by whatever shows it.</summary>

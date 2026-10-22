@@ -14,6 +14,9 @@ public interface IDocumentNotes
 
     /// <summary>Keeps <paramref name="text"/> on <paramref name="shelf"/> under <paramref name="key"/>.</summary>
     Task WriteAsync(string shelf, string key, string text, CancellationToken ct);
+
+    /// <summary>Whether a note is kept on <paramref name="shelf"/> under <paramref name="key"/> — said at once, without reading it.</summary>
+    bool Holds(string shelf, string key);
 }
 
 /// <summary>
@@ -61,6 +64,8 @@ public sealed class DocumentNotesFolder : IDocumentNotes
         await File.WriteAllTextAsync(writing, text, ct);
         File.Move(writing, file, overwrite: true);
     }
+
+    public bool Holds(string shelf, string key) => File.Exists(FileOf(shelf, key));
 
     /// <summary>
     /// Lets go of every note on <paramref name="shelves"/> this run did not ask for — what an edit to the document made

@@ -23,7 +23,7 @@ public class DocumentSummarizerTests
     {
         var model = ScriptedModel.Plain();
 
-        var summary = await new DocumentSummarizer(model, new MemoryNotes()).SummarizeAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
+        var summary = await new SectionPass(model, new MemoryNotes(), new SummaryQuestion()).RunAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
 
         var asked = model.Of(ScriptedModel.Summary);
         var order = asked.Select(ScriptedModel.Where).ToList();
@@ -34,23 +34,23 @@ public class DocumentSummarizerTests
         StringAssert.Contains(asked[3], "Intro words.", "the whole from what comes before the first heading");
         Assert.IsTrue(model.Asked.All(question => question.Instructions.Contains("TOPIC: pets")), "every question is handed what the document is");
 
-        Assert.AreEqual("S(whole)", summary.Summary);
+        Assert.AreEqual("S(whole)", summary.Said);
         CollectionAssert.AreEqual(new[] { "One", "Two" }, summary.Under.Select(node => node.Title).ToArray());
-        Assert.AreEqual("S(One › One a)", summary.Under[0].Under[0].Summary);
+        Assert.AreEqual("S(One › One a)", summary.Under[0].Under[0].Said);
     }
 
     [TestMethod]
     public async Task SummarisingAgain_AsksOnlyAboutWhatChanged_AndWhatHoldsIt()
     {
         var notes = new MemoryNotes();
-        await new DocumentSummarizer(ScriptedModel.Plain(), notes).SummarizeAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
+        await new SectionPass(ScriptedModel.Plain(), notes, new SummaryQuestion()).RunAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
 
         var unchanged = ScriptedModel.Plain();
-        await new DocumentSummarizer(unchanged, notes).SummarizeAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
+        await new SectionPass(unchanged, notes, new SummaryQuestion()).RunAsync(DocumentReading.Of(Document), Gist, CancellationToken.None);
         Assert.AreEqual(0, unchanged.Asked.Count, "nothing changed, nothing asked");
 
         var edited = ScriptedModel.Plain();
-        await new DocumentSummarizer(edited, notes).SummarizeAsync(DocumentReading.Of(Document.Replace("Gamma.", "Delta.")), Gist, CancellationToken.None);
+        await new SectionPass(edited, notes, new SummaryQuestion()).RunAsync(DocumentReading.Of(Document.Replace("Gamma.", "Delta.")), Gist, CancellationToken.None);
         CollectionAssert.AreEqual(new[] { "Two" }, edited.Of(ScriptedModel.Summary).Select(ScriptedModel.Where).Where(where => where != "whole").ToArray(),
                                   "only the section edited, then the whole");
     }
@@ -61,7 +61,7 @@ public class DocumentSummarizerTests
         var long_ = "# Long\n\n" + string.Join("\n\n", Enumerable.Range(1, 30).Select(n => $"Paragraph {n} {new string('w', 900)}."));
         var model = ScriptedModel.Plain(context: 4096);
 
-        await new DocumentSummarizer(model, new MemoryNotes()).SummarizeAsync(DocumentReading.Of(long_), Gist, CancellationToken.None);
+        await new SectionPass(model, new MemoryNotes(), new SummaryQuestion()).RunAsync(DocumentReading.Of(long_), Gist, CancellationToken.None);
 
         Assert.IsTrue(model.Asked.Any(question => question.Asked.Contains("Your notes on it so far")), "the notes so far are carried into the next stretch");
         Assert.IsTrue(model.Asked.All(question => question.Asked.Length < 4096 * 3), "and no question is more than the model reads");
@@ -72,8 +72,8 @@ public class DocumentSummarizerTests
     {
         var reading = DocumentReading.Of(Document);
         var one = reading.Sections.Sections[0];
-        var summary = new SummaryNode(null, string.Empty, "# not a heading\n\n*not emphasis*",
-            [new SummaryNode(one, "One", "S(One)", [new SummaryNode(one.Sections[0], "One a", "S(One a)", [])])]);
+        var summary = new SectionResult(null, string.Empty, "# not a heading\n\n*not emphasis*",
+            [new SectionResult(one, "One", "S(One)", [new SectionResult(one.Sections[0], "One a", "S(One a)", [])])]);
 
         var written = SummaryMarkdown.Write(summary, Gist, "pets.md", @"C:\docs\pets.md");
         var read = DocumentReading.Of(written);
@@ -96,10 +96,10 @@ public class DocumentSummarizerTests
         var model = ScriptedModel.Plain();
         var reading = DocumentReading.Of("# Pets\n\n## Dogs\n\nThey bark.\n\n## Cats\n\nThey purr.\n");
 
-        var summary = await new DocumentSummarizer(model, new MemoryNotes()).SummarizeAsync(reading, Gist, CancellationToken.None);
+        var summary = await new SectionPass(model, new MemoryNotes(), new SummaryQuestion()).RunAsync(reading, Gist, CancellationToken.None);
 
         Assert.IsFalse(model.Of(ScriptedModel.Summary).Select(ScriptedModel.Where).Contains("whole"), "the title's section already says it all");
-        Assert.AreEqual("S(Pets)", summary.Summary);
+        Assert.AreEqual("S(Pets)", summary.Said);
 
         var read = DocumentReading.Of(SummaryMarkdown.Write(summary, Gist, "pets", @"C:\docs\pets.md"));
         CollectionAssert.AreEqual(new[] { (1, "Pets"), (2, "Dogs"), (2, "Cats") },
@@ -110,7 +110,7 @@ public class DocumentSummarizerTests
     [TestMethod]
     public void WhatAModelWrote_KeepsItsInlineMarkup_ButOpensNoBlock()
     {
-        var summary = new SummaryNode(null, "Notes", "Call `Run()` *first*.\n# Not a heading\n- not a list", []);
+        var summary = new SectionResult(null, "Notes", "Call `Run()` *first*.\n# Not a heading\n- not a list", []);
 
         var read = DocumentReading.Of(SummaryMarkdown.Write(summary, Gist, "notes", source: null));
         var kinds = read.Root.SelfAndDescendants().Select(part => part.Kind).ToHashSet();

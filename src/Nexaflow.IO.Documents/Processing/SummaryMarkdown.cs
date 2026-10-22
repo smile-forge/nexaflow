@@ -26,7 +26,7 @@ public static class SummaryMarkdown
     /// <param name="gist">What the document is.</param>
     /// <param name="title">What to call it, where the summary has no title of its own.</param>
     /// <param name="source">The full path of the document summarised, which every section's heading leads back to; null for none.</param>
-    public static string Write(SummaryNode summary, DocumentGist gist, string title, string? source)
+    public static string Write(SectionResult summary, DocumentGist gist, string title, string? source)
     {
         var written = new StringBuilder();
 
@@ -39,7 +39,7 @@ public static class SummaryMarkdown
         written.Append("\n\n");
 
         written.Append('*').Append(MarkdownParser.SpellWords($"{gist.Genre} · {gist.Audience}", startsLine: false).Trim()).Append("*\n\n");
-        Paragraphs(written, summary.Summary);
+        Paragraphs(written, summary.Said);
 
         foreach (var section in whole?.Under ?? summary.Under) Section(written, section, 2, source);
 
@@ -47,14 +47,14 @@ public static class SummaryMarkdown
     }
 
     /// <summary>A section's heading at <paramref name="rank"/>, its summary, and the sections under it a rank deeper.</summary>
-    private static void Section(StringBuilder written, SummaryNode section, int rank, string? source)
+    private static void Section(StringBuilder written, SectionResult section, int rank, string? source)
     {
         written.Append('#', Math.Min(rank, Deepest)).Append(' ').Append(MarkdownParser.SpellWords(section.Title, startsLine: false));
 
         if (source is not null && section.Section?.Anchor is { } anchor) written.Append(" [↗](<").Append(Back(source, anchor)).Append(">)");
 
         written.Append("\n\n");
-        Paragraphs(written, section.Summary);
+        Paragraphs(written, section.Said);
 
         foreach (var under in section.Under) Section(written, under, rank + 1, source);
     }

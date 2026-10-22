@@ -7,6 +7,7 @@ using Nexaflow.Core.AI;
 using Nexaflow.Core.Services.Documents;
 using Nexaflow.Core.Services.Generation;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Documents.Processing;
 using Nexaflow.Providers.Common;
@@ -130,6 +131,30 @@ public class DocumentToolsTests
     }
 
     [TestMethod]
+    public async Task AQuestion_IsAnsweredFromTheSummaryKept_CitingItsPartsWithLinksBack()
+    {
+        var path = Document("# Pets\n\nDogs bark.\n\n## Cats\n\nCats purr.\n");
+        var tools = Tools(new Shouting());
+        var asked = new JsonObject { ["document"] = path, ["question"] = "What do cats do?" };
+
+        Assert.IsTrue(tools.Question.RunsInBackground(asked), "a document not yet summarised is summarised first, in the background");
+        Assert.AreEqual(ToolSafety.RequiresApproval, tools.Question.SafetyOf(asked));
+
+        var result = await tools.Question.InvokeAsync(asked, CancellationToken.None);
+
+        Assert.IsFalse(result.IsError, result.ModelText);
+        StringAssert.Contains(result.ModelText, "They purr [1].");
+        StringAssert.Contains(result.ModelText, $"[1] [Pets](<{new Uri(path).AbsoluteUri}#heading%3Apets>)");
+        Assert.AreEqual(0, _opened.Count, "an answer opens nothing");
+
+        Assert.IsFalse(tools.Question.RunsInBackground(asked), "its summary kept, it is answered at once");
+        Assert.AreEqual(ToolSafety.SafeOperation, tools.Question.SafetyOf(asked));
+
+        File.WriteAllText(path, "# Pets\n\nDogs howl.\n");
+        Assert.IsTrue(tools.Question.RunsInBackground(asked), "an edited document is summarised again first");
+    }
+
+    [TestMethod]
     public async Task AJobThatCannotFinish_SaysWhy_AndOpensNothing()
     {
         var result = await Tools(new Mumbling()).Summary.InvokeAsync(new JsonObject { ["document"] = Document("# Pets\n\nDogs.\n") }, CancellationToken.None);
@@ -178,6 +203,8 @@ public class DocumentToolsTests
                 ? "GENRE: non-fiction\nTOPIC: pets\nAUDIENCE: owners\nINTENT: to inform\nREGISTER: neutral\nLANGUAGE: English"
           : instructions.StartsWith("You summarise", StringComparison.Ordinal) ? "S"
           : instructions.StartsWith("You translate a document", StringComparison.Ordinal) ? Translated(asked)
+          : instructions.StartsWith("You find the parts", StringComparison.Ordinal) ? "1"
+          : instructions.StartsWith("You answer a question", StringComparison.Ordinal) ? "They purr [1]."
           : string.Empty,
             DocumentReplyEnd.Finished));
 

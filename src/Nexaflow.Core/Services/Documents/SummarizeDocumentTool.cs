@@ -9,7 +9,7 @@ namespace Nexaflow.Core.Services.Documents;
 
 /// <summary>
 /// Summarises a markdown document as a whole with the workspace's Documents model: what the document is, said first, then
-/// each section from the deepest up (<see cref="DocumentSummarizer"/>), written as a document of its own the reader goes down
+/// each section from the deepest up (<see cref="SummaryQuestion"/>), written as a document of its own the reader goes down
 /// into from its abstract, a heading per section leading back to it (<see cref="SummaryMarkdown"/>). A long document takes a
 /// while, so it runs in the background; doing it again asks only about the sections that changed.
 /// </summary>
@@ -38,11 +38,11 @@ internal sealed class SummarizeDocumentTool(DocumentJob job) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) =>
         job.RunAsync(arguments, name => Str.Format("Shell.Documents.SummaryNameFormat", name) + ".md",
-                     [DocumentGistPass.Shelf, DocumentSummarizer.Shelf],
+                     [DocumentGistPass.Shelf, SummaryQuestion.Shelf],
                      async work =>
                      {
                          var gist = await new DocumentGistPass(work.Model, work.Notes, work.Progress).SayAsync(work.Reading, ct);
-                         var summary = await new DocumentSummarizer(work.Model, work.Notes, work.Progress).SummarizeAsync(work.Reading, gist, ct);
+                         var summary = await new SectionPass(work.Model, work.Notes, new SummaryQuestion(), work.Progress).RunAsync(work.Reading, gist, ct);
 
                          return SummaryMarkdown.Write(summary, gist, System.IO.Path.GetFileNameWithoutExtension(work.Path), work.Path);
                      },

@@ -58,6 +58,10 @@ the document is worked through a piece at a time, each piece sized to what the m
 - **Again is quicker.** What was worked out is kept for the workspace, on this machine: summarise or translate an edited
   document again and only the sections that changed are read again — and a stopped translation carries on where it was.
 - **The assistant can too** — ask it to summarise or translate a markdown document open in a tab.
+- **Ask about the whole document.** Ask the assistant a question about a markdown document too long to read at once —
+  *which chapters deal with complex numbers?* It goes down the document's summary to the sections that bear on the
+  question, reads only those, and links each section its answer cites back to where it is. A document not yet summarised
+  as it stands is summarised first, in the background.
 - **A Markdown file.** It works on a `.md` file as the editor holds it, unsaved edits included; save a draft or a
   Markdown Package as a `.md` file first.
 

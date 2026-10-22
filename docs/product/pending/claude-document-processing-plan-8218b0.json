@@ -92,8 +92,8 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.IO.Documents/Processing/DocumentSummarizer.cs",
-          "class": "DocumentSummarizer"
+          "doc": "src/Nexaflow.IO.Documents/Processing/SummaryQuestion.cs",
+          "class": "SummaryQuestion"
         }
       ],
       "concerns": {
@@ -166,6 +166,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/Documents/DocumentJob.cs",
           "class": "DocumentJob"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Documents/AskDocumentTool.cs",
+          "class": "AskDocumentTool"
         }
       ],
       "concerns": {
@@ -253,18 +258,67 @@
           }
         ]
       }
+    },
+    "documents-section-pass": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Documents/Processing/SectionPass.cs",
+          "class": "SectionPass"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Documents/Processing/DocumentRecord.cs",
+          "class": "DocumentRecord"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Documents/DocumentSummarizerTests.cs",
+            "class": "DocumentSummarizerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Documents/DocumentAnswererTests.cs",
+            "class": "DocumentAnswererTests",
+            "method": "WhatAPassCameTo_IsKeptAsTheRecordOfWhatTheDocumentSaysNow"
+          }
+        ]
+      }
+    },
+    "documents-answer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Documents/Processing/DocumentAnswerer.cs",
+          "class": "DocumentAnswerer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Documents/DocumentAnswererTests.cs",
+            "class": "DocumentAnswererTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 27,
+  "changed_sets": 31,
   "touched_nodes": [
     "agent-document-tools",
     "ai-ability-documents",
+    "documents-answer",
     "documents-gist",
     "documents-glossary",
     "documents-model",
     "documents-notes",
     "documents-protected-text",
+    "documents-section-pass",
     "documents-summary",
     "documents-translation",
     "markdown-place-links",
