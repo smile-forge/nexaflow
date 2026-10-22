@@ -85,18 +85,22 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     public int NearestStop(int offset)
     {
         var stops = Stops;
-        var best = stops.Count > 0 ? stops[0] : 0;
-        var bestDistance = int.MaxValue;
+        if (stops.Count == 0) return 0;
 
-        foreach (var stop in stops)
+        // The stops are in order, so the nearest is one of the two either side of where the offset would go — the earlier of
+        // them where both are as near.
+        var (low, high) = (0, stops.Count);
+        while (low < high)
         {
-            var distance = Math.Abs(stop - offset);
-            if (distance >= bestDistance) continue;
-            bestDistance = distance;
-            best = stop;
+            var middle = low + ((high - low) / 2);
+            if (stops[middle] < offset) low = middle + 1;
+            else high = middle;
         }
 
-        return best;
+        if (low == stops.Count) return stops[^1];
+        if (low == 0) return stops[0];
+
+        return offset - stops[low - 1] <= stops[low] - offset ? stops[low - 1] : stops[low];
     }
 
     /// <summary>
@@ -106,7 +110,7 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// </summary>
     public Piece PieceAt(Point point)
     {
-        if (point.X > Size.Width) return Selectables().LastOrDefault();
+        if (point.X > Size.Width) return LastSelectable();
         if (point.X < 0) return Selectables().FirstOrDefault();
         return Root.PieceAt(point);
     }
@@ -114,6 +118,18 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// <summary>Everything a press could mean, in drawing order.</summary>
     private IEnumerable<Piece> Selectables() =>
         Root.Leaves().Select(leaf => leaf.Selectable()).Where(piece => piece.Exists);
+
+    /// <summary>The last thing a press could mean, in drawing order — found from the end, rather than by reading every leaf to get there.</summary>
+    private Piece LastSelectable()
+    {
+        if (!Exists) return default;
+
+        for (var at = Tree.Piece(0).Extent - 1; at >= 0; at--)
+            if (Tree.At(at) is { IsLeaf: true } leaf && leaf.Selectable() is { Exists: true } selectable)
+                return selectable;
+
+        return default;
+    }
 
     /// <summary>
     /// The caret stop <paramref name="point"/> means: which piece is under it, and which half of that piece

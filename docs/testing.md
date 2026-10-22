@@ -494,7 +494,12 @@ holds on to, and for the largest document each layer it holds and what opening i
 with corpus totals for every nested language, every stage of each language's own
 pipeline, and every kind of block. Rich text (RTF) is laid through the same steps — its samples and one long document
 written as a word processor writes one — and totalled on its own (`rtfTotals`), so the markdown totals compare with every
-run before it. It writes one JSON file per run and asserts nothing.
+run before it. And what **reading** a long document costs once it is open (`reading`), timed on a `MarkdownSurface` in a
+window until the window is idle, since that is where it is paid — a screen down at a time from the top, the thumb dragged
+anywhere, a turn of the wheel at three depths, the pointer's cursor and the block it is over, a drag down a screen, and
+picking everything out — over a generated lecture script about a megabyte long and full of formulas, and
+`docs/MarkdownSupport.md`. Each is a median, the step nine in ten come under, and the worst. It writes one JSON file per run
+and asserts nothing.
 
 ```powershell
 tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept in %LOCALAPPDATA%\Nexaflow\markdown-bench

@@ -44,12 +44,17 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 /// (and within it, what the nested languages cost and what is markdown's own), and painting what was laid. Across the
 /// corpus it totals every nested language, every stage of each language's own pipeline, and every kind of block.
 /// </para>
+/// <para>
+/// And what reading a long document costs once it is open — scrolling, pointing, dragging and picking everything out, on a
+/// surface in a window — over a generated lecture script full of formulas and the largest document in the repository: see
+/// <c>MarkdownLayoutBench.Reading.cs</c>.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("Bench")]
 [DoNotParallelize]
 [NoCoverage("a measurement to read, not a check")]
-public class MarkdownLayoutBench
+public partial class MarkdownLayoutBench
 {
     private const string Folder = "NEXAFLOW_MARKDOWN_BENCH";
 
@@ -112,6 +117,7 @@ public class MarkdownLayoutBench
             ["languageStages"] = Listed(stages),
             ["blockKinds"] = Listed(kinds),
             ["memory"] = Memory(File.ReadAllText(Profiled(docs)), style, inputs),
+            ["reading"] = Readings(docs[^1]),
         };
 
         Directory.CreateDirectory(folder!);
