@@ -89,7 +89,7 @@ public class DocumentTranslatorTests
     [TestMethod]
     public async Task AModelThatNeverKeepsTheMarks_StopsTheJob_SayingWhere()
     {
-        var model = new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, piece => System.Text.RegularExpressions.Regex.Replace(piece, @"⟦\d+⟧", string.Empty)), DocumentReplyEnd.Finished));
+        var model = new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, piece => System.Text.RegularExpressions.Regex.Replace(piece, @"⟦[^⟧]*⟧", string.Empty)), DocumentReplyEnd.Finished));
 
         var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translate(model, new MemoryNotes()));
 

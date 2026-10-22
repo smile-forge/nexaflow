@@ -24,7 +24,7 @@ namespace Nexaflow.IO.Documents.Processing;
 public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "translation-3";
+    private const string Version = "translation-4";
 
     /// <summary>What a kept answer's pieces are kept apart by.</summary>
     private const char Apart = '\u0002';
@@ -302,9 +302,10 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         if (hits.Count > 0) said.Append("Give these words this way wherever they occur:\n").Append(DocumentGlossary.Said(hits)).Append("\n\n");
 
         return said.Append("Each <n>…</n> pair marks the words between its tags — a link, emphasis: keep every pair round the translation of ")
-                   .Append($"those words, wherever they go in natural {job.Language}, one inside another as they were. Each ⟦n⟧ stands for ")
-                   .Append("something you cannot see — code, a picture, a formula: keep it with the words it belongs to. Keep every tag and ")
-                   .Append("every ⟦n⟧ exactly once, and add none. Translate everything else. Add nothing, explain nothing.")
+                   .Append($"those words, wherever they go in natural {job.Language}, one inside another as they were. Each ⟦n …⟧ is code or a ")
+                   .Append("formula, shown after its number: do not translate it, and place it where it belongs in the sentence. Each ⟦n⟧ alone ")
+                   .Append("stands for something you cannot see — a picture, longer code: keep it with the words it belongs to. Keep every tag ")
+                   .Append("and every ⟦n⟧ exactly once, and add none. Translate everything else. Add nothing, explain nothing.")
                    .ToString();
     }
 

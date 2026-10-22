@@ -12,8 +12,10 @@ namespace Nexaflow.IO.Documents.Processing;
 /// <para>
 /// Markup round words — emphasis, a link and where it goes, a strikethrough — stands as a numbered pair of tags round the words
 /// it marks, <c>&lt;1&gt;the moon&lt;/1&gt;</c>, which a model carries with those words wherever another language puts them.
-/// Anything else that is not words — inline code, a formula, a picture, the marks a quote or a list puts at the head of a line —
-/// stands as <c>⟦n⟧</c>. What comes back is checked to hold every one once, each pair opened before it is closed and inside the
+/// Inline code and a formula short enough to read stand as <c>⟦n `.md`⟧</c> — what they say shown, not to be translated, so a
+/// model can see what it is placing and put it where it goes in the other language's sentence. Anything else that is not words —
+/// a picture, longer code, the marks a quote or a list puts at the head of a line — stands as <c>⟦n⟧</c>, unseen. What comes
+/// back is checked to hold every one once, each pair opened before it is closed and inside the
 /// pairs it was inside (<see cref="Problem"/>); the block is written again from it (<see cref="Rebuilt"/>), every piece of markup
 /// as it was written, character for character, and the words spelled by the parser where they stand, so nothing in them is read
 /// as markup; and read again (<see cref="Keeps"/>) to prove its markup still reads as the markup it was.
@@ -21,6 +23,9 @@ namespace Nexaflow.IO.Documents.Processing;
 /// </summary>
 public sealed partial class ProtectedText
 {
+    /// <summary>The longest code or formula shown in its mark; anything longer is held back unseen.</summary>
+    private const int MostShown = 60;
+
     private readonly List<string> _held;
     private readonly List<(string Open, string Close)> _pairs;
     private readonly List<ContentPart> _slots;
@@ -87,6 +92,12 @@ public sealed partial class ProtectedText
                     masked.Append("</").Append(token.Pair).Append('>');
                     break;
 
+                // Shown, so its place in the sentence can be judged; written back as it was whatever the answer makes of it.
+                case Said.Shown:
+                    masked.Append('⟦').Append(held.Count).Append(' ').Append(token.Text).Append('⟧');
+                    held.Add(token.Text);
+                    break;
+
                 // A run of what is not words: one mark, however many pieces it was read as.
                 default:
                     var run = new StringBuilder(token.Text);
@@ -121,7 +132,8 @@ public sealed partial class ProtectedText
         foreach (var cut in DocumentCuts.Cut(Masked, room))
         {
             piece.Append(cut);
-            foreach (Match tag in Tag().Matches(cut)) depth += tag.Groups[1].Value.Length == 0 ? 1 : -1;
+            foreach (Match tag in Mark().Matches(cut))
+                if (tag.Groups["pair"].Success) depth += tag.Groups["closes"].Value.Length == 0 ? 1 : -1;
 
             if (depth != 0) continue;
 
@@ -152,10 +164,12 @@ public sealed partial class ProtectedText
         if (strange.Count > 0) return $"{Named(strange)} {(strange.Count == 1 ? "stands" : "stand")} for nothing in it";
 
         var open = new Stack<string>();
-        foreach (Match tag in Tag().Matches(answer))
+        foreach (Match tag in Mark().Matches(answer))
         {
-            var pair = tag.Groups[2].Value;
-            if (tag.Groups[1].Value.Length == 0)
+            if (!tag.Groups["pair"].Success) continue;
+
+            var pair = tag.Groups["pair"].Value;
+            if (tag.Groups["closes"].Value.Length == 0)
             {
                 open.Push(pair);
                 continue;
@@ -237,6 +251,14 @@ public sealed partial class ProtectedText
     {
         if (part.Derived) return;
 
+        // Code or a formula in a line of words, short enough to read: one mark, shown.
+        if (part.Kind is MarkdownKinds.Code or Kinds.Block && part.Print() is { Length: > 0 and <= MostShown } shown
+            && !shown.Contains('\n') && !shown.Contains('⟧'))
+        {
+            tokens.Add(new(Said.Shown, shown));
+            return;
+        }
+
         if (part.Children.Count == 0)
         {
             var text = part.Print();
@@ -277,8 +299,14 @@ public sealed partial class ProtectedText
         static bool HasWords(ContentPart part) => part.SelfAndDescendants().Any(leaf => leaf.Children.Count == 0 && MarkdownParser.ReadsAsWords(leaf));
     }
 
-    /// <summary>Every <c>⟦n⟧</c> and tag in <paramref name="text"/>, as written.</summary>
-    private static List<string> Marks(string text) => [.. Mark().Matches(text).Select(match => match.Value.Replace(" ", string.Empty))];
+    /// <summary>
+    /// Every <c>⟦n⟧</c> and tag in <paramref name="text"/>, by what it stands for: a shown mark by its number alone, since what
+    /// it shows is written back as it was whatever an answer made of it.
+    /// </summary>
+    private static List<string> Marks(string text) =>
+        [.. Mark().Matches(text).Select(match => match.Groups["hold"].Success
+            ? $"⟦{match.Groups["hold"].Value}⟧"
+            : $"<{match.Groups["closes"].Value}{match.Groups["pair"].Value}>")];
 
     /// <summary>What a block is said as, in order.</summary>
     private enum Said
@@ -287,15 +315,15 @@ public sealed partial class ProtectedText
         Mark,
         Opens,
         Closes,
+
+        /// <summary>Code or a formula in a line of words, held back but shown in its mark.</summary>
+        Shown,
     }
 
     private readonly record struct Token(Said Kind, string Text, ContentPart? Slot = null, int Pair = -1);
 
-    [GeneratedRegex(@"⟦(?<hold>\d+)⟧|<\s*(?<closes>/?)\s*(?<pair>\d+)\s*>")]
+    [GeneratedRegex(@"⟦\s*(?<hold>\d+)(?:\s[^⟧]*)?⟧|<\s*(?<closes>/?)\s*(?<pair>\d+)\s*>")]
     private static partial Regex Mark();
-
-    [GeneratedRegex(@"<\s*(/?)\s*(\d+)\s*>")]
-    private static partial Regex Tag();
 
     [GeneratedRegex(@"\s*\n\s*")]
     private static partial Regex Breaks();

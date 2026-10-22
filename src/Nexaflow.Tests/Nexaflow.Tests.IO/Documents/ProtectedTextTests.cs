@@ -21,8 +21,9 @@ public class ProtectedTextTests
     {
         var text = ProtectedText.Of(Block(Paragraph));
 
-        foreach (var held in new[] { "https://moon.example", "**", "`ls -la`", "](" })
+        foreach (var held in new[] { "https://moon.example", "**", "](" })
             Assert.IsFalse(text.Masked.Contains(held), $"'{held}' is held back");
+        StringAssert.Contains(text.Masked, "⟦0 `ls -la`⟧", "inline code is held back, but shown, so it can be placed in the sentence");
         foreach (var words in new[] { "Dogs", "bark", "the moon", "too." })
             StringAssert.Contains(text.Masked, words);
     }
@@ -97,5 +98,18 @@ public class ProtectedTextTests
 
         Assert.AreEqual(text.Masked, string.Concat(pieces));
         Assert.IsTrue(pieces.All(piece => ProtectedText.Problem(piece, piece) is null), "every piece holds whole pairs");
+    }
+
+    [TestMethod]
+    public void ShownCode_GoesWhereTheAnswerPutsIt_WrittenAsItWas()
+    {
+        var block = Block("Open a `.md` file.\n");
+        var text = ProtectedText.Of(block);
+        Assert.AreEqual("Open a ⟦0 `.md`⟧ file.", text.Masked);
+
+        const string Answer = "Ouvrez un fichier ⟦0 `.MD`⟧.";
+
+        Assert.IsNull(ProtectedText.Problem(text.Masked, Answer), "what a shown mark shows is not the answer's to keep");
+        Assert.AreEqual("Ouvrez un fichier `.md`.\n", text.Rebuilt(Answer), "the code moves to where French puts it, as it was written");
     }
 }
