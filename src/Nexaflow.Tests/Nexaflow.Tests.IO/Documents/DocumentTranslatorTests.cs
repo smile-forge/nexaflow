@@ -150,11 +150,51 @@ public class DocumentTranslatorTests
                 ? new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished)
                 : new(string.Empty, DocumentReplyEnd.Failed, "the host is gone"), context: 1000);
 
-        var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translation(model, new MemoryNotes(), source: Sections("Dogs", "Cats", "Birds", "Fish")));
+        var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translation(model, new MemoryNotes(), source: Paragraphs("Dogs", "Cats", "Birds", "Fish")));
 
         StringAssert.Contains(failed.Message, "the host is gone");
         Assert.HasCount(5, model.Of(ScriptedModel.Translation), "one answered, then two passages asked twice each");
     }
+
+    [TestMethod]
+    public async Task AStretchWithAMarkWrong_IsAskedForAgainOnItsOwn_TheRestOfTheAnswerKept()
+    {
+        const string source = "# Pets\n\nAlpha `a` one. Beta `b` two. Gamma `c` three. Delta `d` four. Epsilon `e` five. Zeta `f` six. Eta `g` seven. Theta `h` eight.\n";
+        var model = new ScriptedModel((_, asked) =>
+        {
+            var answer = ScriptedModel.Translated(asked, ScriptedModel.Shout);
+            return new(ScriptedModel.Pieces(asked).Any(piece => piece.StartsWith("Alpha", StringComparison.Ordinal)) ? answer.Replace("⟦3 `D`⟧", "⟦3 `D`⟧ ⟦3 `D`⟧") : answer,
+                       DocumentReplyEnd.Finished);
+        });
+
+        var translated = await Translate(model, new MemoryNotes(), source: source);
+
+        StringAssert.Contains(translated, "ALPHA `a` ONE. BETA `b` TWO. GAMMA `c` THREE. DELTA `d` FOUR. EPSILON `e` FIVE. ZETA `f` SIX. ETA `g` SEVEN. THETA `h` EIGHT.");
+        var asked = model.Of(ScriptedModel.Translation).Select(ScriptedModel.Pieces).ToList();
+        Assert.HasCount(2, asked, "the passage, then the stretch put right");
+        Assert.IsTrue(asked[^1] is [var stretch] && stretch.StartsWith("Gamma", StringComparison.Ordinal) && stretch.TrimEnd().EndsWith("five.", StringComparison.Ordinal),
+                      "only the sentences round the doubled mark asked for again");
+    }
+
+    [TestMethod]
+    public async Task Chapters_AreTranslatedSideBySide_EachPassageLedIntoByTheOneBeforeItInItsOwnChapter()
+    {
+        var model = ScriptedModel.Plain(context: 1000);
+        var source = $"# Pets\n\n## Dogs\n\n{Company("Dogs")}\n\n{Company("Hounds")}\n\n## Cats\n\n{Company("Cats")}\n";
+
+        var translated = await Translate(model, new MemoryNotes(), source: source);
+
+        foreach (var name in new[] { "Dogs", "Hounds", "Cats" }) StringAssert.Contains(translated, Company(name).ToUpperInvariant());
+        var asked = model.Of(ScriptedModel.Translation);
+        Assert.IsFalse(asked.Any(question => question.Contains("Dogs are") && question.Contains("Cats are")), "nothing asked across two chapters");
+        Assert.IsTrue(asked.Single(question => ScriptedModel.Pieces(question).Any(piece => piece.StartsWith("Hounds are", StringComparison.Ordinal)))
+                           .Contains("The passage before"), "a passage is led into by the one before it in its chapter");
+        Assert.IsFalse(asked.Single(question => ScriptedModel.Pieces(question).Any(piece => piece.StartsWith("Cats are", StringComparison.Ordinal)))
+                            .Contains("The passage before"), "a chapter starts afresh");
+    }
+
+    /// <summary>A document of a paragraph for each of <paramref name="names"/> under one title — one chapter, read straight through.</summary>
+    private static string Paragraphs(params string[] names) => "# Pets\n\n" + string.Concat(names.Select(name => $"{Company(name)}\n\n"));
 
     [TestMethod]
     public async Task AnAnswer_IsHeldToTwiceWhatItTranslates()
@@ -203,6 +243,21 @@ public class DocumentTranslatorTests
         var translated = await Translate(model, new MemoryNotes());
 
         StringAssert.Contains(translated, "- CATS PURR");
+    }
+
+    [TestMethod]
+    public async Task APassageAnsweredInHalves_IsReadBackWhole_WhenTranslatingAgain()
+    {
+        var notes = new MemoryNotes();
+        ScriptedModel Halving() => new((_, asked) => ScriptedModel.Pieces(asked) is { Count: > 1 }
+            ? new(string.Empty, DocumentReplyEnd.LengthLimit)
+            : new(ScriptedModel.Translated(asked, ScriptedModel.Shout), DocumentReplyEnd.Finished));
+
+        var first = await Translate(Halving(), notes);
+
+        var again = Halving();
+        Assert.AreEqual(first, await Translate(again, notes));
+        Assert.IsEmpty(again.Asked, "the whole unit kept as its halves came to, so nothing is asked again — not even the unit that ran out of room");
     }
 
     [TestMethod]

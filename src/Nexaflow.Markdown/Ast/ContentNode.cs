@@ -265,12 +265,20 @@ public class ContentNode
 
     // ── Writing them down ───────────────────────────────────────────────────
 
-    /// <summary>The source this tree stands for.</summary>
+    /// <summary>What <see cref="Print"/> came to, once it has been asked.</summary>
+    private string? _printed;
+
+    /// <summary>
+    /// The source this tree stands for — worked out once and kept, since a tree never changes once made: a question asked of
+    /// where a piece stands in the document prints what holds it, and the document holds every piece.
+    /// </summary>
     public string Print()
     {
+        if (this._printed is { } printed) return printed;
+
         var text = new StringBuilder(this.Width);
         this.PrintTo(text);
-        return text.ToString();
+        return this._printed = text.ToString();
     }
 
     /// <summary>
@@ -285,6 +293,12 @@ public class ContentNode
     /// </summary>
     public void PrintTo(StringBuilder text)
     {
+        if (this._printed is { } printed)
+        {
+            text.Append(printed);
+            return;
+        }
+
         foreach (var leaf in this.Printed()) text.Append(leaf.Text);
     }
 

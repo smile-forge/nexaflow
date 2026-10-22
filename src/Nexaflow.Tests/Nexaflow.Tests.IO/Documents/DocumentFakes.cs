@@ -22,11 +22,15 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
     /// <summary>The most each question let its answer run to, in the order asked.</summary>
     public List<int> Longest { get; } = [];
 
+    /// <summary>Asked from several chapters at once, it writes each question down whole.</summary>
     public Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct)
     {
-        Asked.Add((instructions, asked));
-        Longest.Add(longest);
-        return Task.FromResult(answer(instructions, asked));
+        lock (Asked)
+        {
+            Asked.Add((instructions, asked));
+            Longest.Add(longest);
+            return Task.FromResult(answer(instructions, asked));
+        }
     }
 
     /// <summary>The questions whose instructions start with <paramref name="lead"/>.</summary>
@@ -86,14 +90,19 @@ internal sealed class MemoryNotes : IDocumentNotes
 {
     public Dictionary<(string Shelf, string Key), string> Kept { get; } = [];
 
-    public Task<string?> ReadAsync(string shelf, string key, CancellationToken ct) =>
-        Task.FromResult(Kept.TryGetValue((shelf, key), out var note) ? note : null);
+    public Task<string?> ReadAsync(string shelf, string key, CancellationToken ct)
+    {
+        lock (Kept) return Task.FromResult(Kept.TryGetValue((shelf, key), out var note) ? note : null);
+    }
 
     public Task WriteAsync(string shelf, string key, string text, CancellationToken ct)
     {
-        Kept[(shelf, key)] = text;
+        lock (Kept) Kept[(shelf, key)] = text;
         return Task.CompletedTask;
     }
 
-    public bool Holds(string shelf, string key) => Kept.ContainsKey((shelf, key));
+    public bool Holds(string shelf, string key)
+    {
+        lock (Kept) return Kept.ContainsKey((shelf, key));
+    }
 }
