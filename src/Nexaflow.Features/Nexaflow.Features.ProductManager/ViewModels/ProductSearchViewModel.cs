@@ -14,6 +14,7 @@ using Nexaflow.Search;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -34,7 +35,7 @@ public sealed record ProductSearchRow(
 
     /// <summary>What the "Open" button does, spelled out — the two behaviours are different enough that a
     /// button reading just "Open" on both would be a lie about one of them.</summary>
-    public string OpenLabel => IsProductNode ? "Open in tree" : RelativePath is null ? "" : "Open file";
+    public string OpenLabel => IsProductNode ? Str.Get("ProductManager.Search.Row.OpenInTree") : RelativePath is null ? "" : Str.Get("ProductManager.Search.Row.OpenFile");
 
     public bool CanOpen => IsProductNode || RelativePath is not null;
 }
@@ -104,13 +105,13 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
     {
         if (IsSearching) return Results.ToList();
         IsSearching = true;
-        StatusText  = "Searching…";
+        StatusText  = Str.Get("ProductManager.Search.Status.Searching");
         try
         {
             if (request.Text.Trim().Length == 0)
             {
                 Results.Clear();
-                StatusText = "Type something to search for.";
+                StatusText = Str.Get("ProductManager.Search.Status.TypeSomething");
                 return [];
             }
 
@@ -122,8 +123,8 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
             StatusText = found.Status;
             return found.Rows;
         }
-        catch (OperationCanceledException) { StatusText = "Search cancelled."; return []; }
-        catch (Exception ex)               { StatusText = $"Couldn't search the graph: {ex.Message}"; return []; }
+        catch (OperationCanceledException) { StatusText = Str.Get("ProductManager.Search.Status.Cancelled"); return []; }
+        catch (Exception ex)               { StatusText = Str.Format("ProductManager.Search.Status.FailedFormat", ex.Message); return []; }
         finally
         {
             IsSearching = false;
@@ -139,11 +140,10 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
     {
         _graph ??= new ProductStore(root).LoadGraph();
         if (_graph is not { } graph)
-            return new Found([], "No knowledge graph has been built yet — generate it from the Product tab "
-                               + "(⋮ → Generate graph).");
+            return new Found([], Str.Get("ProductManager.Search.Status.NoGraph"));
 
         if (GraphTextSearch.TryCompile(request) is not { } regex)
-            return new Found([], $"'{request.Text}' isn't a valid regular expression.");
+            return new Found([], Str.Format("ProductManager.Search.Status.InvalidRegexFormat", request.Text));
 
         ct.ThrowIfCancellationRequested();
 
@@ -163,13 +163,13 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
 
     private static string Status(int names, int lines)
     {
-        var sb = new StringBuilder();
-        sb.Append(names == 0 ? "No node names matched" : $"{names:N0} node name(s)");
-        sb.Append(names > PassCap ? $" (showing the first {PassCap})" : "");
-        sb.Append(" · ");
-        sb.Append(lines == 0 ? "no source lines matched" : $"{lines:N0} source line(s)");
-        sb.Append(lines >= PassCap ? $" (stopped at {PassCap} — there may be more)" : "");
-        return sb.ToString();
+        var namePart = names == 0 ? Str.Get("ProductManager.Search.Status.NoNames")
+            : names > PassCap ? Str.Format("ProductManager.Search.Status.NamesCappedFormat", names, PassCap)
+            : Str.Format("ProductManager.Search.Status.NamesFormat", names);
+        var linePart = lines == 0 ? Str.Get("ProductManager.Search.Status.NoLines")
+            : lines >= PassCap ? Str.Format("ProductManager.Search.Status.LinesCappedFormat", lines, PassCap)
+            : Str.Format("ProductManager.Search.Status.LinesFormat", lines);
+        return namePart + " · " + linePart;
     }
 
     private static ProductSearchRow NameRow(GraphNode node) => new(

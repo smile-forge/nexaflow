@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Visuals.Common.Localization;
 using System.Windows;
 
 namespace Nexaflow.Features.Projects.Viewlets;
@@ -20,7 +21,7 @@ public sealed class BacklogStatusViewlet : IFolderViewlet
         _shell  = shell;
     }
 
-    public string DisplayName    => "Backlog";
+    public string DisplayName    => Str.Get("Projects.Viewlet.Backlog");
     public bool   AppliesToDrives => false;
 
     public string[]? ContainsFileGlobs => [".project"];

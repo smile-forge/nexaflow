@@ -8,6 +8,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -496,10 +497,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         _failedOffsets.Add(offset);
         if (_hasReportedLoadError) return;
         _hasReportedLoadError = true;
-        var detail = ex is null ? string.Empty : $" ({ex.GetType().Name}: {ex.Message})";
-        _shellServices.ShowError(
-            $"Failed to load part of '{FileName}' at byte offset {offset}. " +
-            $"Some sections of the file may not display.{detail}");
+        _shellServices.ShowError(ex is null
+            ? Str.Format("Json.Load.PartFailedFormat", FileName, offset)
+            : Str.Format("Json.Load.PartFailedDetailFormat", FileName, offset, ex.GetType().Name, ex.Message));
     }
 
     // Replaces the sentinel's display item with real tree items and a new sentinel (if more remain).
@@ -1209,7 +1209,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         if (!IsModified || Root is null) return;
         if (HasVirtualNodes(Root))
         {
-            _shellServices.ShowError("Cannot save: file has unloaded sections. Expand all nodes first.");
+            _shellServices.ShowError(Str.Get("Json.Save.UnloadedSections"));
             return;
         }
         try
@@ -1218,14 +1218,14 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             await Task.Run(() => VirtualFileSystem.Instance.WriteAllText(FilePath, json, Encoding.UTF8));
             IsModified = false;
         }
-        catch (Exception ex) { _shellServices.ShowError($"Save failed: {ex.Message}"); }
+        catch (Exception ex) { _shellServices.ShowError(Str.Format("Json.Save.FailedFormat", ex.Message)); }
     }
 
     [RelayCommand]
     private void FormatJson()
     {
         if (Root is null) return;
-        if (HasVirtualNodes(Root)) { _shellServices.ShowError("Cannot format: file has unloaded sections."); return; }
+        if (HasVirtualNodes(Root)) { _shellServices.ShowError(Str.Get("Json.Format.UnloadedSections")); return; }
         var formatted = JsonNodeSerializer.Serialize(Root, indented: true);
         try
         {
@@ -1303,7 +1303,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     {
         if (Root is null) return;
         var matches = _evaluator.Evaluate(jsonPath, Root);
-        if (matches.Count == 0) { _shellServices.ShowNotification($"No matches for: {jsonPath}"); return; }
+        if (matches.Count == 0) { _shellServices.ShowNotification(Str.Format("Json.Path.NoMatchesFormat", jsonPath)); return; }
         ExpandAncestorsOf(matches[0]);
         if (_nodeItems.TryGetValue(matches[0], out var item))
         {
@@ -1314,7 +1314,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         // The node exists in the model but has no display item — it lives outside the loaded window.
         // Saying so beats the silent no-op this used to be.
         _shellServices.ShowNotification(
-            $"'{jsonPath}' is outside the loaded part of this file — scroll toward it and try again.");
+            Str.Format("Json.Path.OutsideWindowFormat", jsonPath));
     }
 
     // ── Breadcrumb navigation ─────────────────────────────────────────────────
@@ -1378,7 +1378,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         var focus = SelectedNode ?? Root;
         var meta  = FileSizeText
                   + (focus is { Parent: not null } ? $" · {focus.GetJsonPath()}" : string.Empty)
-                  + (IsModified ? " · unsaved edits" : string.Empty);
+                  + (IsModified ? $" · {Str.Get("Json.Preview.UnsavedEdits")}" : string.Empty);
         return new ReadOnlyTextPreview(meta, JsonContextOutline.Of(focus));
     }
 
@@ -1490,8 +1490,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     private static string BuildTypeLabel(JsonNodeModel node)
         => node switch
         {
-            JsonObjectNodeModel obj => $"{{  }}  {obj.Children.Count} properties",
-            JsonArrayNodeModel  arr => $"[  ]  {arr.Children.Count} items",
+            JsonObjectNodeModel obj => $"{{  }}  {Str.Format("Json.Tree.PropertiesFormat", obj.Children.Count)}",
+            JsonArrayNodeModel  arr => $"[  ]  {Str.Format("Json.Tree.ItemsFormat", arr.Children.Count)}",
             JsonValueNodeModel  val => val.DisplayValue,
             VirtualJsonNodeModel    => "…",
             _                       => string.Empty,

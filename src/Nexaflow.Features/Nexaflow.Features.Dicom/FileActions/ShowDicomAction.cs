@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.FileActions;
 
@@ -17,10 +18,10 @@ public sealed class ShowDicomAction : IFileAction, ICacheable
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;
     public string Icon => "🩻";
-    public string DisplayName => "As DICOM";
+    public string DisplayName => Str.Get("Dicom.Action.AsDicom");
     public static string? StaticExperienceId => "/dicom";
     public string ExperienceId => "/dicom";
-    public string ExperienceDescription => "DICOM Viewer";
+    public string ExperienceDescription => Str.Get("Dicom.Action.ViewerDescription");
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
     public bool OpensViewer => true;

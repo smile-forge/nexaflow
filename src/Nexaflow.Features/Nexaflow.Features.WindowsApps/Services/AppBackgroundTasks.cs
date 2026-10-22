@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 
@@ -10,7 +11,7 @@ namespace Nexaflow.Features.WindowsApps.Services;
 /// </summary>
 public sealed class LoadInstalledAppsTask(InstalledAppsService service) : IBackgroundTask
 {
-    public string Description => "Scanning installed apps";
+    public string Description => Str.Get("WindowsApps.Task.Scan");
 
     public IReadOnlyList<InstalledApp> Result { get; private set; } = [];
 
@@ -20,7 +21,7 @@ public sealed class LoadInstalledAppsTask(InstalledAppsService service) : IBackg
 /// <summary>Uninstalls one app off the UI thread. <see cref="Result"/> carries success + any error text.</summary>
 public sealed class UninstallAppTask(InstalledAppsService service, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Uninstalling {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.UninstallFormat", app.Name);
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 
@@ -33,7 +34,7 @@ public sealed class UninstallAppTask(InstalledAppsService service, InstalledApp 
 /// </summary>
 public sealed class ModifyAppTask(InstalledAppsService service, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Changing {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.ModifyFormat", app.Name);
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 
@@ -43,7 +44,7 @@ public sealed class ModifyAppTask(InstalledAppsService service, InstalledApp app
 /// <summary>Removes a stale/orphaned list record off the UI thread. <see cref="Succeeded"/> reports the outcome.</summary>
 public sealed class DeleteAppRecordTask(InstalledAppsService service, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Removing record for {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.RemoveRecordFormat", app.Name);
 
     public bool Succeeded { get; private set; }
 
@@ -57,7 +58,7 @@ public sealed class DeleteAppRecordTask(InstalledAppsService service, InstalledA
 /// </summary>
 public sealed class FillAppSizesTask(IReadOnlyList<InstalledAppItem> items) : IBackgroundTask
 {
-    public string Description => "Measuring app sizes";
+    public string Description => Str.Get("WindowsApps.Task.MeasureSizes");
 
     public Dictionary<InstalledAppItem, long> Measured { get; } = [];
 
@@ -79,7 +80,7 @@ public sealed class FillAppSizesTask(IReadOnlyList<InstalledAppItem> items) : IB
 /// <summary>Lists the drives a package could be moved to, for the Move dropdown.</summary>
 public sealed class LoadAppVolumesTask(IStoreAppOperations ops) : IBackgroundTask
 {
-    public string Description => "Looking for available drives";
+    public string Description => Str.Get("WindowsApps.Task.FindDrives");
 
     public IReadOnlyList<AppVolume> Result { get; private set; } = [];
 
@@ -90,7 +91,8 @@ public sealed class LoadAppVolumesTask(IStoreAppOperations ops) : IBackgroundTas
 public sealed class MoveAppTask(IStoreAppOperations ops, InstalledApp app, AppVolume target)
     : IBackgroundTask
 {
-    public string Description => $"Moving {app.Name} to {target.MountPoint.TrimEnd('\\')}";
+    public string Description =>
+        Str.Format("WindowsApps.Task.MoveFormat", app.Name, target.MountPoint.TrimEnd('\\'));
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 
@@ -100,7 +102,7 @@ public sealed class MoveAppTask(IStoreAppOperations ops, InstalledApp app, AppVo
 /// <summary>Re-registers a package from its manifest, leaving its data alone ("Repair").</summary>
 public sealed class RepairAppTask(IStoreAppOperations ops, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Repairing {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.RepairFormat", app.Name);
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 
@@ -110,7 +112,7 @@ public sealed class RepairAppTask(IStoreAppOperations ops, InstalledApp app) : I
 /// <summary>Stops a package, deletes its saved data, then re-registers it ("Reset").</summary>
 public sealed class ResetAppTask(IStoreAppOperations ops, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Resetting {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.ResetFormat", app.Name);
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 
@@ -120,7 +122,7 @@ public sealed class ResetAppTask(IStoreAppOperations ops, InstalledApp app) : IB
 /// <summary>Kills a package's running processes. <see cref="Killed"/> is how many were stopped.</summary>
 public sealed class TerminateAppTask(IStoreAppOperations ops, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Terminating {app.Name}";
+    public string Description => Str.Format("WindowsApps.Task.TerminateFormat", app.Name);
 
     public int Killed { get; private set; }
 
@@ -130,7 +132,7 @@ public sealed class TerminateAppTask(IStoreAppOperations ops, InstalledApp app) 
 /// <summary>Finds the optional packages installed against an app — its add-ons / downloadable content.</summary>
 public sealed class LoadAddOnsTask(IStoreAppOperations ops, InstalledApp app) : IBackgroundTask
 {
-    public string Description => $"Looking for {app.Name} add-ons";
+    public string Description => Str.Format("WindowsApps.Task.FindAddOnsFormat", app.Name);
 
     public IReadOnlyList<AppAddOn> Result { get; private set; } = [];
 
@@ -140,7 +142,7 @@ public sealed class LoadAddOnsTask(IStoreAppOperations ops, InstalledApp app) : 
 /// <summary>Removes one add-on, leaving the app it extends installed.</summary>
 public sealed class RemoveAddOnTask(IStoreAppOperations ops, AppAddOn addOn) : IBackgroundTask
 {
-    public string Description => $"Removing {addOn.Name}";
+    public string Description => Str.Format("WindowsApps.Task.RemoveAddOnFormat", addOn.Name);
 
     public AppOperationResult Result { get; private set; } = AppOperationResult.Ok;
 

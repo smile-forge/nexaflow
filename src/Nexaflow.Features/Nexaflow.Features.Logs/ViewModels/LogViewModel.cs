@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
@@ -37,7 +38,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         new("UTF-16 LE",      Encoding.Unicode),
         new("UTF-16 BE",      Encoding.BigEndianUnicode),
         new("Latin-1",        Encoding.Latin1),
-        new("System Default", Encoding.Default),
+        new(Str.Get("Logs.Encoding.SystemDefault"), Encoding.Default),
     ];
 
     // ── Parser ────────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Document.Text = $"Error loading file: {ex.Message}";
+            Document.Text = Str.Format("Logs.Document.LoadFailedFormat", ex.Message);
         }
     }
 
@@ -659,8 +660,13 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     /// </summary>
     public System.Windows.Controls.UserControl CreateContextPreview()
     {
-        var meta = $"{FileSizeText} · {LineCount:N0} line{(LineCount == 1 ? "" : "s")}"
-                 + (SelectedLineCount > 0 ? $" · {SelectedLineCount:N0} selected" : string.Empty);
+        var meta = SelectedLineCount > 0
+            ? LineCount == 1
+                ? Str.Format("Logs.Preview.LineSelectedFormat", FileSizeText, LineCount, SelectedLineCount)
+                : Str.Format("Logs.Preview.LinesSelectedFormat", FileSizeText, LineCount, SelectedLineCount)
+            : LineCount == 1
+                ? Str.Format("Logs.Preview.LineFormat", FileSizeText, LineCount)
+                : Str.Format("Logs.Preview.LinesFormat", FileSizeText, LineCount);
         return new ReadOnlyTextPreview(meta, string.Join("\n", PreviewLines()));
     }
 

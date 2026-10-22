@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading;
 using LibGit2Sharp;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Git.Services;
 
@@ -155,7 +156,7 @@ public sealed class GitWorktreeService(string folderPath)
     public GitWorktreeRemovalResult Remove()
     {
         if (!IsWorktree())
-            return new(false, "This folder is not a git worktree.");
+            return new(false, Str.Get("Git.Worktree.Removal.NotWorktree"));
 
         var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var name     = new DirectoryInfo(basePath).Name;
@@ -194,9 +195,7 @@ public sealed class GitWorktreeService(string folderPath)
         }
         if (moveError is not null)
         {
-            return new(false,
-                "Couldn't remove the worktree — a file inside it is still in use. Close anything open under it " +
-                $"(and don't run the app from the worktree you're deleting), then try again. ({moveError.Message})");
+            return new(false, Str.Format("Git.Worktree.Removal.InUseFormat", moveError.Message));
         }
 
         // The worktree path is now gone. From here every step is git bookkeeping the rename already made safe.
@@ -209,7 +208,7 @@ public sealed class GitWorktreeService(string folderPath)
         {
             var admin = Path.Combine(commonGitDir, "worktrees", worktreeName);
             if (Directory.Exists(admin))
-                try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
+                try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add(Str.Format("Git.Worktree.Removal.RegistrationProblemFormat", ex.Message)); }
         }
 
         // 3. Delete the branch this worktree owned (a fresh handle re-reads worktree state, so it's no longer
@@ -222,17 +221,22 @@ public sealed class GitWorktreeService(string folderPath)
                 using var main = new Repository(commonGitDir);
                 if (main.Branches[branch] is { IsRemote: false } b) main.Branches.Remove(b);
             }
-            catch (Exception ex) { problems.Add($"branch '{branch}' ({ex.Message})"); }
+            catch (Exception ex) { problems.Add(Str.Format("Git.Worktree.Removal.BranchProblemFormat", branch, ex.Message)); }
         }
 
         // 4. Best-effort delete the stashed copy. Any leftover here is harmless throwaway — the worktree path
         //    itself is already cleanly gone and git is consistent.
         try { ForceDeleteDirectory(stash); } catch { /* clearly-named remnant; not a broken worktree */ }
 
-        var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree '{name}'.";
-        return problems.Count == 0
-            ? new(true, $"Removed {what}")
-            : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.");
+        if (problems.Count == 0)
+            return new(true, branch is not null
+                ? Str.Format("Git.Worktree.Removal.RemovedWithBranchFormat", name, branch)
+                : Str.Format("Git.Worktree.Removal.RemovedFormat", name));
+
+        var failures = string.Join(", ", problems);
+        return new(true, branch is not null
+            ? Str.Format("Git.Worktree.Removal.RemovedWithBranchPartialFormat", name, branch, failures)
+            : Str.Format("Git.Worktree.Removal.RemovedPartialFormat", name, failures));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

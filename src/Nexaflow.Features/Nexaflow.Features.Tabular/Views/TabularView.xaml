@@ -5,6 +5,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.Tabular.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="TabularView"
              Background="{StaticResource BgBrush}">
 
@@ -32,16 +33,16 @@
             <DockPanel Margin="6,4" LastChildFill="True">
                 <!-- Template actions, pinned to the right -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="TemplateThisButton" Content="Template This"
+                    <Button x:Name="TemplateThisButton" Content="{loc:Str Tabular.Toolbar.TemplateThis}"
                             AutomationProperties.AutomationId="Tabular_TemplateThis"
                             Style="{StaticResource TbBtn}"
                             Command="{Binding OpenTemplateThisCommand}"
-                            ToolTip="Save the current column layout as a reusable template"/>
-                    <Button Content="Apply Template"
+                            ToolTip="{loc:Str Tabular.Toolbar.TemplateThisTip}"/>
+                    <Button Content="{loc:Str Tabular.Toolbar.ApplyTemplate}"
                             AutomationProperties.AutomationId="Tabular_ApplyTemplate"
                             Style="{StaticResource TbBtn}"
                             Command="{Binding OpenTemplatePanelCommand}"
-                            ToolTip="Apply a saved template to this file"/>
+                            ToolTip="{loc:Str Tabular.Toolbar.ApplyTemplateTip}"/>
                 </StackPanel>
                 <!-- Descriptor, fills the left -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -50,7 +51,7 @@
                                Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="2,0,12,0"
                                FontSize="11"/>
-                    <TextBlock Text="Click a column header to select it; right-click for column actions."
+                    <TextBlock Text="{loc:Str Tabular.Toolbar.Hint}"
                                Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="0,0,12,0"
                                FontSize="11"/>
@@ -72,16 +73,16 @@
                IsOpen="{Binding IsTemplatePopupOpen, Mode=TwoWay}">
             <Border Style="{StaticResource PopupBorder}" Padding="14" MaxWidth="360">
                 <StackPanel>
-                    <TextBlock Text="Save as template" FontWeight="SemiBold" FontSize="13"
+                    <TextBlock Text="{loc:Str Tabular.TemplateThis.Title}" FontWeight="SemiBold" FontSize="13"
                                Foreground="{StaticResource TextBrush}" Margin="0,0,0,10"/>
 
-                    <TextBlock Text="Name" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                    <TextBlock Text="{loc:Str Tabular.TemplateThis.Name}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                     <TextBox Text="{Binding TemplateName, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource DarkTextBox}" Margin="0,2,0,12" AutomationProperties.AutomationId="Tabular_TemplateName"/>
 
                     <!-- Scope -->
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
-                                 Content="Auto-apply to any file in this folder"
+                                 Content="{loc:Str Tabular.TemplateThis.ScopeFolder}"
                                  IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Folder}"
                                  AutomationProperties.AutomationId="Tabular_ScopeFolder"/>
                     <TextBlock Text="{Binding TemplateFolderPath}" TextTrimming="CharacterEllipsis"
@@ -89,25 +90,25 @@
                                Margin="20,1,0,8"/>
 
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
-                                 Content="Auto-apply to any file matching name pattern"
+                                 Content="{loc:Str Tabular.TemplateThis.ScopeGlob}"
                                  IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"
                                  AutomationProperties.AutomationId="Tabular_ScopeGlob"/>
                     <TextBox Text="{Binding GlobPattern, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource DarkTextBox}" Margin="20,2,0,8"
                              IsEnabled="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"
-                             ToolTip="e.g. *.csv or sales-*.csv"
+                             ToolTip="{loc:Str Tabular.TemplateThis.GlobTip}"
                              AutomationProperties.AutomationId="Tabular_GlobPattern"/>
 
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}" Margin="0,0,0,12"
-                                 Content="Selectable template only"
+                                 Content="{loc:Str Tabular.TemplateThis.ScopeManual}"
                                  IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Manual}"
                                  AutomationProperties.AutomationId="Tabular_ScopeManual"/>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Style="{StaticResource TbBtn}" MinWidth="64"
+                        <Button Content="{loc:Str Tabular.TemplateThis.Cancel}" Style="{StaticResource TbBtn}" MinWidth="64"
                                 Command="{Binding CancelTemplateThisCommand}"
                                 AutomationProperties.AutomationId="Tabular_TemplateCancel"/>
-                        <Button Content="Save" Style="{StaticResource TbBtn}" MinWidth="64" Margin="6,0,0,0"
+                        <Button Content="{loc:Str Tabular.TemplateThis.Save}" Style="{StaticResource TbBtn}" MinWidth="64" Margin="6,0,0,0"
                                 Command="{Binding SaveTemplateCommand}"
                                 AutomationProperties.AutomationId="Tabular_TemplateSave"/>
                     </StackPanel>
@@ -141,7 +142,7 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="10,12">
-                        <TextBlock Text="Filters" FontWeight="SemiBold"
+                        <TextBlock Text="{loc:Str Tabular.Filter.Title}" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
                         <ItemsControl x:Name="FiltersHost"/>
                     </StackPanel>
@@ -158,32 +159,32 @@
                 <DockPanel Margin="10,12">
                     <!-- Header -->
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock Text="Templates" FontWeight="SemiBold"
+                        <TextBlock Text="{loc:Str Tabular.TemplatePanel.Title}" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                         <Button Content="✕" HorizontalAlignment="Right" Style="{StaticResource TbBtn}"
                                 AutomationProperties.AutomationId="Tabular_TemplatePanelClose"
-                                Command="{Binding CloseTemplatePanelCommand}" ToolTip="Close"/>
+                                Command="{Binding CloseTemplatePanelCommand}" ToolTip="{loc:Str Tabular.TemplatePanel.Close}"/>
                     </Grid>
 
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8"
                                 Visibility="{Binding IsChooseMode, Converter={StaticResource InvBoolVis}}"
-                                ToolTip="Only list templates whose original shape matches this file">
+                                ToolTip="{loc:Str Tabular.TemplatePanel.ShowOnlyCompatibleTip}">
                         <ToggleButton Style="{StaticResource ToggleSwitch}" VerticalAlignment="Center"
                                       AutomationProperties.AutomationId="Tabular_ShowOnlyCompatible"
                                       IsChecked="{Binding ShowOnlyCompatible}"/>
-                        <TextBlock Text="Show only compatible" Margin="8,0,0,0" VerticalAlignment="Center"
+                        <TextBlock Text="{loc:Str Tabular.TemplatePanel.ShowOnlyCompatible}" Margin="8,0,0,0" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
                     </StackPanel>
 
                     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
                                Foreground="{StaticResource WarningBrush}" FontSize="11"
-                               Text="Several templates match this file — pick one to apply."
+                               Text="{loc:Str Tabular.TemplatePanel.ChooseOne}"
                                Visibility="{Binding IsChooseMode, Converter={StaticResource BoolVis}}"/>
 
                     <!-- Empty state -->
                     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
-                               Text="No templates to show."
+                               Text="{loc:Str Tabular.TemplatePanel.Empty}"
                                Visibility="{Binding PanelTemplates.Count, Converter={StaticResource ZeroVis}}"/>
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -206,7 +207,7 @@
                                                     Command="{Binding DataContext.ApplyTemplateCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"
-                                                    ToolTip="Apply this template"
+                                                    ToolTip="{loc:Str Tabular.TemplatePanel.ApplyTip}"
                                                     AutomationProperties.AutomationId="Tabular_TemplateApply">
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Name}"
@@ -230,7 +231,7 @@
                                                     Command="{Binding DataContext.DeleteTemplateCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"
-                                                    ToolTip="Delete this template"
+                                                    ToolTip="{loc:Str Tabular.TemplatePanel.DeleteTip}"
                                                     AutomationProperties.AutomationId="Tabular_TemplateDelete"/>
                                         </Grid>
                                     </Border>
@@ -256,21 +257,18 @@
                 <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">
                     <Run Text="{Binding FileName, Mode=OneWay}"/>
                 </TextBlock>
+                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0"
+                           Text="{Binding RowCountLabel, Mode=OneWay}"/>
                 <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0">
-                    <Run Text="rows: "/>
-                    <Run Text="{Binding KnownRowCount, Mode=OneWay, TargetNullValue=counting…}"/>
-                </TextBlock>
-                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0">
-                    <Run Text="encoding: "/>
-                    <Run Text="{Binding EncodingName, Mode=OneWay}"/>
+                    <Run Text="{Binding EncodingName, Mode=OneWay, StringFormat={loc:Str Tabular.Footer.EncodingFormat}}"/>
                 </TextBlock>
                 <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0"
                            Visibility="{Binding IsSmallMode, Converter={StaticResource BoolVis}}">
-                    <Run Text="(small — sort enabled)"/>
+                    <Run Text="{loc:Str Tabular.Footer.SmallMode}"/>
                 </TextBlock>
                 <TextBlock FontSize="11" Foreground="{StaticResource WarningBrush}" Margin="12,0,0,0"
                            Visibility="{Binding IsCountingRows, Converter={StaticResource BoolVis}}">
-                    <Run Text="⟳ counting rows…"/>
+                    <Run Text="{loc:Str Tabular.Footer.CountingRows}"/>
                 </TextBlock>
             </StackPanel>
         </Border>

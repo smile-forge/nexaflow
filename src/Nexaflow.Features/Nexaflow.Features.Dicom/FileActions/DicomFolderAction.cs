@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.FileActions;
 
@@ -19,7 +20,7 @@ public sealed class DicomFolderAction : IFolderAction, ICacheable
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
     public string Icon => "🩻";
-    public string DisplayName => "As DICOM";
+    public string DisplayName => Str.Get("Dicom.Action.AsDicom");
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
     public bool AppliesToRoot => true;

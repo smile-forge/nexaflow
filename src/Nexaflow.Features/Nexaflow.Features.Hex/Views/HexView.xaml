@@ -4,6 +4,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ctrl="clr-namespace:Nexaflow.Features.Hex.Controls"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="HexView"
              Background="{StaticResource BgBrush}">
 
@@ -53,35 +54,35 @@
                                   AutomationProperties.AutomationId="Hex_ModeReadOnly"
                                   IsChecked="{Binding IsReadOnly, Mode=OneWay}"
                                   Command="{Binding SetModeReadOnlyCommand}"
-                                  ToolTip="Read-only mode (no edits)">
-                        <TextBlock Text="RO" FontSize="11" FontFamily="Consolas"/>
+                                  ToolTip="{loc:Str Hex.Toolbar.ReadOnlyTip}">
+                        <TextBlock Text="{loc:Str Hex.Toolbar.ReadOnly}" FontSize="11" FontFamily="Consolas"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Hex_EditMode"
                                   IsChecked="{Binding IsInsert, Mode=OneWay}"
                                   Command="{Binding SetModeInsertCommand}"
-                                  ToolTip="Insert mode (insert bytes at cursor)">
-                        <TextBlock Text="INS" FontSize="11" FontFamily="Consolas"/>
+                                  ToolTip="{loc:Str Hex.Toolbar.InsertTip}">
+                        <TextBlock Text="{loc:Str Hex.Toolbar.Insert}" FontSize="11" FontFamily="Consolas"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Hex_ModeOverwrite"
                                   IsChecked="{Binding IsOverwrite, Mode=OneWay}"
                                   Command="{Binding SetModeOverwriteCommand}"
-                                  ToolTip="Overwrite mode (replace bytes at cursor)">
-                        <TextBlock Text="OVR" FontSize="11" FontFamily="Consolas"/>
+                                  ToolTip="{loc:Str Hex.Toolbar.OverwriteTip}">
+                        <TextBlock Text="{loc:Str Hex.Toolbar.Overwrite}" FontSize="11" FontFamily="Consolas"/>
                     </ToggleButton>
 
                     <Separator Style="{StaticResource TbSep}"/>
 
                     <!-- Goto -->
-                    <TextBlock Text="Go to:" FontSize="11"
+                    <TextBlock Text="{loc:Str Hex.Toolbar.GoTo}" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="GotoBox"
                              AutomationProperties.AutomationId="Hex_Goto"
                              Style="{StaticResource GotoBox}"
                              Text="{Binding GotoText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Enter hex offset (e.g. 1A2B) and press Enter">
+                             ToolTip="{loc:Str Hex.Toolbar.GoToTip}">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Return" Command="{Binding GotoOffsetCommand}"/>
                         </TextBox.InputBindings>
@@ -89,7 +90,7 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Hex_GotoGo"
                             Command="{Binding GotoOffsetCommand}"
-                            ToolTip="Jump to offset"
+                            ToolTip="{loc:Str Hex.Toolbar.JumpTip}"
                             Margin="2,0">
                         <TextBlock Text="↵" FontSize="12"/>
                     </Button>
@@ -100,13 +101,13 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Hex_Undo"
                             Command="{Binding UndoCommand}"
-                            ToolTip="Undo (Ctrl+Z)">
+                            ToolTip="{loc:Str Hex.Toolbar.UndoTip}">
                         <TextBlock Text="↩" FontSize="13"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Hex_Redo"
                             Command="{Binding RedoCommand}"
-                            ToolTip="Redo (Ctrl+Y)">
+                            ToolTip="{loc:Str Hex.Toolbar.RedoTip}">
                         <TextBlock Text="↪" FontSize="13"/>
                     </Button>
 
@@ -123,10 +124,10 @@
                                 Style="{StaticResource TbBtn}"
                                 Command="{Binding SaveCommand}"
                                 Padding="8,5,4,5"
-                                ToolTip="Save (Ctrl+S)">
+                                ToolTip="{loc:Str Hex.Toolbar.SaveTip}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="💾" FontSize="11" Margin="0,0,4,0"/>
-                                <TextBlock Text="Save" FontSize="11"/>
+                                <TextBlock Text="{loc:Str Hex.Toolbar.Save}" FontSize="11"/>
                             </StackPanel>
                         </Button>
                         <ToggleButton x:Name="SaveDropToggle"
@@ -135,7 +136,7 @@
                                       Style="{StaticResource TbToggle}"
                                       IsEnabled="{Binding IsModified}"
                                       Padding="4,5"
-                                      ToolTip="Save options">
+                                      ToolTip="{loc:Str Hex.Toolbar.SaveOptionsTip}">
                             <TextBlock Text="▾" FontSize="9"/>
                             <ToggleButton.Triggers>
                                 <!-- Popup closes the toggle when it loses focus -->
@@ -157,14 +158,14 @@
                                             Command="{Binding SaveCommand}"
                                             HorizontalContentAlignment="Left"
                                             Padding="10,6">
-                                        <TextBlock Text="Save" FontSize="11"/>
+                                        <TextBlock Text="{loc:Str Hex.Toolbar.Save}" FontSize="11"/>
                                     </Button>
                                     <Button Style="{StaticResource TbBtn}"
                                             AutomationProperties.AutomationId="Hex_SaveMenuSaveAs"
                                             Command="{Binding SaveAsCommand}"
                                             HorizontalContentAlignment="Left"
                                             Padding="10,6">
-                                        <TextBlock Text="Save As…" FontSize="11"/>
+                                        <TextBlock Text="{loc:Str Hex.Toolbar.SaveAs}" FontSize="11"/>
                                     </Button>
                                 </StackPanel>
                             </Border>
@@ -177,13 +178,13 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
 
                     <!-- Encoding -->
-                    <TextBlock Text="Enc:" FontSize="11"
+                    <TextBlock Text="{loc:Str Hex.Toolbar.Encoding}" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <ComboBox x:Name="EncodingCombo"
                               Width="80" FontSize="11"
                               VerticalAlignment="Center">
-                        <ComboBoxItem Content="Auto"   IsSelected="True"/>
+                        <ComboBoxItem Content="{loc:Str Hex.Toolbar.EncodingAuto}" IsSelected="True"/>
                         <ComboBoxItem Content="ASCII"/>
                         <ComboBoxItem Content="UTF-8"/>
                         <ComboBoxItem Content="UTF-16"/>
@@ -196,7 +197,7 @@
                                   AutomationProperties.AutomationId="Hex_EvalPane"
                                   IsChecked="{Binding ShowEvaluatePane}"
                                   Command="{Binding ToggleEvaluatePaneCommand}"
-                                  ToolTip="Show/hide text evaluation pane">
+                                  ToolTip="{loc:Str Hex.Toolbar.EvalPaneTip}">
                         <TextBlock Text="¶" FontSize="13"/>
                     </ToggleButton>
 
@@ -254,7 +255,7 @@
                 BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Size: " FontSize="11"
+                    <TextBlock Text="{loc:Str Hex.Status.Size}" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBlock Text="{Binding FileSizeText}"
                                FontSize="11"
@@ -283,15 +284,15 @@
                            Foreground="{StaticResource AccentBrush}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="READ-ONLY"/>
+                            <Setter Property="Text" Value="{loc:Str Hex.Status.ReadOnly}"/>
                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding EditMode}" Value="Insert">
-                                    <Setter Property="Text" Value="INSERT"/>
+                                    <Setter Property="Text" Value="{loc:Str Hex.Status.Insert}"/>
                                     <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding EditMode}" Value="Overwrite">
-                                    <Setter Property="Text" Value="OVERWRITE"/>
+                                    <Setter Property="Text" Value="{loc:Str Hex.Status.Overwrite}"/>
                                     <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>

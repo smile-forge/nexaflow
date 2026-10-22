@@ -1,4 +1,5 @@
 using AngouriMath;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 
@@ -18,7 +19,7 @@ public sealed class CalculusSolver : ISolver
     public string Id => "calculus";
 
     /// <inheritdoc/>
-    public string DisplayName => "Calculus";
+    public string DisplayName => Str.Get("Solver.Name.Calculus");
 
     /// <inheritdoc/>
     public int Order => 20;
@@ -34,13 +35,13 @@ public sealed class CalculusSolver : ISolver
         foreach (var v in parsed.Variables.Take(MaxVariableChips))
         {
             chips.Add(new SolverChip(Id, $"d/{v.Name}", $"d/d{v.Name}", "∂",
-                $"Differentiate with respect to {v.Name}", new Payload(parsed, v)));
+                Str.Format("Solver.Chip.DifferentiateTipFormat", v.Name), new Payload(parsed, v)));
         }
 
         foreach (var v in parsed.Variables.Take(MaxVariableChips))
         {
             chips.Add(new SolverChip(Id, $"int/{v.Name}", $"∫ d{v.Name}", "∫",
-                $"Integrate with respect to {v.Name}", new Payload(parsed, v)));
+                Str.Format("Solver.Chip.IntegrateTipFormat", v.Name), new Payload(parsed, v)));
         }
 
         return chips;
@@ -50,7 +51,7 @@ public sealed class CalculusSolver : ISolver
     public Task<SolverResult> SolveAsync(SolverChip chip, SolverInput input, CancellationToken ct)
     {
         if (chip.Payload is not Payload p)
-            return Task.FromResult(SolverResult.Error("The definition changed — press the chip again."));
+            return Task.FromResult(SolverResult.Error(Str.Get("Solver.Result.DefinitionChanged")));
 
         return Task.FromResult(chip.Id.StartsWith("d/", StringComparison.Ordinal)
             ? Differentiate(p)
@@ -70,7 +71,7 @@ public sealed class CalculusSolver : ISolver
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not differentiate that: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.DifferentiateFailedFormat", e.Message));
         }
     }
 
@@ -96,8 +97,7 @@ public sealed class CalculusSolver : ISolver
             // typesets perfectly well and would read as an answer.
             if (ContainsUnevaluatedIntegral(integral))
                 return SolverResult.Error(
-                    $"No closed form found for $\\int {ExpressionParser.Latex(p.Parsed.ForDisplay)} \\; d{p.Variable.Name}$. " +
-                    "Not every integral has one — **Solve by steps** will try.");
+                    Str.Format("Solver.Result.NoClosedFormFormat", $"\\int {ExpressionParser.Latex(p.Parsed.ForDisplay)} \\; d{p.Variable.Name}"));
 
             var body =
                 $"$$\n\\int {ExpressionParser.Latex(p.Parsed.ForDisplay)} \\; d{p.Variable.Name} " +
@@ -107,7 +107,7 @@ public sealed class CalculusSolver : ISolver
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not integrate that: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.IntegrateFailedFormat", e.Message));
         }
     }
 

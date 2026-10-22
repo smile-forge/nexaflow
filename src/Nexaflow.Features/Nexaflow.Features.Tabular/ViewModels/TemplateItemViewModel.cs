@@ -1,4 +1,5 @@
 using Nexaflow.Features.Tabular.Templates;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 
@@ -20,5 +21,5 @@ public sealed class TemplateItemViewModel
     public string ScopeSummary => Template.ScopeSummary;
 
     /// <summary>Non-empty when the template doesn't fit the current file (drives a warning hint).</summary>
-    public string CompatibilityNote => IsCompatible ? string.Empty : "≠ different shape";
+    public string CompatibilityNote => IsCompatible ? string.Empty : Str.Get("Tabular.TemplatePanel.DifferentShape");
 }

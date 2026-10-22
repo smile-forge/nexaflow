@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -69,13 +70,13 @@ public partial class AiChatViewModel : ISearchable
         // A conversation has a title, not a filename — a glob term has nothing here it could constrain.
         if (request.HasNameOnlyTerms)
             return Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to conversations — search their titles or what was said."));
+                Str.Get("AIChat.Browser.Search.FilenameFilters")));
 
         if (!request.TryValidate(out var invalid))
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("AIChat.Browser.Search.InvalidRegexFormat", invalid)));
 
         if (request.Terms.Count == 0)
-            return Task.FromResult(SearchOutcome.Unsupported("Nothing to search for."));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Get("AIChat.Browser.Search.NothingToSearch")));
 
         // Marshalled even when not displaying: Items is the bound row list, and the agent reads it from
         // its own thread.
@@ -85,7 +86,7 @@ public partial class AiChatViewModel : ISearchable
     private SearchOutcome RunSearch(SearchRequest request, bool display)
     {
         if (_allRecords.Count == 0)
-            return SearchOutcome.None("There are no saved conversations to search.");
+            return SearchOutcome.None(Str.Get("AIChat.Browser.Search.NoConversations"));
 
         var matches = _allRecords
             .Where(r => Matches(request, r))
@@ -111,7 +112,7 @@ public partial class AiChatViewModel : ISearchable
             var kept = _allRecords.Count(r => ids.Contains(r.Id));
             if (kept == 0) return Task.FromResult(false);
 
-            Apply(null, ids, CurrentSearchTerm.Length == 0 ? $"{kept} selected" : CurrentSearchTerm, kept);
+            Apply(null, ids, CurrentSearchTerm.Length == 0 ? Str.Format("AIChat.Browser.Search.SelectedFormat", kept) : CurrentSearchTerm, kept);
             return Task.FromResult(true);
         });
     }

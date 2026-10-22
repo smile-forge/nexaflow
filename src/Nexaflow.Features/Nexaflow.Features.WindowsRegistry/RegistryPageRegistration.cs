@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
 using Nexaflow.Features.WindowsRegistry.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry;
 
@@ -31,11 +32,11 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
     {
         var page = new Page
         {
-            Title       = "Registry",
+            Title       = Str.Get("WindowsRegistry.Page.Title"),
             Icon        = "🗝",
             PageKind    = PageKind,
             PageParams  = pageParams,
-            Breadcrumbs = { new BreadcrumbSegment { Label = "Registry" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsRegistry.Page.Title") } },
         };
 
         page.ContentFactory = () =>
@@ -84,7 +85,7 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
         }).ToList();
 
         var leaf = segments[^1].Label;
-        page.Title = "Reg: " + (leaf.Length > 14 ? leaf[..11] + "…" : leaf);
+        page.Title = Str.Format("WindowsRegistry.Page.KeyTitleFormat", leaf.Length > 14 ? leaf[..11] + "…" : leaf);
 
         var (root, sub) = SplitForParams(segments[^1].Path);
         page.PageParams = sub.Length == 0

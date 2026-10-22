@@ -5,6 +5,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
@@ -27,17 +28,18 @@ public partial class ProductViewletView : UserControl, IViewletAiSurface
         {
             var state = new ProductStore(_folderPath).Load();
             TitleText.Text = string.IsNullOrWhiteSpace(state.Product.Product)
-                ? "Product" : $"Product: {state.Product.Product}";
+                ? Str.Get("ProductManager.Viewlet.Name") : Str.Format("ProductManager.Viewlet.TitleFormat", state.Product.Product);
 
             var leaves  = state.Nodes.Values.Where(n => n.Children.All(c => !state.Nodes.ContainsKey(c))).ToList();
             var done    = leaves.Count(n => n.Status == Status.Done);
             var faulted = state.Nodes.Values.Count(n => n.Status == Status.Faulted);
-            SummaryText.Text = $"{state.Nodes.Count} nodes · {done}/{leaves.Count} done"
-                             + (faulted > 0 ? $" · {faulted} faulted" : string.Empty);
+            SummaryText.Text = faulted > 0
+                ? Str.Format("ProductManager.Viewlet.SummaryFaultedFormat", state.Nodes.Count, done, leaves.Count, faulted)
+                : Str.Format("ProductManager.Viewlet.SummaryFormat", state.Nodes.Count, done, leaves.Count);
         }
         catch
         {
-            SummaryText.Text = "could not read .product";
+            SummaryText.Text = Str.Get("ProductManager.Viewlet.ReadFailed");
         }
     }
 

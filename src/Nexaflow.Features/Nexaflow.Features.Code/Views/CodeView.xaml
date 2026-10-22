@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="CodeView"
              Background="{StaticResource BgBrush}">
 
@@ -34,13 +35,13 @@
 
                 <!-- Header -->
                 <Grid Grid.Row="0" Margin="10,0,6,0">
-                    <TextBlock Text="Code map" VerticalAlignment="Center"
+                    <TextBlock Text="{loc:Str Code.Map.Title}" VerticalAlignment="Center"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Center"
                             Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Code_MapToggle"
                             Command="{Binding TogglePanelCommand}"
-                            ToolTip="Hide the code map">
+                            ToolTip="{loc:Str Code.Map.HideTip}">
                         <TextBlock Text="⟩" FontSize="12"/>
                     </Button>
                 </Grid>
@@ -59,7 +60,7 @@
                 Style="{StaticResource TbBtn}"
                 AutomationProperties.AutomationId="Code_MapReopen"
                 Command="{Binding TogglePanelCommand}"
-                ToolTip="Show the code map"
+                ToolTip="{loc:Str Code.Map.ShowTip}"
                 Visibility="Collapsed">
             <TextBlock Text="⟨" FontSize="12"/>
         </Button>

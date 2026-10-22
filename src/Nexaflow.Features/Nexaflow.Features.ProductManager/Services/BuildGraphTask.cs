@@ -3,6 +3,7 @@ using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Services;
 
@@ -16,7 +17,7 @@ namespace Nexaflow.Features.ProductManager.Services;
 /// </remarks>
 public sealed class BuildGraphTask(ProductState state, string productRoot) : IBackgroundTask
 {
-    public string Description => "Generating product graph";
+    public string Description => Str.Get("ProductManager.Task.BuildGraph");
 
     /// <summary>Where the graph was written — read from the completion callback to open the viewer on it.</summary>
     public string GraphFilePath => new ProductStore(productRoot).GraphFilePath;

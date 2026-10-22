@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.ViewModels;
 
@@ -47,7 +49,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     [ObservableProperty] private string _compressedSizeText = string.Empty;
     [ObservableProperty] private string _ratioText = string.Empty;
     [ObservableProperty] private string _encryptionText = string.Empty;
-    [ObservableProperty] private string _signatureText = "Unsigned";
+    [ObservableProperty] private string _signatureText = Str.Get("Compressed.Signature.Unsigned");
     [ObservableProperty] private string? _comment;
     [ObservableProperty] private bool _hasComment;
     [ObservableProperty] private string _statusText = string.Empty;
@@ -87,7 +89,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             .Select(t => { try { return Activator.CreateInstance(t) as IArchiveEncryptor; } catch { return null; } })
             .FirstOrDefault(e => e is not null);
         ArchivePath = path;
-        FileName = string.IsNullOrEmpty(path) ? "Archive" : Path.GetFileName(path);
+        FileName = string.IsNullOrEmpty(path) ? Str.Get("Compressed.Page.Title") : Path.GetFileName(path);
         Load();
     }
 
@@ -104,14 +106,14 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
         ArchiveSummary? summary = null;
         try { summary = _vfs.DescribeArchive(ArchivePath); }
-        catch (Exception ex) { StatusText = $"Could not read archive: {ex.Message}"; }
+        catch (Exception ex) { StatusText = Str.Format("Compressed.Status.ReadFailedFormat", ex.Message); }
 
         if (summary is null)
         {
             IsRecognised = false;
-            Format = "Unknown";
+            Format = Str.Get("Compressed.Meta.FormatUnknown");
             StatusText = string.IsNullOrEmpty(StatusText)
-                ? "No installed handler recognises this archive format."
+                ? Str.Get("Compressed.Status.Unrecognised")
                 : StatusText;
             return;
         }
@@ -125,13 +127,15 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         _fileCount = files.Count;
         long total = files.Sum(e => e.Size);
         long comp = files.Sum(e => Math.Max(0, e.CompressedSize));
-        EntryCountText = $"{files.Count} file{(files.Count == 1 ? "" : "s")}";
+        EntryCountText = files.Count == 1
+            ? Str.Format("Compressed.Meta.FileCountOne", files.Count)
+            : Str.Format("Compressed.Meta.FileCountFormat", files.Count);
         TotalSizeText = ArchiveNode.FormatBytes(total);
         CompressedSizeText = ArchiveNode.FormatBytes(comp);
-        RatioText = total > 0 ? $"{100.0 * (1.0 - (double)comp / total):0.#}% smaller" : "—";
-        EncryptionText = summary.IsEncrypted ? "Encrypted" : "Not encrypted";
+        RatioText = total > 0 ? Str.Format("Compressed.Meta.RatioFormat", 100.0 * (1.0 - (double)comp / total)) : "—";
+        EncryptionText = summary.IsEncrypted ? Str.Get("Compressed.Meta.Encrypted") : Str.Get("Compressed.Meta.NotEncrypted");
         HasSignature = _signer.HasSignature(ArchivePath);
-        SignatureText = HasSignature ? "Signed (Sig Check to confirm)" : "Unsigned";
+        SignatureText = HasSignature ? Str.Get("Compressed.Signature.SignedUnchecked") : Str.Get("Compressed.Signature.Unsigned");
         Comment = summary.Comment;
         HasComment = !string.IsNullOrWhiteSpace(summary.Comment);
 
@@ -252,8 +256,8 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         var dest = await _shell.PickFolderAsync(Path.GetDirectoryName(ArchivePath));
         if (string.IsNullOrEmpty(dest)) return;
         var path = ArchivePath;
-        await RunBusy("Extracting…", () => _vfs.ExtractAll(path, dest));
-        StatusText = $"Extracted to {dest}";
+        await RunBusy(Str.Get("Compressed.Status.Extracting"), () => _vfs.ExtractAll(path, dest));
+        StatusText = Str.Format("Compressed.Status.ExtractedFormat", dest);
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -268,10 +272,10 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     private async Task Test()
     {
         var summary = _vfs.DescribeArchive(ArchivePath);
-        if (summary is null) { StatusText = "Nothing to test."; return; }
+        if (summary is null) { StatusText = Str.Get("Compressed.Status.NothingToTest"); return; }
         var path = ArchivePath;
         int ok = 0, bad = 0;
-        await RunBusy("Testing…", () =>
+        await RunBusy(Str.Get("Compressed.Status.Testing"), () =>
         {
             foreach (var e in summary.Entries.Where(e => !e.IsDirectory))
             {
@@ -284,7 +288,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
                 catch { bad++; }
             }
         });
-        StatusText = bad == 0 ? $"OK — {ok} entr{(ok == 1 ? "y" : "ies")} verified." : $"{bad} of {ok + bad} entries failed.";
+        StatusText = bad > 0 ? Str.Format("Compressed.Status.TestFailedFormat", bad, ok + bad)
+            : ok == 1 ? Str.Format("Compressed.Status.TestPassedOne", ok)
+            : Str.Format("Compressed.Status.TestPassedFormat", ok);
     }
 
     [RelayCommand(CanExecute = nameof(IsRecognised))]
@@ -292,22 +298,22 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     {
         var path = ArchivePath;
         string fingerprint = string.Empty;
-        await RunBusy("Signing…", () => fingerprint = _signer.Sign(path));
+        await RunBusy(Str.Get("Compressed.Status.Signing"), () => fingerprint = _signer.Sign(path));
         HasSignature = true;
-        SignatureText = $"Signed · {fingerprint}";
-        StatusText = "Wrote a detached signature (.sig).";
+        SignatureText = Str.Format("Compressed.Signature.SignedFormat", fingerprint);
+        StatusText = Str.Get("Compressed.Status.Signed");
     }
 
     [RelayCommand(CanExecute = nameof(CanVerify))]
     private async Task Verify()
     {
         var path = ArchivePath;
-        if (!_signer.HasSignature(path)) { SignatureText = "Unsigned"; StatusText = "No .sig signature alongside this archive."; return; }
+        if (!_signer.HasSignature(path)) { SignatureText = Str.Get("Compressed.Signature.Unsigned"); StatusText = Str.Get("Compressed.Status.NoSignature"); return; }
 
         (bool Valid, string? Fingerprint) result = default;
-        await RunBusy("Verifying…", () => result = _signer.Verify(path));
-        SignatureText = result.Valid ? $"Verified ✓ · {result.Fingerprint}" : "Signature INVALID";
-        StatusText = result.Valid ? "Signature matches the archive." : "Signature does not match — the archive may have changed.";
+        await RunBusy(Str.Get("Compressed.Status.Verifying"), () => result = _signer.Verify(path));
+        SignatureText = result.Valid ? Str.Format("Compressed.Signature.VerifiedFormat", result.Fingerprint) : Str.Get("Compressed.Signature.Invalid");
+        StatusText = result.Valid ? Str.Get("Compressed.Status.SignatureMatches") : Str.Get("Compressed.Status.SignatureMismatch");
     }
 
     // ── Recompress / Convert / Encrypt / Decrypt ──────────────────────────────────
@@ -322,48 +328,60 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         && !Path.GetExtension(ArchivePath).Equals(".tar", StringComparison.OrdinalIgnoreCase);
 
     [RelayCommand(CanExecute = nameof(CanRecompress))]
-    private void Recompress() => ShowChoice("Recompress — choose a level",
-        [new ChoiceOption("Store (no compression)", "Store (no compression)", "0"), new ChoiceOption("Fast", "Fast", "3"),
-         new ChoiceOption("Optimal", "Optimal", "6"), new ChoiceOption("Smallest", "Smallest", "9")],
-        async choice =>
+    private void Recompress()
     {
-        int level = choice.StartsWith("Store") ? 0 : choice.StartsWith("Fast") ? 3 : choice.StartsWith("Smallest") ? 9 : 6;
-        var path = ArchivePath;
-        await RunBusy("Recompressing…", () => _vfs.Repackage(path, path, new ArchiveWriteOptions { CompressionLevel = level }));
-        Load();
-        StatusText = $"Recompressed ({choice}).";
-    });
+        // Each option carries its compression level as its value, so the pick is read from that id and the
+        // label is only ever shown.
+        ChoiceOption[] levels =
+        [
+            new(Str.Get("Compressed.Recompress.Store"), "0", "0"),
+            new(Str.Get("Compressed.Recompress.Fast"), "3", "3"),
+            new(Str.Get("Compressed.Recompress.Optimal"), "6", "6"),
+            new(Str.Get("Compressed.Recompress.Smallest"), "9", "9"),
+        ];
+        ShowChoice(Str.Get("Compressed.Recompress.Title"), levels, async value =>
+        {
+            var picked = levels.FirstOrDefault(o => o.Value == value);
+            if (picked is null) return;
+            var level = int.Parse(picked.Value, CultureInfo.InvariantCulture);
+            var path = ArchivePath;
+            await RunBusy(Str.Get("Compressed.Status.Recompressing"),
+                () => _vfs.Repackage(path, path, new ArchiveWriteOptions { CompressionLevel = level }));
+            Load();
+            StatusText = Str.Format("Compressed.Status.RecompressedFormat", picked.Label);
+        });
+    }
 
     [RelayCommand(CanExecute = nameof(CanConvert))]
-    private void Convert() => ShowChoice("Convert — target format",
+    private void Convert() => ShowChoice(Str.Get("Compressed.Convert.Title"),
         ConvertTargets().Select(f => new ChoiceOption(f, f, IconForFormat(f))), async fmt =>
     {
-        var dest = SiblingPath($" (as {fmt.Replace('.', '_')})", "." + fmt);
+        var dest = SiblingPath(Str.Format("Compressed.Convert.FileNameFormat", ArchiveStem, fmt.Replace('.', '_')), "." + fmt);
         var path = ArchivePath;
-        await RunBusy($"Converting to {fmt}…", () => _vfs.Repackage(path, dest, null));
-        StatusText = $"Converted → {Path.GetFileName(dest)}";
+        await RunBusy(Str.Format("Compressed.Status.ConvertingFormat", fmt), () => _vfs.Repackage(path, dest, null));
+        StatusText = Str.Format("Compressed.Status.ConvertedFormat", Path.GetFileName(dest));
     }, asGrid: true);
 
     [RelayCommand(CanExecute = nameof(CanEncryptArchive))]
-    private void Encrypt() => ShowPassword("Encrypt — set a password", async pwd =>
+    private void Encrypt() => ShowPassword(Str.Get("Compressed.Encrypt.Title"), async pwd =>
     {
-        var dest = SiblingPath(" (encrypted)", ".zip");
+        var dest = SiblingPath(Str.Format("Compressed.Encrypt.FileNameFormat", ArchiveStem), ".zip");
         var path = ArchivePath;
-        await RunBusy("Encrypting…", () => _encryptor!.Encrypt(path, dest, pwd));
-        StatusText = $"Encrypted copy written: {Path.GetFileName(dest)}";
+        await RunBusy(Str.Get("Compressed.Status.Encrypting"), () => _encryptor!.Encrypt(path, dest, pwd));
+        StatusText = Str.Format("Compressed.Status.EncryptedFormat", Path.GetFileName(dest));
     });
 
     [RelayCommand(CanExecute = nameof(CanDecryptArchive))]
-    private void Decrypt() => ShowPassword("Decrypt — enter the password", async pwd =>
+    private void Decrypt() => ShowPassword(Str.Get("Compressed.Decrypt.Title"), async pwd =>
     {
-        var dest = SiblingPath(" (decrypted)", ".zip");
+        var dest = SiblingPath(Str.Format("Compressed.Decrypt.FileNameFormat", ArchiveStem), ".zip");
         var path = ArchivePath;
         try
         {
-            await RunBusy("Decrypting…", () => _encryptor!.Decrypt(path, dest, pwd));
-            StatusText = $"Decrypted copy written: {Path.GetFileName(dest)}";
+            await RunBusy(Str.Get("Compressed.Status.Decrypting"), () => _encryptor!.Decrypt(path, dest, pwd));
+            StatusText = Str.Format("Compressed.Status.DecryptedFormat", Path.GetFileName(dest));
         }
-        catch { StatusText = "Decrypt failed — wrong password or not an encrypted zip."; }
+        catch { StatusText = Str.Get("Compressed.Status.DecryptFailed"); }
     });
 
     private IReadOnlyList<string> ConvertTargets()
@@ -383,12 +401,16 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     /// <summary>The short type badge shown on a format button (the codec after the last dot): tar.zst → ZST.</summary>
     private static string IconForFormat(string fmt) => fmt.Split('.')[^1].ToUpperInvariant();
 
-    private string SiblingPath(string suffix, string ext)
+    /// <summary>The archive's file name without its extension: what a derived copy is named after.</summary>
+    private string ArchiveStem => Path.GetFileNameWithoutExtension(ArchivePath);
+
+    /// <summary>A free path beside the archive named <paramref name="stem"/> + <paramref name="ext"/>,
+    /// numbered " (1)", " (2)"… when that name is taken.</summary>
+    private string SiblingPath(string stem, string ext)
     {
         var dir = Path.GetDirectoryName(ArchivePath) ?? ".";
-        var baseName = Path.GetFileNameWithoutExtension(ArchivePath);
-        var dest = Path.Combine(dir, baseName + suffix + ext);
-        for (int n = 1; File.Exists(dest); n++) dest = Path.Combine(dir, $"{baseName}{suffix} ({n}){ext}");
+        var dest = Path.Combine(dir, stem + ext);
+        for (int n = 1; File.Exists(dest); n++) dest = Path.Combine(dir, $"{stem} ({n}){ext}");
         return dest;
     }
 
@@ -400,7 +422,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         ChoiceTitle = title;
         ChoiceOptions.Clear();
         foreach (var o in options) ChoiceOptions.Add(o);
-        if (ChoiceOptions.Count == 0) { StatusText = "No applicable options."; return; }
+        if (ChoiceOptions.Count == 0) { StatusText = Str.Get("Compressed.Status.NoOptions"); return; }
         ChoiceAsGrid = asGrid;
         ChoiceAsList = !asGrid;
         _choiceAction = action;
@@ -439,15 +461,17 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     /// <summary>Adds dropped files to the archive (drag-and-drop onto the page).</summary>
     public async Task AddSourcesAsync(IReadOnlyList<string> sources)
     {
-        if (!CanModify) { StatusText = "This format is read-only."; return; }
+        if (!CanModify) { StatusText = Str.Get("Compressed.Status.ReadOnly"); return; }
         var files = sources.Where(File.Exists)
             .Select(s => (SourcePath: s, EntryName: Path.GetFileName(s)))
             .ToList();
         if (files.Count == 0) return;
         var path = ArchivePath;
-        await RunBusy("Adding…", () => _vfs.AddFiles(path, files));
+        await RunBusy(Str.Get("Compressed.Status.Adding"), () => _vfs.AddFiles(path, files));
         Load();
-        StatusText = $"Added {files.Count} file{(files.Count == 1 ? "" : "s")}.";
+        StatusText = files.Count == 1
+            ? Str.Format("Compressed.Status.AddedOne", files.Count)
+            : Str.Format("Compressed.Status.AddedFormat", files.Count);
     }
 
     private async Task RunBusy(string status, Action work)

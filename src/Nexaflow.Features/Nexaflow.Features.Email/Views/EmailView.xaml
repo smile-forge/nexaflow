@@ -4,6 +4,7 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              x:ClassModifier="internal"
              AutomationProperties.AutomationId="EmailView"
              Background="{StaticResource BgBrush}">
@@ -61,7 +62,7 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                     Padding="16,12">
                 <StackPanel>
-                    <TextBlock Text="{Binding Subject, TargetNullValue='(no subject)'}"
+                    <TextBlock Text="{Binding Subject, TargetNullValue={loc:Str Email.Header.NoSubject}}"
                                FontSize="17" FontWeight="SemiBold"
                                Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
                                Margin="0,0,0,8"/>
@@ -78,22 +79,22 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="From" Style="{StaticResource FieldLabel}"
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Str Email.Header.From}" Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding From, Converter={StaticResource NullToCollapsed}}"/>
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding From}" Style="{StaticResource FieldValue}"
                                    Visibility="{Binding From, Converter={StaticResource NullToCollapsed}}"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="To" Style="{StaticResource FieldLabel}"
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Str Email.Header.To}" Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding To, Converter={StaticResource NullToCollapsed}}"/>
                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding To}" Style="{StaticResource FieldValue}"
                                    Visibility="{Binding To, Converter={StaticResource NullToCollapsed}}"/>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Cc" Style="{StaticResource FieldLabel}"
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Str Email.Header.Cc}" Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding Cc, Converter={StaticResource NullToCollapsed}}"/>
                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Cc}" Style="{StaticResource FieldValue}"
                                    Visibility="{Binding Cc, Converter={StaticResource NullToCollapsed}}"/>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Date" Style="{StaticResource FieldLabel}"
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Str Email.Header.Date}" Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding DateText, Converter={StaticResource NullToCollapsed}}"/>
                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DateText}" Style="{StaticResource FieldValue}"
                                    Visibility="{Binding DateText, Converter={StaticResource NullToCollapsed}}"/>
@@ -101,7 +102,7 @@
 
                     <!-- Full raw header list, collapsed by default. Capped height + scrollbar so a message
                          with many/long headers (Received chains, DKIM, ARC) can't push the body offscreen. -->
-                    <Expander Header="All headers" AutomationProperties.AutomationId="Email_AllHeaders" IsExpanded="{Binding HeadersExpanded, Mode=TwoWay}"
+                    <Expander Header="{loc:Str Email.Header.AllHeaders}" AutomationProperties.AutomationId="Email_AllHeaders" IsExpanded="{Binding HeadersExpanded, Mode=TwoWay}"
                               Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}">
                         <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <ItemsControl ItemsSource="{Binding AllHeaders}">
@@ -143,7 +144,7 @@
 
             <!-- ── Body-view toolbar ───────────────────────────────────────── -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="16,8,16,0">
-                <Button Content="Rendered" AutomationProperties.AutomationId="Email_Rendered" Command="{Binding ShowRenderedCommand}">
+                <Button Content="{loc:Str Email.Toolbar.Rendered}" AutomationProperties.AutomationId="Email_Rendered" Command="{Binding ShowRenderedCommand}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
                             <Style.Triggers>
@@ -156,7 +157,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="Plain text" AutomationProperties.AutomationId="Email_PlainText" Command="{Binding ShowPlainTextCommand}"
+                <Button Content="{loc:Str Email.Toolbar.PlainText}" AutomationProperties.AutomationId="Email_PlainText" Command="{Binding ShowPlainTextCommand}"
                         Visibility="{Binding HasPlainText, Converter={StaticResource BoolToVis}}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
@@ -170,7 +171,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="HTML source" AutomationProperties.AutomationId="Email_HtmlSource" Command="{Binding ShowHtmlSourceCommand}"
+                <Button Content="{loc:Str Email.Toolbar.HtmlSource}" AutomationProperties.AutomationId="Email_HtmlSource" Command="{Binding ShowHtmlSourceCommand}"
                         Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
@@ -185,7 +186,7 @@
                     </Button.Style>
                 </Button>
 
-                <Button Content="Open in browser" AutomationProperties.AutomationId="Email_OpenInBrowser" Style="{StaticResource BodyToggle}"
+                <Button Content="{loc:Str Email.Toolbar.OpenInBrowser}" AutomationProperties.AutomationId="Email_OpenInBrowser" Style="{StaticResource BodyToggle}"
                         Command="{Binding OpenInBrowserCommand}"
                         Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" Margin="16,0,0,0"/>
@@ -235,7 +236,7 @@
                     Padding="16,10"
                     Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
-                    <TextBlock Text="Attachments" Foreground="{StaticResource TextMutedBrush}"
+                    <TextBlock Text="{loc:Str Email.Attachments.Title}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
                     <ItemsControl ItemsSource="{Binding Attachments}">
                         <ItemsControl.ItemsPanel>

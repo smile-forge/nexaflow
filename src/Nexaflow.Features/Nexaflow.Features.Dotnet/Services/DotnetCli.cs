@@ -19,6 +19,29 @@ public static class DotnetCli
     public sealed record Result(int ExitCode, string Output)
     {
         public bool Succeeded => ExitCode == 0;
+
+        /// <summary>The system's reason <c>dotnet</c> could not be started, when it could not; <see cref="Output"/>
+        /// is then empty.</summary>
+        public string? StartError { get; init; }
+
+        /// <summary>The seconds of silence after which the watchdog killed the process, when it did.</summary>
+        public int? SilenceTimeoutSeconds { get; init; }
+
+        /// <summary><see cref="Output"/> as the model reads it, with why the command ended early noted in English.</summary>
+        public string Transcript => TranscriptWith(
+            error => $"Failed to start dotnet: {error}",
+            seconds => $"[killed: no output for {seconds}s]");
+
+        /// <summary><see cref="Output"/> with why the command ended early, in the reader's words:
+        /// <paramref name="startFailed"/> stands in for it when <c>dotnet</c> never started, and
+        /// <paramref name="silenceKilled"/> follows it when the watchdog ended the process. The model's
+        /// <see cref="Transcript"/> and the person's failure notification share this one shape.</summary>
+        public string TranscriptWith(Func<string, string> startFailed, Func<int, string> silenceKilled)
+            => StartError is { } error
+                ? startFailed(error)
+                : SilenceTimeoutSeconds is { } seconds
+                    ? $"{Output}{Environment.NewLine}{silenceKilled(seconds)}"
+                    : Output;
     }
 
     /// <summary>Killed after this long without any new stdout/stderr data, in case the process hangs.</summary>
@@ -110,7 +133,7 @@ public static class DotnetCli
         }
         catch (Exception ex)
         {
-            return new Result(-1, $"Failed to start dotnet: {ex.Message}");
+            return new Result(-1, string.Empty) { StartError = ex.Message };
         }
 
         // Caller cancellation (e.g. the user navigated away): for killable verbs, kill the process tree
@@ -155,9 +178,10 @@ public static class DotnetCli
 
         string text;
         lock (output) text = output.ToString();
-        if (timedOut)
-            text += $"{Environment.NewLine}[killed: no output for {inactivityTimeoutMs / 1000}s]";
 
-        return new Result(timedOut ? -1 : proc.ExitCode, text);
+        return new Result(timedOut ? -1 : proc.ExitCode, text)
+        {
+            SilenceTimeoutSeconds = timedOut ? inactivityTimeoutMs / 1000 : null,
+        };
     }
 }

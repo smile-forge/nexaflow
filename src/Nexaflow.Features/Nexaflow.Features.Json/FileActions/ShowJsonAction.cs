@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Json.FileActions;
 
@@ -11,10 +12,10 @@ public sealed class ShowJsonAction : IFileAction, ICacheable
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "{}";
-    public string DisplayName           => "As Json";
+    public string DisplayName           => Str.Get("Json.Action.AsJson");
     public static string? StaticExperienceId => "/text/json";
     public string ExperienceId          => "/text/json";
-    public string ExperienceDescription => "JSON file viewer and editor";
+    public string ExperienceDescription => Str.Get("Json.Action.AsJsonDescription");
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
     public bool   OpensViewer           => true;

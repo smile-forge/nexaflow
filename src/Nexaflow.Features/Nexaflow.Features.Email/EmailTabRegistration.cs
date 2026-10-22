@@ -3,6 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Email.ViewModels;
 using Nexaflow.Features.Email.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Email;
 
@@ -24,7 +25,7 @@ public sealed class EmailTabRegistration(IShellServices shell) : IPageRegistrati
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Email" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Email.Page.Title") : Path.GetFileName(path);
 
         var page = new Page { Icon = "✉️", Title = title };
         page.SetFileBreadcrumbs(path, title);

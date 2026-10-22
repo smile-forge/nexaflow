@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.FileActions;
 
@@ -25,7 +26,7 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
     public int       MinimumFileGlobMatchPercentage => 30;
 
     public string Icon        => "🎵";
-    public string DisplayName => "Play Folder";
+    public string DisplayName => Str.Get("Audio.Action.PlayFolder");
 
     public bool PerformAction(string folderPath)
     {

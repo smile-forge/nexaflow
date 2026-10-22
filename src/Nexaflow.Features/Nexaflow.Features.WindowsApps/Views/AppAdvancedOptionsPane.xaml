@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsApps.ViewModels"
              xmlns:m="clr-namespace:Nexaflow.Features.WindowsApps.Models"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="WindowsApps_AdvancedPane">
 
     <UserControl.Resources>
@@ -116,7 +117,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0">
-                <TextBlock Text="Advanced options" FontSize="13" FontWeight="SemiBold"
+                <TextBlock Text="{loc:Str WindowsApps.Advanced.Title}" FontSize="13" FontWeight="SemiBold"
                            Foreground="{StaticResource TextBrush}"/>
                 <TextBlock Text="{Binding Item.Name}" FontSize="11" Margin="0,2,0,0"
                            Foreground="{StaticResource TextMutedBrush}"
@@ -125,7 +126,7 @@
 
             <Button Grid.Column="1" Style="{StaticResource TbBtn}" VerticalAlignment="Top"
                     AutomationProperties.AutomationId="WindowsApps_AdvancedClose"
-                    Command="{Binding CloseCommand}" ToolTip="Close advanced options">
+                    Command="{Binding CloseCommand}" ToolTip="{loc:Str WindowsApps.Advanced.CloseTip}">
                 <TextBlock Text="✕" FontSize="12"/>
             </Button>
         </Grid>
@@ -148,16 +149,16 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Publisher" Style="{StaticResource FactLabel}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Str WindowsApps.Advanced.Publisher}" Style="{StaticResource FactLabel}"/>
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Item.Publisher}" Style="{StaticResource FactValue}"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Version" Style="{StaticResource FactLabel}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Str WindowsApps.Advanced.Version}" Style="{StaticResource FactLabel}"/>
                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Item.Version}" Style="{StaticResource FactValue}"/>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Installed" Style="{StaticResource FactLabel}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Str WindowsApps.Advanced.Installed}" Style="{StaticResource FactLabel}"/>
                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Item.InstallDateText}" Style="{StaticResource FactValue}"/>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Size" Style="{StaticResource FactLabel}"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Str WindowsApps.Advanced.Size}" Style="{StaticResource FactLabel}"/>
                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Item.SizeText}" Style="{StaticResource FactValue}"/>
                     </Grid>
                 </Border>
@@ -165,8 +166,8 @@
                 <!-- ── Background execution ─────────────────────────────────── -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
-                        <TextBlock Text="Background apps permissions" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="Let this app run in background" Style="{StaticResource SectionBody}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Background.Title}" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Background.Prompt}" Style="{StaticResource SectionBody}"/>
 
                         <ComboBox Style="{StaticResource DarkComboBox}"
                                   ItemContainerStyle="{StaticResource DarkComboBoxItem}"
@@ -189,10 +190,10 @@
                 <!-- ── Terminate ────────────────────────────────────────────── -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
-                        <TextBlock Text="Terminate" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Terminate.Label}" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Style="{StaticResource SectionBody}"
-                                   Text="Immediately stop this app and its background processes. Anything it hasn't saved is lost."/>
-                        <Button Content="Terminate" Style="{StaticResource CardButton}"
+                                   Text="{loc:Str WindowsApps.Advanced.Terminate.Body}"/>
+                        <Button Content="{loc:Str WindowsApps.Advanced.Terminate.Label}" Style="{StaticResource CardButton}"
                                 AutomationProperties.AutomationId="WindowsApps_Terminate"
                                 Command="{Binding TerminateCommand}"/>
                     </StackPanel>
@@ -201,10 +202,10 @@
                 <!-- ── Repair ───────────────────────────────────────────────── -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
-                        <TextBlock Text="Repair" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Repair.Label}" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Style="{StaticResource SectionBody}"
-                                   Text="Re-register the app from its own files. Your data stays where it is — try this first."/>
-                        <Button Content="Repair" Style="{StaticResource CardButton}"
+                                   Text="{loc:Str WindowsApps.Advanced.Repair.Body}"/>
+                        <Button Content="{loc:Str WindowsApps.Advanced.Repair.Label}" Style="{StaticResource CardButton}"
                                 AutomationProperties.AutomationId="WindowsApps_Repair"
                                 Command="{Binding RepairCommand}"/>
                     </StackPanel>
@@ -213,10 +214,10 @@
                 <!-- ── Reset ────────────────────────────────────────────────── -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
-                        <TextBlock Text="Reset" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Reset.Label}" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Style="{StaticResource SectionBody}"
-                                   Text="Delete the app's data, settings and sign-in details, then reinstall it from scratch. This can't be undone."/>
-                        <Button Content="Reset" Style="{StaticResource DangerCardButton}"
+                                   Text="{loc:Str WindowsApps.Advanced.Reset.Body}"/>
+                        <Button Content="{loc:Str WindowsApps.Advanced.Reset.Label}" Style="{StaticResource DangerCardButton}"
                                 AutomationProperties.AutomationId="WindowsApps_Reset"
                                 Command="{Binding ResetCommand}"/>
                     </StackPanel>
@@ -235,9 +236,9 @@
                         </Style>
                     </Border.Style>
                     <StackPanel>
-                        <TextBlock Text="Move" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="{loc:Str WindowsApps.Advanced.Move.Label}" Style="{StaticResource SectionTitle}"/>
                         <TextBlock Style="{StaticResource SectionBody}"
-                                   Text="Relocate this app's files to another drive. Its data and settings move with it."/>
+                                   Text="{loc:Str WindowsApps.Advanced.Move.Body}"/>
 
                         <StackPanel Visibility="{Binding HasMoveTarget, Converter={StaticResource BoolToVis}}">
                             <ComboBox Style="{StaticResource DarkComboBox}"
@@ -248,14 +249,14 @@
                                       DisplayMemberPath="Display"
                                       HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
 
-                            <Button Content="Move" Style="{StaticResource CardButton}"
+                            <Button Content="{loc:Str WindowsApps.Advanced.Move.Label}" Style="{StaticResource CardButton}"
                                     AutomationProperties.AutomationId="WindowsApps_Move"
                                     Command="{Binding MoveCommand}"/>
                         </StackPanel>
 
                         <TextBlock Style="{StaticResource SectionBody}" Margin="0,2,0,0"
                                    Visibility="{Binding HasMoveTarget, Converter={StaticResource InvBoolToVis}}"
-                                   Text="This PC has only one drive that can hold apps, so there's nowhere to move it."/>
+                                   Text="{loc:Str WindowsApps.Advanced.Move.NoTarget}"/>
                     </StackPanel>
                 </Border>
 
@@ -263,12 +264,12 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <Grid Margin="0,0,0,4">
-                            <TextBlock Text="App add-ons &amp; downloadable content"
+                            <TextBlock Text="{loc:Str WindowsApps.Advanced.AddOns.Title}"
                                        Style="{StaticResource SectionTitle}"/>
                             <Button HorizontalAlignment="Right" VerticalAlignment="Top"
                                     Style="{StaticResource TbBtn}"
                                     AutomationProperties.AutomationId="WindowsApps_RefreshAddOns"
-                                    Command="{Binding RefreshAddOnsCommand}" ToolTip="Rescan for add-ons">
+                                    Command="{Binding RefreshAddOnsCommand}" ToolTip="{loc:Str WindowsApps.Advanced.AddOns.RescanTip}">
                                 <TextBlock Text="⟳" FontSize="12"/>
                             </Button>
                         </Grid>
@@ -300,7 +301,7 @@
                                                        VerticalAlignment="Center" Margin="8,0"
                                                        Foreground="{StaticResource TextMutedBrush}"/>
 
-                                            <Button Grid.Column="2" Content="Remove" FontSize="11" AutomationProperties.AutomationId="WindowsApps_RemoveAddOn"
+                                            <Button Grid.Column="2" Content="{loc:Str WindowsApps.Advanced.AddOns.Remove}" FontSize="11" AutomationProperties.AutomationId="WindowsApps_RemoveAddOn"
                                                     Style="{StaticResource CardButton}" Padding="8,3"
                                                     Foreground="{StaticResource DangerBrush}"
                                                     Command="{Binding DataContext.RemoveAddOnCommand,
@@ -314,7 +315,7 @@
 
                         <TextBlock Style="{StaticResource NoAddOns}" Margin="0,2,0,0"
                                    AutomationProperties.AutomationId="WindowsApps_NoAddOns"
-                                   Text="This app has no add-ons or downloadable content."/>
+                                   Text="{loc:Str WindowsApps.Advanced.AddOns.None}"/>
                     </StackPanel>
                 </Border>
 

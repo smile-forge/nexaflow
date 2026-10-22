@@ -1,3 +1,5 @@
+using Nexaflow.Visuals.Common.Localization;
+
 namespace Nexaflow.Features.Solver.Solving;
 
 /// <summary>
@@ -52,7 +54,7 @@ public sealed class SolverRegistry
     public async Task<SolverResult> SolveAsync(SolverChip chip, SolverInput input, CancellationToken ct)
     {
         var solver = _solvers.FirstOrDefault(s => s.Id == chip.SolverId);
-        if (solver is null) return SolverResult.Error($"No solver is registered for '{chip.SolverId}'.");
+        if (solver is null) return SolverResult.Error(Str.Format("Solver.Result.NoSolverFormat", chip.SolverId));
 
         try
         {
@@ -64,7 +66,7 @@ public sealed class SolverRegistry
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"{solver.DisplayName} failed: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.SolverFailedFormat", solver.DisplayName, e.Message));
         }
     }
 

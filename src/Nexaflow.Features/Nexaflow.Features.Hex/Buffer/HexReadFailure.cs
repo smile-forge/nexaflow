@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hex.Buffer;
 
@@ -35,20 +36,15 @@ public sealed record HexReadFailure(HexReadFault Fault, string Message)
         return ex switch
         {
             UnauthorizedAccessException =>
-                new(HexReadFault.AccessDenied,
-                    $"Windows won't let this app read \"{name}\". Its permissions may be limited to another " +
-                    "account, or it may be protected by the system."),
+                new(HexReadFault.AccessDenied, Str.Format("Hex.ReadFailure.AccessDeniedFormat", name)),
 
             FileNotFoundException or DirectoryNotFoundException =>
-                new(HexReadFault.Missing,
-                    $"\"{name}\" isn't there any more. It may have been moved, renamed or deleted since the tab opened."),
+                new(HexReadFault.Missing, Str.Format("Hex.ReadFailure.MissingFormat", name)),
 
             IOException io when io.HResult is ErrorSharingViolation or ErrorLockViolation =>
-                new(HexReadFault.Locked,
-                    $"\"{name}\" is open in another program that isn't sharing it. Close whatever is using it and try again."),
+                new(HexReadFault.Locked, Str.Format("Hex.ReadFailure.LockedFormat", name)),
 
-            _ => new(HexReadFault.Unreadable,
-                     $"\"{name}\" couldn't be read. {ex.Message}"),
+            _ => new(HexReadFault.Unreadable, Str.Format("Hex.ReadFailure.UnreadableFormat", name, ex.Message)),
         };
     }
 
@@ -58,13 +54,11 @@ public sealed record HexReadFailure(HexReadFault Fault, string Message)
     /// stale by the file being replaced underneath an open tab).
     /// </summary>
     public static HexReadFailure Truncated(string path) =>
-        new(HexReadFault.Unreadable,
-            $"\"{DisplayName(path)}\" stopped returning data part-way through. The drive or share it lives on " +
-            "may have gone away, or the file may have been replaced while the tab was open.");
+        new(HexReadFault.Unreadable, Str.Format("Hex.ReadFailure.TruncatedFormat", DisplayName(path)));
 
     private static string DisplayName(string path)
     {
-        if (string.IsNullOrWhiteSpace(path)) return "This file";
+        if (string.IsNullOrWhiteSpace(path)) return Str.Get("Hex.ReadFailure.ThisFile");
         try { return Path.GetFileName(path) is { Length: > 0 } n ? n : path; }
         catch { return path; }   // a malformed path is still worth naming verbatim
     }

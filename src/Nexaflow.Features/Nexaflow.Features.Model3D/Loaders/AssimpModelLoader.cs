@@ -4,6 +4,7 @@ using System.Windows.Media.Media3D;
 using SharpAssimp;
 using AssimpMaterial = SharpAssimp.Material;
 using WpfMaterial = System.Windows.Media.Media3D.Material;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 
@@ -86,7 +87,7 @@ public sealed class AssimpModelLoader : IModelLoader
             {
                 if (!used[i]) continue;
                 materials.Add(new ModelMaterial(
-                    string.IsNullOrWhiteSpace(source[i].Name) ? $"Material {materials.Count + 1}" : source[i].Name,
+                    string.IsNullOrWhiteSpace(source[i].Name) ? Str.Format("Model3D.Inspector.MaterialFallbackFormat", materials.Count + 1) : source[i].Name,
                     resolved[i], described[i].Texture));
             }
         }
@@ -145,7 +146,7 @@ public sealed class AssimpModelLoader : IModelLoader
         }
         if (material.HasTextureDiffuse)
             texture = string.IsNullOrWhiteSpace(material.TextureDiffuse.FilePath)
-                ? "texture" : material.TextureDiffuse.FilePath;
+                ? Str.Get("Model3D.Inspector.Texture") : material.TextureDiffuse.FilePath;
 
         return (colour, texture);
     }
@@ -154,10 +155,10 @@ public sealed class AssimpModelLoader : IModelLoader
     {
         var list = new List<string>();
         if (scene is null) return list;
-        if (scene.Animations.Count > 0) list.Add($"{scene.Animations.Count} animation(s)");
-        if (scene.Cameras.Count > 0) list.Add($"{scene.Cameras.Count} camera(s)");
-        if (scene.Lights.Count > 0) list.Add($"{scene.Lights.Count} light(s)");
-        if (hasBones) list.Add("skeletal rig (bones) — shown in bind pose");
+        if (scene.Animations.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.AnimationsFormat", scene.Animations.Count));
+        if (scene.Cameras.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.CamerasFormat", scene.Cameras.Count));
+        if (scene.Lights.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.LightsFormat", scene.Lights.Count));
+        if (hasBones) list.Add(Str.Get("Model3D.Inspector.Omission.SkeletalRig"));
         return list;
     }
 

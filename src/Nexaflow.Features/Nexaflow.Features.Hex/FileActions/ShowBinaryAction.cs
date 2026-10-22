@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hex.FileActions;
 
@@ -15,8 +16,8 @@ public sealed class ShowBinaryAction : IFileAction, ICacheable
 
     public static string? StaticExperienceId => "/binary";
     public string ExperienceId          => "/binary";
-    public string ExperienceDescription => "Open in hex editor";
-    public string DisplayName           => "As Hex";
+    public string ExperienceDescription => Str.Get("Hex.Action.OpenInHexEditor");
+    public string DisplayName           => Str.Get("Hex.Action.AsHex");
     public string Icon                  => "⬡";
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;

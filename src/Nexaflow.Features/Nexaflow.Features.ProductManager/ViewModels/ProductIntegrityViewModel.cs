@@ -11,6 +11,7 @@ using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -124,8 +125,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         _coverage = _store.LoadTestCoverage();
         RebuildRows();
         HeaderLine = _report.Generated is { } g && DateTime.TryParse(g, out var when)
-            ? $"Last validated {when:yyyy-MM-dd HH:mm}"
-            : "Never validated";
+            ? Str.Format("ProductManager.Integrity.Header.LastValidatedFormat", when)
+            : Str.Get("ProductManager.Integrity.Header.NeverValidated");
     }
 
     private void RebuildRows()
@@ -154,11 +155,15 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         IssueCount = Issues.Count;
         HasIssues  = IssueCount > 0;
         SummaryLine = _report.ScannedSnaplinks == 0 && advisories.Count == 0
-            ? "No scan yet."
-            : $"{brokenCount} broken"
-              + (advisories.Count > 0 ? $" · {advisories.Count} coverage suggestion{(advisories.Count == 1 ? "" : "s")}" : "")
-              + (_report.Advisories.Count > 0 ? $" · {_report.Advisories.Count} stale ast" : "")
-              + $" · scanned {_report.ScannedSnaplinks} snaplinks across {_report.ScannedNodes} nodes";
+            ? Str.Get("ProductManager.Integrity.Summary.NoScan")
+            : Str.Format("ProductManager.Integrity.Summary.BrokenFormat", brokenCount)
+              + (advisories.Count > 0
+                  ? " · " + (advisories.Count == 1
+                      ? Str.Format("ProductManager.Integrity.Summary.CoverageOneFormat", advisories.Count)
+                      : Str.Format("ProductManager.Integrity.Summary.CoverageManyFormat", advisories.Count))
+                  : "")
+              + (_report.Advisories.Count > 0 ? " · " + Str.Format("ProductManager.Integrity.Summary.StaleAstFormat", _report.Advisories.Count) : "")
+              + " · " + Str.Format("ProductManager.Integrity.Summary.ScannedFormat", _report.ScannedSnaplinks, _report.ScannedNodes);
         IssuesView.Refresh();
         SelectedIssue = Issues.Count == 0 ? null : Issues[Math.Min(wasAt, Issues.Count - 1)];
     }
@@ -212,7 +217,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         }
 
         var text = SnaplinkTargets.ReadText(full);
-        if (text is null) { TargetsHeader = "File is too large to inspect."; return; }
+        if (text is null) { TargetsHeader = Str.Get("ProductManager.Integrity.Targets.TooLarge"); return; }
 
         if (SnaplinkTargets.IsMarkdown(full))
         {
@@ -234,10 +239,10 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         // Two different empties, and they call for different things from the reader: a file nothing can parse
         // can only ever take a whole-file link, whereas a parsed file that declares nothing is a file to look at.
         TargetsHeader = AvailableTargets.Count > 0
-            ? $"{AvailableTargets.Count} targets in this file"
+            ? Str.Format("ProductManager.Integrity.Targets.CountFormat", AvailableTargets.Count)
             : SelectedIssue is IntegrityIssueItem { Doc: { Length: > 0 } doc } && TreeSitterLanguages.ForFile(doc) is null
-                ? $"No named targets — nothing parses {Path.GetExtension(doc)}, so a whole-file link is the only option."
-                : "No named targets — this file declares nothing to point at.";
+                ? Str.Format("ProductManager.Integrity.Targets.UnparsedFormat", Path.GetExtension(doc))
+                : Str.Get("ProductManager.Integrity.Targets.NoneDeclared");
         UpdateTargetFlags();
     }
 
@@ -259,8 +264,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
                 FileSuggestions.Add(rel);
 
         TargetsHeader = FileSuggestions.Count > 0
-            ? $"'{name}' no longer exists here — did it move?"
-            : $"'{name}' was not found anywhere under the product root.";
+            ? Str.Format("ProductManager.Integrity.Targets.MovedFormat", name)
+            : Str.Format("ProductManager.Integrity.Targets.NotFoundFormat", name);
     }
 
     private Dictionary<string, List<string>> BuildFileIndex()
@@ -322,7 +327,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     private void Rescan()
     {
         IsScanning = true;
-        HeaderLine = "Validating snaplinks…";
+        HeaderLine = Str.Get("ProductManager.Integrity.Header.Validating");
 
         var task = new ValidateSnaplinksTask(_state, ProductRoot);
         _shell.QueueBackgroundTask(task, ok =>          // onComplete runs on the UI thread
@@ -330,14 +335,14 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
             IsScanning = false;
             if (!ok || task.Result is null)
             {
-                HeaderLine = "Validation failed.";
+                HeaderLine = Str.Get("ProductManager.Integrity.Header.ValidationFailed");
                 return;
             }
 
             _report = task.Result;
             _store.SaveIntegrity(_report);
             RebuildRows();
-            HeaderLine = $"Validated just now · {DateTime.Now:HH:mm}";
+            HeaderLine = Str.Format("ProductManager.Integrity.Header.ValidatedNowFormat", DateTime.Now);
         });
     }
 
@@ -371,8 +376,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         _store.SaveTree(_state.Nodes);
         LoadStateAndSavedReport();   // re-reads the tree we just wrote and re-reconciles (advisory now gone)
         _shell.ShowNotification(promoted
-            ? $"Linked {item.TestDisplay} to '{node.Title}' — tests marked done."
-            : $"Linked {item.TestDisplay} to '{node.Title}'.");
+            ? Str.Format("ProductManager.Integrity.Notify.LinkedDoneFormat", item.TestDisplay, node.Title)
+            : Str.Format("ProductManager.Integrity.Notify.LinkedFormat", item.TestDisplay, node.Title));
     }
 
     /// <summary>
@@ -399,8 +404,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         _store.SaveIntegrity(_report);
         LoadStateAndSavedReport();
         _shell.ShowNotification(item.HasSuggestion
-            ? $"Re-pointed to {item.Advisory.Suggestion}."
-            : "Cleared the ast — the link keeps its file and class.");
+            ? Str.Format("ProductManager.Integrity.Notify.RepointedFormat", item.Advisory.Suggestion)
+            : Str.Get("ProductManager.Integrity.Notify.AstCleared"));
     }
 
     // ── Repair ───────────────────────────────────────────────────────────────
@@ -418,14 +423,14 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         switch (check.Verdict)
         {
             case LinkVerdict.Sound:
-                Resolved(row, "Snaplink fixed.");
+                Resolved(row, Str.Get("ProductManager.Integrity.Notify.Fixed"));
                 return;
 
             // Nothing was established. The row still leaves the list — it is no longer *provably* broken, which
             // is the only thing the report claims — but saying "fixed" here would be reporting a check that
             // never ran, and the user has no other way to tell the two apart.
             case LinkVerdict.Unverifiable:
-                Resolved(row, $"Saved. The target can't be checked, so this isn't confirmed — {Unverifiable(row.Live!)}.");
+                Resolved(row, Str.Format("ProductManager.Integrity.Notify.UnverifiedFormat", Unverifiable(row.Live!)));
                 return;
         }
 
@@ -438,7 +443,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         _store.SaveIntegrity(_report);
 
         row.SetDiagnosis(check.Kind, check.Detail!);
-        _shell.ShowNotification("Still broken: " + check.Detail);
+        _shell.ShowNotification(Str.Format("ProductManager.Integrity.Notify.StillBrokenFormat", check.Detail));
     }
 
     /// <summary>Drops the broken link entirely.</summary>
@@ -466,7 +471,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         IntegrityBinder.ReindexAfterRemoval(_report, row.Issue, removedAt);
 
         _store.SaveTree(_state.Nodes);
-        Resolved(row, "Snaplink removed.");
+        Resolved(row, Str.Get("ProductManager.Integrity.Notify.Removed"));
     }
 
     /// <summary>
@@ -476,8 +481,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// <summary>Why a link could not be checked, in the terms the user can act on.</summary>
     private static string Unverifiable(Snaplink link) =>
         link.Doc is { Length: > 0 } doc && TreeSitterLanguages.ForFile(doc) is null
-            ? $"nothing parses {Path.GetExtension(doc)}"
-            : "the file could not be read";
+            ? Str.Format("ProductManager.Integrity.Notify.UnparsedReasonFormat", Path.GetExtension(doc))
+            : Str.Get("ProductManager.Integrity.Notify.UnreadableReason");
 
     private void Resolved(IntegrityIssueItem row, string message)
     {
@@ -507,7 +512,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     {
         if (SelectedIssue is not IntegrityIssueItem { } row || string.IsNullOrWhiteSpace(row.Doc)) return;
         var full = Path.IsPathRooted(row.Doc) ? row.Doc : Path.Combine(ProductRoot, row.Doc);
-        if (!File.Exists(full)) { _shell.ShowError($"{row.Doc} does not exist."); return; }
+        if (!File.Exists(full)) { _shell.ShowError(Str.Format("ProductManager.Integrity.Error.MissingFileFormat", row.Doc)); return; }
         _shell.OpenTab(row.IsMarkdown ? "Markdown" : "Code",
             new Dictionary<string, string> { ["path"] = full }, Host, inRightPane: true);
     }

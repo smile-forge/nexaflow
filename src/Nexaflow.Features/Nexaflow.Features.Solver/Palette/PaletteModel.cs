@@ -99,20 +99,45 @@ public sealed record PaletteKey(
 /// <summary>
 /// A named set of keys, optionally holding further sets. One level of nesting is what the sunburst
 /// draws: the categories form its inner ring and their subgroups the outer one.
+/// <para>
+/// The name is looked up each time <see cref="Label"/> is read rather than held. It is in the
+/// reader's language and the LaTeX tree is built once for the process, while a language change
+/// restarts the window, not the process — a name fixed when the tree was built would outlive the
+/// language it was looked up in.
+/// </para>
 /// </summary>
-/// <param name="Id">Stable id — what the sunburst reports when an arc is clicked.</param>
-/// <param name="Label">Shown on the arc and the breadcrumb.</param>
-/// <param name="Keys">The keys shown in the grid when this group is selected.</param>
-/// <param name="Children">Subgroups, or empty for a leaf group.</param>
-public sealed record PaletteGroup(
-    string Id,
-    string Label,
-    IReadOnlyList<PaletteKey> Keys,
-    IReadOnlyList<PaletteGroup> Children)
+public sealed record PaletteGroup
 {
-    /// <summary>Convenience for a leaf group.</summary>
+    private readonly Func<string> _label;
+
+    /// <summary>A group whose name is looked up whenever it is read.</summary>
+    /// <param name="id">Stable id — what the sunburst reports when an arc is clicked.</param>
+    /// <param name="label">Gives the name shown on the arc and the breadcrumb, in the reader's language.</param>
+    /// <param name="keys">The keys shown in the grid when this group is selected.</param>
+    /// <param name="children">Subgroups, or empty for a leaf group.</param>
+    public PaletteGroup(string id, Func<string> label, IReadOnlyList<PaletteKey> keys, IReadOnlyList<PaletteGroup> children)
+    {
+        Id = id;
+        _label = label;
+        Keys = keys;
+        Children = children;
+    }
+
+    /// <summary>A leaf group under a fixed name — a calculator page, which is never shown by name.</summary>
     public PaletteGroup(string id, string label, IReadOnlyList<PaletteKey> keys)
-        : this(id, label, keys, []) { }
+        : this(id, () => label, keys, []) { }
+
+    /// <summary>Stable id — what the sunburst reports when an arc is clicked.</summary>
+    public string Id { get; }
+
+    /// <summary>Shown on the arc and the breadcrumb.</summary>
+    public string Label => _label();
+
+    /// <summary>The keys shown in the grid when this group is selected.</summary>
+    public IReadOnlyList<PaletteKey> Keys { get; }
+
+    /// <summary>Subgroups, or empty for a leaf group.</summary>
+    public IReadOnlyList<PaletteGroup> Children { get; }
 
     /// <summary>Every key in this group and everything under it, in order.</summary>
     public IReadOnlyList<PaletteKey> AllKeys =>

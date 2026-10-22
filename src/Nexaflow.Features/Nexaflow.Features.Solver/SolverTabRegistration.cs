@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Solver.ViewModels;
 using Nexaflow.Features.Solver.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver;
 
@@ -28,9 +29,9 @@ public sealed class SolverTabRegistration(SolverConfig config, IShellServices sh
     {
         var page = new Page
         {
-            Title = "Solver",
+            Title = Str.Get("Solver.Page.Title"),
             Icon = "🧮",
-            Breadcrumbs = { new BreadcrumbSegment { Label = "Solver" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("Solver.Page.Title") } },
         };
 
         // Built lazily. A definition is speculative — the shell creates one just to read a title for

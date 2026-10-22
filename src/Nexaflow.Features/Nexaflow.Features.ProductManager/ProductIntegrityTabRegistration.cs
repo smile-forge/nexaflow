@@ -6,6 +6,7 @@ using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Features.ProductManager.Views;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Page = Nexaflow.Features.Common.Page;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager;
 
@@ -31,7 +32,9 @@ public sealed class ProductIntegrityTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var root  = ProductRootLocator.Resolve(pageParams);
-        var title = root is not null ? $"Integrity: {new DirectoryInfo(root).Name}" : "Integrity";
+        var title = root is not null
+            ? Str.Format("ProductManager.Integrity.Page.TitleFormat", new DirectoryInfo(root).Name)
+            : Str.Get("ProductManager.Integrity.Page.Title");
 
         var tab = new Page
         {
@@ -53,7 +56,7 @@ public sealed class ProductIntegrityTabRegistration : IPageRegistration
     {
         Content = new TextBlock
         {
-            Text = "Open Integrity from a folder that contains a .product directory.",
+            Text = Str.Get("ProductManager.Integrity.Page.NoProduct"),
             Margin = new Thickness(24),
             TextWrapping = TextWrapping.Wrap,
             Foreground = Application.Current?.Resources["TextMutedBrush"] as System.Windows.Media.Brush

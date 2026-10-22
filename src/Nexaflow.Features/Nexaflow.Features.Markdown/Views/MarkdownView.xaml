@@ -5,6 +5,7 @@
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
@@ -194,7 +195,7 @@
                     <Slider Style="{StaticResource ModeSlider}"
                             AutomationProperties.AutomationId="Markdown_ViewMode"
                             AutomationProperties.Name="View mode"
-                            ToolTip="What to show: the rendered document, both side by side, or the raw markdown source"
+                            ToolTip="{loc:Str Markdown.Toolbar.ViewModeTip}"
                             Value="{Binding ViewModeIndex, Mode=TwoWay}"/>
                     <Grid Margin="0,1,0,0">
                         <Grid.ColumnDefinitions>
@@ -202,11 +203,11 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Rendered" HorizontalAlignment="Left"
+                        <TextBlock Grid.Column="0" Text="{loc:Str Markdown.Toolbar.ModeRendered}" HorizontalAlignment="Left"
                                    Style="{StaticResource ModeLabelRendered}"/>
-                        <TextBlock Grid.Column="1" Text="Split" HorizontalAlignment="Center"
+                        <TextBlock Grid.Column="1" Text="{loc:Str Markdown.Toolbar.ModeSplit}" HorizontalAlignment="Center"
                                    Style="{StaticResource ModeLabelSplit}"/>
-                        <TextBlock Grid.Column="2" Text="Source" HorizontalAlignment="Right"
+                        <TextBlock Grid.Column="2" Text="{loc:Str Markdown.Toolbar.ModeSource}" HorizontalAlignment="Right"
                                    Style="{StaticResource ModeLabelSource}"/>
                     </Grid>
                 </StackPanel>
@@ -214,12 +215,12 @@
                 <!-- Save button (greyed out when clean) -->
                 <Button Grid.Column="2"
                         Style="{StaticResource TbBtn}"
-                        ToolTip="Save (Ctrl+S)"
+                        ToolTip="{loc:Str Markdown.Toolbar.SaveTip}"
                         AutomationProperties.AutomationId="Markdown_Save"
                         Command="{Binding SaveCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="💾" FontSize="12" Margin="0,0,4,0"/>
-                        <TextBlock Text="Save"  FontSize="12"/>
+                        <TextBlock Text="{loc:Str Markdown.Toolbar.Save}"  FontSize="12"/>
                     </StackPanel>
                 </Button>
 
@@ -227,10 +228,10 @@
                 <Button Grid.Column="3"
                         Margin="6,0,0,0"
                         Style="{StaticResource TbBtn}"
-                        ToolTip="Save as another file (Ctrl+Shift+S)"
+                        ToolTip="{loc:Str Markdown.Toolbar.SaveAsTip}"
                         AutomationProperties.AutomationId="Markdown_SaveAs"
                         Command="{Binding SaveAsCommand}">
-                    <TextBlock Text="Save as…" FontSize="12"/>
+                    <TextBlock Text="{loc:Str Markdown.Toolbar.SaveAs}" FontSize="12"/>
                 </Button>
 
             </Grid>
@@ -314,19 +315,19 @@
                 BorderThickness="0,1,0,0">
             <DockPanel VerticalAlignment="Center" Margin="14,0" LastChildFill="False">
                 <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding WordCount, StringFormat='{}{0:N0} words'}"
+                           Text="{Binding WordCount, StringFormat={loc:Str Markdown.Footer.WordsFormat}}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
                 <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding LineCount, StringFormat='{}{0:N0} lines'}"
+                           Text="{Binding LineCount, StringFormat={loc:Str Markdown.Footer.LinesFormat}}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
                 <!-- The Save button already greys out when clean; this says the same thing where you are
                      looking when you wonder whether a keystroke landed. -->
                 <TextBlock DockPanel.Dock="Left"
-                           Text="Unsaved changes"
+                           Text="{loc:Str Markdown.Footer.Unsaved}"
                            Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"

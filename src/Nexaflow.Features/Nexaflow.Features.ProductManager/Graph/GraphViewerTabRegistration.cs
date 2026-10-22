@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Features.ProductManager.Graph.ViewModels;
 using Nexaflow.Features.ProductManager.Graph.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Graph;
 
@@ -31,7 +32,7 @@ public sealed class GraphViewerTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Graph" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("ProductManager.Graph.Page.Title") : Path.GetFileName(path);
 
         // `node` is a one-shot navigation hint, NOT part of this tab's identity — same rule as the Product
         // tab's. A tab keyed on {path,node} would stop matching a request for a different node and open a

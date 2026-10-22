@@ -1,3 +1,13 @@
 {
-  "OneDrive.Config.OneDrive": "OneDrive"
+  "OneDrive.Config.OneDrive": "OneDrive",
+  "OneDrive.Account.BusinessFallback": "OneDrive - Entreprise",
+  "OneDrive.Options.Heading": "Emplacements affichés dans Ce PC",
+  "OneDrive.Options.Intro": "Les dossiers de synchronisation déjà configurés sur ce PC apparaissent automatiquement dans la liste. Vous pouvez les renommer, les masquer ou ajouter vous-même un dossier. Nexaflow lit uniquement les dossiers déjà présents sur cette machine — il ne se connecte jamais à OneDrive.",
+  "OneDrive.Options.EmptyHint": "OneDrive n'est pas configuré sur ce PC. Vous pouvez toutefois ajouter un dossier ci-dessous — tout dossier choisi apparaîtra dans Ce PC.",
+  "OneDrive.Options.ShowTip": "Afficher cet emplacement dans Ce PC",
+  "OneDrive.Options.Detected": "Détecté",
+  "OneDrive.Options.DetectedTip": "Trouvé sur ce PC — son dossier ne peut pas être modifié ici",
+  "OneDrive.Options.RemoveFolderTip": "Supprimer ce dossier de la liste",
+  "OneDrive.Options.AddFolder": "Ajouter un dossier…",
+  "OneDrive.Options.ChooseFolderTitle": "Choisir un dossier à afficher dans Ce PC"
 }

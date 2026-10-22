@@ -1,0 +1,13 @@
+{
+  "Svg.Action.AsSvg": "As SVG",
+  "Svg.Action.ExperienceDescription": "SVG vector viewer: pan/zoom crisp vector art with dimensions and element count (.svg/.svgz)",
+  "Svg.Toolbar.ResetView": "Reset view",
+  "Svg.Toolbar.ResetViewTip": "Fit the image to the window",
+  "Svg.Toolbar.Checkerboard": "Checkerboard",
+  "Svg.Toolbar.CheckerboardTip": "Show a checkerboard behind transparent artwork",
+  "Svg.Toolbar.ZoomPanHint": "Scroll to zoom · drag to pan",
+  "Svg.Footer.ElementCountFormat": "{0:N0} elements",
+  "Svg.Error.TooLargeFormat": "This SVG is too large to render safely ({0}).",
+  "Svg.Error.NothingToRender": "The file loaded but contained nothing to render.",
+  "Svg.Error.OpenFailedFormat": "Couldn't open this SVG: {0}"
+}

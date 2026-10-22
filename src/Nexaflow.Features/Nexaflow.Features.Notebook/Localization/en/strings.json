@@ -1,0 +1,14 @@
+{
+  "Notebook.Action.AsNotebook": "As Notebook",
+  "Notebook.Action.ExperienceDescription": "Jupyter notebook viewer: cells, rendered markdown, highlighted code, and an outline",
+  "Notebook.Page.Title": "Notebook",
+  "Notebook.Cell.InputLabelFormat": "In [{0}]",
+  "Notebook.Outline.Title": "Outline",
+  "Notebook.Outline.CellFormat": "Cell {0}",
+  "Notebook.Search.SelectedFormat": "{0} selected",
+  "Notebook.Search.NoCellsFormat": "'{0}' has no cells to search.",
+  "Notebook.Search.StillParsingFormat": "'{0}' is still being parsed — try again in a moment.",
+  "Notebook.Search.HitCodeFormat": "Cell {0} (code)",
+  "Notebook.Search.HitMarkdownFormat": "Cell {0} (markdown)",
+  "Notebook.Search.HitRawFormat": "Cell {0} (raw)"
+}

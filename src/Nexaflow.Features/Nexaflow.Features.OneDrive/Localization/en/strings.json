@@ -1,3 +1,13 @@
 {
-  "OneDrive.Config.OneDrive": "OneDrive"
+  "OneDrive.Config.OneDrive": "OneDrive",
+  "OneDrive.Account.BusinessFallback": "OneDrive - Business",
+  "OneDrive.Options.Heading": "Locations shown under This PC",
+  "OneDrive.Options.Intro": "Sync folders already set up on this PC are listed automatically. Rename or hide any of them, or add a folder yourself. Nexaflow only reads folders that are already on this machine — it never signs in to OneDrive.",
+  "OneDrive.Options.EmptyHint": "OneDrive isn't set up on this PC. You can still add a folder below — anything you point at will appear under This PC.",
+  "OneDrive.Options.ShowTip": "Show this location under This PC",
+  "OneDrive.Options.Detected": "Detected",
+  "OneDrive.Options.DetectedTip": "Found on this PC — its folder can't be changed here",
+  "OneDrive.Options.RemoveFolderTip": "Remove this folder",
+  "OneDrive.Options.AddFolder": "Add folder…",
+  "OneDrive.Options.ChooseFolderTitle": "Choose a folder to show under This PC"
 }

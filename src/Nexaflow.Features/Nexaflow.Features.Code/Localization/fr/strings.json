@@ -1,4 +1,17 @@
 {
+  "Code.Page.Title": "Code",
+
+  "Code.Action.AsCode": "En tant que code",
+  "Code.Action.AsCodeDescription": "Éditeur de code avec coloration syntaxique et panneau de structure",
+
+  "Code.Map.Title": "Carte de code",
+  "Code.Map.HideTip": "Masquer la carte de code",
+  "Code.Map.ShowTip": "Afficher la carte de code",
+  "Code.Map.Dependencies": "Dépendances",
+  "Code.Map.Structure": "Structure",
+  "Code.Map.Members": "Membres",
+  "Code.Map.EmbeddedFormat": "{0} · ligne {1}",
+
   "Code.Config.CodeEditor": "Éditeur de code",
   "Code.Config.CodeEditor.MaxEditableFileSize": "Taille maximale des fichiers modifiables",
   "Code.Config.CodeEditor.Megabytes": "{0} Mo"

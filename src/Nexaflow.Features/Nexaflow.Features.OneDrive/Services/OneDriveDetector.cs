@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Nexaflow.Features.OneDrive.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.OneDrive.Services;
 
@@ -99,7 +100,7 @@ public sealed partial class OneDriveDetector(IRegistryView hkcu, Func<string, st
             if (string.IsNullOrWhiteSpace(path)) continue;
             if (!seen.Add(path.TrimEnd('\\', '/'))) continue;
 
-            yield return new SyncAccount(id, business ? "OneDrive - Business" : "OneDrive",
+            yield return new SyncAccount(id, business ? Str.Get("OneDrive.Account.BusinessFallback") : "OneDrive",
                                          path.Trim(), business);
         }
     }

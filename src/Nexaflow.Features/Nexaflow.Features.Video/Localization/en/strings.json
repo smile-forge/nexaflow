@@ -1,6 +1,60 @@
 {
   "Video.Config.Video": "Video",
   "Video.Config.Video.EnableHardwareDecoding": "Use hardware-accelerated decoding (faster; turn off if playback is unstable)",
+
+  "Video.Action.Play": "Play Video",
+  "Video.Action.ExperienceDescription": "Embedded video player: playback, codec/metadata panel, a scene-strip of keyframes, and fullscreen",
+
+  "Video.Page.Title": "Video",
+  "Video.Notice.PlayFailedFormat": "Couldn't play \"{0}\": {1}",
+
+  "Video.Dependency.LibVlc.Name": "VLC media libraries (libvlc)",
+  "Video.Dependency.LibVlc.Description": "Decodes audio and video for the media player. Ships with Nexaflow — if this is missing, the installation is incomplete and video playback will fail.",
+  "Video.Dependency.LibVlc.MissingFolderFormat": "Expected the libvlc natives at {0}.",
+  "Video.Dependency.LibVlc.MissingDllFormat": "Found {0} but no libvlc.dll inside it.",
+
+  "Video.View.Loading": "Loading…",
+  "Video.Error.OpenFailedFormat": "Couldn't open this video. {0}",
+  "Video.Error.Playback": "Playback error: this file may use an unsupported codec or be corrupt.",
+  "Video.CutOut.Failed": "This frame couldn't be taken from the video.",
+
+  "Video.Transport.PlayPause": "Play / Pause",
+  "Video.Transport.Back": "Back 5s",
+  "Video.Transport.Forward": "Forward 5s",
+  "Video.Transport.Mute": "Mute",
+  "Video.Transport.Volume": "Volume",
+  "Video.Transport.Speed": "Playback speed",
+  "Video.Transport.Subtitles": "Subtitles",
+  "Video.Transport.SceneStrip": "Show / hide scene strip",
+  "Video.Transport.Info": "Codec / media info",
   "Video.CutOutFrame": "Cut something out of this frame — opens it in the image editor's Cut out",
-  "Video.CutOut.Failed": "This frame couldn't be taken from the video."
+  "Video.Transport.Fullscreen": "Fullscreen",
+
+  "Video.Subtitles.Off": "Off",
+  "Video.Subtitles.TrackFormat": "Subtitle {0}",
+
+  "Video.Info.Title": "Media Info",
+  "Video.Info.Section.File": "File",
+  "Video.Info.Section.Video": "Video",
+  "Video.Info.Section.VideoNumberedFormat": "Video #{0}",
+  "Video.Info.Section.Audio": "Audio",
+  "Video.Info.Section.AudioNumberedFormat": "Audio #{0}",
+  "Video.Info.Section.Subtitles": "Subtitles",
+  "Video.Info.Section.SubtitlesNumberedFormat": "Subtitles #{0}",
+  "Video.Info.Field.Name": "Name",
+  "Video.Info.Field.Container": "Container",
+  "Video.Info.Field.Size": "Size",
+  "Video.Info.Field.Duration": "Duration",
+  "Video.Info.Field.Codec": "Codec",
+  "Video.Info.Field.Resolution": "Resolution",
+  "Video.Info.Field.FrameRate": "Frame rate",
+  "Video.Info.Field.Bitrate": "Bitrate",
+  "Video.Info.Field.Channels": "Channels",
+  "Video.Info.Field.SampleRate": "Sample rate",
+  "Video.Info.Field.Language": "Language",
+  "Video.Info.Field.Track": "Track",
+  "Video.Info.Channels.Mono": "Mono",
+  "Video.Info.Channels.Stereo": "Stereo",
+  "Video.Info.Channels.CountFormat": "{0} ch",
+  "Video.Info.UnnamedSubtitleTrack": "subtitle"
 }

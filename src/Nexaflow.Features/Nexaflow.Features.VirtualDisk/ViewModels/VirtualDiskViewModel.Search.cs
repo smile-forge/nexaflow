@@ -10,6 +10,7 @@ using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Search;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.ViewModels;
 
@@ -66,21 +67,21 @@ public sealed partial class VirtualDiskViewModel : ISearchable
 
     public string SearchTargetDescription =>
         IsRecognised
-            ? $"the files and folders inside the disk image '{FileName}', by name or path within it"
-            : $"the contents of '{FileName}' (the image isn't readable, so there is nothing to search)";
+            ? $"the files and folders inside the disk image '{ContextFileName}', by name or path within it"
+            : $"the contents of '{ContextFileName}' (the image isn't readable, so there is nothing to search)";
 
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (!request.TryValidate(out var invalid))
-            return SearchOutcome.Unsupported($"Invalid regular expression: {invalid}");
+            return SearchOutcome.Unsupported(Str.Format("VirtualDisk.Search.InvalidRegexFormat", invalid));
 
         if (request.Terms.Count == 0)
-            return SearchOutcome.Unsupported("Nothing to search for.");
+            return SearchOutcome.Unsupported(Str.Get("VirtualDisk.Search.NothingToSearchFor"));
 
         // Not Unsupported: the page understands the query perfectly well, it just has no filesystem to run
         // it against. "This page can't do patterns" would be the wrong thing for the user to conclude.
         if (!IsRecognised)
-            return SearchOutcome.None($"'{FileName}' isn't a readable disk image, so there is nothing to search.");
+            return SearchOutcome.None(Str.Format("VirtualDisk.Search.UnreadableFormat", FileName));
 
         var path = _diskPath;
         var scan = await Task.Run(
@@ -103,14 +104,13 @@ public sealed partial class VirtualDiskViewModel : ISearchable
 
         if (hits.Count == 0)
             return scan.Truncated
-                ? SearchOutcome.None($"No matches in the first {scan.FoldersVisited:N0} folders of "
-                                     + $"'{FileName}' — the walk stopped there.")
+                ? SearchOutcome.None(Str.Format("VirtualDisk.Search.NoMatchesTruncatedFormat", scan.FoldersVisited, FileName))
                 : SearchOutcome.None();
 
         return scan.Truncated
             // Found, not Narrowed: the hits are real, only the total is a floor.
             ? SearchOutcome.Found(hits, hits.Count,
-                $"Stopped after {scan.FoldersVisited:N0} folders — there may be more inside '{FileName}'.")
+                Str.Format("VirtualDisk.Search.TruncatedFormat", scan.FoldersVisited, FileName))
             : SearchOutcome.Found(hits);
     }
 
@@ -128,8 +128,10 @@ public sealed partial class VirtualDiskViewModel : ISearchable
 
         return _shell.RunOnUiAsync(() =>
         {
-            Apply(chosen, CurrentSearchTerm.Length == 0 ? $"{chosen.Count} selected" : CurrentSearchTerm,
-                  truncated: false);
+            var term = CurrentSearchTerm.Length == 0
+                ? Str.Format("VirtualDisk.Search.SelectedFormat", chosen.Count)
+                : CurrentSearchTerm;
+            Apply(chosen, term, truncated: false);
             return Task.FromResult(true);
         });
     }

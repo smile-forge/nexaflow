@@ -4,6 +4,7 @@ using System.Windows.Media.Media3D;
 using SharpGLTF.Geometry;
 using SharpGLTF.Schema2;
 using GltfMaterial = SharpGLTF.Schema2.Material;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 
@@ -60,7 +61,7 @@ public sealed class GltfModelLoader : IModelLoader
                 var wpfMaterial = CategoricalTinting.ToDiffuseMaterial(resolved[i]);
                 group.Children.Add(new GeometryModel3D(mesh, wpfMaterial) { BackMaterial = wpfMaterial });
                 materials.Add(new ModelMaterial(
-                    string.IsNullOrWhiteSpace(described[i].Name) ? $"Material {materials.Count + 1}" : described[i].Name,
+                    string.IsNullOrWhiteSpace(described[i].Name) ? Str.Format("Model3D.Inspector.MaterialFallbackFormat", materials.Count + 1) : described[i].Name,
                     resolved[i], described[i].Texture));
             }
         }
@@ -115,7 +116,7 @@ public sealed class GltfModelLoader : IModelLoader
 #pragma warning restore CS0618
             colour = Color.FromScRgb(Clamp01(p.W), Clamp01(p.X), Clamp01(p.Y), Clamp01(p.Z));
             if (channel.Texture is { } tex)
-                texture = string.IsNullOrWhiteSpace(tex.PrimaryImage?.Name) ? "embedded texture" : tex.PrimaryImage!.Name;
+                texture = string.IsNullOrWhiteSpace(tex.PrimaryImage?.Name) ? Str.Get("Model3D.Inspector.EmbeddedTexture") : tex.PrimaryImage!.Name;
         }
 
         return (name, colour, texture);
@@ -124,12 +125,12 @@ public sealed class GltfModelLoader : IModelLoader
     private static IReadOnlyList<string> DescribeUnsupported(ModelRoot model, bool usedCamera)
     {
         var list = new List<string>();
-        if (model.LogicalAnimations.Count > 0) list.Add($"{model.LogicalAnimations.Count} animation(s)");
-        if (model.LogicalCameras.Count > 0 && !usedCamera) list.Add($"{model.LogicalCameras.Count} camera(s)");
-        if (model.LogicalSkins.Count > 0) list.Add($"{model.LogicalSkins.Count} skin(s) / skeletal rig");
-        if (model.LogicalPunctualLights.Count > 0) list.Add($"{model.LogicalPunctualLights.Count} punctual light(s)");
+        if (model.LogicalAnimations.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.AnimationsFormat", model.LogicalAnimations.Count));
+        if (model.LogicalCameras.Count > 0 && !usedCamera) list.Add(Str.Format("Model3D.Inspector.Omission.CamerasFormat", model.LogicalCameras.Count));
+        if (model.LogicalSkins.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.SkinsFormat", model.LogicalSkins.Count));
+        if (model.LogicalPunctualLights.Count > 0) list.Add(Str.Format("Model3D.Inspector.Omission.PunctualLightsFormat", model.LogicalPunctualLights.Count));
         if (model.LogicalImages.Count > 0)
-            list.Add($"{model.LogicalImages.Count} texture image(s) — base colour shown, full PBR not rendered");
+            list.Add(Str.Format("Model3D.Inspector.Omission.TextureImagesFormat", model.LogicalImages.Count));
         return list;
     }
 

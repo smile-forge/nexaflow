@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Windows.Media;
 
@@ -17,12 +18,12 @@ public sealed class CmdHereAction : IFolderAction, ICacheable
     public bool     IsDestructive         => false;
     public bool     SupportsMultipleFiles => false;
     public string   Icon                  => "⌨";
-    public string   DisplayName           => "Cmd Here";
+    public string   DisplayName           => Str.Get("Console.Action.CmdHere");
     public bool     RequiresRefresh       => false;
     public bool     CanPerformAction      => true;
     public bool     AppliesToRoot         => true;
     public bool     AppliesToDrives       => true;
-    public string?  Tooltip               => "Open a Console tab in this folder";
+    public string?  Tooltip               => Str.Get("Console.Action.CmdHereTip");
     public ImageSource? IconImage         => null;
 
     public bool PerformAction(string folderPath)

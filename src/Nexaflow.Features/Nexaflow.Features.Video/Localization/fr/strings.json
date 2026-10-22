@@ -1,6 +1,60 @@
 {
   "Video.Config.Video": "Vidéo",
-  "Video.Config.Video.EnableHardwareDecoding": "Utiliser le décodage matériel (plus rapide ; à désactiver si la lecture est instable)",
-    "Video.CutOutFrame": "Détourer un élément de cette image — l'ouvre dans le détourage de l'éditeur d'images",
-    "Video.CutOut.Failed": "Impossible d'extraire cette image de la vidéo."
+  "Video.Config.Video.EnableHardwareDecoding": "Utiliser le décodage matériel (plus rapide ; à désactiver si la lecture est instable)",
+
+  "Video.Action.Play": "Lire la vidéo",
+  "Video.Action.ExperienceDescription": "Lecteur vidéo intégré : lecture, panneau codec et métadonnées, bandeau d'images clés des scènes et plein écran",
+
+  "Video.Page.Title": "Vidéo",
+  "Video.Notice.PlayFailedFormat": "Impossible de lire « {0} » : {1}",
+
+  "Video.Dependency.LibVlc.Name": "Bibliothèques multimédias VLC (libvlc)",
+  "Video.Dependency.LibVlc.Description": "Décodent l'audio et la vidéo pour le lecteur multimédia. Fournies avec Nexaflow — si elles manquent, l'installation est incomplète et la lecture des vidéos échouera.",
+  "Video.Dependency.LibVlc.MissingFolderFormat": "Les bibliothèques natives libvlc étaient attendues dans {0}.",
+  "Video.Dependency.LibVlc.MissingDllFormat": "{0} existe, mais ne contient pas libvlc.dll.",
+
+  "Video.View.Loading": "Chargement…",
+  "Video.Error.OpenFailedFormat": "Impossible d'ouvrir cette vidéo. {0}",
+  "Video.Error.Playback": "Erreur de lecture : ce fichier utilise peut-être un codec non pris en charge, ou il est endommagé.",
+  "Video.CutOut.Failed": "Impossible d'extraire cette image de la vidéo.",
+
+  "Video.Transport.PlayPause": "Lecture / pause",
+  "Video.Transport.Back": "Reculer de 5 s",
+  "Video.Transport.Forward": "Avancer de 5 s",
+  "Video.Transport.Mute": "Couper le son",
+  "Video.Transport.Volume": "Volume",
+  "Video.Transport.Speed": "Vitesse de lecture",
+  "Video.Transport.Subtitles": "Sous-titres",
+  "Video.Transport.SceneStrip": "Afficher / masquer le bandeau des scènes",
+  "Video.Transport.Info": "Codec / informations sur le média",
+  "Video.CutOutFrame": "Détourer un élément de cette image — l'ouvre dans le détourage de l'éditeur d'images",
+  "Video.Transport.Fullscreen": "Plein écran",
+
+  "Video.Subtitles.Off": "Désactivés",
+  "Video.Subtitles.TrackFormat": "Sous-titres {0}",
+
+  "Video.Info.Title": "Informations sur le média",
+  "Video.Info.Section.File": "Fichier",
+  "Video.Info.Section.Video": "Vidéo",
+  "Video.Info.Section.VideoNumberedFormat": "Vidéo n° {0}",
+  "Video.Info.Section.Audio": "Audio",
+  "Video.Info.Section.AudioNumberedFormat": "Audio n° {0}",
+  "Video.Info.Section.Subtitles": "Sous-titres",
+  "Video.Info.Section.SubtitlesNumberedFormat": "Sous-titres n° {0}",
+  "Video.Info.Field.Name": "Nom",
+  "Video.Info.Field.Container": "Conteneur",
+  "Video.Info.Field.Size": "Taille",
+  "Video.Info.Field.Duration": "Durée",
+  "Video.Info.Field.Codec": "Codec",
+  "Video.Info.Field.Resolution": "Résolution",
+  "Video.Info.Field.FrameRate": "Fréquence d'images",
+  "Video.Info.Field.Bitrate": "Débit",
+  "Video.Info.Field.Channels": "Canaux",
+  "Video.Info.Field.SampleRate": "Échantillonnage",
+  "Video.Info.Field.Language": "Langue",
+  "Video.Info.Field.Track": "Piste",
+  "Video.Info.Channels.Mono": "Mono",
+  "Video.Info.Channels.Stereo": "Stéréo",
+  "Video.Info.Channels.CountFormat": "{0} canaux",
+  "Video.Info.UnnamedSubtitleTrack": "sous-titres"
 }

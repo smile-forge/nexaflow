@@ -1,6 +1,7 @@
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.AIChat.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat;
 
@@ -35,7 +36,7 @@ public sealed class ConversationTabRegistration : IPageRegistration
     {
         var tab = new Page
         {
-            Title      = "Conversation",
+            Title      = Str.Get("AIChat.Conversation.Title"),
             Icon       = "💬",
             PageKind   = StaticPageKind,
             PageParams = pageParams,

@@ -19,6 +19,9 @@ public sealed class JsonLogParser : ILogParser
 {
     public string FormatName => "JSON";
 
+    // A format name, the same in every language.
+    public string FormatDisplayName => FormatName;
+
     // Matched case-insensitively. "@l"/"@t" are Serilog compact; "log.level"/"@timestamp" are ECS;
     // "levelname"/"asctime" are Python; "severity" is GCP/syslog; "msg"/"time" are Bunyan and pino.
     private static readonly string[] LevelFields =

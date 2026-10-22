@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Json.Services;
 
@@ -47,7 +48,7 @@ internal sealed class JsonFileLoader
         try
         {
             if (!VirtualFileSystem.Instance.Exists(filePath))
-                return new LoadResult(null, [], false, 0, 0, 0, $"File not found: {filePath}");
+                return new LoadResult(null, [], false, 0, 0, 0, Str.Format("Json.Load.FileNotFoundFormat", filePath));
 
             long fileSize = VirtualFileSystem.Instance.GetLength(filePath);
             return fileSize <= SmallFileSizeLimit
@@ -55,7 +56,7 @@ internal sealed class JsonFileLoader
                 : await LoadLargeAsync(filePath, fileSize, ct);
         }
         catch (OperationCanceledException) { return new LoadResult(null, [], false, 0, 0, 0, null); }
-        catch (Exception ex) { return new LoadResult(null, [], false, 0, 0, 0, $"Error loading file: {ex.Message}"); }
+        catch (Exception ex) { return new LoadResult(null, [], false, 0, 0, 0, Str.Format("Json.Load.FailedFormat", ex.Message)); }
     }
 
     // ── Small file path ──────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ internal sealed class JsonFileLoader
         }
         catch (JsonException ex)
         {
-            return new LoadResult(null, [], false, fileSize, 0, 0, $"Invalid JSON: {ex.Message}");
+            return new LoadResult(null, [], false, fileSize, 0, 0, Str.Format("Json.Load.InvalidJsonFormat", ex.Message));
         }
     }
 

@@ -13,6 +13,7 @@ using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Model3D.ViewModels;
@@ -109,7 +110,7 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
             var loader = _registry.LoaderFor(FilePath);
             if (loader is null)
             {
-                Fail($"No loader is registered for '{Path.GetExtension(FilePath)}' files.");
+                Fail(Str.Format("Model3D.Error.NoLoaderFormat", Path.GetExtension(FilePath)));
                 return;
             }
 
@@ -141,11 +142,11 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
             ShowInspector = HasInspectorContent;
 
             if (TriangleCount == 0)
-                Fail("The file loaded but contained no renderable mesh.");
+                Fail(Str.Get("Model3D.Error.NoMesh"));
         }
         catch (Exception ex)
         {
-            Fail($"Couldn't open this model: {ex.Message}");
+            Fail(Str.Format("Model3D.Error.OpenFailedFormat", ex.Message));
         }
         finally
         {

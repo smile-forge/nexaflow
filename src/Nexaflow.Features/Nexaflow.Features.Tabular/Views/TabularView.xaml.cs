@@ -11,6 +11,7 @@ using System.Windows.Media;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.Views;
 
@@ -19,21 +20,9 @@ public partial class TabularView : UserControl, IPageView
     public IPageViewModel? ViewModel { get; }
     public TabularViewModel VM => (TabularViewModel)ViewModel!;
 
-    /// <summary>Separator characters offered in the Split-by submenu. Only those that
-    /// appear in the column's sample data are shown at right-click time.</summary>
-    private static readonly (string Label, char Char)[] SplitCandidates =
-    {
-        ("Tab",       '\t'),
-        ("Comma",     ','),
-        ("Semicolon", ';'),
-        ("Pipe",      '|'),
-        ("Space",     ' '),
-        ("Dash",      '-'),
-        ("Slash",     '/'),
-        ("Colon",     ':'),
-        ("Underscore",'_'),
-        ("Period",    '.'),
-    };
+    /// <summary>Separator characters offered in the Split-by submenu, in menu order. Only those that
+    /// appear in the column's sample data are enabled at right-click time.</summary>
+    private static readonly char[] SplitCandidates = { '\t', ',', ';', '|', ' ', '-', '/', ':', '_', '.' };
 
     public TabularView(TabularViewModel vm)
     {
@@ -89,16 +78,16 @@ public partial class TabularView : UserControl, IPageView
     private void PopulateHeaderContextMenu(TabularColumnViewModel col, ContextMenu menu)
     {
         // ── Rename column… ──
-        var rename = new MenuItem { Header = "Rename column…" };
+        var rename = new MenuItem { Header = Str.Get("Tabular.Column.Rename") };
         rename.Click += (_, _) => RenameColumnPrompt(col);
         menu.Items.Add(rename);
 
         // ── Merge with previous (only when not the first column) ──
         var merge = new MenuItem
         {
-            Header   = "Merge with previous",
+            Header    = Str.Get("Tabular.Column.MergeWithPrevious"),
             IsEnabled = col.Index > 0,
-            ToolTip  = "Treat the separator between this column and the previous as data, not a delimiter.",
+            ToolTip   = Str.Get("Tabular.Column.MergeWithPreviousTip"),
         };
         merge.Click += async (_, _) => await VM.MergeWithPreviousAsync(col.Index);
         menu.Items.Add(merge);
@@ -109,13 +98,16 @@ public partial class TabularView : UserControl, IPageView
         // Always populate the full submenu. Items whose character isn't actually present
         // in the column's sample data are still shown but disabled — the user can see at
         // a glance which separator candidates would (and wouldn't) split the values.
-        var split = new MenuItem { Header = "Split by" };
-        foreach (var (label, ch) in SplitCandidates)
+        var split = new MenuItem { Header = Str.Get("Tabular.Column.SplitBy") };
+        foreach (var ch in SplitCandidates)
         {
             bool present = ColumnSampleContains(col, ch);
+            var name     = TabularDisplayText.SeparatorName(ch);
             var mi = new MenuItem
             {
-                Header    = present ? $"{label}  ({Visible(ch)})" : $"{label}  ({Visible(ch)})  — not in sample",
+                Header    = present
+                    ? Str.Format("Tabular.Column.SplitItemFormat", name, Visible(ch))
+                    : Str.Format("Tabular.Column.SplitNotInSampleFormat", name, Visible(ch)),
                 IsEnabled = present,
             };
             if (present)
@@ -132,14 +124,14 @@ public partial class TabularView : UserControl, IPageView
         // are disabled, except String which is always enabled (any column can be treated
         // as text — useful for switching numeric sort to alphabetical or for filtering
         // a numeric column by prefix).
-        var eval = new MenuItem { Header = "Evaluate as" };
+        var eval = new MenuItem { Header = Str.Get("Tabular.Column.EvaluateAs") };
         foreach (CsvDataType t in Enum.GetValues(typeof(CsvDataType)))
         {
             bool ok      = t == CsvDataType.String || ColumnParsesAs(col, t);
             bool current = col.DisplayType == t;
             var mi = new MenuItem
             {
-                Header      = $"{CsvDataTypeIcons.Glyph(t)}  {t}{(current ? "  ✓" : string.Empty)}",
+                Header      = $"{CsvDataTypeIcons.Glyph(t)}  {TabularDisplayText.TypeName(t)}{(current ? "  ✓" : string.Empty)}",
                 IsEnabled   = ok && !current,
                 IsCheckable = false,
             };
@@ -211,7 +203,7 @@ public partial class TabularView : UserControl, IPageView
         if (FiltersHost.Items.Count == 0)
             FiltersHost.Items.Add(new TextBlock
             {
-                Text       = "Select a column header to filter it.",
+                Text       = Str.Get("Tabular.Filter.Empty"),
                 Foreground = (Brush)FindResource("TextMutedBrush"),
                 FontSize   = 11,
             });
@@ -256,8 +248,8 @@ public partial class TabularView : UserControl, IPageView
                 var labels = new Grid();
                 labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var minLabel = new TextBlock { Text = "Min", FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(2, 0, 0, 2) };
-                var maxLabel = new TextBlock { Text = "Max", FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(6, 0, 0, 2) };
+                var minLabel = new TextBlock { Text = Str.Get("Tabular.Filter.Min"), FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(2, 0, 0, 2) };
+                var maxLabel = new TextBlock { Text = Str.Get("Tabular.Filter.Max"), FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(6, 0, 0, 2) };
                 Grid.SetColumn(minLabel, 0); Grid.SetColumn(maxLabel, 1);
                 labels.Children.Add(minLabel); labels.Children.Add(maxLabel);
 
@@ -288,7 +280,7 @@ public partial class TabularView : UserControl, IPageView
                         Text    = initial?.TimeOfDay.ToString(@"hh\:mm\:ss") ?? string.Empty,
                         Padding = new Thickness(6, 4, 6, 4),
                         Margin  = new Thickness(0, 4, 0, 0),
-                        ToolTip = "Optional time of day in HH:mm:ss",
+                        ToolTip = Str.Get("Tabular.Filter.TimeOfDayTip"),
                     };
                     void Refresh()
                     {
@@ -311,16 +303,16 @@ public partial class TabularView : UserControl, IPageView
                 }
 
                 var stk = new StackPanel();
-                stk.Children.Add(BuildRangeRow("From", d.From, v => d.From = v));
-                stk.Children.Add(BuildRangeRow("To",   d.To,   v => d.To   = v));
+                stk.Children.Add(BuildRangeRow(Str.Get("Tabular.Filter.From"), d.From, v => d.From = v));
+                stk.Children.Add(BuildRangeRow(Str.Get("Tabular.Filter.To"),   d.To,   v => d.To   = v));
                 return stk;
             }
             case BooleanColumnFilter b:
             {
                 var stk = new StackPanel { Orientation = Orientation.Horizontal };
-                var t = new CheckBox { Content = "true",  IsChecked = b.ShowTrue,  Margin = new Thickness(0, 0, 8, 0),
+                var t = new CheckBox { Content = Str.Get("Tabular.Filter.True"),  IsChecked = b.ShowTrue,  Margin = new Thickness(0, 0, 8, 0),
                                        Foreground = (Brush)FindResource("TextBrush") };
-                var f = new CheckBox { Content = "false", IsChecked = b.ShowFalse,
+                var f = new CheckBox { Content = Str.Get("Tabular.Filter.False"), IsChecked = b.ShowFalse,
                                        Foreground = (Brush)FindResource("TextBrush") };
                 t.Checked   += (_, _) => { b.ShowTrue  = true;  col.NotifyFilterChanged(); };
                 t.Unchecked += (_, _) => { b.ShowTrue  = false; col.NotifyFilterChanged(); };
@@ -330,7 +322,7 @@ public partial class TabularView : UserControl, IPageView
                 return stk;
             }
         }
-        return new TextBlock { Text = "(no filter)", Foreground = (Brush)FindResource("TextMutedBrush") };
+        return new TextBlock { Text = Str.Get("Tabular.Filter.None"), Foreground = (Brush)FindResource("TextMutedBrush") };
     }
 
     private static decimal? ParseDec(string s) =>

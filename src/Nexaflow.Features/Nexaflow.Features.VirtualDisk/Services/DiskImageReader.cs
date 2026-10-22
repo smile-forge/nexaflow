@@ -52,7 +52,7 @@ public sealed class DiskImageReader : IDisposable
         public int Index;
         public VolumeInfo? Info;        // null for a pure-filesystem image (ISO) where Fs is pre-opened
         public DiscFileSystem? Fs;      // cached once opened
-        public string FsName = "Unknown";
+        public string FsName = DiskVolumeInfo.UnknownFileSystem;
         public long Length;
     }
 
@@ -63,7 +63,7 @@ public sealed class DiskImageReader : IDisposable
     private DiscUtils.VirtualDisk? _disk;
     private string _format = "Unknown";
     private long _capacity;
-    private string _partitionScheme = "None";
+    private string _partitionScheme = DiskInfo.NoPartitionScheme;
     private readonly List<Volume> _volumes = [];
 
     /// <summary>Takes ownership of <paramref name="stream"/> (disposed with this reader).</summary>
@@ -92,7 +92,7 @@ public sealed class DiskImageReader : IDisposable
             _volumes.Add(new Volume { Index = 1, Fs = fs, FsName = fsName, Length = size });
             _format = fsName.Contains("UDF", StringComparison.OrdinalIgnoreCase) ? "UDF (ISO)" : "ISO 9660";
             _capacity = size;
-            _partitionScheme = "None";
+            _partitionScheme = DiskInfo.NoPartitionScheme;
         }
         else
         {
@@ -103,8 +103,8 @@ public sealed class DiskImageReader : IDisposable
             {
                 GuidPartitionTable => "GPT",
                 BiosPartitionTable => "MBR",
-                null               => "None",
-                _                  => "Partitioned",
+                null               => DiskInfo.NoPartitionScheme,
+                _                  => DiskInfo.OtherPartitionScheme,
             };
 
             var mgr = new VolumeManager(_disk);
@@ -162,7 +162,7 @@ public sealed class DiskImageReader : IDisposable
     private static string FormatName(string ext) => ext switch
     {
         ".vhd"  => "VHD",  ".vhdx" => "VHDX", ".vmdk" => "VMDK", ".vdi" => "VDI",
-        ".dmg"  => "DMG",  ".img" or ".raw" => "Raw disk", _ => ext.TrimStart('.').ToUpperInvariant(),
+        ".dmg"  => "DMG",  ".img" or ".raw" => DiskInfo.RawDiskFormat, _ => ext.TrimStart('.').ToUpperInvariant(),
     };
 
     private bool MultiVolume => _volumes.Count > 1;

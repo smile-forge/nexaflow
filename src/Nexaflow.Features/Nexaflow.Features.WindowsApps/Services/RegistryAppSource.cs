@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 
@@ -139,16 +140,16 @@ public sealed class RegistryAppSource : IInstalledAppSource
         Task.Run(() =>
         {
             if (string.IsNullOrWhiteSpace(app.UninstallString))
-                return AppOperationResult.Fail("No uninstall command is registered for this program.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoUninstallCommand"));
             var (file, args) = SplitCommand(app.UninstallString);
             if (string.IsNullOrEmpty(file))
-                return AppOperationResult.Fail("The registered uninstall command is empty.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.EmptyUninstallCommand"));
 
             // MSI install verb → uninstall verb, so the command actually removes the product.
             if (IsMsiExec(file))
                 args = args.Replace("/I", "/X", StringComparison.OrdinalIgnoreCase);
 
-            return RunInstaller(file, args, "uninstaller");
+            return RunInstaller(file, args, InstallerRole.Uninstall);
         }, ct);
 
     /// <summary>
@@ -159,31 +160,30 @@ public sealed class RegistryAppSource : IInstalledAppSource
         Task.Run(() =>
         {
             if (app.ModifyBlocked)
-                return AppOperationResult.Fail(
-                    "This program doesn't support changing its installed features.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.ModifyBlocked"));
             if (string.IsNullOrWhiteSpace(app.ModifyPath))
-                return AppOperationResult.Fail("No change command is registered for this program.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoChangeCommand"));
 
             var (file, args) = SplitCommand(app.ModifyPath);
             if (string.IsNullOrEmpty(file))
-                return AppOperationResult.Fail("The registered change command is empty.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.EmptyChangeCommand"));
 
-            return RunInstaller(file, args, "installer");
+            return RunInstaller(file, args, InstallerRole.Modify);
         }, ct);
 
     /// <summary>
     /// Starts a vendor command and waits for it — these are interactive and may self-elevate, so the
     /// exit code is the only outcome we get.
     /// </summary>
-    private static AppOperationResult RunInstaller(string file, string args, string what)
+    private static AppOperationResult RunInstaller(string file, string args, InstallerRole role)
     {
         try
         {
             var proc = Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = true });
-            if (proc is null) return AppOperationResult.Fail($"The {what} could not be started.");
+            if (proc is null) return AppOperationResult.Fail(NotStartedMessage(role));
 
             proc.WaitForExit();
-            return InterpretExitCode(proc.ExitCode, what);
+            return InterpretExitCode(proc.ExitCode, role);
         }
         catch (Exception ex) { return AppOperationResult.Fail(ex.Message); }
     }
@@ -193,11 +193,33 @@ public sealed class RegistryAppSource : IInstalledAppSource
         file.Equals("msiexec", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Maps an installer exit code to a result. 0 / reboot-required count as success.</summary>
-    private static AppOperationResult InterpretExitCode(int code, string what) => code switch
+    private static AppOperationResult InterpretExitCode(int code, InstallerRole role) => code switch
     {
         0 or 1641 or 3010 => AppOperationResult.Ok,                    // success (1641/3010 = reboot needed)
-        1602              => AppOperationResult.Fail("The operation was cancelled."),
-        _                 => AppOperationResult.Fail($"The {what} reported an error (exit code {code}).")
+        1602              => AppOperationResult.Fail(Str.Get("WindowsApps.Error.Cancelled")),
+        _                 => AppOperationResult.Fail(ExitCodeMessage(role, code))
+    };
+
+    /// <summary>Which vendor command <see cref="RunInstaller"/> launched — it names the program in the failure a person reads.</summary>
+    private enum InstallerRole
+    {
+        /// <summary>The registered <c>UninstallString</c>.</summary>
+        Uninstall,
+
+        /// <summary>The maintenance-mode <c>ModifyPath</c> ("Modify").</summary>
+        Modify,
+    }
+
+    private static string NotStartedMessage(InstallerRole role) => role switch
+    {
+        InstallerRole.Uninstall => Str.Get("WindowsApps.Error.UninstallerNotStarted"),
+        _                       => Str.Get("WindowsApps.Error.InstallerNotStarted"),
+    };
+
+    private static string ExitCodeMessage(InstallerRole role, int code) => role switch
+    {
+        InstallerRole.Uninstall => Str.Format("WindowsApps.Error.UninstallerExitCodeFormat", code),
+        _                       => Str.Format("WindowsApps.Error.InstallerExitCodeFormat", code),
     };
 
     /// <summary>

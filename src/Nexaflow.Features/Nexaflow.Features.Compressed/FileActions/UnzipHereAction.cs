@@ -5,6 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
@@ -14,9 +15,9 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
 {
     public static string? StaticExperienceId => "/archive";
     public string ExperienceId => "/archive";
-    public string ExperienceDescription => "Compressed archive";
+    public string ExperienceDescription => Str.Get("Compressed.Experience.Archive");
 
-    public string DisplayName => "Unzip here";
+    public string DisplayName => Str.Get("Compressed.Action.UnzipHere");
     public string Icon => "📂";
 
     public bool IsDestructive => false;
@@ -37,7 +38,7 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
         }
         catch (Exception ex)
         {
-            shell.ShowError($"Could not extract '{Path.GetFileName(filePath)}': {ex.Message}");
+            shell.ShowError(Str.Format("Compressed.UnzipHere.FailedFormat", Path.GetFileName(filePath), ex.Message));
             return false;
         }
 
@@ -45,7 +46,7 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
         if (operations is null) return ExtractNow(filePath, dest);
 
         _ = operations.Run(
-            new FileOperationRequest("Extracting", Path.GetFileName(filePath), Path.GetFileName(dest), dest),
+            new FileOperationRequest(Str.Get("Compressed.Operation.Extracting"), Path.GetFileName(filePath), Path.GetFileName(dest), dest),
             (progress, ct) => Task.Run(() => Extract(filePath, dest, progress, ct), CancellationToken.None));
         return true;
     }
@@ -71,7 +72,7 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
         {
             return new TransferResult(true, 0, 0,
                 [new TransferItemFailure(archivePath, "extract", 0,
-                    $"Could not extract '{Path.GetFileName(archivePath)}': {ex.Message}")],
+                    Str.Format("Compressed.UnzipHere.FailedFormat", Path.GetFileName(archivePath), ex.Message))],
                 [], [], [dest]);
         }
     }
@@ -86,7 +87,7 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
         }
         catch (Exception ex)
         {
-            shell.ShowError($"Could not extract '{Path.GetFileName(filePath)}': {ex.Message}");
+            shell.ShowError(Str.Format("Compressed.UnzipHere.FailedFormat", Path.GetFileName(filePath), ex.Message));
             return false;
         }
     }

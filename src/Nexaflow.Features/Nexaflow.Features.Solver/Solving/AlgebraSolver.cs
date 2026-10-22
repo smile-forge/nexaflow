@@ -1,6 +1,7 @@
 using System.Text;
 using AngouriMath;
 using AngouriMath.Core.Transformations;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 
@@ -20,7 +21,7 @@ public sealed class AlgebraSolver : ISolver
     public string Id => "algebra";
 
     /// <inheritdoc/>
-    public string DisplayName => "Algebra";
+    public string DisplayName => Str.Get("Solver.Name.Algebra");
 
     /// <inheritdoc/>
     public int Order => 10;
@@ -34,22 +35,22 @@ public sealed class AlgebraSolver : ISolver
 
         if (!parsed.IsConstant)
         {
-            chips.Add(new SolverChip(Id, "simplify", "simplify", "≡",
-                "Collect like terms and tidy the expression", parsed));
+            chips.Add(new SolverChip(Id, "simplify", Str.Get("Solver.Chip.Simplify"), "≡",
+                Str.Get("Solver.Chip.SimplifyTip"), parsed));
 
-            chips.Add(new SolverChip(Id, "steps", "steps", "⋯",
-                "Show each identity used to simplify it", parsed));
+            chips.Add(new SolverChip(Id, "steps", Str.Get("Solver.Chip.Steps"), "⋯",
+                Str.Get("Solver.Chip.StepsTip"), parsed));
 
             // Factorisation is univariate over the rationals. Offering it for anything else would
             // produce a refusal rather than an answer, so the shape is checked up front.
             if (parsed.Variables.Count == 1)
-                chips.Add(new SolverChip(Id, "factor", "factor", "×",
-                    "Write it as a product of irreducible factors", parsed));
+                chips.Add(new SolverChip(Id, "factor", Str.Get("Solver.Chip.Factor"), "×",
+                    Str.Get("Solver.Chip.FactorTip"), parsed));
         }
         else if (TryWholeNumber(parsed.Entity, out var n) && n > 1)
         {
-            chips.Add(new SolverChip(Id, "factorint", "factor", "×",
-                "Break it into prime factors", parsed));
+            chips.Add(new SolverChip(Id, "factorint", Str.Get("Solver.Chip.Factor"), "×",
+                Str.Get("Solver.Chip.FactorIntegerTip"), parsed));
         }
 
         return chips;
@@ -59,7 +60,7 @@ public sealed class AlgebraSolver : ISolver
     public Task<SolverResult> SolveAsync(SolverChip chip, SolverInput input, CancellationToken ct)
     {
         if (chip.Payload is not ParsedExpression parsed)
-            return Task.FromResult(SolverResult.Error("The definition changed — press the chip again."));
+            return Task.FromResult(SolverResult.Error(Str.Get("Solver.Result.DefinitionChanged")));
 
         return Task.FromResult(chip.Id switch
         {
@@ -67,7 +68,7 @@ public sealed class AlgebraSolver : ISolver
             "factor" => Factor(parsed),
             "factorint" => FactorInteger(parsed),
             "steps" => Steps(parsed),
-            _ => SolverResult.Error($"Unknown algebra action '{chip.Id}'."),
+            _ => SolverResult.Error(Str.Format("Solver.Result.UnknownAlgebraFormat", chip.Id)),
         });
     }
 
@@ -80,12 +81,12 @@ public sealed class AlgebraSolver : ISolver
             var after = ExpressionParser.Latex(simplified);
 
             return before == after
-                ? new SolverResult($"$$\n{after}\n$$\n\n*Already in its simplest form.*")
+                ? new SolverResult($"$$\n{after}\n$$\n\n{Str.Get("Solver.Result.AlreadySimplest")}")
                 : new SolverResult(ExpressionParser.WithProviso($"$$\n{before} = {after}\n$$", simplified));
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not simplify that: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.SimplifyFailedFormat", e.Message));
         }
     }
 
@@ -98,20 +99,18 @@ public sealed class AlgebraSolver : ISolver
             var factored = MathS.Polynomials.Factor(parsed.Entity, variable);
             if (factored is null)
                 return SolverResult.Error(
-                    $"That is not a polynomial in **{variable.Name}** with rational coefficients, " +
-                    $"or its degree is above {MaxFactorDegree} — so it cannot be factorised over the rationals. " +
-                    "**Solve** will have a go at it.");
+                    Str.Format("Solver.Result.NotAPolynomialFormat", variable.Name, MaxFactorDegree));
 
             var before = ExpressionParser.Latex(parsed.ForDisplay);
             var after = ExpressionParser.Latex(factored);
 
             return before == after
-                ? new SolverResult($"$$\n{after}\n$$\n\n*Irreducible over the rationals — this is the answer, not a refusal.*")
+                ? new SolverResult($"$$\n{after}\n$$\n\n{Str.Get("Solver.Result.Irreducible")}")
                 : new SolverResult($"$$\n{before} = {after}\n$$");
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not factorise that: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.FactoriseFailedFormat", e.Message));
         }
     }
 
@@ -120,10 +119,10 @@ public sealed class AlgebraSolver : ISolver
         try
         {
             if (!TryWholeNumber(parsed.Entity, out var n))
-                return SolverResult.Error("That is not a whole number.");
+                return SolverResult.Error(Str.Get("Solver.Result.NotWholeNumber"));
 
             var parts = MathS.NumberTheory.Factorize(n).ToList();
-            if (parts.Count == 0) return SolverResult.Error("That number has no prime factorisation.");
+            if (parts.Count == 0) return SolverResult.Error(Str.Get("Solver.Result.NoPrimeFactorisation"));
 
             var product = string.Join(" \\times ", parts.Select(p =>
                 p.power == 1 ? p.prime.ToString() : $"{p.prime}^{{{p.power}}}"));
@@ -132,13 +131,13 @@ public sealed class AlgebraSolver : ISolver
             sb.Append("$$\n").Append(n).Append(" = ").Append(product).Append("\n$$");
 
             if (parts.Count == 1 && parts[0].power == 1)
-                sb.Append("\n\n*Prime.*");
+                sb.Append("\n\n").Append(Str.Get("Solver.Result.Prime"));
 
             return new SolverResult(sb.ToString());
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not factorise that: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.FactoriseFailedFormat", e.Message));
         }
     }
 
@@ -152,10 +151,10 @@ public sealed class AlgebraSolver : ISolver
         {
             var path = DerivationPath.OfSimplifying(parsed.Entity);
             if (path is null)
-                return SolverResult.Error("The engine could not reconstruct how it got there. **Solve by steps** will explain it instead.");
+                return SolverResult.Error(Str.Get("Solver.Result.NoDerivation"));
 
             if (path.Steps.Count == 0)
-                return new SolverResult($"$$\n{ExpressionParser.Latex(path.Result)}\n$$\n\n*Already in its simplest form — there were no steps to take.*");
+                return new SolverResult($"$$\n{ExpressionParser.Latex(path.Result)}\n$$\n\n{Str.Get("Solver.Result.NoStepsToTake")}");
 
             var sb = new StringBuilder();
             sb.Append("$$\n\\begin{aligned}\n");
@@ -170,14 +169,13 @@ public sealed class AlgebraSolver : ISolver
             sb.Append("\\end{aligned}\n$$");
 
             if (path.ExpressionsExplored > path.Steps.Count + 1)
-                sb.Append("\n\n*The engine explored ").Append(path.ExpressionsExplored)
-                  .Append(" expressions and kept this chain.*");
+                sb.Append("\n\n").Append(Str.Format("Solver.Result.ExploredFormat", path.ExpressionsExplored));
 
             return new SolverResult(sb.ToString());
         }
         catch (Exception e)
         {
-            return SolverResult.Error($"Could not derive the working: {e.Message}");
+            return SolverResult.Error(Str.Format("Solver.Result.DerivationFailedFormat", e.Message));
         }
     }
 

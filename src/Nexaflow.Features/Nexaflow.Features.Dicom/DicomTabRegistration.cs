@@ -5,6 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Dicom.Services;
 using Nexaflow.Features.Dicom.ViewModels;
 using Nexaflow.Features.Dicom.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom;
 
@@ -66,7 +67,7 @@ public sealed class DicomTabRegistration : IPageRegistration
         if (paths.Count == 1)
             page.SetFileBreadcrumbs(paths[0], title);
         else if (paths.Count > 1)
-            page.SetMultiFileBreadcrumbs(paths, $"{paths.Count} DICOM files");
+            page.SetMultiFileBreadcrumbs(paths, Str.Format("Dicom.Page.FilesFormat", paths.Count));
 
         return page;
     }

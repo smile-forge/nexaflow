@@ -13,6 +13,7 @@ using Nexaflow.Features.VirtualDisk.Models;
 using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.ViewModels;
 
@@ -58,6 +59,10 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
 
     private readonly List<DiskNode> _roots = [];
 
+    /// <summary>The image's facts as read — invariant values the AI tools report. The bound <c>Format</c>,
+    /// <c>PartitionScheme</c> and <see cref="Volumes"/> are their labels in the person's language.</summary>
+    private DiskInfo? _info;
+
     /// <summary>The initial-load task — awaited by tests; not part of the UI flow.</summary>
     internal Task WhenLoaded { get; }
 
@@ -66,7 +71,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         _shell = shell;
         _vfs = vfs;
         _diskPath = path ?? string.Empty;
-        FileName = string.IsNullOrEmpty(_diskPath) ? "Disk image" : Path.GetFileName(_diskPath);
+        FileName = string.IsNullOrEmpty(_diskPath) ? Str.Get("VirtualDisk.Info.UntitledImage") : Path.GetFileName(_diskPath);
         CanMount = !string.IsNullOrEmpty(_diskPath) && MountSupport.CanMount(_diskPath);
         WhenLoaded = LoadAsync();
     }
@@ -82,14 +87,14 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
             if (string.IsNullOrEmpty(_diskPath) || !File.Exists(_diskPath))
             {
                 IsRecognised = false;
-                Format = "No file";
-                StatusText = "No disk image to show.";
+                Format = Str.Get("VirtualDisk.Info.NoFile");
+                StatusText = Str.Get("VirtualDisk.Status.NoImage");
                 return;
             }
 
             DiskInfo? info = null;
             string? error = null;
-            await RunBusy("Reading disk…", () =>
+            await RunBusy(Str.Get("VirtualDisk.Status.ReadingDisk"), () =>
             {
                 try { using var reader = DiskImageReader.Open(_diskPath); info = reader.Describe(); }
                 catch (Exception ex) { error = ex.Message; }
@@ -98,31 +103,47 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
             if (info is null || info.Volumes.Count == 0)
             {
                 IsRecognised = false;
-                Format = info?.Format ?? "Unrecognised";
+                Format = info is null ? Str.Get("VirtualDisk.Info.Unrecognised") : FormatLabel(info.Format);
                 StatusText = error is null
-                    ? "No readable filesystem found in this image."
-                    : $"Couldn't read image: {error}";
+                    ? Str.Get("VirtualDisk.Status.NoFileSystem")
+                    : Str.Format("VirtualDisk.Status.ReadFailedFormat", error);
                 return;
             }
 
+            _info = info;
             IsRecognised = true;
-            Format = info.Format;
+            Format = FormatLabel(info.Format);
             CapacityText = info.Capacity > 0 ? SizeFormatter.FormatBytes(info.Capacity) : "—";
-            PartitionScheme = info.PartitionScheme;
+            PartitionScheme = PartitionSchemeLabel(info.PartitionScheme);
             Volumes.Clear();
             foreach (var v in info.Volumes) Volumes.Add(DiskVolumeRow.From(v));
 
             await LoadRootAsync();
-            StatusText = $"{info.Volumes.Count} volume{(info.Volumes.Count == 1 ? "" : "s")}";
+            StatusText = info.Volumes.Count == 1
+                ? Str.Get("VirtualDisk.Status.OneVolume")
+                : Str.Format("VirtualDisk.Status.VolumesFormat", info.Volumes.Count);
         }
         finally { IsLoaded = true; }
     }
+
+    /// <summary>The format as the metadata pane shows it. Container and filesystem names are technical
+    /// notation and read the same in every language; only the raw-image name is a phrase.</summary>
+    private static string FormatLabel(string format) =>
+        format == DiskInfo.RawDiskFormat ? Str.Get("VirtualDisk.Info.RawDisk") : format;
+
+    /// <summary>The partition scheme as the metadata pane shows it: GPT and MBR are names, the other two are words.</summary>
+    private static string PartitionSchemeLabel(string scheme) => scheme switch
+    {
+        DiskInfo.NoPartitionScheme    => Str.Get("VirtualDisk.Info.NoPartitionScheme"),
+        DiskInfo.OtherPartitionScheme => Str.Get("VirtualDisk.Info.OtherPartitionScheme"),
+        _                             => scheme,
+    };
 
     private async Task LoadRootAsync()
     {
         _roots.Clear();
         IReadOnlyList<VirtualEntry> entries = [];
-        await RunBusy("Reading…", () => entries = _vfs.EnumerateEntries(_diskPath));
+        await RunBusy(Str.Get("VirtualDisk.Status.Reading"), () => entries = _vfs.EnumerateEntries(_diskPath));
         foreach (var e in Order(entries))
             _roots.Add(NewNode(e, string.Empty, 0));
         RebuildVisibleRows();
@@ -170,7 +191,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         if (node.Loaded) return;
         var path = VfsPath(node.InnerPath);
         IReadOnlyList<VirtualEntry> entries = [];
-        await RunBusy("Reading…", () => entries = _vfs.EnumerateEntries(path));
+        await RunBusy(Str.Get("VirtualDisk.Status.Reading"), () => entries = _vfs.EnumerateEntries(path));
         node.Children.Clear();
         foreach (var e in Order(entries))
             node.Children.Add(NewNode(e, node.InnerPath, node.Depth + 1));
@@ -206,8 +227,8 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         var dest = await _shell.PickFolderAsync(Path.GetDirectoryName(_diskPath));
         if (string.IsNullOrEmpty(dest)) return;
         var path = _diskPath;
-        await RunBusy("Extracting…", () => _vfs.ExtractAll(path, dest));
-        StatusText = $"Extracted to {dest}";
+        await RunBusy(Str.Get("VirtualDisk.Status.Extracting"), () => _vfs.ExtractAll(path, dest));
+        StatusText = Str.Format("VirtualDisk.Status.ExtractedToFormat", dest);
     }
 
     [RelayCommand(CanExecute = nameof(CanMount))]
@@ -227,13 +248,18 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     /// <summary>Held until the superblock read finishes, so the AI never sees a mid-load state.</summary>
     public bool IsContextReady => IsLoaded;
 
+    /// <summary>The image's name as the model reads it. <see cref="FileName"/> is the person's label, which for a
+    /// tab with no file is a phrase in their language.</summary>
+    private string ContextFileName => string.IsNullOrEmpty(_diskPath) ? "Disk image" : Path.GetFileName(_diskPath);
+
     public string GetContext()
     {
         if (!IsLoaded)
-            return $"Virtual disk image '{FileName}' — still reading…";
-        if (!IsRecognised)
-            return $"Virtual disk image '{FileName}' — unrecognised or unreadable.";
-        return $"Virtual disk image '{FileName}' ({Format}, {PartitionScheme}) — " +
+            return $"Virtual disk image '{ContextFileName}' — still reading…";
+        // The image's own facts, not the bound display labels: the model reads English whatever the UI language.
+        if (!IsRecognised || _info is not { } info)
+            return $"Virtual disk image '{ContextFileName}' — unrecognised or unreadable.";
+        return $"Virtual disk image '{ContextFileName}' ({info.Format}, {info.PartitionScheme}) — " +
                $"{Volumes.Count} volume{(Volumes.Count == 1 ? "" : "s")}, capacity {CapacityText}.\n" +
                "(Use list_volumes for the volume table, list_files to browse an in-disk folder, " +
                "or read_file to read one file's text — all read the image without extracting.)";
@@ -255,7 +281,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
             [],
             ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(
-                IsRecognised ? ListVolumes() : ToolResult.Error("No readable disk image is loaded."))),
+                IsRecognised && _info is { } info ? ListVolumes(info) : ToolResult.Error("No readable disk image is loaded."))),
 
         new DelegateClientTool(
             "list_files",
@@ -290,19 +316,23 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     private const int  MaxListedEntries = 1000;
     private const long MaxFileReadBytes = 256 * 1024;
 
-    private ToolResult ListVolumes()
+    /// <summary>The volume table for the model, built from the image's own facts: the metadata pane's rows are
+    /// labels in the person's language, and the model reads English.</summary>
+    private static ToolResult ListVolumes(DiskInfo info)
     {
+        var count = $"{info.Volumes.Count} volume{(info.Volumes.Count == 1 ? "" : "s")}";
+        var capacity = info.Capacity > 0 ? SizeFormatter.FormatBytes(info.Capacity) : "—";
         var sb = new StringBuilder();
-        sb.Append($"{Format} image — {Volumes.Count} volume{(Volumes.Count == 1 ? "" : "s")}, "
-                + $"{PartitionScheme} partition scheme, capacity "
-                + $"{(string.IsNullOrEmpty(CapacityText) ? "—" : CapacityText)}.\n");
-        foreach (var v in Volumes)
+        sb.Append($"{info.Format} image — {count}, {info.PartitionScheme} partition scheme, capacity {capacity}.\n");
+        foreach (var v in info.Volumes)
         {
-            sb.Append($"  {v.Title} — {v.Detail}");
-            if (!string.IsNullOrEmpty(v.Usage)) sb.Append($" ({v.Usage})");
+            var detail = v.Label is null ? v.FileSystem : $"{v.FileSystem} · {v.Label}";
+            sb.Append($"  Volume {v.Index} — {detail}");
+            if (v.Capacity > 0)
+                sb.Append($" ({SizeFormatter.FormatBytes(v.Used)} used of {SizeFormatter.FormatBytes(v.Capacity)})");
             sb.Append('\n');
         }
-        return ToolResult.Ok($"{Volumes.Count} volume{(Volumes.Count == 1 ? "" : "s")}", sb.ToString().TrimEnd('\n'));
+        return ToolResult.Ok(count, sb.ToString().TrimEnd('\n'));
     }
 
     private ToolResult ListFiles(string? innerPath)

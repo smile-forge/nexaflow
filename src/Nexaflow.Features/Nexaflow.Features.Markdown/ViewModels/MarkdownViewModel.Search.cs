@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 using System;
 using System.Collections.Generic;
@@ -145,7 +146,7 @@ public sealed partial class MarkdownViewModel : ISearchable
                 if (hits.Count < SearchHitCap)
                     hits.Add(new SearchHit(
                         matches.Count.ToString(CultureInfo.InvariantCulture),
-                        $"line {line.Index + 1}", line.Text.Trim()));
+                        Str.Format("Markdown.Search.LineFormat", line.Index + 1), line.Text.Trim()));
             }
         }
 
@@ -166,7 +167,7 @@ public sealed partial class MarkdownViewModel : ISearchable
         MiniMapMarks     = RenderedMarkPositions?.Invoke() ?? [];
 
         var hits = matches.Take(SearchHitCap)
-            .Select(m => new SearchHit(m.Ordinal.ToString(CultureInfo.InvariantCulture), $"match {m.Ordinal + 1}", m.Preview))
+            .Select(m => new SearchHit(m.Ordinal.ToString(CultureInfo.InvariantCulture), Str.Format("Markdown.Search.MatchFormat", m.Ordinal + 1), m.Preview))
             .ToList();
         return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }

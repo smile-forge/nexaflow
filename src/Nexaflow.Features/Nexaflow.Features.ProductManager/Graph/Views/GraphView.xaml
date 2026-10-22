@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.ProductManager.Graph.Converters"
              AutomationProperties.AutomationId="GraphView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -20,25 +21,25 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal">
-                <Button Style="{StaticResource TbBtn}" Content="Reset view" Click="OnResetClick"
-                        AutomationProperties.AutomationId="Graph_ResetView" ToolTip="Fit the current neighbourhood to the window"/>
-                <Button Style="{StaticResource TbBtn}" Content="← Back" Command="{Binding BackCommand}"
-                        AutomationProperties.AutomationId="Graph_Back" ToolTip="Go back to the previous focus"/>
-                <Button Style="{StaticResource TbBtn}" Content="◎ Root" Command="{Binding ResetFocusCommand}"
-                        AutomationProperties.AutomationId="Graph_ResetFocus" ToolTip="Re-centre on the product root"/>
-                <TextBlock Text="Depth" VerticalAlignment="Center" Margin="12,0,4,0" FontSize="11"
+                <Button Style="{StaticResource TbBtn}" Content="{loc:Str ProductManager.Graph.Toolbar.ResetView}" Click="OnResetClick"
+                        AutomationProperties.AutomationId="Graph_ResetView" ToolTip="{loc:Str ProductManager.Graph.Toolbar.ResetViewTip}"/>
+                <Button Style="{StaticResource TbBtn}" Content="{loc:Str ProductManager.Graph.Toolbar.Back}" Command="{Binding BackCommand}"
+                        AutomationProperties.AutomationId="Graph_Back" ToolTip="{loc:Str ProductManager.Graph.Toolbar.BackTip}"/>
+                <Button Style="{StaticResource TbBtn}" Content="{loc:Str ProductManager.Graph.Toolbar.Root}" Command="{Binding ResetFocusCommand}"
+                        AutomationProperties.AutomationId="Graph_ResetFocus" ToolTip="{loc:Str ProductManager.Graph.Toolbar.RootTip}"/>
+                <TextBlock Text="{loc:Str ProductManager.Graph.Toolbar.Depth}" VerticalAlignment="Center" Margin="12,0,4,0" FontSize="11"
                            Foreground="{StaticResource TextMutedBrush}"/>
                 <Slider Minimum="1" Maximum="10" Value="{Binding HopRadius}" Width="90" VerticalAlignment="Center"
                         IsSnapToTickEnabled="True" TickFrequency="1" AutomationProperties.AutomationId="Graph_Depth"
-                        ToolTip="How many edges out from the focused node to show"/>
+                        ToolTip="{loc:Str ProductManager.Graph.Toolbar.DepthTip}"/>
                 <TextBlock Text="{Binding HopRadius}" VerticalAlignment="Center" Margin="4,0,0,0" FontSize="11"
                            Foreground="{StaticResource TextBrush}"/>
-                <TextBlock Text="Conf ≥" VerticalAlignment="Center" Margin="14,0,4,0" FontSize="11"
+                <TextBlock Text="{loc:Str ProductManager.Graph.Toolbar.MinConfidence}" VerticalAlignment="Center" Margin="14,0,4,0" FontSize="11"
                            Foreground="{StaticResource TextMutedBrush}"/>
                 <Slider Minimum="0" Maximum="1" Value="{Binding MinConfidence}" Width="80" VerticalAlignment="Center"
                         AutomationProperties.AutomationId="Graph_MinConfidence"
-                        ToolTip="Hide inferred edges below this confidence (calls/instantiates are name-resolved)"/>
-                <TextBlock Text="{Binding FocusLabel, StringFormat='· focus: {0}'}" VerticalAlignment="Center"
+                        ToolTip="{loc:Str ProductManager.Graph.Toolbar.MinConfidenceTip}"/>
+                <TextBlock Text="{Binding FocusLabel, StringFormat={loc:Str ProductManager.Graph.Toolbar.FocusFormat}}" VerticalAlignment="Center"
                            Margin="12,0,0,0" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                            TextTrimming="CharacterEllipsis" MaxWidth="240"/>
                 <TextBlock Text="{Binding CapNote}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"
@@ -175,7 +176,7 @@
                                           Background="Transparent" BorderThickness="0" Padding="2,0" Cursor="Hand"
                                           VerticalAlignment="Center" Focusable="False"
                                           AutomationProperties.AutomationId="Graph_SegmentsToggle"
-                                          ToolTip="Collapse / expand the segment list">
+                                          ToolTip="{loc:Str ProductManager.Graph.Segments.ToggleTip}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
                                         <TextBlock x:Name="Gly" Text="▾" FontSize="10"
@@ -190,19 +191,19 @@
                             </ToggleButton>
                             <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0"
                                        FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                       Text="{Binding Communities.Count, StringFormat='Segments ({0})'}"/>
-                            <Button Grid.Column="2" Content="All" Style="{StaticResource TbBtn}"
+                                       Text="{Binding Communities.Count, StringFormat={loc:Str ProductManager.Graph.Segments.HeaderFormat}}"/>
+                            <Button Grid.Column="2" Content="{loc:Str ProductManager.Graph.Segments.ShowAll}" Style="{StaticResource TbBtn}"
                                     Command="{Binding ShowAllCommunitiesCommand}"
                                     AutomationProperties.AutomationId="Graph_ShowAllSegments"
-                                    ToolTip="Show every community"/>
+                                    ToolTip="{loc:Str ProductManager.Graph.Segments.ShowAllTip}"/>
                         </Grid>
 
                         <!-- hyperedges toggle -->
                         <CheckBox Margin="10,0,8,6" IsChecked="{Binding ShowHyperEdges}"
                                   Visibility="{Binding HasHyperEdges, Converter={StaticResource BoolToVis}}"
                                   AutomationProperties.AutomationId="Graph_ToggleHyperEdges"
-                                  ToolTip="Draw the n-ary hyperedges (signature / annotated / calls)">
-                            <TextBlock Text="⬡ Hyperedges" FontSize="11" Foreground="{StaticResource TextBrush}"/>
+                                  ToolTip="{loc:Str ProductManager.Graph.Segments.HyperEdgesTip}">
+                            <TextBlock Text="{loc:Str ProductManager.Graph.Segments.HyperEdges}" FontSize="11" Foreground="{StaticResource TextBrush}"/>
                         </CheckBox>
 
                         <!-- community rows -->
@@ -241,7 +242,7 @@
         <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
             <Grid>
-                <TextBlock Text="Select a node to inspect it." Margin="16" TextWrapping="Wrap"
+                <TextBlock Text="{loc:Str ProductManager.Graph.Drawer.Placeholder}" Margin="16" TextWrapping="Wrap"
                            Foreground="{StaticResource TextMutedBrush}"
                            Visibility="{Binding ShowNodePlaceholder, Converter={StaticResource BoolToVis}}"/>
 
@@ -256,12 +257,12 @@
                         <TextBlock Text="{Binding Id}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
                                    Foreground="{StaticResource TextMutedBrush}"/>
 
-                        <TextBlock Text="{Binding FilePath, StringFormat='File: {0}'}" FontSize="11" TextWrapping="Wrap"
+                        <TextBlock Text="{Binding FilePath, StringFormat={loc:Str ProductManager.Graph.Drawer.FileFormat}}" FontSize="11" TextWrapping="Wrap"
                                    Foreground="{StaticResource TextBrush}"
                                    Visibility="{Binding HasFile, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Text="{Binding Language, StringFormat='Language: {0}'}" FontSize="11"
+                        <TextBlock Text="{Binding Language, StringFormat={loc:Str ProductManager.Graph.Drawer.LanguageFormat}}" FontSize="11"
                                    Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Text="{Binding ConfidenceText, StringFormat='Confidence: {0}'}" FontSize="11"
+                        <TextBlock Text="{Binding ConfidenceText, StringFormat={loc:Str ProductManager.Graph.Drawer.ConfidenceFormat}}" FontSize="11"
                                    Foreground="{StaticResource TextBrush}"/>
 
                         <ItemsControl ItemsSource="{Binding MetadataPairs}" Margin="0,6,0,0">
@@ -269,7 +270,7 @@
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
                                         <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="{Binding Key, StringFormat='{}{0}: '}"/>
+                                                   Text="{Binding Key, StringFormat={loc:Str ProductManager.Graph.Drawer.MetadataKeyFormat}}"/>
                                         <TextBlock FontSize="11" Foreground="{StaticResource TextBrush}"
                                                    TextWrapping="Wrap" Text="{Binding Value}"/>
                                     </StackPanel>
@@ -277,7 +278,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Button Content="Open in Code" Margin="0,12,0,0" HorizontalAlignment="Left"
+                        <Button Content="{loc:Str ProductManager.Graph.Drawer.OpenInCode}" Margin="0,12,0,0" HorizontalAlignment="Left"
                                 Style="{StaticResource TbBtn}"
                                 Visibility="{Binding HasFile, Converter={StaticResource BoolToVis}}"
                                 Command="{Binding DataContext.OpenInCodeCommand,

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat;
 
@@ -19,6 +20,10 @@ public sealed class ConversationAnalysisTask : IBackgroundTask
     private readonly List<ConversationMessage> _messages;
     private readonly List<string> _attachments;
 
+    /// <summary>The title the task list shows: the record's own, or the localized name of a fresh one. The
+    /// transcript the model reads keeps the record's own, <see cref="_title"/>.</summary>
+    private readonly string _displayTitle;
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented               = true,
@@ -32,9 +37,10 @@ public sealed class ConversationAnalysisTask : IBackgroundTask
         _title          = conversation.Title;
         _messages       = [.. conversation.Messages];
         _attachments    = [.. conversation.Attachments];
+        _displayTitle   = ViewModels.ConversationViewModel.DisplayTitle(conversation);
     }
 
-    public string Description => $"Analyzing conversation: {_title}";
+    public string Description => Str.Format("AIChat.Task.AnalyzingFormat", _displayTitle);
 
     public async Task RunAsync(CancellationToken ct)
     {

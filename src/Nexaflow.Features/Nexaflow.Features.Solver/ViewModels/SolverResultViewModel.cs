@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Solver.Solving;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.ViewModels;
 
@@ -87,7 +88,7 @@ public sealed partial class SolverResultViewModel : ObservableObject, IDisposabl
     /// <summary>Records a cancellation as a quiet, non-error outcome.</summary>
     public void Cancelled()
     {
-        Markdown = "*Cancelled.*";
+        Markdown = Str.Get("Solver.Result.Cancelled");
         IsError = false;
         IsBusy = false;
     }

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Localization;
 using System.Windows;
 
 namespace Nexaflow.Features.Projects.Viewlets;
@@ -10,7 +11,7 @@ public sealed class AiSummaryViewlet : IFolderViewlet
 
     public AiSummaryViewlet(ProjectsConfig config) => _config = config;
 
-    public string DisplayName    => "AI Summary";
+    public string DisplayName    => Str.Get("Projects.Viewlet.AiSummary");
     public bool   AppliesToDrives => false;
 
     public string[]? ContainsFileGlobs => [".aisummary"];

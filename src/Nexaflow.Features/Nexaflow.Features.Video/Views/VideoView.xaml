@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:Nexaflow.Features.Video.Views"
              xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="VideoView"
              Focusable="True"
              Background="{StaticResource BgBrush}">
@@ -48,7 +49,7 @@
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="🎬" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="Loading…" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Str Video.View.Loading}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
@@ -78,7 +79,7 @@
                 Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1,0,0,0">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Media Info" Margin="14,12,14,6"
+                <TextBlock DockPanel.Dock="Top" Text="{loc:Str Video.Info.Title}" Margin="14,12,14,6"
                            FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding MediaInfo.Sections}" Margin="14,0,14,12">
@@ -95,7 +96,7 @@
                                                         <ColumnDefinition Width="110"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                    <TextBlock Grid.Column="0" Text="{Binding Label}" TextWrapping="Wrap" Margin="0,0,6,0"
                                                                Foreground="{StaticResource TextMutedBrush}"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
                                                                Foreground="{StaticResource TextBrush}"/>

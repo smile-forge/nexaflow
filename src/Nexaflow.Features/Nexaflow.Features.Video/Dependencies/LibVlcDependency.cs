@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video.Dependencies;
 
@@ -17,11 +18,9 @@ public sealed class LibVlcDependency : IExternalDependency
     private static string NativeDir => Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
 
     public string Id          => DependencyId;
-    public string DisplayName => "VLC media libraries (libvlc)";
+    public string DisplayName => Str.Get("Video.Dependency.LibVlc.Name");
 
-    public string Description =>
-        "Decodes audio and video for the media player. Ships with Nexaflow — if this is missing, the "
-        + "installation is incomplete and video playback will fail.";
+    public string Description => Str.Get("Video.Dependency.LibVlc.Description");
 
     public ExternalDependencyKind Kind => ExternalDependencyKind.Required;
 
@@ -33,12 +32,12 @@ public sealed class LibVlcDependency : IExternalDependency
         var dir = NativeDir;
         if (!Directory.Exists(dir))
             return new ExternalDependencyStatus(ExternalDependencyState.Missing, null,
-                $"Expected the libvlc natives at {dir}.");
+                Str.Format("Video.Dependency.LibVlc.MissingFolderFormat", dir));
 
         // The folder alone is not proof — the core DLL is what LibVLCSharp actually loads.
         return File.Exists(Path.Combine(dir, "libvlc.dll"))
             ? new ExternalDependencyStatus(ExternalDependencyState.Present, null, dir)
             : new ExternalDependencyStatus(ExternalDependencyState.Missing, null,
-                $"Found {dir} but no libvlc.dll inside it.");
+                Str.Format("Video.Dependency.LibVlc.MissingDllFormat", dir));
     }
 }

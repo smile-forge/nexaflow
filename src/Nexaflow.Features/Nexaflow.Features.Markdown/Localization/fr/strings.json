@@ -1,0 +1,21 @@
+{
+  "Markdown.Action.EditorDescription": "Éditeur Markdown",
+  "Markdown.Action.Music": "Musique",
+  "Markdown.Action.MusicDescription": "Éditeur de notation musicale",
+  "Markdown.Toolbar.ViewModeTip": "Affichage : le document rendu, les deux côte à côte ou la source Markdown brute",
+  "Markdown.Toolbar.ModeRendered": "Rendu",
+  "Markdown.Toolbar.ModeSplit": "Fractionné",
+  "Markdown.Toolbar.ModeSource": "Source",
+  "Markdown.Toolbar.Save": "Enregistrer",
+  "Markdown.Toolbar.SaveTip": "Enregistrer (Ctrl+S)",
+  "Markdown.Toolbar.SaveAs": "Enregistrer sous…",
+  "Markdown.Toolbar.SaveAsTip": "Enregistrer dans un autre fichier (Ctrl+Maj+S)",
+  "Markdown.Footer.WordsFormat": "{0:N0} mots",
+  "Markdown.Footer.LinesFormat": "{0:N0} lignes",
+  "Markdown.Footer.Unsaved": "Modifications non enregistrées",
+  "Markdown.SaveAs.Package": "Package Markdown",
+  "Markdown.Search.LineFormat": "ligne {0}",
+  "Markdown.Search.MatchFormat": "occurrence {0}",
+  "Markdown.Error.SaveFailedFormat": "Le document n'a pas pu être enregistré : {0}",
+  "Markdown.Error.PictureSaveFailedFormat": "Impossible d'enregistrer l'image dans {0} : {1}"
+}

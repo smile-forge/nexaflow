@@ -1,0 +1,14 @@
+{
+  "Notebook.Action.AsNotebook": "En tant que notebook",
+  "Notebook.Action.ExperienceDescription": "Visionneuse de notebooks Jupyter : cellules, Markdown rendu, code avec coloration syntaxique et plan",
+  "Notebook.Page.Title": "Notebook",
+  "Notebook.Cell.InputLabelFormat": "Entrée [{0}]",
+  "Notebook.Outline.Title": "Plan",
+  "Notebook.Outline.CellFormat": "Cellule {0}",
+  "Notebook.Search.SelectedFormat": "{0} sélectionnée(s)",
+  "Notebook.Search.NoCellsFormat": "« {0} » ne contient aucune cellule où rechercher.",
+  "Notebook.Search.StillParsingFormat": "« {0} » est encore en cours d'analyse — réessayez dans un instant.",
+  "Notebook.Search.HitCodeFormat": "Cellule {0} (code)",
+  "Notebook.Search.HitMarkdownFormat": "Cellule {0} (Markdown)",
+  "Notebook.Search.HitRawFormat": "Cellule {0} (brute)"
+}

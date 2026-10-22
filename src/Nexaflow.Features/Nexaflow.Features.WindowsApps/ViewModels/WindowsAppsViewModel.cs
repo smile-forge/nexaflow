@@ -12,6 +12,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 
@@ -176,10 +177,10 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         if (item is null) return;
 
         var kind = item.App.Source == AppSource.Store
-            ? "This will remove the Store app for your account."
-            : "This launches the program's own uninstaller, which may prompt for confirmation or elevation.";
+            ? Str.Get("WindowsApps.Uninstall.ConfirmStore")
+            : Str.Get("WindowsApps.Uninstall.ConfirmWin32");
 
-        if (!await _shell.ConfirmAsync($"Uninstall {item.Name}?", kind))
+        if (!await _shell.ConfirmAsync(Str.Format("WindowsApps.Uninstall.ConfirmTitleFormat", item.Name), kind))
             return;
 
         var task = new UninstallAppTask(_service, item.App);
@@ -188,7 +189,7 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
             if (task.Result.Success)
                 Refresh();
             else
-                _shell.ShowError($"Couldn't uninstall {item.Name}: {task.Result.Error}");
+                _shell.ShowError(Str.Format("WindowsApps.Uninstall.FailedFormat", item.Name, task.Result.Error));
         });
     }
 
@@ -207,7 +208,7 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
             if (task.Result.Success) Refresh();   // features may have changed → re-read the entry
-            else _shell.ShowError($"Couldn't change {item.Name}: {task.Result.Error}");
+            else _shell.ShowError(Str.Format("WindowsApps.Modify.FailedFormat", item.Name, task.Result.Error));
         });
     }
 
@@ -250,17 +251,15 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         if (item is null || !item.IsOrphaned) return;
 
         var ok = await _shell.ConfirmAsync(
-            $"Remove {item.Name} from the list?",
-            "This entry looks like a leftover — its files and uninstaller can't be found. " +
-            "This removes the registry entry only; it does not delete any files.");
+            Str.Format("WindowsApps.RemoveRecord.ConfirmTitleFormat", item.Name),
+            Str.Get("WindowsApps.RemoveRecord.ConfirmMessage"));
         if (!ok) return;
 
         var task = new DeleteAppRecordTask(_service, item.App);
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
             if (task.Succeeded) Refresh();
-            else _shell.ShowError($"Couldn't remove the entry for {item.Name}. " +
-                                  "Removing a machine-wide entry may require running as administrator.");
+            else _shell.ShowError(Str.Format("WindowsApps.RemoveRecord.FailedFormat", item.Name));
         });
     }
 
@@ -329,7 +328,7 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         if (kept == 0) return Task.FromResult(false);
 
         _suppressFilterReset = true;
-        FilterText     = $"{kept} selected";
+        FilterText     = Str.Format("WindowsApps.Filter.SelectedFormat", kept);
         _filterRequest = null;
         _pinnedNames   = names;
         _suppressFilterReset = false;

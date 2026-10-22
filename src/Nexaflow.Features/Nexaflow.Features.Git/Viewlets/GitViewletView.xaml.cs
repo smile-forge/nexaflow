@@ -40,7 +40,7 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         var menu = new ContextMenu { PlacementTarget = BranchButton, Placement = PlacementMode.Bottom };
         foreach (var name in _vm.LocalBranches)
         {
-            var item = new MenuItem { Header = name, IsChecked = name == _vm.BranchName };
+            var item = new MenuItem { Header = name, IsChecked = name == _vm.CheckedOutBranch };
             var captured = name;
             item.Click += (_, _) => _vm.SwitchBranchCommand.Execute(captured);
             menu.Items.Add(item);

@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -35,14 +36,13 @@ public sealed partial class ProductSearchViewModel : ISearchable
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (request.HasNameOnlyTerms)
-            return SearchOutcome.Unsupported(
-                "Filename filters don't apply to the graph — search a node name or a word in the source.");
+            return SearchOutcome.Unsupported(Str.Get("ProductManager.Search.Outcome.NameFilters"));
 
         if (request.Terms.Count == 0 || request.Text.Trim().Length == 0)
-            return SearchOutcome.Unsupported("Nothing to search for.");
+            return SearchOutcome.Unsupported(Str.Get("ProductManager.Search.Outcome.Empty"));
 
         if (GraphTextSearch.TryCompile(request) is null)
-            return SearchOutcome.Unsupported($"Invalid regular expression: {request.Text}");
+            return SearchOutcome.Unsupported(Str.Format("ProductManager.Search.Outcome.InvalidRegexFormat", request.Text));
 
         var root = _productRoot;
 
@@ -83,8 +83,8 @@ public sealed partial class ProductSearchViewModel : ISearchable
 
         SearchMatchCount = Results.Count;
         IsSearchActive   = true;
-        if (CurrentSearchTerm.Length == 0) CurrentSearchTerm = $"{kept.Count} selected";
-        StatusText = $"{kept.Count} result(s) kept by the assistant.";
+        if (CurrentSearchTerm.Length == 0) CurrentSearchTerm = Str.Format("ProductManager.Search.Status.SelectedFormat", kept.Count);
+        StatusText = Str.Format("ProductManager.Search.Status.KeptFormat", kept.Count);
         return Task.FromResult(true);
     }
 

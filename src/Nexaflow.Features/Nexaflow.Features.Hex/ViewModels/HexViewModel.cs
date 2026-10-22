@@ -8,6 +8,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hex.ViewModels;
 
@@ -202,9 +203,9 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     private void UpdateSelectionText()
     {
         SelectionText = SelectionLength > 0
-            ? $"Selection: {SelectionLength:N0} bytes  (0x{SelectionStart:X} – 0x{SelectionStart + SelectionLength - 1:X})"
+            ? Str.Format("Hex.Status.SelectionFormat", SelectionLength, SelectionStart, SelectionStart + SelectionLength - 1)
             : CursorOffset >= 0
-                ? $"Offset: 0x{CursorOffset:X8}  ({CursorOffset:N0})"
+                ? Str.Format("Hex.Status.OffsetFormat", CursorOffset)
                 : string.Empty;
     }
 
@@ -367,7 +368,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Save failed: {ex.Message}");
+            _shell.ShowError(Str.Format("Hex.Error.SaveFailedFormat", ex.Message));
         }
     }
 
@@ -393,7 +394,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Save failed: {ex.Message}");
+            _shell.ShowError(Str.Format("Hex.Error.SaveFailedFormat", ex.Message));
         }
     }
 
