@@ -463,41 +463,55 @@ public sealed class MarkdownParser : ITranspile
 
     /// <summary>
     /// How prose spells <paramref name="paragraph"/> — markdown a writer gave as one paragraph, a summary's, say — as a paragraph
-    /// and nothing more: whatever would start a block at the head of one of its lines given the backslash that makes it a
-    /// character, so no heading, list, quote, fence or rule can open in it, and its inline markup — emphasis, code, a link, a
-    /// formula — left to be read as written.
+    /// and nothing more, its inline markup — emphasis, code, a link, a formula — left to be read as written.
+    ///
+    /// <para>
+    /// A line is spelled only where it would be read as more than a paragraph's words: read on its own it opens something else — a
+    /// heading, a list, a quote, a fence, a rule, raw HTML, a link's definition — or it is the underline that would make the line
+    /// above a heading. Such a line loses the space in front of it, which means nothing in a paragraph, and its opening character
+    /// is given the backslash that makes it a character. A line opening nothing is written as it was, so a paragraph starting with
+    /// <c>`code`</c> keeps its code. Where the lines still read as more than one paragraph together — a table made of two — every
+    /// line's opening is spelled.
+    /// </para>
     /// </summary>
     public static string SpellParagraph(string paragraph)
     {
-        var said = new StringBuilder(paragraph.Length);
+        var lines = paragraph.Split('\n');
+        var spelled = new string[lines.Length];
 
-        foreach (var line in paragraph.Split('\n'))
+        for (var at = 0; at < lines.Length; at++)
+            spelled[at] = Opens(lines[at], underlines: at > 0) ? Opening(lines[at].TrimStart()) : lines[at];
+
+        var said = string.Join('\n', spelled);
+        if (OneParagraph(said)) return said;
+
+        return string.Join('\n', lines.Select(line => line.Trim().Length == 0 ? line : Opening(line.TrimStart())));
+    }
+
+    /// <summary>Whether <paramref name="line"/>, standing in a paragraph, would be read as anything but its words.</summary>
+    private static bool Opens(string line, bool underlines)
+    {
+        var said = line.Trim();
+        if (said.Length == 0) return false;
+        if (underlines && said.All(character => character == '=') || underlines && said.All(character => character == '-')) return true;
+
+        return !OneParagraph(line);
+    }
+
+    /// <summary>Whether <paramref name="text"/> is read as one paragraph and nothing else.</summary>
+    private static bool OneParagraph(string text) =>
+        Parsing()(text).Tree.Children.Where(part => !part.IsDerived && part.Role != Roles.Trivia).ToList() is [{ Kind: MarkdownKinds.Paragraph }];
+
+    /// <summary><paramref name="line"/> with what opens it given the backslash that makes it a character: its first, or the mark after the number an item is counted by.</summary>
+    private static string Opening(string line)
+    {
+        for (var mark = 0; mark < line.Length && mark <= 9; mark++)
         {
-            if (said.Length > 0) said.Append('\n');
-
-            var at = 0;
-            while (at < line.Length && line[at] is ' ' or '\t') at++;
-
-            // What a line starts with is read as a block only where nothing but space stands in front of it, or where the number
-            // an item is counted by does.
-            for (var mark = at; mark < line.Length && mark <= at + 9; mark++)
-            {
-                var character = line[mark];
-                var opens = mark == at
-                    ? MarkdownLinkSyntax.Escapable(character) && MarkdownBlockRules.Reading.MayStart(character)
-                    : character is '.' or ')' && Numbered(line, mark);
-
-                if (!opens) continue;
-
-                said.Append(line, 0, mark).Append('\\').Append(line, mark, line.Length - mark);
-                at = -1;
-                break;
-            }
-
-            if (at >= 0) said.Append(line);
+            var opens = mark == 0 ? MarkdownLinkSyntax.Escapable(line[0]) : line[mark] is '.' or ')' && Numbered(line, mark);
+            if (opens) return string.Concat(line.AsSpan(0, mark), "\\", line.AsSpan(mark));
         }
 
-        return said.ToString();
+        return line;
     }
 
     /// <summary>
