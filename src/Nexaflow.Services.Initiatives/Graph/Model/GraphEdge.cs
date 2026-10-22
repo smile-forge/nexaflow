@@ -27,4 +27,12 @@ public sealed class GraphEdge
     public string? ProvenanceFile { get; set; }
 
     public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>An edge equal to this one that shares nothing with it — see <see cref="GraphNode.Copy"/>.</summary>
+    public GraphEdge Copy() => new()
+    {
+        Source = Source, Target = Target, Relationship = Relationship, Weight = Weight, Confidence = Confidence,
+        ProvenanceFile = ProvenanceFile,
+        Metadata = Metadata is null ? null : new Dictionary<string, string>(Metadata, Metadata.Comparer),
+    };
 }

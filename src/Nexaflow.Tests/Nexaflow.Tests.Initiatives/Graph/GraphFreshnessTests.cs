@@ -2,28 +2,28 @@ using System;
 using System.IO;
 using System.Linq;
 using Nexaflow.Services.Initiatives.Graph;
+using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
-/// Whether a query can say something definite about its own answer. Silence about freshness is what makes a
-/// caller assume the worst and go and rebuild something that takes ninety seconds, so a query has to state
-/// either "current" or "these files have moved on".
+/// Which files a graph no longer describes — the one judgement a full scan and a watcher's report both rest on. A file
+/// is judged by the stamp its last read recorded, so a scan costs a stat per file and reads nothing; the cases here are
+/// the ones where getting that judgement wrong either reads the repository for nothing or answers from code as it was.
 /// </summary>
 [TestClass]
 [CoversNode("graph-archive")]
 public class GraphFreshnessTests
 {
     private string _root = "";
-    private string _graphFile = "";
 
     [TestInitialize]
     public void Setup()
     {
         _root = Path.Combine(TestTemp.Root, "nexaflow-freshness", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "src", "Proj"));
-        _graphFile = Path.Combine(_root, "graph.json");
     }
 
     [TestCleanup]
@@ -36,164 +36,189 @@ public class GraphFreshnessTests
     private string File_(string name, string text = "public class C { }\n")
     {
         var rel = $"src/Proj/{name}";
-        System.IO.File.WriteAllText(Path.Combine(_root, "src", "Proj", name), text);
+        File.WriteAllText(Full(rel), text);
         return rel;
     }
 
-    /// <summary>Stamps the graph as built now — the baseline every file is compared against.</summary>
-    private void BuiltNow()
+    private string Full(string rel) => Path.Combine(_root, rel.Replace('/', Path.DirectorySeparatorChar));
+
+    /// <summary>
+    /// A graph that read <paramref name="read"/> just now — each with material and a stamp of the file as it stands — and
+    /// lists <paramref name="listed"/> by name only, the way it lists a project file or an asset.
+    /// </summary>
+    private GraphSnapshot Read(string[] read, params string[] listed)
     {
-        System.IO.File.WriteAllText(_graphFile, "{}");
-        System.IO.File.SetLastWriteTimeUtc(_graphFile, DateTime.UtcNow.AddSeconds(1));
+        var snapshot = new GraphSnapshot();
+        foreach (var rel in read)
+        {
+            snapshot.Cache.Files[rel] = new FileContribution { Hash = "h:" + rel };
+            if (File.Exists(Full(rel)))
+            {
+                var info = new FileInfo(Full(rel));
+                snapshot.Files[rel] = new FileStamp("h:" + rel, info.Length, info.LastWriteTimeUtc);
+            }
+        }
+        foreach (var rel in listed)
+            snapshot.Graph.Nodes.Add(new GraphNode { Id = "file:" + rel, Type = NodeType.File, FilePath = rel, Source = rel });
+        return snapshot;
     }
 
-    private static void TouchedSince(string full) =>
-        System.IO.File.SetLastWriteTimeUtc(full, DateTime.UtcNow.AddMinutes(5));
+    private void TouchedSince(string rel) => File.SetLastWriteTimeUtc(Full(rel), DateTime.UtcNow.AddMinutes(5));
 
     [TestMethod]
-    public void SaysCurrent_WhenNothingHasMoved()
+    public void NothingMoved_FindsNothing()
     {
         var proj = File_("Proj.csproj", "<Project />\n");
         var code = File_("C.cs");
-        BuiltNow();
 
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
-
-        Assert.IsTrue(report.IsCurrent, report.Summary());
-        StringAssert.Contains(report.Summary(), "current");
+        Assert.IsTrue(GraphFreshness.Scan(Read([proj, code]), _root).IsEmpty);
     }
 
     [TestMethod]
-    public void NoticesAFileEditedSinceTheGraphWasBuilt()
+    public void AFileWrittenSinceItWasRead_IsStale_WithItsEntryAsTheScanFoundIt()
     {
         var proj = File_("Proj.csproj", "<Project />\n");
         var code = File_("C.cs");
-        BuiltNow();
-        TouchedSince(Path.Combine(_root, "src", "Proj", "C.cs"));
+        var snapshot = Read([proj, code]);
+        TouchedSince(code);
 
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
+        var drift = GraphFreshness.Scan(snapshot, _root);
 
-        CollectionAssert.Contains(report.Changed.ToList(), code);
-        Assert.IsFalse(report.IsCurrent);
-        StringAssert.Contains(report.Summary(), "--refresh");
+        CollectionAssert.AreEqual(new[] { code }, drift.Stale.Keys.ToList());
+        Assert.AreEqual(File.GetLastWriteTimeUtc(Full(code)), drift.Stale[code].ModifiedUtc,
+            "the entry as found is what a file vouched for without reading is stamped with");
+    }
+
+    /// <summary>
+    /// A stamp is the only evidence that the graph describes a file. A code file with none has never been read — an archive
+    /// from before stamps, or a read the file moved under — so it is read once, and trusted from then on.
+    /// </summary>
+    [TestMethod]
+    public void ACodeFileNeverStamped_IsStale()
+    {
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var code     = File_("C.cs");
+        var snapshot = Read([proj, code]);
+        snapshot.Files.Clear();
+
+        CollectionAssert.Contains(GraphFreshness.Scan(snapshot, _root).Stale.Keys.ToList(), code);
+    }
+
+    /// <summary>An asset is listed by name and never read, so there is no stamp to want: judging it stale would read every
+    /// image in the repository on every scan, to learn nothing the graph uses.</summary>
+    [TestMethod]
+    public void AFileOnlyListed_IsNeverStale()
+    {
+        var proj  = File_("Proj.csproj", "<Project />\n");
+        var image = File_("logo.png", "not really a png");
+
+        Assert.IsTrue(GraphFreshness.Scan(Read([proj], image), _root).IsEmpty);
     }
 
     [TestMethod]
-    public void AFileInAProjectOnlyTheSolutionNames_IsReportedAsAdded()
+    public void AFileInAProjectOnlyTheSolutionNames_IsFoundAdded()
     {
         var proj = File_("Proj.csproj", "<Project />\n");
         var code = File_("C.cs");
         Directory.CreateDirectory(Path.Combine(_root, "src", "New"));
-        System.IO.File.WriteAllText(Path.Combine(_root, "src", "New", "New.csproj"), "<Project />\n");
-        System.IO.File.WriteAllText(Path.Combine(_root, "src", "New", "Fresh.cs"), "public class Fresh { }\n");
-        System.IO.File.WriteAllText(Path.Combine(_root, "App.slnx"),
+        File.WriteAllText(Path.Combine(_root, "src", "New", "New.csproj"), "<Project />\n");
+        File.WriteAllText(Path.Combine(_root, "src", "New", "Fresh.cs"), "public class Fresh { }\n");
+        File.WriteAllText(Path.Combine(_root, "App.slnx"),
             "<Solution>\n  <Project Path=\"src/Proj/Proj.csproj\" />\n  <Project Path=\"src/New/New.csproj\" />\n</Solution>\n");
-        BuiltNow();
 
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
+        var drift = GraphFreshness.Scan(Read([proj, code]), _root);
 
-        CollectionAssert.Contains(report.Added.ToList(), "src/New/Fresh.cs",
+        CollectionAssert.Contains(drift.Added.ToList(), "src/New/Fresh.cs",
                                   "the graph has never read New.csproj, and the solution names it");
-        Assert.IsFalse(report.IsCurrent, "so the graph is not current, whatever it holds");
     }
 
     /// <summary>
-    /// A file the graph knows and this tree does not is <b>reported, never acted on</b>. graph.json is
-    /// shared, and a branch that runs a build publishes its own files into it — so this is as likely to be
-    /// a parallel session's work in progress as a deletion, and nothing here can tell them apart. Treating
-    /// it as staleness and "refreshing" it would delete someone else's feature from the shared graph.
+    /// A file the graph knows and this tree does not is reported as absent, never as stale: re-reading a file that is not
+    /// there can only prune it, and whether that is right — a tree's own graph, or one read on another tree's behalf — is
+    /// the graph's owner's call.
     /// </summary>
     [TestMethod]
-    public void AFileNotInThisTree_IsReportedButNeverQueuedForRefresh()
+    public void AFileNotInThisTree_IsAbsent_NotStale()
     {
         var proj  = File_("Proj.csproj", "<Project />\n");
         var mine  = File_("C.cs");
-        var other = "src/Nexaflow.Maths/Latex/TexNode.cs";      // another branch's work in progress
-        BuiltNow();
+        var other = "src/Nexaflow.Maths/Latex/TexNode.cs";
 
-        var report = GraphFreshness.Check([proj, mine, other], _root, _graphFile);
+        var drift = GraphFreshness.Scan(Read([proj, mine, other]), _root);
 
-        CollectionAssert.Contains(report.Absent.ToList(), other);
-        CollectionAssert.DoesNotContain(report.Stale.ToList(), other,
-            "refreshing an absent file can only prune it, and that would destroy a parallel branch's work");
-        Assert.IsTrue(report.IsCurrent, "the graph knowing something extra does not make this answer wrong");
-        StringAssert.Contains(report.Summary(), "another branch's work");
-    }
-
-    /// <summary>
-    /// Additions are the half that needs a walk, and the walk is scoped to the directories the solution's
-    /// projects live in — a pinned submodule cannot gain a file without a deliberate bump, and scanning for
-    /// one costs four times as much as everything else put together.
-    /// </summary>
-    [TestMethod]
-    public void NoticesANewFileBesideAProject()
-    {
-        var proj = File_("Proj.csproj", "<Project />\n");
-        var code = File_("C.cs");
-        BuiltNow();
-        var added = File_("New.cs");
-
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
-
-        CollectionAssert.Contains(report.Added.ToList(), added);
+        CollectionAssert.AreEqual(new[] { other }, drift.Absent.ToList());
+        Assert.AreEqual(0, drift.Stale.Count);
     }
 
     [TestMethod]
-    public void IgnoresANewFileFarFromAnyProject()
+    public void ANewFileBesideAProject_IsAdded()
     {
-        var proj = File_("Proj.csproj", "<Project />\n");
-        var code = File_("C.cs");
-        BuiltNow();
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var code     = File_("C.cs");
+        var snapshot = Read([proj, code]);
+        var added    = File_("New.cs");
+
+        CollectionAssert.Contains(GraphFreshness.Scan(snapshot, _root).Added.ToList(), added);
+    }
+
+    /// <summary>The walk for additions is scoped to the directories the solution's projects live in — a pinned submodule
+    /// cannot gain a file without a deliberate bump, and scanning for one costs more than everything else together.</summary>
+    [TestMethod]
+    public void ANewFileFarFromAnyProject_IsNotLookedFor()
+    {
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var code     = File_("C.cs");
+        var snapshot = Read([proj, code]);
 
         Directory.CreateDirectory(Path.Combine(_root, "external", "vendor"));
-        System.IO.File.WriteAllText(Path.Combine(_root, "external", "vendor", "Vendor.cs"), "class V { }\n");
+        File.WriteAllText(Path.Combine(_root, "external", "vendor", "Vendor.cs"), "class V { }\n");
 
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
-
-        Assert.AreEqual(0, report.Added.Count,
-            "a file in no project directory is submodule corpus, not something to warn about");
+        Assert.AreEqual(0, GraphFreshness.Scan(snapshot, _root).Added.Count);
     }
 
+    /// <summary>What a watcher reported is all that is judged: the point of watching is not looking at the rest.</summary>
     [TestMethod]
-    public void StaleListsEverythingWorthReReading()
+    public void Of_JudgesOnlyThePathsItIsGiven()
+    {
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var one      = File_("One.cs");
+        var two      = File_("Two.cs");
+        var snapshot = Read([proj, one, two]);
+        TouchedSince(one);
+        TouchedSince(two);
+
+        var drift = GraphFreshness.Of(snapshot, _root, [Full(one)]);
+
+        CollectionAssert.AreEqual(new[] { one }, drift.Stale.Keys.ToList());
+    }
+
+    /// <summary>A folder deleted or renamed whole is one notification, by the folder's name — which has to stand for every
+    /// file the graph knows beneath it.</summary>
+    [TestMethod]
+    public void Of_AFolderThatWentWhole_TakesEveryFileBeneathIt()
     {
         var proj = File_("Proj.csproj", "<Project />\n");
-        var kept = File_("Kept.cs");
-        var gone = File_("Gone.cs");
-        BuiltNow();
+        Directory.CreateDirectory(Path.Combine(_root, "src", "Proj", "Inner"));
+        var a = File_("Inner/A.cs");
+        var b = File_("Inner/B.cs");
+        var snapshot = Read([proj, a, b]);
+        Directory.Delete(Path.Combine(_root, "src", "Proj", "Inner"), recursive: true);
 
-        TouchedSince(Path.Combine(_root, "src", "Proj", "Kept.cs"));
-        System.IO.File.Delete(Path.Combine(_root, "src", "Proj", "Gone.cs"));
-        var added = File_("Added.cs");
+        var drift = GraphFreshness.Of(snapshot, _root, [Path.Combine(_root, "src", "Proj", "Inner")]);
 
-        var stale = GraphFreshness.Check([proj, kept, gone], _root, _graphFile).Stale;
-
-        CollectionAssert.AreEquivalent(new[] { kept, added }, stale.ToList(),
-            "what is worth re-reading is what exists — an absent file is reported, not refreshed");
+        CollectionAssert.AreEquivalent(new[] { a, b }, drift.Absent.ToList());
     }
 
     [TestMethod]
-    public void ClaimsNothing_WhenNoGraphHasBeenBuilt()
+    public void Of_ANewCodeFileReported_IsAdded_AndAnythingElseIsNot()
     {
-        var report = GraphFreshness.Check([File_("C.cs")], _root, Path.Combine(_root, "absent.json"));
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var snapshot = Read([proj]);
+        var code     = File_("Fresh.cs");
+        var notes    = File_("notes.txt", "not code");
 
-        Assert.IsFalse(report.Available);
-        Assert.IsFalse(report.IsCurrent, "unknown is not the same as current");
-        StringAssert.Contains(report.Summary(), "not built");
-    }
+        var drift = GraphFreshness.Of(snapshot, _root, [Full(code), Full(notes)]);
 
-    /// <summary>From a worktree most of the difference is the branch, and saying so is what stops a large,
-    /// permanent-looking number being ignored.</summary>
-    [TestMethod]
-    public void ExplainsItselfWhenTheGraphCameFromAnotherBranch()
-    {
-        var proj = File_("Proj.csproj", "<Project />\n");
-        var code = File_("C.cs");
-        BuiltNow();
-        TouchedSince(Path.Combine(_root, "src", "Proj", "C.cs"));
-
-        var summary = GraphFreshness.Check([proj, code], _root, _graphFile, otherBranch: true).Summary();
-
-        StringAssert.Contains(summary, "different branch");
+        CollectionAssert.AreEqual(new[] { code }, drift.Added.ToList());
     }
 }

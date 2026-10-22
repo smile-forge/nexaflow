@@ -576,18 +576,12 @@ public static class GraphTools
         if (Warm(root) is not { } workspace)
             return "Rebuild the graph (open the Product page) so its record matches the file.";
 
-        // A file the edit took away is dropped rather than re-read: RefreshFiles leaves an absent file alone because an
+        // A file the edit took away is dropped rather than re-read: a refresh leaves an absent file alone because an
         // absence on its own is as likely to be another branch's work, and here the absence is this edit's own doing.
-        var folded = workspace.Mutate(snapshot =>
-        {
-            var gone = files.Where(f => f.After is null)
-                            .Count(f => GraphBuilder.ForgetFile(snapshot.Graph, snapshot.Cache, f.RelativePath));
-            var read = GraphBuilder.RefreshFiles(snapshot.Graph, snapshot.Cache, root,
-                                                 [.. files.Where(f => f.After is not null).Select(f => f.RelativePath)], null);
-            return gone > 0 || read.Count > 0;
-        });
+        var folded = workspace.Update([.. files.Where(f => f.After is not null).Select(f => f.RelativePath)],
+                                      [.. files.Where(f => f.After is null).Select(f => f.RelativePath)]);
 
-        return folded ? "The graph has been brought up to date with the change." : "";
+        return folded.IsEmpty ? "" : "The graph has been brought up to date with the change.";
     }
 
     /// <summary>The workspace holding this product's graph, if a surface is currently keeping one alive. Always

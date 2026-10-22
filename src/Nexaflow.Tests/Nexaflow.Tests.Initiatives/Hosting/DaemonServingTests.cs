@@ -135,6 +135,72 @@ public class DaemonServingTests
         }
     }
 
+    /// <summary>
+    /// The queue this process used to be: a dozen agents in one worktree, every question behind every other and behind any
+    /// edit, until commands spent more time waiting than running. A command that only reads takes no turn — what it reads is
+    /// a version no writer changes — so one sent while a writer holds its tree is answered anyway.
+    /// </summary>
+    [TestMethod]
+    public void ARead_IsAnsweredWhileAWriterHoldsItsTree()
+    {
+        var (serving, pipe, host) = Serve();
+        var tree = Path.Combine(_root, "a-tree-somebody-is-editing");
+        var turn = DaemonServer.Turns.GetOrAdd(tree, _ => new DaemonServer.Turn());
+
+        turn.Semaphore.Wait();                               // a writer holds the tree
+        try
+        {
+            using var client = Connect(pipe);
+            DaemonProtocol.Write(client, DaemonRequest.Command(DaemonRequest.NewTicket(), ["find", "anything", _root], tree, _root, null));
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonAck>(client), "taken, and said so");
+
+            var answer = Task.Run(() => DaemonProtocol.Read<DaemonResponse>(client));
+            Assert.IsTrue(answer.Wait(TimeSpan.FromSeconds(30)), "a read waits for no writer");
+            Assert.IsNotNull(answer.Result);
+        }
+        finally
+        {
+            turn.Semaphore.Release();
+            Stop(pipe);
+            serving.Wait(TimeSpan.FromSeconds(45));
+            host.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The product tree is one file every worktree writes, so a writer of it from one tree waits for a writer of it from
+    /// another — which turns kept per working tree let through side by side, each one's save landing over the other's.
+    /// </summary>
+    [TestMethod]
+    public void AProductTreeWriter_WaitsForOneFromAnotherTree()
+    {
+        var (serving, pipe, host) = Serve();
+        var tree = Path.Combine(_root, "a-tree-with-nothing-of-its-own-going-on");
+        var turn = DaemonServer.Turns.GetOrAdd(DaemonServer.ProductTurn, _ => new DaemonServer.Turn());
+        var held = true;
+
+        turn.Semaphore.Wait();                               // another tree's command is writing the product tree
+        try
+        {
+            var ticket = DaemonRequest.NewTicket();
+            using var client = Connect(pipe);
+            DaemonProtocol.Write(client, DaemonRequest.Command(ticket, ["set-status", "nothing", "done", _root], tree, _root, null));
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonAck>(client), "taken, and said so");
+            Until(() => DaemonServer.Ledger.StatusOf(ticket).State == WorkState.Queued, "the write to queue behind the other");
+
+            turn.Semaphore.Release();
+            held = false;
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonResponse>(client), "and to run once it has finished");
+        }
+        finally
+        {
+            if (held) turn.Semaphore.Release();
+            Stop(pipe);
+            serving.Wait(TimeSpan.FromSeconds(45));
+            host.Dispose();
+        }
+    }
+
     [TestMethod]
     public void AStuckCommand_IsLeftBehind_AndWhatWaitsOnItsTreeRuns()
     {

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Initiatives.Graph;
@@ -238,4 +239,60 @@ public class GraphRefreshTests
         var (graph, cache) = Empty();
         Assert.IsFalse(GraphBuilder.RefreshFile(graph, cache, _root, "src/NeverExisted.cs"));
     }
+
+    /// <summary>
+    /// A refresh changes a graph's collections and never an element of them, so a fork of a graph somebody is reading can be
+    /// refreshed while they read. Relinking is where that is easiest to break: an unchanged file that calls into the changed
+    /// one is seeded into the linking passes, and an element those passes touch has to be copied, not written.
+    /// </summary>
+    [TestMethod]
+    public void ARefreshOfAFork_LeavesTheGraphItWasForkedFromAsItWas()
+    {
+        File.WriteAllText(Path.Combine(_root, "src", "Target.cs"), "public class Target\n{\n    public void Run() { }\n}\n");
+        File.WriteAllText(Path.Combine(_root, "src", "Caller.cs"), "public class Caller\n{\n    public void Go() => new Target().Run();\n}\n");
+        var built = GraphBuilder.BuildSnapshot(new ProductState(), _root, new GraphBuildOptions { GeneratedAt = "T" }, null);
+
+        var nodes   = built.Graph.Nodes.ToList();
+        var shapes  = built.Graph.Nodes.Select(Shape).ToList();
+        var edges   = built.Graph.Edges.ToList();
+        var weights = built.Graph.Edges.Select(e => e.Weight).ToList();
+        var files   = built.Cache.Files.ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        File.WriteAllText(Path.Combine(_root, "src", "Target.cs"),
+                          "public class Target\n{\n    public void Run() { }\n    public void Stop() { }\n}\n");
+        var fork = built.Fork();
+        CollectionAssert.AreEqual(new[] { "src/Target.cs" }, GraphBuilder.RefreshFiles(fork, _root, ["src/Target.cs"]).ToList());
+
+        Assert.IsTrue(fork.Graph.Nodes.Exists(n => n.Label == "Stop"), "the fork moved on");
+        CollectionAssert.AreEqual(nodes, built.Graph.Nodes, "the graph it came from holds the same nodes, in order");
+        CollectionAssert.AreEqual(shapes, built.Graph.Nodes.Select(Shape).ToList(), "none of them written");
+        CollectionAssert.AreEqual(edges, built.Graph.Edges);
+        CollectionAssert.AreEqual(weights, built.Graph.Edges.Select(e => e.Weight).ToList());
+        CollectionAssert.AreEquivalent(files.ToList(), built.Cache.Files.ToList(), "and the same file table");
+    }
+
+    /// <summary>
+    /// A full build hands its cache's contributions straight to the graph it builds, so a build from the cache of a graph
+    /// being read writes into that graph unless it copies — the communities it assigns, the facts it merges.
+    /// </summary>
+    [TestMethod]
+    public void ABuildFromTheCacheOfAGraphBeingRead_LeavesThatGraphAsItWas()
+    {
+        File.WriteAllText(Path.Combine(_root, "src", "Target.cs"), "public class Target\n{\n    public void Run() { }\n}\n");
+        File.WriteAllText(Path.Combine(_root, "src", "Caller.cs"), "public class Caller\n{\n    public void Go() => new Target().Run();\n}\n");
+        var first  = GraphBuilder.BuildSnapshot(new ProductState(), _root, new GraphBuildOptions { GeneratedAt = "T" }, null);
+        var shapes = first.Graph.Nodes.Select(Shape).ToList();
+        var held   = first.Cache.Files.Count;
+
+        File.WriteAllText(Path.Combine(_root, "src", "Other.cs"), "public class Other { }\n");
+        GraphBuilder.BuildSnapshot(new ProductState(), _root, new GraphBuildOptions { GeneratedAt = "T" }, first.Cache);
+
+        CollectionAssert.AreEqual(shapes, first.Graph.Nodes.Select(Shape).ToList());
+        Assert.AreEqual(held, first.Cache.Files.Count, "the cache it was given keeps its own table");
+    }
+
+    /// <summary>Everything about a node a writer could change, as one comparable string.</summary>
+    private static string Shape(GraphNode n) =>
+        $"{n.Id}|{n.Label}|{n.FilePath}|{n.Language}|{n.Source}|{n.Community}|"
+      + (n.Metadata is null ? "" : string.Join(";", n.Metadata.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}")));
 }

@@ -145,6 +145,24 @@ public class GraphArchiveTests
         Assert.IsNull(hyper.Endpoints[1].Confidence);
     }
 
+    /// <summary>The anchor is what lets a worktree start from this graph without reading it all again, so it comes back as it
+    /// was written — and an archive without one reads as a graph git has not vouched for, not as a broken file.</summary>
+    [TestMethod]
+    public void TheAnchor_ComesBack_AndAnArchiveWithoutOneHasNone()
+    {
+        var anchored = Fixture();
+        anchored.Anchor = new GraphAnchor("0123abcd", new HashSet<string>(["src/A.cs", "docs/x.md"], StringComparer.Ordinal));
+        GraphArchive.Write(Path_, anchored);
+
+        var back = GraphArchive.Read(Path_)!.Anchor;
+        Assert.IsNotNull(back);
+        Assert.AreEqual("0123abcd", back!.Commit);
+        CollectionAssert.AreEquivalent(new[] { "docs/x.md", "src/A.cs" }, back.Departed.ToList());
+
+        GraphArchive.Write(Path_, Fixture());
+        Assert.IsNull(GraphArchive.Read(Path_)!.Anchor);
+    }
+
     [TestMethod]
     public void ThePerFileMaterial_ComesBackFieldForField()
     {

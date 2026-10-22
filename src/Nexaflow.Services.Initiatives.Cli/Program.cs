@@ -97,29 +97,6 @@ internal static class Program
     private static string CallerDirectory => CallerPath.Directory;
 
     /// <summary>
-    /// The per-file material for this root, from the warm snapshot when there is one. Taking it from the
-    /// workspace matters twice over: it is the expensive half of the archive to read, and it is the same
-    /// object the warm graph was assembled from — so an edit mutates what the next caller will be handed
-    /// rather than a private copy that the workspace would later overwrite.
-    /// </summary>
-    private static GraphCache EditCache(string root, bool main, ProductStore store) =>
-        Workspace(root, main, store)?.Current()?.Cache ?? store.LoadGraphCache() ?? new GraphCache();
-
-    /// <summary>
-    /// Records a change to the graph. With a warm workspace the objects just mutated ARE its snapshot, so
-    /// this only has to say so and let it flush; without one there is nothing holding them and the write
-    /// happens here. Writing directly in both cases would leave the warm copy describing the file it had
-    /// before, which is the one way a resident process can be worse than no process at all.
-    /// </summary>
-    private static void SaveGraphChange(string root, bool main, ProductStore store, KnowledgeGraph graph, GraphCache cache,
-                                        IEnumerable<string>? refreshed = null, IEnumerable<string>? forgotten = null)
-    {
-        if (Workspace(root, main, store) is not { } workspace) store.SaveSnapshot(graph, cache);
-        else if (refreshed is null) workspace.MarkChanged();
-        else workspace.MarkChanged(refreshed, forgotten);
-    }
-
-    /// <summary>
     /// The tree a verb works on: always an instance nobody else holds. Resident, that is a working copy of the
     /// host's — the parse is still shared, which is what makes a query cheap, but the object is not.
     /// <para>
@@ -172,38 +149,60 @@ internal static class Program
     {
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
 
-        return args[0] switch
-        {
-            "validate"    => Validate(args[1..]),
-            "find"        => Find(args[1..]),
-            "query"       => Query(args[1..]),
-            "describe"    => Describe(args[1..]),
-            "tree"        => Tree(args[1..]),
-            "diff"        => Diff(args[1..]),
-            "remap"       => Remap(args[1..]),
-            "scan-tests"  => ScanTests(args[1..]),
-            "add-node"    => AddNode(args[1..]),
-            "set-status"  => SetStatus(args[1..]),
-            "set-concern" => SetConcern(args[1..]),
-            "remove-concern" => RemoveConcern(args[1..]),
-            "add-snaplink"=> AddSnaplink(args[1..]),
-            "set-snaplink" => SetSnaplink(args[1..]),
-            "remove-snaplink" => RemoveSnaplink(args[1..]),
-            "set-node"    => SetNode(args[1..]),
-            "move"        => Move(args[1..]),
-            "rename"      => Rename(args[1..]),
-            "remove"      => Remove(args[1..]),
-            "batch"       => Batch(args[1..]),
-            "lint"        => Lint(args[1..]),
-            "doctor"      => Doctor(args[1..]),
-            "pending"     => Pending(args[1..]),
-            "promote"     => Promote(args[1..]),
-            "ask"         => Answered(Ask(args[1..])),
-            "test"        => TestVerb(args[1..]),
-            "graph"       => Graph(args[1..]),
-            _ => Usage($"unknown command '{args[0]}'")
-        };
+        Unhosted.Value = null;
+        try { return DispatchVerb(args); }
+        finally { FlushUnhosted(); }
     }
+
+    /// <summary>
+    /// What a command does to the state it is served from, as its verb declares (<see cref="VerbSpec.Access"/>) — for the
+    /// resident process to decide what it waits for before it runs. A command no verb claims writes.
+    /// </summary>
+    internal static VerbAccess AccessOf(IReadOnlyList<string> args)
+    {
+        if (args.Count == 0 || args[0] is "-h" or "--help" or "help") return VerbAccess.Reads;
+
+        // Spelled as the dispatcher reads it, so an alias is the verb it stands for.
+        IReadOnlyList<string> words = args[0] == "graph" && args.Count > 1 ? [args[0], GraphSubverb(args[1]), .. args.Skip(2)] : args;
+        foreach (var spec in Specs.Longest)
+        {
+            var verb = spec.Verb.Split(' ');
+            if (verb.Length <= words.Count && verb.Select((word, i) => word == words[i]).All(same => same)) return spec.Access;
+        }
+        return VerbAccess.Writes;
+    }
+
+    private static int DispatchVerb(string[] args) => args[0] switch
+    {
+        "validate"    => Validate(args[1..]),
+        "find"        => Find(args[1..]),
+        "query"       => Query(args[1..]),
+        "describe"    => Describe(args[1..]),
+        "tree"        => Tree(args[1..]),
+        "diff"        => Diff(args[1..]),
+        "remap"       => Remap(args[1..]),
+        "scan-tests"  => ScanTests(args[1..]),
+        "add-node"    => AddNode(args[1..]),
+        "set-status"  => SetStatus(args[1..]),
+        "set-concern" => SetConcern(args[1..]),
+        "remove-concern" => RemoveConcern(args[1..]),
+        "add-snaplink"=> AddSnaplink(args[1..]),
+        "set-snaplink" => SetSnaplink(args[1..]),
+        "remove-snaplink" => RemoveSnaplink(args[1..]),
+        "set-node"    => SetNode(args[1..]),
+        "move"        => Move(args[1..]),
+        "rename"      => Rename(args[1..]),
+        "remove"      => Remove(args[1..]),
+        "batch"       => Batch(args[1..]),
+        "lint"        => Lint(args[1..]),
+        "doctor"      => Doctor(args[1..]),
+        "pending"     => Pending(args[1..]),
+        "promote"     => Promote(args[1..]),
+        "ask"         => Ask(args[1..]),
+        "test"        => TestVerb(args[1..]),
+        "graph"       => Graph(args[1..]),
+        _ => Usage($"unknown command '{args[0]}'")
+    };
 
     private static int Usage(string? error = null)
     {
@@ -591,34 +590,36 @@ internal static class Program
     private static int Graph(string[] args)
     {
         if (args.Length > 0)
-            switch (args[0])
+            switch (GraphSubverb(args[0]))
             {
-                case "stats":                 return GraphStats(args[1..]);
-                case "orphans":               return GraphOrphans(args[1..]);
-                case "paths" or "path":       return GraphPaths(args[1..]);
-                case "rank":                  return GraphRank(args[1..]);
-                // Every read of the graph ends by saying whether the graph still describes the working tree.
-                // Wrapped here rather than repeated in each verb so no query can quietly forget to say.
-                case "node":                  return Answered(GraphNode(args[1..]));
-                case "search":                return Answered(GraphSearch(args[1..]));
-                case "list":                  return Answered(GraphList(args[1..]));
-                case "walk":                  return Answered(GraphWalk(args[1..]));
-                case "context" or "ctx":      return Answered(GraphContext(args[1..]));
-                case "grep":                  return Answered(GraphGrep(args[1..]));
-                case "code" or "cat":         return Answered(GraphCode(args[1..]));
-                case "edit":                  return GraphEditVerb(args[1..]);
-                case "build":                 return GraphBuild(args[1..]);
-                case "help" or "-h" or "--help": return GraphUsage();
+                case "stats":   return GraphStats(args[1..]);
+                case "orphans": return GraphOrphans(args[1..]);
+                case "paths":   return GraphPaths(args[1..]);
+                case "rank":    return GraphRank(args[1..]);
+                case "node":    return GraphNode(args[1..]);
+                case "search":  return GraphSearch(args[1..]);
+                case "list":    return GraphList(args[1..]);
+                case "walk":    return GraphWalk(args[1..]);
+                case "context": return GraphContext(args[1..]);
+                case "grep":    return GraphGrep(args[1..]);
+                case "code":    return GraphCode(args[1..]);
+                case "edit":    return GraphEditVerb(args[1..]);
+                case "build":   return GraphBuild(args[1..]);
+                case "help":    return GraphUsage();
             }
         return GraphBuild(args);   // `graph [<root>] [--flags]` still builds (back-compat)
     }
 
-    /// <summary>A query's exit code, after saying whether what it just reported is current.</summary>
-    private static int Answered(int code)
+    /// <summary>The graph subcommand a word names — its own name, or the one it is short for. One table, read by the dispatch
+    /// and by <see cref="AccessOf"/>, so an alias can never be dispatched as one verb and waited for as another.</summary>
+    private static string GraphSubverb(string word) => word switch
     {
-        EndFreshness();
-        return code;
-    }
+        "path"           => "paths",
+        "ctx"            => "context",
+        "cat"            => "code",
+        "-h" or "--help" => "help",
+        _                => word,
+    };
 
     private static int GraphBuild(string[] args)
     {
@@ -654,8 +655,8 @@ internal static class Program
         KnowledgeGraph graph;
         try
         {
-            var store = GraphStore(root, a.Has("--main"));
-            var state = LoadTree(root, store);
+            var workspace = Workspace(root, a.Has("--main"));
+            var state     = LoadTree(root, workspace.Store);
             var options = new GraphBuildOptions
             {
                 Scope = wholeRepo ? GraphScope.WholeRepo : GraphScope.ProductAnchored,
@@ -668,8 +669,9 @@ internal static class Program
                 // behind it until it ends. So it ends, at the next file.
                 Cancellation = RequestScope.Cancellation,
             };
-            var cache = incremental ? store.LoadGraphCache() : null;   // reuse unchanged files' extraction
-            var built = GraphBuilder.BuildWithCache(state, root, options, cache);
+            // Reuse unchanged files' extraction — the held version's, which the build only reads.
+            var cache = incremental ? workspace.Current()?.Cache ?? workspace.Store.LoadGraphCache() : null;
+            var built = GraphBuilder.BuildSnapshot(state, root, options, cache);
             graph = built.Graph;
             if (!json)
             {
@@ -682,10 +684,7 @@ internal static class Program
                 //
                 // Replace persists it too, so this is the same one write it was before — and because the
                 // workspace now holds exactly what was just built, nothing re-reads it afterwards.
-                if (Workspace(root, a.Has("--main"), store) is { } workspace)
-                    workspace.Replace(graph, built.Cache);
-                else
-                    store.SaveSnapshot(graph, built.Cache);
+                workspace.Replace(built);
             }
         }
         catch (Exception ex)
@@ -701,7 +700,7 @@ internal static class Program
         }
 
         var m = graph.Metadata;
-        Console.WriteLine($"Graph written to {GraphStore(root, a.Has("--main")).GraphFilePath} — " +
+        Console.WriteLine($"Graph written to {Workspace(root, a.Has("--main")).Store.GraphFilePath} — " +
                           $"{m.NodeCount:N0} nodes, {m.EdgeCount:N0} edges, {m.HyperEdgeCount:N0} hyperedges.");
         return Clean;
     }
@@ -788,42 +787,79 @@ internal static class Program
     }
 
     /// <summary>
-    /// The graph for this root, from the warm host when there is one and from disk when there is not.
-    /// <para>
-    /// The two are the same object either way — <see cref="GraphWorkspace"/> holds exactly what
-    /// <c>LoadGraph</c> would have returned, and checks it against the files on disk before handing it over. So
-    /// a command answers identically whether it ran inside the resident process or a one-shot one; the only
-    /// difference is that the resident one already had it.
-    /// </para>
+    /// The graph for this root, current with its working tree, or false with the reason said. Whatever catching it up
+    /// took — a worktree started from the main checkout's graph, files folded in — is said first, so the answer that
+    /// follows is never mistaken for one about the code as it was.
     /// </summary>
-    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false)
+    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false, bool recheck = false)
     {
         graph = null!;
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
 
-        var store  = GraphStore(root, main);
-        var loaded = Workspace(root, main, store)?.Graph ?? store.LoadGraph();
+        var workspace = Workspace(root, main);
+        var reading   = workspace.Read(recheck, cancellation: RequestScope.Cancellation);
+        SayCaughtUp(reading.CatchUp);
 
-        if (loaded is null)
-        {
-            // A graph another nfi built is not read — what it extracted is not what this one would — and "no graph" would send
-            // the reader looking for a file that is plainly there.
-            Console.Error.WriteLine(GraphArchive.SchemaOf(store.GraphFilePath) is { } schema && schema != GraphSchema.Version
-                ? $"error: the graph at {store.GraphFilePath} was built by another nfi (graph schema {schema}; this one reads "
-                + $"{GraphSchema.Version}) — rebuild it with: nfi graph"
-                : $"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
-            code = Error; return false;
-        }
-        graph = loaded; code = Clean; return true;
+        if (reading.Snapshot is not { } snapshot) { code = SayNoGraph(workspace.Store, root); return false; }
+        graph = snapshot.Graph; code = Clean; return true;
+    }
+
+    /// <summary>Says why there is no graph to answer from, and returns the error code.</summary>
+    private static int SayNoGraph(ProductStore store, string root)
+    {
+        // A graph another nfi built is not read — what it extracted is not what this one would — and "no graph" would send
+        // the reader looking for a file that is plainly there.
+        Console.Error.WriteLine(GraphArchive.SchemaOf(store.GraphFilePath) is { } schema && schema != GraphSchema.Version
+            ? $"error: the graph at {store.GraphFilePath} was built by another nfi (graph schema {schema}; this one reads "
+            + $"{GraphSchema.Version}) — rebuild it with: nfi graph"
+            : $"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
+        return Error;
     }
 
     /// <summary>
-    /// This root's warm workspace, or null when nothing is holding one — a one-shot process, or a test calling
-    /// straight into a verb. The store is passed in already resolved because working out <i>which</i> archive a
-    /// worktree reads, and seeding it from the main checkout the first time, is the CLI's rule and stays here.
+    /// Says what bringing the graph current took, when it took anything. Only then: a "current" line after every answer is
+    /// one the reader learns to skip, which is the reflex that gets the line that matters skipped too.
     /// </summary>
-    private static GraphWorkspace? Workspace(string root, bool main, ProductStore store) =>
-        Host is { } host ? host.Workspace(CodeRootOrNull(root, main), store) : null;
+    private static void SayCaughtUp(GraphCatchUp caught)
+    {
+        if (caught.Seeded)
+            Console.WriteLine("graph: this worktree had none, so it started from the main checkout's and was brought onto "
+                            + "your branch before this answer; nothing here writes to the shared one.");
+        if (caught.Read.Count > 0 || caught.Dropped.Count > 0)
+            Console.WriteLine($"graph: refreshed {caught.Read.Count} file(s)"
+                            + (caught.Dropped.Count > 0 ? $" and dropped {caught.Dropped.Count} not in this tree" : "")
+                            + " before answering.");
+    }
+
+    /// <summary>
+    /// The graph this root's commands read and change. Resident, that is the host's — held, watched, and shared by every
+    /// command on the tree. Without a host (a command run in-process by a test) it is one for the length of the command,
+    /// written when the command ends.
+    /// </summary>
+    private static GraphWorkspace Workspace(string root, bool main)
+    {
+        var store    = GraphStore(root, main);
+        var codeRoot = CodeRootOrNull(root, main);
+        if (Host is { } host) return host.Workspace(codeRoot, store);
+
+        var held = Unhosted.Value ??= new Dictionary<string, GraphWorkspace>(StringComparer.OrdinalIgnoreCase);
+        if (held.TryGetValue(store.GraphFilePath, out var workspace)) return workspace;
+
+        var shared = new ProductStore(root);
+        return held[store.GraphFilePath] = new GraphWorkspace(store, root, codeRoot,
+            seed: codeRoot is null || PathsEqual(codeRoot, root) ? null : () => GraphArchive.Read(shared.GraphFilePath));
+    }
+
+    /// <summary>The workspaces a command without a host made, by archive — per request, like everything a request holds.</summary>
+    private static readonly AsyncLocal<Dictionary<string, GraphWorkspace>?> Unhosted = new();
+
+    private static void FlushUnhosted()
+    {
+        if (Unhosted.Value is not { } held) return;
+        foreach (var workspace in held.Values)
+            try { workspace.Flush(); } catch (IOException) { /* nothing is lost: the next command catches up again */ }
+        Unhosted.Value = null;
+    }
 
     // TypeRank / NodeLine / BlockEnd / BuildAdjacency / Bfs were once declared here as private copies of the
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
@@ -897,9 +933,7 @@ internal static class Program
         if (!TryRead(Specs.GraphSearch, args, out var a, out var root, out var parseCode)) return parseCode;
         var term = a[0];
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         var main  = a.Has("--main");
         var found = GraphQuery.Find(g, term, rel => TryReadLines(root, rel, main), a.Value("--type"));
@@ -911,9 +945,7 @@ internal static class Program
     {
         if (!TryRead(Specs.GraphList, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!TryIntOpt(a, "--limit", 60, out var limit)) return Error;
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         var type = a.Value("--type");
         var file = a.Value("--file");
@@ -946,9 +978,7 @@ internal static class Program
         if (!TryRead(Specs.GraphNode, args, out var a, out var root, out var parseCode)) return parseCode;
         var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         if (GraphQuery.Node(g, id) is not { } hood)
         { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
@@ -963,9 +993,7 @@ internal static class Program
         var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .ToHashSet(StringComparer.Ordinal);
@@ -1100,9 +1128,7 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(questions))
             return VerbUsage("ask needs a question, quoted - e.g. nfi ask 'search GraphGrep | source' - or questions on --stdin");
 
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         var main = a.Has("--main");
 
@@ -1354,20 +1380,10 @@ internal static class Program
         }
         EditJournal.Forget(kept);
 
-        if (TryLoadGraph(root, out var graph, out _))
-        {
-            var store     = GraphStore(root, main);
-            var cache     = EditCache(root, main, store);
-            // Undoing a `create` leaves no file, and the graph is told so outright for the same reason the edit itself
-            // is: this tree knows the file went, so nothing is left behind describing it.
-            var gone      = entry.Files.Where(f => f.Before is null).ToList();
-            var forgotten = gone.Where(f => GraphBuilder.ForgetFile(graph, cache, f.RelativePath))
-                                .Select(f => f.RelativePath).ToList();
-            var refreshed = entry.Files.Except(gone)
-                                       .Where(f => GraphBuilder.RefreshFile(graph, cache, root, f.RelativePath, CodeRootOrNull(root, main)))
-                                       .Select(f => f.RelativePath).ToList();
-            if (refreshed.Count > 0 || forgotten.Count > 0) SaveGraphChange(root, main, store, graph, cache, refreshed, forgotten);
-        }
+        // Undoing a `create` leaves no file, and the graph is told so outright for the same reason the edit itself is: this
+        // tree knows the file went, so nothing is left behind describing it. Not cancellable: the files are written.
+        Workspace(root, main).Update([.. entry.Files.Where(f => f.Before is not null).Select(f => f.RelativePath)],
+                                     [.. entry.Files.Where(f => f.Before is null).Select(f => f.RelativePath)]);
 
         Console.WriteLine($"undone: `{entry.Label}` - {entry.Files.Count} file(s) back as that edit found them.");
         return Clean;
@@ -1531,22 +1547,15 @@ internal static class Program
         // to tell the graph afterwards, so it takes one when there is one and goes ahead without when there is not.
         var byPath = steps.All(s => s is EditPlan.Create or EditPlan.Remove);
 
-        var store = GraphStore(root, run.Main);
-        KnowledgeGraph? graph;
-        if (byPath) graph = Workspace(root, run.Main, store)?.Graph ?? store.LoadGraph();
-        else if (!TryLoadGraph(root, out graph, out var loadCode)) return loadCode;
+        var workspace = Workspace(root, run.Main);
+        var reading   = workspace.Read(cancellation: RequestScope.Cancellation);
+        SayCaughtUp(reading.CatchUp);
+        if (reading.Snapshot is null && !byPath) return SayNoGraph(workspace.Store, root);
+        var held = reading.Snapshot is not null;
 
-        var cache = graph is null ? null : EditCache(root, run.Main, store);
-        graph ??= new KnowledgeGraph();
-        var dirty = false;
-        var refreshed = new List<string>();
-        var forgotten = new List<string>();
-
-        int Refused(string message)
+        static int Refused(string message)
         {
-            // A refresh may have learned something real — a file changed — and that is worth keeping even though the
-            // edit itself is not going ahead.
-            if (dirty) SaveGraphChange(root, run.Main, store, graph, cache!, refreshed, forgotten);
+            // Whatever a refresh learned is in the graph already — a refusal of the edit is not a refusal of that.
             Console.Error.WriteLine($"error: {message}");
             return Error;
         }
@@ -1554,13 +1563,9 @@ internal static class Program
         // Bring the graph's record of each target file up to date BEFORE looking anything up. One file's parse costs
         // milliseconds against the ninety seconds a whole-repo walk takes, and it is the difference between "the graph
         // might be stale" being something the caller has to reason about and it not being one.
-        if (run.Refresh && cache is not null)
-            foreach (var target in steps.SelectMany(TargetFiles).Distinct(StringComparer.Ordinal))
-                if (GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, run.Main)))
-                {
-                    refreshed.Add(target);
-                    dirty = true;
-                }
+        if (run.Refresh && held)
+            workspace.Update([.. steps.SelectMany(TargetFiles).Distinct(StringComparer.Ordinal)], cancellation: RequestScope.Cancellation);
+        var graph = workspace.Current()?.Graph ?? new KnowledgeGraph();
 
         var codeRoot = CodeRootFor(root, run.Main);
         string? Read(string rel) => ReadRaw(root, rel, run.Main)?.Text;
@@ -1635,20 +1640,11 @@ internal static class Program
         // builds. A full `graph build` is for the cross-file passes, not for editing.
         // A file the edit took away is dropped rather than re-read: an absence on its own is no evidence, which is why
         // RefreshFile leaves one alone, but this tree took this one away itself.
-        if (run.Refresh && cache is not null)
-            foreach (var file in outcome.Files)
-                if (file.After is null)
-                {
-                    if (!GraphBuilder.ForgetFile(graph, cache, file.RelativePath)) continue;
-                    forgotten.Add(file.RelativePath);
-                    dirty = true;
-                }
-                else if (GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main)))
-                {
-                    refreshed.Add(file.RelativePath);
-                    dirty = true;
-                }
-        if (dirty) SaveGraphChange(root, run.Main, store, graph, cache!, refreshed, forgotten);
+        // Not cancellable: the files are written, and a graph left describing them as they were is worse than an answer late.
+        var forgotten = run.Refresh && held
+            ? workspace.Update([.. outcome.Files.Where(f => f.After is not null).Select(f => f.RelativePath)],
+                               [.. outcome.Files.Where(f => f.After is null).Select(f => f.RelativePath)]).Dropped
+            : [];
 
         // The declaration as it now stands, so that checking an edit is part of making it rather than the next command.
         // Not for a delete or a rename — there is nothing at that id any more — and not for a file-level target, where
@@ -1816,151 +1812,19 @@ internal static class Program
     // ── Is the graph still describing what is on disk? ──────────────────────
 
     /// <summary>
-    /// The freshness check for this invocation, started before the graph is even loaded so its ~0.7s runs
-    /// against the query's own work rather than after it.
-    /// <para>
-    /// Per request, not per process. This was a static from when a process answered one question, and the
-    /// resident process answers several at once: a query on one tree picked up the report another tree's query
-    /// had just started, refreshed its graph from the wrong list of stale files, and printed the other tree's
-    /// verdict as its own.
-    /// </para>
-    /// </summary>
-    private static readonly AsyncLocal<Task<GraphFreshness.Report>?> Freshness = new();
-
-    private static Task<GraphFreshness.Report>? FreshnessCheck
-    {
-        get => Freshness.Value;
-        set => Freshness.Value = value;
-    }
-
-    /// <summary>
-    /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
-    /// and a walk of the project directories — and nothing is read twice. Taking the file list from the
-    /// cache index instead would mean reading the archive's per-file section, which holds every file's extracted
-    /// nodes and costs more than the query it was meant to be describing.
-    /// </summary>
-    private static void BeginFreshness(string root, bool main, KnowledgeGraph graph)
-    {
-        var codeRoot  = CodeRootOrNull(root, main) ?? root;
-        var known     = KnownFiles(graph);
-        var graphFile = GraphStore(root, main).GraphFilePath;
-
-        FreshnessCheck = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
-    }
-
-    /// <summary>
-    /// Only the files the builder actually read. A file node is also synthesized for an import target that
-    /// never resolved to anything on disk, and those carry the REFERRING file as their source — so counting
-    /// them made a clean main checkout report hundreds of files "removed".
-    /// </summary>
-    private static string[] KnownFiles(KnowledgeGraph graph) =>
-        [.. graph.Nodes
-            .Where(n => n.Type == NodeType.File
-                     && n.FilePath is { Length: > 0 }
-                     && string.Equals(n.Source, n.FilePath, StringComparison.OrdinalIgnoreCase))
-            .Select(n => n.FilePath!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-
-    /// <summary>
-    /// The "nothing to do" line when the archive already describes this tree, or null when there is work.
-    /// Asking costs the same read a query does, which is nothing beside the build it saves.
+    /// The "nothing to do" line when the graph already describes this tree, or null when there is work. Asking costs a
+    /// scan of the stamps, which is nothing beside the build it saves.
     /// </summary>
     private static string? GraphIsAlreadyCurrent(string root, bool main)
     {
-        var store = GraphStore(root, main);
-        if (!File.Exists(store.GraphFilePath)) return null;         // never built: there is certainly work
+        var workspace = Workspace(root, main);
+        if (!workspace.Exists) return null;                          // never built: there is certainly work
 
-        if (!TryLoadGraph(root, out var graph, out _)) return null;
+        var reading = workspace.Read(recheck: true, cancellation: RequestScope.Cancellation);
+        if (reading.Snapshot is not { } snapshot || !reading.CatchUp.IsEmpty) return null;
 
-        GraphFreshness.Report report;
-        try { report = GraphFreshness.Check(KnownFiles(graph), CodeRootOrNull(root, main) ?? root, store.GraphFilePath); }
-        catch { return null; }                                      // cannot tell: build rather than claim
-
-        return report.Available && report.IsCurrent
-            ? $"Graph already current — {report.Known:N0} files, nothing changed since it was built. "
-            + "Nothing to rebuild (--no-incremental forces one anyway)."
-            : null;
-    }
-
-    /// <summary>
-    /// Says when the graph does not describe this tree — and only then. "current" printed after every answer was a line
-    /// the reader learned to skip, which is the reflex that makes the one line that matters get skipped too; and on
-    /// stderr it landed wherever the caller's shell happened to merge it, in the middle of a list as often as not. So it
-    /// is part of the answer, at its end, when there is something to say.
-    /// </summary>
-    private static void EndFreshness()
-    {
-        if (FreshnessCheck is null) return;
-        try
-        {
-            var report = FreshnessCheck.Result;
-            if (report.Available && !report.IsCurrent) Console.WriteLine(report.Summary());
-        }
-        catch { }   // a freshness check that fails must never fail the query it was describing
-    }
-
-    /// <summary>
-    /// How much drift a query will fold in on its own before deciding that rebuilding is the honest answer.
-    /// <para>
-    /// The same judgement, and the same number, as the warm workspace's own limit: dozens of files is
-    /// somebody working and costs a parse each; thousands is a checkout seeded from somewhere else, and
-    /// re-parsing thousands is the two-and-a-half-minute build nobody asked for by typing <c>graph node</c>.
-    /// </para>
-    /// </summary>
-    private const int AutoRefreshLimit = 200;
-
-    /// <summary>
-    /// Folds every file that has moved on back into the graph before the query reads it, so the answer is
-    /// about the code as it is rather than a warning about code as it was.
-    /// <para>
-    /// This runs whether or not <c>--refresh</c> was passed. Detecting staleness and then answering from it
-    /// anyway put the reader in the worst position available: a confident answer, a note saying it might be
-    /// wrong, and a flag they had to know to type. <c>--refresh</c> now means only "do it however much there
-    /// is" — past <see cref="AutoRefreshLimit"/> an unforced query leaves the work alone and the freshness
-    /// line says a build is wanted, because that much re-parsing is not something to do to someone who asked
-    /// for one node.
-    /// </para>
-    /// </summary>
-    private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph, bool forced = true)
-    {
-        if (FreshnessCheck is null) return;
-
-        GraphFreshness.Report report;
-        try { report = FreshnessCheck.Result; } catch { return; }
-        if (!report.Available || report.IsCurrent) return;
-        // A worktree's own graph is refreshed however far behind it is. Nobody else reads it, and the alternative is the
-        // answer a clone gave on its first use: the main checkout's code, thousands of files out, a note saying so, and a
-        // zero where the branch had the thing searched for.
-        if (!forced && report.Stale.Count > AutoRefreshLimit && !GraphIsLocal(root, main)) return;
-
-        var store = GraphStore(root, main);
-        var cache = EditCache(root, main, store);
-
-        // Having re-read these is itself worth recording, whether or not any of them turned out to differ.
-        // A file restored by git parses to exactly what was already in the graph, so nothing changes, and
-        // when nothing changed nothing was written — leaving the stamp at its old value, so the file read
-        // as stale on the next query too, and every one after it. --refresh did not clear it either.
-        var dirty = report.Stale.Count > 0;
-
-        // Stops unwritten when nobody is waiting for the answer.
-        GraphBuilder.RefreshFiles(graph, cache, root, report.Stale, CodeRootOrNull(root, main), RequestScope.Cancellation);
-
-        // Files the graph names that this tree does not have. Dropping them is only safe because the graph
-        // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
-        // work in progress, and pruning would delete it.
-        var forgotten = new List<string>();
-        if (GraphIsLocal(root, main))
-            foreach (var rel in report.Absent)
-                if (GraphBuilder.ForgetFile(graph, cache, rel)) { forgotten.Add(rel); dirty = true; }
-        var pruned = forgotten.Count;
-
-        if (!dirty) return;
-
-        SaveGraphChange(root, main, store, graph, cache, report.Stale, forgotten);
-        Console.WriteLine(
-            $"graph: refreshed {report.Stale.Count} file(s)"
-          + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
-        FreshnessCheck = null;                       // the report it would print is now out of date itself
+        return $"Graph already current — {snapshot.Cache.Files.Count:N0} files, nothing changed since it was last brought up to date. "
+             + "Nothing to rebuild (--no-incremental forces one anyway).";
     }
 
     /// <summary>
@@ -1975,18 +1839,16 @@ internal static class Program
     /// </summary>
     private static void AdoptFileIfUnknown(string root, bool main, string rel)
     {
-        var store = GraphStore(root, main);
-        if (!File.Exists(store.GraphFilePath)) return;      // nothing built yet: not this verb's business
-        if (!TryLoadGraph(root, out var graph, out _)) return;
+        var workspace = Workspace(root, main);
+        var reading   = workspace.Read(cancellation: RequestScope.Cancellation);
+        SayCaughtUp(reading.CatchUp);
+        if (reading.Snapshot is not { } snapshot) return;          // nothing built yet: not this verb's business
 
-        if (graph.Nodes.Exists(n => n.Type == NodeType.File
-                                 && string.Equals(n.FilePath, rel, StringComparison.OrdinalIgnoreCase)))
+        if (snapshot.Graph.Nodes.Exists(n => n.Type == NodeType.File
+                                          && string.Equals(n.FilePath, rel, StringComparison.OrdinalIgnoreCase)))
             return;
 
-        var cache = EditCache(root, main, store);
-        if (!GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main))) return;
-
-        SaveGraphChange(root, main, store, graph, cache, [rel]);
+        if (workspace.Update([rel], cancellation: RequestScope.Cancellation).Read.Count == 0) return;
         Console.WriteLine($"graph: {rel} was not in the graph — added it, so queries can find it too.");
     }
 
@@ -2014,45 +1876,16 @@ internal static class Program
     /// looks to everyone else like a file that exists.
     /// </para>
     /// <para>
-    /// Per-tree graphs make "does this graph describe my code?" answerable with yes, which is what the
-    /// freshness check needs in order to say anything useful. It also makes pruning safe: a file absent
-    /// from a tree really is absent from that tree's graph, rather than possibly being someone else's work
-    /// in progress. The authored product tree is untouched by this and stays shared — it is written, not
-    /// derived, and it is deliberately forward-looking.
+    /// Per-tree graphs make "does this graph describe my code?" answerable with yes, and make pruning safe: a
+    /// file absent from a tree really is absent from that tree's graph. A worktree's first graph starts from the
+    /// main checkout's (see <see cref="GraphWorkspace"/>). The authored product tree is untouched by this and stays
+    /// shared — it is written, not derived, and it is deliberately forward-looking.
     /// </para>
     /// </summary>
-    private static ProductStore GraphStore(string productRoot, bool main)
-    {
-        if (CodeRootOrNull(productRoot, main) is not { } here || PathsEqual(here, productRoot))
-            return new ProductStore(productRoot);
-
-        var scoped = new ProductStore(productRoot, Path.GetFileName(here.TrimEnd('/', '\\')));
-        if (File.Exists(scoped.GraphFilePath)) return scoped;
-
-        // First use in this worktree. Start from the main checkout's graph rather than a ninety-second
-        // build: most of a branch is the same code, so a clone plus a refresh of what differs is the cheap
-        // way in — and until it is refreshed the freshness line says exactly how far off it is.
-        try
-        {
-            var shared = new ProductStore(productRoot);
-            if (File.Exists(shared.GraphFilePath))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(scoped.GraphFilePath)!);
-                File.Copy(shared.GraphFilePath, scoped.GraphFilePath);
-                Console.WriteLine(
-                    "graph: this worktree had none, so the main checkout's was cloned for it and is brought onto your branch "
-                  + "before this answer; nothing here writes to the shared one.");
-            }
-        }
-        catch { }   // a failed clone just means an empty local graph, which the next build fills
-
-        return scoped;
-    }
-
-    /// <summary>Whether the graph being updated is this working tree's own, and so may have files absent
-    /// from the tree pruned out of it.</summary>
-    private static bool GraphIsLocal(string productRoot, bool main) =>
-        !main && CodeRootOrNull(productRoot, main) is { } here && !PathsEqual(here, productRoot);
+    private static ProductStore GraphStore(string productRoot, bool main) =>
+        CodeRootOrNull(productRoot, main) is { } here && !PathsEqual(here, productRoot)
+            ? new ProductStore(productRoot, Path.GetFileName(here.TrimEnd('/', '\\')))
+            : new ProductStore(productRoot);
 
     /// <summary>The root a new file should be created under — the caller's working tree, so a file created
     /// from a worktree lands on that branch.</summary>
@@ -2321,9 +2154,7 @@ internal static class Program
         var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         // The library reads source through a callback precisely so the CLI can resolve the caller's working
         // tree first (and --main can override it) without the query layer knowing anything about worktrees.
@@ -2376,9 +2207,7 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", mode == "content" ? 40 : 200, out var limit)) return Error;
         if (!TryIntOpt(a, "--scan-cap", int.MaxValue, out var scanCap)) return Error;
 
-        if (!TryLoadGraph(root, out var g, out var code)) return code;
-        BeginFreshness(root, a.Has("--main"), g);
-        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+        if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         Regex rx;
         try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }
@@ -3232,111 +3061,119 @@ internal static class Program
     {
         private static readonly string[] None = [];
 
-        // No --no-promote: validate does not promote. It reads, and says what is waiting to be folded in.
+        private const VerbAccess Reads = VerbAccess.Reads, WritesProduct = VerbAccess.WritesProduct;
+
+        // No --no-promote: validate does not promote. It reads, and says what is waiting to be folded in — and with --save
+        // writes .product/integrity.json, which is the product's.
         public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main"],
-            "validate [<root>] [--json] [--save] [--main]");
+            "validate [<root>] [--json] [--save] [--main]", Access: WritesProduct);
         public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
-            "find <term> [<root>] [--json]");
+            "find <term> [<root>] [--json]", Access: Reads);
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
             ["--leaf", "--panel", "--unbacked", "--json"],
-            "query [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--unbacked] [--json]");
+            "query [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--unbacked] [--json]", Access: Reads);
         public static readonly VerbSpec RemapFromGit = new("remap", 0, ["--from-git"], ["--dry-run"],
-            "remap --from-git <rev-range> [<root>] [--dry-run]");
+            "remap --from-git <rev-range> [<root>] [--dry-run]", Access: WritesProduct);
         public static readonly VerbSpec Describe = new("describe", 1, None, ["--json", "--code"],
-            "describe <node-id>[,<node-id>...] [<root>] [--json] [--code]");
+            "describe <node-id>[,<node-id>...] [<root>] [--json] [--code]", Access: Reads);
         // The node id is optional: "show me the tree" is a complete request, and defaulting to the roots is
         // also what makes `nfi tree <some-repo>` mean the obvious thing instead of searching this repo for a
         // node named after a directory.
         public static readonly VerbSpec Tree = new("tree", 1, ["--depth"], ["--full", "--json"],
-            "tree [<node-id>] [<root>] [--depth <n>] [--full] [--json]", MinPositionals: 0);
+            "tree [<node-id>] [<root>] [--depth <n>] [--full] [--json]", MinPositionals: 0, Access: Reads);
         public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
-            "diff [<root>] [--from <version>]");
+            "diff [<root>] [--from <version>]", Access: Reads);
         // remap is a mutation too: a move usually breaks several paths at once, and batch is the only way
         // to land them as one validated, all-or-nothing transaction. So this spec is reused via .InBatch.
         public static readonly VerbSpec Remap = new("remap", 2, ["--class", "--method"], None,
-            "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]");
+            "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]", Access: WritesProduct);
         public static readonly VerbSpec ScanTests = new("scan-tests", 0, ["--test-dll"], ["--suggest-attributes"],
-            "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]");
+            "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]", Access: Reads);
         public static readonly VerbSpec Pending = new("pending", 0, None, ["--all"],
-            "pending [<root>] [--all]");
+            "pending [<root>] [--all]", Access: Reads);
         public static readonly VerbSpec Promote = new("promote", 0, ["--branch"], ["--dry-run", "--no-commit"],
-            "promote [<root>] [--branch <name>] [--dry-run] [--no-commit]");
+            "promote [<root>] [--branch <name>] [--dry-run] [--no-commit]", Access: WritesProduct);
         public static readonly VerbSpec Batch = new("batch", 1, None, ["--dry-run"],
-            "batch <script-file> [<root>] [--dry-run]");
+            "batch <script-file> [<root>] [--dry-run]", Access: WritesProduct);
         public static readonly VerbSpec Doctor = new("doctor", 0, None, ["--fix"],
-            "doctor [<root>] [--fix]");
+            "doctor [<root>] [--fix]", Access: WritesProduct);
 
         // Mutations — these are the ones batch also runs, so their specs are reused via .InBatch.
         public static readonly VerbSpec SetStatus = new("set-status", 2, None, None,
-            "set-status <node-id> <status> [<root>]   (status: should|done|shouldnt|faulted)");
+            "set-status <node-id> <status> [<root>]   (status: should|done|shouldnt|faulted)", Access: WritesProduct);
         public static readonly VerbSpec SetConcern = new("set-concern", 3, None, None,
-            "set-concern <node-id> <tag> <status> [<root>]   (a note goes on the node: set-node <id> --note ...)");
+            "set-concern <node-id> <tag> <status> [<root>]   (a note goes on the node: set-node <id> --note ...)", Access: WritesProduct);
         public static readonly VerbSpec RemoveConcern = new("remove-concern", 2, None, None,
-            "remove-concern <node-id> <tag> [<root>]");
+            "remove-concern <node-id> <tag> [<root>]", Access: WritesProduct);
         public static readonly VerbSpec AddSnaplink = new("add-snaplink", 1,
             ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"],
             None,
             "add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>] "
-            + "[--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]");
+            + "[--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]",
+            Access: WritesProduct);
         public static readonly VerbSpec RemoveSnaplink = new("remove-snaplink", 1,
             ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], ["--all"],
             "remove-snaplink <node-id> [<root>] [--concern <tag>] "
-            + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>] | --all");
+            + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>] | --all",
+            Access: WritesProduct);
         public static readonly VerbSpec SetSnaplink = new("set-snaplink", 1,
             ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--title-path", "--status", "--clear", "--expect"], None,
             "set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] "
             + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--title-path a>b] [--status <s>] "
-            + "[--clear <f,f>] [--expect <text>]");
+            + "[--clear <f,f>] [--expect <text>]",
+            Access: WritesProduct);
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
-            "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
+            "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]", Access: WritesProduct);
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
-            "add-node <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]");
+            "add-node <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]", Access: WritesProduct);
         public static readonly VerbSpec Move = new("move", 2, None, None,
-            "move <node-id> <new-parent-id> [<root>]");
+            "move <node-id> <new-parent-id> [<root>]", Access: WritesProduct);
         public static readonly VerbSpec Rename = new("rename", 2, None, None,
-            "rename <old-id> <new-id> [<root>]");
+            "rename <old-id> <new-id> [<root>]", Access: WritesProduct);
         public static readonly VerbSpec Remove = new("remove", 1, None, ["--recursive"],
-            "remove <node-id> [<root>] [--recursive]");
+            "remove <node-id> [<root>] [--recursive]", Access: WritesProduct);
 
         public static readonly VerbSpec Lint = new("lint", 0, ["--under"], ["--json"],
-            "lint [<root>] [--under <id>] [--json]");
+            "lint [<root>] [--under <id>] [--json]", Access: Reads);
 
         // graph subcommands — same strictness as everything else.
         public static readonly VerbSpec GraphBuild = new("graph", 0, ["--code-root"],
             ["--json", "--product-anchored", "--no-incremental", "--main"],
             "graph [<root>] [--no-incremental] [--product-anchored] [--main | --code-root <dir>] [--json]");
-        public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]");
+        public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]", Access: Reads);
         public static readonly VerbSpec GraphOrphans = new("graph orphans", 0,
             ["--type", "--limit", "--under"], ["--all"],
-            "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]");
+            "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]", Access: Reads);
         public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], ["--refresh"],
-            "graph search <term> [<root>] [--type <t>] [--limit N] [--refresh]");
+            "graph search <term> [<root>] [--type <t>] [--limit N] [--refresh]", Access: Reads);
         public static readonly VerbSpec GraphList = new("graph list", 0,
             ["--type", "--community", "--file", "--limit"], ["--unparsed", "--refresh"],
-            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N] [--refresh]");
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N] [--refresh]", Access: Reads);
         public static readonly VerbSpec GraphPaths = new("graph paths", 2,
             ["--hops", "--limit"], ["--undirected"],
-            "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]");
+            "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]", Access: Reads);
         public static readonly VerbSpec GraphRank = new("graph rank", 0,
             ["--by", "--type", "--under", "--limit"], None,
-            "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]");
+            "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]", Access: Reads);
         public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], ["--refresh"],
-            "graph node <id> [<root>] [--limit N] [--refresh]");
+            "graph node <id> [<root>] [--limit N] [--refresh]", Access: Reads);
         public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], ["--refresh"],
-            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N] [--refresh]");
+            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N] [--refresh]", Access: Reads);
         public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main", "--refresh"],
-            "graph context <id> [<root>] [--lines N] [--limit N] [--main] [--refresh]");
+            "graph context <id> [<root>] [--lines N] [--limit N] [--main] [--refresh]", Access: Reads);
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
             ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main", "--refresh"],
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main] [--refresh]");
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main] [--refresh]",
+            Access: Reads);
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh", "--all"],
-            "graph code <id> [<root>] [--lines A-B] [--all] [--main] [--refresh]");
+            "graph code <id> [<root>] [--lines A-B] [--all] [--main] [--refresh]", Access: Reads);
 
         // Each positional is a whole question - a pipeline typed inline - so several are several answers in one call. No
         // <root>: nfi finds its tree from where it runs, and a trailing root would read the last question as a path. Nothing
         // here reads a file: a question you have to write to disk before you can ask it is one that gets asked with grep.
         public static readonly VerbSpec Ask = new("ask", 32, None, ["--main", "--refresh", "--stdin"],
-            "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh] | ask --stdin", TakesRoot: false, MinPositionals: 0);
+            "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh] | ask --stdin", TakesRoot: false, MinPositionals: 0,
+            Access: Reads);
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
              "--at", "--name"],
@@ -3354,8 +3191,19 @@ internal static class Program
         public static readonly VerbSpec GraphEditUndo = new("graph edit undo", 0, None, ["--dry-run", "--main"],
             "graph edit undo [--dry-run] [--main]");
 
+        // Only the choosing of tests reaches the resident process (see Main) — the run itself builds and runs in the caller's.
         public static readonly VerbSpec Test = new("test", 1, None, ["--list", "--plan", "--failed", "--no-build"],
-            "test <node-id> [<root>] [--list] [--no-build] | test --failed [--no-build]", MinPositionals: 0);
+            "test <node-id> [<root>] [--list] [--no-build] | test --failed [--no-build]", MinPositionals: 0, Access: Reads);
+
+        /// <summary>Every spec, the longest verb first, so <c>graph edit script</c> is found before <c>graph edit</c> and
+        /// <c>graph</c>. Last, because statics initialise in order and this reads every one above it.</summary>
+        public static readonly VerbSpec[] Longest =
+        [
+            .. typeof(Specs).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                            .Where(f => f.FieldType == typeof(VerbSpec))
+                            .Select(f => (VerbSpec)f.GetValue(null)!)
+                            .OrderByDescending(s => s.Verb.Split(' ').Length),
+        ];
     }
 
     /// <summary>

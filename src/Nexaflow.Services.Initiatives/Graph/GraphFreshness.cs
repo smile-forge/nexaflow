@@ -3,168 +3,149 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Services.Initiatives.Graph;
 
 /// <summary>
-/// Whether a built graph still describes what is on disk, and which files it does not.
+/// Which files a graph no longer describes as they stand on disk: the one judgement every currency check makes.
 /// <para>
-/// The point is to let a query say something definite. "Here is what I found" leaves the reader to wonder
-/// whether the graph was current, and wondering is what makes a tool feel untrustworthy — so a query says
-/// either <i>this is current</i> or <i>N files have moved on, re-run with --refresh</i>. Both are answers;
-/// silence is not.
+/// A file is judged by its stamp — length and write time, recorded when it was last read (see
+/// <see cref="GraphSnapshot.Files"/>) — so the question costs a stat and no read. A stamp that disagrees means "read
+/// it and see", never "it changed": a file touched and put back reads as stale, and re-reading it finds the same
+/// content and costs one hash. A file that is code and has never been stamped is stale for the same reason.
 /// </para>
 /// <para>
-/// Timestamps, not hashes. Re-hashing the repository costs 1.8s warm and <b>169s cold</b> — reading half a
-/// gigabyte is the dominant cost of a full build, and paying it per query would be absurd. And the baseline
-/// needs no new stored field: the archive's own write time is when the graph last described the world,
-/// so anything modified since is what it has not seen.
+/// <see cref="Scan"/> asks it of every file the graph knows, for when nothing has said what moved: a process
+/// starting, a watcher that lost track. <see cref="Of"/> asks it of only the paths a watcher reported, which is what
+/// lets a warm process answer without looking at the other ten thousand.
 /// </para>
 /// <para>
-/// The halves are scoped differently, because they are different questions. <b>Changed</b> and <b>absent</b>
-/// are answered by stat-ing the files the graph already recorded — no directory walk at all. <b>Added</b>
-/// needs a walk, and that is narrowed to the directories the solution's projects live in: scanning the whole
-/// repository means 17,038 files, of which 14,849 are pinned submodule test corpora that cannot gain a file
-/// without a deliberate pin bump. Project-scoped it is 4,009 files, and the whole check lands around 100ms.
-/// </para>
-/// <para>
-/// <b>Absent is reported, never acted on.</b> The graph is shared with every worktree, and a branch
-/// that runs a build publishes its own files into it — so a file the graph knows and this tree does not is
-/// as likely to be a parallel session's work in progress as it is to be deleted. Nothing here can tell those
-/// apart, and guessing wrong deletes someone else's feature from the shared graph. A full <c>graph build</c>
-/// is what reconciles deletions, because it sees the whole tree rather than one path.
-/// </para>
-/// <para>
-/// It errs towards saying "stale". A file touched and reverted, or rewritten with identical content, is
-/// reported as changed — a needless refresh costs one parse, whereas a missed one is a wrong answer
-/// delivered confidently.
+/// Additions need a walk, and a full scan narrows it to the directories the solution's projects live in: the whole
+/// repository is 17,038 files, 14,849 of them pinned submodule test corpora that cannot gain a file without a
+/// deliberate pin bump. Absences are reported, not acted on — whether an absent file is gone or was only ever
+/// another tree's is the graph's owner's call.
 /// </para>
 /// </summary>
 public static class GraphFreshness
 {
-    /// <param name="Known">How many files the graph was built from.</param>
-    /// <param name="Available">False when the check could not run — nothing was built, so nothing is claimed.</param>
-    /// <param name="Absent">Files the graph describes that are not in this tree. NOT the same as deleted —
-    /// The graph is shared, and a branch that runs a build publishes its own files into it, so these
-    /// are as likely to be another session's work in progress. Reported, never acted on.</param>
-    /// <param name="OtherBranch">The graph was built from a different working tree than the one queried —
-    /// so most of the difference is the branch, not edits since.</param>
-    public sealed record Report(
-        int Known,
-        IReadOnlyList<string> Changed,
-        IReadOnlyList<string> Added,
-        IReadOnlyList<string> Absent,
-        bool Available,
-        bool OtherBranch = false)
+    /// <param name="Stale">Files whose stamp no longer holds, each with its directory entry as the scan found it.</param>
+    /// <param name="Added">Code files the graph does not know.</param>
+    /// <param name="Absent">Files the graph knows that are not on disk.</param>
+    public sealed record Drift(IReadOnlyDictionary<string, FileStamp> Stale, IReadOnlyList<string> Added,
+                               IReadOnlyList<string> Absent)
     {
-        public static readonly Report Unknown = new(0, [], [], [], false);
+        public static readonly Drift None = new(new Dictionary<string, FileStamp>(), [], []);
 
-        /// <summary>Drift that makes this answer wrong. An absent file does not: it means the graph knows
-        /// something extra, which is a different (and much less alarming) thing than knowing something
-        /// out of date.</summary>
-        public int Drifted => Changed.Count + Added.Count;
+        public bool IsEmpty => Stale.Count == 0 && Added.Count == 0 && Absent.Count == 0;
+    }
 
-        public bool IsCurrent => Available && Drifted == 0;
+    /// <summary>Every file <paramref name="snapshot"/> knows, judged against <paramref name="codeRoot"/>, and the
+    /// project directories walked for code it does not.</summary>
+    public static Drift Scan(GraphSnapshot snapshot, string codeRoot)
+    {
+        var known = Known(snapshot);
+        var found = new Found(snapshot, codeRoot);
+        foreach (var rel in known) found.Judge(rel);
 
-        /// <summary>
-        /// Every file worth re-reading. Deliberately excludes <see cref="Absent"/>: re-reading a file that
-        /// is not here can only mean removing it from the graph, and doing that on a guess would delete a
-        /// parallel branch's published work. A full <c>graph build</c> is what reconciles deletions.
-        /// </summary>
-        public IReadOnlyList<string> Stale =>
-            [.. Changed.Concat(Added).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        foreach (var dir in ScanRoots(known, codeRoot))
+            foreach (var full in RepoFiles.EnumerateSource(dir, 100_000))
+                found.Consider(full, known);
 
-        /// <summary>One line for a human or an agent — definite either way.</summary>
-        public string Summary()
-        {
-            if (!Available) return "graph: not built yet — nothing to be stale.";
-
-            // Kept separate from the verdict, and phrased as extra knowledge rather than as a fault. From a
-            // shared graph these are usually another branch's in-flight work, and reporting someone else's
-            // feature as "removed" is both wrong and the sort of noise that gets a warning ignored.
-            var aside = Absent.Count == 0 ? ""
-                : $" {Absent.Count:N0} file(s) it describes are not in this tree — another branch's work, or "
-                + "removed; a full `graph build` settles which.";
-
-            if (IsCurrent)
-                return $"graph: current for this tree — {Known:N0} files, none changed since it was built.{aside}";
-
-            var parts = new List<string>();
-            if (Changed.Count > 0) parts.Add($"{Changed.Count} changed");
-            if (Added.Count   > 0) parts.Add($"{Added.Count} added");
-
-            // From a worktree the graph was built from another branch, so the count is partly branch
-            // difference rather than edits since. Saying that stops a large, permanent-looking number
-            // reading as alarm — which would train exactly the shrug this whole check exists to prevent.
-            var why = OtherBranch
-                ? " (the graph was built from a different branch, so some of this is that). Queries that read "
-                + "source already use your tree; --refresh brings the graph's own record across."
-                : " — this answer may be out of date. Re-run with --refresh to fold them in first.";
-
-            return $"graph: {string.Join(", ", parts)} vs this working tree{why}{aside}";
-        }
+        return found.Result();
     }
 
     /// <summary>
-    /// Compares the files the graph was built from against what is on disk now.
+    /// Only what <paramref name="changed"/> — full paths a watcher reported, files or directories — can have moved.
+    /// A directory stands for everything the graph knows beneath it and every code file now in it, which is how a
+    /// folder renamed or deleted whole is told about by one notification.
     /// </summary>
-    /// <param name="known">Repo-relative paths the graph parsed — <c>GraphCache.Files.Keys</c>.</param>
-    /// <param name="codeRoot">Where source is read from: the caller's worktree, or the product root.</param>
-    /// <param name="graphFile">The built graph archive, whose write time is the baseline.</param>
-    public static Report Check(IReadOnlyCollection<string> known, string codeRoot, string graphFile,
-                               bool otherBranch = false)
+    public static Drift Of(GraphSnapshot snapshot, string codeRoot, IEnumerable<string> changed)
     {
-        DateTime baseline;
-        try
-        {
-            if (!File.Exists(graphFile)) return Report.Unknown;
-            baseline = File.GetLastWriteTimeUtc(graphFile);
-        }
-        catch { return Report.Unknown; }
-        if (known.Count == 0) return Report.Unknown;
+        var known = Known(snapshot);
+        var found = new Found(snapshot, codeRoot);
+        var fresh = new List<string>();
 
-        var changed = new List<string>();
-        var absent  = new List<string>();
-
-        // Changed and absent: a stat each, over the set the graph already knows. No walk, and it covers the
-        // thousand-odd files that live outside any project directory (build props, the product exports).
-        foreach (var rel in known)
+        foreach (var full in changed.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var full = Path.Combine(codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
-            try
+            if (Relative(codeRoot, full) is not { } rel) continue;
+            if (known.Contains(rel)) { found.Judge(rel); continue; }
+
+            if (Directory.Exists(full))
             {
-                var info = new FileInfo(full);
-                if (!info.Exists) absent.Add(rel);
-                else if (info.LastWriteTimeUtc > baseline) changed.Add(rel);
+                foreach (var within in Beneath(known, rel)) found.Judge(within);
+                foreach (var file in RepoFiles.EnumerateSource(full, 100_000)) found.Consider(file, known);
             }
-            catch { }                                    // unreadable is not evidence of anything
+            else if (File.Exists(full)) fresh.Add(full);
+            else foreach (var within in Beneath(known, rel)) found.Judge(within);   // a directory that went whole
         }
 
-        var recorded = new HashSet<string>(known, StringComparer.OrdinalIgnoreCase);
-        var added    = new List<string>();
+        foreach (var full in RepoFiles.Indexable(codeRoot, fresh)) found.Consider(full, known);
+        return found.Result();
+    }
 
-        foreach (var dir in ScanRoots(known, codeRoot))
+    /// <summary>The scan's working set, so the two entry points judge a file the same way.</summary>
+    private sealed class Found(GraphSnapshot snapshot, string codeRoot)
+    {
+        private readonly Dictionary<string, FileStamp> _stale = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _added  = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _absent = new(StringComparer.Ordinal);
+
+        public void Judge(string rel)
         {
-            try
+            FileInfo info;
+            try { info = new FileInfo(Path.Combine(codeRoot, rel.Replace('/', Path.DirectorySeparatorChar))); }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return; }
+
+            if (!info.Exists) { _absent.Add(rel); return; }
+
+            var now = new FileStamp(string.Empty, info.Length, info.LastWriteTimeUtc);
+            if (snapshot.Files.TryGetValue(rel, out var stamp) && stamp.IsKnown)
             {
-                foreach (var full in RepoFiles.EnumerateSource(dir, 100_000))
-                {
-                    var rel = Path.GetRelativePath(codeRoot, full).Replace('\\', '/');
-                    if (!recorded.Contains(rel)) added.Add(rel);
-                }
+                if (!stamp.Matches(now.Length, now.ModifiedUtc)) _stale[rel] = now;
             }
-            catch { }
+            // Never stamped: read it if its content is the graph's business, else there is nothing to compare.
+            else if (snapshot.Cache.Files.ContainsKey(rel) || RepoFiles.IsExtracted(rel)) _stale[rel] = now;
         }
 
-        changed.Sort(StringComparer.Ordinal);
-        absent.Sort(StringComparer.Ordinal);
+        public void Consider(string full, IReadOnlySet<string> known)
+        {
+            if (Relative(codeRoot, full) is { } rel && !known.Contains(rel)) _added.Add(rel);
+        }
 
-        return new Report(known.Count,
-                          changed,
-                          [.. added.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)],
-                          absent,
-                          true,
-                          otherBranch);
+        public Drift Result() => _stale.Count == 0 && _added.Count == 0 && _absent.Count == 0
+            ? GraphFreshness.Drift.None
+            : new Drift(_stale, [.. _added.Order(StringComparer.Ordinal)], [.. _absent.Order(StringComparer.Ordinal)]);
+    }
+
+    /// <summary>
+    /// Every file the graph read or listed: those it holds material for, and the file nodes that name themselves as
+    /// their own source. A file node is also synthesized for an import target that never resolved, and those carry the
+    /// REFERRING file as their source — counting them made a clean main checkout report hundreds of files absent.
+    /// </summary>
+    private static HashSet<string> Known(GraphSnapshot snapshot)
+    {
+        var known = new HashSet<string>(snapshot.Cache.Files.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var node in snapshot.Graph.Nodes)
+            if (node.Type == NodeType.File && node.FilePath is { Length: > 0 } path
+                && string.Equals(node.Source, path, StringComparison.OrdinalIgnoreCase))
+                known.Add(path);
+        return known;
+    }
+
+    private static IEnumerable<string> Beneath(IReadOnlySet<string> known, string dir)
+    {
+        var prefix = dir.TrimEnd('/') + "/";
+        return known.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? Relative(string codeRoot, string full)
+    {
+        var rel = Path.GetRelativePath(codeRoot, full);
+        return rel == "." || rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel)
+            ? null
+            : rel.Replace('\\', '/');
     }
 
     /// <summary>

@@ -45,6 +45,10 @@ public static partial class GraphArchive
     /// a forced rebuild of every graph on the machine.</summary>
     private const int SectionTreeStamp     = 8;
 
+    /// <summary>The commit the graph describes (<see cref="GraphAnchor"/>). Optional for the same reason: an archive
+    /// without it is one git has not vouched for yet, and is read file by file the first time that matters.</summary>
+    private const int SectionAnchor        = 9;
+
     // ── Writing ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -78,6 +82,7 @@ public static partial class GraphArchive
         var contributions = WriteContributions(snapshot.Cache, pool, out var records);
         var files         = Section(w => WriteFiles(w, snapshot, records, pool));
         var tree          = Section(w => WriteStamp(w, snapshot.Tree, pool));
+        var anchor        = snapshot.Anchor is { } a ? Section(w => WriteAnchor(w, a, pool)) : null;
         var strings       = Section(pool.WriteTo);   // built last, written first: it defines all the rest
 
         (int Id, byte[] Bytes)[] body =
@@ -85,6 +90,7 @@ public static partial class GraphArchive
             (SectionStrings, strings), (SectionMetadata, metadata), (SectionNodes, nodes),
             (SectionEdges, edges), (SectionHyperEdges, hyper), (SectionFiles, files),
             (SectionContributions, contributions), (SectionTreeStamp, tree),
+            .. anchor is null ? [] : new[] { (SectionAnchor, anchor) },
         ];
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -277,6 +283,12 @@ public static partial class GraphArchive
         w.Write(pool.Id(stamp.Hash));
         w.Write(stamp.Length);
         w.Write(stamp.ModifiedUtc.Ticks);
+    }
+
+    private static void WriteAnchor(BinaryWriter w, GraphAnchor anchor, StringPool pool)
+    {
+        w.Write(pool.Id(anchor.Commit));
+        WriteList(w, [.. anchor.Departed.Order(StringComparer.Ordinal)], pool);
     }
 
     private static void WriteMap(BinaryWriter w, Dictionary<string, string>? map, StringPool pool)

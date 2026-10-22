@@ -21,6 +21,15 @@ public sealed class GraphHyperEdge
     public string? ProvenanceFile { get; set; }
 
     public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>A hyperedge equal to this one that shares nothing it could change — see <see cref="GraphNode.Copy"/>.</summary>
+    public GraphHyperEdge Copy() => new()
+    {
+        Relationship = Relationship,
+        Endpoints = [.. Endpoints.Select(e => new HyperEndpoint { Node = e.Node, Role = e.Role, Ordinal = e.Ordinal, Confidence = e.Confidence })],
+        Weight = Weight, Confidence = Confidence, ProvenanceFile = ProvenanceFile,
+        Metadata = Metadata is null ? null : new Dictionary<string, string>(Metadata, Metadata.Comparer),
+    };
 }
 
 /// <summary>One roled endpoint of a <see cref="GraphHyperEdge"/>.</summary>

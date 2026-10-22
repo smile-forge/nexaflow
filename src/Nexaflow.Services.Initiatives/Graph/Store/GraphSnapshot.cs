@@ -13,6 +13,10 @@ namespace Nexaflow.Services.Initiatives.Graph.Store;
 /// was a second copy of the first. They are one artefact because they are one fact: this is the graph, this
 /// is what it was built from, and this is how to tell whether it still holds.
 /// </para>
+/// <para>
+/// One handed out by a <c>GraphWorkspace</c> is never changed again: several commands read it at once, for as long
+/// as each takes. A change is made to a <see cref="Fork"/> and published in its place.
+/// </para>
 /// </summary>
 public sealed class GraphSnapshot
 {
@@ -33,8 +37,24 @@ public sealed class GraphSnapshot
     /// </summary>
     public FileStamp Tree { get; set; }
 
-    /// <summary>Repo-relative path → what that file looked like when it was last extracted.</summary>
+    /// <summary>Repo-relative path → what that file looked like when it was last read. Recorded only by reading it: a stamp
+    /// says the graph describes the file as it stands, and nothing short of a read — or git, see <see cref="Anchor"/> —
+    /// knows that.</summary>
     public Dictionary<string, FileStamp> Files { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>The commit this graph describes and where it departs from it, or null when nothing has asked git.</summary>
+    public GraphAnchor? Anchor { get; set; }
+
+    /// <summary>A snapshot whose collections are its own and whose elements are this one's — the start of a change that
+    /// leaves this one as it is for whoever is reading it. See <see cref="KnowledgeGraph.Fork"/>.</summary>
+    public GraphSnapshot Fork() => new()
+    {
+        Graph  = Graph.Fork(),
+        Cache  = Cache.Fork(),
+        Tree   = Tree,
+        Files  = new Dictionary<string, FileStamp>(Files, Files.Comparer),
+        Anchor = Anchor,
+    };
 }
 
 /// <summary>

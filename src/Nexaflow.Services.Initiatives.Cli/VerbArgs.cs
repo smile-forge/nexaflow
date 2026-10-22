@@ -11,6 +11,8 @@ namespace Nexaflow.Services.Initiatives.Cli;
 /// <param name="Usage">The one-line usage shown when the arguments don't fit.</param>
 /// <param name="TakesRoot">Whether a trailing <c>&lt;root&gt;</c> positional is allowed. False inside a
 /// <c>batch</c> script, where every instruction shares the run's single root.</param>
+/// <param name="Access">What the verb does to the state it is served from, which decides what it waits for in the
+/// resident process. A verb that does not say writes, so a new verb is never run beside something it could disturb.</param>
 internal sealed record VerbSpec(
     string Verb,
     int Positionals,
@@ -18,7 +20,8 @@ internal sealed record VerbSpec(
     string[] Switches,
     string Usage,
     bool TakesRoot = true,
-    int MinPositionals = -1)
+    int MinPositionals = -1,
+    VerbAccess Access = VerbAccess.Writes)
 {
     /// <summary>How many of <see cref="Positionals"/> must actually be supplied. Defaults to all of them —
     /// an optional positional is the exception, for a verb whose request is complete without it
@@ -27,6 +30,24 @@ internal sealed record VerbSpec(
 
     /// <summary>The same spec as it applies inside a batch script — no trailing <c>&lt;root&gt;</c>.</summary>
     public VerbSpec InBatch => this with { TakesRoot = false };
+}
+
+/// <summary>
+/// What a verb does to the state a resident process serves it from — the graph each working tree holds, that tree's
+/// files, and the product tree every working tree shares. It decides what the command waits for.
+/// </summary>
+internal enum VerbAccess
+{
+    /// <summary>Changes a working tree — its files, its graph, its edit history. One at a time per tree.</summary>
+    Writes,
+
+    /// <summary>Only reads. Runs beside anything: what it reads of the graph is a version nothing changes, and the
+    /// product tree it is handed is a copy.</summary>
+    Reads,
+
+    /// <summary>Changes the product tree, which every working tree shares: one at a time across all of them, and
+    /// alongside its own tree's writers as a writer itself.</summary>
+    WritesProduct,
 }
 
 /// <summary>

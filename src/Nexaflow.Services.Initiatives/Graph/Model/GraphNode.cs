@@ -33,4 +33,13 @@ public sealed class GraphNode
 
     /// <summary>Open bag: <c>status</c>, <c>kind</c>, <c>line</c>, <c>ast</c>, <c>node_id</c>, …</summary>
     public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>A node equal to this one that shares nothing with it — what a change makes when the node belongs to a graph
+    /// somebody may be reading.</summary>
+    public GraphNode Copy() => new()
+    {
+        Id = Id, Type = Type, Label = Label, FilePath = FilePath, Language = Language,
+        Community = Community, Confidence = Confidence, Source = Source,
+        Metadata = Metadata is null ? null : new Dictionary<string, string>(Metadata, Metadata.Comparer),
+    };
 }
