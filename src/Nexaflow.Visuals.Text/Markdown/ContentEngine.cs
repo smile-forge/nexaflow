@@ -73,6 +73,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What the reader has opened in the content itself, where it is a diagram rather than a document holding some.</summary>
     private DiagramViewState? _top;
 
+    /// <summary>
+    /// Which of a markdown document's sections the reader has folded away, by the name each heading answers to — kept for as long
+    /// as the engine is, so a section stays folded through every edit and every reading, and handed to the document's builder the
+    /// way a diagram's openings are handed to its own.
+    /// </summary>
+    private readonly DiagramViewState _sections = new();
+
     private ContentInputs _inputs = inputs ?? ContentInputs.None;
 
     /// <summary>
@@ -101,7 +108,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, StyleFormat style, double room, bool readOnly)
     {
         Views(top);
-        if (_top is { } opened) style = style with { Expansion = opened };
+        // What the reader opened in a diagram, or folded away of a document.
+        if ((_top ?? (top.Language == ContentLanguages.Markdown ? _sections : null)) is { } opened) style = style with { Expansion = opened };
 
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
         var staged = Staged(top, showing);
@@ -334,7 +342,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         {
             var read = Nested(language, named, text);
 
+            // Its own openings, or those of the diagram holding it — never the sections of the document it is written in.
             if (Opened(holder) is { } view) style = style with { Expansion = view };
+            else if (ReferenceEquals(style.Expansion, _sections)) style = style with { Expansion = null };
 
             // What is shown as written is where it is among the characters the language was handed, which a container's marks
             // between its lines are not among.

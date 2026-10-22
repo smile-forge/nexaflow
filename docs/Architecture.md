@@ -116,6 +116,7 @@ A `Workspace` (`Core/Models/Workspace.cs`) is a named, themed, saved configurati
 | `ProviderConfigs` | The provider configs (API keys / subscriptions) used to build provider instances | provider config folders |
 | `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/runtime on this workspace observes to reload live | `ribbon.json` |
 | `ConversationsDir` | Where this workspace's conversations are stored | `Conversations/` |
+| `LocalDir` / `DocumentNotesDir` | What the workspace keeps on this machine alone, too large to roam with its settings: what whole-document work worked out — gists, summaries, translations — so doing it again asks only of what changed. `%LOCALAPPDATA%\Smile\nexaflow\Contexts\<name>\` (`ConfigManager.LocalDir`; beside the config base as `local\` when `NEXAFLOW_CONFIG_DIR` sets one apart), renamed and deleted with the workspace, let go of when no workspace names it | `DocumentNotes/` under the local folder |
 | workspace-scoped feature configs | Any `IFeatureConfig` marked `[WorkspaceScopedConfig]` (saved via `WorkspaceManager.SaveWorkspaceScopedConfig`) | `<configName>/` |
 | `DefaultTabs` / `LastSessionTabs` / `SuppressSessionRestore` | The tabset a fresh window opens with; the last session's tabset when it differed (a toast offers one-click restore); and the Configure panel's opt-out, which stops that tabset being recorded at all and drops any already held | inline in `workcontexts` |
 

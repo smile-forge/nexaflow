@@ -198,6 +198,9 @@ public class ContentElement : FrameworkElement
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
 
+    /// <summary>Opens whatever of the document is folded away over <paramref name="offset"/> (<see cref="ContentEngine.Unfolded"/>).</summary>
+    protected bool Unfold(int offset) => _engine.Unfolded(offset);
+
     /// <summary>What lays the content out and holds it as it is being written — see <see cref="ContentEngine"/>.</summary>
     private readonly ContentEngine _engine;
 

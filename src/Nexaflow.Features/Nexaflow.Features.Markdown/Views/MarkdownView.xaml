@@ -5,6 +5,7 @@
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
@@ -173,6 +174,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- File name + the search chip an AI-bar "?" search leaves behind -->
@@ -211,8 +213,67 @@
                     </Grid>
                 </StackPanel>
 
+                <!-- The whole document with the workspace's Documents model: summarised, or translated into the language
+                     chosen in the popup under the button. Each runs as a background job; what it makes opens beside it. -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                    <Button Style="{StaticResource TbBtn}"
+                            ToolTip="{loc:Str Markdown.Toolbar.Summarize.Tip}"
+                            AutomationProperties.AutomationId="Markdown_Summarize"
+                            Command="{Binding SummarizeCommand}">
+                        <TextBlock Text="{loc:Str Markdown.Toolbar.Summarize}" FontSize="12"/>
+                    </Button>
+
+                    <Button x:Name="TranslateButton"
+                            Margin="6,0,0,0"
+                            Style="{StaticResource TbBtn}"
+                            ToolTip="{loc:Str Markdown.Toolbar.Translate.Tip}"
+                            AutomationProperties.AutomationId="Markdown_Translate"
+                            Command="{Binding OpenTranslateCommand}">
+                        <TextBlock Text="{loc:Str Markdown.Toolbar.Translate}" FontSize="12"/>
+                    </Button>
+
+                    <Popup IsOpen="{Binding IsTranslateOpen, Mode=TwoWay}"
+                           PlacementTarget="{Binding ElementName=TranslateButton}"
+                           Placement="Bottom"
+                           StaysOpen="False"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="10">
+                            <StackPanel Width="240">
+                                <TextBlock Text="{loc:Str Markdown.Translate.Into}"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           Margin="0,0,0,6"/>
+                                <ComboBox IsEditable="True"
+                                          ItemsSource="{Binding Languages}"
+                                          Text="{Binding TranslateInto, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          AutomationProperties.AutomationId="Markdown_TranslateTo"
+                                          AutomationProperties.Name="{loc:Str Markdown.Translate.Into}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Style="{StaticResource TbBtn}"
+                                            AutomationProperties.AutomationId="Markdown_TranslateCancel"
+                                            Command="{Binding CancelTranslateCommand}"
+                                            IsCancel="True">
+                                        <TextBlock Text="{loc:Str Markdown.Translate.Cancel}" FontSize="12"/>
+                                    </Button>
+                                    <Button Margin="6,0,0,0"
+                                            Style="{StaticResource TbBtn}"
+                                            AutomationProperties.AutomationId="Markdown_TranslateGo"
+                                            Command="{Binding TranslateCommand}"
+                                            IsDefault="True">
+                                        <TextBlock Text="{loc:Str Markdown.Translate.Go}" FontSize="12"/>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
+
                 <!-- Save button (greyed out when clean) -->
-                <Button Grid.Column="2"
+                <Button Grid.Column="3"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save (Ctrl+S)"
                         AutomationProperties.AutomationId="Markdown_Save"
@@ -224,7 +285,7 @@
                 </Button>
 
                 <!-- Save as: the document written to a file the reader picks, its pictures with it; the tab follows it -->
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         Margin="6,0,0,0"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save as another file (Ctrl+Shift+S)"

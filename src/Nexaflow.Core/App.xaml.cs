@@ -230,7 +230,13 @@ public partial class App : Application
         if (_resetRequested)
             DeleteDirectoryWithRetry(baseDir);
 
-        ConfigManager.Instance.Initialize(baseDir);
+        // What is kept on this machine alone — caches too large to roam with the settings — under %LocalAppData%, unless the base
+        // was set apart, when it is kept beside it so a UI test's root holds everything the run wrote.
+        var localDir = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR"))
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow")
+            : Path.Combine(baseDir, "local");
+
+        ConfigManager.Instance.Initialize(baseDir, localDir);
         StartupTimings.Mark("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
@@ -305,6 +311,7 @@ public partial class App : Application
                 var ai = new AiConfig();
                 ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
                 ai.AddDefaultSpeechIn();   // the workspace saves it
+                ai.AddDefaultDocuments();
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Concat(LocalColumns.Assemblies)   // every workspace has the Local column

@@ -1,0 +1,10 @@
+{
+  "Markdown.Toolbar.Summarize": "Résumer",
+  "Markdown.Toolbar.Summarize.Tip": "Résumer tout le document, section par section, avec le modèle Documents de cet espace de travail. Le résumé s'ouvre à côté, chaque titre ramenant à sa section.",
+  "Markdown.Toolbar.Translate": "Traduire…",
+  "Markdown.Toolbar.Translate.Tip": "Traduire tout le document dans une autre langue avec le modèle Documents de cet espace de travail, en gardant son balisage, son code et ses diagrammes tels quels. La traduction s'ouvre à côté.",
+  "Markdown.Translate.Into": "Traduire en",
+  "Markdown.Translate.Go": "Traduire",
+  "Markdown.Translate.Cancel": "Annuler",
+  "Markdown.Documents.NoModel": "Cet espace de travail n'a aucun modèle dans sa ligne Documents. Choisissez-en un dans la page IA de la configuration de l'espace de travail."
+}

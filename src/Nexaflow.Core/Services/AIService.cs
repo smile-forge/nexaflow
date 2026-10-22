@@ -94,6 +94,55 @@ public sealed class AIService : IAIService
         }, TaskScheduler.Default);
     }
 
+    // ── Whole documents ────────────────────────────────────────────────────
+
+    public bool WorksOnDocuments => GetProvider(AiAbility.Documents) is not null && _jobs is not null;
+
+    public void SummarizeDocument(DocumentAsked document) => StartDocumentJob(document, tools => tools.Summary, []);
+
+    public void TranslateDocument(DocumentAsked document, string language) =>
+        StartDocumentJob(document, tools => tools.Translation, new JsonObject { [Documents.TranslateDocumentTool.LanguageParameter] = language });
+
+    /// <summary>
+    /// The call a whole-document tool would be given, run as the assistant's slow calls run — but the user's, so nothing is asked,
+    /// and the document is what their editor holds now, edits not yet saved included.
+    /// </summary>
+    private void StartDocumentJob(DocumentAsked document, Func<Documents.DocumentTools, IClientTool> tool, JsonObject arguments)
+    {
+        if (_jobs is not { } jobs) throw new InvalidOperationException("This workspace runs no background jobs.");
+
+        var path = Path.GetFullPath(document.Path);
+        if (DocumentToolsFor(new PathScope([path], []), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document.Source : null) is not { } tools)
+            throw new InvalidOperationException("This workspace has no model in its Documents row.");
+
+        arguments[Documents.DocumentJob.DocumentParameter] = path;
+        jobs.Start(tool(tools), arguments, origin: null);
+    }
+
+    /// <summary>
+    /// The whole-document tools, working on what <paramref name="scope"/> holds — a document saying what <paramref name="written"/>
+    /// says of it where that is not null — or null where the workspace's Documents row has no model now, or there is no shell to
+    /// open what they make in.
+    /// </summary>
+    private Documents.DocumentTools? DocumentToolsFor(PathScope scope, Func<string, string?> written)
+    {
+        if (GetProvider(AiAbility.Documents) is null || _workspace.ShellServices is not { } shell) return null;
+
+        return new Documents.DocumentTools(new Documents.DocumentJob(DocumentModelAsync, _workspace.Workspace.DocumentNotesDir, scope, written,
+                                                                     Generation.GeneratedFiles.For(shell, scope), ProviderManager.Instance.ActivityManager));
+    }
+
+    /// <summary>
+    /// The Documents model, held for one job: the first of its row available now, with what it reads at once — what it says, or
+    /// what Nexaflow's own models are taken to read where it says nothing. Null where none is available.
+    /// </summary>
+    private async Task<Nexaflow.IO.Documents.Processing.IDocumentModel?> DocumentModelAsync(CancellationToken ct)
+    {
+        if (CandidateColumns<ILlmProvider>(AiAbility.Documents).FirstOrDefault() is not ({ } column, { } provider)) return null;
+
+        return new Documents.WorkspaceDocumentModel(provider, $"{column.ProviderName}/{column.Model}", await ContextOfAsync(provider, ct) ?? OwnedFallbackContext);
+    }
+
     /// <summary>
     /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens that hears when a turn
     /// is over — anything but <see cref="LocalColumns.Dictation"/>, which only dictates — a voice speaks the language, and a
@@ -203,6 +252,9 @@ public sealed class AIService : IAIService
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
                                                           HighQualityVideoGenerator, made).Tools);
         }
+
+        // What the workspace can work through as a whole — a document summarised or translated — where its Documents row has a model now.
+        if (DocumentToolsFor(scope, _ => null) is { } documents) tools.AddRange(documents.Tools);
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.

@@ -94,6 +94,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         // The document's own blocks are each a piece of their own; a block inside another is part of that one's.
         var whole = holder.Parent is null;
         var laid = whole ? LaidBlocks.Of(holder) : null;
+        var folded = whole ? Folded(holder) : null;
 
         for (var at = 0; at < holder.Children.Count; at++)
         {
@@ -105,12 +106,91 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             // somebody puts the caret in it, when it is the characters they are editing.
             if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference) continue;
 
+            // What the reader folded away is not on the page; its heading says how much is behind it.
+            if (folded is not null && folded.Hidden[at]) continue;
+
             if (above is not null) _y += Between(above, part);
             above = part;
 
             if (whole) Whole(into, part, x, room, laid?.For(at));
             else Block(into, part, x, room);
+
+            if (folded is not null && folded.Behind.TryGetValue(at, out var fold)) Fold(into, part, fold.Key, fold.Blocks, x);
         }
+    }
+
+    /// <summary>
+    /// What the reader has folded away of the document: which of its parts are off the page, and under each folded heading the
+    /// name its folding is kept by and how many blocks wait behind it. Null where nothing is folded.
+    ///
+    /// <para>
+    /// A section is folded where what the reader opened and folded (<see cref="StyleFormat.Expansion"/>) says so by its heading's
+    /// name; every other is open. Which blocks a section holds is the reading's (<see cref="MarkdownSections"/>), so nothing here
+    /// works it out from where anything is written.
+    /// </para>
+    /// </summary>
+    private SectionFolds? Folded(ContentPart document)
+    {
+        if (Style.Expansion?.Expansion is not { Count: > 0 } said) return null;
+
+        var sections = MarkdownSections.Of(document.Node);
+        if (sections.Sections.Count == 0) return null;
+
+        var folds = new SectionFolds(document.Children.Count);
+
+        foreach (var section in sections.All())
+        {
+            if (section.Anchor is not { } key || !section.Holds || folds.Hidden[section.Heading]) continue;
+            if (!said.TryGetValue(key, out var open) || open) continue;
+
+            var blocks = 0;
+            for (var at = section.Heading + 1; at < section.End; at++)
+            {
+                folds.Hidden[at] = true;
+                if (document.Children[at] is { Derived: false } part && part.Role != Roles.Trivia
+                    && part.Kind is not (MarkdownKinds.FrontMatter or MarkdownKinds.Reference)) blocks++;
+            }
+
+            folds.Behind[section.Heading] = (key, blocks);
+        }
+
+        return folds.Behind.Count == 0 ? null : folds;
+    }
+
+    /// <summary>
+    /// What stands under a folded section's heading in place of the blocks folded away: how many there are, which a press opens
+    /// again — the <see cref="LayoutVerbs.Expand"/> a diagram's chip means, answered by the engine the same way. It stands for the
+    /// heading, since nobody wrote it.
+    /// </summary>
+    private void Fold(LayoutBuilder into, ContentPart heading, string key, int blocks, double x)
+    {
+        var says = Glyphs($"+{blocks}", Face.Plain with { Scale = 0.85, Ink = Style.TextMuted });
+        var pad = Style.TextSize * 0.4;
+
+        _y += Gap * 0.3;
+
+        var box = new RectangleGeometry(new Rect(0, 0, says.Width + (pad * 2), says.Height + (pad * 0.5)), 3, 3);
+        box.Freeze();
+
+        into.Open(MarkdownPieces.Fold, heading, new Point(x, _y), Stops.None);
+        into.Acts(new LayoutActions { Click = new LayoutIntent(LayoutVerbs.Expand, key, "Unfold this section") });
+        into.Draw(new GeometryMark(box, Style.QuoteBg, null, 0));
+        into.Occupies(box);
+        into.Draw(new TextMark(says, new Point(pad, pad * 0.25), Style.TextMuted));
+        into.Close();
+
+        _y += box.Bounds.Height;
+        Reached(x + box.Bounds.Width);
+    }
+
+    /// <summary>What the reader folded away of a document (<see cref="Folded"/>), by the places of its parts.</summary>
+    private sealed class SectionFolds(int parts)
+    {
+        /// <summary>Whether the part at each place is folded away.</summary>
+        public bool[] Hidden { get; } = new bool[parts];
+
+        /// <summary>Under each folded heading's place: the name its folding is kept by, and how many blocks wait behind it.</summary>
+        public Dictionary<int, (string Key, int Blocks)> Behind { get; } = [];
     }
 
     /// <summary>

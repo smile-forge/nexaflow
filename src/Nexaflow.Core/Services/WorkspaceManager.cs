@@ -165,10 +165,30 @@ public sealed class WorkspaceManager
             }
         }
 
+        ForgetOrphanedLocalFolders(live);
+
         if (moved.Count > 0)
             Debug.WriteLine($"[WorkspaceManager] quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
 
         return moved;
+    }
+
+    /// <summary>
+    /// Lets go of what no listed workspace keeps on this machine alone. Caches, worked out again from what they were kept of, so
+    /// let go of rather than quarantined; a folder in use is left for the next launch.
+    /// </summary>
+    private static void ForgetOrphanedLocalFolders(IReadOnlySet<string> live)
+    {
+        var root = Path.Combine(ConfigManager.Instance.LocalDir, "Contexts");
+        if (!Directory.Exists(root)) return;
+
+        foreach (var dir in Directory.GetDirectories(root))
+        {
+            if (live.Contains(Path.GetFileName(dir))) continue;
+
+            try { Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) { Debug.WriteLine($"[WorkspaceManager] orphaned local folder kept '{dir}': {ex.Message}"); }
+        }
     }
 
     /// <summary>A destination inside <paramref name="quarantine"/> for <paramref name="name"/> that doesn't
@@ -349,7 +369,14 @@ public sealed class WorkspaceManager
             // Skip the move on a case-only rename (same path on Windows) or when there's nothing to move.
             if (!string.Equals(oldDir, newDir, StringComparison.OrdinalIgnoreCase)
                 && Directory.Exists(oldDir) && !Directory.Exists(newDir))
-                Directory.Move(oldDir, newDir);
+        Directory.Move(oldDir, newDir);
+
+                // What it keeps on this machine alone goes with it.
+                var oldLocal = WorkspaceLocalDir(workspace.Name);
+                var newLocal = WorkspaceLocalDir(newName);
+                if (!string.Equals(oldLocal, newLocal, StringComparison.OrdinalIgnoreCase)
+                    && Directory.Exists(oldLocal) && !Directory.Exists(newLocal))
+                    Directory.Move(oldLocal, newLocal);
             workspace.Name = newName;   // observable → selector/ribbon update; Dir now resolves to newDir
         }
         SaveWorkspaces();
@@ -393,6 +420,9 @@ public sealed class WorkspaceManager
         {
             var dir = WorkspaceDir(name);
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+
+            var local = WorkspaceLocalDir(name);
+            if (Directory.Exists(local)) Directory.Delete(local, recursive: true);
         }
         catch { /* leave an orphaned folder rather than fail the removal */ }
     }
@@ -449,6 +479,13 @@ public sealed class WorkspaceManager
     /// <summary>Per-workspace data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
     public static string WorkspaceDir(string name)
         => Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", name);
+
+    /// <summary>
+    /// What a workspace keeps on this machine alone: <c>%LocalAppData%\…\Contexts\&lt;name&gt;</c> — caches too large to roam with
+    /// its settings. Renamed, deleted and let go of with the workspace's own folder.
+    /// </summary>
+    public static string WorkspaceLocalDir(string name)
+        => Path.Combine(ConfigManager.Instance.LocalDir, "Contexts", name);
 
     /// <summary>Persists the workspace list (names/colours/icons only).</summary>
     public void SaveWorkspaces()

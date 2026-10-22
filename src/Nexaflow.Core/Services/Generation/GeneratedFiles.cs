@@ -81,6 +81,41 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
     }
 
     /// <summary>
+    /// Saves <paramref name="markdown"/> — a document made from the one at <paramref name="from"/>, a summary or a translation
+    /// of it — where <paramref name="asked"/> says when that is inside a folder open in a tab, and anywhere else keeps it as a
+    /// draft named <paramref name="name"/>, beside copies of what its links and pictures name beside <paramref name="from"/> so
+    /// they still show, its Save as starting in <paramref name="from"/>'s folder; then opens it.
+    /// </summary>
+    public async Task<MadeFile> KeepDocumentAsync(string markdown, string? asked, string name, string from, CancellationToken ct)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(markdown);
+        var folder = Path.GetDirectoryName(Path.GetFullPath(from))!;
+
+        if (!string.IsNullOrWhiteSpace(asked) && scope.ResolveInFolder(Target(asked, Path.GetFileNameWithoutExtension(name), ".md")) is { } target)
+        {
+            var saved = await SaveAsync(bytes, target, ct);
+            await show(saved);
+            return new MadeFile(saved, Draft: false);
+        }
+
+        var draft = await SaveAsync(bytes, DraftLocation.NewFile(name, drafts), ct);
+        var beside = Path.GetDirectoryName(draft)!;
+
+        foreach (var attached in Nexaflow.Markdown.Packaging.MarkdownAttachments.Paths(markdown))
+        {
+            var source = Path.Combine(folder, attached);
+            if (!File.Exists(source)) continue;
+
+            var copy = Path.Combine(beside, attached);
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.Copy(source, copy, overwrite: true);
+        }
+
+        await show(new DraftFile(draft, folder));
+        return new MadeFile(draft, Draft: true);
+    }
+
+    /// <summary>
     /// The file a made thing is meant for, made full: a folder, or a path ending in a separator, gets a name from
     /// <paramref name="about"/>; a file takes <paramref name="extension"/>. Null for anything that is not a full path.
     /// </summary>

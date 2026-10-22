@@ -49,4 +49,18 @@ public sealed class AiConfig : IProviderConfig
         Assignments[key] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.SpeechToText));
         return true;
     }
+
+    /// <summary>
+    /// Gives Documents its starting chain when this grid has never had that row — a grid saved before the row existed: the
+    /// models Analysis is given, since working through a document a piece at a time is the same kind of reading. A chain the
+    /// user has emptied is a chain, and is left alone. Returns whether anything was added.
+    /// </summary>
+    public bool AddDefaultDocuments()
+    {
+        var key = nameof(AiAbility.Documents);
+        if (Assignments.ContainsKey(key) || !Assignments.TryGetValue(nameof(AiAbility.Analysis), out var analysis)) return false;
+
+        Assignments[key] = AbilityChain.Of([.. analysis.ColumnIds]);
+        return true;
+    }
 }

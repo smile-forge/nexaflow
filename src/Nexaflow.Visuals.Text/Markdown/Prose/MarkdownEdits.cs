@@ -78,6 +78,22 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         }),
     ];
 
+    /// <summary>
+    /// What a block's corner offers. A heading of the document's own offers to fold its section away, where the section holds
+    /// anything and the heading has a name the folding is kept by; any other heading offers nothing, since prose is read rather
+    /// than handled. Anything else asked of markdown — a block of it written inside other content — is the usual.
+    /// </summary>
+    public BlockCorner Corner(ContentAsk ask)
+    {
+        if (ask.Part is not { Kind: MarkdownKinds.Heading } heading || ask.Root is not { } root) return BlockCorner.Usual;
+
+        foreach (var section in MarkdownSections.Of(root.Node).All())
+            if (section.Holds && section.Anchor is { } key && ReferenceEquals(root.Node.Children[section.Heading], heading.Node))
+                return BlockCorner.None with { Adds = [new LayoutIntent(LayoutVerbs.Collapse, key, "Fold this section")] };
+
+        return BlockCorner.None;
+    }
+
     /// <summary>What every offer to start a block begins its verb with; the language's name follows.</summary>
     private const string Inserts = "insert:";
 

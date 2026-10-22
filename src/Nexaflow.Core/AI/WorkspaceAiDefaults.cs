@@ -20,12 +20,12 @@ public sealed record OwnedColumns(ProviderModelPair Language, ProviderModelPair?
 internal static class WorkspaceAiDefaults
 {
     /// <summary>
-    /// The roles called most and needing least — routing a request, analysing a page, describing an image — which
-    /// a mixed workspace gives to the model on this machine first: that is where API cost actually goes. The
-    /// conversation itself stays with the chosen provider, the stronger model, and falls back to the owned one.
+    /// The roles called most and needing least — routing a request, analysing a page, describing an image, working through a
+    /// document a piece at a time — which a mixed workspace gives to the model on this machine first: that is where API cost
+    /// actually goes. The conversation itself stays with the chosen provider, the stronger model, and falls back to the owned one.
     /// </summary>
     internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
-        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition };
+        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.Analysis, AiAbility.ImageRecognition, AiAbility.Documents };
 
     /// <summary>
     /// Every language ability served by <paramref name="bridged"/>, by <paramref name="owned"/>'s language model, or by both;

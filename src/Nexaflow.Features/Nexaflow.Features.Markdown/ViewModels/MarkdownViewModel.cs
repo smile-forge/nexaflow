@@ -14,6 +14,8 @@ using System.Windows.Controls;
 using Nexaflow.Visuals.Common.Theming;
 using System;
 using Nexaflow.Markdown.Packaging;
+using System.Globalization;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -65,6 +67,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public IReadOnlyList<string>? InitialHeading { get; }
 
     /// <summary>
+    /// A saved reference to land on once rendered (<c>heading:getting-started</c>) — set when a link leads into the document at a
+    /// place, as a summary's heading leads back to its section — or null.
+    /// </summary>
+    public string? InitialPlace { get; }
+
+    /// <summary>
     /// The fenced language this whole file is, or null when it is an ordinary markdown document.
     ///
     /// <para>
@@ -77,6 +85,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public string? WrittenIn { get; }
 
     private readonly IShellServices _shell;
+
+    /// <summary>The workspace's AI, which works through the whole document; null where the page was made without one.</summary>
+    private readonly IAIService? _ai;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -134,11 +145,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    public MarkdownViewModel(string filePath, IShellServices shell, IReadOnlyList<string>? initialHeading = null, string? draftFolder = null)
+    public MarkdownViewModel(string filePath, IShellServices shell, IReadOnlyList<string>? initialHeading = null, string? draftFolder = null,
+                             IAIService? ai = null, string? initialPlace = null)
     {
         FilePath       = filePath;
         _shell         = shell;
+        _ai            = ai;
         InitialHeading = initialHeading;
+        InitialPlace   = initialPlace;
         _draftFolder   = draftFolder;
         WrittenIn      = SingleBlockFiles.LanguageOf(filePath);
         if (MarkdownPackage.Names(filePath) && VirtualFileSystem.Instance.Exists(filePath))
@@ -208,6 +222,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath = target;
         OnPropertyChanged(nameof(FilePath));
         OnPropertyChanged(nameof(FileName));
+        SummarizeCommand.NotifyCanExecuteChanged();
+        OpenTranslateCommand.NotifyCanExecuteChanged();
         DraftFolder = null;
         _savedText  = Markdown;
         IsDirty     = false;
@@ -242,8 +258,98 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// browser, a path to the viewer for that kind of file — and nothing claiming it leaves it to open the way any
     /// other link does. A link into the document never reaches here; the surface answers those itself, being the
     /// only thing that knows where they go.
+    ///
+    /// <para>
+    /// A link into another markdown document at a place — a summary's heading leading back to its section, written as the
+    /// file with a saved reference after its <c>#</c> — opens that document, or brings forward the tab showing it, at the
+    /// place: the reference is markdown's own, so it is followed here rather than handed to a shell that cannot read it.
+    /// </para>
     /// </summary>
-    public bool FollowLink(string url) => !string.IsNullOrWhiteSpace(url) && _shell.HandleObject(url);
+    public bool FollowLink(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile && uri.Fragment.Length > 1 && IsMarkdownFile(uri.LocalPath))
+        {
+            _shell.OpenTab(MarkdownTabRegistration.StaticPageKind, new Dictionary<string, string>
+            {
+                ["path"] = uri.LocalPath,
+                [MarkdownTabRegistration.PlaceParameter] = Uri.UnescapeDataString(uri.Fragment[1..]),
+            });
+            return true;
+        }
+
+        return _shell.HandleObject(url);
+    }
+
+    /// <summary>Whether <paramref name="path"/> is a markdown document as a file — not a package, not a file of one fenced language.</summary>
+    private static bool IsMarkdownFile(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() is ".md" or ".markdown";
+
+    // ── The whole document, with the workspace's AI ───────────────────────
+
+    /// <summary>Whether the document can be worked through as a whole: a markdown file of its own, on disk.</summary>
+    public bool WorksOnDocument => WrittenIn is null && IsMarkdownFile(FilePath) && DraftFolder is null;
+
+    /// <summary>Whether the language to translate into is being chosen.</summary>
+    [ObservableProperty]
+    private bool _isTranslateOpen;
+
+    /// <summary>The language to translate into, named in English; the reader's own to start with.</summary>
+    [ObservableProperty]
+    private string _translateInto = CultureInfo.GetCultureInfo(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName).EnglishName;
+
+    /// <summary>Languages offered to translate into, named in English as the model is asked them; any other may be typed.</summary>
+    public IReadOnlyList<string> Languages { get; } =
+    [
+        "Arabic", "Chinese (Simplified)", "Chinese (Traditional)", "Dutch", "English", "French", "German", "Greek", "Hebrew",
+        "Hindi", "Italian", "Japanese", "Korean", "Polish", "Portuguese", "Brazilian Portuguese", "Russian", "Spanish",
+        "Swedish", "Turkish", "Ukrainian", "Vietnamese",
+    ];
+
+    /// <summary>
+    /// Summarises the whole document — as it stands, edits not yet saved included — with the workspace's Documents model: a
+    /// background job, listed with the others and stoppable there; the summary opens beside it when made.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(WorksOnDocument))]
+    private void Summarize() => StartDocumentWork(ai => ai.SummarizeDocument(new DocumentAsked(FilePath, Markdown)));
+
+    /// <summary>Asks which language to translate the document into.</summary>
+    [RelayCommand(CanExecute = nameof(WorksOnDocument))]
+    private void OpenTranslate() => IsTranslateOpen = true;
+
+    /// <summary>Leaves the document untranslated.</summary>
+    [RelayCommand]
+    private void CancelTranslate() => IsTranslateOpen = false;
+
+    /// <summary>
+    /// Translates the whole document into the language chosen with the workspace's Documents model, a background job as
+    /// <see cref="Summarize"/> is; the translation opens beside it when made.
+    /// </summary>
+    [RelayCommand]
+    private void Translate()
+    {
+        if (TranslateInto.Trim() is not { Length: > 0 } language) return;
+
+        IsTranslateOpen = false;
+        StartDocumentWork(ai => ai.TranslateDocument(new DocumentAsked(FilePath, Markdown), language));
+    }
+
+    /// <summary>Sets the work going, or says why it cannot be: the workspace has no model in its Documents row.</summary>
+    private void StartDocumentWork(Action<IAIService> start)
+    {
+        if (_ai is { WorksOnDocuments: true } ai)
+        {
+            try
+            {
+                start(ai);
+                return;
+            }
+            catch (InvalidOperationException) { /* the model went between asking and starting */ }
+        }
+
+        _shell.ShowNotification(Str.Get("Markdown.Documents.NoModel"));
+    }
 
     // ── Dirty tracking ────────────────────────────────────────────────────
 

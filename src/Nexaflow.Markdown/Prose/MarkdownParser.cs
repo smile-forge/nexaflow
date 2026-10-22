@@ -112,7 +112,7 @@ public sealed class MarkdownParser : ITranspile
     {
         var targets = new LinkTargets();
 
-        return new AstPipeline(new WithTargets(targets), new WithReferences(targets)).Run(Parsing()(source ?? string.Empty).Tree);
+        return new AstPipeline(new WithTargets(targets), new WithReferences(targets), new WithSections()).Run(Parsing()(source ?? string.Empty).Tree);
     }
 
     /// <summary>
@@ -444,6 +444,73 @@ public sealed class MarkdownParser : ITranspile
         if (at == part.Start && !Worded(part)) return null;
         if (at == part.Start && begins && part.Print() is { Length: > 0 } ahead && Marked(ahead, 0, true, table)) return null;
 
+        return Lines(text, begins, table);
+    }
+
+    /// <summary>
+    /// How prose spells <paramref name="words"/> standing where <paramref name="part"/>'s own did — the words of a run put back in
+    /// another language, say: every character markdown would read as markup there given the backslash that makes it a character,
+    /// as a change written into the document is spelled.
+    /// </summary>
+    public static string SpellWords(ContentPart part, string words) =>
+        Lines(words, Begins(part, part.Start), Within(part, MarkdownKinds.Table) || Within(part, MarkdownKinds.Row) || Within(part, MarkdownKinds.Cell));
+
+    /// <summary>
+    /// How prose spells <paramref name="words"/> in a document being written afresh: as the words of a line of their own where
+    /// <paramref name="startsLine"/>, or carrying one on after markup that opened it — a heading's hashes, say.
+    /// </summary>
+    public static string SpellWords(string words, bool startsLine) => Lines(words, startsLine, table: false);
+
+    /// <summary>
+    /// How prose spells <paramref name="paragraph"/> — markdown a writer gave as one paragraph, a summary's, say — as a paragraph
+    /// and nothing more: whatever would start a block at the head of one of its lines given the backslash that makes it a
+    /// character, so no heading, list, quote, fence or rule can open in it, and its inline markup — emphasis, code, a link, a
+    /// formula — left to be read as written.
+    /// </summary>
+    public static string SpellParagraph(string paragraph)
+    {
+        var said = new StringBuilder(paragraph.Length);
+
+        foreach (var line in paragraph.Split('\n'))
+        {
+            if (said.Length > 0) said.Append('\n');
+
+            var at = 0;
+            while (at < line.Length && line[at] is ' ' or '\t') at++;
+
+            // What a line starts with is read as a block only where nothing but space stands in front of it, or where the number
+            // an item is counted by does.
+            for (var mark = at; mark < line.Length && mark <= at + 9; mark++)
+            {
+                var character = line[mark];
+                var opens = mark == at
+                    ? MarkdownLinkSyntax.Escapable(character) && MarkdownBlockRules.Reading.MayStart(character)
+                    : character is '.' or ')' && Numbered(line, mark);
+
+                if (!opens) continue;
+
+                said.Append(line, 0, mark).Append('\\').Append(line, mark, line.Length - mark);
+                at = -1;
+                break;
+            }
+
+            if (at >= 0) said.Append(line);
+        }
+
+        return said.ToString();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="part"/> is words of prose — what a reader reads, and what a change written into prose may replace —
+    /// rather than markup, or anything written in a language of its own: code, a formula, raw HTML, front matter, what a fence holds.
+    /// </summary>
+    public static bool ReadsAsWords(ContentPart part) =>
+        Worded(part) && !Unread(part)
+        && !part.Ancestors().Any(up => up.Kind == Kinds.Nested || up.Node is BlockNode { Language: not Language });
+
+    /// <summary>Words, a line at a time, every character read as markup given its backslash; a line after a break starts one.</summary>
+    private static string Lines(string text, bool begins, bool table)
+    {
         var said = new StringBuilder(text.Length);
         var from = 0;
 

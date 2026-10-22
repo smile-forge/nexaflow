@@ -314,6 +314,10 @@ public sealed partial class ContentEngine
         if (_named is { } named)
             return Language(named).Editing.Corner(new ContentAsk(named, _state.Source) { Part = block, IsReadOnly = _readOnly });
 
+        // A heading of the document's own offers what its section can do, as markdown says.
+        if (Sectioned(block) is not null)
+            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Source) { Part = block, Root = ReadRoot, IsReadOnly = _readOnly });
+
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
         return BlockCorner.None;
     }
@@ -500,6 +504,15 @@ public sealed partial class ContentEngine
     private bool Folded(LayoutAct act, bool open)
     {
         if (act.Intent.Target is not { Length: > 0 } key) return false;
+
+        // A section of the document, folded by the name its heading answers to: the document's own, not any block's.
+        if (Sectioned(act.Part as ContentPart) is not null)
+        {
+            _sections.Expansion[key] = open;
+            Relay();
+
+            return true;
+        }
         if (Blocked(act.At) is not { } block || Opened(block) is not { } view) return false;
 
         view.Expansion[key] = open;
@@ -516,6 +529,48 @@ public sealed partial class ContentEngine
         Relay();
 
         return true;
+    }
+
+    /// <summary>The heading of one of a markdown document's own sections, where <paramref name="part"/> is one; null otherwise.</summary>
+    private ContentPart? Sectioned(ContentPart? part) =>
+        _named is null && part is { Kind: MarkdownKinds.Heading, Parent.Parent: null } ? part : null;
+
+    /// <summary>
+    /// Opens every section of the document folded away over <paramref name="offset"/>, so what was asked for — a hit found, a
+    /// reference followed — is somewhere to be shown, and lays the document again where it did. False where nothing folded holds it.
+    /// </summary>
+    internal bool Unfolded(int offset)
+    {
+        if (_named is not null) return false;
+
+        var root = ReadRoot;
+        var at = -1;
+
+        for (var index = 0; index < root.Children.Count; index++)
+        {
+            var part = root.Children[index];
+            if (part.Derived || offset < part.Start || offset >= part.End) continue;
+
+            at = index;
+            break;
+        }
+
+        if (at < 0) return false;
+
+        var opened = false;
+
+        foreach (var section in MarkdownSections.Of(root.Node).All())
+        {
+            if (section.Anchor is not { } key || at <= section.Heading || at >= section.End) continue;
+            if (!_sections.Expansion.TryGetValue(key, out var open) || open) continue;
+
+            _sections.Expansion[key] = true;
+            opened = true;
+        }
+
+        if (opened) Relay();
+
+        return opened;
     }
 
     /// <summary>

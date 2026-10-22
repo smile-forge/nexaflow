@@ -199,6 +199,12 @@ public static class MarkdownKinds
     public const string Rank = "rank";
 
     /// <summary>
+    /// The sections a document's headings make, hung on the document (<see cref="MarkdownSections"/>). Derived, because a heading
+    /// says only how deep it is: which blocks it stands over is worked out from the headings after it.
+    /// </summary>
+    public const string Sections = "sections";
+
+    /// <summary>
     /// The list a run of words was matched from, kept where a link in it waits on a name the document may define — so the run
     /// can be matched again, from the same list, once the names are known (<see cref="MarkdownDelimiters"/>).
     /// </summary>

@@ -28,8 +28,38 @@ Markdown opens in its own tab — there's nothing to configure.
   image — and save back into themselves. One inside a disc image can't be written to: save it as a file elsewhere.
 - **Drafts** — a document made for you, such as a page of writing converted to Markdown, opens as a draft. Its first
   save asks where to keep it, starting beside what it was made from.
+- **Fold a section** — rest the pointer on a heading and its corner offers **Fold this section**: everything under it,
+  sections and all, is put away, and a small **+n** under the heading says how many blocks wait there — press it to open
+  the section again. Folding is how you are reading, not what is written: the document is unchanged, and a search or a
+  link that lands inside a folded section opens it.
 
 Everything below works in both the rendered view and the preview — it's the same renderer.
+
+---
+
+## Summarise & translate
+
+Two toolbar buttons work through the whole document with the model the workspace gives its **Documents** row — choose
+one on the AI page of the workspace's configuration. A model on this machine is enough, however little it reads at once:
+the document is worked through a piece at a time, each piece sized to what the model can read.
+
+- **What it is, first.** Before any part is worked on, the document is read for what it is — what kind of writing, what
+  about, for whom, in what register, tone and voice, in what language — from its headings and passages spread through it.
+  Every part is then worked on knowing that, so the pieces read as the one document they came from.
+- **Summarise** — each section is summarised from the deepest up, from what it says and the summaries of the sections
+  under it, and the whole document from those. The summary opens beside the document: the abstract on top, then every
+  section's heading and summary at its own depth. Fold a section away or open it to go from the whole to the part; each
+  heading's **↗** leads back to that section in the document. [Show me](locate:Markdown_Summarize)
+- **Translate** — choose the language, named in English, and the document is written again in it a passage at a time,
+  keeping to its register, tone and voice, its names and terms given the same way throughout. Its markup, code,
+  diagrams, front matter and where its links go stay exactly as they are. [Show me](locate:Markdown_Translate)
+- **In the background.** Either is listed with the workspace's background tasks, saying how far it has got, and can be
+  stopped there. What it makes opens as a draft; its first save starts beside the document.
+- **Again is quicker.** What was worked out is kept for the workspace, on this machine: summarise or translate an edited
+  document again and only the sections that changed are read again — and a stopped translation carries on where it was.
+- **The assistant can too** — ask it to summarise or translate a markdown document open in a tab.
+- **A Markdown file.** It works on a `.md` file as the editor holds it, unsaved edits included; save a draft or a
+  Markdown Package as a `.md` file first.
 
 ---
 
