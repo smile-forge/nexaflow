@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
@@ -54,7 +55,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
     public ObservableCollection<SnaplinkTarget> Targets { get; } = [];
 
     [ObservableProperty] private SnaplinkTarget? _selectedTarget;
-    [ObservableProperty] private string _selectedFileLabel = "Pick a file from the tree";
+    [ObservableProperty] private string _selectedFileLabel = Str.Get("ProductManager.Picker.PickFile");
 
     public SnaplinkPickerViewModel(string root)
     {
@@ -96,7 +97,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
     {
         Targets.Clear();
         SelectedTarget = null;
-        if (node is null || node.IsDir) { SelectedFileLabel = "Pick a file from the tree"; return; }
+        if (node is null || node.IsDir) { SelectedFileLabel = Str.Get("ProductManager.Picker.PickFile"); return; }
 
         var rel = Path.GetRelativePath(_root, node.FullPath).Replace('\\', '/');
         SelectedFileLabel = rel;
@@ -109,14 +110,14 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
         else if (HighlightingRegistry.Resolve(node.Name).TreeSitterLanguage is { } grammar && text is not null)
             BuildCode(rel, grammar, text, Path.GetDirectoryName(node.FullPath));
         else
-            Targets.Add(new SnaplinkTarget("(whole file)", 0, new Snaplink { Type = isMarkdown ? "markdown" : "code", Doc = rel }));
+            Targets.Add(new SnaplinkTarget(Str.Get("ProductManager.Picker.WholeFile"), 0, new Snaplink { Type = isMarkdown ? "markdown" : "code", Doc = rel }));
 
         SelectedTarget = Targets.FirstOrDefault();
     }
 
     private void BuildMarkdown(string rel, string text)
     {
-        Targets.Add(new SnaplinkTarget("(whole file)", 0, new Snaplink { Type = "markdown", Doc = rel }));
+        Targets.Add(new SnaplinkTarget(Str.Get("ProductManager.Picker.WholeFile"), 0, new Snaplink { Type = "markdown", Doc = rel }));
         // SnaplinkTargets owns heading parsing, so the picker and the validator agree on what a title_path is.
         foreach (var path in SnaplinkTargets.HeadingPaths(text))
             Targets.Add(new SnaplinkTarget(path[^1], (path.Count - 1) * 14,
@@ -125,7 +126,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
 
     private void BuildCode(string rel, string grammar, string text, string? dir)
     {
-        Targets.Add(new SnaplinkTarget("(whole file)", 0, new Snaplink { Type = "code", Doc = rel }));
+        Targets.Add(new SnaplinkTarget(Str.Get("ProductManager.Picker.WholeFile"), 0, new Snaplink { Type = "code", Doc = rel }));
         var outline = Extractor.Extract(grammar, text, dir);
         foreach (var t in outline.Types)
         {

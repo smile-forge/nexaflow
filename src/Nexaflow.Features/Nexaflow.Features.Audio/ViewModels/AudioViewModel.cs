@@ -17,6 +17,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Audio.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -170,7 +171,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         get
         {
             var name = string.IsNullOrWhiteSpace(Title) ? FileName : Title;
-            if (string.IsNullOrWhiteSpace(name)) return "Audio player";
+            if (string.IsNullOrWhiteSpace(name)) return Str.Get("Audio.NowPlaying.Empty");
             return string.IsNullOrWhiteSpace(Artist) ? name : $"{Artist} — {name}";
         }
     }
@@ -483,7 +484,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             }
             catch (Exception ex)
             {
-                _shell.ShowError($"Can't play {Path.GetFileName(path)}: {ex.Message}");
+                _shell.ShowError(Str.Format("Audio.Error.CantPlayFormat", Path.GetFileName(path), ex.Message));
                 return false;
             }
         }
@@ -537,12 +538,12 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
         if (ok)
         {
-            _shell.ShowNotification("Tags saved.");
+            _shell.ShowNotification(Str.Get("Audio.Status.TagsSaved"));
             await LoadCurrentAsync();
         }
         else
         {
-            _shell.ShowError("Could not save tags.");
+            _shell.ShowError(Str.Get("Audio.Error.SaveTagsFailed"));
         }
 
         if (wasPlaying && EnsureEngineLoaded())

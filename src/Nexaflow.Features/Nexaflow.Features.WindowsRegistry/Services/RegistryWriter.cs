@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.Services;
 
@@ -14,7 +15,7 @@ public static class RegistryWriter
     {
         var (data, kind) = RegistryValueCodec.Decode(typeToken, wire);
         var key = subPath.Length == 0 ? root.Key : root.Key.CreateSubKey(subPath, writable: true);
-        if (key is null) throw new InvalidOperationException($"Could not open key '{subPath}'.");
+        if (key is null) throw new InvalidOperationException(Str.Format("WindowsRegistry.Error.OpenKeyFailedFormat", subPath));
         try { key.SetValue(name, data, kind); }
         finally { if (subPath.Length > 0) key.Dispose(); }
     }
@@ -31,7 +32,7 @@ public static class RegistryWriter
     {
         if (string.IsNullOrEmpty(subPath)) throw new InvalidOperationException("Missing key path.");
         using var key = root.Key.CreateSubKey(subPath, writable: true)
-                        ?? throw new InvalidOperationException($"Could not create key '{subPath}'.");
+                        ?? throw new InvalidOperationException(Str.Format("WindowsRegistry.Error.CreateKeyFailedFormat", subPath));
     }
 
     public static void DeleteKey(RegistryRoot root, string subPath)
@@ -49,12 +50,12 @@ public static class RegistryWriter
         var destPath = parent.Length == 0 ? newName : $"{parent}\\{newName}";
 
         using (var existing = root.Key.OpenSubKey(destPath, writable: false))
-            if (existing is not null) throw new InvalidOperationException($"A key named '{newName}' already exists.");
+            if (existing is not null) throw new InvalidOperationException(Str.Format("WindowsRegistry.Error.KeyExistsFormat", newName));
 
         using (var source = root.Key.OpenSubKey(subPath, writable: false)
-                            ?? throw new InvalidOperationException($"Key '{subPath}' not found."))
+                            ?? throw new InvalidOperationException(Str.Format("WindowsRegistry.Error.KeyNotFoundFormat", subPath)))
         using (var dest = root.Key.CreateSubKey(destPath, writable: true)
-                          ?? throw new InvalidOperationException($"Could not create key '{destPath}'."))
+                          ?? throw new InvalidOperationException(Str.Format("WindowsRegistry.Error.CreateKeyFailedFormat", destPath)))
         {
             CopyTree(source, dest);
         }

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsRegistry.ViewModels"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="RegistryView"
              Background="{StaticResource BgBrush}">
 
@@ -194,7 +195,7 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Hive:" Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{loc:Str WindowsRegistry.Toolbar.Hive}" Foreground="{StaticResource TextMutedBrush}"
                            VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <ComboBox Width="200" ItemsSource="{Binding Hives}"
                           SelectedItem="{Binding SelectedHive}"
@@ -206,11 +207,11 @@
                 <Button Style="{StaticResource RegTbBtn}" Margin="16,0,0,0"
                         Command="{Binding ExportCommand}"
                         AutomationProperties.AutomationId="Registry_Export"
-                        Content="💾 Export" ToolTip="Export the selected key to a .reg file"/>
+                        Content="{loc:Str WindowsRegistry.Toolbar.Export}" ToolTip="{loc:Str WindowsRegistry.Toolbar.ExportTip}"/>
                 <Button Style="{StaticResource RegTbBtn}"
                         Command="{Binding ImportCommand}"
                         AutomationProperties.AutomationId="Registry_Import"
-                        Content="📂 Import" ToolTip="Import a .reg file"/>
+                        Content="{loc:Str WindowsRegistry.Toolbar.Import}" ToolTip="{loc:Str WindowsRegistry.Toolbar.ImportTip}"/>
 
                 <vcc:SearchStatusChip PagePrefix="Registry" Margin="16,0,0,0"
                                       SuffixText="{Binding SearchCountSuffix}"/>
@@ -249,11 +250,11 @@
                     </TreeView.ItemTemplate>
                     <TreeView.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="New Key…"  Command="{Binding NewKeyCommand}"/>
-                            <MenuItem Header="Rename…"   Command="{Binding RenameKeyCommand}"/>
-                            <MenuItem Header="Delete"    Command="{Binding DeleteKeyCommand}"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.KeyMenu.NewKey}"  Command="{Binding NewKeyCommand}"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.KeyMenu.Rename}"   Command="{Binding RenameKeyCommand}"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.KeyMenu.Delete}"    Command="{Binding DeleteKeyCommand}"/>
                             <Separator/>
-                            <MenuItem Header="Export…"   Command="{Binding ExportCommand}"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.KeyMenu.Export}"   Command="{Binding ExportCommand}"/>
                         </ContextMenu>
                     </TreeView.ContextMenu>
                 </TreeView>
@@ -273,42 +274,42 @@
                       MouseDoubleClick="ValueList_MouseDoubleClick">
                 <ListView.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Modify…" Command="{Binding EditValueCommand}"
+                        <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.Modify}" Command="{Binding EditValueCommand}"
                                   CommandParameter="{Binding SelectedValue}"/>
-                        <MenuItem Header="New">
-                            <MenuItem Header="String Value (REG_SZ)"        Command="{Binding NewValueCommand}" CommandParameter="String"/>
-                            <MenuItem Header="Expandable String (REG_EXPAND_SZ)" Command="{Binding NewValueCommand}" CommandParameter="ExpandString"/>
-                            <MenuItem Header="DWORD (REG_DWORD)"            Command="{Binding NewValueCommand}" CommandParameter="DWord"/>
-                            <MenuItem Header="QWORD (REG_QWORD)"            Command="{Binding NewValueCommand}" CommandParameter="QWord"/>
-                            <MenuItem Header="Binary (REG_BINARY)"          Command="{Binding NewValueCommand}" CommandParameter="Binary"/>
-                            <MenuItem Header="Multi-String (REG_MULTI_SZ)"  Command="{Binding NewValueCommand}" CommandParameter="MultiString"/>
+                        <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.New}">
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewString}"        Command="{Binding NewValueCommand}" CommandParameter="String"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewExpandString}" Command="{Binding NewValueCommand}" CommandParameter="ExpandString"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewDWord}"            Command="{Binding NewValueCommand}" CommandParameter="DWord"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewQWord}"            Command="{Binding NewValueCommand}" CommandParameter="QWord"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewBinary}"          Command="{Binding NewValueCommand}" CommandParameter="Binary"/>
+                            <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.NewMultiString}"  Command="{Binding NewValueCommand}" CommandParameter="MultiString"/>
                         </MenuItem>
                         <Separator/>
-                        <MenuItem Header="Delete" Command="{Binding DeleteValueCommand}"
+                        <MenuItem Header="{loc:Str WindowsRegistry.ValueMenu.Delete}" Command="{Binding DeleteValueCommand}"
                                   CommandParameter="{Binding SelectedValue}"/>
                     </ContextMenu>
                 </ListView.ContextMenu>
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource RegColHeaderStyle}">
-                        <GridViewColumn Width="240" Header="Name">
+                        <GridViewColumn Width="240" Header="{loc:Str WindowsRegistry.Values.Name}">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:RegistryValue}">
-                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextBrush}"
                                                TextTrimming="CharacterEllipsis"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Width="120" Header="Type">
+                        <GridViewColumn Width="120" Header="{loc:Str WindowsRegistry.Values.Type}">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:RegistryValue}">
                                     <TextBlock Text="{Binding TypeLabel}" Foreground="{StaticResource TextMutedBrush}"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Width="420" Header="Data">
+                        <GridViewColumn Width="420" Header="{loc:Str WindowsRegistry.Values.Data}">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:RegistryValue}">
-                                    <TextBlock Text="{Binding Data}" Foreground="{StaticResource TextBrush}"
+                                    <TextBlock Text="{Binding DisplayData}" Foreground="{StaticResource TextBrush}"
                                                TextTrimming="CharacterEllipsis"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
@@ -330,9 +331,9 @@
                          BorderThickness="0" Padding="8,6" AcceptsReturn="True" MaxLines="6"
                          TextWrapping="Wrap" KeyDown="InputPrompt_KeyDown"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                    <Button Style="{StaticResource RegTbBtn}" Content="Cancel" Command="{Binding CancelCommand}"
+                    <Button Style="{StaticResource RegTbBtn}" Content="{loc:Str WindowsRegistry.Prompt.Cancel}" Command="{Binding CancelCommand}"
                             AutomationProperties.AutomationId="Registry_PromptCancel"/>
-                    <Button Style="{StaticResource RegTbBtn}" Content="OK" Command="{Binding ConfirmCommand}"
+                    <Button Style="{StaticResource RegTbBtn}" Content="{loc:Str WindowsRegistry.Prompt.Ok}" Command="{Binding ConfirmCommand}"
                             AutomationProperties.AutomationId="Registry_PromptConfirm"/>
                 </StackPanel>
             </StackPanel>

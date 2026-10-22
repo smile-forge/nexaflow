@@ -6,6 +6,7 @@
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Json.Views"
              xmlns:m="clr-namespace:Nexaflow.Features.Json.Models"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="JsonView"
              Background="{StaticResource BgBrush}">
 
@@ -67,14 +68,14 @@
                                   AutomationProperties.AutomationId="Json_TreeMode"
                                   IsChecked="{Binding IsTreeModeActive, Mode=OneWay}"
                                   Command="{Binding SetTreeModeCommand}"
-                                  ToolTip="Tree view (selected node)">
+                                  ToolTip="{loc:Str Json.Toolbar.TreeModeTip}">
                         <TextBlock Text="⊞" FontSize="12"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Json_TextMode"
                                   IsChecked="{Binding IsTextModeActive, Mode=OneWay}"
                                   Command="{Binding SetTextModeCommand}"
-                                  ToolTip="Raw JSON text (selected node)">
+                                  ToolTip="{loc:Str Json.Toolbar.TextModeTip}">
                         <TextBlock Text="{}{  }" FontSize="11"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
@@ -82,7 +83,7 @@
                                   IsChecked="{Binding IsTableModeActive, Mode=OneWay}"
                                   IsEnabled="{Binding IsTableModeAvailable}"
                                   Command="{Binding SetTableModeCommand}"
-                                  ToolTip="Table view (selected array node)">
+                                  ToolTip="{loc:Str Json.Toolbar.TableModeTip}">
                         <TextBlock Text="⊟" FontSize="12"/>
                     </ToggleButton>
                 </StackPanel>
@@ -95,7 +96,7 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Json_Format"
                             Command="{Binding FormatJsonCommand}"
-                            ToolTip="Format JSON (re-indent)">
+                            ToolTip="{loc:Str Json.Toolbar.FormatTip}">
                         <TextBlock Text="{}{ }" FontSize="11"/>
                     </Button>
                     <Separator Style="{StaticResource TbSep}"
@@ -104,7 +105,7 @@
                             AutomationProperties.AutomationId="Json_Save"
                             Command="{Binding SaveCommand}"
                             Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"
-                            ToolTip="Save (Ctrl+S)">
+                            ToolTip="{loc:Str Json.Toolbar.SaveTip}">
                         <TextBlock Text="💾" FontSize="11"/>
                     </Button>
                 </StackPanel>
@@ -210,7 +211,7 @@
                                 Command="{Binding DataContext.ToggleExpandCommand,
                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
                                 CommandParameter="{Binding Node}"
-                                ToolTip="Expand / collapse">
+                                ToolTip="{loc:Str Json.Tree.ExpandTip}">
                             <TextBlock FontSize="9" Foreground="{StaticResource TextMutedBrush}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -329,7 +330,7 @@
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    Margin="18,0,4,0"/>
-                        <TextBlock Text="Loading…"
+                        <TextBlock Text="{loc:Str Json.Tree.Loading}"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    FontStyle="Italic"/>
@@ -372,7 +373,7 @@
         <Border Grid.Row="2"
                 Background="#80000000"
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}">
-            <TextBlock Text="Loading…"
+            <TextBlock Text="{loc:Str Json.Page.Loading}"
                        Foreground="{StaticResource TextBrush}"
                        FontSize="14"
                        HorizontalAlignment="Center"
@@ -393,16 +394,16 @@
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
-                <TextBlock Text="{Binding NodeCount, StringFormat='{}{0} nodes'}"
+                <TextBlock Text="{Binding NodeCount, StringFormat={loc:Str Json.Status.NodesFormat}}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
-                <TextBlock Text="Streaming"
+                <TextBlock Text="{loc:Str Json.Status.Streaming}"
                            Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
-                <TextBlock Text="Modified"
+                <TextBlock Text="{loc:Str Json.Status.Modified}"
                            Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"/>

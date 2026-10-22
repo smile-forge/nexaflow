@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Projects.Viewlets.AiSummaryViewletView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Projects_AiSummaryViewlet">
     <Grid Background="{StaticResource SurfaceBrush}">
         <Grid.RowDefinitions>
@@ -19,7 +20,7 @@
             <Grid>
                 <!-- Small title — only in DoubleBar mode; hidden in Large (ViewletHost banner shows it) -->
                 <TextBlock x:Name="TitleText"
-                           Text="AI Summary"
+                           Text="{loc:Str Projects.Viewlet.AiSummary}"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="10" FontWeight="SemiBold"
                            VerticalAlignment="Bottom"
@@ -30,7 +31,7 @@
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center">
                     <Button x:Name="EditButton"
-                            Content="Edit"
+                            Content="{loc:Str Projects.Viewlet.AiSummary.Edit}"
                             Padding="8,2"
                             FontSize="10"
                             Cursor="Hand"
@@ -62,7 +63,7 @@
                         </Button.Style>
                     </Button>
                     <Button x:Name="SaveButton"
-                            Content="Save"
+                            Content="{loc:Str Projects.Viewlet.AiSummary.Save}"
                             Padding="8,2"
                             FontSize="10"
                             Cursor="Hand"

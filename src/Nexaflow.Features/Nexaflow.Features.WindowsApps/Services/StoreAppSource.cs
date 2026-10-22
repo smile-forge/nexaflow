@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Xml.Linq;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Localization;
 using Windows.ApplicationModel;
 using Windows.Management.Deployment;
 
@@ -100,7 +101,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
     public async Task<AppOperationResult> UninstallAsync(InstalledApp app, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(app.PackageFullName))
-            return AppOperationResult.Fail("This Store app has no package identity to remove.");
+            return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoPackageToRemove"));
         return await RemovePackageAsync(app.PackageFullName, ct);
     }
 
@@ -134,7 +135,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
                                                     CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(app.PackageFullName))
-            return AppOperationResult.Fail("This Store app has no package identity to move.");
+            return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoPackageToMove"));
         try
         {
             var pm = new PackageManager();
@@ -143,7 +144,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
             // drive that was removed since the dropdown was filled fails cleanly instead of silently.
             var volume = pm.FindPackageVolumes().FirstOrDefault(v => v.Name == target.Name);
             if (volume is null)
-                return AppOperationResult.Fail("That drive is no longer available.");
+                return AppOperationResult.Fail(Str.Get("WindowsApps.Error.DriveUnavailable"));
 
             var result = await pm.MovePackageToVolumeAsync(app.PackageFullName,
                                                            DeploymentOptions.None, volume).AsTask(ct);
@@ -155,7 +156,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
     public async Task<AppOperationResult> RepairAsync(InstalledApp app, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(app.PackageFullName))
-            return AppOperationResult.Fail("This Store app has no package identity to repair.");
+            return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoPackageToRepair"));
         try
         {
             var result = await new PackageManager()
@@ -174,7 +175,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
     public async Task<AppOperationResult> ResetAsync(InstalledApp app, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(app.PackageFamilyName))
-            return AppOperationResult.Fail("This Store app has no package identity to reset.");
+            return AppOperationResult.Fail(Str.Get("WindowsApps.Error.NoPackageToReset"));
 
         await TerminateAsync(app, ct);                       // locked files would survive the wipe
 
@@ -186,8 +187,7 @@ public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
         return stubborn.Count == 0
             ? AppOperationResult.Ok
             : AppOperationResult.Fail(
-                $"The app was re-registered, but {string.Join(", ", stubborn)} could not be deleted — " +
-                "close the app and reset again.");
+                Str.Format("WindowsApps.Error.ResetLeftoversFormat", string.Join(", ", stubborn)));
     }
 
     private static readonly string[] StateFolders =

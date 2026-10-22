@@ -9,6 +9,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Notebook.Models;
 using Nexaflow.IO.Common;
 using Nexaflow.Syntax;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Notebook.ViewModels;
 
@@ -80,7 +81,7 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
             var outline = _extractor.Extract(notebook.GrammarId, cell.Source);
             if (!outline.HasContent) continue;
 
-            sb.Append("**Cell ").Append(cellNo).AppendLine("**").AppendLine();
+            sb.Append("**").Append(Str.Format("Notebook.Outline.CellFormat", cellNo)).AppendLine("**").AppendLine();
             foreach (var t in outline.Types)
             {
                 sb.Append("- `").Append(t.Name).AppendLine("`");

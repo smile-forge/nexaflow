@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.OneDrive.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.OneDrive.Controls;
 
@@ -137,7 +138,7 @@ public partial class OneDriveOptionsControl : UserControl, ICustomConfigApply, I
     {
         // A [CustomControl] editor is handed only the config as its DataContext — no IShellServices to
         // route a picker through — so it opens the OS dialog directly, as ExternalAppsEditorControl does.
-        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Choose a folder to show under This PC" };
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Str.Get("OneDrive.Options.ChooseFolderTitle") };
         if (dialog.ShowDialog() != true) return;
 
         var path = dialog.FolderName;

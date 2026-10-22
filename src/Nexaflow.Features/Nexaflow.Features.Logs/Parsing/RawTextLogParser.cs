@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Logs.Parsing;
 
@@ -11,6 +12,8 @@ namespace Nexaflow.Features.Logs.Parsing;
 public sealed class RawTextLogParser : ILogParser
 {
     public string FormatName => "Raw Text";
+
+    public string FormatDisplayName => Str.Get("Logs.Format.RawText");
 
     // Matches level keywords with or without enclosing brackets/pipes
     private static readonly Regex LevelRegex = new(

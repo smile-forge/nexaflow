@@ -1,4 +1,5 @@
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 
@@ -28,7 +29,7 @@ public interface IInstalledAppSource
     /// vendor command to run.
     /// </summary>
     Task<AppOperationResult> ModifyAsync(InstalledApp app, CancellationToken ct) =>
-        Task.FromResult(AppOperationResult.Unsupported("Modify"));
+        Task.FromResult(AppOperationResult.Unsupported(Str.Get("WindowsApps.Menu.Modify")));
 
     /// <summary>
     /// Removes a stale list entry whose program is already gone (e.g. an orphaned registry record).

@@ -1,0 +1,55 @@
+{
+  "VirtualDisk.Action.AsDisk": "As Disk",
+  "VirtualDisk.Action.AsDiskDescription": "Virtual disk image",
+  "VirtualDisk.Action.Mount": "Mount",
+  "VirtualDisk.Action.MountDescription": "Mountable disk image",
+  "VirtualDisk.Action.Unmount": "Unmount",
+
+  "VirtualDisk.Mount.MountFailedFormat": "Couldn't mount {0}: {1}",
+  "VirtualDisk.Mount.MountedFormat": "Mounted {0}.",
+  "VirtualDisk.Mount.MountedAsFormat": "Mounted {0} as {1}",
+  "VirtualDisk.Mount.UnmountFailedFormat": "Couldn't unmount {0}: {1}",
+  "VirtualDisk.Mount.UnmountFailedBareFormat": "Couldn't unmount {0}.",
+  "VirtualDisk.Mount.UnmountedFormat": "Unmounted {0}.",
+  "VirtualDisk.Mount.NotMountedFormat": "{0}: isn't a mounted disk image.",
+
+  "VirtualDisk.Page.Title": "Virtual Disk",
+
+  "VirtualDisk.Info.UntitledImage": "Disk image",
+  "VirtualDisk.Info.Capacity": "CAPACITY",
+  "VirtualDisk.Info.Partitions": "PARTITIONS",
+  "VirtualDisk.Info.Volumes": "VOLUMES",
+  "VirtualDisk.Info.NoFile": "No file",
+  "VirtualDisk.Info.Unrecognised": "Unrecognised",
+  "VirtualDisk.Info.RawDisk": "Raw disk",
+  "VirtualDisk.Info.NoPartitionScheme": "None",
+  "VirtualDisk.Info.OtherPartitionScheme": "Partitioned",
+
+  "VirtualDisk.Volume.TitleFormat": "Volume {0}",
+  "VirtualDisk.Volume.UsageFormat": "{0} used of {1}",
+  "VirtualDisk.Volume.UnknownFileSystem": "Unknown",
+
+  "VirtualDisk.Column.Name": "Name",
+  "VirtualDisk.Column.Size": "Size",
+  "VirtualDisk.Column.Modified": "Modified",
+
+  "VirtualDisk.Toolbar.Extract": "Extract",
+  "VirtualDisk.Toolbar.Mount": "Mount",
+
+  "VirtualDisk.Status.NoImage": "No disk image to show.",
+  "VirtualDisk.Status.ReadingDisk": "Reading disk…",
+  "VirtualDisk.Status.Reading": "Reading…",
+  "VirtualDisk.Status.NoFileSystem": "No readable filesystem found in this image.",
+  "VirtualDisk.Status.ReadFailedFormat": "Couldn't read image: {0}",
+  "VirtualDisk.Status.OneVolume": "1 volume",
+  "VirtualDisk.Status.VolumesFormat": "{0} volumes",
+  "VirtualDisk.Status.Extracting": "Extracting…",
+  "VirtualDisk.Status.ExtractedToFormat": "Extracted to {0}",
+
+  "VirtualDisk.Search.InvalidRegexFormat": "Invalid regular expression: {0}",
+  "VirtualDisk.Search.NothingToSearchFor": "Nothing to search for.",
+  "VirtualDisk.Search.UnreadableFormat": "'{0}' isn't a readable disk image, so there is nothing to search.",
+  "VirtualDisk.Search.NoMatchesTruncatedFormat": "No matches in the first {0:N0} folders of '{1}' — the walk stopped there.",
+  "VirtualDisk.Search.TruncatedFormat": "Stopped after {0:N0} folders — there may be more inside '{1}'.",
+  "VirtualDisk.Search.SelectedFormat": "{0} selected"
+}

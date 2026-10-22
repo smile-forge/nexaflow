@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Svg.Views.SvgView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="SvgView"
              Background="{StaticResource BgBrush}">
 
@@ -19,14 +20,14 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal">
-                <Button Style="{StaticResource TbBtn}" Content="Reset view" Click="OnResetClick"
+                <Button Style="{StaticResource TbBtn}" Content="{loc:Str Svg.Toolbar.ResetView}" Click="OnResetClick"
                         AutomationProperties.AutomationId="Svg_ResetView"
-                        ToolTip="Fit the image to the window"/>
-                <ToggleButton Style="{StaticResource TbToggle}" Content="Checkerboard"
+                        ToolTip="{loc:Str Svg.Toolbar.ResetViewTip}"/>
+                <ToggleButton Style="{StaticResource TbToggle}" Content="{loc:Str Svg.Toolbar.Checkerboard}"
                               AutomationProperties.AutomationId="Svg_Checkerboard"
                               IsChecked="{Binding ShowCheckerboard}"
-                              ToolTip="Show a checkerboard behind transparent artwork"/>
-                <TextBlock Text="Scroll to zoom · drag to pan" VerticalAlignment="Center" Margin="10,0,0,0"
+                              ToolTip="{loc:Str Svg.Toolbar.CheckerboardTip}"/>
+                <TextBlock Text="{loc:Str Svg.Toolbar.ZoomPanHint}" VerticalAlignment="Center" Margin="10,0,0,0"
                            FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
             </StackPanel>
         </Border>
@@ -72,7 +73,7 @@
                 <TextBlock Text="{Binding ViewBoxText, StringFormat='viewBox {0}'}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"
                            Visibility="{Binding HasViewBox, Converter={StaticResource BoolToVis}}"/>
-                <TextBlock Text="{Binding ElementCount, StringFormat='{}{0:N0} elements'}"
+                <TextBlock Text="{Binding ElementCount, StringFormat={loc:Str Svg.Footer.ElementCountFormat}}"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
                 <TextBlock Text="{Binding FileSizeText}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
             </StackPanel>

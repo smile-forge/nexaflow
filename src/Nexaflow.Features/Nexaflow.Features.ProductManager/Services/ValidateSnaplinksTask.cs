@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Services;
 
@@ -14,7 +15,7 @@ namespace Nexaflow.Features.ProductManager.Services;
 /// </remarks>
 public sealed class ValidateSnaplinksTask(ProductState state, string productRoot) : IBackgroundTask
 {
-    public string Description => "Validating snaplinks";
+    public string Description => Str.Get("ProductManager.Task.ValidateSnaplinks");
 
     /// <summary>Read from the completion callback (which the shell invokes on the UI thread).</summary>
     public IntegrityReport? Result { get; private set; }

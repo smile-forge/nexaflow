@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 using System.Globalization;
 
 namespace Nexaflow.Features.Logs.ViewModels;
@@ -129,7 +130,7 @@ public sealed partial class LogViewModel : ISearchable
     }
 
     private static SearchHit HitFor(int line, string text) =>
-        new(line.ToString(CultureInfo.InvariantCulture), $"line {line + 1}", text.TrimEnd('\r'));
+        new(line.ToString(CultureInfo.InvariantCulture), Str.Format("Logs.Search.HitLabelFormat", line + 1), text.TrimEnd('\r'));
 
     // ── Display ───────────────────────────────────────────────────────────────
 

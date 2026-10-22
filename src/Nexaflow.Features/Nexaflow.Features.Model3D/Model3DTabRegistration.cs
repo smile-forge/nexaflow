@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.ViewModels;
 using Nexaflow.Features.Model3D.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D;
 
@@ -28,7 +29,7 @@ public sealed class Model3DTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "3D Model" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Model3D.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {

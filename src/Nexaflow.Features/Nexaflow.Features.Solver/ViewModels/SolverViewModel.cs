@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.Solving;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.ViewModels;
 
@@ -235,7 +236,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     private bool _isPaletteOpen;
 
     /// <summary>What the navigator's centre reads at the top of the tree.</summary>
-    private const string TopLabel = "Symbols";
+    private static string TopLabel => Str.Get("Solver.Latex.Symbols");
 
     /// <summary>
     /// How many symbols the recently-used strip remembers. Two columns of five: the first fills, and
@@ -659,7 +660,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         }
         catch (Exception e)
         {
-            await _shell.RunOnUiAsync(() => cell.Complete(SolverResult.Error($"Something went wrong: {e.Message}")))
+            await _shell.RunOnUiAsync(() => cell.Complete(SolverResult.Error(Str.Format("Solver.Result.UnexpectedFormat", e.Message))))
                         .ConfigureAwait(false);
         }
     }
@@ -694,7 +695,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         try
         {
             System.Windows.Clipboard.SetText(text);
-            _shell.ShowNotification("Copied to the clipboard.");
+            _shell.ShowNotification(Str.Get("Solver.Result.Copied"));
         }
         catch (Exception)
         {

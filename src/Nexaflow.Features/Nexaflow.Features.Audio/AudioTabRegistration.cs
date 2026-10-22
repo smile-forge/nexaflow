@@ -6,6 +6,7 @@ using Nexaflow.Features.Audio.ViewModels;
 using Nexaflow.Features.Audio.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Drafts;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio;
 
@@ -58,7 +59,7 @@ public sealed class AudioTabRegistration : IPageRegistration
         // A whole-folder queue is named for the folder — stable regardless of which track is playing; a single
         // file or an explicit multi-selection is named for the starting track (falls back to it if the folder
         // name can't be derived, e.g. a drive root).
-        var title = paths.Count > 0 ? Path.GetFileName(currentPath) : "Audio";
+        var title = paths.Count > 0 ? Path.GetFileName(currentPath) : Str.Get("Audio.Page.Title");
         if (wholeFolder && Path.GetDirectoryName(currentPath) is { Length: > 0 } dir)
         {
             var folderName = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
@@ -72,7 +73,7 @@ public sealed class AudioTabRegistration : IPageRegistration
         };
         // Single track → "folder › track"; a folder queue → "folder › all audio files"; a selection → "folder › N tracks".
         if (paths.Count > 1)
-            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? "all audio files" : $"{paths.Count} tracks");
+            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? Str.Get("Audio.Page.AllAudioFiles") : Str.Format("Audio.Page.TrackCountFormat", paths.Count));
         else
             page.SetFileBreadcrumbs(currentPath, title);
 

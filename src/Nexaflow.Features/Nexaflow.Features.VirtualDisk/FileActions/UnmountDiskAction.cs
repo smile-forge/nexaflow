@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
 
@@ -16,7 +17,7 @@ public sealed class UnmountDiskAction(IShellServices shell) : IFolderAction, ICa
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
     public string Icon => "⏏";
-    public string DisplayName => "Unmount";
+    public string DisplayName => Str.Get("VirtualDisk.Action.Unmount");
 
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
@@ -32,7 +33,7 @@ public sealed class UnmountDiskAction(IShellServices shell) : IFolderAction, ICa
         var imagePath = _mounter.ImagePathForDrive(letter);
         if (string.IsNullOrEmpty(imagePath))
         {
-            shell.ShowError($"{letter}: isn't a mounted disk image.");
+            shell.ShowError(Str.Format("VirtualDisk.Mount.NotMountedFormat", letter));
             return false;
         }
         _ = DiskMountService.UnmountAsync(shell, imagePath);

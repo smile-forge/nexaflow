@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Code.FileActions;
@@ -17,10 +18,10 @@ public sealed class ShowCodeAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "⟨⟩";
-    public string DisplayName            => "As Code";
+    public string DisplayName            => Str.Get("Code.Action.AsCode");
     public static string? StaticExperienceId => "/text/code";
     public string ExperienceId           => "/text/code";
-    public string ExperienceDescription  => "Editable code editor with syntax highlighting and a structure panel";
+    public string ExperienceDescription  => Str.Get("Code.Action.AsCodeDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

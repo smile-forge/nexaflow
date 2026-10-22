@@ -1,4 +1,5 @@
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 
@@ -8,15 +9,18 @@ namespace Nexaflow.Features.WindowsApps.ViewModels;
 /// </summary>
 public sealed record BackgroundModeOption(BackgroundAppMode Mode, string Label, string Description)
 {
-    /// <summary>The three choices, in the order Windows lists them.</summary>
-    public static IReadOnlyList<BackgroundModeOption> All { get; } =
+    /// <summary>
+    /// The three choices, in the order Windows lists them. Built on each read, so the wording is looked up
+    /// in the current language.
+    /// </summary>
+    public static IReadOnlyList<BackgroundModeOption> All =>
     [
-        new(BackgroundAppMode.PowerOptimized, "Power optimized (recommended)",
-            "Windows decides when the app may run in the background, and pauses it under battery saver."),
-        new(BackgroundAppMode.Always, "Always",
-            "The app keeps working in the background even under battery saver — it will use more power."),
-        new(BackgroundAppMode.Never, "Never",
-            "The app never runs in the background, so it can't sync, notify or update until you open it."),
+        new(BackgroundAppMode.PowerOptimized, Str.Get("WindowsApps.Advanced.Background.PowerOptimized"),
+            Str.Get("WindowsApps.Advanced.Background.PowerOptimizedDescription")),
+        new(BackgroundAppMode.Always, Str.Get("WindowsApps.Advanced.Background.Always"),
+            Str.Get("WindowsApps.Advanced.Background.AlwaysDescription")),
+        new(BackgroundAppMode.Never, Str.Get("WindowsApps.Advanced.Background.Never"),
+            Str.Get("WindowsApps.Advanced.Background.NeverDescription")),
     ];
 
     public static BackgroundModeOption For(BackgroundAppMode mode) =>

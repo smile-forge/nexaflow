@@ -1,0 +1,21 @@
+{
+  "Markdown.Action.EditorDescription": "Markdown editor",
+  "Markdown.Action.Music": "Music",
+  "Markdown.Action.MusicDescription": "Music notation editor",
+  "Markdown.Toolbar.ViewModeTip": "What to show: the rendered document, both side by side, or the raw markdown source",
+  "Markdown.Toolbar.ModeRendered": "Rendered",
+  "Markdown.Toolbar.ModeSplit": "Split",
+  "Markdown.Toolbar.ModeSource": "Source",
+  "Markdown.Toolbar.Save": "Save",
+  "Markdown.Toolbar.SaveTip": "Save (Ctrl+S)",
+  "Markdown.Toolbar.SaveAs": "Save as…",
+  "Markdown.Toolbar.SaveAsTip": "Save as another file (Ctrl+Shift+S)",
+  "Markdown.Footer.WordsFormat": "{0:N0} words",
+  "Markdown.Footer.LinesFormat": "{0:N0} lines",
+  "Markdown.Footer.Unsaved": "Unsaved changes",
+  "Markdown.SaveAs.Package": "Markdown Package",
+  "Markdown.Search.LineFormat": "line {0}",
+  "Markdown.Search.MatchFormat": "match {0}",
+  "Markdown.Error.SaveFailedFormat": "The document could not be saved: {0}",
+  "Markdown.Error.PictureSaveFailedFormat": "Could not save the picture to {0}: {1}"
+}

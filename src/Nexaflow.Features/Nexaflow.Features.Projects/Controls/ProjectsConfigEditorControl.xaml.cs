@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -179,7 +180,7 @@ public partial class ProjectsConfigEditorControl
     {
         var row = new StatusRow(UniqueKey("status"))
         {
-            Label     = UniqueLabel("New Status"),
+            Label     = UniqueLabel(Str.Get("Projects.Config.Projects.NewStatus")),
             SwatchKey = "Swatch.Slate",
         };
         _statuses.Add(row);

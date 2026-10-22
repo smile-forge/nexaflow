@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Models;
 
@@ -25,9 +26,13 @@ public sealed record AppVolume(
         get
         {
             var drive = string.IsNullOrWhiteSpace(MountPoint) ? Name : MountPoint.TrimEnd('\\');
-            var system = IsSystem ? " (system)" : string.Empty;
-            var free = FreeBytes is { } b ? $" — {SizeFormatter.FormatBytes(b)} free" : string.Empty;
-            return $"{drive}{system}{free}";
+            return (IsSystem, FreeBytes) switch
+            {
+                (true, { } free)  => Str.Format("WindowsApps.Advanced.Move.VolumeSystemFreeFormat", drive, SizeFormatter.FormatBytes(free)),
+                (true, null)      => Str.Format("WindowsApps.Advanced.Move.VolumeSystemFormat", drive),
+                (false, { } free) => Str.Format("WindowsApps.Advanced.Move.VolumeFreeFormat", drive, SizeFormatter.FormatBytes(free)),
+                _                 => drive,
+            };
         }
     }
 }

@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
 using Nexaflow.Features.Projects.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects;
 
@@ -30,9 +31,9 @@ public sealed class ProjectsTabRegistration : IPageRegistration
     {
         var tab = new Page
         {
-            Title       = "Projects",
+            Title       = Str.Get("Projects.Page.Title"),
             Icon        = "🗂",
-            Breadcrumbs = {new BreadcrumbSegment { Label = "Projects" }}
+            Breadcrumbs = {new BreadcrumbSegment { Label = Str.Get("Projects.Page.Title") }}
         };
 
         // Build the operations + VM lazily so CreatePageDefinition stays side-effect-free (the VM's ctor loads

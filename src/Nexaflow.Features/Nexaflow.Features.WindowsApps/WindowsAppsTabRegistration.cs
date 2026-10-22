@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsApps.ViewModels;
 using Nexaflow.Features.WindowsApps.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps;
 
@@ -14,9 +15,9 @@ public sealed class WindowsAppsTabRegistration(IShellServices shellServices) : I
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null) => new()
     {
-        Title       = "Installed Apps",
+        Title       = Str.Get("WindowsApps.Page.Title"),
         Icon        = "📦",
-        Breadcrumbs = { new BreadcrumbSegment { Label = "Installed Apps" } },
+        Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsApps.Page.Title") } },
         ContentFactory = () => new WindowsAppsView(new WindowsAppsViewModel(shellServices))
     };
 }

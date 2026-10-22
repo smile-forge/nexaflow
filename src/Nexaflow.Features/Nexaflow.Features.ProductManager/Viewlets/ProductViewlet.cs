@@ -1,6 +1,7 @@
 using System.Windows;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Viewlets;
 
@@ -15,7 +16,7 @@ public sealed class ProductViewlet : IFolderViewlet
 
     public ProductViewlet(IShellServices shell) => _shell = shell;
 
-    public string DisplayName    => "Product";
+    public string DisplayName    => Str.Get("ProductManager.Viewlet.Name");
     public bool   AppliesToDrives => false;
 
     public string[]? ContainsFolderGlobs => [".product"];

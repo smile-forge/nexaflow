@@ -1,0 +1,22 @@
+{
+  "Email.Page.Title": "E-mail",
+  "Email.Action.AsEmail": "En tant qu'e-mail",
+  "Email.Action.ExperienceDescription": "Message électronique",
+  "Email.Header.NoSubject": "(aucun objet)",
+  "Email.Header.From": "De",
+  "Email.Header.To": "À",
+  "Email.Header.Cc": "Cc",
+  "Email.Header.Date": "Date",
+  "Email.Header.AllHeaders": "Tous les en-têtes",
+  "Email.Toolbar.Rendered": "Rendu",
+  "Email.Toolbar.PlainText": "Texte brut",
+  "Email.Toolbar.HtmlSource": "Source HTML",
+  "Email.Toolbar.OpenInBrowser": "Ouvrir dans le navigateur",
+  "Email.Attachments.Title": "Pièces jointes",
+  "Email.Status.OpenFailedFormat": "Impossible d'ouvrir cet e-mail : {0}",
+  "Email.Error.OpenAttachmentFailedFormat": "Impossible d'ouvrir la pièce jointe « {0} ».",
+  "Email.Error.OpenInBrowserFailedFormat": "Impossible d'ouvrir le message dans le navigateur : {0}",
+  "Email.Search.LineFormat": "ligne {0}",
+  "Email.Search.AttachmentFormat": "pièce jointe : {0}",
+  "Email.Search.BodyMatchFormat": "occurrence {0} dans le corps"
+}

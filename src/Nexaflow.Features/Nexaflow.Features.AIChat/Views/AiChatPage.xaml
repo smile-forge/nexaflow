@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.AIChat.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -39,7 +40,7 @@
                             HorizontalAlignment="Right" VerticalAlignment="Top"
                             Style="{StaticResource RibbonButton}"
                             Padding="5,1" Margin="0,-4,-4,0"
-                            ToolTip="Delete conversation"
+                            ToolTip="{loc:Str AIChat.Browser.Row.DeleteTip}"
                             Command="{Binding DataContext.DeleteConversationCommand,
                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
@@ -55,9 +56,7 @@
                         <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0">
                             <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" → "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                         </TextBlock>
-                        <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,1,0,0">
-                            <Run Text="{Binding MessageCount, Mode=OneWay}"/><Run Text=" messages"/>
-                        </TextBlock>
+                        <TextBlock Text="{Binding MessageCount, Mode=OneWay, StringFormat={loc:Str AIChat.Browser.Row.MessagesFormat}}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,1,0,0"/>
                     </StackPanel>
 
                     <!-- Middle: summary -->
@@ -76,11 +75,11 @@
                                 CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4AC;" FontSize="13" Margin="0,0,6,0"/>
-                                <TextBlock Text="Open" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{loc:Str AIChat.Browser.Row.Open}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                             </StackPanel>
                         </Button>
                         <Button AutomationProperties.AutomationId="AiChat_ShowAnalysis" Style="{StaticResource RibbonButton}"
-                                Padding="9,6" ToolTip="View analysis"
+                                Padding="9,6" ToolTip="{loc:Str AIChat.Browser.Row.AnalysisTip}"
                                 Command="{Binding DataContext.ShowAnalysisCommand,
                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}">
@@ -105,15 +104,15 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Conversations"
+                <TextBlock Text="{loc:Str AIChat.Browser.Header}"
                            FontSize="15" FontWeight="SemiBold"
                            Foreground="{StaticResource TextBrush}"
                            VerticalAlignment="Center"/>
                 <ComboBox Style="{StaticResource DarkComboBox}"
                           Width="130" Margin="12,0,0,0" VerticalAlignment="Center"
-                          ToolTip="Filter by date"
+                          ToolTip="{loc:Str AIChat.Browser.FilterTip}"
                           ItemsSource="{Binding Filters}"
-                          SelectedItem="{Binding SelectedFilter}"/>
+                          DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding SelectedFilter}"/>
                 <!-- Beside the date filter, because it replaces it: a "?" search spans every conversation
                      regardless of the range picked here. -->
                 <vcc:SearchStatusChip PagePrefix="AiChat" Margin="16,0,0,0"/>
@@ -121,12 +120,12 @@
             <Button AutomationProperties.AutomationId="AiChat_NewConversation" Grid.Column="1"
                     vcc:AiAbilityGating.Gate="{Binding Answering}"
                     Style="{StaticResource RibbonButton}" Padding="12,6"
-                    ToolTip="Start a new conversation"
+                    ToolTip="{loc:Str AIChat.Browser.NewConversationTip}"
                     Command="{Binding NewConversationCommand}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="&#x2795;" FontSize="12" Margin="0,0,6,0"
                                Foreground="{StaticResource AccentBrush}"/>
-                    <TextBlock Text="New conversation" FontSize="12"
+                    <TextBlock Text="{loc:Str AIChat.Browser.NewConversation}" FontSize="12"
                                Foreground="{StaticResource TextMutedBrush}"/>
                 </StackPanel>
             </Button>
@@ -166,7 +165,7 @@
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                     <Button AutomationProperties.AutomationId="AiChat_CloseAnalysis" Grid.Column="1"
                             Style="{StaticResource RibbonButton}"
-                            Padding="9,5" ToolTip="Close"
+                            Padding="9,5" ToolTip="{loc:Str AIChat.Browser.Analysis.CloseTip}"
                             Command="{Binding CloseAnalysisCommand}">
                         <TextBlock Text="&#x2715;" FontSize="13"/>
                     </Button>
@@ -191,22 +190,22 @@
                                        FontSize="14" TextWrapping="Wrap" FontWeight="Medium"
                                        Foreground="{StaticResource TextBrush}"/>
 
-                            <TextBlock Text="Topic" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.Topic}" Style="{StaticResource SummaryHeading}"/>
                             <TextBlock Text="{Binding Topic}" Style="{StaticResource SummaryBody}"/>
 
-                            <TextBlock Text="Tone" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.Tone}" Style="{StaticResource SummaryHeading}"/>
                             <TextBlock Text="{Binding Tone}" Style="{StaticResource SummaryBody}"/>
 
-                            <TextBlock Text="Tone Evolution" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.ToneEvolution}" Style="{StaticResource SummaryHeading}"/>
                             <TextBlock Text="{Binding ToneEvolution}" Style="{StaticResource SummaryBody}"/>
 
-                            <TextBlock Text="Understanding of User" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.UnderstandingOfUser}" Style="{StaticResource SummaryHeading}"/>
                             <TextBlock Text="{Binding UnderstandingOfUser}" Style="{StaticResource SummaryBody}"/>
 
-                            <TextBlock Text="Understanding of Agent" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.UnderstandingOfAgent}" Style="{StaticResource SummaryHeading}"/>
                             <TextBlock Text="{Binding UnderstandingOfAgent}" Style="{StaticResource SummaryBody}"/>
 
-                            <TextBlock Text="Key Decision Points" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.KeyDecisionPoints}" Style="{StaticResource SummaryHeading}"/>
                             <ItemsControl ItemsSource="{Binding KeyDecisionPoints}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -215,7 +214,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="Important Facts" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.ImportantFacts}" Style="{StaticResource SummaryHeading}"/>
                             <ItemsControl ItemsSource="{Binding ImportantFacts}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -224,7 +223,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="Valuable Attachments" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{loc:Str AIChat.Browser.Analysis.ValuableAttachments}" Style="{StaticResource SummaryHeading}"/>
                             <ItemsControl ItemsSource="{Binding ValuableAttachments}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -244,7 +243,7 @@
                         CommandParameter="{Binding AnalysisOverlayItem}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#x1F4AC;" FontSize="13" Margin="0,0,6,0"/>
-                        <TextBlock Text="Open conversation" FontSize="12"
+                        <TextBlock Text="{loc:Str AIChat.Browser.Analysis.OpenConversation}" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                     </StackPanel>
                 </Button>

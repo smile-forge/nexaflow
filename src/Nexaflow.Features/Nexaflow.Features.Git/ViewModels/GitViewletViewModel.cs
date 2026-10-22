@@ -7,6 +7,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ClientTools;
 using Nexaflow.Features.Git.Services;
 using Nexaflow.Features.Git.Services.Forge;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text;
@@ -45,9 +46,15 @@ public sealed partial class GitViewletViewModel : ObservableObject
     /// <summary>The inline status line, in render order. Rebuilt by every refresh.</summary>
     public ObservableCollection<GitStatusSegment> StatusSegments { get; } = [];
 
+    /// <summary>What the branch button reads: the checked-out branch, or a word for a detached HEAD or an
+    /// unreadable repo.</summary>
+    [ObservableProperty] private string _branchName = "···";
+
+    /// <summary>The branch HEAD is on, as git names it; null while unknown, detached or unreadable. The picker
+    /// compares against this, never <see cref="BranchName"/>, whose status words are display text.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SwitchBranchCommand))]
-    private string _branchName = "···";
+    private string? _checkedOutBranch;
 
     /// <summary>The tip commit line — short hash, subject and a humanised age — or empty when there is none.</summary>
     [ObservableProperty] private string _lastCommitLine = string.Empty;
@@ -65,7 +72,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
     public bool IsInteractive => !IsBusy;
 
     /// <summary>Caption of the pull control — "···" while pulling, so the button itself reports progress.</summary>
-    [ObservableProperty] private string _pullCaption = "Pull";
+    [ObservableProperty] private string _pullCaption = Str.Get("Git.Viewlet.Pull");
 
     /// <summary>Set when the open folder is a linked worktree: drives the badge and the Remove control.</summary>
     [ObservableProperty]
@@ -123,13 +130,17 @@ public sealed partial class GitViewletViewModel : ObservableObject
         catch (RepositoryNotFoundException)
         {
             StatusSegments.Clear();
-            LastCommitLine = string.Empty;
-            BranchName     = worktree is { IsBroken: true } ? "broken worktree" : "not a repo";
-            if (worktree is not { IsBroken: true }) SetActionResult("The .git file is broken", success: false);
+            LastCommitLine   = string.Empty;
+            CheckedOutBranch = null;
+            BranchName       = worktree is { IsBroken: true }
+                ? Str.Get("Git.Viewlet.Branch.BrokenWorktree")
+                : Str.Get("Git.Viewlet.Branch.NotARepo");
+            if (worktree is not { IsBroken: true }) SetActionResult(Str.Get("Git.Viewlet.Result.GitFileBroken"), success: false);
         }
         catch (Exception ex)
         {
-            BranchName = "error";
+            BranchName       = Str.Get("Git.Viewlet.Branch.Error");
+            CheckedOutBranch = null;
             StatusSegments.Clear();
             SetActionResult(ex.Message, success: false);
         }
@@ -144,15 +155,16 @@ public sealed partial class GitViewletViewModel : ObservableObject
     /// branch list, the coloured counts (or "clean") and the last-commit line.</summary>
     internal void ApplyStatus(GitStatus info)
     {
-        BranchName = info.Branch;
+        BranchName       = info.IsHeadDetached ? Str.Get("Git.Viewlet.Branch.Detached") : info.Branch;
+        CheckedOutBranch = info.IsHeadDetached ? null : info.Branch;
 
         LocalBranches.Clear();
         foreach (var b in info.LocalBranches) LocalBranches.Add(b);
 
         StatusSegments.Clear();
-        if (info.StagedCount    > 0) StatusSegments.Add(new($"{info.StagedCount} staged",       GitTone.Good));
-        if (info.ModifiedCount  > 0) StatusSegments.Add(new($"{info.ModifiedCount} modified",   GitTone.Caution));
-        if (info.UntrackedCount > 0) StatusSegments.Add(new($"{info.UntrackedCount} untracked", GitTone.Normal));
+        if (info.StagedCount    > 0) StatusSegments.Add(new(Str.Format("Git.Status.StagedFormat",    info.StagedCount),    GitTone.Good));
+        if (info.ModifiedCount  > 0) StatusSegments.Add(new(Str.Format("Git.Status.ModifiedFormat",  info.ModifiedCount),  GitTone.Caution));
+        if (info.UntrackedCount > 0) StatusSegments.Add(new(Str.Format("Git.Status.UntrackedFormat", info.UntrackedCount), GitTone.Normal));
 
         if (info.Ahead is > 0 || info.Behind is > 0)
         {
@@ -160,7 +172,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
             StatusSegments.Add(new(string.Join(" ", parts.Where(p => p is not null)), GitTone.Muted));
         }
 
-        if (StatusSegments.Count == 0) StatusSegments.Add(new("clean", GitTone.Good));
+        if (StatusSegments.Count == 0) StatusSegments.Add(new(Str.Get("Git.Status.Clean"), GitTone.Good));
 
         LastCommitLine = info.LastCommitHash is null ? string.Empty : FormatLastCommit(info);
     }
@@ -187,19 +199,21 @@ public sealed partial class GitViewletViewModel : ObservableObject
         // A remnant's repo won't open, so there is no merge/push state to report — just flag it for cleanup.
         if (wt.IsBroken)
         {
-            StatusSegments.Add(new("broken remnant — Remove to clean up", GitTone.Bad));
-            WorktreeTooltip = "Broken git worktree remnant\nIts .git link is dangling — the linked "
-                            + "repository is gone.\nUse Remove to delete the leftover folder.";
+            StatusSegments.Add(new(Str.Get("Git.Status.BrokenRemnant"), GitTone.Bad));
+            WorktreeTooltip = Str.Get("Git.Worktree.Tip.Broken");
             return;
         }
 
         if (wt.MergeTargetBranch is { } target)
-            StatusSegments.Add(new(wt.IsMerged ? $"merged into {target}" : $"unmerged vs {target}",
+            StatusSegments.Add(new(wt.IsMerged ? Str.Format("Git.Status.MergedIntoFormat", target)
+                                               : Str.Format("Git.Status.UnmergedVsFormat", target),
                                    wt.IsMerged ? GitTone.Good : GitTone.Caution));
 
-        if (!wt.HasUpstream)   StatusSegments.Add(new("no upstream", GitTone.Muted));
-        else if (wt.IsPushed)  StatusSegments.Add(new("pushed", GitTone.Muted));
-        else                   StatusSegments.Add(new(wt.AheadOfRemote > 0 ? $"unpushed ↑{wt.AheadOfRemote}" : "unpushed",
+        if (!wt.HasUpstream)   StatusSegments.Add(new(Str.Get("Git.Status.NoUpstream"), GitTone.Muted));
+        else if (wt.IsPushed)  StatusSegments.Add(new(Str.Get("Git.Status.Pushed"), GitTone.Muted));
+        else                   StatusSegments.Add(new(wt.AheadOfRemote > 0
+                                                          ? Str.Format("Git.Status.UnpushedAheadFormat", wt.AheadOfRemote)
+                                                          : Str.Get("Git.Status.Unpushed"),
                                                       GitTone.Caution));
 
         WorktreeTooltip = BuildWorktreeTooltip(wt);
@@ -207,16 +221,17 @@ public sealed partial class GitViewletViewModel : ObservableObject
 
     internal static string BuildWorktreeTooltip(GitWorktreeInfo wt)
     {
-        var sb = new StringBuilder("Linked git worktree\n");
-        sb.Append("Branch: ").Append(wt.Branch).Append('\n');
+        var sb = new StringBuilder(Str.Get("Git.Worktree.Tip.Linked")).Append('\n');
+        sb.Append(Str.Format("Git.Worktree.Tip.BranchFormat", WorktreeBranchLabel(wt))).Append('\n');
         sb.Append(wt.MergeTargetBranch is { } t
-            ? (wt.IsMerged ? $"Merged into {t}" : $"Not merged into {t}")
-            : "Merge target unknown").Append('\n');
-        sb.Append(!wt.HasUpstream ? "No upstream configured"
-            : wt.IsPushed ? $"Pushed to {wt.Upstream}"
-            : $"{wt.AheadOfRemote} commit(s) not on {wt.Upstream}");
+            ? (wt.IsMerged ? Str.Format("Git.Worktree.Tip.MergedIntoFormat", t)
+                           : Str.Format("Git.Worktree.Tip.NotMergedIntoFormat", t))
+            : Str.Get("Git.Worktree.Tip.MergeTargetUnknown")).Append('\n');
+        sb.Append(!wt.HasUpstream ? Str.Get("Git.Worktree.Tip.NoUpstream")
+            : wt.IsPushed ? Str.Format("Git.Worktree.Tip.PushedToFormat", wt.Upstream)
+            : Str.Format("Git.Worktree.Tip.CommitsNotOnFormat", wt.AheadOfRemote, wt.Upstream));
         if (wt.HasUncommittedChanges)
-            sb.Append($"\n{wt.StagedCount + wt.ModifiedCount} uncommitted change(s)");
+            sb.Append('\n').Append(Str.Format("Git.Worktree.Tip.UncommittedFormat", wt.StagedCount + wt.ModifiedCount));
         return sb.ToString();
     }
 
@@ -233,12 +248,13 @@ public sealed partial class GitViewletViewModel : ObservableObject
         if (Worktree is not { } wt) return;
 
         if (!wt.CanRemoveWithoutConfirmation
-            && !await _shell.ConfirmAsync("Remove worktree?", BuildRemovalPrompt(wt), "Remove", "Cancel"))
+            && !await _shell.ConfirmAsync(Str.Get("Git.Worktree.Remove.Title"), BuildRemovalPrompt(wt),
+                                Str.Get("Git.Worktree.Remove.Confirm"), Str.Get("Git.Worktree.Remove.Cancel")))
             return;
 
         // Removal (quiescing the folder's other viewlets, deleting the folder) can take a while, so it runs off
         // the UI thread behind a busy mark — the browser shows "please wait" and re-homes when it clears.
-        var busy = _shell.MarkFolderBusy(_folderPath, $"Removing worktree '{wt.DisplayName}'…");
+        var busy = _shell.MarkFolderBusy(_folderPath, Str.Format("Git.Worktree.Remove.BusyFormat", wt.DisplayName));
         _ = RunRemovalAsync(busy);
     }
 
@@ -255,7 +271,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
             if (result.Success) _shell.ShowNotification(result.Message);
             else                _shell.ShowError(result.Message);
         }
-        catch (Exception ex) { _shell.ShowError($"Worktree removal failed: {ex.Message}"); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Git.Worktree.Remove.FailedFormat", ex.Message)); }
         finally { busy.Dispose(); }   // clears the busy mark → the browser refreshes / re-homes
     }
 
@@ -264,35 +280,41 @@ public sealed partial class GitViewletViewModel : ObservableObject
     internal static string BuildRemovalPrompt(GitWorktreeInfo wt)
     {
         if (wt.IsBroken)
-            return $"Remove broken worktree remnant '{wt.DisplayName}'?\n\n" +
-                   "Its .git link is dangling — the linked repository is gone, so this can't be opened as a " +
-                   "worktree. Removing deletes the leftover folder. This cannot be undone.";
+            return Str.Format("Git.Worktree.Remove.BrokenPromptFormat", wt.DisplayName);
 
-        var sb = new StringBuilder($"Permanently remove worktree '{wt.DisplayName}'?\n\n");
+        var branch = WorktreeBranchLabel(wt);
+        var sb = new StringBuilder(Str.Format("Git.Worktree.Remove.PromptFormat", wt.DisplayName)).Append("\n\n");
 
         if (!wt.IsMerged)
             sb.Append(wt.MergeTargetBranch is { } t
-                ? $"• Branch '{wt.Branch}' is not merged into {t}.\n"
-                : $"• Branch '{wt.Branch}' has no known merge target.\n");
+                ? Str.Format("Git.Worktree.Remove.NotMergedFormat", branch, t)
+                : Str.Format("Git.Worktree.Remove.NoMergeTargetFormat", branch)).Append('\n');
 
         if (!wt.HasUpstream)
-            sb.Append("• The branch has never been pushed — its commits exist only here.\n");
+            sb.Append(Str.Get("Git.Worktree.Remove.NeverPushed")).Append('\n');
         else if (!wt.IsPushed)
-            sb.Append($"• {wt.AheadOfRemote} commit(s) are not on the remote and will be lost.\n");
+            sb.Append(Str.Format("Git.Worktree.Remove.CommitsLostFormat", wt.AheadOfRemote)).Append('\n');
 
         if (wt.HasUncommittedChanges)
-            sb.Append($"• {wt.StagedCount + wt.ModifiedCount} uncommitted change(s) will be lost.\n");
+            sb.Append(Str.Format("Git.Worktree.Remove.ChangesLostFormat", wt.StagedCount + wt.ModifiedCount)).Append('\n');
 
-        sb.Append("\nThis deletes the folder");
-        sb.Append(wt.IsDetached ? "." : $" and the branch '{wt.Branch}'.");
-        sb.Append(" This cannot be undone.");
+        sb.Append('\n').Append(wt.IsDetached
+            ? Str.Get("Git.Worktree.Remove.DeletesFolder")
+            : Str.Format("Git.Worktree.Remove.DeletesFolderAndBranchFormat", branch));
         return sb.ToString();
     }
+
+    /// <summary>The worktree's branch as a person reads it. <see cref="GitWorktreeInfo.Branch"/> carries git's
+    /// invariant markers for a detached or unreadable worktree; the flags beside it decide which words to show.</summary>
+    private static string WorktreeBranchLabel(GitWorktreeInfo wt) =>
+        wt.IsBroken     ? Str.Get("Git.Worktree.UnknownBranch")
+        : wt.IsDetached ? Str.Get("Git.Worktree.DetachedBranch")
+        : wt.Branch;
 
     // ── Branch switching ──────────────────────────────────────────────────
 
     private bool CanSwitchBranch(string? target) =>
-        !IsBusy && !string.IsNullOrEmpty(target) && !string.Equals(target, BranchName, StringComparison.Ordinal);
+        !IsBusy && !string.IsNullOrEmpty(target) && !string.Equals(target, CheckedOutBranch, StringComparison.Ordinal);
 
     /// <summary>Checks out a local branch, then refreshes. A failed checkout is swallowed — the refresh puts
     /// the displayed branch back to whatever the repo actually has.</summary>
@@ -338,7 +360,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
         if (outcome == PullOutcome.AuthFailed && await TryCredentialFallbackAsync() is { } retried)
             (outcome, message) = retried;
 
-        PullCaption = "Pull";
+        PullCaption = Str.Get("Git.Viewlet.Pull");
         IsBusy      = false;
         SetActionResult(message, outcome is PullOutcome.Ok or PullOutcome.UpToDate);
 
@@ -363,13 +385,14 @@ public sealed partial class GitViewletViewModel : ObservableObject
 
             return Commands.Pull(repo, signature, options).Status switch
             {
-                MergeStatus.UpToDate                                  => (PullOutcome.UpToDate, "Already up to date"),
-                MergeStatus.FastForward or MergeStatus.NonFastForward => (PullOutcome.Ok, "Pull complete"),
-                var status                                            => (PullOutcome.Failed, $"Pull failed: {status}")
+                MergeStatus.UpToDate                                  => (PullOutcome.UpToDate, Str.Get("Git.Pull.UpToDate")),
+                MergeStatus.FastForward or MergeStatus.NonFastForward => (PullOutcome.Ok, Str.Get("Git.Pull.Complete")),
+                MergeStatus.Conflicts                                 => (PullOutcome.Failed, Str.Get("Git.Pull.FailedConflicts")),
+                var status                                            => (PullOutcome.Failed, Str.Format("Git.Pull.FailedFormat", status))
             };
         }
-        catch (Exception ex) when (IsAuthFailure(ex)) { return (PullOutcome.AuthFailed, $"Pull failed: {ex.Message}"); }
-        catch (Exception ex)                          { return (PullOutcome.Failed,     $"Pull failed: {ex.Message}"); }
+        catch (Exception ex) when (IsAuthFailure(ex)) { return (PullOutcome.AuthFailed, Str.Format("Git.Pull.FailedFormat", ex.Message)); }
+        catch (Exception ex)                          { return (PullOutcome.Failed,     Str.Format("Git.Pull.FailedFormat", ex.Message)); }
     }
 
     /// <summary>Fallback when no credential is stored: prompt for a token, write it into the system store
@@ -382,7 +405,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(remoteUrl)) return null;
 
         var host  = Uri.TryCreate(remoteUrl, UriKind.Absolute, out var u) ? u.Host : remoteUrl;
-        var token = await PromptAsync("Git access token", $"Access token for {host}");
+        var token = await PromptAsync(Str.Get("Git.Pull.TokenPrompt.Title"), Str.Format("Git.Pull.TokenPrompt.LabelFormat", host));
         if (string.IsNullOrWhiteSpace(token)) return null;
 
         // Bitbucket repository/project/workspace access tokens authenticate with the fixed username
@@ -434,12 +457,12 @@ public sealed partial class GitViewletViewModel : ObservableObject
     internal static string FormatTimeAgo(DateTimeOffset when)
     {
         var d = DateTimeOffset.Now - when;
-        if (d.TotalMinutes < 1)   return "just now";
-        if (d.TotalMinutes < 60)  return $"{(int)d.TotalMinutes}m ago";
-        if (d.TotalHours   < 24)  return $"{(int)d.TotalHours}h ago";
-        if (d.TotalDays    < 30)  return $"{(int)d.TotalDays}d ago";
-        if (d.TotalDays    < 365) return $"{(int)(d.TotalDays / 30)}mo ago";
-        return $"{(int)(d.TotalDays / 365)}y ago";
+        if (d.TotalMinutes < 1)   return Str.Get("Git.Commit.JustNow");
+        if (d.TotalMinutes < 60)  return Str.Format("Git.Commit.MinutesAgoFormat", (int)d.TotalMinutes);
+        if (d.TotalHours   < 24)  return Str.Format("Git.Commit.HoursAgoFormat", (int)d.TotalHours);
+        if (d.TotalDays    < 30)  return Str.Format("Git.Commit.DaysAgoFormat", (int)d.TotalDays);
+        if (d.TotalDays    < 365) return Str.Format("Git.Commit.MonthsAgoFormat", (int)(d.TotalDays / 30));
+        return Str.Format("Git.Commit.YearsAgoFormat", (int)(d.TotalDays / 365));
     }
 
     // ── AI surface (merged into the file browser's context + tools by IViewletAiSurface) ──────────

@@ -6,6 +6,7 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ProjectDetailView"
              Background="{StaticResource BgBrush}">
 
@@ -149,8 +150,8 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource OnAccentBrush}"
-                               Text="This project uses the old format. Upgrade to enable editing — the previous scope / notes / plan fields are rolled into the new markdown fields."/>
-                    <Button Grid.Column="1" Content="Upgrade" Style="{StaticResource AccentButton}"
+                               Text="{loc:Str Projects.Detail.UpgradeBanner}"/>
+                    <Button Grid.Column="1" Content="{loc:Str Projects.Detail.Upgrade}" Style="{StaticResource AccentButton}"
                             AutomationProperties.AutomationId="Projects_Detail_Upgrade"
                             Command="{Binding UpgradeCommand}" Margin="12,0,0,0"/>
                 </Grid>
@@ -162,7 +163,7 @@
                         SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
 
                 <!-- ══ Project Details ══════════════════════════════════════════ -->
-                <TabItem Header="Project Details" AutomationProperties.AutomationId="Projects_Tab_Details">
+                <TabItem Header="{loc:Str Projects.Detail.Tab.Details}" AutomationProperties.AutomationId="Projects_Tab_Details">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="28,20,28,20" IsEnabled="{Binding IsEditable}">
 
@@ -174,22 +175,22 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Text="{Binding ProjectName, UpdateSourceTrigger=LostFocus}"
                                          FontSize="20" FontWeight="Bold" Style="{StaticResource DarkTextBox}"
-                                         BorderThickness="0" Background="Transparent" Padding="0" ToolTip="Project name"/>
+                                         BorderThickness="0" Background="Transparent" Padding="0" ToolTip="{loc:Str Projects.Detail.ProjectNameTip}"/>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Modified" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="{loc:Str Projects.Detail.Modified}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                                     <TextBlock Text="{Binding LastModified}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                                 </StackPanel>
                             </Grid>
 
                             <!-- Solution file (read-only, when set) -->
                             <StackPanel Margin="0,14,0,0" Visibility="{Binding SolutionFile, Converter={StaticResource StringVis}}">
-                                <TextBlock Text="SOLUTION FILE" Style="{StaticResource SectionLabel}"/>
+                                <TextBlock Text="{loc:Str Projects.Detail.SolutionFile}" Style="{StaticResource SectionLabel}"/>
                                 <TextBlock Text="{Binding SolutionFile}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
 
                             <!-- Description (markdown) -->
                             <StackPanel Margin="0,14,0,0">
-                                <TextBlock Text="DESCRIPTION" Style="{StaticResource SectionLabel}"/>
+                                <TextBlock Text="{loc:Str Projects.Detail.Description}" Style="{StaticResource SectionLabel}"/>
                                 <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
                                     <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                             />
@@ -202,8 +203,8 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="COMPLETION CRITERIA" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
-                                <Button Grid.Column="1" Content="+ Add" Style="{StaticResource GhostButton}" Padding="10,4"
+                                <TextBlock Grid.Column="0" Text="{loc:Str Projects.Detail.CompletionCriteria}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="{loc:Str Projects.Detail.AddCriterion}" Style="{StaticResource GhostButton}" Padding="10,4"
                                         AutomationProperties.AutomationId="Projects_Detail_AddCriterion"
                                         Command="{Binding AddCriterionCommand}"/>
                             </Grid>
@@ -231,7 +232,7 @@
                                             <TextBox Grid.Column="1" Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
                                                      Style="{StaticResource DarkTextBox}" FontSize="12" VerticalAlignment="Center"/>
                                             <Button AutomationProperties.AutomationId="Projects_Detail_RemoveCriterion" Grid.Column="2" Style="{StaticResource IconButton}" Width="26" Margin="6,0,0,0"
-                                                    ToolTip="Remove criterion"
+                                                    ToolTip="{loc:Str Projects.Detail.RemoveCriterion}"
                                                     Command="{Binding DataContext.RemoveCriterionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}">
                                                 <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
@@ -245,7 +246,7 @@
                 </TabItem>
 
                 <!-- ══ Backlog ══════════════════════════════════════════════════ -->
-                <TabItem Header="Backlog" AutomationProperties.AutomationId="Projects_Tab_Backlog">
+                <TabItem Header="{loc:Str Projects.Detail.Tab.Backlog}" AutomationProperties.AutomationId="Projects_Tab_Backlog">
                     <Grid IsEnabled="{Binding IsEditable}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" MinWidth="240"/>
@@ -261,7 +262,7 @@
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="0" Margin="16,14,16,8">
                                 <Grid>
-                                    <TextBlock Text="BACKLOG" Style="{StaticResource SectionLabel}"/>
+                                    <TextBlock Text="{loc:Str Projects.Detail.BacklogHeader}" Style="{StaticResource SectionLabel}"/>
                                     <!-- Beside the label it narrows: "?" filters this board and nothing else. -->
                                     <vcc:SearchStatusChip PagePrefix="ProjectDetail" HorizontalAlignment="Right"/>
                                 </Grid>
@@ -280,7 +281,7 @@
                                     <Button Grid.Column="1" Style="{StaticResource AccentButton}" Padding="12,7"
                                             AutomationProperties.AutomationId="Projects_Detail_AddTodo"
                                             Command="{Binding AddTodoCommand}">
-                                        <TextBlock Text="+ Add"/>
+                                        <TextBlock Text="{loc:Str Projects.Detail.AddTodo}"/>
                                     </Button>
                                 </Grid>
                             </StackPanel>
@@ -317,7 +318,7 @@
                                                 <TextBlock Text="{Binding StatusLabel}" FontSize="10" Foreground="{Binding StatusBrush}" Margin="0,2,0,0"/>
                                             </StackPanel>
                                             <Button AutomationProperties.AutomationId="Projects_Detail_RowProgress" Grid.Column="2" Style="{StaticResource IconButton}" Width="22" Height="22"
-                                                    ToolTip="Progress to next stage" Command="{Binding ProgressCommand}"
+                                                    ToolTip="{loc:Str Projects.Detail.ProgressTip}" Command="{Binding ProgressCommand}"
                                                     Visibility="{Binding CanProgress, Converter={StaticResource BoolVis}}">
                                                 <TextBlock Text="▶" FontSize="9"/>
                                             </Button>
@@ -335,7 +336,7 @@
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.3"
                                         Visibility="{Binding SelectedItem, Converter={StaticResource NullCollapsed}}">
                                 <TextBlock Text="📝" FontSize="36" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Select a backlog item" Foreground="{StaticResource TextMutedBrush}"
+                                <TextBlock Text="{loc:Str Projects.Detail.SelectItem}" Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Center"/>
                             </StackPanel>
 
@@ -369,25 +370,25 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
-                                            <TextBlock Grid.Column="1" Text="invalid status" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0"
+                                            <TextBlock Grid.Column="1" Text="{loc:Str Projects.Detail.InvalidStatus}" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0"
                                                        Foreground="{StaticResource DangerBrush}"
                                                        Visibility="{Binding IsInvalidStatus, Converter={StaticResource BoolVis}}"/>
                                             <Button AutomationProperties.AutomationId="Projects_Detail_Progress" Grid.Column="2" Style="{StaticResource AccentButton}" Padding="10,6"
                                                     Command="{Binding ProgressCommand}" IsEnabled="{Binding CanProgress}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="▶" FontSize="11" Margin="0,0,5,0"/>
-                                                    <TextBlock Text="Progress"/>
+                                                    <TextBlock Text="{loc:Str Projects.Detail.Progress}"/>
                                                 </StackPanel>
                                             </Button>
                                         </Grid>
 
                                         <StackPanel Margin="0,0,0,12">
-                                            <TextBlock Text="TITLE" Style="{StaticResource SectionLabel}"/>
+                                            <TextBlock Text="{loc:Str Projects.Detail.ItemTitle}" Style="{StaticResource SectionLabel}"/>
                                             <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"/>
                                         </StackPanel>
 
                                         <StackPanel Margin="0,0,0,12">
-                                            <TextBlock Text="DESCRIPTION" Style="{StaticResource SectionLabel}"/>
+                                            <TextBlock Text="{loc:Str Projects.Detail.Description}" Style="{StaticResource SectionLabel}"/>
                                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
                                                 <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                         />
@@ -403,7 +404,7 @@
                                                     CommandParameter="{Binding}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="🤖" FontSize="12" Margin="0,0,6,0"/>
-                                                    <TextBlock Text="Task to AI"/>
+                                                    <TextBlock Text="{loc:Str Projects.Detail.TaskToAi}"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource GhostButton}"
@@ -413,7 +414,7 @@
                                                     CommandParameter="{Binding}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="💬" FontSize="12" Margin="0,0,6,0"/>
-                                                    <TextBlock Text="Plan with AI"/>
+                                                    <TextBlock Text="{loc:Str Projects.Detail.PlanWithAi}"/>
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -432,7 +433,7 @@
                                                 Command="{Binding SaveItemCommand}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="&#x1F4BE;" FontSize="12" Margin="0,0,6,0"/>
-                                                <TextBlock Text="Save"/>
+                                                <TextBlock Text="{loc:Str Projects.Detail.Save}"/>
                                             </StackPanel>
                                         </Button>
                                         <Button Grid.Column="1" Style="{StaticResource DangerButton}" HorizontalAlignment="Right"
@@ -440,7 +441,7 @@
                                                 Command="{Binding DeleteTodoCommand}" CommandParameter="{Binding SelectedItem}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="&#x1F5D1;" FontSize="12" Margin="0,0,6,0"/>
-                                                <TextBlock Text="Delete"/>
+                                                <TextBlock Text="{loc:Str Projects.Detail.Delete}"/>
                                             </StackPanel>
                                         </Button>
                                     </Grid>

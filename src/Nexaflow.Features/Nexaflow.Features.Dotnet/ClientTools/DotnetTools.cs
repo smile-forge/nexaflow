@@ -39,7 +39,7 @@ public sealed class DotnetVerbTool(
         if (result is null)
             return ToolResult.Error($"Could not start dotnet {verb}.");
 
-        var tail = DotnetViewletViewModel.Tail(result.Output, 200);
+        var tail = DotnetViewletViewModel.Tail(result.Transcript, 200);
         return result.Succeeded
             ? ToolResult.Ok($"dotnet {verb} succeeded",
                             string.IsNullOrWhiteSpace(tail) ? $"dotnet {verb} succeeded (exit 0)." : tail)

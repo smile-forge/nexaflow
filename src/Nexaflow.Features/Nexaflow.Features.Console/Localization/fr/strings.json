@@ -1,3 +1,36 @@
 {
-  "Console.Config.Console": "Console"
+  "Console.Config.Console": "Console",
+
+  "Console.Page.Title": "Console",
+
+  "Console.Action.CmdHere": "Ouvrir Cmd ici",
+  "Console.Action.CmdHereTip": "Ouvrir un onglet Console dans ce dossier",
+
+  "Console.Environments.Title": "Environnements de la console",
+  "Console.Environments.Intro": "Un environnement est une configuration de shell nommée — ce qu'elle exécute au démarrage et les variables qu'elle définit. Lorsque vous ouvrez une console avec « Ouvrir Cmd ici », l'environnement à utiliser vous est demandé, sauf si vous en avez épinglé un à cet emplacement (voir ci-dessous).",
+  "Console.Environments.Add": "+ Ajouter",
+  "Console.Environments.Remove": "✕ Supprimer",
+  "Console.Environments.NoSelection": "Ajoutez ou sélectionnez un environnement à gauche.",
+  "Console.Environments.NewName": "Nouvel environnement",
+  "Console.Environments.DefaultName": "Par défaut",
+  "Console.Environments.CommandPromptName": "Invite de commandes",
+  "Console.Environments.NoStartupCommand": "aucune commande de démarrage",
+
+  "Console.Environments.Field.Name": "Nom",
+  "Console.Environments.Field.NameTip": "Libellé court et unique de cet environnement, affiché dans la liste des environnements et dans le sélecteur de la commande « Ouvrir Cmd ici ».",
+  "Console.Environments.Field.NameError": "Chaque environnement doit avoir un nom unique et non vide.",
+  "Console.Environments.Field.TabTitle": "Titre de l'onglet",
+  "Console.Environments.Field.TabTitleTip": "Texte affiché sur l'onglet de la console au lancement de cet environnement. Laissez vide pour utiliser « Console ».",
+  "Console.Environments.Field.InitialCommand": "Commande initiale",
+  "Console.Environments.Field.InitialCommandTip": "Commande envoyée automatiquement dès que le shell affiche sa première invite — par exemple pour activer un outil, configurer le chemin ou afficher une bannière. Laissez vide pour ne rien envoyer.",
+  "Console.Environments.Field.Variables": "Variables d'environnement",
+  "Console.Environments.Field.VariablesTip": "Variables qui s'ajoutent à celles du shell, ou les remplacent, pour cet environnement. Une par ligne, sous la forme NOM=valeur. Elles s'appliquent au processus au lancement de la console.",
+  "Console.Environments.Field.VariablesHint": "Une par ligne, par exemple NODE_ENV=development",
+
+  "Console.Environments.Locations.Header": "Environnement par défaut selon l'emplacement",
+  "Console.Environments.Locations.Help": "Lorsque vous ouvrez une console avec « Ouvrir Cmd ici » et cochez « Toujours utiliser cet environnement pour cet emplacement », ce choix est mémorisé ici : la prochaine fois, le sélecteur n'est plus proposé pour cet emplacement. Si vous supprimez une entrée, la question est de nouveau posée pour cet emplacement. Épingler un emplacement n'empêche jamais la question d'être posée pour les autres.",
+  "Console.Environments.Locations.Hint": "Dans ces emplacements, la console s'ouvre toujours avec l'environnement indiqué, sans passer par le sélecteur de la commande « Ouvrir Cmd ici ».",
+  "Console.Environments.Locations.Empty": "Aucun emplacement n'a encore d'environnement par défaut enregistré. Ouvrez une console avec « Ouvrir Cmd ici » et cochez « Toujours utiliser cet environnement pour cet emplacement » pour en ajouter un.",
+  "Console.Environments.Locations.EnvTip": "Environnement avec lequel la console s'ouvre à cet emplacement.",
+  "Console.Environments.Locations.RemoveTip": "Supprimer l'environnement par défaut de cet emplacement (la question sera reposée la prochaine fois)"
 }

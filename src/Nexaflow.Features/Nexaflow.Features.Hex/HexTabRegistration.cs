@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.Buffer;
 using Nexaflow.Features.Hex.ViewModels;
 using Nexaflow.Features.Hex.Views;
+using Nexaflow.Visuals.Common.Localization;
 using System.Globalization;
 using System.IO;
 
@@ -34,7 +35,7 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Hex" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Hex.Page.Title") : Path.GetFileName(path);
 
         long offset = ParseOffset(pageParams?.GetValueOrDefault("offset"));
         long length = ParseOffset(pageParams?.GetValueOrDefault("length"));
@@ -68,7 +69,8 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
         while (true)
         {
             bool retry = await shell.ConfirmAsync(
-                $"Can't read {Path.GetFileName(vm.FilePath)}", failure.Message, "Retry", "Close tab");
+                Str.Format("Hex.Prompt.CantReadFormat", Path.GetFileName(vm.FilePath)), failure.Message,
+                Str.Get("Hex.Prompt.Retry"), Str.Get("Hex.Prompt.CloseTab"));
 
             if (!retry) { shell.CloseTab(page); return; }
             if (vm.Retry()) return;

@@ -6,6 +6,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Features.ProductManager.Views;
 using Page = Nexaflow.Features.Common.Page;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager;
 
@@ -32,7 +33,9 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var root  = ProductRootLocator.Resolve(pageParams);
-        var title = root is not null ? $"Product: {new DirectoryInfo(root).Name}" : "Product";
+        var title = root is not null
+            ? Str.Format("ProductManager.Page.TitleFormat", new DirectoryInfo(root).Name)
+            : Str.Get("ProductManager.Page.Title");
 
         // `node` is a one-shot navigation hint, NOT part of this tab's identity: the shell stamps whatever
         // params it was opened with onto the tab, and a tab identified by {path,node} would stop matching a
@@ -86,7 +89,7 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
     {
         Content = new TextBlock
         {
-            Text = "Open the Product Manager from a folder that contains a .product directory.",
+            Text = Str.Get("ProductManager.Page.NoProduct"),
             Margin = new Thickness(24),
             TextWrapping = TextWrapping.Wrap,
             Foreground = Application.Current?.Resources["TextMutedBrush"] as System.Windows.Media.Brush

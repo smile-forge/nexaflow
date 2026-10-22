@@ -2,6 +2,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -147,16 +148,20 @@ public partial class IntegrityIssueItem : ObservableObject, IIntegrityRow
 
     public static string KindLabel(IntegrityKind kind) => kind switch
     {
-        IntegrityKind.MissingDoc     => "no path",
-        IntegrityKind.MissingFile    => "missing file",
-        IntegrityKind.WorktreePath   => "worktree path",
-        IntegrityKind.MissingHeading => "missing heading",
-        IntegrityKind.MissingClass   => "missing class",
-        IntegrityKind.MissingMethod  => "missing method",
-        IntegrityKind.EmptyTarget    => "empty target",
-        IntegrityKind.InvalidUrl     => "invalid url",
-        IntegrityKind.MissingSnaplink => "no snaplink",
-        _                            => kind.ToString()
+        IntegrityKind.MissingDoc         => Str.Get("ProductManager.Integrity.Kind.MissingDoc"),
+        IntegrityKind.MissingFile        => Str.Get("ProductManager.Integrity.Kind.MissingFile"),
+        IntegrityKind.WorktreePath       => Str.Get("ProductManager.Integrity.Kind.WorktreePath"),
+        IntegrityKind.MissingHeading     => Str.Get("ProductManager.Integrity.Kind.MissingHeading"),
+        IntegrityKind.MissingClass       => Str.Get("ProductManager.Integrity.Kind.MissingClass"),
+        IntegrityKind.MissingMethod      => Str.Get("ProductManager.Integrity.Kind.MissingMethod"),
+        IntegrityKind.EmptyTarget        => Str.Get("ProductManager.Integrity.Kind.EmptyTarget"),
+        IntegrityKind.InvalidUrl         => Str.Get("ProductManager.Integrity.Kind.InvalidUrl"),
+        IntegrityKind.MissingNode        => Str.Get("ProductManager.Integrity.Kind.MissingNode"),
+        IntegrityKind.MissingSnaplink    => Str.Get("ProductManager.Integrity.Kind.MissingSnaplink"),
+        IntegrityKind.StaleCoverageNode  => Str.Get("ProductManager.Integrity.Kind.StaleCoverageNode"),
+        IntegrityKind.UnlinkedProject    => Str.Get("ProductManager.Integrity.Kind.UnlinkedProject"),
+        IntegrityKind.StaleCoverageBuild => Str.Get("ProductManager.Integrity.Kind.StaleCoverageBuild"),
+        _                                => kind.ToString()
     };
 }
 
@@ -172,16 +177,16 @@ public sealed class CoverageAdvisoryItem(CoverageAdvisory advisory) : IIntegrity
     public bool IsUnknownNode => Advisory.Kind == CoverageAdvisoryKind.UnknownNode;
 
     public string NodeId    => Advisory.NodeId;
-    public string NodeTitle => IsUnknownNode ? $"unknown node: {Advisory.NodeId}" : Advisory.NodeTitle;
+    public string NodeTitle => IsUnknownNode ? Str.Format("ProductManager.Integrity.Row.UnknownNodeFormat", Advisory.NodeId) : Advisory.NodeTitle;
     public string Scope     => "tests";
-    public string Kind      => IsUnknownNode ? "stale id" : "not linked";
+    public string Kind      => IsUnknownNode ? Str.Get("ProductManager.Integrity.Row.StaleId") : Str.Get("ProductManager.Integrity.Row.NotLinked");
 
     /// <summary>The declaring test — <c>Class.Method</c>, or just the class for a class-level declaration.</summary>
     public string TestDisplay => string.IsNullOrEmpty(Advisory.Method)
         ? CoverageAdvisory.SimpleName(Advisory.Class)
         : $"{CoverageAdvisory.SimpleName(Advisory.Class)}.{Advisory.Method}";
 
-    public string File => Advisory.File.Length > 0 ? Advisory.File : "(source file unresolved)";
+    public string File => Advisory.File.Length > 0 ? Advisory.File : Str.Get("ProductManager.Integrity.Row.SourceUnresolved");
 
     /// <summary>Sub-line: the declaring test and its file.</summary>
     public string Detail => $"{TestDisplay}  ·  {File}";
@@ -205,11 +210,12 @@ public sealed class SnaplinkAdvisoryItem(SnaplinkAdvisory advisory) : IIntegrity
     public string NodeId    => Advisory.NodeId;
     public string NodeTitle => Advisory.NodeTitle;
     public string Scope     => Advisory.Concern ?? "node";
-    public string Kind      => "stale ast";
+    public string Kind      => Str.Get("ProductManager.Integrity.Row.StaleAst");
 
     /// <summary>Sub-line: what it says now, and what it should say.</summary>
-    public string Detail => $"ast \"{Advisory.Current}\"  ·  {Advisory.Doc}"
-                          + (HasSuggestion ? $"  ·  → {Advisory.Suggestion}" : "  ·  nothing in the file matches");
+    public string Detail => HasSuggestion
+        ? Str.Format("ProductManager.Integrity.Row.StaleAstDetailFormat", Advisory.Current, Advisory.Doc, Advisory.Suggestion)
+        : Str.Format("ProductManager.Integrity.Row.StaleAstNoMatchFormat", Advisory.Current, Advisory.Doc);
 
     /// <summary>Whether the one-click fix re-points the link; without it the only honest fix is to clear it.</summary>
     public bool HasSuggestion => Advisory.Suggestion is { Length: > 0 };

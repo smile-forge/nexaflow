@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.ProductManager.Views"
-             xmlns:vm="clr-namespace:Nexaflow.Features.ProductManager.ViewModels"
+             xmlns:vm="clr-namespace:Nexaflow.Features.ProductManager.ViewModels" xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -41,21 +41,21 @@
                            Foreground="{StaticResource TextBrush}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                     <TextBlock Text="{Binding HeaderLine}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBlock Text="  ·  scanning…" FontSize="11" Foreground="{StaticResource AccentBrush}"
+                    <TextBlock Text="{loc:Str ProductManager.Integrity.Header.Scanning}" FontSize="11" Foreground="{StaticResource AccentBrush}"
                                Visibility="{Binding IsScanning, Converter={StaticResource BoolVis}}"/>
                 </StackPanel>
             </StackPanel>
-            <Button Grid.Column="1" Content="Re-validate" Command="{Binding RescanCommand}"
+            <Button Grid.Column="1" Content="{loc:Str ProductManager.Integrity.Header.Revalidate}" Command="{Binding RescanCommand}"
                     Style="{StaticResource GhostButton}" VerticalAlignment="Center" AutomationProperties.AutomationId="Integrity_Revalidate"/>
         </Grid>
 
         <!-- ── Filter ─────────────────────────────────────────────────────── -->
         <TextBox Grid.Row="1" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                  Style="{StaticResource DarkTextBox}" Margin="0,12,0,0"
-                 ToolTip="Filter by node, scope, kind or detail"/>
+                 ToolTip="{loc:Str ProductManager.Integrity.FilterTip}"/>
 
         <!-- ── Empty state ────────────────────────────────────────────────── -->
-        <TextBlock Grid.Row="2" Text="Nothing needs attention — every snaplink resolves and every test is linked."
+        <TextBlock Grid.Row="2" Text="{loc:Str ProductManager.Integrity.Empty}"
                    FontSize="13" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" TextAlignment="Center"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="{Binding HasIssues, Converter={StaticResource NotBoolVis}}"/>
@@ -112,7 +112,7 @@
                         <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
                                    Foreground="{StaticResource TextMutedBrush}"/>
 
-                        <TextBlock Text="This row is from an older scan — re-validate to edit it."
+                        <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.OlderScan}"
                                    FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
                                    Foreground="{StaticResource WarningBrush}"
                                    Visibility="{Binding CanEdit, Converter={StaticResource NotBoolVis}}"/>
@@ -135,8 +135,8 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Document path (relative to the product root)" Style="{StaticResource FieldLabel}"/>
-                                    <ToggleButton Grid.Column="1" x:Name="FileDrop" Content="Moved? ▾" Style="{StaticResource GhostToggle}"
+                                    <TextBlock Grid.Column="0" Text="{loc:Str ProductManager.Integrity.Detail.DocPath}" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="FileDrop" Content="{loc:Str ProductManager.Integrity.Detail.Moved}" Style="{StaticResource GhostToggle}"
                                                   VerticalAlignment="Bottom" Margin="6,0,0,0"
                                                   IsEnabled="{Binding Data.HasFileSuggestions, Source={StaticResource Page}}"
                                                   AutomationProperties.AutomationId="Integrity_FileDrop"/>
@@ -169,8 +169,8 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Class / method (blank class = whole file)" Style="{StaticResource FieldLabel}"/>
-                                    <ToggleButton Grid.Column="1" x:Name="CodeDrop" Content="Pick ▾" Style="{StaticResource GhostToggle}"
+                                    <TextBlock Grid.Column="0" Text="{loc:Str ProductManager.Integrity.Detail.ClassMethod}" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="CodeDrop" Content="{loc:Str ProductManager.Integrity.Detail.Pick}" Style="{StaticResource GhostToggle}"
                                                   VerticalAlignment="Bottom" Margin="6,0,0,0"
                                                   IsEnabled="{Binding Data.HasTargets, Source={StaticResource Page}}"
                                                   AutomationProperties.AutomationId="Integrity_CodeDrop"/>
@@ -204,8 +204,8 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Heading path (levels separated by &gt;)" Style="{StaticResource FieldLabel}"/>
-                                    <ToggleButton Grid.Column="1" x:Name="MdDrop" Content="Pick ▾" Style="{StaticResource GhostToggle}"
+                                    <TextBlock Grid.Column="0" Text="{loc:Str ProductManager.Integrity.Detail.HeadingPath}" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="MdDrop" Content="{loc:Str ProductManager.Integrity.Detail.Pick}" Style="{StaticResource GhostToggle}"
                                                   VerticalAlignment="Bottom" Margin="6,0,0,0"
                                                   IsEnabled="{Binding Data.HasTargets, Source={StaticResource Page}}"
                                                   AutomationProperties.AutomationId="Integrity_MdDrop"/>
@@ -245,10 +245,10 @@
                         <!-- Actions live on the page VM, acting on the selected row -->
                         <StackPanel Margin="0,14,0,0"
                                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                            <Button Content="Apply fix" Command="{Binding ApplyCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Integrity_ApplyFix"/>
-                            <Button Content="Open target file" Command="{Binding OpenTargetCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_OpenTarget"/>
-                            <Button Content="Open node in Product" Command="{Binding OpenNodeCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_OpenNode"/>
-                            <Button Content="Remove snaplink" Command="{Binding RemoveLinkCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_RemoveLink"/>
+                            <Button Content="{loc:Str ProductManager.Integrity.Detail.ApplyFix}" Command="{Binding ApplyCommand}" Style="{StaticResource GhostButton}" AutomationProperties.AutomationId="Integrity_ApplyFix"/>
+                            <Button Content="{loc:Str ProductManager.Integrity.Detail.OpenTarget}" Command="{Binding OpenTargetCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_OpenTarget"/>
+                            <Button Content="{loc:Str ProductManager.Integrity.Detail.OpenNode}" Command="{Binding OpenNodeCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_OpenNode"/>
+                            <Button Content="{loc:Str ProductManager.Integrity.Detail.RemoveLink}" Command="{Binding RemoveLinkCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0" AutomationProperties.AutomationId="Integrity_RemoveLink"/>
                         </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
@@ -258,24 +258,24 @@
                                 <StackPanel>
                                     <TextBlock Text="{Binding NodeTitle}" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
-                                    <TextBlock Text="Declared by" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.DeclaredBy}" Style="{StaticResource FieldLabel}"/>
                                     <TextBlock Text="{Binding TestDisplay}" FontSize="12"
                                                Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
                                     <TextBlock Text="{Binding File}" FontSize="11" Margin="0,2,0,0"
                                                Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
 
-                                    <TextBlock Text="This node id no longer exists — the [CoversNode] attribute is stale. Fix or remove the attribute on the test."
+                                    <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.StaleNodeId}"
                                                FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource WarningBrush}"
                                                Visibility="{Binding IsUnknownNode, Converter={StaticResource BoolVis}}"/>
-                                    <TextBlock Text="Adds the test to this node's ‘tests’ concern and marks it done."
+                                    <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.AddsTest}"
                                                FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource TextMutedBrush}"
                                                Visibility="{Binding CanAdd, Converter={StaticResource BoolVis}}"/>
 
                                     <StackPanel Margin="0,14,0,0">
-                                        <Button Content="Add link" Style="{StaticResource GhostButton}"
+                                        <Button Content="{loc:Str ProductManager.Integrity.Detail.AddLink}" Style="{StaticResource GhostButton}"
                                                 Command="{Binding DataContext.AddDeclaredLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}" IsEnabled="{Binding CanAdd}" AutomationProperties.AutomationId="Integrity_AddDeclaredLink"/>
-                                        <Button Content="Open node in Product" Margin="0,6,0,0" Style="{StaticResource GhostButton}"
+                                        <Button Content="{loc:Str ProductManager.Integrity.Detail.OpenNode}" Margin="0,6,0,0" Style="{StaticResource GhostButton}"
                                                 Command="{Binding DataContext.OpenNodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 Visibility="{Binding IsUnknownNode, Converter={StaticResource NotBoolVis}}"
                                                 AutomationProperties.AutomationId="Integrity_AdvisoryOpenNode"/>
@@ -291,33 +291,33 @@
                                     <TextBlock Text="{Binding Advisory.Doc}" FontSize="11" Margin="0,2,0,10"
                                                Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
 
-                                    <TextBlock Text="Currently" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.Currently}" Style="{StaticResource FieldLabel}"/>
                                     <TextBlock Text="{Binding Advisory.Current}" FontSize="12"
                                                Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
 
                                     <StackPanel Margin="0,10,0,0"
                                                 Visibility="{Binding HasSuggestion, Converter={StaticResource BoolVis}}">
-                                        <TextBlock Text="Resolves to" Style="{StaticResource FieldLabel}"/>
+                                        <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.ResolvesTo}" Style="{StaticResource FieldLabel}"/>
                                         <TextBlock Text="{Binding Advisory.Suggestion}" FontSize="12"
                                                    Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
 
-                                    <TextBlock Text="Nothing in this file matches, so the only honest fix is to clear the value — the link keeps its file and class."
+                                    <TextBlock Text="{loc:Str ProductManager.Integrity.Detail.NoMatch}"
                                                FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource TextMutedBrush}"
                                                Visibility="{Binding HasSuggestion, Converter={StaticResource NotBoolVis}}"/>
 
                                     <StackPanel Margin="0,14,0,0">
-                                        <Button Content="Re-point ast" Style="{StaticResource GhostButton}"
+                                        <Button Content="{loc:Str ProductManager.Integrity.Detail.RepointAst}" Style="{StaticResource GhostButton}"
                                                 AutomationProperties.AutomationId="Integrity_RepointAst"
                                                 Visibility="{Binding HasSuggestion, Converter={StaticResource BoolVis}}"
                                                 Command="{Binding DataContext.FixAstCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"/>
-                                        <Button Content="Clear ast" Style="{StaticResource GhostButton}"
+                                        <Button Content="{loc:Str ProductManager.Integrity.Detail.ClearAst}" Style="{StaticResource GhostButton}"
                                                 AutomationProperties.AutomationId="Integrity_ClearAst"
                                                 Visibility="{Binding HasSuggestion, Converter={StaticResource NotBoolVis}}"
                                                 Command="{Binding DataContext.FixAstCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"/>
-                                        <Button Content="Open node in Product" Margin="0,6,0,0" Style="{StaticResource GhostButton}"
+                                        <Button Content="{loc:Str ProductManager.Integrity.Detail.OpenNode}" Margin="0,6,0,0" Style="{StaticResource GhostButton}"
                                                 Command="{Binding DataContext.OpenNodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 AutomationProperties.AutomationId="Integrity_AstOpenNode"/>
                                     </StackPanel>

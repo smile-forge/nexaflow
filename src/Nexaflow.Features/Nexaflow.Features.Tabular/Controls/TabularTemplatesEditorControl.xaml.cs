@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Templates;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.Controls;
 
@@ -26,7 +27,9 @@ public partial class TabularTemplatesEditorControl : UserControl, ICustomConfigA
             _name    = template.Name;
             int from = template.FieldCount;
             int to   = template.FinalHeaders?.Length ?? from;
-            ColumnsSummary = from == to ? $"{from} columns" : $"{from} → {to} columns";
+            ColumnsSummary = from == to
+                ? Str.Format("Tabular.Options.ColumnsFormat", from)
+                : Str.Format("Tabular.Options.ColumnsChangedFormat", from, to);
         }
 
         public TabularTemplate Template { get; }

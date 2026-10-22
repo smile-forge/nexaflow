@@ -1,5 +1,6 @@
 using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
+using Nexaflow.Visuals.Common.Localization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -31,7 +32,7 @@ public sealed class LineSelectionMargin : AbstractMargin
         _toggleSelection = toggleSelection;
         _getSelected     = getSelected;
         Cursor           = Cursors.Hand;
-        ToolTip          = "Click to select/deselect line";
+        ToolTip          = Str.Get("Logs.Margin.SelectLineTip");
     }
 
     // ── AbstractMargin wiring ─────────────────────────────────────────────────

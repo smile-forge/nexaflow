@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
@@ -67,13 +68,13 @@ public partial class ProjectDetailViewModel : ISearchable
         // Backlog items have titles, not filenames — a glob term has nothing here it could constrain.
         if (request.HasNameOnlyTerms)
             return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to a backlog — search by item title or detail.")));
+                Str.Get("Projects.Search.FilenameFiltersBacklog"))));
 
         if (!request.TryValidate(out var invalid))
-            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}")));
+            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(Str.Format("Projects.Search.InvalidRegexFormat", invalid))));
 
         if (request.Terms.Count == 0)
-            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported("Nothing to search for.")));
+            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(Str.Get("Projects.Search.NothingToSearch"))));
 
         // Marshalled even when not displaying: Backlog is the bound item list, and the agent reads it
         // from its own thread.
@@ -83,7 +84,7 @@ public partial class ProjectDetailViewModel : ISearchable
     private SearchOutcome RunSearch(SearchRequest request, bool display)
     {
         if (Backlog.Count == 0)
-            return SearchOutcome.None($"Project '{ProjectName}' has no backlog items to search.");
+            return SearchOutcome.None(Str.Format("Projects.Search.NoBacklogFormat", ProjectName));
 
         var matches = Backlog.Where(b => Matches(request, b)).ToList();
 
@@ -105,7 +106,7 @@ public partial class ProjectDetailViewModel : ISearchable
             var kept = Backlog.Count(b => ids.Contains(b.Id));
             if (kept == 0) return Task.FromResult(false);
 
-            Apply(null, ids, CurrentSearchTerm.Length == 0 ? $"{kept} selected" : CurrentSearchTerm, kept);
+            Apply(null, ids, CurrentSearchTerm.Length == 0 ? Str.Format("Projects.Search.SelectedFormat", kept) : CurrentSearchTerm, kept);
             return Task.FromResult(true);
         });
     }

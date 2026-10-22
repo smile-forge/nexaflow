@@ -2,6 +2,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Notebook.ViewModels;
 using Nexaflow.Features.Notebook.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Notebook;
 
@@ -20,7 +21,7 @@ public sealed class NotebookTabRegistration(IShellServices shell) : IPageRegistr
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Notebook" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Notebook.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {

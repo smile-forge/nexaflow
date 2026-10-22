@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Notebook.ViewModels;
 
@@ -63,8 +64,8 @@ public sealed partial class NotebookViewModel : ISearchable
     {
         if (Cells.Count == 0)
             return SearchOutcome.None(IsLoaded
-                ? $"'{FileName}' has no cells to search."
-                : $"'{FileName}' is still being parsed — try again in a moment.");
+                ? Str.Format("Notebook.Search.NoCellsFormat", FileName)
+                : Str.Format("Notebook.Search.StillParsingFormat", FileName));
 
         var hits  = new List<int>();
         var spans = new Dictionary<int, IReadOnlyList<(int, int)>>();
@@ -99,7 +100,7 @@ public sealed partial class NotebookViewModel : ISearchable
             // The spans came from the search that produced these ids; keeping the ones still on a chosen
             // cell means a narrowed result is still painted where it matched.
             var kept = chosen.Where(_lastSpans.ContainsKey).ToDictionary(i => i, i => _lastSpans[i]);
-            Apply(chosen, kept, CurrentSearchTerm.Length == 0 ? $"{chosen.Count} selected" : CurrentSearchTerm);
+            Apply(chosen, kept, CurrentSearchTerm.Length == 0 ? Str.Format("Notebook.Search.SelectedFormat", chosen.Count) : CurrentSearchTerm);
             return Task.FromResult(true);
         });
 
@@ -170,9 +171,16 @@ public sealed partial class NotebookViewModel : ISearchable
         IEnumerable<int> indices, Dictionary<int, IReadOnlyList<(int, int)>> spans) =>
         indices.Select(i => new SearchHit(
                    (i + 1).ToString(),      // 1-based: the id read_cell already takes
-                   $"Cell {i + 1} ({(Cells[i].IsCode ? "code" : Cells[i].IsMarkdown ? "markdown" : "raw")})",
+                   SearchHitLabel(i + 1, Cells[i]),
                    LineAround(Cells[i].Source, spans[i][0].Item1)))
                .ToList();
+
+    /// <summary>A hit's label: the cell's 1-based number and its kind — one sentence per kind, so each
+    /// language keeps its own word order.</summary>
+    private static string SearchHitLabel(int cellNumber, NotebookCellViewModel cell) =>
+        cell.IsCode     ? Str.Format("Notebook.Search.HitCodeFormat", cellNumber)
+      : cell.IsMarkdown ? Str.Format("Notebook.Search.HitMarkdownFormat", cellNumber)
+      :                   Str.Format("Notebook.Search.HitRawFormat", cellNumber);
 
     /// <summary>The source line the first match sits on — what makes a hit judgeable without opening it.</summary>
     private static string LineAround(string source, int offset)

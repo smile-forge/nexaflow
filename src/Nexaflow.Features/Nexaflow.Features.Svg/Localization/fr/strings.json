@@ -1,0 +1,13 @@
+{
+  "Svg.Action.AsSvg": "En tant que SVG",
+  "Svg.Action.ExperienceDescription": "Visionneuse d'images SVG : zoom et déplacement sur des illustrations vectorielles nettes, avec dimensions et nombre d'éléments (.svg/.svgz)",
+  "Svg.Toolbar.ResetView": "Réinitialiser la vue",
+  "Svg.Toolbar.ResetViewTip": "Ajuster l'image à la fenêtre",
+  "Svg.Toolbar.Checkerboard": "Damier",
+  "Svg.Toolbar.CheckerboardTip": "Afficher un damier derrière les illustrations transparentes",
+  "Svg.Toolbar.ZoomPanHint": "Faire défiler pour zoomer · faire glisser pour déplacer",
+  "Svg.Footer.ElementCountFormat": "{0:N0} éléments",
+  "Svg.Error.TooLargeFormat": "Ce fichier SVG est trop volumineux pour être affiché sans risque ({0}).",
+  "Svg.Error.NothingToRender": "Le fichier a été chargé, mais il ne contient rien à afficher.",
+  "Svg.Error.OpenFailedFormat": "Impossible d'ouvrir ce fichier SVG : {0}"
+}

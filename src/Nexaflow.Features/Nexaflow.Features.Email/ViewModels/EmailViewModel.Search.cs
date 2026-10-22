@@ -4,6 +4,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Email.Model;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Generic;
 using System.Globalization;
@@ -124,7 +125,7 @@ internal sealed partial class EmailViewModel : ISearchable
         {
             ct.ThrowIfCancellationRequested();
             total++;
-            Add(hits, $"body:{line.Index}", $"line {line.Index + 1}", line.Text);
+            Add(hits, $"body:{line.Index}", Str.Format("Email.Search.LineFormat", line.Index + 1), line.Text);
         }
 
         // Attachments — name, text contents, and any message they carry.
@@ -133,7 +134,7 @@ internal sealed partial class EmailViewModel : ISearchable
             ct.ThrowIfCancellationRequested();
             if (!AttachmentMatches(Attachments[i].Source, matcher, MaxNesting)) continue;
             total++;
-            Add(hits, $"attachment:{i}", $"attachment: {Attachments[i].DisplayName}",
+            Add(hits, $"attachment:{i}", Str.Format("Email.Search.AttachmentFormat", Attachments[i].DisplayName),
                 $"{Attachments[i].ContentType}, {Attachments[i].SizeText}");
         }
 
@@ -173,7 +174,7 @@ internal sealed partial class EmailViewModel : ISearchable
             if (!AttachmentMatches(Attachments[i].Source, matcher, MaxNesting)) continue;
             Attachments[i].Highlighted = true;
             total++;
-            Add(hits, $"attachment:{i}", $"attachment: {Attachments[i].DisplayName}",
+            Add(hits, $"attachment:{i}", Str.Format("Email.Search.AttachmentFormat", Attachments[i].DisplayName),
                 $"{Attachments[i].ContentType}, {Attachments[i].SizeText}");
         }
 
@@ -192,7 +193,7 @@ internal sealed partial class EmailViewModel : ISearchable
             _renderedBodyActive = true;
             var matches = FindInRenderedBody?.Invoke(matcher) ?? [];
             foreach (var m in matches.Take(SearchHitCap))
-                Add(hits, $"body:{m.Ordinal}", $"body match {m.Ordinal + 1}", m.Preview);
+                Add(hits, $"body:{m.Ordinal}", Str.Format("Email.Search.BodyMatchFormat", m.Ordinal + 1), m.Preview);
             return matches.Count;
         }
 
@@ -203,7 +204,7 @@ internal sealed partial class EmailViewModel : ISearchable
             foreach (var (index, length) in matcher.Occurrences(line.Text))
             {
                 found.Add((line.Offset + index, length));
-                Add(hits, $"body:{found.Count}", $"line {line.Index + 1}", line.Text);
+                Add(hits, $"body:{found.Count}", Str.Format("Email.Search.LineFormat", line.Index + 1), line.Text);
             }
         }
 

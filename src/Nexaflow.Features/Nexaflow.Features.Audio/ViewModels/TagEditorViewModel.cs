@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -75,7 +76,7 @@ public partial class TagEditorViewModel : ObservableObject
         }
         catch
         {
-            _shell.ShowError("Could not read that image.");
+            _shell.ShowError(Str.Get("Audio.Error.ReadImageFailed"));
         }
     }
 

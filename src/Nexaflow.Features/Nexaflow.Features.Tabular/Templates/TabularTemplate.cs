@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.Templates;
 
@@ -50,8 +51,8 @@ public sealed class TabularTemplate
     [JsonIgnore]
     public string ScopeSummary => Scope switch
     {
-        TemplateScope.Folder => $"folder: {FolderPath}",
-        TemplateScope.Glob   => $"name: {Glob}",
-        _                    => "manual",
+        TemplateScope.Folder => Str.Format("Tabular.Templates.Scope.FolderFormat", FolderPath),
+        TemplateScope.Glob   => Str.Format("Tabular.Templates.Scope.NameFormat", Glob),
+        _                    => Str.Get("Tabular.Templates.Scope.Manual"),
     };
 }

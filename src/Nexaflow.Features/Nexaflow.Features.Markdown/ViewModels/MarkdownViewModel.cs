@@ -14,6 +14,7 @@ using System.Windows.Controls;
 using Nexaflow.Visuals.Common.Theming;
 using System;
 using Nexaflow.Markdown.Packaging;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -43,9 +44,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     /// <summary>What Save As offers a document to be written as: a package first, its attachments in it, or a file beside
     /// its attachments. A file of one language — a tune, a formula — stays that.</summary>
-    private static readonly SaveFileType[] DocumentTypes =
+    private static SaveFileType[] DocumentTypes =>
     [
-        new("Markdown Package", MarkdownPackage.Extension),
+        new(Str.Get("Markdown.SaveAs.Package"), MarkdownPackage.Extension),
         new("Markdown", ".md"),
     ];
 
@@ -202,7 +203,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            _shell.ShowError($"The document could not be saved: {ex.Message}");
+            _shell.ShowError(Str.Format("Markdown.Error.SaveFailedFormat", ex.Message));
             return;
         }
         FilePath = target;
@@ -292,7 +293,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            _shell.ShowError($"Could not save the picture to {path}: {e.Message}");
+            _shell.ShowError(Str.Format("Markdown.Error.PictureSaveFailedFormat", path, e.Message));
             return false;
         }
     }

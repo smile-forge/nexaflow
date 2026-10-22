@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
@@ -65,13 +66,13 @@ public partial class ProjectsViewModel : ISearchable
         // A project is a folder with a name, not a file — a filename glob has nothing here to constrain.
         if (request.HasNameOnlyTerms)
             return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to the project list — search by project name or description.")));
+                Str.Get("Projects.Search.FilenameFiltersList"))));
 
         if (!request.TryValidate(out var invalid))
-            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}")));
+            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(Str.Format("Projects.Search.InvalidRegexFormat", invalid))));
 
         if (request.Terms.Count == 0)
-            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported("Nothing to search for.")));
+            return OnUi(() => Task.FromResult(SearchOutcome.Unsupported(Str.Get("Projects.Search.NothingToSearch"))));
 
         // Marshalled even when not displaying: Projects is the bound row list, and the agent reads it
         // from its own thread.
@@ -81,7 +82,7 @@ public partial class ProjectsViewModel : ISearchable
     private SearchOutcome RunSearch(SearchRequest request, bool display)
     {
         if (!IsEnabled)
-            return SearchOutcome.None("The Projects feature is disabled for this workspace.");
+            return SearchOutcome.None(Str.Get("Projects.Search.FeatureDisabled"));
 
         var matches = Projects.Where(p => Matches(request, p)).ToList();
 
@@ -101,7 +102,7 @@ public partial class ProjectsViewModel : ISearchable
             var kept = Projects.Count(p => folders.Contains(p.FolderName));
             if (kept == 0) return Task.FromResult(false);
 
-            Apply(null, folders, CurrentSearchTerm.Length == 0 ? $"{kept} selected" : CurrentSearchTerm, kept);
+            Apply(null, folders, CurrentSearchTerm.Length == 0 ? Str.Format("Projects.Search.SelectedFormat", kept) : CurrentSearchTerm, kept);
             return Task.FromResult(true);
         });
     }
@@ -152,6 +153,6 @@ public partial class ProjectsViewModel : ISearchable
         items.Select(p => new SearchHit(
                   p.FolderName,        // the id read_project already speaks
                   p.DisplayName,
-                  string.IsNullOrWhiteSpace(p.DescriptionPreview) ? p.CountsText : p.DescriptionPreview))
+                  string.IsNullOrWhiteSpace(p.DescriptionPreview) ? p.CountsForModel : p.DescriptionPreview))
              .ToList();
 }

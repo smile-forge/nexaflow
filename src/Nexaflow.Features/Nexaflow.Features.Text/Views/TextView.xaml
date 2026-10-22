@@ -5,6 +5,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:local="clr-namespace:Nexaflow.Features.Text.Views"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="TextView"
              Background="{StaticResource BgBrush}">
@@ -55,7 +56,7 @@
                               AutomationProperties.AutomationId="Text_Encoding"
                               ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
-                              DisplayMemberPath="Name"
+                              DisplayMemberPath="Label"
                               Width="110"
                               VerticalAlignment="Center"
                               FontSize="11"/>
@@ -69,10 +70,10 @@
                             IsEnabled="{Binding CanEdit}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TbBtn}">
-                                <Setter Property="ToolTip" Value="Enable editing"/>
+                                <Setter Property="ToolTip" Value="{loc:Str Text.Viewer.Toolbar.EnableEditingTip}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                                        <Setter Property="ToolTip" Value="Stop editing"/>
+                                        <Setter Property="ToolTip" Value="{loc:Str Text.Viewer.Toolbar.StopEditingTip}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -93,10 +94,10 @@
                             <TextBlock FontSize="11">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Edit"/>
+                                        <Setter Property="Text" Value="{loc:Str Text.Viewer.Toolbar.Edit}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                                                <Setter Property="Text" Value="Editing"/>
+                                                <Setter Property="Text" Value="{loc:Str Text.Viewer.Toolbar.Editing}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -109,10 +110,10 @@
                             Command="{Binding SaveCommand}"
                             AutomationProperties.AutomationId="Text_Save"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}"
-                            ToolTip="Save (Ctrl+S)">
+                            ToolTip="{loc:Str Text.Viewer.Toolbar.SaveTip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💾" FontSize="11" Margin="0,0,4,0"/>
-                            <TextBlock Text="Save" FontSize="11"/>
+                            <TextBlock Text="{loc:Str Text.Viewer.Toolbar.Save}" FontSize="11"/>
                         </StackPanel>
                     </Button>
 
@@ -124,18 +125,18 @@
                                 AutomationProperties.AutomationId="Text_Find"
                                 Command="{Binding ToggleFindCommand}"
                                 Margin="2,0,0,0"
-                                ToolTip="Find (Ctrl+F)">
+                                ToolTip="{loc:Str Text.Viewer.Toolbar.FindTip}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,4,0"/>
-                                <TextBlock Text="Find" FontSize="11"/>
+                                <TextBlock Text="{loc:Str Text.Viewer.Toolbar.Find}" FontSize="11"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="FindMenuButton" Style="{StaticResource TbBtn}"
                                 AutomationProperties.AutomationId="Text_FindMenu"
                                 Click="FindMenu_Click"
                                 Padding="3,5" Margin="0,0,2,0"
-                                ToolTip="Find options (includes Replace, Ctrl+H)">
+                                ToolTip="{loc:Str Text.Viewer.Toolbar.FindOptionsTip}">
                             <TextBlock Text="▾" FontSize="9"/>
                         </Button>
                     </StackPanel>
@@ -173,9 +174,9 @@
                                 </Style>
                             </Border.Resources>
                             <StackPanel>
-                                <Button Content="Find (Ctrl+F)"    Click="FindMenuFind_Click"
+                                <Button Content="{loc:Str Text.Viewer.FindMenu.Find}"    Click="FindMenuFind_Click"
                                         AutomationProperties.AutomationId="Text_FindMenu_Find"/>
-                                <Button Content="Replace (Ctrl+H)" Click="FindMenuReplace_Click"
+                                <Button Content="{loc:Str Text.Viewer.FindMenu.Replace}" Click="FindMenuReplace_Click"
                                         AutomationProperties.AutomationId="Text_FindMenu_Replace"/>
                             </StackPanel>
                         </Border>
@@ -184,10 +185,10 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Text_GoToLine"
                             Command="{Binding GoToLineCommand}"
-                            ToolTip="Go to line (Ctrl+G)">
+                            ToolTip="{loc:Str Text.Viewer.Toolbar.GoToLineTip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⤓" FontSize="12" Margin="0,0,4,0"/>
-                            <TextBlock Text="Go" FontSize="11"/>
+                            <TextBlock Text="{loc:Str Text.Viewer.Toolbar.Go}" FontSize="11"/>
                         </StackPanel>
                     </Button>
 
@@ -196,14 +197,14 @@
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Text_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
-                                  ToolTip="Toggle line numbers">
+                                  ToolTip="{loc:Str Text.Viewer.Toolbar.LineNumbersTip}">
                         <TextBlock Text="≡#" FontSize="12"/>
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Text_WordWrap"
                                   IsChecked="{Binding WordWrap}"
-                                  ToolTip="Toggle word wrap">
+                                  ToolTip="{loc:Str Text.Viewer.Toolbar.WordWrapTip}">
                         <TextBlock Text="⇔" FontSize="12"/>
                     </ToggleButton>
 
@@ -211,11 +212,11 @@
 
                     <!-- Undo/Redo (editing only); wired in code-behind to AvalonEdit's editing commands so
                          WPF drives their enabled state from the document's undo stack. -->
-                    <Button x:Name="UndoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Undo" ToolTip="Undo (Ctrl+Z)"
+                    <Button x:Name="UndoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Undo" ToolTip="{loc:Str Text.Viewer.Toolbar.UndoTip}"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="↶" FontSize="13"/>
                     </Button>
-                    <Button x:Name="RedoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Redo" ToolTip="Redo (Ctrl+Y)"
+                    <Button x:Name="RedoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Redo" ToolTip="{loc:Str Text.Viewer.Toolbar.RedoTip}"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="↷" FontSize="13"/>
                     </Button>
@@ -223,14 +224,14 @@
                     <!-- Cut/Paste only make sense while editing; Copy works in the read-only viewer too.
                          Command binding (wired in code-behind to the editor) auto-disables Cut/Copy when
                          there's no selection and Paste when there's nothing to paste. -->
-                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Cut" ToolTip="Cut (Ctrl+X)"
+                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Cut" ToolTip="{loc:Str Text.Viewer.Toolbar.CutTip}"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="✂" FontSize="12"/>
                     </Button>
-                    <Button x:Name="CopyButton"  Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Copy"  ToolTip="Copy (Ctrl+C)">
+                    <Button x:Name="CopyButton"  Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Copy"  ToolTip="{loc:Str Text.Viewer.Toolbar.CopyTip}">
                         <TextBlock Text="⎘" FontSize="12"/>
                     </Button>
-                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Paste" ToolTip="Paste (Ctrl+V)"
+                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Paste" ToolTip="{loc:Str Text.Viewer.Toolbar.PasteTip}"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="📋" FontSize="11"/>
                     </Button>
@@ -240,7 +241,7 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Text_Monitor"
                             Command="{Binding ToggleMonitoringCommand}"
-                            ToolTip="Toggle file monitoring">
+                            ToolTip="{loc:Str Text.Viewer.Toolbar.MonitorTip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock FontSize="11" Margin="0,0,4,0">
                                 <TextBlock.Style>
@@ -254,7 +255,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <TextBlock Text="Monitor" FontSize="11"/>
+                            <TextBlock Text="{loc:Str Text.Viewer.Toolbar.Monitor}" FontSize="11"/>
                         </StackPanel>
                     </Button>
 
@@ -263,10 +264,10 @@
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Text_SplitToggle"
                             Command="{Binding ToggleSplitPanelCommand}"
-                            ToolTip="Split this file into smaller files">
+                            ToolTip="{loc:Str Text.Viewer.Toolbar.SplitTip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⧉" FontSize="12" Margin="0,0,4,0"/>
-                            <TextBlock Text="Split" FontSize="11"/>
+                            <TextBlock Text="{loc:Str Text.Viewer.Toolbar.Split}" FontSize="11"/>
                         </StackPanel>
                     </Button>
 
@@ -310,39 +311,39 @@
                 <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal"
                             VerticalAlignment="Center" Margin="6,0,0,0">
                     <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding MatchCase}"
-                                  ToolTip="Match case" AutomationProperties.AutomationId="Text_MatchCase">
+                                  ToolTip="{loc:Str Text.Viewer.Find.MatchCaseTip}" AutomationProperties.AutomationId="Text_MatchCase">
                         <TextBlock Text="Aa" FontSize="12"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding UseWildcards}"
-                                  ToolTip="Use wildcards (* matches a run, ? matches one character)"
+                                  ToolTip="{loc:Str Text.Viewer.Find.WildcardsTip}"
                                   AutomationProperties.AutomationId="Text_UseWildcards">
                         <TextBlock Text="*?" FontSize="12"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding UseRegex}"
-                                  ToolTip="Use regular expression" AutomationProperties.AutomationId="Text_UseRegex">
+                                  ToolTip="{loc:Str Text.Viewer.Find.RegexTip}" AutomationProperties.AutomationId="Text_UseRegex">
                         <TextBlock Text=".*" FontSize="12"/>
                     </ToggleButton>
-                    <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} matches'}"
+                    <TextBlock Text="{Binding SearchMatchCount, StringFormat={loc:Str Text.Viewer.Find.MatchesFormat}}"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                VerticalAlignment="Center" Margin="10,0,6,0"
                                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
                     <Button Style="{StaticResource TbBtn}" Command="{Binding FindPreviousCommand}"
                             IsEnabled="{Binding IsSearchActive}"
                             AutomationProperties.AutomationId="Text_FindPrevious"
-                            ToolTip="Find previous (Shift+F3)" Padding="6,3">
+                            ToolTip="{loc:Str Text.Viewer.Find.PreviousTip}" Padding="6,3">
                         <TextBlock Text="▲" FontSize="10"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}" Command="{Binding FindNextCommand}"
                             IsEnabled="{Binding IsSearchActive}"
                             AutomationProperties.AutomationId="Text_FindNext"
-                            ToolTip="Find next (F3)" Padding="6,3">
+                            ToolTip="{loc:Str Text.Viewer.Find.NextTip}" Padding="6,3">
                         <TextBlock Text="▼" FontSize="10"/>
                     </Button>
                 </StackPanel>
                 <Button Grid.Row="0" Grid.Column="3"
                         Style="{StaticResource TbBtn}" Command="{Binding CloseFindBarCommand}"
                         HorizontalAlignment="Right" VerticalAlignment="Center"
-                        ToolTip="Close (Esc)" Padding="6,3"
+                        ToolTip="{loc:Str Text.Viewer.Find.CloseTip}" Padding="6,3"
                         AutomationProperties.AutomationId="Text_CloseFind">
                     <TextBlock Text="✕" FontSize="10"/>
                 </Button>
@@ -359,14 +360,14 @@
                             VerticalAlignment="Center" Margin="6,5,0,0"
                             Visibility="{Binding IsReplaceVisible, Converter={StaticResource BoolVis}}">
                     <Button Style="{StaticResource TbBtn}" Command="{Binding ReplaceCurrentCommand}"
-                            IsEnabled="{Binding CanEdit}" ToolTip="Replace this match" Padding="8,3"
+                            IsEnabled="{Binding CanEdit}" ToolTip="{loc:Str Text.Viewer.Find.ReplaceTip}" Padding="8,3"
                             AutomationProperties.AutomationId="Text_Replace">
-                        <TextBlock Text="Replace" FontSize="11"/>
+                        <TextBlock Text="{loc:Str Text.Viewer.Find.Replace}" FontSize="11"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}" Command="{Binding ReplaceAllCommand}"
-                            IsEnabled="{Binding CanEdit}" ToolTip="Replace all matches" Padding="8,3" Margin="4,0,0,0"
+                            IsEnabled="{Binding CanEdit}" ToolTip="{loc:Str Text.Viewer.Find.ReplaceAllTip}" Padding="8,3" Margin="4,0,0,0"
                             AutomationProperties.AutomationId="Text_ReplaceAll">
-                        <TextBlock Text="Replace All" FontSize="11"/>
+                        <TextBlock Text="{loc:Str Text.Viewer.Find.ReplaceAll}" FontSize="11"/>
                     </Button>
                 </StackPanel>
             </Grid>
@@ -393,9 +394,9 @@
                                ScrollViewer.ScrollChanged="Editor_ScrollChanged">
                 <avalon:TextEditor.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Cut"   Command="ApplicationCommands.Cut"/>
-                        <MenuItem Header="Copy"  Command="ApplicationCommands.Copy"/>
-                        <MenuItem Header="Paste" Command="ApplicationCommands.Paste"/>
+                        <MenuItem Header="{loc:Str Text.Viewer.Menu.Cut}"   Command="ApplicationCommands.Cut"/>
+                        <MenuItem Header="{loc:Str Text.Viewer.Menu.Copy}"  Command="ApplicationCommands.Copy"/>
+                        <MenuItem Header="{loc:Str Text.Viewer.Menu.Paste}" Command="ApplicationCommands.Paste"/>
                     </ContextMenu>
                 </avalon:TextEditor.ContextMenu>
             </avalon:TextEditor>
@@ -429,7 +430,7 @@
                     Padding="8,6"
                     Visibility="{Binding IsSplitPanelOpen, Converter={StaticResource BoolVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Split"
+                    <TextBlock Text="{loc:Str Text.Viewer.Split.Label}"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="11"
@@ -458,14 +459,14 @@
                             Padding="8,3"
                             Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Text_SplitNow"
-                            ToolTip="Split now">
-                        <TextBlock Text="Split" FontSize="11"/>
+                            ToolTip="{loc:Str Text.Viewer.Split.NowTip}">
+                        <TextBlock Text="{loc:Str Text.Viewer.Split.Now}" FontSize="11"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}"
                             Command="{Binding ToggleSplitPanelCommand}"
                             Padding="6,3"
                             AutomationProperties.AutomationId="Text_SplitClose"
-                            ToolTip="Close">
+                            ToolTip="{loc:Str Text.Viewer.Split.CloseTip}">
                         <TextBlock Text="✕" FontSize="10"/>
                     </Button>
                 </StackPanel>
@@ -486,18 +487,18 @@
                            FontSize="11"
                            Margin="0,0,16,0"/>
                 <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding LineCount, StringFormat='{}{0} lines'}"
+                           Text="{Binding LineCount, StringFormat={loc:Str Text.Viewer.Status.LinesFormat}}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
                 <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding SearchMatchCount, StringFormat='{}{0} matches'}"
+                           Text="{Binding SearchMatchCount, StringFormat={loc:Str Text.Viewer.Find.MatchesFormat}}"
                            Foreground="{StaticResource AccentBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"
                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
                 <TextBlock DockPanel.Dock="Left"
-                           Text="Streaming"
+                           Text="{loc:Str Text.Viewer.Status.Streaming}"
                            Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>

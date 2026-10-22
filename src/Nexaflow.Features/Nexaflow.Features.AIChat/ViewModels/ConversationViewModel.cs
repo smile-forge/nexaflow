@@ -67,7 +67,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private const int FallbackHistoryMessages = 12;
 
     [ObservableProperty] private ConversationRecord? _conversation;
-    [ObservableProperty] private string _title = "Conversation";
+    [ObservableProperty] private string _title = Str.Get("AIChat.Conversation.Title");
     [ObservableProperty] private int   _estimatedTokens;
     [ObservableProperty] private int?  _contextWindow;
 
@@ -98,7 +98,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
     /// <summary>"and 2 more" once the summary is capped, so a truncated row never reads as the whole list.</summary>
     public string CollapsedContextOverflow
-        => HasCollapsedOverflow ? $"and {ContextCount - CollapsedSummaryLimit} more" : string.Empty;
+        => HasCollapsedOverflow ? Str.Format("AIChat.Conversation.Context.OverflowFormat", ContextCount - CollapsedSummaryLimit) : string.Empty;
 
     public bool HasCollapsedOverflow => ContextCount > CollapsedSummaryLimit;
     public bool HasNoContext         => ContextCount == 0;
@@ -226,7 +226,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         ClearSearch();
 
         Conversation = rec;
-        Title        = rec.Title;
+        Title        = DisplayTitle(rec);
         _sessionNotes     = null;   // a session's notes are its own: a conversation loaded starts without them
         _condensedThrough = 0;
         Messages.Clear();
@@ -289,6 +289,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// <summary>Default title carried by a fresh record until the first exchange derives a real one.</summary>
     private const string DefaultTitle = "New conversation";
 
+    /// <summary>The title shown for <paramref name="record"/>: its own, or — while a fresh record still carries the
+    /// invariant <see cref="DefaultTitle"/> — the localized name of a new conversation.</summary>
+    internal static string DisplayTitle(ConversationRecord record)
+        => string.Equals(record.Title, DefaultTitle, StringComparison.Ordinal)
+            ? Str.Get("AIChat.Conversation.NewTitle")
+            : record.Title;
+
     /// <summary>
     /// Initializes a brand-new, empty conversation. The record is held in memory and only
     /// persisted on the first completed exchange, so abandoned blank conversations never clutter
@@ -297,7 +304,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     public async Task StartNew()
     {
         Conversation = new ConversationRecord();
-        Title        = Conversation.Title;
+        Title        = DisplayTitle(Conversation);
         Messages.Clear();
         Attachments.Clear();
         UpdateBreadcrumb();
@@ -347,7 +354,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         IsAgentRunning = true;
         AddTurnItem(new TimelineUserMessage(user));
         MarkLastUserMessage();
-        _activity = new TimelineActivity { Text = "Considering" };
+        _activity = new TimelineActivity { Text = Str.Get("AIChat.Conversation.Activity.Considering") };
         AddTurnItem(_activity);
     });
 
@@ -441,7 +448,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         foreach (var r in results)
             _currentToolBatch.Tools.Add(new TimelineToolRun(r.Tool, r.Result.IsError, r.Result.Summary));
 
-        if (_activity is not null) _activity.Text = "Considering";   // back to thinking
+        if (_activity is not null) _activity.Text = Str.Get("AIChat.Conversation.Activity.Considering");   // back to thinking
     });
 
     // The model's prose is the *explanation* and the tool list is the *question* — passing the prose as both
@@ -451,7 +458,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         => RequestApproval(explanationMarkdown, BuildBatchSummary(batch), ct);
 
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
-        => RequestApproval(plan.Title, $"Approve plan: {plan.Title}?", ct);
+        => RequestApproval(plan.Title, Str.Format("AIChat.Conversation.Approval.PlanFormat", plan.Title), ct);
 
     public Task<bool> RequestContextReleaseAsync(IReadOnlyList<string> destinations, CancellationToken ct)
     {
@@ -490,7 +497,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
         if (empty)
         {
-            AddTurnItem(new TimelineNotice("The assistant ended the turn without a reply."));
+            AddTurnItem(new TimelineNotice(Str.Get("AIChat.Conversation.Notice.NoReply")));
         }
         else
         {
@@ -619,7 +626,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         if (string.Equals(Conversation.Title, DefaultTitle, StringComparison.Ordinal))
         {
             Conversation.DeriveTitle();
-            Title = Conversation.Title;
+            Title = DisplayTitle(Conversation);
             UpdateBreadcrumb();
         }
 
@@ -728,9 +735,9 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
     private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
     {
-        if (batch.Count == 1) return $"Run {batch[0].Tool}?";
+        if (batch.Count == 1) return Str.Format("AIChat.Conversation.Approval.RunFormat", batch[0].Tool);
         var grouped = batch.GroupBy(c => c.Tool).Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
-        return "Run " + string.Join(", ", grouped) + "?";
+        return Str.Format("AIChat.Conversation.Approval.RunFormat", string.Join(", ", grouped));
     }
 
     // Run UI work on the workspace UI thread (inline if already there) via the shell — no dispatcher here.
@@ -1065,7 +1072,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _ownerPage.Breadcrumbs.Clear();
         _ownerPage.Breadcrumbs.Add(new BreadcrumbSegment
         {
-            Label          = "Conversations",
+            Label          = Str.Get("AIChat.Browser.Header"),
             TargetPageKind = "AIChat",
         });
         _ownerPage.Breadcrumbs.Add(new BreadcrumbSegment { Label = Title });

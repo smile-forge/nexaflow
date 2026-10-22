@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using WpfModel3D = System.Windows.Media.Media3D.Model3D;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 
@@ -45,7 +46,7 @@ internal static class ModelInspection
             var e = meshes[i];
             var colour = resolved[i];
             if (e.Texture is null && colour is { } c) ReSkin(e.Gm, c);
-            materials.Add(new ModelMaterial($"Material {i + 1}", colour, e.Texture));
+            materials.Add(new ModelMaterial(Str.Format("Model3D.Inspector.MaterialFallbackFormat", i + 1), colour, e.Texture));
         }
 
         return new GeometryStats(triangles, vertices, meshes.Count, materials);

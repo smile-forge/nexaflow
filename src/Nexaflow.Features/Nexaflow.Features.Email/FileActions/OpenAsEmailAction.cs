@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Email.FileActions;
 
@@ -10,9 +11,9 @@ public sealed class OpenAsEmailAction(IShellServices shell) : IFileAction, ICach
 {
     public static string? StaticExperienceId => "/email";
     public string ExperienceId => "/email";
-    public string ExperienceDescription => "Email message";
+    public string ExperienceDescription => Str.Get("Email.Action.ExperienceDescription");
 
-    public string DisplayName => "As Email";
+    public string DisplayName => Str.Get("Email.Action.AsEmail");
     public string Icon => "✉️";
 
     public bool IsDestructive => false;

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Logs.FileActions;
@@ -12,11 +13,11 @@ public sealed class ShowLogAction : IFileAction, ICacheable
 
     public ShowLogAction(IShellServices shellServices) => _shellServices = shellServices;
 
-    public string DisplayName           => "As Log";
+    public string DisplayName           => Str.Get("Logs.Action.AsLog");
     public string Icon                  => "📋";
     public static string? StaticExperienceId => "/text/log";
     public string ExperienceId          => "/text/log";
-    public string ExperienceDescription => "Tail based Log Viewer";
+    public string ExperienceDescription => Str.Get("Logs.Action.AsLogDescription");
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public bool   RequiresRefresh       => false;

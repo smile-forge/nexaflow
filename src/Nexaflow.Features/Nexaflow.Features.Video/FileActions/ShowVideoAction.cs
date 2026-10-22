@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video.FileActions;
 
@@ -17,10 +18,10 @@ public sealed class ShowVideoAction : IFileAction, ICacheable
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "🎬";
-    public string DisplayName           => "Play Video";
+    public string DisplayName           => Str.Get("Video.Action.Play");
     public static string? StaticExperienceId => "/video";
     public string ExperienceId          => "/video";
-    public string ExperienceDescription => "Embedded video player: playback, codec/metadata panel, a scene-strip of keyframes, and fullscreen";
+    public string ExperienceDescription => Str.Get("Video.Action.ExperienceDescription");
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
     public bool   OpensViewer           => true;

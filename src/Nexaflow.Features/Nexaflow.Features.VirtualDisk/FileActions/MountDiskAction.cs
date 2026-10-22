@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
 
@@ -11,9 +12,9 @@ public sealed class MountDiskAction(IShellServices shell) : IFileAction, ICachea
 {
     public static string? StaticExperienceId => "/disk/mountable";
     public string ExperienceId => "/disk/mountable";
-    public string ExperienceDescription => "Mountable disk image";
+    public string ExperienceDescription => Str.Get("VirtualDisk.Action.MountDescription");
 
-    public string DisplayName => "Mount";
+    public string DisplayName => Str.Get("VirtualDisk.Action.Mount");
     public string Icon => "📀";
 
     public bool IsDestructive => false;

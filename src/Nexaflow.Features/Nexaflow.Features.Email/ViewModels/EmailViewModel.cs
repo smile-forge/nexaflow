@@ -13,6 +13,7 @@ using Nexaflow.Features.Email.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Features.Email.ViewModels;
@@ -147,7 +148,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Couldn't open this email: {ex.Message}";
+            ErrorMessage = Str.Format("Email.Status.OpenFailedFormat", ex.Message);
             OnPropertyChanged(nameof(HasError));
         }
     }
@@ -162,7 +163,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
         if (item is null) return;
         var virtualPath = Path.Combine(_path, item.EntryName);
         if (!_shell.HandleObject(virtualPath))
-            _shell.ShowError($"Couldn't open attachment '{item.DisplayName}'.");
+            _shell.ShowError(Str.Format("Email.Error.OpenAttachmentFailedFormat", item.DisplayName));
     }
 
     /// <summary>Full-fidelity view: writes the HTML body (with inline images) to a temp file and opens it in
@@ -172,7 +173,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     {
         if (_exporter is null) return;
         try { _shell.HandleObject(_exporter.ExportBrowserHtml()); }
-        catch (Exception ex) { _shell.ShowError($"Couldn't open the browser view: {ex.Message}"); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Email.Error.OpenInBrowserFailedFormat", ex.Message)); }
     }
 
     [RelayCommand] private void ShowRendered()   => BodyView = EmailBodyView.Rendered;

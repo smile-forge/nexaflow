@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.ViewModels;
 using Nexaflow.Features.VirtualDisk.Views;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk;
 
@@ -22,7 +23,7 @@ public sealed class VirtualDiskTabRegistration(IShellServices shell) : IPageRegi
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "Virtual Disk" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("VirtualDisk.Page.Title") : Path.GetFileName(path);
 
         var page = new Page
         {

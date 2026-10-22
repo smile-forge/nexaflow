@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:v="clr-namespace:Nexaflow.Features.Network.Views"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -34,7 +35,7 @@
             <Button DockPanel.Dock="Left"
                     Style="{StaticResource TbBtn}"
                     AutomationProperties.AutomationId="Net_Discover"
-                    Content="Discover"
+                    Content="{loc:Str Network.Toolbar.Discover}"
                     Padding="16,6"
                     Command="{Binding DiscoverCommand}" />
 
@@ -92,7 +93,7 @@
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <ListView.View>
                 <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
-                    <GridViewColumn Header="Device" Width="210">
+                    <GridViewColumn Header="{loc:Str Network.Column.Device}" Width="210">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -142,7 +143,7 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <GridViewColumn Header="Found by" Width="160">
+                    <GridViewColumn Header="{loc:Str Network.Column.FoundBy}" Width="160">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding FoundBy}"
@@ -152,7 +153,7 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <GridViewColumn Header="Detail" Width="300">
+                    <GridViewColumn Header="{loc:Str Network.Column.Detail}" Width="300">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <!-- A SERVER banner names an OS, a UPnP version and a product; trimming it

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.Services;
 
@@ -24,7 +25,7 @@ public static class DiskMountService
             var res = await shell.RunElevatedAsync(
                 ElevatedRequest.Single(ElevatedOps.DiskMount, (ElevatedArgs.ImagePath, imagePath)), ct);
             if (res.WasDeclined) return;
-            if (!res.Success) { shell.ShowError($"Couldn't mount {name}: {res.Message}"); return; }
+            if (!res.Success) { shell.ShowError(Str.Format("VirtualDisk.Mount.MountFailedFormat", name, res.Message)); return; }
             var drive = res.Operations.Count > 0
                 ? res.Operations[0].Data.GetValueOrDefault(ElevatedArgs.DriveLetter)
                 : null;
@@ -35,7 +36,7 @@ public static class DiskMountService
         {
             // DiskMounter.Mount records the mount itself.
             var outcome = await Task.Run(() => new DiskMounter().Mount(imagePath), ct);
-            if (!outcome.Success) { shell.ShowError($"Couldn't mount {name}: {outcome.Error}"); return; }
+            if (!outcome.Success) { shell.ShowError(Str.Format("VirtualDisk.Mount.MountFailedFormat", name, outcome.Error)); return; }
             Notify(shell, name, outcome.DriveLetter);
         }
     }
@@ -49,18 +50,20 @@ public static class DiskMountService
             var res = await shell.RunElevatedAsync(
                 ElevatedRequest.Single(ElevatedOps.DiskUnmount, (ElevatedArgs.ImagePath, imagePath)), ct);
             if (res.WasDeclined) return;
-            if (!res.Success) { shell.ShowError($"Couldn't unmount {name}: {res.Message}"); return; }
+            if (!res.Success) { shell.ShowError(Str.Format("VirtualDisk.Mount.UnmountFailedFormat", name, res.Message)); return; }
         }
         else
         {
             // DiskMounter.Dismount forgets the mount itself.
             var ok = await Task.Run(() => new DiskMounter().Dismount(imagePath), ct);
-            if (!ok) { shell.ShowError($"Couldn't unmount {name}."); return; }
+            if (!ok) { shell.ShowError(Str.Format("VirtualDisk.Mount.UnmountFailedBareFormat", name)); return; }
         }
         DiskMounter.NoteUnmounted(imagePath);   // covers the elevated path (bridge did the dismount)
-        shell.ShowNotification($"Unmounted {name}.");
+        shell.ShowNotification(Str.Format("VirtualDisk.Mount.UnmountedFormat", name));
     }
 
     private static void Notify(IShellServices shell, string name, string? drive) =>
-        shell.ShowNotification(drive is null ? $"Mounted {name}." : $"Mounted {name} as {drive}");
+        shell.ShowNotification(drive is null
+            ? Str.Format("VirtualDisk.Mount.MountedFormat", name)
+            : Str.Format("VirtualDisk.Mount.MountedAsFormat", name, drive));
 }

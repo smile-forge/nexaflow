@@ -1,4 +1,5 @@
 using AngouriMath;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 
@@ -16,7 +17,7 @@ public sealed class EqualsSolver : ISolver
     public string Id => "equals";
 
     /// <inheritdoc/>
-    public string DisplayName => "Evaluate";
+    public string DisplayName => Str.Get("Solver.Name.Evaluate");
 
     /// <inheritdoc/>
     public int Order => 0;
@@ -33,7 +34,7 @@ public sealed class EqualsSolver : ISolver
 
         return
         [
-            new SolverChip(Id, "eval", "=", "=", "Work out the value", new Payload(parsed, value)),
+            new SolverChip(Id, "eval", "=", "=", Str.Get("Solver.Chip.EvaluateTip"), new Payload(parsed, value)),
         ];
     }
 
@@ -41,7 +42,7 @@ public sealed class EqualsSolver : ISolver
     public Task<SolverResult> SolveAsync(SolverChip chip, SolverInput input, CancellationToken ct)
     {
         if (chip.Payload is not Payload p)
-            return Task.FromResult(SolverResult.Error("The definition changed — press the chip again."));
+            return Task.FromResult(SolverResult.Error(Str.Get("Solver.Result.DefinitionChanged")));
 
         var exact = ExactForm(p.Parsed.Entity, p.Value);
         var exactLatex = ExpressionParser.Latex(exact);

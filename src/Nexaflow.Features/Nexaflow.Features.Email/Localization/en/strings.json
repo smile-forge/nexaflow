@@ -1,0 +1,22 @@
+{
+  "Email.Page.Title": "Email",
+  "Email.Action.AsEmail": "As Email",
+  "Email.Action.ExperienceDescription": "Email message",
+  "Email.Header.NoSubject": "(no subject)",
+  "Email.Header.From": "From",
+  "Email.Header.To": "To",
+  "Email.Header.Cc": "Cc",
+  "Email.Header.Date": "Date",
+  "Email.Header.AllHeaders": "All headers",
+  "Email.Toolbar.Rendered": "Rendered",
+  "Email.Toolbar.PlainText": "Plain text",
+  "Email.Toolbar.HtmlSource": "HTML source",
+  "Email.Toolbar.OpenInBrowser": "Open in browser",
+  "Email.Attachments.Title": "Attachments",
+  "Email.Status.OpenFailedFormat": "Couldn't open this email: {0}",
+  "Email.Error.OpenAttachmentFailedFormat": "Couldn't open attachment '{0}'.",
+  "Email.Error.OpenInBrowserFailedFormat": "Couldn't open the browser view: {0}",
+  "Email.Search.LineFormat": "line {0}",
+  "Email.Search.AttachmentFormat": "attachment: {0}",
+  "Email.Search.BodyMatchFormat": "body match {0}"
+}

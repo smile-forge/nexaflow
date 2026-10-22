@@ -5,6 +5,7 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="NotebookView"
              Background="{StaticResource BgBrush}">
 
@@ -86,7 +87,7 @@
         <Border Grid.Column="1" Width="320" Visibility="{Binding HasOutline, Converter={StaticResource BoolToVis}}"
                 Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Outline" Margin="14,12,14,4"
+                <TextBlock DockPanel.Dock="Top" Text="{loc:Str Notebook.Outline.Title}" Margin="14,12,14,4"
                            FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
                 <md:MarkdownSurface Markdown="{Binding OutlineMarkdown}" Margin="14,0,14,10"
                                            VerticalScrollBarVisibility="Auto"/>

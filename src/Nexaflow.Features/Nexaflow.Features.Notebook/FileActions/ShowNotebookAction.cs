@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Notebook.FileActions;
@@ -17,10 +18,10 @@ public sealed class ShowNotebookAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📓";
-    public string DisplayName            => "As Notebook";
+    public string DisplayName            => Str.Get("Notebook.Action.AsNotebook");
     public static string? StaticExperienceId => "/notebook";
     public string ExperienceId           => "/notebook";
-    public string ExperienceDescription  => "Jupyter notebook viewer: cells, rendered markdown, highlighted code, and an outline";
+    public string ExperienceDescription  => Str.Get("Notebook.Action.ExperienceDescription");
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

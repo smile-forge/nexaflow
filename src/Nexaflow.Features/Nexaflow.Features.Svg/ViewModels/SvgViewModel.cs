@@ -9,6 +9,7 @@ using Nexaflow.Features.Svg.ClientTools;
 using Nexaflow.Features.Svg.Loaders;
 using Nexaflow.Features.Svg.Views;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Svg.ViewModels;
 
@@ -74,7 +75,7 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
 
             if (size > MaxRenderBytes)
             {
-                Fail($"This SVG is too large to render safely ({SizeFormatter.FormatBytes(size)}).");
+                Fail(Str.Format("Svg.Error.TooLargeFormat", FileSizeText));
                 return;
             }
 
@@ -92,11 +93,11 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
             HasViewBox = !string.IsNullOrWhiteSpace(loaded.ViewBox);
 
             if (loaded.Bounds.IsEmpty || loaded.Bounds.Width <= 0 || loaded.Bounds.Height <= 0)
-                Fail("The file loaded but contained nothing to render.");
+                Fail(Str.Get("Svg.Error.NothingToRender"));
         }
         catch (Exception ex)
         {
-            Fail($"Couldn't open this SVG: {ex.Message}");
+            Fail(Str.Format("Svg.Error.OpenFailedFormat", ex.Message));
         }
         finally
         {

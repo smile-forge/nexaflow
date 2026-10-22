@@ -6,6 +6,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -29,15 +30,14 @@ public partial class ProductViewModel : ISearchable
     public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (request.HasNameOnlyTerms)
-            return Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to the graph — search a node name or a word in the source."));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Get("ProductManager.Search.Outcome.NameFilters")));
 
         var term = request.Text.Trim();
         if (request.Terms.Count == 0 || term.Length == 0)
-            return Task.FromResult(SearchOutcome.Unsupported("Nothing to search for."));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Get("ProductManager.Search.Outcome.Empty")));
 
         if (Services.GraphTextSearch.TryCompile(request) is not { } regex)
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {request.Text}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("ProductManager.Search.Outcome.InvalidRegexFormat", request.Text)));
 
         if (display)
         {
@@ -64,8 +64,7 @@ public partial class ProductViewModel : ISearchable
     {
         var graph = new ProductStore(ProductRoot).LoadGraph();
         if (graph is null)
-            return SearchOutcome.None(
-                "No knowledge graph has been built yet — generate it from this tab (⋮ → Generate graph).");
+            return SearchOutcome.None(Str.Get("ProductManager.Search.Outcome.NoGraph"));
 
         var hits = Services.GraphTextSearch.Names(graph, request, regex).Take(SearchHitCap)
             .Select(n => new SearchHit(n.Id, $"[{n.Type}] {n.Label ?? n.Id}", n.Id))
@@ -73,11 +72,8 @@ public partial class ProductViewModel : ISearchable
 
         var term = request.Text.Trim();
         return hits.Count == 0
-            ? SearchOutcome.None($"No graph node is named after '{term}'. The results tab also greps the "
-                               + "source, which this summary does not.")
-            : SearchOutcome.Narrowed(hits,
-                $"{hits.Count} node name(s) matched '{term}'. The results tab additionally greps the source "
-              + "of every code node — open it for the full answer.");
+            ? SearchOutcome.None(Str.Format("ProductManager.Search.Outcome.NoNameFormat", term))
+            : SearchOutcome.Narrowed(hits, Str.Format("ProductManager.Search.Outcome.NamesFormat", hits.Count, term));
     }
 
     private const int SearchHitCap = 200;
