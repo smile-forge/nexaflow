@@ -33,7 +33,7 @@ public sealed class TreeChangeWatcher : IDisposable
 {
     private readonly FileSystemWatcher _watcher;
     private readonly Func<string, bool> _relevant;
-    private readonly Timer _quiet;
+    private readonly ITimer _quiet;
     private readonly int _quietMs;
     private readonly object _gate = new();
     private HashSet<string> _paths = new(StringComparer.OrdinalIgnoreCase);
@@ -47,11 +47,14 @@ public sealed class TreeChangeWatcher : IDisposable
     /// <param name="relevant">Whether a full path is worth collecting.</param>
     /// <param name="subdirectories">Whether the whole tree is watched, or <paramref name="root"/>'s own entries only.</param>
     /// <param name="quietMs">How long after the last notification <see cref="Changed"/> is raised.</param>
-    public TreeChangeWatcher(string root, Func<string, bool> relevant, bool subdirectories = true, int quietMs = 250)
+    /// <param name="time">The clock the quiet period is measured on: the system's, unless a caller has to hold it still.</param>
+    public TreeChangeWatcher(string root, Func<string, bool> relevant, bool subdirectories = true, int quietMs = 250,
+                             TimeProvider? time = null)
     {
         _relevant = relevant;
         _quietMs  = quietMs;
-        _quiet    = new Timer(_ => Changed?.Invoke());
+        _quiet    = (time ?? TimeProvider.System).CreateTimer(_ => Changed?.Invoke(), null,
+                                                              Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         // The largest buffer the system allows: a checkout fills the default 8 KB in a blink, and every overflow
         // costs the caller a look at the whole tree.
@@ -120,7 +123,7 @@ public sealed class TreeChangeWatcher : IDisposable
 
     private void Arm()
     {
-        try { _quiet.Change(_quietMs, Timeout.Infinite); }
+        try { _quiet.Change(TimeSpan.FromMilliseconds(_quietMs), Timeout.InfiniteTimeSpan); }
         catch (ObjectDisposedException) { /* disposed between the check and here */ }
     }
 

@@ -85,19 +85,90 @@ public class TreeChangeWatcherTests
         Assert.IsFalse(paths.Exists(p => p.Contains("deep", StringComparison.Ordinal)));
     }
 
-    /// <summary>A checkout is thousands of notifications in a second; what the holder wants is one call once it is over.</summary>
+    /// <summary>
+    /// A checkout is thousands of notifications in a second; what the holder wants is one call once it is over.
+    /// <para>
+    /// The quiet period runs on a clock the test holds, so the writes are one burst however long the runner takes over
+    /// them. A rename the watcher is told to ignore closes the burst: notifications arrive one at a time and in order, so
+    /// by the time it is asked about the rename it has noted, and armed for, everything the writes raised — and an ignored
+    /// path arms nothing itself.
+    /// </para>
+    /// </summary>
     [TestMethod]
     public void ABurst_IsOneCall_AQuietMomentAfterItsLastNotification()
     {
-        using var watcher = new TreeChangeWatcher(_root, _ => true, quietMs: 200);
+        var staged = Path.Combine(_root, "End.tmp");
+        var end    = Path.Combine(_root, "End.done");
+        File.WriteAllText(staged, string.Empty);
+
+        var clock = new HeldClock();
+        using var ended = new ManualResetEventSlim();
+        using var watcher = new TreeChangeWatcher(_root, path =>
+        {
+            if (string.Equals(path, end, StringComparison.OrdinalIgnoreCase)) ended.Set();
+            return !path.StartsWith(Path.Combine(_root, "End."), StringComparison.OrdinalIgnoreCase);
+        }, quietMs: 200, time: clock);
         var calls = 0;
-        watcher.Changed += () => Interlocked.Increment(ref calls);
+        watcher.Changed += () => calls++;
 
         for (var i = 0; i < 20; i++) File.WriteAllText(Path.Combine(_root, "src", $"F{i}.cs"), $"class F{i} {{ }}");
-        Until(() => Volatile.Read(ref calls) > 0, "the burst to be reported");
-        Thread.Sleep(600);
+        File.Move(staged, end);
+        Until(() => ended.IsSet, "the burst to be delivered");
 
-        Assert.AreEqual(1, Volatile.Read(ref calls));
+        Assert.AreEqual(0, calls, "nothing while the burst lasts");
+        clock.Advance(TimeSpan.FromMilliseconds(199));
+        Assert.AreEqual(0, calls, "nothing until the quiet period has passed since the last notification");
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.AreEqual(1, calls);
         Assert.AreEqual(20, watcher.Take().Paths.Count(p => Path.GetFileName(p).StartsWith('F')));
+    }
+
+    /// <summary>A clock that moves only when the test moves it; a timer fires on the test's thread, inside <see cref="Advance"/>.</summary>
+    private sealed class HeldClock : TimeProvider
+    {
+        private readonly List<Timer> _timers = [];
+        private DateTimeOffset _now = new(2026, 10, 23, 9, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() { lock (_timers) return _now; }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new Timer(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        public void Advance(TimeSpan by)
+        {
+            List<Timer> due;
+            lock (_timers)
+            {
+                _now += by;
+                due = [.. _timers.Where(t => t.Due <= _now)];
+                foreach (var timer in due) _timers.Remove(timer);
+            }
+            foreach (var timer in due) timer.Fire();
+        }
+
+        private sealed class Timer(HeldClock clock, TimerCallback callback, object? state) : ITimer
+        {
+            public DateTimeOffset Due { get; private set; }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                lock (clock._timers)
+                {
+                    clock._timers.Remove(this);
+                    if (dueTime == Timeout.InfiniteTimeSpan) return true;
+                    Due = clock._now + dueTime;
+                    clock._timers.Add(this);
+                }
+                return true;
+            }
+
+            public void Fire() => callback(state);
+            public void Dispose() { lock (clock._timers) clock._timers.Remove(this); }
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
     }
 }
