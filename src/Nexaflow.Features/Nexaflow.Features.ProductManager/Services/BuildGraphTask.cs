@@ -27,11 +27,11 @@ public sealed class BuildGraphTask(ProductState state, string productRoot) : IBa
         ct.ThrowIfCancellationRequested();
         var store = new ProductStore(productRoot);
         var cache = store.LoadGraphCache();   // reuse unchanged files' extraction — a re-generate is near-instant
-        var built = GraphBuilder.BuildWithCache(state, productRoot, new GraphBuildOptions
+        var built = GraphBuilder.BuildSnapshot(state, productRoot, new GraphBuildOptions
         {
             GeneratedAt = DateTime.Now.ToString("o"),
         }, cache);
         ct.ThrowIfCancellationRequested();
-        store.SaveSnapshot(built.Graph, built.Cache);
+        store.SaveSnapshot(built);   // with the stamps the build took as it read, so nothing is read again to learn it is current
     }, ct);
 }

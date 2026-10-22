@@ -11,6 +11,20 @@ public sealed class KnowledgeGraph
     public List<GraphEdge> Edges { get; set; } = [];
     public List<GraphHyperEdge> HyperEdges { get; set; } = [];
     public GraphMetadata Metadata { get; set; } = new();
+
+    /// <summary>
+    /// A graph with collections and metadata of its own, holding the same nodes and edges as this one.
+    /// <para>
+    /// What a change starts from when this graph may be being read. Adding and removing is then the fork's business alone,
+    /// which is all a refresh does to the collections; an element it means to alter it copies first (see
+    /// <see cref="GraphNode.Copy"/>), so a reader holding this graph never sees one move. Copying the lists is a few
+    /// megabytes on this repository — beside the passes a refresh already makes over every node, nothing.
+    /// </para>
+    /// </summary>
+    public KnowledgeGraph Fork() => new()
+    {
+        Nodes = [.. Nodes], Edges = [.. Edges], HyperEdges = [.. HyperEdges], Metadata = Metadata.Copy(),
+    };
 }
 
 /// <summary>Summary counts + provenance stamp for a <see cref="KnowledgeGraph"/>.</summary>
@@ -32,4 +46,10 @@ public sealed class GraphMetadata
     public string? Scope { get; set; }
 
     public string? ProductName { get; set; }
+
+    public GraphMetadata Copy() => new()
+    {
+        NodeCount = NodeCount, EdgeCount = EdgeCount, HyperEdgeCount = HyperEdgeCount, CommunityCount = CommunityCount,
+        GeneratedAt = GeneratedAt, SchemaVersion = SchemaVersion, Scope = Scope, ProductName = ProductName,
+    };
 }

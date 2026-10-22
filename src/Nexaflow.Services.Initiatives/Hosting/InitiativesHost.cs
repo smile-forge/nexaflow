@@ -5,6 +5,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using System.Threading.Tasks;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Services.Initiatives.Hosting;
 
@@ -18,10 +19,10 @@ namespace Nexaflow.Services.Initiatives.Hosting;
 /// "the CLI and the app can do the same things" a structural fact instead of a promise.
 /// </para>
 /// <para>
-/// The tree is watched rather than re-read per request because it is authored, small, and changes rarely —
-/// and because a warm process that keeps serving a tree someone edited ten minutes ago is worse than a cold
-/// one. The graphs are not watched: they are derived, large, and change constantly under a build, so they
-/// are checked against the filesystem at the moment they are used instead.
+/// Everything is watched rather than re-read per request. The tree because it is authored, small, and a warm
+/// process that keeps serving a tree someone edited ten minutes ago is worse than a cold one; each graph's working
+/// tree because a question about code is asked far more often than the code changes, and a graph that keeps up
+/// as things change answers without looking at the disk at all (see <see cref="GraphWorkspace"/>).
 /// </para>
 /// </summary>
 public sealed class InitiativesHost : IDisposable
@@ -87,8 +88,9 @@ public sealed class InitiativesHost : IDisposable
     /// checkout — the same distinction every caller of this domain already makes, so the daemon carries it
     /// verbatim rather than inventing a second vocabulary for it.
     /// <para>
-    /// The store is supplied rather than derived: which archive a worktree reads, and whether to seed it from
-    /// the main checkout on first use, is a policy its caller owns. The host owns the lifetime, not the rule.
+    /// The store is supplied rather than derived: which archive a worktree reads is a policy its caller owns. The host
+    /// owns the lifetime. A worktree with no graph of its own starts from the main checkout's — the version held here
+    /// when there is one, else its archive — and catches up to its branch from there.
     /// </para>
     /// </summary>
     public GraphWorkspace Workspace(string? codeRoot, ProductStore? store = null)
@@ -101,8 +103,18 @@ public sealed class InitiativesHost : IDisposable
 
             var scope = key.Length == 0 ? null : Path.GetFileName(key);
             var bound = store ?? (scope is null ? _store : new ProductStore(ProductRoot, scope));
-            return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key, () => Tree);
+            return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key, () => Tree,
+                                                         seed: key.Length == 0 ? null : MainGraph, watch: true);
         }
+    }
+
+    /// <summary>The main checkout's graph, for a worktree to start from: the version held here, current, when a command
+    /// has loaded it, else the archive as last written.</summary>
+    private GraphSnapshot? MainGraph()
+    {
+        GraphWorkspace? main;
+        lock (_gate) _workspaces.TryGetValue("", out main);
+        return main is not null ? main.Current() : GraphArchive.Read(_store.GraphFilePath);
     }
 
     /// <summary>Writes every workspace that has unsaved changes. Called before the process goes away, so an
@@ -139,7 +151,11 @@ public sealed class InitiativesHost : IDisposable
     /// </summary>
     public void Forget(string? codeRoot)
     {
-        lock (_gate) _workspaces.Remove(WorkspaceKey(codeRoot));
+        GraphWorkspace? gone;
+        lock (_gate) _workspaces.Remove(WorkspaceKey(codeRoot), out gone);
+
+        // Its watchers stop; the command left holding it reads what it has, which is all it was going to do.
+        gone?.Dispose();
     }
 
     private static string WorkspaceKey(string? codeRoot) =>
@@ -255,5 +271,9 @@ public sealed class InitiativesHost : IDisposable
         _treeWatcher?.Dispose();
         _treeWatcher = null;
         Flush();
+
+        GraphWorkspace[] workspaces;
+        lock (_gate) workspaces = [.. _workspaces.Values];
+        foreach (var workspace in workspaces) workspace.Dispose();
     }
 }

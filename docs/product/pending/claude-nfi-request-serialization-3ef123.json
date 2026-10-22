@@ -1,0 +1,101 @@
+{
+  "branch": "claude/nfi-request-serialization-3ef123",
+  "nodes": {
+    "graph-anchor": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/Store/GraphAnchor.cs",
+          "class": "GraphAnchor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphGit.cs",
+          "class": "GraphGit"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/GraphAnchorTests.cs",
+            "class": "GraphAnchorTests"
+          }
+        ]
+      }
+    },
+    "iocommon-treewatch": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/TreeChangeWatcher.cs",
+          "class": "TreeChangeWatcher"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/TreeChangeWatcherTests.cs",
+            "class": "TreeChangeWatcherTests"
+          }
+        ]
+      }
+    },
+    "initiatives-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Hosting/InitiativesHost.cs",
+          "class": "InitiativesHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Daemon/Succession.cs",
+          "class": "Succession"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Hosting/GraphWorkspace.cs",
+          "class": "GraphWorkspace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Daemon/DaemonServer.cs",
+          "class": "DaemonServer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/InitiativesHostsTests.cs",
+            "class": "InitiativesHostsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/SuccessionTests.cs",
+            "class": "SuccessionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/DaemonServingTests.cs",
+            "class": "DaemonServingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/VerbAccessTests.cs",
+            "class": "VerbAccessTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "graph-anchor",
+    "initiatives-daemon",
+    "iocommon-treewatch"
+  ]
+}

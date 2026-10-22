@@ -220,4 +220,36 @@ public class ProductTreeDeltaTests
         Assert.IsFalse(GraphBuilder.ApplyTreeDelta(graph, after, "."),
                        "the delta must record what it did, or it will do it again forever");
     }
+
+    /// <summary>
+    /// The watcher re-derives the product layer while commands read the graph, so the delta is applied to a fork, and the
+    /// graph it came from comes out as it went in — including the code nodes the delta leans on, which it holds and must
+    /// not write.
+    /// </summary>
+    [TestMethod]
+    public void ADeltaOnAFork_LeavesTheGraphItCameFromAsItWas()
+    {
+        var graph   = Built(Tree());
+        var nodes   = graph.Nodes.ToList();
+        var shapes  = graph.Nodes.Select(Shape).ToList();
+        var edges   = graph.Edges.ToList();
+        var weights = graph.Edges.Select(e => e.Weight).ToList();
+
+        var after = Tree();
+        after.Nodes["alpha-one"].Title = "Alpha One, renamed";
+        after.Nodes["beta-one"].Snaplinks = [new Snaplink { Type = "code", Doc = "src/A.cs" }];
+
+        var fork = graph.Fork();
+        Assert.IsTrue(GraphBuilder.ApplyTreeDelta(fork, after, "."));
+
+        Assert.AreEqual("Alpha One, renamed", Label(fork, "product:alpha-one"));
+        CollectionAssert.AreEqual(nodes, graph.Nodes);
+        CollectionAssert.AreEqual(shapes, graph.Nodes.Select(Shape).ToList());
+        CollectionAssert.AreEqual(edges, graph.Edges);
+        CollectionAssert.AreEqual(weights, graph.Edges.Select(e => e.Weight).ToList());
+    }
+
+    private static string Shape(GraphNode n) =>
+        $"{n.Id}|{n.Label}|{n.FilePath}|{n.Language}|{n.Source}|"
+      + (n.Metadata is null ? "" : string.Join(";", n.Metadata.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}")));
 }

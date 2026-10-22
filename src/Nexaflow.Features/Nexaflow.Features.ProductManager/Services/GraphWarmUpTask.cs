@@ -42,37 +42,42 @@ public sealed class GraphWarmUpTask(InitiativesHost host, Action<string?>? repor
         try
         {
             var workspace = host.Workspace(null);
+            var since     = Stopwatch.StartNew();
 
-            // Reading the archive and checking it against the filesystem is itself seconds of work, so it
-            // happens here rather than in whatever decided to open a page.
-            var missing = !workspace.Exists;
-            var current = missing ? null : workspace.Current();
+            // Reading the archive and bringing it current with the files is itself seconds of work, so it happens here
+            // rather than in whatever decided to open a page. Said only once there is a file to read.
+            if (workspace.Exists)
+            {
+                var said = false;
+                workspace.Read(progress: (done, total) =>
+                {
+                    if (!said) { said = true; report?.Invoke(Str.Get("ProductManager.Task.GraphUpdating")); return; }
+                    if (since.Elapsed < Tick) return;
+                    since.Restart();
+                    report?.Invoke(Str.Format("ProductManager.Task.GraphUpdatingProgressFormat", done, total));
+                }, cancellation: ct);
 
-            if (!missing && workspace.Drifted == 0) return;   // nothing to say and nothing to do
+                // To disk so the next process to open — this one restarted, or nfi — starts from it.
+                workspace.Flush();
+                return;
+            }
 
-            report?.Invoke(missing ? Str.Get("ProductManager.Task.GraphBuilding") : Str.Get("ProductManager.Task.GraphUpdating"));
-
-            var since = Stopwatch.StartNew();
+            report?.Invoke(Str.Get("ProductManager.Task.GraphBuilding"));
             var options = new GraphBuildOptions
             {
                 Progress = (done, total) =>
                 {
                     if (since.Elapsed < Tick) return;
                     since.Restart();
-                    report?.Invoke(missing
-                        ? Str.Format("ProductManager.Task.GraphBuildingProgressFormat", done, total)
-                        : Str.Format("ProductManager.Task.GraphUpdatingProgressFormat", done, total));
+                    report?.Invoke(Str.Format("ProductManager.Task.GraphBuildingProgressFormat", done, total));
                 },
             };
 
-            var built = GraphBuilder.BuildWithCache(host.Tree, host.ProductRoot, options,
-                                                    current?.Cache ?? workspace.Store.LoadGraphCache());
+            var built = GraphBuilder.BuildSnapshot(host.Tree, host.ProductRoot, options, workspace.Store.LoadGraphCache());
             ct.ThrowIfCancellationRequested();
 
-            // Into memory first, so questions are answered from the new graph before the write finishes, and
-            // then to disk so the next process to open — this one restarted, or nfi — starts from it.
-            workspace.Replace(built.Graph, built.Cache);
-            workspace.Flush();
+            // Into memory first, so questions are answered from the new graph, and written with it.
+            workspace.Replace(built);
         }
         finally { report?.Invoke(null); }
     }, ct);

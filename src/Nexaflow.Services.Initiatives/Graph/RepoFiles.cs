@@ -91,6 +91,40 @@ public static class RepoFiles
     public static IReadOnlyList<string> EnumerateOther(string root, int max) =>
         Enumerate(root, max, f => !TreeSitterLanguages.IsCode(f) && !StructuredExts.Contains(Path.GetExtension(f)));
 
+    /// <summary>Whether the graph reads this file's content — a grammar covers it, or it is a project or solution file.
+    /// Every other file is listed by name and never read.</summary>
+    public static bool IsExtracted(string fileName) =>
+        TreeSitterLanguages.IsCode(fileName) || StructuredExts.Contains(Path.GetExtension(fileName));
+
+    /// <summary>Whether <paramref name="fullPath"/> lies under a directory every walk skips — build output, git's own,
+    /// tooling state. Cheap enough to ask of every notification a watcher on the whole tree raises.</summary>
+    public static bool UnderSkippedDirectory(string root, string fullPath)
+    {
+        var rel = Path.GetRelativePath(root, fullPath);
+        if (rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel)) return true;
+
+        // The last segment counts too: a notification about `obj` itself is as much build output as one inside it.
+        foreach (var segment in rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            if (SkipDirs.Contains(segment)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Of <paramref name="fullPaths"/>, the ones a walk of <paramref name="root"/> would list as source
+    /// (<see cref="EnumerateSource"/>): code files outside the skipped directories that git does not ignore. For a
+    /// handful of paths a watcher reported, where walking the tree to find them again is the cost the report saves.
+    /// </summary>
+    public static IReadOnlyList<string> Indexable(string root, IEnumerable<string> fullPaths)
+    {
+        var candidates = fullPaths.Where(p => TreeSitterLanguages.IsCode(p) && !UnderSkippedDirectory(root, p)).ToList();
+        if (candidates.Count == 0) return [];
+
+        Repository? repo = null;
+        try { if (Repository.IsValid(root)) repo = new Repository(root); } catch { repo = null; }
+        try { return [.. candidates.Where(p => !IsIgnored(repo, root, p, isDir: false))]; }
+        finally { repo?.Dispose(); }
+    }
+
     private static IReadOnlyList<string> Enumerate(string root, int max, Func<string, bool> include)
     {
         var result = new List<string>();

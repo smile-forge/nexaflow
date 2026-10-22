@@ -9,6 +9,7 @@ using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Hosting.Ipc;
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.Collections.Generic;
 
 namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 
@@ -24,10 +25,12 @@ namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 /// this is not part of the interface.
 /// </para>
 /// <para>
-/// Requests run concurrently, serialised per working tree. That is the boundary the work actually has:
-/// agents run one to a worktree, so two of them are asking about different graphs and have no business
-/// queueing behind each other — while two asking about the <i>same</i> graph must queue, because a command
-/// that mutates it interleaving with one that reads it is how a warm process starts lying.
+/// Requests run concurrently, and only writers wait — for each other, and only where they would collide. A command
+/// says what it does (<see cref="VerbAccess"/>): one that only reads runs at once, beside anything, because the graph
+/// it reads is a version nothing changes (<see cref="GraphWorkspace"/>); one that changes a working tree's files or
+/// graph takes that tree's <see cref="Turn"/>; one that changes the product tree, which every working tree shares,
+/// takes <see cref="ProductTurn"/> first. Several agents in one worktree asking questions while one edits is the
+/// common case, and none of the questions queues behind another, or behind the edit.
 /// </para>
 /// </summary>
 internal static class DaemonServer
@@ -67,8 +70,9 @@ internal static class DaemonServer
     internal static readonly TimeSpan WedgeGrace = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// A working tree's turn: one command at a time on it. Replaced rather than repaired when the command holding
-    /// it is abandoned — that command keeps the old one, and whoever was waiting on the old one moves to the new.
+    /// A writer's turn: one writer at a time on a working tree, or on the product tree. Replaced rather than repaired when
+    /// the command holding it is abandoned — that command keeps the old one, and whoever was waiting on the old one moves
+    /// to the new.
     /// </summary>
     internal sealed class Turn
     {
@@ -76,7 +80,11 @@ internal static class DaemonServer
         public readonly CancellationTokenSource Abandoned = new();
     }
 
-    /// <summary>Each working tree's turn — see <see cref="Execute"/>.</summary>
+    /// <summary>The turn every product-tree writer takes, whichever working tree it was asked from — the tree file is
+    /// one for all of them. Not a path, so never a working tree's key.</summary>
+    internal const string ProductTurn = "<product>";
+
+    /// <summary>Each working tree's turn, and the product's — see <see cref="Execute"/>.</summary>
     internal static readonly ConcurrentDictionary<string, Turn> Turns = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>What has been taken and where it has got to — the only thing the status path reads, which is
@@ -107,6 +115,9 @@ internal static class DaemonServer
 
         /// <summary>Set once the watchdog has given up on it and its tree has moved on.</summary>
         public int Abandoned;
+
+        /// <summary>The turns it holds, by key — what giving up on it has to start afresh. None for a command that only reads.</summary>
+        public string[] Turns = [];
     }
 
     /// <summary>Runs until idle. <paramref name="args"/> is the hidden mode argument, the pipe, and the root.</summary>
@@ -200,8 +211,12 @@ internal static class DaemonServer
                 break;
             }
 
+            // A thread of its own, not the pool's. A command runs synchronously from start to finish, so a pool thread under
+            // each of a dozen concurrent questions is a dozen the pool does not have, and it grows by about one a second —
+            // which is the queue this process exists not to have, rebuilt one level down.
             Interlocked.Increment(ref _inFlight);
-            _ = Task.Run(() => Handle(server, host, stopping));
+            _ = Task.Factory.StartNew(() => Handle(server, host, stopping), CancellationToken.None,
+                                      TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         // What was taken is finished however long it takes: someone is waiting for each answer, and a stop another
@@ -353,17 +368,30 @@ internal static class DaemonServer
     private static DaemonResponse? Execute(DaemonRequest request, InitiativesHost host, WorkItem work, Taken taken,
                                            CancellationToken gone)
     {
-        var stdout = new StringWriter();
-        var stderr = new StringWriter();
+        var stdout   = new StringWriter();
+        var stderr   = new StringWriter();
+        var codeRoot = request.CodeRoot ?? "";
 
-        // Serialised per working tree, because that is where the shared mutable state is: one graph, which
-        // one command may read while another edits. Different trees hold different graphs and proceed
-        // together — and two callers on the same tree waiting for each other is the consistency, not a cost.
-        if (TurnOf(request.CodeRoot ?? "", gone) is not { } turn)
+        // What it waits for is what it could collide with. A read collides with nothing: the graph it reads is a version
+        // no writer changes. A writer of a tree's files or graph collides with that tree's other writers; a writer of the
+        // product tree with every other one, from any tree — taken first, always, so two writers never hold one each.
+        string[] keys = Program.AccessOf(request.Args) switch
         {
+            VerbAccess.Reads         => [],
+            VerbAccess.WritesProduct => [ProductTurn, codeRoot],
+            _                        => [codeRoot],
+        };
+
+        var held = new List<Turn>(keys.Length);
+        foreach (var key in keys)
+        {
+            if (TurnOf(key, gone) is { } turn) { held.Add(turn); continue; }
+
+            foreach (var acquired in held) acquired.Semaphore.Release();
             DaemonLog.Say(work.Ticket, "dropped", "its caller left while it was waiting for its turn");
             return null;
         }
+        taken.Turns = keys;
 
         // Running rather than queued from here, which is the distinction anyone asking after this needs:
         // waiting for a turn and taking a long time are different problems with different answers.
@@ -393,13 +421,13 @@ internal static class DaemonServer
         }
         finally
         {
-            turn.Semaphore.Release();
+            for (var i = held.Count - 1; i >= 0; i--) held[i].Semaphore.Release();
 
-            // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt
-            // end costs a load rather than a rebuild. This tree's alone: flushing every tree took every tree's
-            // lock, so one tree's answer waited behind whatever another tree was in the middle of. A command
-            // that was abandoned has nothing of the tree's to write: the tree moved on without it.
-            if (!turn.Abandoned.IsCancellationRequested)
+            // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt end costs a
+            // load rather than a rebuild — a read too, whose catching up is a change like any other. This tree's alone:
+            // flushing every tree took every tree's lock, so one tree's answer waited behind whatever another tree was in
+            // the middle of. A command that was abandoned has nothing of the tree's to write: the tree moved on without it.
+            if (!held.Exists(turn => turn.Abandoned.IsCancellationRequested))
                 try { host.Flush(request.CodeRoot); } catch (IOException) { }
         }
     }
@@ -453,7 +481,7 @@ internal static class DaemonServer
                     DaemonLog.Say(taken.Ticket, "wedged",
                         $"{taken.Command}: still running {TimeSpan.FromTicks(now - left).TotalSeconds:F0}s after its caller "
                       + "left - its tree starts again without it");
-                    Abandon(taken.CodeRoot, host);
+                    Abandon(taken.CodeRoot, host, taken.Turns);
                 }
             }
         }
@@ -470,14 +498,24 @@ internal static class DaemonServer
     /// from disk and takes a new turn, and every command waiting on the old turn moves to the new one. No other
     /// tree is touched.
     /// </summary>
-    internal static void Abandon(string codeRoot, InitiativesHost host)
+    internal static void Abandon(string codeRoot, InitiativesHost host) => Abandon(codeRoot, host, [codeRoot]);
+
+    /// <summary>
+    /// <see cref="Abandon(string, InitiativesHost)"/> for a command holding <paramref name="turns"/> — none, for one that only
+    /// reads. Only a turn it holds is started afresh: replacing one it does not would let a second writer in beside the
+    /// writer that does.
+    /// </summary>
+    private static void Abandon(string codeRoot, InitiativesHost host, IReadOnlyList<string> turns)
     {
         host.Forget(codeRoot);
         if (codeRoot.Length > 0) EditCheck.Forget(codeRoot);
 
-        if (!Turns.TryGetValue(codeRoot, out var stuck)) return;
-        Turns.TryUpdate(codeRoot, new Turn(), stuck);
-        stuck.Abandoned.Cancel();
+        foreach (var key in turns)
+        {
+            if (!Turns.TryGetValue(key, out var stuck)) continue;
+            Turns.TryUpdate(key, new Turn(), stuck);
+            stuck.Abandoned.Cancel();
+        }
     }
 
     /// <summary>

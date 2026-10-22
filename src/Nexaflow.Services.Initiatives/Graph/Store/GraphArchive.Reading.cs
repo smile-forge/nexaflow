@@ -23,7 +23,8 @@ public static partial class GraphArchive
             Graph = ReadGraphFrom(reader, sections, pool),
             Cache = ReadCacheFrom(reader, sections, pool),
             Files = ReadFilesFrom(reader, sections, pool).Stamps,
-            Tree  = ReadTreeStamp(reader, sections, pool),
+            Tree   = ReadTreeStamp(reader, sections, pool),
+            Anchor = ReadAnchor(reader, sections, pool),
         });
 
     /// <summary>
@@ -196,6 +197,16 @@ public static partial class GraphArchive
 
         var hash = Str(reader, pool) ?? string.Empty;
         return new FileStamp(hash, reader.ReadInt64(), new DateTime(reader.ReadInt64(), DateTimeKind.Utc));
+    }
+
+    /// <summary>The commit the graph describes, or null when the archive was never anchored.</summary>
+    private static GraphAnchor? ReadAnchor(BinaryReader reader, Dictionary<int, SectionSpan> sections, string?[] pool)
+    {
+        if (!Seek(reader, sections, SectionAnchor)) return null;
+
+        var commit = Str(reader, pool);
+        var paths  = ReadList(reader, pool);
+        return commit is { Length: > 0 } ? new GraphAnchor(commit, paths.ToHashSet(StringComparer.Ordinal)) : null;
     }
 
     private static FileContribution ReadContribution(BinaryReader reader, string?[] pool)

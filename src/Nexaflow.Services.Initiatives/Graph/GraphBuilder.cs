@@ -10,6 +10,7 @@ using System.Xml.Linq;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Communities;
 using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
@@ -56,6 +57,19 @@ public sealed class GraphBuilder
     private IReadOnlyDictionary<string, string>? _hashes;
 
     private readonly GraphCache _cache;   // reused across builds (in) + repopulated (out); never null internally
+
+    /// <summary>
+    /// Nodes, edges and hyperedges this builder was handed rather than made — the elements of a graph it was asked to
+    /// change, and the nodes of contributions it reuses from a cache. Somebody else may be reading them, so none is ever
+    /// written: <see cref="ForWriting(GraphNode)"/> copies one first and the copy takes its place.
+    /// </summary>
+    private readonly HashSet<object> _lent = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>The copy each lent node was replaced by, for a caller still holding the original.</summary>
+    private readonly Dictionary<GraphNode, GraphNode> _copiesOf = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>What each file this builder read looked like while it was read — the only stamps a build may record.</summary>
+    private readonly Dictionary<string, FileStamp> _stampedReads = new(StringComparer.Ordinal);
 
     /// <summary>The files a relink is confined to — null in a build, which covers every file.</summary>
     private IReadOnlySet<string>? _scope;
@@ -106,10 +120,32 @@ public sealed class GraphBuilder
     /// pruned and the fresh contributions merged in one pass over the graph. File by file, every re-read walked every node
     /// and edge, and an upgraded extractor re-reading a whole tree took longer than anyone waits for an answer. Returns the
     /// files whose contribution changed; nothing is touched when <paramref name="cancellation"/> fires first.
+    /// <para>
+    /// Changes <paramref name="graph"/>'s collections and <paramref name="cache"/>'s file table, never an element of
+    /// either — so a fork of a graph somebody is reading (<see cref="KnowledgeGraph.Fork"/>) is safe to hand in.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<string> RefreshFiles(KnowledgeGraph graph, GraphCache cache, string productRoot,
                                                      IReadOnlyCollection<string> relPaths, string? codeRoot = null,
-                                                     CancellationToken cancellation = default)
+                                                     CancellationToken cancellation = default) =>
+        Refresh(graph, cache, productRoot, relPaths, codeRoot, null, cancellation);
+
+    /// <summary>
+    /// <see cref="RefreshFiles(KnowledgeGraph, GraphCache, string, IReadOnlyCollection{string}, string?, CancellationToken)"/>
+    /// over a whole snapshot, recording in its <see cref="GraphSnapshot.Files"/> what every file it read looked like as it
+    /// was read — whether or not its content had changed. That is the one moment a stamp is true: a file that moved
+    /// under the read has its stamp dropped, so it is read again rather than vouched for. <paramref name="progress"/> is
+    /// told after each file is read, which is where the time goes.
+    /// </summary>
+    public static IReadOnlyList<string> RefreshFiles(GraphSnapshot snapshot, string productRoot, IReadOnlyCollection<string> relPaths,
+                                                     string? codeRoot = null, CancellationToken cancellation = default,
+                                                     Action<int, int>? progress = null) =>
+        Refresh(snapshot.Graph, snapshot.Cache, productRoot, relPaths, codeRoot, snapshot.Files, cancellation, progress);
+
+    private static IReadOnlyList<string> Refresh(KnowledgeGraph graph, GraphCache cache, string productRoot,
+                                                 IReadOnlyCollection<string> relPaths, string? codeRoot,
+    IDictionary<string, FileStamp>? stamps, CancellationToken cancellation,
+                                             Action<int, int>? progress = null)
     {
         var builder = new GraphBuilder(new ProductState(), productRoot,
                                        new GraphBuildOptions { CodeRoot = codeRoot, Incremental = true }, cache);
@@ -117,9 +153,11 @@ public sealed class GraphBuilder
         var described = graph.Nodes.Select(n => n.Source).OfType<string>().ToHashSet(StringComparer.Ordinal);
         var fresh     = new Dictionary<string, FileContribution>(StringComparer.Ordinal);
 
+        var done = 0;
         foreach (var relPath in relPaths)
         {
             cancellation.ThrowIfCancellationRequested();
+            progress?.Invoke(done++, relPaths.Count);
             var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
 
             // A file that is not here is NOT evidence that it should leave the graph. the graph is shared with
@@ -128,9 +166,14 @@ public sealed class GraphBuilder
             // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is
             // far worse than carrying a node that is one build out of date. A full `graph build` reconciles
             // deletions properly, because it knows what the whole tree contains rather than one path.
-            if (SnaplinkTargets.ReadText(full) is not { } text) continue;
+            if (ReadStamped(full, out var stamp) is not { } text) continue;
 
             var hash = Hashing.Md5(text);
+            if (stamps is not null)
+            {
+                if (stamp.IsKnown) stamps[relPath] = stamp with { Hash = hash };
+                else stamps.Remove(relPath);
+            }
             if (cache.Files.TryGetValue(relPath, out var cached) && cached.Hash == hash && described.Contains(relPath))
                 continue;                                        // already describes this exact content
 
@@ -189,6 +232,31 @@ public sealed class GraphBuilder
         return changed;
     }
 
+    /// <summary>
+    /// A file's text, and what its directory entry said while it was read: unknown (<c>default</c>) when the entry moved
+    /// between the two looks, so text that may be torn — a save landing mid-read — is never recorded as current.
+    /// </summary>
+    private static string? ReadStamped(string full, out FileStamp stamp)
+    {
+        stamp = default;
+        var before = StatOf(full);
+        var text   = SnaplinkTargets.ReadText(full);
+        if (text is null || before is not { } was) return text;
+
+        if (StatOf(full) is { } now && now == was) stamp = new FileStamp(string.Empty, now.Length, now.Modified);
+        return text;
+    }
+
+    private static (long Length, DateTime Modified)? StatOf(string full)
+    {
+        try
+        {
+            var info = new FileInfo(full);
+            return info.Exists ? (info.Length, info.LastWriteTimeUtc) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
     /// <summary>Every name a file uses to reach past itself — the names the linking passes look up.</summary>
     private static IEnumerable<string> NamesUsed(FileContribution c) =>
         c.Refs.Select(r => r.Name)
@@ -210,7 +278,8 @@ public sealed class GraphBuilder
         var builder = new GraphBuilder(new ProductState(), productRoot,
                                        new GraphBuildOptions { CodeRoot = codeRoot, Incremental = true }, cache) { _scope = files };
 
-        foreach (var node in graph.Nodes) builder._nodes.TryAdd(node.Id, node);
+        foreach (var node in graph.Nodes)
+            if (builder._nodes.TryAdd(node.Id, node)) builder._lent.Add(node);
         foreach (var relPath in files.Order(StringComparer.Ordinal))
             if (cache.Files.TryGetValue(relPath, out var contribution)) builder.ApplyLinks(relPath, contribution);
 
@@ -223,6 +292,11 @@ public sealed class GraphBuilder
 
         // New nodes only - an external a file names may already be there, named by another. Every edge and hyperedge is new:
         // each starts in the file that asserts it, and what these files asserted before was pruned.
+        // A node these passes added to took the place of the one the graph holds, which is left as it was for its readers.
+        if (builder._copiesOf.Count > 0)
+            for (var i = 0; i < graph.Nodes.Count; i++)
+                if (builder._copiesOf.TryGetValue(graph.Nodes[i], out var copy)) graph.Nodes[i] = copy;
+
         var nodes = graph.Nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         graph.Nodes.AddRange(builder._nodes.Values.Where(n => nodes.Add(n.Id)));
         graph.Edges.AddRange(builder._edges.Values);
@@ -247,6 +321,13 @@ public sealed class GraphBuilder
         return had;
     }
 
+    /// <summary><see cref="ForgetFile(KnowledgeGraph, GraphCache, string)"/> over a whole snapshot, its stamp going with it.</summary>
+    public static bool ForgetFile(GraphSnapshot snapshot, string relPath)
+    {
+        var had = ForgetFile(snapshot.Graph, snapshot.Cache, relPath);
+        return snapshot.Files.Remove(relPath) || had;
+    }
+
     /// <summary>
     /// Re-derives the product half of an existing graph from the authored tree, in place.
     /// <para>
@@ -267,11 +348,10 @@ public sealed class GraphBuilder
         var builder = new GraphBuilder(state, productRoot, new GraphBuildOptions { Incremental = true }, null);
 
         foreach (var node in graph.Nodes)
-            if (node.Source != "product") builder._nodes[node.Id] = node;
+            if (node.Source != "product") builder.Lend(node);
 
         foreach (var edge in graph.Edges)
-            if (edge.ProvenanceFile != "product")
-                builder._edges[(edge.Source, edge.Target, edge.Relationship)] = edge;
+            if (edge.ProvenanceFile != "product") builder.Lend(edge);
 
         builder.BuildProductLayer();
         builder.BuildSnaplinkLayer();
@@ -348,8 +428,8 @@ public sealed class GraphBuilder
             _hashes = fresh,
         };
 
-        foreach (var node in graph.Nodes) builder._nodes[node.Id] = node;
-        foreach (var edge in graph.Edges) builder._edges[(edge.Source, edge.Target, edge.Relationship)] = edge;
+        foreach (var node in graph.Nodes) builder.Lend(node);
+        foreach (var edge in graph.Edges) builder.Lend(edge);
 
         builder.BuildProductLayer();
         builder.BuildSnaplinkLayer();
@@ -382,9 +462,27 @@ public sealed class GraphBuilder
     public static (KnowledgeGraph Graph, GraphCache Cache) BuildWithCache(
         ProductState state, string productRoot, GraphBuildOptions options, GraphCache? cache)
     {
-        var builder = new GraphBuilder(state, productRoot, options, cache);
-        var graph = builder.BuildInternal();
-        return (graph, builder._cache);
+        var built = BuildSnapshot(state, productRoot, options, cache);
+        return (built.Graph, built.Cache);
+    }
+
+    /// <summary>
+    /// Builds the graph as a snapshot: the graph, the cache to persist, and a stamp for every file the build read, taken
+    /// as it read it. The returned graph is byte-identical whether built fresh or from a warm cache.
+    /// <para>
+    /// <paramref name="cache"/> is left as it was — the build works on a fork of it, and the contributions it reuses are
+    /// lent, so a cache that belongs to a graph somebody is reading can be handed straight in.
+    /// </para>
+    /// </summary>
+    public static GraphSnapshot BuildSnapshot(ProductState state, string productRoot, GraphBuildOptions options, GraphCache? cache)
+    {
+        var builder = new GraphBuilder(state, productRoot, options, cache?.Fork());
+        var graph   = builder.BuildInternal();
+
+        var files = new Dictionary<string, FileStamp>(StringComparer.Ordinal);
+        foreach (var rel in builder._cache.Files.Keys)
+            if (builder._stampedReads.TryGetValue(rel, out var stamp)) files[rel] = stamp;
+        return new GraphSnapshot { Graph = graph, Cache = builder._cache, Files = files };
     }
 
     private KnowledgeGraph BuildInternal()
@@ -421,8 +519,9 @@ public sealed class GraphBuilder
 
         // Phase E — communities (Louvain + component split) → node.Community.
         var communities = CommunityDetector.Detect(graph);
-        foreach (var node in graph.Nodes)
-            if (communities.TryGetValue(node.Id, out var community)) node.Community = community;
+        for (var i = 0; i < graph.Nodes.Count; i++)
+            if (communities.TryGetValue(graph.Nodes[i].Id, out var community) && graph.Nodes[i].Community != community)
+                (graph.Nodes[i] = ForWriting(graph.Nodes[i])).Community = community;
 
         graph.Metadata.NodeCount = graph.Nodes.Count;
         graph.Metadata.CommunityCount = communities.Count > 0 ? communities.Values.Max() + 1 : 0;
@@ -631,7 +730,7 @@ public sealed class GraphBuilder
     /// cached). An unreadable/binary file yields just its file node (no parse, not cached — re-emitting it is free).</summary>
     private FileContribution GetContribution(string rel, string full)
     {
-        var text = SnaplinkTargets.ReadText(full);
+        var text = ReadStamped(full, out var stamp);
         if (text is null)
         {
             // Absent, binary, or past the read cap. Say which of those it is rather than leaving a node that
@@ -644,7 +743,14 @@ public sealed class GraphBuilder
         }
 
         var hash = Hashing.Md5(text);
-        if (_cache.Files.TryGetValue(rel, out var cached) && cached.Hash == hash) return cached;
+        if (stamp.IsKnown) _stampedReads[rel] = stamp with { Hash = hash };
+
+        // Reused, so lent: the cache it came from may be a graph's that somebody is reading, and its nodes are that graph's.
+        if (_cache.Files.TryGetValue(rel, out var cached) && cached.Hash == hash)
+        {
+            foreach (var node in cached.Nodes) _lent.Add(node);
+            return cached;
+        }
 
         var fresh = ExtractContribution(rel, full, text, hash);
         _cache.Files[rel] = fresh;
@@ -801,14 +907,20 @@ public sealed class GraphBuilder
     {
         if (!_nodes.TryGetValue(incoming.Id, out var existing)) { _nodes[incoming.Id] = incoming; return; }
 
-        if (string.IsNullOrEmpty(existing.Language)) existing.Language = incoming.Language;
-        if (string.IsNullOrEmpty(existing.FilePath)) existing.FilePath = incoming.FilePath;
-        if (string.IsNullOrEmpty(existing.Source)) existing.Source = incoming.Source;
-        if (incoming.Metadata is null) return;
+        var language = string.IsNullOrEmpty(existing.Language) && !string.IsNullOrEmpty(incoming.Language);
+        var file     = string.IsNullOrEmpty(existing.FilePath) && !string.IsNullOrEmpty(incoming.FilePath);
+        var source   = string.IsNullOrEmpty(existing.Source) && !string.IsNullOrEmpty(incoming.Source);
+        var unseen   = incoming.Metadata?.Where(kv => existing.Metadata?.ContainsKey(kv.Key) != true).ToList();
+        if (!language && !file && !source && unseen is not { Count: > 0 }) return;
+
+        existing = ForWriting(existing);
+        if (language) existing.Language = incoming.Language;
+        if (file) existing.FilePath = incoming.FilePath;
+        if (source) existing.Source = incoming.Source;
+        if (unseen is not { Count: > 0 }) return;
 
         existing.Metadata ??= new();
-        foreach (var (key, value) in incoming.Metadata)
-            if (!existing.Metadata.ContainsKey(key)) existing.Metadata[key] = value;
+        foreach (var (key, value) in unseen) existing.Metadata[key] = value;
     }
 
     // ── Phase C.3 — bare nodes for every other repo file (docs / config / images / resources) ──
@@ -1626,6 +1738,48 @@ public sealed class GraphBuilder
         Meta(n, "visibility", visibility.ToString().ToLowerInvariant());
     }
 
+    /// <summary>Seeds this builder with a node of a graph it is changing, to be copied before it is written.</summary>
+    private void Lend(GraphNode node)
+    {
+        _nodes[node.Id] = node;
+        _lent.Add(node);
+    }
+
+    /// <summary>Seeds this builder with an edge of a graph it is changing, to be copied before it is written.</summary>
+    private void Lend(GraphEdge edge)
+    {
+        _edges[(edge.Source, edge.Target, edge.Relationship)] = edge;
+        _lent.Add(edge);
+    }
+
+    /// <summary>
+    /// The node as this builder may write it: itself when the builder made it, else a copy that takes its place in the
+    /// builder — the same copy however often it is asked for, so a caller still holding the original writes where the
+    /// first did.
+    /// </summary>
+    private GraphNode ForWriting(GraphNode node)
+    {
+        if (!_lent.Contains(node)) return node;
+        if (_copiesOf.TryGetValue(node, out var copy)) return copy;
+
+        copy = node.Copy();
+        _copiesOf[node] = copy;
+        if (_nodes.TryGetValue(node.Id, out var held) && ReferenceEquals(held, node)) _nodes[node.Id] = copy;
+        return copy;
+    }
+
+    private GraphEdge ForWriting((string, string, string) key, GraphEdge edge)
+    {
+        if (!_lent.Contains(edge)) return edge;
+        return _edges[key] = edge.Copy();
+    }
+
+    private GraphHyperEdge ForWriting(string key, GraphHyperEdge hyper)
+    {
+        if (!_lent.Contains(hyper)) return hyper;
+        return _hyperEdges[key] = hyper.Copy();
+    }
+
     private GraphNode Node(string id, string type, string label, string? file = null, string? language = null,
                            string? source = null, double confidence = GraphConfidence.Extracted)
     {
@@ -1635,8 +1789,13 @@ public sealed class GraphBuilder
             // creates a file node before anything has read the file, so the .csproj a feature links to was
             // arriving language-less and staying that way — reading as "nothing parsed this" long after the
             // structured layer had in fact parsed it. Filling a blank is not overwriting a fact.
-            if (string.IsNullOrEmpty(existing.Language) && !string.IsNullOrEmpty(language)) existing.Language = language;
-            if (string.IsNullOrEmpty(existing.FilePath) && !string.IsNullOrEmpty(file)) existing.FilePath = file;
+            var fillLanguage = string.IsNullOrEmpty(existing.Language) && !string.IsNullOrEmpty(language);
+            var fillFile     = string.IsNullOrEmpty(existing.FilePath) && !string.IsNullOrEmpty(file);
+            if (!fillLanguage && !fillFile) return existing;
+
+            existing = ForWriting(existing);
+            if (fillLanguage) existing.Language = language;
+            if (fillFile) existing.FilePath = file;
             return existing;
         }
         var n = new GraphNode
@@ -1653,14 +1812,18 @@ public sealed class GraphBuilder
         return n;
     }
 
-    private static void Meta(GraphNode n, string key, string value) => (n.Metadata ??= new()).TryAdd(key, value);
+    private void Meta(GraphNode n, string key, string value)
+    {
+        if (n.Metadata?.ContainsKey(key) == true) return;
+        (ForWriting(n).Metadata ??= new()).TryAdd(key, value);
+    }
 
     private void Edge(string source, string target, string relationship,
                       double confidence = GraphConfidence.Extracted, string? provenance = null)
     {
         if (source == target) return;
         var key = (source, target, relationship);
-        if (_edges.TryGetValue(key, out var e)) { e.Weight += 1; return; }
+        if (_edges.TryGetValue(key, out var e)) { ForWriting(key, e).Weight += 1; return; }
         _edges[key] = new GraphEdge
         {
             Source = source,
@@ -1677,7 +1840,12 @@ public sealed class GraphBuilder
     {
         if (endpoints.Count < 2) return null;
         var key = relationship + "|" + string.Join("|", endpoints.Select(p => p.Role + ":" + p.Node));
-        if (_hyperEdges.TryGetValue(key, out var existing)) { existing.Weight += 1; return existing; }
+        if (_hyperEdges.TryGetValue(key, out var existing))
+        {
+            existing = ForWriting(key, existing);
+            existing.Weight += 1;
+            return existing;
+        }
         var h = new GraphHyperEdge
         {
             Relationship = relationship,

@@ -19,6 +19,14 @@ public sealed class GraphCache
 
     /// <summary>Repo-relative path → its last extracted contribution (keyed for prune-on-delete).</summary>
     public Dictionary<string, FileContribution> Files { get; set; } = new(System.StringComparer.Ordinal);
+
+    /// <summary>A cache whose file table is its own, holding the same contributions — see <see cref="KnowledgeGraph.Fork"/>.
+    /// A contribution is never changed once extracted, so sharing them is safe.</summary>
+    public GraphCache Fork() => new()
+    {
+        SchemaVersion = SchemaVersion,
+        Files         = new Dictionary<string, FileContribution>(Files, Files.Comparer),
+    };
 }
 
 /// <summary>One code file's cached extraction — everything the whole-repo code pass produces for it, before any
