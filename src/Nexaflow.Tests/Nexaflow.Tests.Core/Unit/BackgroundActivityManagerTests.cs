@@ -1,7 +1,7 @@
+using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
-using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -12,13 +12,16 @@ public class BackgroundActivityManagerTests
     // The manager captures the constructing thread's dispatcher (the test thread here), so its
     // Dispatch sees CheckAccess == true and runs every action synchronously — all mutations inline.
 
+    /// <summary>The idle line: completed, and blank — the ticker words it (ActivityTickerTests), so it carries no key.</summary>
+    private static bool IsIdle(BackgroundTask task) => task.Status == TaskStatus.Completed && task.Description.Length == 0;
+
     [TestMethod]
     public void Constructor_InsertsIdlePlaceholder()
     {
         var mgr = new BackgroundActivityManager();
 
         Assert.AreEqual(1, mgr.Tasks.Count);
-        Assert.AreEqual(Str.Get("Shell.BackgroundTasks.Idle"), mgr.Tasks[0].Description);
+        Assert.IsTrue(IsIdle(mgr.Tasks[0]), $"the first task reads '{mgr.Tasks[0].Description}', {mgr.Tasks[0].Status}");
         Assert.IsFalse(mgr.IsActive);
     }
 
@@ -82,7 +85,8 @@ public class BackgroundActivityManagerTests
 
         Assert.IsFalse(mgr.IsActive);
         // Idle is re-inserted; the completed task stays, idle is prepended
-        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
+        Assert.IsTrue(IsIdle(mgr.Tasks[0]));
+        Assert.AreEqual("Work", mgr.Tasks[1].Description);
     }
 
     [TestMethod]
@@ -107,10 +111,10 @@ public class BackgroundActivityManagerTests
 
         h1.Complete();
         Assert.IsTrue(mgr.IsActive);
-        Assert.IsFalse(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
+        Assert.IsFalse(mgr.Tasks.Any(IsIdle));
 
         h2.Complete();
         Assert.IsFalse(mgr.IsActive);
-        Assert.IsTrue(mgr.Tasks.Any(t => t.Description == Str.Get("Shell.BackgroundTasks.Idle")));
+        Assert.IsTrue(IsIdle(mgr.Tasks[0]));
     }
 }
