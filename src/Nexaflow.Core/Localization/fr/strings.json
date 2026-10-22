@@ -125,7 +125,7 @@
   "Shell.Documents.Step.Translation": "Traduction : passage {0} sur {1}",
   "Shell.Documents.Step.Question": "Réponse : question {0} sur {1}",
   "Shell.Documents.AnsweredFormat": "Réponse tirée de {0} partie(s) de {1}",
-  "Shell.Documents.Untranslated": "Non traduit : aucune traduction de ce passage n'en gardait le balisage, il est donc tel que le document l'écrit.",
+  "Shell.Documents.Untranslated": "Non traduit : aucune traduction utilisable de ce passage n'a été obtenue, il est donc tel que le document l'écrit.",
   "Shell.Documents.NothingAnswersFormat": "Rien dans {0} ne porte sur la question",
   "Shell.Documents.Announce.Ask": "interroger",
   "Shell.Documents.Announce.AskingFormat": "Recherche dans {0}",

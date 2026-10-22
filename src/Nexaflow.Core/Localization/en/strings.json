@@ -140,7 +140,7 @@
   "Shell.Documents.Step.Translation": "Translating: passage {0} of {1}",
   "Shell.Documents.Step.Question": "Answering: question {0} of {1}",
   "Shell.Documents.AnsweredFormat": "Answered from {0} part(s) of {1}",
-  "Shell.Documents.Untranslated": "Not translated: no translation of this passage kept its markup, so it is as the document writes it.",
+  "Shell.Documents.Untranslated": "Not translated: no usable translation of this passage was had, so it is as the document writes it.",
   "Shell.Documents.NothingAnswersFormat": "Nothing in {0} bears on the question",
   "Shell.Documents.Announce.Ask": "ask about",
   "Shell.Documents.Announce.AskingFormat": "Looking through {0}",

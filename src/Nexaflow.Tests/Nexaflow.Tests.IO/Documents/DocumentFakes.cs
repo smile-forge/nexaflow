@@ -19,9 +19,13 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
 
     public int CharsPerToken => 3;
 
-    public Task<DocumentReply> AnswerAsync(string instructions, string asked, CancellationToken ct)
+    /// <summary>The most each question let its answer run to, in the order asked.</summary>
+    public List<int> Longest { get; } = [];
+
+    public Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct)
     {
         Asked.Add((instructions, asked));
+        Longest.Add(longest);
         return Task.FromResult(answer(instructions, asked));
     }
 

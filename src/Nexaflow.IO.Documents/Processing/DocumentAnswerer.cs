@@ -155,9 +155,9 @@ public sealed partial class DocumentAnswerer(IDocumentModel model, IProgress<Doc
                 }
 
                 if (numbers is null)
-                    throw new DocumentWorkException(reply.Ended == DocumentReplyEnd.Failed
-                        ? "The model could not be asked which parts of the document answer the question."
-                        : "The model did not say which parts of the document answer the question.");
+                    throw reply.Ended == DocumentReplyEnd.Failed
+                        ? DocumentWorkException.NotAsked("which parts of the document answer the question", reply)
+                        : new DocumentWorkException("The model did not say which parts of the document answer the question.");
 
                 picked.AddRange(numbers.Select(number => batch[number - 1]));
             }
@@ -262,7 +262,7 @@ public sealed partial class DocumentAnswerer(IDocumentModel model, IProgress<Doc
                     _asked++;
                 }
 
-                if (reply.Ended == DocumentReplyEnd.Failed) throw new DocumentWorkException("The model could not be asked the question.");
+                if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked("the question", reply);
                 if (reply.Text.Trim() is not { Length: > 0 } said) throw new DocumentWorkException("The model did not answer the question.");
 
                 sofar = said;

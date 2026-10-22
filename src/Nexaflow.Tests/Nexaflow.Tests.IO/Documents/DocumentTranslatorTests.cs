@@ -110,16 +110,74 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
-    public async Task AModelThatCannotBeAsked_StopsTheJob_SayingWhere()
+    public async Task AModelThatCannotBeAsked_StopsTheJob_SayingWhereAndWhy()
     {
         var model = new ScriptedModel((instructions, asked) => instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
-            ? new(string.Empty, DocumentReplyEnd.Failed)
+            ? new(string.Empty, DocumentReplyEnd.Failed, "the host is gone")
             : new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
 
         var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translation(model, new MemoryNotes()));
 
         StringAssert.Contains(failed.Message, "Pets");
+        StringAssert.Contains(failed.Message, "the host is gone");
+        Assert.HasCount(2, model.Of(ScriptedModel.Translation), "its first passage asked once more, then the job stopped");
     }
+
+    [TestMethod]
+    public async Task APassageNoReplyCanBeHadFor_IsKeptAsWritten_WithANote_AndTheRestIsTranslated()
+    {
+        var model = new ScriptedModel((instructions, asked) =>
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal) && ScriptedModel.Pieces(asked).Any(piece => piece.Contains("Cats are"))
+                ? new(string.Empty, DocumentReplyEnd.Failed, "timed out")
+                : new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished), context: 1000);
+
+        var translation = await Translation(model, new MemoryNotes(), source: Sections("Dogs", "Cats", "Birds"));
+
+        StringAssert.Contains(translation.Text, $"*{Note}*\n\n{Company("Cats")}", "kept as written, the note before it");
+        StringAssert.Contains(translation.Text, Company("Dogs").ToUpperInvariant());
+        StringAssert.Contains(translation.Text, Company("Birds").ToUpperInvariant(), "the passages after it translated all the same");
+        CollectionAssert.Contains(translation.Untranslated.ToList(), "Pets › Cats");
+        Assert.HasCount(2, model.Of(ScriptedModel.Translation).Where(asked => ScriptedModel.Pieces(asked).Any(piece => piece.Contains("Cats are"))).ToList(),
+                           "asked for once more before it was kept");
+    }
+
+    [TestMethod]
+    public async Task AModelLostPartWay_StopsTheJob_OnceItsRepliesFailOneAfterAnother()
+    {
+        var answered = 0;
+        var model = new ScriptedModel((instructions, asked) =>
+            !instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal) || answered++ == 0
+                ? new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished)
+                : new(string.Empty, DocumentReplyEnd.Failed, "the host is gone"), context: 1000);
+
+        var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translation(model, new MemoryNotes(), source: Sections("Dogs", "Cats", "Birds", "Fish")));
+
+        StringAssert.Contains(failed.Message, "the host is gone");
+        Assert.HasCount(5, model.Of(ScriptedModel.Translation), "one answered, then two passages asked twice each");
+    }
+
+    [TestMethod]
+    public async Task AnAnswer_IsHeldToTwiceWhatItTranslates()
+    {
+        var model = ScriptedModel.Plain();
+
+        await Translate(model, new MemoryNotes());
+
+        var asked = model.Asked.Zip(model.Longest).Where(question => question.First.Instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)).ToList();
+        Assert.IsNotEmpty(asked);
+        foreach (var ((_, question), longest) in asked)
+        {
+            var translating = ScriptedModel.Pieces(question).Sum(piece => piece.Length);
+            Assert.IsTrue(longest >= 2 * translating, "room for a translation longer than what it translates");
+            Assert.IsTrue(longest < DocumentBudget.Of(model).Characters, "but not all the model could write");
+        }
+    }
+
+    /// <summary>A document of a section for each of <paramref name="names"/>, each a passage long enough to be asked for on its own by a model that reads a page.</summary>
+    private static string Sections(params string[] names) => "# Pets\n\n" + string.Concat(names.Select(name => $"## {name}\n\n{Company(name)}\n\n"));
+
+    /// <summary>What the section on <paramref name="name"/> says.</summary>
+    private static string Company(string name) => string.Concat(Enumerable.Repeat($"{name} are good company. ", 30)).TrimEnd();
 
     [TestMethod]
     public async Task APassageKeptAsWritten_IsAskedForAgain_WhenTranslatingAgain()

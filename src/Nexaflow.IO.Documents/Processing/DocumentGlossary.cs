@@ -84,7 +84,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
                 $"The whole document is:\n{gist.Said}\n\nThe passage:\n\n{stretch}\n\nList at most {MostPerStretch} of them, one a line.",
                 ct);
 
-            if (reply.Ended == DocumentReplyEnd.Failed) throw new DocumentWorkException("The model could not be asked for the document's names and terms.");
+            if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked("for the document's names and terms", reply);
 
             answer = reply.Text;
             await notes.WriteAsync(Shelf, key, answer, ct);
@@ -112,7 +112,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
                 "Answer with one line for each, as `term => translation`, and nothing else.",
                 ct);
 
-            if (reply.Ended == DocumentReplyEnd.Failed) throw new DocumentWorkException("The model could not be asked how to translate the document's names and terms.");
+            if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked("how to translate the document's names and terms", reply);
 
             answer = reply.Text;
             await notes.WriteAsync(Shelf, key, answer, ct);

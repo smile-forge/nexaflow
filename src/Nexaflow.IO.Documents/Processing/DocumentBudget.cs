@@ -25,4 +25,10 @@ public readonly record struct DocumentBudget(int Characters)
 
     /// <summary><paramref name="part"/> of it, as characters.</summary>
     public int Share(double part) => (int)(Characters * part);
+
+    /// <summary>
+    /// What is left of it for an answer to <paramref name="asked"/>, told <paramref name="instructions"/> — what a model reads holds
+    /// its own answer too — and never less than a quarter of it, so a question filled to the brim can still be answered.
+    /// </summary>
+    public int Left(string instructions, string asked) => Math.Max(Characters / 4, Characters - instructions.Length - asked.Length);
 }
