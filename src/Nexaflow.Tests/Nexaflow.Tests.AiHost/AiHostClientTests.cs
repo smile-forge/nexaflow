@@ -91,6 +91,33 @@ public class AiHostClientTests
     }
 
     [TestMethod]
+    public async Task TheAppStallingItself_IsNotTakenForAHungHost()
+    {
+        var clock = new SteppingClock();
+        var host = new FakeHost { Serve = FakeHost.Describe };
+        await using var client = new AiHostClient(host, Fast, clock);
+        await Describe(client);
+
+        // The app wakes from a pause far longer than the host is allowed to be silent: by its clock every answer it has is old.
+        clock.Step(Fast.HeartbeatTimeout * 10);
+        await Task.Delay(Fast.HeartbeatInterval * 6);
+
+        await Describe(client);
+        Assert.AreEqual(1, host.Starts, "the host it had is still the one serving");
+        Assert.IsFalse(host.Last!.WasKilled);
+    }
+
+    /// <summary>The system's time, put forward at will — as a process sees it on waking from a pause.</summary>
+    private sealed class SteppingClock : TimeProvider
+    {
+        private long _ahead;
+
+        public void Step(TimeSpan by) => Interlocked.Add(ref _ahead, (long)(by.TotalSeconds * TimestampFrequency));
+
+        public override long GetTimestamp() => base.GetTimestamp() + Interlocked.Read(ref _ahead);
+    }
+
+    [TestMethod]
     public async Task ARequestSilentPastItsStallLimit_KillsTheHost()
     {
         var host = new FakeHost { Serve = FakeHost.Silent };

@@ -191,16 +191,24 @@ internal sealed class HostConnection : IAsyncDisposable
         }
     }
 
-    /// <summary>Pings at the heartbeat interval; a host silent past the timeout is killed.</summary>
+    /// <summary>
+    /// Pings the host and kills it once it has gone <see cref="AiHostTimings.HeartbeatTimeout"/> without answering. A tick that
+    /// comes late is this side having stalled — its threads busy, collecting garbage — not the host: no ping went out and no answer
+    /// could be read meanwhile, so the host is given its whole time again from then, never blamed for the app's own pause.
+    /// </summary>
     private async Task BeatAsync()
     {
         using var timer = new PeriodicTimer(_timings.HeartbeatInterval, _time);
         long sequence = 0;
+        var ticked = _time.GetTimestamp();
         try
         {
             while (await timer.WaitForNextTickAsync(_life.Token))
             {
-                if (_time.GetElapsedTime(Interlocked.Read(ref _lastPong)) > _timings.HeartbeatTimeout)
+                var late = _time.GetElapsedTime(ticked) > _timings.HeartbeatInterval * 2;
+                ticked = _time.GetTimestamp();
+                if (late) Interlocked.Exchange(ref _lastPong, ticked);
+                else if (_time.GetElapsedTime(Interlocked.Read(ref _lastPong)) > _timings.HeartbeatTimeout)
                 {
                     Kill($"the AI host stopped answering for {_timings.HeartbeatTimeout.TotalSeconds:0.#} s");
                     return;
