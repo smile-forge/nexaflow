@@ -47,9 +47,13 @@ public sealed class ContentSelection
         var from = System.Math.Min(one.Start, other.Start);
         var to = System.Math.Max(one.End, other.End);
 
-        var touched = root.Leaves()
+        // What a leaf means is named, and holds it: so the leaves meaning anything between the two are inside the named pieces between
+        // them, and only those are read.
+        var named = Named(root, from, to, at => at.Start >= from && at.End <= to);
+
+        var touched = LayoutQuery.LeavesUnder(named)
                     .Select(piece => piece.Selectable())
-                    .Where(piece => piece.Exists && piece.Sits() is var at && at.Start >= from && at.End <= to)
+                    .Where(named.Contains)
                     .Distinct()
                     .ToList();
         return touched.Count == 0 ? None : new ContentSelection(LayoutQuery.Promote(touched));
@@ -66,11 +70,12 @@ public sealed class ContentSelection
     {
         if (ranges.All(range => range.Length <= 0)) return None;
 
-        var inside = root.SelfAndDescendants()
-            .Select(piece => piece.Selectable())
-            .Where(piece => piece.Exists && piece.Sits() is { Length: > 0 } at
+        // What a piece means is itself where the source named it, and otherwise something holding it — met before it, holding the
+        // same source — so what is picked out is every named piece inside a range, in drawing order. Only what sits in source a range
+        // touches is looked in.
+        var inside = LayoutQuery.Sitting(root, span => ranges.Any(range => span.First <= range.Start + range.Length && span.Last >= range.Start))
+            .Where(piece => piece.Part is { Length: > 0 } && piece.Sits() is var at
                             && ranges.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length))
-            .Distinct()
             .ToList();
 
         return new ContentSelection(inside.Count == 0 ? [] : LayoutQuery.Promote(inside), ranges);
@@ -159,9 +164,13 @@ public sealed class ContentSelection
         // the arc nobody typed is named by it — but it is around what was chosen, not written between.
         var around = new HashSet<Piece>(chosen.SelectMany(p => p.Ancestors()));
 
-        var others = root.Leaves()
+        // Only a gap between two of the ranges is asked about, so only what is written somewhere between the first and the last.
+        var (opening, closing) = (ranges[0].Start, ranges[^1].Start + ranges[^1].Length);
+        var between = Named(root, opening, closing, at => at.Start < closing && at.End > opening);
+
+        var others = LayoutQuery.LeavesUnder(between)
             .Select(p => p.Selectable())
-            .Where(p => p.Exists && !inside.Contains(p) && !around.Contains(p))
+            .Where(p => between.Contains(p) && !inside.Contains(p) && !around.Contains(p))
             .Select(p => p.Sits())
             .Where(at => at.Length > 0)
             .ToList();
@@ -181,6 +190,13 @@ public sealed class ContentSelection
 
         return joined;
     }
+
+    /// <summary>
+    /// Every piece the source named — with characters of its own — that sits in source touching <c>[from, to]</c> and that
+    /// <paramref name="keeps"/> keeps: what a leaf between the two can mean.
+    /// </summary>
+    private static HashSet<Piece> Named(Piece root, int from, int to, Func<SourcePlace, bool> keeps) =>
+        [.. LayoutQuery.SittingIn(root, from, to).Where(piece => piece.Part is { Length: > 0 } && keeps(piece.Sits()))];
 
     /// <summary>
     /// What a drag between two different runs means: the block of things between them, one column at a time.

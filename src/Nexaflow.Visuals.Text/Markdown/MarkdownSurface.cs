@@ -309,6 +309,12 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;
 
+    /// <summary>What lays the document out — for a test asking what only the engine is told, a pointer resting on the page or the rest of a long document read.</summary>
+    internal ContentEngine Engine => _engine;
+
+    /// <summary>What scrolls the document — for a test moving through it as a reader does.</summary>
+    internal ScrollViewer Scroller => _scroller;
+
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()
     {

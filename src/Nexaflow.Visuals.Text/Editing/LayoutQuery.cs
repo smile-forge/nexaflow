@@ -42,8 +42,8 @@ public static class LayoutQuery
     /// say the space itself is writable. The gap tolerance keeps a pointer moving along tightly-set formula letters from
     /// flickering to an arrow between every pair.
     /// </summary>
-    /// <param name="reach">The least distance round something written that still counts as writing.</param>
-    public static bool Writable(this Piece root, Point point, double reach)
+    /// <param name="writing">The least distance round something written that still counts as writing.</param>
+    public static bool Writable(this Piece root, Point point, double writing)
     {
         var on = false;
         var near = false;
@@ -52,7 +52,9 @@ public static class LayoutQuery
         // round it has nothing to say about a diagram's empty corner.
         var card = Card(root, point);
 
-        foreach (var (piece, where) in root.Placed())
+        // Nothing further off than the most any piece inside reaches for counts: half its own height, and never under the reach
+        // asked for — and a piece is no taller than everything round it.
+        foreach (var (piece, where) in PlacedNear(root, reach => Holds(reach, point, Math.Max(Math.Max(reach.Height / 2, writing), Hair))))
         {
             if (where.Width <= 0 || where.Height <= 0) continue;
 
@@ -61,7 +63,7 @@ public static class LayoutQuery
             if (!piece.IsLeaf)
             {
                 near |= piece.Part is { Length: > 0 } && piece.Stops != Stops.None && (!card.Exists || Within(piece, card))
-                        && point.X >= where.Left - reach && point.X <= where.Right + reach
+                        && point.X >= where.Left - writing && point.X <= where.Right + writing
                         && point.Y >= where.Top && point.Y <= where.Bottom;
                 continue;
             }
@@ -80,7 +82,7 @@ public static class LayoutQuery
             {
                 // Half a letter's height round it, which is the line it stands on: the letters of a formula are boxes of
                 // different heights set a hair apart, and the space over a short one is still the line.
-                var around = Math.Max(reach, where.Height / 2);
+                var around = Math.Max(writing, where.Height / 2);
                 near |= point.X >= where.Left - around && point.X <= where.Right + around
                         && point.Y >= where.Top - around && point.Y <= where.Bottom + around;
             }
@@ -94,7 +96,7 @@ public static class LayoutQuery
     {
         var card = default(Piece);
 
-        foreach (var (piece, where) in root.Placed())
+        foreach (var (piece, where) in PlacedNear(root, reach => reach.Contains(point)))
             if (!piece.IsLeaf && piece.Stops == Stops.None && piece.Part is { Length: > 0 } && where.Contains(point))
                 card = piece;
 
@@ -146,7 +148,7 @@ public static class LayoutQuery
         var best = default(Piece);
         var bestRank = (Named: -1, Depth: -1);
 
-        foreach (var (piece, where) in root.Placed())
+        foreach (var (piece, where) in PlacedNear(root, reach => Contains(reach, point)))
         {
             if (piece.Children.Count > 0) continue;              // draws nothing itself
             if (where.Width <= 0 || where.Height <= 0) continue; // spacing
@@ -186,7 +188,7 @@ public static class LayoutQuery
     /// </summary>
     public static Piece WordsAt(this Piece root, int offset)
     {
-        foreach (var piece in root.SelfAndDescendants())
+        foreach (var piece in SittingIn(root, offset, offset))
             if (piece is { Words.Maps: true } && piece.Part is { Length: > 0 } part
                 && offset >= part.Start && offset <= part.End())
                 return piece;
@@ -311,15 +313,39 @@ public static class LayoutQuery
     /// Whether to consider only pieces holding no other selectable piece — the things a reader points at,
     /// as opposed to the things they cover.
     /// </param>
+    /// <remarks>
+    /// Nearest first: what holds the ink is opened in order of how near anything inside it could be (<see cref="LayoutIndex"/>),
+    /// so once something has been landed on, nothing further off than it is opened at all — a press in a long document measures
+    /// the blocks round it, not every glyph above it. A tie still goes to the deeper piece and then to the one drawn first, which
+    /// is what reading every piece in order settled it as.
+    /// </remarks>
     private static Piece Nearest(Piece root, Point point, bool alone)
     {
+        if (root.Tree is not { } tree) return default;
+
+        var index = tree.Indexed;
         var best = default(Piece);
         var bestDistance = double.MaxValue;
         var bestDepth = -1;
+        var bestAt = -1;
 
-        foreach (var (piece, where) in root.Placed())
+        var open = new PriorityQueue<int, double>();
+        open.Enqueue(root.At, DistanceTo(index.Reach(root.At), point));
+
+        // A run of siblings opens into its pieces and a piece into what it holds, nearest first either way; only a leaf is measured.
+
+        while (open.TryDequeue(out var at, out var nearest))
         {
-            if (!piece.IsLeaf) continue;
+            if (nearest > bestDistance) break;
+
+            if (at < 0 || !tree.At(at).IsLeaf)
+            {
+                foreach (var (inside, reach, _) in index.Opened(at)) open.Enqueue(inside, DistanceTo(reach, point));
+                continue;
+            }
+
+            var piece = tree.At(at);
+
             if (alone && Holds(piece)) continue;
 
             // What the press would mean, by the same rule a direct hit already uses: the first thing above the
@@ -333,6 +359,7 @@ public static class LayoutQuery
             // costs nothing to measure while the shape has to be flattened first — which is the whole cost of this
             // scan. So a piece whose box is already further off than the best so far is skipped by arithmetic, and
             // once anything has been landed on squarely nothing else is flattened at all.
+            var where = index.Where(at);
             var around = piece.Region is { } shape ? piece.Frame.Out(shape.Bounds) : where;
             var floor = DistanceTo(around, point);
             if (floor > bestDistance) continue;
@@ -345,10 +372,11 @@ public static class LayoutQuery
             if (distance > bestDistance) continue;
 
             var depth = piece.Depth;
-            if (distance == bestDistance && depth <= bestDepth) continue;
+            if (distance == bestDistance && (depth < bestDepth || (depth == bestDepth && at > bestAt))) continue;
 
             bestDistance = distance;
             bestDepth = depth;
+            bestAt = at;
             best = resolved;
         }
 
@@ -370,7 +398,9 @@ public static class LayoutQuery
 
     /// <summary>Every piece of ink the rectangle touches — the shape it stands in, for a piece that stands in one.</summary>
     public static IReadOnlyList<Piece> PiecesIn(this Piece root, Rect area) =>
-        [.. root.Placed().Where(p => p.Piece.IsLeaf && p.Where.IntersectsWith(area) && Touches(p.Piece, area)).Select(p => p.Piece)];
+        [.. PlacedNear(root, reach => reach.IntersectsWith(area))
+                .Where(p => p.Piece.IsLeaf && p.Where.IntersectsWith(area) && Touches(p.Piece, area))
+                .Select(p => p.Piece)];
 
     // ── Selection ───────────────────────────────────────────────────────────
 
@@ -397,9 +427,17 @@ public static class LayoutQuery
                 // Covered, not merely present: a child promoted into a piece of its own on an earlier pass
                 // is still covered by it, and requiring literal membership would stop promotion one level
                 // short — a fraction's numerator would become a piece and the fraction never would.
-                var ink = parent.Leaves().ToList();
-                if (ink.Count == 0 || !ink.All(p => chosen.Contains(p) || p.Ancestors().Any(chosen.Contains)))
-                    continue;
+                // Given up on at the first leaf that is not: a selection inside one block names the document above it, and
+                // whether the document is covered is answered by its first line rather than by every glyph in it.
+                var ink = new List<Piece>();
+                var whole = true;
+                foreach (var leaf in parent.Leaves())
+                {
+                    if (!chosen.Contains(leaf) && !leaf.Ancestors().Any(chosen.Contains)) { whole = false; break; }
+                    ink.Add(leaf);
+                }
+
+                if (!whole || ink.Count == 0) continue;
 
                 // What the piece draws for itself has to be covered too, and since nothing names it that
                 // can only be asked of the page: a fraction's bar sits among its numerator and
@@ -407,7 +445,9 @@ public static class LayoutQuery
                 // its contents and a selection inside them does not. Without this, selecting a radicand
                 // would grow into the whole root — the piece of the root that is not the radicand having
                 // never been asked about.
-                if (!Decoration(parent).All(d => Among(d.Bounds, ink))) continue;
+                // The ink's hull is the same whatever piece of decoration is asked about, so it is gathered once, where there is any.
+                var hull = default(Rect?);
+                if (!Decoration(parent).All(d => Among(d.Bounds, hull ??= Hull(ink)))) continue;
 
                 foreach (var covered in parent.SelfAndDescendants()) chosen.Remove(covered);
                 chosen.Add(parent);
@@ -521,15 +561,14 @@ public static class LayoutQuery
     public static int StopAt(this Piece root, int offset, bool outermost = false)
     {
         var places = Index(root);
-        var found = -1;
+        var first = FirstAt(places, offset);
+        if (first >= places.Count || places[first].Offset != offset) return -1;
+        if (!outermost) return first;
 
-        for (var at = 0; at < places.Count; at++)
-        {
-            if (places[at].Offset != offset) continue;
-            if (found < 0 || outermost) found = at;
-        }
+        var last = first;
+        while (last + 1 < places.Count && places[last + 1].Offset == offset) last++;
 
-        return found;
+        return last;
     }
 
     /// <summary>
@@ -546,9 +585,8 @@ public static class LayoutQuery
         var offset = root.OffsetAt(point);
         var best = -1;
 
-        for (var at = 0; at < places.Count; at++)
+        for (var at = FirstAt(places, offset); at < places.Count && places[at].Offset == offset; at++)
         {
-            if (places[at].Offset != offset) continue;
             if (best < 0) { best = at; continue; }
 
             if (Math.Abs(places[at].CaretRect().X - point.X) < Math.Abs(places[best].CaretRect().X - point.X) - Hair)
@@ -560,6 +598,24 @@ public static class LayoutQuery
 
     /// <summary>Everywhere a caret may rest, from the tree that worked it out — see <see cref="LayoutTree.Places"/>.</summary>
     private static IReadOnlyList<CaretPlace> Index(Piece root) => root.Tree?.Places ?? [];
+
+    /// <summary>
+    /// The first of <paramref name="places"/> at or past <paramref name="offset"/> — their count where none is. Found by halving,
+    /// since the places are in the order of their offsets (<see cref="PlacesIn"/>), and a long document has tens of thousands.
+    /// </summary>
+    private static int FirstAt(IReadOnlyList<CaretPlace> places, int offset)
+    {
+        var (low, high) = (0, places.Count);
+
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (places[middle].Offset < offset) low = middle + 1;
+            else high = middle;
+        }
+
+        return low;
+    }
 
     /// <summary>
     /// Where to draw the caret at an offset, whether or not anything stands there. Beside the nearest
@@ -654,16 +710,11 @@ public static class LayoutQuery
 
         if (forward)
         {
-            for (var at = 0; at < places.Count; at++)
-                if (places[at].Offset > offset) return at;
-
-            return -1;
+            var past = FirstAt(places, offset + 1);
+            return past < places.Count ? past : -1;
         }
 
-        for (var at = places.Count - 1; at >= 0; at--)
-            if (places[at].Offset < offset) return at;
-
-        return -1;
+        return FirstAt(places, offset) - 1;
     }
 
     /// <summary>
@@ -763,23 +814,35 @@ public static class LayoutQuery
     // ── Geometry helpers ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Whether something sits amongst a set of pieces rather than beside them. Its centre decides, not its
+    /// Whether something sits amongst a set of pieces — inside their <see cref="Hull"/> — rather than beside them. Its centre decides, not its
     /// edges: a fraction's bar overhangs the numerator and denominator it separates, and is still between
     /// them.
     /// </summary>
-    private static bool Among(Rect bounds, IEnumerable<Piece> pieces)
+    private static bool Among(Rect bounds, Rect hull)
     {
-        var hull = Rect.Empty;
-        foreach (var piece in pieces) hull.Union(piece.Bounds);
         if (hull.IsEmpty) return false;
 
         var centre = new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
         return Contains(hull, centre);
     }
 
+    /// <summary>What a set of pieces covers together on the page: the least rectangle round all of them.</summary>
+    private static Rect Hull(IEnumerable<Piece> pieces)
+    {
+        var hull = Rect.Empty;
+        foreach (var piece in pieces) hull.Union(piece.Bounds);
+
+        return hull;
+    }
+
     private static bool Contains(Rect bounds, Point point) =>
         point.X >= bounds.X - Hair && point.X <= bounds.Right + Hair
         && point.Y >= bounds.Y - Hair && point.Y <= bounds.Bottom + Hair;
+
+    /// <summary>Whether a point is inside a rectangle grown by <paramref name="by"/> all round.</summary>
+    private static bool Holds(Rect bounds, Point point, double by) =>
+        point.X >= bounds.X - by && point.X <= bounds.Right + by
+        && point.Y >= bounds.Y - by && point.Y <= bounds.Bottom + by;
 
     /// <summary>
     /// Whether a press lands in what a piece stands in, once its box has said it might: the shape it occupies, for a piece
@@ -924,21 +987,22 @@ public static class LayoutQuery
     /// stands in, e.g. a note plus the staff line under it — ink alone would leave the staff showing over a low
     /// note), one rectangle per thing; <see cref="Wash"/> joins them across the gaps. Only the ink of what was
     /// chosen: a leaf washes only when what it belongs to is inside the stretch, so words hanging off a bar
-    /// don't wash just because the bar's notes are chosen. Asks whether a piece <em>stands</em> for a place
+    /// don't wash just because the bar's notes are chosen. Only what reaches <paramref name="near"/>, where that is said —
+    /// what is painted of a long selection is what is near the screen. Asks whether a piece <em>stands</em> for a place
     /// rather than whether it covers characters, since a hole covers none by definition — otherwise a selection
     /// across a half-written fraction would wash everything except the part still missing.
     /// </summary>
-    public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length)
+    public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length, Rect? near = null)
     {
         if (length <= 0 || !root.Exists) return [];
-        var covered = Covered(root, start, length);
+        var covered = Covered(root, start, length, near);
 
         var whole = covered.Where(piece => !piece.Ancestors().Any(covered.Contains))
                            .Select(piece => InkFor(piece, covered))
                            .Where(ink => !ink.IsEmpty);
 
         // A run of text is one piece, so a stretch that takes only part of one is measured inside it.
-        var part = root.SelfAndDescendants()
+        var part = SittingIn(root, start, start + length, near)
             .Where(piece => piece is { Words.Maps: true } && piece.Part is { Length: > 0 } written
                             && written.Start < start + length && written.End() > start
                             && (written.Start < start || written.End() > start + length))
@@ -953,22 +1017,27 @@ public static class LayoutQuery
     /// <see cref="LayoutBuilder.Occupies"/>) that belongs to something inside the stretch, where it sits on the page. What
     /// <see cref="RangeRects"/> leaves out, so the two together are the whole of it.
     /// </summary>
-    public static IReadOnlyList<Geometry> RangeRegions(this Piece root, int start, int length)
+    public static IReadOnlyList<Geometry> RangeRegions(this Piece root, int start, int length, Rect? near = null)
     {
         if (length <= 0 || !root.Exists) return [];
 
-        var covered = Covered(root, start, length);
+        var covered = Covered(root, start, length, near);
 
-        return [.. root.Leaves()
+        // A leaf belongs to what it is drawn inside, so every leaf whose owner is covered is inside something covered.
+        return [.. LeavesUnder(covered)
                        .Where(leaf => leaf.Region is not null && covered.Contains(leaf.Selectable()))
                        .Select(leaf => OnPage(leaf)!)];
     }
 
-    /// <summary>Every piece standing for a place wholly inside a stretch of source.</summary>
-    private static HashSet<Piece> Covered(Piece root, int start, int length)
+    /// <summary>
+    /// Every piece standing for a place wholly inside a stretch of source — and, where <paramref name="near"/> says, reaching
+    /// into that part of the page.
+    /// </summary>
+    private static HashSet<Piece> Covered(Piece root, int start, int length, Rect? near = null)
     {
         var end = start + length;
-        return root.SelfAndDescendants()
+
+        return SittingIn(root, start, end, near)
             .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
             .ToHashSet();
     }
@@ -1061,11 +1130,12 @@ public static class LayoutQuery
     /// gap is spanned only when nothing a reader could pick lies in it unchosen — otherwise, e.g., words sung
     /// under a line of music would be claimed by washing across to a neighbouring row nobody selected. Joins
     /// are made between things that face each other with nothing else of the wash between and are square, so a
-    /// taller side stands up out of the band the way a capital does from a line of text.
+    /// taller side stands up out of the band the way a capital does from a line of text. Where <paramref name="near"/> is said,
+    /// only what reaches it is washed — a selection down a long document is painted a screen of it at a time.
     /// </summary>
-    public static Geometry Wash(this Piece root, IReadOnlyList<EditRange> selection, double pad)
+    public static Geometry Wash(this Piece root, IReadOnlyList<EditRange> selection, double pad, Rect? near = null)
     {
-        var patches = Clusters(selection.SelectMany(range => root.RangeRects(range.Start, range.Length)), pad);
+        var patches = Clusters(selection.SelectMany(range => root.RangeRects(range.Start, range.Length, near)), pad);
 
         // Along each row: every patch joins each one on its right that it faces, and what that links up is a row.
         var row = Enumerable.Range(0, patches.Count).ToArray();
@@ -1106,7 +1176,7 @@ public static class LayoutQuery
         shape.Freeze();
 
         // What stands in a shape of its own is washed as that shape, grown by the pad the way a rectangle is.
-        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length)).ToList();
+        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length, near)).ToList();
         if (regions.Count == 0) return shape;
 
         var grow = new Pen(Brushes.Black, 2 * pad);
@@ -1173,7 +1243,7 @@ public static class LayoutQuery
     {
         if (gap.Width <= 0 || gap.Height <= 0) return true;
 
-        foreach (var (piece, where) in root.Placed())
+        foreach (var (piece, where) in PlacedNear(root, reach => Overlaps(reach, gap)))
         {
             if (!piece.IsLeaf || where.Width <= 0 || where.Height <= 0) continue;
             if (where.Right <= gap.Left || where.Left >= gap.Right || where.Bottom <= gap.Top || where.Top >= gap.Bottom) continue;
@@ -1212,7 +1282,7 @@ public static class LayoutQuery
         // from before a root's sign to past its contents takes the root itself and not merely what is under
         // the bar. Anything only half inside is left to promotion, which is what stops a range that clipped a
         // brace of `^{n}` from coming back as `{n`.
-        var touched = root.SelfAndDescendants()
+        var touched = SittingIn(root, from, to)
             .Where(piece => piece.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
             .ToList();
 
@@ -1220,9 +1290,7 @@ public static class LayoutQuery
         {
             // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
             // command's name. Snap to whatever is nearest, so a selection is always of something visible.
-            var nearest = root.Leaves()
-                .OrderBy(piece => Math.Min(Math.Abs(piece.Sits().Start - from), Math.Abs(piece.Sits().End - to)))
-                .FirstOrDefault();
+            var nearest = NearestWritten(root, from, to);
             if (!nearest.Exists) return (from, to - from);
             touched.Add(nearest);
         }
@@ -1232,5 +1300,137 @@ public static class LayoutQuery
 
         var (first, last) = (promoted.Min(piece => piece.Sits().Start), promoted.Max(piece => piece.Sits().End));
         return (first, last - first);
+    }
+
+    /// <summary>
+    /// The leaf sitting nearest a stretch of source: the least of how far its start is from <paramref name="from"/> and its end
+    /// from <paramref name="to"/>, the first drawn among equals. Asked nearest first, as <see cref="Nearest(Piece, Point, bool)"/>
+    /// is: what holds the leaves is opened in order of how near anything it sits in could be, so a block far off in the source is
+    /// never opened once something nearer has been found.
+    /// </summary>
+    private static Piece NearestWritten(Piece root, int from, int to)
+    {
+        if (root.Tree is not { } tree) return default;
+
+        var index = tree.Indexed;
+        var best = default(Piece);
+        var bestDistance = int.MaxValue;
+        var bestAt = -1;
+
+        var open = new PriorityQueue<int, int>();
+        open.Enqueue(root.At, Apart(index.Span(root.At)));
+
+        while (open.TryDequeue(out var at, out var nearest))
+        {
+            if (nearest > bestDistance) break;
+
+            if (at < 0 || !tree.At(at).IsLeaf)
+            {
+                foreach (var (inside, _, span) in index.Opened(at)) open.Enqueue(inside, Apart(span));
+                continue;
+            }
+
+            var piece = tree.At(at);
+
+            var sits = piece.Sits();
+            var distance = Math.Min(Math.Abs(sits.Start - from), Math.Abs(sits.End - to));
+            if (distance > bestDistance || (distance == bestDistance && at > bestAt)) continue;
+
+            (best, bestDistance, bestAt) = (piece, distance, at);
+        }
+
+        return best;
+
+        // The least a leaf sitting anywhere in a stretch can be from the two ends.
+        int Apart((int First, int Last) span) => Math.Min(Outside(from, span), Outside(to, span));
+
+        static int Outside(int offset, (int First, int Last) span) =>
+            offset < span.First ? span.First - offset : offset > span.Last ? offset - span.Last : 0;
+    }
+
+    // ── Asking only what can answer ─────────────────────────────────────────
+
+    /// <summary>
+    /// <paramref name="root"/> and everything inside it, each with where it sits, in the order <see cref="Piece.Placed"/> walks
+    /// them — passing over every piece whose subtree reaches nowhere <paramref name="reaches"/> takes in, and all it holds. See
+    /// <see cref="LayoutIndex"/>: a question about a point is asked of the blocks round it, not of every glyph on the page.
+    /// </summary>
+    internal static IEnumerable<(Piece Piece, Rect Where)> PlacedNear(Piece root, Func<Rect, bool> reaches)
+    {
+        if (root.Tree is not { } tree) yield break;
+
+        var index = tree.Indexed;
+        foreach (var at in index.Descend(root.At, (reach, _) => reaches(reach)))
+            yield return (tree.At(at), index.Where(at));
+    }
+
+    /// <summary>
+    /// <paramref name="root"/> and everything inside it, parents first, passing over every piece whose subtree sits in no source
+    /// touching <c>[start, end]</c> — either end included, so a place with no characters at either end is still asked — and,
+    /// where <paramref name="near"/> is said, every piece whose subtree reaches nowhere into it.
+    /// </summary>
+    internal static IEnumerable<Piece> SittingIn(Piece root, int start, int end, Rect? near = null)
+    {
+        if (root.Tree is not { } tree) yield break;
+
+        foreach (var at in tree.Indexed.Descend(root.At, (reach, span) => span.First <= end && span.Last >= start
+                                                                          && (near is not { } area || reach.IntersectsWith(area))))
+            yield return tree.At(at);
+    }
+
+    /// <summary>
+    /// <paramref name="root"/> and everything inside it, parents first, passing over every piece whose subtree sits in source
+    /// <paramref name="touches"/> turns down — asked of the stretch from its first character to its last.
+    /// </summary>
+    internal static IEnumerable<Piece> Sitting(Piece root, Func<(int First, int Last), bool> touches)
+    {
+        if (root.Tree is not { } tree) yield break;
+
+        foreach (var at in tree.Indexed.Descend(root.At, (_, span) => touches(span)))
+            yield return tree.At(at);
+    }
+
+    /// <summary>
+    /// The pieces <paramref name="holder"/> holds, in order, whose subtree <paramref name="enters"/> takes — asked of what it
+    /// reaches on the page and the stretch of source it sits in. What <see cref="Piece.Children"/> gives, without asking every one
+    /// of the thousands of blocks a long document holds side by side.
+    /// </summary>
+    internal static IEnumerable<Piece> ChildrenWhere(Piece holder, Func<Rect, (int First, int Last), bool> enters)
+    {
+        if (holder.Tree is not { } tree) yield break;
+
+        foreach (var at in tree.Indexed.Children(holder.At, enters))
+            yield return tree.At(at);
+    }
+
+    /// <summary>
+    /// The leaves inside any of <paramref name="holders"/> — all of one tree — each once, in the order drawn: what
+    /// <see cref="Piece.Leaves"/> of the whole tree would give that lies inside any of them, without walking the rest of it.
+    /// </summary>
+    internal static IEnumerable<Piece> LeavesUnder(IEnumerable<Piece> holders)
+    {
+        LayoutTree? tree = null;
+        var runs = new List<(int From, int To)>();
+
+        foreach (var holder in holders)
+        {
+            if (holder.Tree is not { } held) continue;
+
+            tree ??= held;
+            runs.Add((holder.At, holder.At + held.Piece(holder.At).Extent));
+        }
+
+        if (tree is null) yield break;
+
+        runs.Sort((a, b) => a.From.CompareTo(b.From));
+
+        var reached = 0;
+        foreach (var (from, to) in runs)
+        {
+            for (var at = Math.Max(from, reached); at < to; at++)
+                if (tree.Piece(at).Extent == 1) yield return tree.At(at);
+
+            reached = Math.Max(reached, to);
+        }
     }
 }

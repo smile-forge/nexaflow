@@ -7,7 +7,9 @@
   Builds the Visuals test suite, runs MarkdownLayoutBench, and prints the JSON file the run wrote: per document what
   opening it and typing one character into it cost, and each step on its own - reading it, every stage the document is
   read by, the builder (nested languages and markdown's own), and painting - with corpus totals for every nested
-  language, every stage of each language's pipeline, and every kind of block.
+  language, every stage of each language's pipeline, and every kind of block. Then what reading a long document costs once it
+  is open - scrolling it a screen and a wheel turn at a time, jumping about it, pointing, dragging and picking everything out -
+  on a surface in a window, over a generated lecture script full of formulas and docs/MarkdownSupport.md.
 
   A timing is only worth comparing with another taken on the same machine in the same configuration. Release is the
   default because Debug checks every pipeline stage's output against its input, which is not what a user pays for.
@@ -51,6 +53,10 @@ if (-not $written) { throw "the run wrote nothing to $Out" }
 $run = Get-Content $written.FullName -Raw | ConvertFrom-Json
 "{0}  open {1:N0} ms  opened as a page {2:N0} ms  edit {3:N0} ms  paint {4:N0} ms  ({5} documents, {6} {7})" -f `
     $written.FullName, $run.totals.open, $run.totals.opened, $run.totals.edit, $run.totals.paint, $run.documents.Count, $run.configuration, $run.commit
+foreach ($read in $run.reading) {
+    "reading {0} ({1:N0} KB): page down p90 {2:N0} ms  jump {3:N0} ms  wheel p90 {4:N1} ms  hover {5:N1} ms  drag {6:N1} ms  select all {7:N0} ms" -f `
+        $read.name, $read.kb, $read.pageDown.p90, $read.jump.median, $read.wheel.'90%'.p90, $read.hover.median, $read.drag.median, $read.selectAll
+}
 if ($run.rtfTotals) {
     "rich text: open {0:N0} ms  opened as a page {1:N0} ms  edit {2:N0} ms  paint {3:N0} ms  a screen {4:N0} ms  held open {5:N0} KB" -f `
         $run.rtfTotals.open, $run.rtfTotals.opened, $run.rtfTotals.edit, $run.rtfTotals.paint, $run.rtfTotals.paintShown, $run.rtfTotals.retainedOpenedKb

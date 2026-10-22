@@ -431,7 +431,8 @@ public sealed partial class ContentEngine
     {
         (Piece, LayoutIntent)? found = null;
 
-        foreach (var (piece, where) in laid.Tree.Root.Placed())
+        // Only what reaches the point is asked: a link under the pointer is in the block it is over, not anywhere in the document.
+        foreach (var (piece, where) in LayoutQuery.PlacedNear(laid.Tree.Root, reach => reach.Contains(at)))
             if (where.Contains(at) && piece.Acts?.For(gesture) is { } intent)
                 found = (piece, intent);
 

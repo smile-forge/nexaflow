@@ -163,7 +163,7 @@ public sealed partial class ContentEngine
         // Content in one language is one block of it, and the whole of what was laid is that block.
         if (_named is not null) return Holds(new Rect(_laid.Size)) ? ReadRoot : null;
 
-        foreach (var whole in _laid.Root.Children)
+        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
         {
             if (whole.Kind != MarkdownPieces.Whole || !Holds(whole.Bounds)) continue;
 
@@ -179,11 +179,10 @@ public sealed partial class ContentEngine
     {
         if (_named is not null) return ReadRoot;
 
-        foreach (var block in ReadRoot.Children)
-            if (!block.Derived && block.Role != Roles.Trivia && offset >= block.Start && offset < block.End)
-                return block;
+        var blocks = WrittenBlocks;
+        var at = Holding(blocks, offset);
 
-        return null;
+        return at < blocks.Count && blocks[at].Start <= offset ? blocks[at] : null;
     }
 
     /// <summary>
@@ -194,17 +193,50 @@ public sealed partial class ContentEngine
     {
         if (_named is not null) return null;
 
-        var passed = false;
+        var blocks = WrittenBlocks;
+        var at = Holding(blocks, offset);
 
-        foreach (var block in ReadRoot.Children)
+        return at + 1 < blocks.Count && blocks[at].Start <= offset ? blocks[at + 1] : null;
+    }
+
+    /// <summary>
+    /// The document's own blocks — what somebody wrote, not what was worked out about it nor the space between — in the order
+    /// written, taken from the reading as it stands. Kept for that reading, since the pointer asks which block it is over every
+    /// time it moves, and a long document has thousands.
+    /// </summary>
+    private IReadOnlyList<ContentPart> WrittenBlocks
+    {
+        get
         {
-            if (block.Derived || block.Role == Roles.Trivia) continue;
-            if (passed) return block;
+            var root = ReadRoot;
+            if (!ReferenceEquals(_writtenIn, root))
+                (_writtenBlocks, _writtenIn) = ([.. root.Children.Where(block => !block.Derived && block.Role != Roles.Trivia)], root);
 
-            passed = offset >= block.Start && offset < block.End;
+            return _writtenBlocks;
+        }
+    }
+
+    /// <summary>The blocks <see cref="WrittenBlocks"/> last gave, and the reading they were taken from.</summary>
+    private IReadOnlyList<ContentPart> _writtenBlocks = [];
+    private ContentPart? _writtenIn;
+
+    /// <summary>
+    /// Where among <paramref name="blocks"/> the first one ending past <paramref name="offset"/> is — the one holding it, where any
+    /// does — or their count where none ends past it. Found by halving: written blocks follow one another without overlapping, so
+    /// where they end is in order too.
+    /// </summary>
+    private static int Holding(IReadOnlyList<ContentPart> blocks, int offset)
+    {
+        var (low, high) = (0, blocks.Count);
+
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (blocks[middle].End <= offset) low = middle + 1;
+            else high = middle;
         }
 
-        return null;
+        return low;
     }
 
     /// <summary>
@@ -227,7 +259,7 @@ public sealed partial class ContentEngine
         // Content in one language is one block, and all of what was laid is it.
         if (block.Parent is null) return new Rect(_laid.Size);
 
-        foreach (var whole in _laid.Root.Children)
+        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (_, span) => span.First <= block.End && span.Last >= block.Start))
         {
             if (whole.Kind != MarkdownPieces.Whole) continue;
             if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;

@@ -153,6 +153,14 @@ public sealed class LayoutTree
     /// </summary>
     public IReadOnlyList<CaretPlace> Places => _places ??= LayoutQuery.PlacesIn(Root);
 
+    /// <summary>
+    /// What every piece and what it holds reaches, on the page and in the source — what lets a question about one point or one
+    /// stretch pass over everything that cannot answer it. Made on the first question and kept; see <see cref="LayoutIndex"/>.
+    /// </summary>
+    internal LayoutIndex Indexed => _indexed ??= new LayoutIndex(this);
+
+    private LayoutIndex? _indexed;
+
     internal string KindOf(int at) => _kinds[at];
 
     /// <summary>How it is painted beyond its marks, or nothing — which is nearly always.</summary>
@@ -351,5 +359,8 @@ public sealed class LayoutTree
         if (_pieces.Length == 0 || (by.X == 0 && by.Y == 0)) return;
 
         _pieces[0] = _pieces[0] with { Offset = _pieces[0].Offset + by };
+
+        // Where everything reaches on the page has moved with it.
+        _indexed = null;
     }
 }

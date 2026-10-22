@@ -772,7 +772,8 @@ public class ContentElement : FrameworkElement
 
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
-        if (state.HasSelection) dc.DrawGeometry(_wash, null, laid.Root.Wash(state.Selection, WashPad));
+        // Only what is near the screen of it: a selection running down a long document is washed where it can be seen.
+        if (state.HasSelection) dc.DrawGeometry(_wash, null, laid.Root.Wash(state.Selection, WashPad, _painted));
 
         // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece —
         // over the shape it stands in where it has one, as a range of source is (see RangeRegions). A box is right
@@ -783,7 +784,7 @@ public class ContentElement : FrameworkElement
             else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink, WashPad, WashPad));
         }
 
-        Waves(dc, laid);
+        Waves(dc, laid, _painted);
 
         PaintOver(dc);
 
@@ -801,20 +802,63 @@ public class ContentElement : FrameworkElement
 
     /// <summary>
     /// A wave under whatever could not be read, drawn over the content rather than instead of it: the parts that did read are
-    /// still worth looking at, and the reader needs to see which part is not.
+    /// still worth looking at, and the reader needs to see which part is not. Only the waves near <paramref name="near"/> are
+    /// drawn, where something says what is on screen — all of them where nothing does.
     /// </summary>
-    private void Waves(DrawingContext dc, Laid laid)
+    private void Waves(DrawingContext dc, Laid laid, Rect? near)
     {
-        foreach (var trouble in laid.Trouble)
-        {
-            var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
-            if (runs.Count == 0) continue;
+        if (!ReferenceEquals(_squiggledIn, laid))
+            (_squiggles, _squiggledIn) = (new Squiggled?[laid.Trouble.Count], laid);
 
-            var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? Palette.Danger : Palette.Warning, 1.0);
-            wave.Freeze();
-            dc.DrawGeometry(null, wave, Squiggle.Under(runs));
+        for (var at = 0; at < laid.Trouble.Count; at++)
+        {
+            var trouble = laid.Trouble[at];
+
+            // Worked out the first time anything it was drawn under comes near the screen, and kept from then on.
+            if (_squiggles[at] is not { } squiggled)
+            {
+                if (near is { } area && !LayoutQuery.SittingIn(laid.Root, trouble.Start, trouble.Start + trouble.Length, area).Any()) continue;
+
+                _squiggles[at] = squiggled = WaveUnder(laid, trouble);
+            }
+
+            if (squiggled.Wave is { } wave && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
+                dc.DrawGeometry(null, trouble.Severity == DiagnosticSeverity.Error ? ErrorWave : WarningWave, wave);
         }
     }
+
+    /// <summary>The wave under what <paramref name="trouble"/> blames, and what it is drawn under — nothing, where that drew nothing.</summary>
+    private static Squiggled WaveUnder(Laid laid, Diagnostic trouble)
+    {
+        var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
+        if (runs.Count == 0) return new Squiggled(Rect.Empty, null);
+
+        var wave = Squiggle.Under(runs);
+        return new Squiggled(wave.Bounds, wave);
+    }
+
+    /// <summary>
+    /// The wave under each of what the layout in <see cref="_squiggledIn"/> could not read, by where it stands in its trouble —
+    /// null for one never yet near the screen. Kept for that layout rather than worked out at every paint, since a long document is
+    /// painted again every time it is scrolled a screen, and the waves are the same until it is laid again.
+    /// </summary>
+    private Squiggled?[] _squiggles = [];
+    private Laid? _squiggledIn;
+
+    /// <summary>What a wave is drawn with, in the colour of what it is under.</summary>
+    private Pen ErrorWave => _errorPen ??= Frozen(new Pen(Palette.Danger, 1.0));
+    private Pen WarningWave => _warningPen ??= Frozen(new Pen(Palette.Warning, 1.0));
+    private Pen? _errorPen;
+    private Pen? _warningPen;
+
+    private static Pen Frozen(Pen pen)
+    {
+        pen.Freeze();
+        return pen;
+    }
+
+    /// <summary>A wave worked out, and the stretch of the page it is drawn under.</summary>
+    private readonly record struct Squiggled(Rect Under, Geometry? Wave);
 
     /// <summary>
     /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
