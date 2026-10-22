@@ -52,10 +52,12 @@ public class DocumentToolsTests
     private GeneratedFiles Files(PathScope scope) =>
         new(scope, Path.Combine(_home, "drafts"), _ => Path.Combine(_home, "offered"), made => { _opened.Add(made); return Task.CompletedTask; });
 
-    private DocumentTools Tools(IDocumentModel? model, Func<string, string?>? written = null, PathScope? scope = null)
+    private readonly DocumentWorkLedger _ledger = new();
+
+    private DocumentTools Tools(IDocumentModel? model, Func<string, DocumentAsked?>? written = null, PathScope? scope = null)
     {
         scope ??= new PathScope([], [Folder]);
-        return new DocumentTools(new DocumentJob(_ => Task.FromResult(model), Notes, scope, written ?? (_ => null), Files(scope), activities: null));
+        return new DocumentTools(new DocumentJob(_ => Task.FromResult(model), Notes, scope, written ?? (_ => null), Files(scope), activities: null, _ledger));
     }
 
     [TestMethod]
@@ -110,10 +112,52 @@ public class DocumentToolsTests
     {
         var path = Document("# Saved\n");
 
-        await Tools(new Shouting(), written: asked => asked == path ? "# Edited\n" : null)
+        await Tools(new Shouting(), written: asked => asked == path ? new DocumentAsked(path, "# Edited\n", Folder) : null)
             .Translation.InvokeAsync(new JsonObject { ["document"] = path, ["language"] = "Shouting" }, CancellationToken.None);
 
         StringAssert.Contains(File.ReadAllText(_opened.OfType<DraftFile>().Single().Path), "# EDITED");
+    }
+
+    [TestMethod]
+    public async Task APackage_IsWorkedOnAsTheEditorHoldsIt_ItsPicturesReadWhereItReadsThem()
+    {
+        // The editor holds a package unpacked: its pictures are where it unpacked them, not beside the package.
+        var package = Path.Combine(Folder, "pets.mdz");
+        File.WriteAllBytes(package, []);
+        var unpacked = Directory.CreateDirectory(Path.Combine(_home, "unpacked", "attachments")).Parent!.FullName;
+        File.WriteAllBytes(Path.Combine(unpacked, "attachments", "dog.png"), [1, 2, 3]);
+
+        var result = await Tools(new Shouting(), written: asked => asked == package ? new DocumentAsked(package, "# Pets\n\nDogs bark.\n\n![A dog](attachments/dog.png)\n", unpacked) : null)
+            .Translation.InvokeAsync(new JsonObject { ["document"] = package, ["language"] = "Shouting" }, CancellationToken.None);
+
+        Assert.IsFalse(result.IsError, result.ModelText);
+        var draft = _opened.OfType<DraftFile>().Single();
+        StringAssert.Contains(File.ReadAllText(draft.Path), "DOGS BARK.");
+        Assert.IsTrue(File.Exists(Path.Combine(Path.GetDirectoryName(draft.Path)!, "attachments", "dog.png")), "the picture it names is copied from where the package's pictures are");
+        Assert.AreEqual(Folder, draft.OfferedFolder, "and Save starts where the package is");
+    }
+
+    [TestMethod]
+    public async Task TheSameWork_IsNotSetGoingTwiceOnOneDocument_AndAPageFollowsWhatIsUnderWay()
+    {
+        var path = Document("# Pets\n\nDogs bark.\n");
+
+        // A page's watch is told on the thread that made it, as a page's UI thread is.
+        using var watch = _ledger.Watch(path);
+        var summarising = _ledger.Begin(path, DocumentWorkKind.Summary, null)!;
+        summarising.Report("Summarising: section 1 of 2");
+        Assert.AreEqual(new DocumentWorkUnderway(DocumentWorkKind.Summary, null, "Summarising: section 1 of 2"), watch.Underway.Single(),
+                        "a page sees it under way, and how far it has got");
+
+        var again = await Tools(new Shouting()).Summary.InvokeAsync(new JsonObject { ["document"] = path }, CancellationToken.None);
+        Assert.IsTrue(again.IsError);
+        StringAssert.Contains(again.ModelText, "already");
+
+        var translated = await Tools(new Shouting()).Translation.InvokeAsync(new JsonObject { ["document"] = path, ["language"] = "Shouting" }, CancellationToken.None);
+        Assert.IsFalse(translated.IsError, "other work on it goes ahead: " + translated.ModelText);
+
+        summarising.Dispose();
+        Assert.AreEqual(0, _ledger.On(path).Count, "and once it is over, nothing is under way");
     }
 
     [TestMethod]

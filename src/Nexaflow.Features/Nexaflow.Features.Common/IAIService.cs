@@ -209,6 +209,13 @@ void SummarizeDocument(DocumentAsked document);
 /// </summary>
 /// <exception cref="InvalidOperationException">The workspace has no Documents model, or runs no background jobs.</exception>
 void TranslateDocument(DocumentAsked document, string language);
+
+/// <summary>
+/// Follows the whole-document work under way on the document at <paramref name="path"/> — summarising it, translating it,
+/// answering a question about it, whoever set it going — for a page to show on what sets such work going. Made on the UI
+/// thread and kept current on it.
+/// </summary>
+IDocumentWorkWatch WatchDocumentWork(string path);
     }
 
     /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>
@@ -219,8 +226,9 @@ void TranslateDocument(DocumentAsked document, string language);
     public sealed record ClipFromPicture(byte[] Png, string Description, int Seconds, bool Portrait);
 
     /// <summary>
-    /// A markdown document asked to be worked through as a whole: where it is — which names what is made from it, and what that
-    /// leads back to — and what it says now, edits not yet saved included.
+    /// A markdown document asked to be worked through as a whole — a Markdown file or a Markdown Package: where it is, which names
+    /// what is made from it and what that leads back to; what it says now, edits not yet saved included; and where the files it
+    /// names are read from as it stands — beside the file, or where its package is unpacked to be edited — or null for nowhere.
     /// </summary>
-    public sealed record DocumentAsked(string Path, string Source);
+    public sealed record DocumentAsked(string Path, string Source, string? Folder);
 }

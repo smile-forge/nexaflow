@@ -132,4 +132,21 @@ public class MarkdownPackageTests
 
         Assert.ThrowsExactly<InvalidDataException>(() => MarkdownPackage.Unpack(package, Path.Combine(_dir, "open")));
     }
+
+    [TestMethod]
+    public void APackage_IsReadWhereItStands_AsAMarkdownFileIs()
+    {
+        Beside("photo.png", [7, 7]);
+        string package = Path.Combine(_dir, "notes.mdz");
+        MarkdownPackage.Pack("# Notes\r\n\r\n![Photo](photo.png)\r\n", Path.Combine(_dir, "doc"), package);
+        string file = Path.Combine(_dir, "notes.md");
+        File.WriteAllText(file, "# Notes\n");
+
+        Assert.IsTrue(MarkdownDocuments.Names(package) && MarkdownDocuments.Names(file) && !MarkdownDocuments.Names(Path.Combine(_dir, "notes.txt")));
+        Assert.AreEqual("# Notes\n\n![Photo](attachments/photo.png)\n", MarkdownDocuments.ReadText(package), "its own document, read inside it, its lines as the editor has them");
+        Assert.AreEqual(package, MarkdownDocuments.FolderOf(package), "the files it names are read inside it");
+        CollectionAssert.AreEqual(new byte[] { 7, 7 }, VirtualFileSystem.Instance.ReadAllBytes(Path.Combine(MarkdownDocuments.FolderOf(package)!, "attachments", "photo.png")));
+        Assert.AreEqual(_dir, MarkdownDocuments.FolderOf(file), "and a file's, beside it");
+        Assert.IsNull(MarkdownDocuments.ReadText(Path.Combine(_dir, "gone.mdz")), "nothing there is nothing to read");
+    }
 }

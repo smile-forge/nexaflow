@@ -219,19 +219,31 @@
                     <Button Style="{StaticResource TbBtn}"
                             ToolTip="{loc:Str Markdown.Toolbar.Summarize.Tip}"
                             AutomationProperties.AutomationId="Markdown_Summarize"
-                            vc:AiAbilityGating.Gate="{Binding DocumentWork}"
+                            vc:AiAbilityGating.Gate="{Binding SummaryWork}"
                             Command="{Binding SummarizeCommand}">
-                        <TextBlock Text="{loc:Str Markdown.Toolbar.Summarize}" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal">
+                            <!-- A summary of this document under way, from here or by the assistant; the tooltip says how far it has got. -->
+                            <TextBlock Text="⟳" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       Visibility="{Binding IsSummarizing, Converter={StaticResource BoolVis}}"/>
+                            <TextBlock Text="{loc:Str Markdown.Toolbar.Summarize}" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Button>
 
                     <Button x:Name="TranslateButton"
                             Margin="6,0,0,0"
                             Style="{StaticResource TbBtn}"
-                            ToolTip="{loc:Str Markdown.Toolbar.Translate.Tip}"
+                            ToolTip="{Binding TranslateTip}"
                             AutomationProperties.AutomationId="Markdown_Translate"
-                            vc:AiAbilityGating.Gate="{Binding DocumentWork}"
+                            vc:AiAbilityGating.Gate="{Binding TranslationWork}"
                             Command="{Binding OpenTranslateCommand}">
-                        <TextBlock Text="{loc:Str Markdown.Toolbar.Translate}" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal">
+                            <!-- A translation of this document under way, into any language; the tooltip says which, and how far each has got. -->
+                            <TextBlock Text="⟳" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       Visibility="{Binding IsTranslating, Converter={StaticResource BoolVis}}"/>
+                            <TextBlock Text="{loc:Str Markdown.Toolbar.Translate}" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Button>
 
                     <Popup IsOpen="{Binding IsTranslateOpen, Mode=TwoWay}"

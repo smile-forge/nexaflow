@@ -23,8 +23,14 @@ public class DocumentTranslatorTests
 
     private static readonly DocumentGist Gist = DocumentGist.Read(ScriptedModel.Said)!;
 
-    private static Task<string> Translate(IDocumentModel model, IDocumentNotes notes, DocumentGlossary? glossary = null, string source = Document) =>
-        new DocumentTranslator(model, notes).TranslateAsync(DocumentReading.Of(source), Gist, glossary ?? DocumentGlossary.None, "Shouting", CancellationToken.None);
+    private static async Task<string> Translate(IDocumentModel model, IDocumentNotes notes, DocumentGlossary? glossary = null, string source = Document) =>
+        (await Translation(model, notes, glossary, source)).Text;
+
+    private static Task<DocumentTranslation> Translation(IDocumentModel model, IDocumentNotes notes, DocumentGlossary? glossary = null, string source = Document) =>
+        new DocumentTranslator(model, notes).TranslateAsync(DocumentReading.Of(source), Gist, glossary ?? DocumentGlossary.None, "Shouting", Note, CancellationToken.None);
+
+    /// <summary>What the note before a passage kept as written says.</summary>
+    private const string Note = "Kept as written";
 
     [TestMethod]
     public async Task TheWordsAreTranslated_AndEverythingElseIsAsWritten()
@@ -87,13 +93,46 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
-    public async Task AModelThatNeverKeepsTheMarks_StopsTheJob_SayingWhere()
+    public async Task APassageWhoseMarksAreNeverKept_IsKeptAsWritten_WithANote_AndTheRestIsTranslated()
     {
-        var model = new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, piece => System.Text.RegularExpressions.Regex.Replace(piece, @"⟦[^⟧]*⟧", string.Empty)), DocumentReplyEnd.Finished));
+        // The passage with a link and code in it loses them every time; every other passage is translated.
+        var model = new ScriptedModel((instructions, asked) => new(
+            !instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal) ? ScriptedModel.Answer(instructions, asked)
+          : ScriptedModel.Translated(asked, piece => piece.Contains("moon") ? System.Text.RegularExpressions.Regex.Replace(piece, @"⟦[^⟧]*⟧", string.Empty) : ScriptedModel.Shout(piece)),
+            DocumentReplyEnd.Finished));
 
-        var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translate(model, new MemoryNotes()));
+        var translation = await Translation(model, new MemoryNotes());
+
+        StringAssert.Contains(translation.Text, $"*{Note}*\n\nDogs **bark** at [the moon](https://moon.example) and `ls -la` too.",
+            "the passage as the document writes it, the note before it");
+        StringAssert.Contains(translation.Text, "- CATS PURR", "and the rest translated all the same");
+        CollectionAssert.AreEqual(new[] { "Pets" }, translation.Untranslated.ToArray(), "where it stands is said");
+    }
+
+    [TestMethod]
+    public async Task AModelThatCannotBeAsked_StopsTheJob_SayingWhere()
+    {
+        var model = new ScriptedModel((instructions, asked) => instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+            ? new(string.Empty, DocumentReplyEnd.Failed)
+            : new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var failed = await Assert.ThrowsExactlyAsync<DocumentWorkException>(() => Translation(model, new MemoryNotes()));
 
         StringAssert.Contains(failed.Message, "Pets");
+    }
+
+    [TestMethod]
+    public async Task APassageKeptAsWritten_IsAskedForAgain_WhenTranslatingAgain()
+    {
+        var notes = new MemoryNotes();
+        var losing = new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, piece => System.Text.RegularExpressions.Regex.Replace(piece, @"⟦[^⟧]*⟧", string.Empty)), DocumentReplyEnd.Finished));
+        await Translation(losing, notes);
+
+        var keeping = ScriptedModel.Plain();
+        var again = await Translation(keeping, notes);
+
+        Assert.AreEqual(0, again.Untranslated.Count);
+        StringAssert.Contains(again.Text, "DOGS **BARK**", "nothing kept stands in for a translation");
     }
 
     [TestMethod]
@@ -137,5 +176,42 @@ public class DocumentTranslatorTests
         StringAssert.Contains(translated, "## Chats");
         StringAssert.Contains(translated, "[the cats](#chats)", "a link's place is the heading's new name");
         StringAssert.Contains(translated, "[c]: #chats", "and so is a definition's");
+    }
+
+    [TestMethod]
+    public async Task AnAnswerAddingAMarkOfItsOwn_IsTranslatedAllTheSame()
+    {
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? ScriptedModel.Translated(asked, piece => ScriptedModel.Shout(piece) + " ⟦99⟧")
+                : ScriptedModel.Answer(instructions, asked),
+            DocumentReplyEnd.Finished));
+
+        var translation = await Translation(model, new MemoryNotes());
+
+        Assert.AreEqual(0, translation.Untranslated.Count);
+        StringAssert.Contains(translation.Text, "- CATS PURR");
+        Assert.IsFalse(translation.Text.Contains("⟦"), "and nothing it made up is in it");
+    }
+
+    [TestMethod]
+    public async Task PassagesAnsweredShortTogether_AreAskedForInHalves_NotEachOnItsOwn()
+    {
+        // Asked more than two at once, the model leaves the last out.
+        var model = new ScriptedModel((instructions, asked) =>
+        {
+            if (!instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)) return new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished);
+
+            var pieces = ScriptedModel.Pieces(asked);
+            var answered = ScriptedModel.Translated(asked, ScriptedModel.Shout);
+            return new(pieces.Count > 2 ? answered[..answered.LastIndexOf("@@", StringComparison.Ordinal)] : answered, DocumentReplyEnd.Finished);
+        });
+
+        var translation = await Translation(model, new MemoryNotes());
+        var asked = model.Of(ScriptedModel.Translation);
+
+        Assert.AreEqual(0, translation.Untranslated.Count);
+        Assert.IsTrue(asked.Any(question => ScriptedModel.Pieces(question).Count == 2), "halves are asked for");
+        Assert.IsFalse(asked.Skip(2).All(question => ScriptedModel.Pieces(question).Count == 1), "not every piece on its own");
     }
 }

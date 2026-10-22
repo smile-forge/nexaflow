@@ -111,24 +111,30 @@ public sealed class AIService : IAIService
         if (_jobs is not { } jobs) throw new InvalidOperationException("This workspace runs no background jobs.");
 
         var path = Path.GetFullPath(document.Path);
-        if (DocumentToolsFor(new PathScope([path], []), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document.Source : null) is not { } tools)
+        if (DocumentToolsFor(new PathScope([path], []), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document with { Path = path } : null) is not { } tools)
             throw new InvalidOperationException("This workspace has no model in its Documents row.");
 
         arguments[Documents.DocumentJob.DocumentParameter] = path;
         jobs.Start(tool(tools), arguments, origin: null);
     }
 
+    /// <summary>The whole-document work under way in this workspace, by document — whoever set it going.</summary>
+    private readonly Documents.DocumentWorkLedger _documentWork = new();
+
+    public IDocumentWorkWatch WatchDocumentWork(string path) => _documentWork.Watch(path);
+
     /// <summary>
     /// The whole-document tools, working on what <paramref name="scope"/> holds — a document saying what <paramref name="written"/>
     /// says of it where that is not null — or null where the workspace's Documents row has no model now, or there is no shell to
     /// open what they make in.
     /// </summary>
-    private Documents.DocumentTools? DocumentToolsFor(PathScope scope, Func<string, string?> written)
+    private Documents.DocumentTools? DocumentToolsFor(PathScope scope, Func<string, DocumentAsked?> written)
     {
         if (GetProvider(AiAbility.Documents) is null || _workspace.ShellServices is not { } shell) return null;
 
         return new Documents.DocumentTools(new Documents.DocumentJob(DocumentModelAsync, _workspace.Workspace.DocumentNotesDir, scope, written,
-                                                                     Generation.GeneratedFiles.For(shell, scope), ProviderManager.Instance.ActivityManager));
+                                                                     Generation.GeneratedFiles.For(shell, scope), ProviderManager.Instance.ActivityManager,
+                                                                                                                                  _documentWork));
     }
 
     /// <summary>

@@ -89,11 +89,20 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>The workspace's AI, which works through the whole document; null where the page was made without one.</summary>
     private readonly IAIService? _ai;
 
+    /// <summary>The gate on the workspace's Documents model, which both whole-document buttons stand behind; null without an AI service.</summary>
+    private readonly IAiAbilityGate? _documentModel;
+
     /// <summary>
-    /// Whether the workspace has a model to work through the whole document with — its Documents row — for Summarise and
-    /// Translate to bind; null without an AI service.
+    /// Whether Summarise works now, and why not where it does not — the document not one it works on, a summary of it under way
+    /// already, no Documents model — for the button to bind; null without an AI service.
     /// </summary>
-    public IAiAbilityGate? DocumentWork { get; }
+    public DocumentWorkGate? SummaryWork { get; }
+
+    /// <summary>Whether Translate works now, and why not where it does not, as <see cref="SummaryWork"/> says it for Summarise.</summary>
+    public DocumentWorkGate? TranslationWork { get; }
+
+    /// <summary>The whole-document work under way on this document, from here or by the assistant; null without an AI service.</summary>
+    private IDocumentWorkWatch? _work;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -157,7 +166,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath       = filePath;
         _shell         = shell;
         _ai            = ai;
-        DocumentWork   = ai?.Gate(AiAbility.Documents);
+        _documentModel = ai?.Gate(AiAbility.Documents);
+        if (_documentModel is { } documents)
+        {
+            SummaryWork     = new DocumentWorkGate(documents);
+            TranslationWork = new DocumentWorkGate(documents);
+        }
         InitialHeading = initialHeading;
         InitialPlace   = initialPlace;
         _draftFolder   = draftFolder;
@@ -175,6 +189,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
                 : string.Empty;
         }
         Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
+        WatchWork();
     }
 
     // ── Commands ──────────────────────────────────────────────────────────
@@ -229,9 +244,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath = target;
         OnPropertyChanged(nameof(FilePath));
         OnPropertyChanged(nameof(FileName));
-        SummarizeCommand.NotifyCanExecuteChanged();
-        OpenTranslateCommand.NotifyCanExecuteChanged();
         DraftFolder = null;
+        WatchWork();
         _savedText  = Markdown;
         IsDirty     = false;
         Moved?.Invoke(target);
@@ -254,7 +268,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>Lets go of what follows the workspace's models, and of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
     public void Release()
     {
-        DocumentWork?.Dispose();
+        if (_work is { } work)
+        {
+            work.PropertyChanged -= OnWorkChanged;
+            work.Dispose();
+        }
+        SummaryWork?.Dispose();
+        TranslationWork?.Dispose();
+        _documentModel?.Dispose();
 
         if (DocumentFolder is { } folder && folder.StartsWith(Path.Combine(Path.GetTempPath(), "nexaflow-mdz"), StringComparison.OrdinalIgnoreCase))
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -278,7 +299,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
 
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile && uri.Fragment.Length > 1 && IsMarkdownFile(uri.LocalPath))
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile && uri.Fragment.Length > 1 && MarkdownDocuments.Names(uri.LocalPath))
         {
             _shell.OpenTab(MarkdownTabRegistration.StaticPageKind, new Dictionary<string, string>
             {
@@ -291,14 +312,78 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         return _shell.HandleObject(url);
     }
 
-    /// <summary>Whether <paramref name="path"/> is a markdown document as a file — not a package, not a file of one fenced language.</summary>
-    private static bool IsMarkdownFile(string path) =>
-        Path.GetExtension(path).ToLowerInvariant() is ".md" or ".markdown";
-
     // ── The whole document, with the workspace's AI ───────────────────────
 
-    /// <summary>Whether the document can be worked through as a whole: a markdown file of its own, on disk.</summary>
-    public bool WorksOnDocument => WrittenIn is null && IsMarkdownFile(FilePath) && DraftFolder is null;
+    /// <summary>
+    /// Whether the document can be worked through as a whole: a Markdown document — a file, or a package as a .docx is one — saved
+    /// where it is, not a draft, nor a file of one fenced language drawn whole.
+    /// </summary>
+    public bool WorksOnDocument => DocumentRefusal is null;
+
+    /// <summary>Why the document cannot be worked through as a whole, as the buttons' tooltips say it; null where it can.</summary>
+    private string? DocumentRefusal =>
+        WrittenIn is not null || !MarkdownDocuments.Names(FilePath) ? Str.Format("Markdown.DocumentWork.NotADocumentFormat", FileName)
+      : DraftFolder is not null                                     ? Str.Get("Markdown.DocumentWork.SaveFirst")
+      : null;
+
+    /// <summary>Whether the document is being summarised now, from here or by the assistant.</summary>
+    public bool IsSummarizing => Underway(DocumentWorkKind.Summary).Count > 0;
+
+    /// <summary>Whether the document is being translated now, into any language, from here or by the assistant.</summary>
+    public bool IsTranslating => Underway(DocumentWorkKind.Translation).Count > 0;
+
+    /// <summary>What Translate's tooltip says: what it does, or each translation of the document under way and how far it has got.</summary>
+    public string TranslateTip => Underway(DocumentWorkKind.Translation) is { Count: > 0 } translating
+        ? string.Join("\n\n", translating.Select(Saying))
+        : Str.Get("Markdown.Toolbar.Translate.Tip");
+
+    /// <summary>The work of <paramref name="kind"/> under way on the document now.</summary>
+    private IReadOnlyList<DocumentWorkUnderway> Underway(DocumentWorkKind kind) =>
+        _work is null ? [] : [.. _work.Underway.Where(work => work.Kind == kind)];
+
+    /// <summary>Work under way, as a tooltip says it: what is being done, then how far it has got.</summary>
+    private static string Saying(DocumentWorkUnderway work)
+    {
+        var doing = work.Kind == DocumentWorkKind.Translation
+            ? Str.Format("Markdown.DocumentWork.TranslatingFormat", work.Language ?? string.Empty)
+            : Str.Get("Markdown.DocumentWork.Summarizing");
+        return work.Progress is { } progress ? $"{doing}\n{progress}" : doing;
+    }
+
+    /// <summary>Follows the work under way on the document where it is now — again after it is saved somewhere else.</summary>
+    private void WatchWork()
+    {
+        if (_work is { } watched)
+        {
+            watched.PropertyChanged -= OnWorkChanged;
+            watched.Dispose();
+        }
+        _work = _ai?.WatchDocumentWork(FilePath);
+        if (_work is not null) _work.PropertyChanged += OnWorkChanged;
+        RefreshDocumentWork();
+    }
+
+    private void OnWorkChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => RefreshDocumentWork();
+
+    partial void OnDraftFolderChanged(string? value) => RefreshDocumentWork();
+
+    /// <summary>
+    /// Says again whether each whole-document button works, and why not: the document's reason first, then — for Summarise — a
+    /// summary of it under way already. Translate stays open while it translates, into any other language.
+    /// </summary>
+    private void RefreshDocumentWork()
+    {
+        var refusal = DocumentRefusal;
+        if (SummaryWork is { } summary)
+            summary.Refusal = refusal ?? (Underway(DocumentWorkKind.Summary) is [var summarizing, ..] ? Saying(summarizing) : null);
+        if (TranslationWork is { } translation) translation.Refusal = refusal;
+
+        OnPropertyChanged(nameof(IsSummarizing));
+        OnPropertyChanged(nameof(IsTranslating));
+        OnPropertyChanged(nameof(TranslateTip));
+        SummarizeCommand.NotifyCanExecuteChanged();
+        OpenTranslateCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>Whether the language to translate into is being chosen.</summary>
     [ObservableProperty]
@@ -320,8 +405,11 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// Summarises the whole document — as it stands, edits not yet saved included — with the workspace's Documents model: a
     /// background job, listed with the others and stoppable there; the summary opens beside it when made.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(WorksOnDocument))]
-    private Task Summarize() => StartDocumentWorkAsync(ai => ai.SummarizeDocument(new DocumentAsked(FilePath, Markdown)));
+    [RelayCommand(CanExecute = nameof(CanSummarize))]
+    private Task Summarize() => StartDocumentWorkAsync(SummaryWork, ai => ai.SummarizeDocument(new DocumentAsked(FilePath, Markdown, DocumentFolder)));
+
+    /// <summary>Whether Summarise sets anything going: the document is one it works on, and no summary of it is under way.</summary>
+    private bool CanSummarize => WorksOnDocument && !IsSummarizing;
 
     /// <summary>Asks which language to translate the document into.</summary>
     [RelayCommand(CanExecute = nameof(WorksOnDocument))]
@@ -341,16 +429,16 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         if (TranslateInto.Trim() is not { Length: > 0 } language) return;
 
         IsTranslateOpen = false;
-        await StartDocumentWorkAsync(ai => ai.TranslateDocument(new DocumentAsked(FilePath, Markdown), language));
+        await StartDocumentWorkAsync(TranslationWork, ai => ai.TranslateDocument(new DocumentAsked(FilePath, Markdown, DocumentFolder), language));
     }
 
     /// <summary>
-    /// Sets the work going once the Documents model is ready: where it waits on a download, its first use offers it and the
-    /// work waits for it to land (<see cref="IAiAbilityGate.MakeReadyAsync"/>).
+    /// Sets the work going once <paramref name="gate"/> opens on it: where the Documents model waits on a download, its first use
+    /// offers it and the work waits for it to land (<see cref="IAiAbilityGate.MakeReadyAsync"/>).
     /// </summary>
-    private async Task StartDocumentWorkAsync(Action<IAIService> start)
+    private async Task StartDocumentWorkAsync(DocumentWorkGate? gate, Action<IAIService> start)
     {
-        if (_ai is not { } ai || DocumentWork is not { } gate || !await gate.MakeReadyAsync()) return;
+        if (_ai is not { } ai || gate is null || !await gate.MakeReadyAsync()) return;
 
         try { start(ai); }
         catch (InvalidOperationException ex) { _shell.ShowError(ex.Message); }

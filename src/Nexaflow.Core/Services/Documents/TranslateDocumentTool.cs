@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 
 using Nexaflow.Core.Services.Generation;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Documents.Processing;
 using Nexaflow.Visuals.Common.Localization;
@@ -51,14 +52,19 @@ internal sealed class TranslateDocumentTool(DocumentJob job) : IClientTool
         if (Language(arguments) is not { } language)
             return Task.FromResult(ToolResult.Error("no language", $"Give the '{LanguageParameter}' to translate it into."));
 
-        return job.RunAsync(arguments, name => Str.Format("Shell.Documents.TranslationNameFormat", name, language) + ".md",
+        return job.RunAsync(arguments, DocumentWorkKind.Translation, language, name => Str.Format("Shell.Documents.TranslationNameFormat", name, language) + ".md",
                             [DocumentGistPass.Shelf, DocumentGlossaryPass.Shelf, DocumentTranslator.ShelfFor(language)],
                             async work =>
                             {
                                 var gist = await new DocumentGistPass(work.Model, work.Notes, work.Progress).SayAsync(work.Reading, ct);
                                 var glossary = await new DocumentGlossaryPass(work.Model, work.Notes, work.Progress).GatherAsync(work.Reading, gist, language, ct);
 
-                                return await new DocumentTranslator(work.Model, work.Notes, work.Progress).TranslateAsync(work.Reading, gist, glossary, language, ct);
+                                var translation = await new DocumentTranslator(work.Model, work.Notes, work.Progress)
+                                    .TranslateAsync(work.Reading, gist, glossary, language, Str.Get("Shell.Documents.Untranslated"), ct);
+
+                                return new DocumentMade(translation.Text, translation.Untranslated.Count == 0 ? null
+                                    : "These parts are kept in the document's own language, a note before each, as no translation of them kept their markup: "
+                                      + string.Join("; ", translation.Untranslated.Select(where => $"“{where}”")) + ". Translating it again tries them again.");
                             },
                             ct);
     }

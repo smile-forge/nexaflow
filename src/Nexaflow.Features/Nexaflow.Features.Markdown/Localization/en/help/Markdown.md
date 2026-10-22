@@ -52,9 +52,14 @@ the document is worked through a piece at a time, each piece sized to what the m
   heading's **↗** leads back to that section in the document. [Show me](locate:Markdown_Summarize)
 - **Translate** — choose the language, named in English, and the document is written again in it a passage at a time,
   keeping to its register, tone and voice, its names and terms given the same way throughout. Its markup, code,
-  diagrams, front matter and where its links go stay exactly as they are. [Show me](locate:Markdown_Translate)
+  diagrams, front matter and where its links go stay exactly as they are. A passage no translation keeps the markup of
+  stays as the document writes it, with a note before it saying so — the rest is translated all the same, and you are told
+  which sections those are. Translating again tries them again. [Show me](locate:Markdown_Translate)
 - **In the background.** Either is listed with the workspace's background tasks, saying how far it has got, and can be
-  stopped there. What it makes opens as a draft; its first save starts beside the document.
+  stopped there. While it works, its button shows **⟳** and its tooltip says what it is doing and how far it has got —
+  whether you set it going or the assistant did. A second summary of the same document waits for the first; a
+  translation into another language can go at the same time. What it makes opens as a draft; its first save starts beside
+  the document.
 - **Again is quicker.** What was worked out is kept for the workspace, on this machine: summarise or translate an edited
   document again and only the sections that changed are read again — and a stopped translation carries on where it was.
 - **The assistant can too** — ask it to summarise or translate a markdown document open in a tab.
@@ -62,8 +67,9 @@ the document is worked through a piece at a time, each piece sized to what the m
   *which chapters deal with complex numbers?* It goes down the document's summary to the sections that bear on the
   question, reads only those, and links each section its answer cites back to where it is. A document not yet summarised
   as it stands is summarised first, in the background.
-- **A Markdown file.** It works on a `.md` file as the editor holds it, unsaved edits included; save a draft or a
-  Markdown Package as a `.md` file first.
+- **A Markdown document.** It works on a Markdown file or a Markdown Package (`.mdz`) as the editor holds it, unsaved edits
+  included — a package's pictures come with it, as a Word document's do. A draft is saved first, so what is made leads back
+  to where it is. When a button cannot be used, its tooltip says why.
 
 ---
 

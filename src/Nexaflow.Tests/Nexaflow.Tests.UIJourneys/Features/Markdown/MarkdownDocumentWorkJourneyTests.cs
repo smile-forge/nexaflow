@@ -8,6 +8,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
+using System.IO.Compression;
 
 namespace Nexaflow.Tests.Features.Markdown.UI;
 
@@ -35,6 +36,9 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
 
     private const string FileName = "guide.md";
 
+    /// <summary>The same guide kept as a Markdown Package, its picture inside it.</summary>
+    private const string PackageName = "guide.mdz";
+
     /// <summary>The garden's guide: a title over three sections, the first long enough that the last starts out of view.</summary>
     private static readonly string Guide =
         "# Field guide\n\nA short guide to the garden, written for a first visit.\n\n" +
@@ -42,6 +46,10 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
         "## Trees\n\nThe oak by the gate is two hundred years old. Run `measure --girth` to see how wide it has grown.\n\n" +
         "```text\ngirth: 4.1 m\n```\n\nSee [the pond](#the-pond) for where the water comes from.\n\n" +
         "## The pond\n\nFrogs lay their eggs here in March. The season's notes are in the [pond notes](https://example.com/pond).\n";
+
+    /// <summary>A picture of one pixel, for the package's document to name.</summary>
+    private static readonly byte[] OnePixel = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     private string _aiDir = "";
     private string _folder = "";
@@ -64,6 +72,12 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-documents-").FullName;
         File.WriteAllText(Path.Combine(_folder, FileName), Guide);
+        using (var package = ZipFile.Open(Path.Combine(_folder, PackageName), ZipArchiveMode.Create))
+        {
+            using (var document = new StreamWriter(package.CreateEntry("document.md").Open()))
+                document.Write(Guide.Replace("## Birds\n\n", "## Birds\n\n![A robin](attachments/robin.png)\n\n"));
+            using (var picture = package.CreateEntry("attachments/robin.png").Open()) picture.Write(OnePixel);
+        }
 
         var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var workspaces = Path.Combine(configDir, "workcontexts");
@@ -118,7 +132,7 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
 
         // Summarise: the model loads, then the document is read a section at a time in the background.
         CheckDoes("Summarise sets the summary going, and it opens beside the document", "Markdown_Summarize",
-                  () => WaitFor(() => Back("field-guide"), Affordable(600)) is not null, seconds: 10);
+                  () => Made(() => Back("field-guide")), seconds: 10);
         Check("each section's heading leads back to it", () =>
             new[] { "field-guide", "birds", "trees", "the-pond" }.All(anchor => Back(anchor) is not null));
         Check("following the pond's heading shows the pond in the document", () =>
@@ -129,8 +143,7 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
         Check("Translate asks for the language", () => Press(Leftmost("Markdown_Translate")) && WaitForId("Markdown_TranslateTo", 5) is not null);
         Check("French is chosen", () => TypeInPopup("Markdown_TranslateTo", "French"));
         CheckDoes("Translate it sets the translation going, and it opens beside the document", "Markdown_TranslateGo",
-                  () => WaitFor(() => Rightmost("MarkdownView") is { } draft && Source(draft) is { } said && IsTranslation(said) ? draft : null,
-                                Affordable(600)) is not null, seconds: 10);
+                  () => Made(() => Rightmost("MarkdownView") is { } draft && Source(draft) is { } said && IsTranslation(said) ? draft : null), seconds: 10);
 
         var translated = Rightmost("MarkdownView") is { } shown ? Source(shown) ?? "" : "";
         Check("its code is as it was", () => translated.Contains("`measure --girth`") && translated.Contains("```text\ngirth: 4.1 m\n```"));
@@ -145,18 +158,64 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>
+    /// A Markdown Package is worked through as its document, as a Word document is: Summarise is offered for it, says while it
+    /// works that it is summarising, and the summary's headings lead back into the package, at their sections.
+    /// </summary>
+    [TestMethod]
+    public void APackage_IsSummarisedAsItsDocument_ItsButtonSayingWhatItDoes_AndTheSummaryLeadsBackIntoIt()
+    {
+        var view = OpenFileVia(_folder, PackageName, "ShowMarkdownAction", "MarkdownView");
+        Assert.IsNotNull(view, "MarkdownView did not open the package via the 'Markdown' action.");
+
+        var summarize = CheckPresent("Summarise", "Markdown_Summarize");
+        Check("Summarise is offered for a package", () => summarize is not null && summarize.IsEnabled);
+        Check("while it summarises, Summarise says so", () =>
+            Press(summarize) && WaitFor(() => Leftmost("Markdown_Summarize") is { } button && button.HelpText.Contains("Summarising", StringComparison.OrdinalIgnoreCase) ? button : null, 60) is not null);
+
+    Check("the summary opens beside the package, its title leading back into it", () => Made(() => Back("field-guide", PackageName)));
+        Check("each section's heading leads back into the package", () =>
+            new[] { "birds", "trees", "the-pond" }.All(anchor => Back(anchor, PackageName) is not null));
+        Check("following the pond's heading shows the pond in the package", () =>
+            Back("the-pond", PackageName)?.Patterns.Invoke.PatternOrDefault is { } follow && Invoked(follow)
+            && WaitFor(() => Link("pond notes") is { IsOffscreen: false } shown ? shown : null, 15) is not null);
+        Check("and once it is made, Summarise is offered again", () =>
+            WaitFor(() => Leftmost("Markdown_Summarize") is { IsEnabled: true } button ? button : null, 30) is not null);
+
+        AssertJourney();
+    }
+
+    /// <summary>
     /// Whether what a draft says is the guide translated: its block of code, which only the document itself and its
     /// translation hold — the summary says what the document says — and not the birds' English, which only the document does.
     /// </summary>
     private static bool IsTranslation(string said) => said.Contains("girth: 4.1 m") && !said.Contains("Robins and blackbirds");
 
+    /// <summary>
+    /// Waits for what a background job makes to show — <paramref name="shown"/> — and stops waiting as soon as a message says the
+    /// job could not finish, writing what it says to the run's output, so a failed job is read rather than waited out.
+    /// </summary>
+    private bool Made(Func<AutomationElement?> shown)
+    {
+        string said = "";
+        var found = WaitFor(() => shown() is { } made ? made : (said = Messages()).Length > 0 ? MainWindow : null, Affordable(600));
+        if (said.Length > 0) System.Console.WriteLine($"[messages] {said}");
+        return found is not null && said.Length == 0;
+    }
+
+    /// <summary>What the shell's messages say, each one's lines joined; empty where there are none.</summary>
+    private string Messages() => string.Join(" | ",
+        MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.DataItem))
+                  .Where(item => item.Name.EndsWith("NotificationItem", StringComparison.Ordinal))
+                  .Select(item => string.Join(" — ", item.FindAllDescendants(cf => cf.ByControlType(ControlType.Edit))
+                                                         .Select(edit => edit.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault ?? edit.Name))));
+
     /// <summary>A link of a document in view, by its words.</summary>
     private AutomationElement? Link(string words) => Links().FirstOrDefault(link => link.Name.Contains(words, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>A summary's heading link back to the section <paramref name="anchor"/> names, in the document summarised.</summary>
-    private AutomationElement? Back(string anchor) => Links().FirstOrDefault(link =>
+    private AutomationElement? Back(string anchor, string document = FileName) => Links().FirstOrDefault(link =>
         link.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault is { } target
-        && target.EndsWith(FileName + "#heading%3A" + anchor, StringComparison.OrdinalIgnoreCase));
+        && target.EndsWith(document + "#heading%3A" + anchor, StringComparison.OrdinalIgnoreCase));
 
     private AutomationElement[] Links() => MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Hyperlink));
 

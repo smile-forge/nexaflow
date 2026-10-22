@@ -146,12 +146,42 @@ public sealed partial class ProtectedText
     }
 
     /// <summary>
+    /// <paramref name="answer"/> to <paramref name="source"/> with every mark it made up taken out — a <c>⟦n⟧</c> or a tag the
+    /// passage does not hold stands for nothing, so dropping it loses nothing that was written — the space it leaves closed up.
+    /// The marks the passage does hold stay as the answer gave them, for <see cref="Problem"/> to judge.
+    /// </summary>
+    public static string Mended(string source, string answer)
+    {
+        var held = Marks(source).ToHashSet();
+        var mended = new StringBuilder(answer.Length);
+        var at = 0;
+
+        foreach (Match mark in Mark().Matches(answer))
+        {
+            if (held.Contains(StandsFor(mark))) continue;
+
+            mended.Append(answer, at, mark.Index - at);
+            at = mark.Index + mark.Length;
+
+            // One space between the words either side, where the mark stood between two.
+            if (mended.Length > 0 && mended[^1] == ' ' && at < answer.Length && answer[at] == ' ') at++;
+        }
+
+        return at == 0 ? answer : mended.Append(answer, at, answer.Length - at).ToString();
+    }
+
+    /// <summary>
     /// What is wrong with <paramref name="answer"/> as words standing in for <paramref name="source"/>'s: a <c>⟦n⟧</c> or a tag of
     /// the source's missing from it or there twice, one the source never had, or a pair closed before it is opened or across
     /// another. Null where it holds each of the source's once, every pair opened and closed in its order.
     /// </summary>
     public static string? Problem(string source, string answer)
     {
+        // Something written as a mark that is none — two numbers run together, a word bracketed — is not words a reader can
+        // read either; the passage's own text is the only place one may stand.
+        if (Strays().Matches(answer).Select(stray => stray.Value).FirstOrDefault(stray => !Mark().IsMatch(stray) && !source.Contains(stray)) is { } made)
+            return $"{made} is no mark of this passage: write what it stands for as words, or the passage's own marks as they are";
+
         var wanted = Marks(source);
         var given = Marks(answer);
 
@@ -303,10 +333,12 @@ public sealed partial class ProtectedText
     /// Every <c>⟦n⟧</c> and tag in <paramref name="text"/>, by what it stands for: a shown mark by its number alone, since what
     /// it shows is written back as it was whatever an answer made of it.
     /// </summary>
-    private static List<string> Marks(string text) =>
-        [.. Mark().Matches(text).Select(match => match.Groups["hold"].Success
-            ? $"⟦{match.Groups["hold"].Value}⟧"
-            : $"<{match.Groups["closes"].Value}{match.Groups["pair"].Value}>")];
+    private static List<string> Marks(string text) => [.. Mark().Matches(text).Select(StandsFor)];
+
+    /// <summary>A mark by what it stands for: its number, and for a tag whether it opens or closes.</summary>
+    private static string StandsFor(Match mark) => mark.Groups["hold"].Success
+        ? $"⟦{mark.Groups["hold"].Value}⟧"
+        : $"<{mark.Groups["closes"].Value}{mark.Groups["pair"].Value}>";
 
     /// <summary>What a block is said as, in order.</summary>
     private enum Said
@@ -324,6 +356,10 @@ public sealed partial class ProtectedText
 
     [GeneratedRegex(@"⟦\s*(?<hold>\d+)(?:\s[^⟧]*)?⟧|<\s*(?<closes>/?)\s*(?<pair>\d+)\s*>")]
     private static partial Regex Mark();
+
+    /// <summary>Anything written between the brackets a mark is written in.</summary>
+    [GeneratedRegex(@"⟦[^⟦⟧]*⟧")]
+    private static partial Regex Strays();
 
     [GeneratedRegex(@"\s*\n\s*")]
     private static partial Regex Breaks();
