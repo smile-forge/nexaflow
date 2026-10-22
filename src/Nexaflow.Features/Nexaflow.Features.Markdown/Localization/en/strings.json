@@ -17,5 +17,12 @@
   "Markdown.Search.LineFormat": "line {0}",
   "Markdown.Search.MatchFormat": "match {0}",
   "Markdown.Error.SaveFailedFormat": "The document could not be saved: {0}",
-  "Markdown.Error.PictureSaveFailedFormat": "Could not save the picture to {0}: {1}"
+  "Markdown.Error.PictureSaveFailedFormat": "Could not save the picture to {0}: {1}",
+  "Markdown.Toolbar.Summarize": "Summarise",
+  "Markdown.Toolbar.Summarize.Tip": "Summarise the whole document, section by section, with this workspace's Documents model. The summary opens beside it, a heading per section leading back to it.",
+  "Markdown.Toolbar.Translate": "Translate…",
+  "Markdown.Toolbar.Translate.Tip": "Translate the whole document into another language with this workspace's Documents model, keeping its markup, code and diagrams as they are. The translation opens beside it.",
+  "Markdown.Translate.Into": "Translate into",
+  "Markdown.Translate.Go": "Translate",
+  "Markdown.Translate.Cancel": "Cancel",
 }

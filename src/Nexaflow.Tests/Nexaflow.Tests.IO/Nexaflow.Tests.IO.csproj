@@ -51,6 +51,7 @@
          and what keeps these tests runnable without a desktop session or a shell. -->
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.CompoundFile\Nexaflow.IO.CompoundFile.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Documents\Nexaflow.IO.Documents.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Hdf5\Nexaflow.IO.Hdf5.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />

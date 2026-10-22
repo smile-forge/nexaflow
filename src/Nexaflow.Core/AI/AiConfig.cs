@@ -42,10 +42,11 @@ public sealed class AiConfig : IProviderConfig
 
     /// <summary>
     /// Brings a grid saved by an earlier version up to the abilities there are now — <see cref="FoldIntoGeneralIntelligence"/>,
-    /// then <see cref="AddDefaultSpeechIn"/>. Run on every grid as it is read; a grid already up to date is left as it is.
+    /// then <see cref="AddDefaultSpeechIn"/> and <see cref="AddDefaultDocuments"/>. Run on every grid as it is read; a grid already
+    /// up to date is left as it is.
     /// Returns whether anything changed, so the caller saves it.
     /// </summary>
-    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn();
+    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn() | AddDefaultDocuments();
 
     /// <summary>The rows General Intelligence took the place of, as a grid saved before it names them.</summary>
     private static readonly string[] FoldedIntoGeneralIntelligence = ["Conversation", "ProblemSolving", "Analysis"];
@@ -80,6 +81,20 @@ public sealed class AiConfig : IProviderConfig
         if (Assignments.ContainsKey(key)) return false;
 
         Assignments[key] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.SpeechToText));
+        return true;
+    }
+
+    /// <summary>
+    /// Gives Documents its starting chain when this grid has never had that row — a grid saved before the row existed: the
+    /// models General Intelligence is given, since working through a document is the same kind of thinking, done a piece at a
+    /// time. A chain the user has emptied is a chain, and is left alone. Returns whether anything was added.
+    /// </summary>
+    public bool AddDefaultDocuments()
+    {
+        var key = nameof(AiAbility.Documents);
+        if (Assignments.ContainsKey(key) || !Assignments.TryGetValue(nameof(AiAbility.GeneralIntelligence), out var general)) return false;
+
+        Assignments[key] = AbilityChain.Of([.. general.ColumnIds]);
         return true;
     }
 }

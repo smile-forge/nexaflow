@@ -20,12 +20,13 @@ public sealed record OwnedColumns(ProviderModelPair Language, ProviderModelPair?
 internal static class WorkspaceAiDefaults
 {
     /// <summary>
-    /// The roles called most and needing least — routing a request, describing an image — which a mixed workspace gives to
-    /// the model on this machine first: that is where API cost actually goes. General Intelligence holds both models with
-    /// the chosen provider first; each request is judged, so light work still runs on this machine.
-    /// </summary>
-    internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
-        new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.ImageRecognition };
+/// The roles called most and needing least — routing a request, describing an image, working through a document a piece
+/// at a time — which a mixed workspace gives to the model on this machine first: that is where API cost actually goes.
+/// General Intelligence holds both models with the chosen provider first; each request is judged, so light work still runs
+/// on this machine.
+/// </summary>
+internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
+    new HashSet<AiAbility> { AiAbility.Disambiguation, AiAbility.ImageRecognition, AiAbility.Documents };
 
     /// <summary>
     /// The grid a setup chooses. Nexaflow alone: the Local column in every row it serves. A provider alone: the provider's

@@ -191,6 +191,24 @@ namespace Nexaflow.Features.Common
 
         /// <summary>A gate on <paramref name="abilities"/> for a control to bind, made on the UI thread and kept current on it.</summary>
         IAiAbilityGate Gate(params AiAbility[] abilities);
+
+/// <summary>
+/// Summarises a markdown document as the user set it going, the way the assistant's own slow calls run: one of the workspace's
+/// background jobs — listed with the others and stoppable there, saying how far it has got, the user told when it ends. What
+/// the document is is said first, then each section from the deepest up; the summary opens as a document of its own, a heading
+/// per section leading back to it. Returns once it has started; nothing is asked first, the user having asked. What needs it
+/// is enabled by a gate on <see cref="AiAbility.Documents"/>.
+/// </summary>
+/// <exception cref="InvalidOperationException">The workspace has no Documents model, or runs no background jobs.</exception>
+void SummarizeDocument(DocumentAsked document);
+
+/// <summary>
+/// Translates a markdown document into <paramref name="language"/> as the user set it going, a background job as
+/// <see cref="SummarizeDocument"/> is: its words in the other language, everything else as written. The translation opens as
+/// a document of its own.
+/// </summary>
+/// <exception cref="InvalidOperationException">The workspace has no Documents model, or runs no background jobs.</exception>
+void TranslateDocument(DocumentAsked document, string language);
     }
 
     /// <summary>A clip the user asks for from a picture: the picture as they see it, what happens, how long, and which way up.</summary>
@@ -199,4 +217,10 @@ namespace Nexaflow.Features.Common
     /// <param name="Seconds">One of <see cref="IAIService.PictureClipLengths"/>.</param>
     /// <param name="Portrait">Taller than wide; otherwise wider than tall.</param>
     public sealed record ClipFromPicture(byte[] Png, string Description, int Seconds, bool Portrait);
+
+    /// <summary>
+    /// A markdown document asked to be worked through as a whole: where it is — which names what is made from it, and what that
+    /// leads back to — and what it says now, edits not yet saved included.
+    /// </summary>
+    public sealed record DocumentAsked(string Path, string Source);
 }

@@ -26,14 +26,7 @@ public static class MarkdownAnchors
 
     /// <summary>The name a heading answers to, where the document's working over gave it one (<see cref="WithTargets"/>) — for what reads a page's headings before it is shown.</summary>
     public static string? IdOf(ContentNode heading)
-    {
-        foreach (var child in heading.Children)
-            foreach (var held in child.Children)
-                if (held.Kind == MarkdownKinds.Anchor && held.Held is string id)
-                    return id;
-
-        return null;
-    }
+    => MarkdownSections.AnchorOf(heading);
 
     /// <summary>
     /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,

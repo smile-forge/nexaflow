@@ -112,7 +112,7 @@ public sealed class MarkdownParser : ITranspile
     {
         var targets = new LinkTargets();
 
-        return new AstPipeline(new WithTargets(targets), new WithReferences(targets)).Run(Parsing()(source ?? string.Empty).Tree);
+        return new AstPipeline(new WithTargets(targets), new WithReferences(targets), new WithSections()).Run(Parsing()(source ?? string.Empty).Tree);
     }
 
     /// <summary>
@@ -444,6 +444,87 @@ public sealed class MarkdownParser : ITranspile
         if (at == part.Start && !Worded(part)) return null;
         if (at == part.Start && begins && part.Print() is { Length: > 0 } ahead && Marked(ahead, 0, true, table)) return null;
 
+        return Lines(text, begins, table);
+    }
+
+    /// <summary>
+    /// How prose spells <paramref name="words"/> standing where <paramref name="part"/>'s own did — the words of a run put back in
+    /// another language, say: every character markdown would read as markup there given the backslash that makes it a character,
+    /// as a change written into the document is spelled.
+    /// </summary>
+    public static string SpellWords(ContentPart part, string words) =>
+        Lines(words, Begins(part, part.Start), Within(part, MarkdownKinds.Table) || Within(part, MarkdownKinds.Row) || Within(part, MarkdownKinds.Cell));
+
+    /// <summary>
+    /// How prose spells <paramref name="words"/> in a document being written afresh: as the words of a line of their own where
+    /// <paramref name="startsLine"/>, or carrying one on after markup that opened it — a heading's hashes, say.
+    /// </summary>
+    public static string SpellWords(string words, bool startsLine) => Lines(words, startsLine, table: false);
+
+    /// <summary>
+    /// How prose spells <paramref name="paragraph"/> — markdown a writer gave as one paragraph, a summary's, say — as a paragraph
+    /// and nothing more, its inline markup — emphasis, code, a link, a formula — left to be read as written.
+    ///
+    /// <para>
+    /// A line is spelled only where it would be read as more than a paragraph's words: read on its own it opens something else — a
+    /// heading, a list, a quote, a fence, a rule, raw HTML, a link's definition — or it is the underline that would make the line
+    /// above a heading. Such a line loses the space in front of it, which means nothing in a paragraph, and its opening character
+    /// is given the backslash that makes it a character. A line opening nothing is written as it was, so a paragraph starting with
+    /// <c>`code`</c> keeps its code. Where the lines still read as more than one paragraph together — a table made of two — every
+    /// line's opening is spelled.
+    /// </para>
+    /// </summary>
+    public static string SpellParagraph(string paragraph)
+    {
+        var lines = paragraph.Split('\n');
+        var spelled = new string[lines.Length];
+
+        for (var at = 0; at < lines.Length; at++)
+            spelled[at] = Opens(lines[at], underlines: at > 0) ? Opening(lines[at].TrimStart()) : lines[at];
+
+        var said = string.Join('\n', spelled);
+        if (OneParagraph(said)) return said;
+
+        return string.Join('\n', lines.Select(line => line.Trim().Length == 0 ? line : Opening(line.TrimStart())));
+    }
+
+    /// <summary>Whether <paramref name="line"/>, standing in a paragraph, would be read as anything but its words.</summary>
+    private static bool Opens(string line, bool underlines)
+    {
+        var said = line.Trim();
+        if (said.Length == 0) return false;
+        if (underlines && said.All(character => character == '=') || underlines && said.All(character => character == '-')) return true;
+
+        return !OneParagraph(line);
+    }
+
+    /// <summary>Whether <paramref name="text"/> is read as one paragraph and nothing else.</summary>
+    private static bool OneParagraph(string text) =>
+        Parsing()(text).Tree.Children.Where(part => !part.IsDerived && part.Role != Roles.Trivia).ToList() is [{ Kind: MarkdownKinds.Paragraph }];
+
+    /// <summary><paramref name="line"/> with what opens it given the backslash that makes it a character: its first, or the mark after the number an item is counted by.</summary>
+    private static string Opening(string line)
+    {
+        for (var mark = 0; mark < line.Length && mark <= 9; mark++)
+        {
+            var opens = mark == 0 ? MarkdownLinkSyntax.Escapable(line[0]) : line[mark] is '.' or ')' && Numbered(line, mark);
+            if (opens) return string.Concat(line.AsSpan(0, mark), "\\", line.AsSpan(mark));
+        }
+
+        return line;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="part"/> is words of prose — what a reader reads, and what a change written into prose may replace —
+    /// rather than markup, or anything written in a language of its own: code, a formula, raw HTML, front matter, what a fence holds.
+    /// </summary>
+    public static bool ReadsAsWords(ContentPart part) =>
+        Worded(part) && !Unread(part)
+        && !part.Ancestors().Any(up => up.Kind == Kinds.Nested || up.Node is BlockNode { Language: not Language });
+
+    /// <summary>Words, a line at a time, every character read as markup given its backslash; a line after a break starts one.</summary>
+    private static string Lines(string text, bool begins, bool table)
+    {
         var said = new StringBuilder(text.Length);
         var from = 0;
 

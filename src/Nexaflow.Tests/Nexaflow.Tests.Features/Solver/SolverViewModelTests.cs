@@ -33,10 +33,16 @@ public class SolverViewModelTests
         var deadline = DateTime.UtcNow.AddMilliseconds(SettleMs);
         while (DateTime.UtcNow < deadline)
         {
-            if (condition()) return true;
+            if (Holds(condition)) return true;
             await Task.Delay(20);
         }
-        return condition();
+        return Holds(condition);
+
+        // Read as the UI thread would, between the pieces of work handed to it.
+        static bool Holds(Func<bool> condition)
+        {
+            lock (SolverTestDoubles.Ui) return condition();
+        }
     }
 
     private static Task<bool> WaitForChip(SolverViewModel vm, string label)

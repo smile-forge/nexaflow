@@ -66,6 +66,16 @@ public class MarkdownJourneyTests : UiJourneyTestBase
         CheckInvoke("Zoom label (reopen)", "Markdown_ZoomLabel");
         CheckDoes("Zoom 100% restores the default", "Markdown_Zoom100", () => ZoomLabelReads("Markdown", "100%"));
 
+        // The whole document with the workspace's Documents model. Summarise is presence-only here: what pressing it does is
+        // MarkdownDocumentWorkJourneyTests', on a real model. Translate asks for the language first, and cancelling that sets
+        // nothing going.
+        var summarize = CheckPresent("Summarise", "Markdown_Summarize");
+        Check("Summarise is offered for a markdown file", () => summarize is not null && summarize.IsEnabled);
+        CheckInvoke("Translate (asks for the language)", "Markdown_Translate");
+        Check("The language to translate into is asked for", () => WaitForId("Markdown_TranslateTo", 3) is not null);
+        CheckPresent("Translate it", "Markdown_TranslateGo");
+        CheckDoes("Cancel leaves it untranslated", "Markdown_TranslateCancel", () => WaitForId("Markdown_TranslateTo", 1) is null);
+
         // Save button — present and correctly disabled on a clean document (invoking it would prove nothing
         // and would risk a write, so assert the state instead).
         var save = CheckPresent("Save", "Markdown_Save");

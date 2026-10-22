@@ -361,8 +361,14 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
   wording, which varies between models and runs; the one content check is a fact only a recording holds, spoken by
   the machine's own voice. `NEXAFLOW_TEST_TRANSCRIPTS` names a folder to write every run's turns to — what to read
   when one fails. The app does the same for its own runs when started with `NEXAFLOW_AI_TRANSCRIPTS` naming a folder:
-  one file a run, every message the model was sent and everything it wrote back, whole — what to read when a journey
-  on the real models goes wrong.
+    one file a run, every message the model was sent and everything it wrote back, whole — what to read when a journey
+    on the real models goes wrong.
+  - **Journeys on the app's own models** *(`Tests.UIJourneys`, `TestCategory("OwnedModel")`: `BackgroundTasksJourneyTests`,
+    `VoiceConversationJourneyTests`, `MarkdownDocumentWorkJourneyTests`)* — the real app on Gemma 4 E4B and whatever else
+    the journey's workspace assigns. `NEXAFLOW_TEST_AI_DIR` names an AI folder holding those models as the app keeps them,
+    each file verified, which the app is started on as its `NEXAFLOW_AI_DIR`; seeded into the journey's own config, the
+    workspace's grid names them. Unset, they are **inconclusive**. They run in Windows Sandbox like any journey — it forwards
+    the variable and maps the folder in read-only — and assert the shape of what a model made, never its wording.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
   graphs: `NEXAFLOW_TEST_IMAGE` names a folder holding the published build (`encoder\`, `denoiser\`, `decoder\`) and
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack — the model is built for the GPU only. They assert a drawing's shape: its

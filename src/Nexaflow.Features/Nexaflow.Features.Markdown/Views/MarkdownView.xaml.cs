@@ -88,6 +88,26 @@ public partial class MarkdownView : UserControl, IPageView
             Loaded += (_, _) => Dispatcher.BeginInvoke(
                 () => Editor.ScrollToHeading(heading),
                 System.Windows.Threading.DispatcherPriority.Loaded);
+
+        // Opened at a saved reference — a summary's heading leading back here → land there once laid out.
+        if (viewModel.InitialPlace is { } place)
+            Loaded += (_, _) => Dispatcher.BeginInvoke(
+                () => Editor.GoTo(ContentPath.Read(place)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// The tab, already showing its document, asked to land somewhere in it: at a saved reference, or at a heading named by its
+    /// titles. Asked before the document is first laid out, it waits for that (see the constructor).
+    /// </summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (!IsLoaded) return;
+
+        if (pageParams.GetValueOrDefault(MarkdownTabRegistration.PlaceParameter) is { Length: > 0 } place)
+            Editor.GoTo(ContentPath.Read(place));
+        else if (pageParams.GetValueOrDefault("heading") is { Length: > 0 } heading)
+            Editor.ScrollToHeading(heading.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
     }
 
     /// <summary>What a block's picture is drawn on: the page it is shown on, so it reads the same wherever it is pasted.</summary>

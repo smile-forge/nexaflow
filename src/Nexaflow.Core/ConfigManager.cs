@@ -99,11 +99,23 @@ public sealed class ConfigManager
         "Smile", "nexaflow");
 
     /// <summary>
-    /// Sets the application base directory. Must be called once before any
-    /// <see cref="Register"/> or <see cref="Save"/> calls so the path is defined
-    /// in a single place (App.xaml.cs).
+    /// Where what is kept on this machine alone goes — caches worked out again when they are gone, too large to roam with the
+    /// settings. Defaults to <c>%LocalAppData%\Smile\nexaflow</c>; set by <see cref="Initialize"/>.
     /// </summary>
-    public void Initialize(string baseDir) => BaseDir = baseDir;
+    public string LocalDir { get; private set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Smile", "nexaflow");
+
+    /// <summary>
+    /// Sets the application base directory, and where what is kept on this machine alone goes — beside the base, as
+    /// <c>local</c>, where none is given. Must be called once before any <see cref="Register"/> or <see cref="Save"/> calls so
+    /// the paths are defined in a single place (App.xaml.cs).
+    /// </summary>
+    public void Initialize(string baseDir, string? localDir = null)
+    {
+        BaseDir  = baseDir;
+        LocalDir = localDir ?? Path.Combine(baseDir, "local");
+    }
 
     /// <summary>
     /// Permanently stops all config writes for the remainder of the process. Armed just before a

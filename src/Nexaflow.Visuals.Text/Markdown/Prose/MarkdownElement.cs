@@ -137,6 +137,9 @@ public sealed class MarkdownElement : LinkedElement
     public bool Show((int Start, int Length) what, bool choose = true)
     {
         var found = Laid.Root.RangeRects(what.Start, what.Length);
+
+        // A place inside a section the reader folded away is opened before it is shown.
+        if (found.Count == 0 && Unfold(what.Start)) found = Laid.Root.RangeRects(what.Start, what.Length);
         if (found.Count == 0) return false;
 
         var shown = Whole(what);

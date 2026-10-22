@@ -126,6 +126,12 @@ public sealed partial class Workspace : ObservableObject
     [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
 
+    /// <summary>What the workspace keeps on this machine alone (<see cref="WorkspaceManager.WorkspaceLocalDir"/>).</summary>
+    [JsonIgnore] public string LocalDir => WorkspaceManager.WorkspaceLocalDir(Name);
+
+    /// <summary>What whole-document work in this workspace has worked out and keeps — gists, summaries, translations.</summary>
+    [JsonIgnore] public string DocumentNotesDir => Path.Combine(LocalDir, "DocumentNotes");
+
     // ── Live shared-ribbon sync ──
     /// <summary>
     /// Raised after any <see cref="WorkspaceRuntime"/>'s ribbon is persisted, so every other window/Workspace

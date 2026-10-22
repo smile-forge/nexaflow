@@ -10,6 +10,7 @@ internal static class AiAbilityNames
         AiAbility.Disambiguation             => Str.Get("Shell.Ability.Disambiguation"),
         AiAbility.GeneralIntelligence        => Str.Get("Shell.Ability.GeneralIntelligence"),
         AiAbility.ImageRecognition           => Str.Get("Shell.Ability.ImageRecognition"),
+        AiAbility.Documents                  => Str.Get("Shell.Ability.Documents"),
         AiAbility.SpeechIn                   => Str.Get("Shell.Ability.SpeechIn"),
         AiAbility.SpeechOut                  => Str.Get("Shell.Ability.SpeechOut"),
         AiAbility.ImageGeneration            => Str.Get("Shell.Ability.ImageGeneration"),

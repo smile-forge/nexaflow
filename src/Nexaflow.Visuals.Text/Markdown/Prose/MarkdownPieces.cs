@@ -25,6 +25,9 @@ public static class MarkdownPieces
     public const string Tick = "MarkdownTick";
     public const string Rule = "MarkdownRule";
 
+    /// <summary>What stands under a folded section's heading in place of what is folded away, which a press opens again.</summary>
+    public const string Fold = "MarkdownFold";
+
     /// <summary>The room a page break takes.</summary>
     public const string Page = "MarkdownPage";
     public const string Row = "MarkdownRow";

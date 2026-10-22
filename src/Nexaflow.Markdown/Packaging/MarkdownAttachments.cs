@@ -21,6 +21,19 @@ public static class MarkdownAttachments
     public static IReadOnlyList<MarkdownAttachment> Find(string markdown)
     {
         var found = new List<MarkdownAttachment>();
+        foreach (var (at, written) in Addresses(markdown))
+            if (Beside(written) is { } path) found.Add(new MarkdownAttachment(path, at, written.Length));
+
+        return found;
+    }
+
+    /// <summary>
+    /// Every address <paramref name="markdown"/> writes — in a link, a picture or a link's definition — as written, angle brackets
+    /// and all, and where it is written: a file, a URL, or a place in the document itself (<c>#getting-started</c>).
+    /// </summary>
+    public static IReadOnlyList<(int At, string Written)> Addresses(string markdown)
+    {
+        var found = new List<(int At, string Written)>();
         foreach (var node in MarkdownParser.Worked(markdown).SelfAndDescendants())
         {
             if (node.Kind is Kinds.Link or MarkdownKinds.Image)
@@ -30,12 +43,12 @@ public static class MarkdownAttachments
                     if (part is not { Role: Roles.Destination, IsDerived: false, Offset: { } at } || part.Text is not { Length: > 0 } written) continue;
                     // Only an address standing in the document where it says: a diagram's own reading counts from its block.
                     if (at + written.Length > markdown.Length || string.CompareOrdinal(markdown, at, written, 0, written.Length) != 0) continue;
-                    if (Beside(written) is { } path) found.Add(new MarkdownAttachment(path, at, written.Length));
+                    found.Add((at, written));
                 }
             }
-            else if (node.Kind == MarkdownKinds.Reference && Defined(node) is { } definition && Beside(definition.Written) is { } path)
+            else if (node.Kind == MarkdownKinds.Reference && Defined(node) is { } definition)
             {
-                found.Add(new MarkdownAttachment(path, definition.At, definition.Written.Length));
+                found.Add(definition);
             }
         }
         return found;

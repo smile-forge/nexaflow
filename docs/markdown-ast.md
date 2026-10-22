@@ -330,6 +330,14 @@ again), the blocks that read as they did last time, and what the reader has open
 engine for as long as it shows content, so none of that is lost when a change of colours or of who may write makes its
 element again.
 
+**What the reader has folded away of a document is the engine's too**, kept by the name each heading answers to, so a
+section stays folded through every edit. A heading of the document's own offers to fold its section in its corner
+(`MarkdownEdits.Corner`); the document's builder lays nothing a folded section holds — which blocks those are is
+`WithSections`' answer, never worked out from where they are written — and puts a marker under its heading saying how
+many wait there, a press on which opens it as a diagram's chip opens a node. Whatever has to show a place inside a folded
+section opens it first (`ContentEngine.Unfolded`). Nothing nested is folded by the document's sections: a diagram in it
+has openings of its own.
+
 **What the host says that the source does not** — where pictures are found, how links look, what diagrams are bound
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
 says that nothing laid before is to be set down again as it was.
@@ -569,6 +577,7 @@ language implied, and `$x$` is that shape small, framed by words instead of by l
 
 | Stage | What it works out |
 |---|---|
+| `WithSections` | the sections the headings make — which of the document's parts each heading stands over, up to the next heading as deep or deeper (`MarkdownSections`) — after the headings are named, since a section is kept by its heading's name |
 | `WithImages` | the picture an `![alt](where)` names, where this showing can find one (`MarkdownPictures`) |
 | `WithLinks` | how this showing wants each link to look |
 | `WithUnchanged` | which blocks read exactly as they did last time |

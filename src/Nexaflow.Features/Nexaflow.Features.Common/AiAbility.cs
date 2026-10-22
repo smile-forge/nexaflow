@@ -5,12 +5,15 @@ namespace Nexaflow.Features.Common;
 /// rows a model that makes pictures or videos. Saved by name, so the order here is free to change.</summary>
 /// <remarks><see cref="GeneralIntelligence"/> holds the conversation and every one-shot piece of thinking the app asks for —
 /// solving a problem, analysing or condensing a conversation. Disambiguation routes requests and Image Recognition looks at
-/// pictures; each takes its own model, the smaller and cheaper the better.</remarks>
+/// pictures; each takes its own model, the smaller and cheaper the better. <see cref="Documents"/> works through a whole
+/// document a piece at a time — a book's worth of questions — so it has a row of its own, which a workspace can give to a
+/// model on its own machine while its conversation stays with a provider.</remarks>
 public enum AiAbility
 {
     Disambiguation,
     GeneralIntelligence,
     ImageRecognition,
+    Documents,
     SpeechIn,
     SpeechOut,
     ImageGeneration,
