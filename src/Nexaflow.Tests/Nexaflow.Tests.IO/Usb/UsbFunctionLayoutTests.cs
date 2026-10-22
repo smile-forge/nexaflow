@@ -66,4 +66,13 @@ public class UsbFunctionLayoutTests
     [TestMethod]
     public void Interfaces_AFunctionNamedAfterALaterInterfaceOwnsItsAssociation() =>
         CollectionAssert.AreEqual(new byte[] { 2, 3 }, UsbFunctionLayout.InterfacesOf(3, UsbDescriptorParser.ParseConfiguration(Bytes(Microphone), UsbSpeed.High)).ToArray());
+
+    [TestMethod]
+    public void AComPort_IsOneOnlyWhileAPortOrModemDriverHasTheFunction()
+    {
+        Assert.AreEqual("COM5", UsbFunctionLayout.ComPortOf("Ports", "COM5"));
+        Assert.AreEqual("COM7", UsbFunctionLayout.ComPortOf("Modem", "COM7"), "a phone's modem is a port too");
+        Assert.IsNull(UsbFunctionLayout.ComPortOf("USBDevice", "COM5"), "taken over by WinUSB, the name Windows left behind opens nothing");
+        Assert.IsNull(UsbFunctionLayout.ComPortOf(null, "COM5"), "with no driver there is no port");
+    }
 }

@@ -40,6 +40,19 @@
     </UI>
 
     <!--
+      Uninstalling gives back every USB interface Nexaflow took over (docs/usb-probe-spec.md §9.2): the bridge restores
+      what the machine ledger holds, as SYSTEM, before its own files go. Not on an upgrade, whose next version keeps the
+      bindings and the ledger; and a restore that fails never stops the uninstall — the interface stays on WinUSB, and
+      Device Manager's Roll Back Driver gives it back.
+    -->
+    <CustomAction Id="RestoreUsbDrivers" Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]PrivilegeBridge\Nexaflow.PrivilegeBridge.exe&quot; --usb-restore-all"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="RestoreUsbDrivers" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <!--
       Opt-in switch for the Tools feature. Secure="yes" so it survives the handoff to the elevated
       execute sequence — without it the bundle's INSTALLTOOLS=1 would be visible to the UI sequence and
       then silently dropped, and the feature would never install.

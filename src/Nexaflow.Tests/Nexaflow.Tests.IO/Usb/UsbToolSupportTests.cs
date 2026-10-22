@@ -35,20 +35,22 @@ public class UsbToolSupportTests
     [TestMethod]
     public void Guidance_SaysWhatATool_WouldUse()
     {
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Image, 1, 1), UsbFunctionMode.WindowsClass), "choose File transfer",
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Image, 1, 1), UsbFunctionMode.WindowsClass, "WUDFRd"), "choose File transfer",
             "an MTP function no tool covers is one Windows has not made a portable device of yet");
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Video, 1, 0), UsbFunctionMode.WindowsClass), "Media Foundation");
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.SmartCard, 0, 0), UsbFunctionMode.WindowsClass), "PC/SC");
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.CdcControl, 0x0D, 0), UsbFunctionMode.WindowsClass), "Network page");
-        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.VendorSpecific, 0, 0), UsbFunctionMode.VendorDriver), "Raw access");
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.Video, 1, 0), UsbFunctionMode.WindowsClass, "usbvideo"), "Media Foundation");
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.SmartCard, 0, 0), UsbFunctionMode.WindowsClass, "UsbccidDriver"), "PC/SC");
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.CdcControl, 0x0D, 0), UsbFunctionMode.WindowsClass, "UsbNcm"), "Network page");
+        StringAssert.Contains(UsbClassGuidance.For(new(UsbClassCodes.VendorSpecific, 0, 0), UsbFunctionMode.VendorDriver, "vendorusb"), "Raw access");
     }
 
     [TestMethod]
     public void Guidance_PutsTheDriverFirst()
     {
         var video = new UsbClassTriple(UsbClassCodes.Video, 1, 0);
-        StringAssert.Contains(UsbClassGuidance.For(video, UsbFunctionMode.NoDriver), "no driver", "nothing can use a function Windows has no driver for, whatever its class");
-        StringAssert.Contains(UsbClassGuidance.For(video, UsbFunctionMode.GenericRaw), "raw access reaches it");
+        StringAssert.Contains(UsbClassGuidance.For(video, UsbFunctionMode.NoDriver, null), "no driver", "nothing can use a function Windows has no driver for, whatever its class");
+        StringAssert.Contains(UsbClassGuidance.For(video, UsbFunctionMode.GenericRaw, "WINUSB"), "talk to it directly");
+        StringAssert.Contains(UsbClassGuidance.For(video, UsbFunctionMode.GenericRaw, "libusbK"), "libusb",
+            "raw access goes through WinUSB, so a function on libusbK is not one it reaches");
     }
 
     [TestMethod]

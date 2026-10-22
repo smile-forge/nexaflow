@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The device page's raw access (Phase 3), as subfeature plugins: found by their [Subfeature("usbprobe", ...)]
+    attributes, so the device page references none of it. Two tools: take-over and restore (R1, R2), which put one
+    interface on Windows' WinUSB driver and give it back through the page's driver broker; and raw access (R3-R6) — a
+    control-transfer console, an endpoint reader and writer, and the session log — on any function on WinUSB. Both are
+    headless view-models; WPF is on only for the DataTemplates that draw them, which the page merges from here.
+
+    Transfers go through Nexaflow.IO.Usb's IRawUsbTransport (WinUSB P/Invoke); bindings through its IUsbDeviceBroker,
+    whose changes run in the elevated bridge. It references no feature.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
+  </ItemGroup>
+
+</Project>

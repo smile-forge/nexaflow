@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phases 0–2 built; Phase 3's take-over half built, its raw transport and UI planned |
+| **Status** | Phases 0–3 built; the take-over runs ADR-001 has not made are open (§12) |
 | **Date** | 2026-10-17 |
 | **Scope** | Phase 0 (driver access) through Phase 3 (raw access), plus the architecture they leave room for |
 | **Decision record** | [ADR-001: Raw USB access on Windows](adr/ADR-001-usb-raw-access.md) |
@@ -85,6 +85,9 @@ flowchart LR
     TOOLS --> AUD["Audio: owned WASAPI"]
     TOOLS --> HID["HID: hid.dll"]
     TOOLS --> SER["Serial link → Serial page"]
+    TOOLS --> TAKE["Take-over: driver broker"]
+    TOOLS --> RAW["Raw access: WinUSB transport"]
+    TAKE --> BRK
     BRK["IUsbDeviceBroker"] -. "elevated request" .-> BRIDGE["PrivilegeBridge"]
     BRIDGE --> PNP["SetupAPI / newdev"]
     BRK --> LED[("Binding ledger")]
@@ -94,11 +97,11 @@ flowchart LR
 
 | Component | Privilege | Responsibility |
 |---|---|---|
-| **`Nexaflow.IO.Usb`** (class library, no WPF) | User | Inventory and hot-plug, descriptor parsing and byte-for-byte descriptor maps, the browsing model (locations and facts), usb.ids and its updates, the live-tool contract, USB disks and volumes, HID access, the take-over broker, policy and ledger |
+| **`Nexaflow.IO.Usb`** (class library, no WPF) | User | Inventory and hot-plug, descriptor parsing and byte-for-byte descriptor maps, the browsing model (locations and facts), usb.ids and its updates, the live-tool contract, USB disks and volumes, HID access, the take-over broker, policy and ledger, and the raw transport over WinUSB with its session log |
 | **`Nexaflow.IO.Common`** (shared) | User | Audio endpoints, test signals, playback and metering on owned WASAPI; the COM-port catalog; `FileTransferEngine` with read-back verification |
-| **`Nexaflow.PrivilegeBridge`** (existing elevated exe) | Admin | Runs the bind and restore operations; nothing else USB-specific |
+| **`Nexaflow.PrivilegeBridge`** (existing elevated exe) | Admin | Runs the bind and restore operations, and restore-all for the uninstaller; nothing else USB-specific |
 | **`Nexaflow.Features.UsbProbe`** (WPF feature) | User | The USB page and the device page, their agent tools |
-| **`Nexaflow.Features.UsbProbe.StorageTools`, `.PortableTools`, `.AudioTools`, `.HidTools`, `.SerialLink`** | User | Live-tool plugins, found by `[Subfeature("usbprobe", …)]`; the device page references none of them |
+| **`Nexaflow.Features.UsbProbe.StorageTools`, `.PortableTools`, `.AudioTools`, `.HidTools`, `.SerialLink`, `.RawTools`** | User | Live-tool plugins, found by `[Subfeature("usbprobe", …)]`; the device page references none of them |
 | **`Nexaflow.Visuals.Stores`** + **`Nexaflow.IO.Common` Stores and Portable** | User | The file browser the storage and phone tools share, over a store contract (`IFileStore`) with a disk store, an MTP store over Windows Portable Devices, and verified copies between any two (`StoreTransfer`) |
 | **`Nexaflow.Features.Serial`** (WPF feature) | User | A terminal for any COM port |
 | **`spikes/UsbDriverBinding`** (console app) | Mixed | The Phase 0 experiments, kept for regression runs on new Windows builds |
@@ -167,7 +170,7 @@ and when debug details are taken (a HID interface's report descriptor).
 
 | ID | Feature | As built |
 |---|---|---|
-| D1 | Live device tree | Buses (host controller and root hub), hubs, every port empty or not, and devices; the tree goes down to devices, and what a device is made of is the listing's and its own page's. Arrival, removal and driver changes from `CM_Register_Notification` — for the devices Windows makes beneath a USB devnode too, so a phone unlocked into file transfer is seen — folded into the open page without losing the user's place; a warm pass completes well inside a second. A device just plugged in opens its branch of the tree and is marked until looked at. A device Windows ejected for safe removal (problem 47) stays in its port, shown as ejected, with no live tools until it is plugged in again. A composite device's functions are found whichever driver split it — usbccgp's `MI_xx` children, or a maker's own composite driver's (Samsung's `dg_ssudbus`), numbered by interface as usbccgp's are. One inventory is shared by every USB page and device page |
+| D1 | Live device tree | Buses (host controller and root hub), hubs, every port empty or not, and devices — each placed in its port by the address its hub gave it, so a device Windows has no driver for is shown as surely as one it has; the tree goes down to devices, and what a device is made of is the listing's and its own page's. Arrival, removal and driver changes from `CM_Register_Notification` — for the devices Windows makes beneath a USB devnode too, so a phone unlocked into file transfer is seen — folded into the open page without losing the user's place; a warm pass completes well inside a second. A device just plugged in opens its branch of the tree and is marked until looked at. A device Windows ejected for safe removal (problem 47) stays in its port, shown as ejected, with no live tools until it is plugged in again. A composite device's functions are found whichever driver split it — usbccgp's `MI_xx` children, or a maker's own composite driver's (Samsung's `dg_ssudbus`), numbered by interface as usbccgp's are. One inventory is shared by every USB page and device page |
 | D2 | Identity | VID/PID, manufacturer/product/serial strings, bcdUSB, bcdDevice, negotiated speed, port path and connector, power state, max power, self/bus powered, remote wakeup |
 | D3 | Names | Vendor, product and class names from usb.ids, bundled and checked monthly against linux-usb.org (BSD-3 option) when the page opens; Options → USB checks at once. The download is validated before it replaces anything. HID usage names come from the same file |
 | D4 | Descriptor tree | Device → configurations → associations → interfaces and alternate settings → endpoints, and BOS capabilities. Class descriptors decoded for HID, CDC (ACM, Union, Ethernet, NCM, MBIM…), Audio (UAC1, UAC2, MIDI), Video (UVC) and DFU; anything else shown as bytes with its header named. Decoders are an ordered, extensible registry |
@@ -194,7 +197,7 @@ shut. Anything a tool writes is confirmed first.
 | H3 | Audio input (`AudioTools`) | Each recording endpoint: per-channel peak and RMS meters twenty times a second, and a recording of 5–30 s saved as a 32-bit float WAV with every channel |
 | H4 | HID (`HidTools`) | Each collection's report layout as the HID class driver decoded it (usage pages, usages, report IDs, sizes, ranges), named from usb.ids; a live input monitor, batched off the UI thread; feature reports read; feature and output reports sent after a confirmation. Windows keeps keyboards' and mice's input to itself: for those the layout and feature reports are shown and the monitor is not |
 | H5 | Serial (`SerialLink`) | The COM port Windows made of the function — a CDC serial port, or a maker's modem that has one — and the Serial page opened on it, without connecting |
-| H6 | Not covered | The last tile names every function no tool covers, what it is, and what a tool for it would use (Media Foundation for UVC, PC/SC for smart cards, the Network page for network adapters, raw access for vendor classes) |
+| H6 | Not covered | The last tile names every function no tool covers — a Driver tile (`IUsbDriverTool`) changes how a function is reached and does not count — what it is, and what a tool for it would use (Media Foundation for UVC, PC/SC for smart cards, the Network page for network adapters, raw access for vendor classes) |
 
 The **Serial page** is its own feature, for any COM port: settings fixed while connected, the transcript split into
 lines on a newline, at 512 bytes or after a quarter-second's quiet, following new lines unless scrolled back. The
@@ -204,20 +207,22 @@ first send on each connection asks.
 
 ## 8. Phase 3: "Poke the unknown" — raw access
 
-The take-over half is built (§8.3); the raw transport and the UI for both are planned.
+Two live tools (`RawTools`): **Driver** on every function the policy lets go and every one Nexaflow holds a binding
+for, and **Raw access** on every function on WinUSB — taken over, or a WCID device that needs no take-over.
 
-| ID | Feature | Acceptance criteria |
+| ID | Feature | As built |
 |---|---|---|
-| R1 | Take over interface | The user picks an interface, sees what will stop working ("Windows will no longer use this as an audio device until restored"), agrees, the bridge binds, and the interface reappears in raw mode |
-| R2 | Restore driver | Per interface and "Restore all", driven by the ledger, offered on every bound interface |
-| R3 | Control transfer console | bmRequestType (with direction/type/recipient helpers), bRequest, wValue, wIndex, wLength, data; standard requests from a list. Class and vendor OUT requests ask first |
-| R4 | Endpoint reader | Open a bulk or interrupt IN endpoint; stream to a hex view with timestamps; pause, clear, save |
-| R5 | Endpoint writer | Send hex or text to an OUT endpoint, asking first; optional repeat |
-| R6 | Session log | Every transfer recorded — time, direction, endpoint or request, length, data, status, duration — on the device page's Diagnostics tab, and saved as text |
-| R7 | Isochronous | Out of scope; the transport leaves room for it |
+| R1 | Take over interface | The Driver tile shows the function's driver and what taking it over stops ("Windows will no longer use it as an audio device through usbaudio2 until it is restored"; a function with no driver loses nothing), and that a second device of the model gets WinUSB too. Taking over asks, then runs through the page's driver broker — one UAC prompt — and the function comes back on WinUSB with a Raw access tile |
+| R2 | Restore driver | Restore on any function the ledger holds, and Restore all — every binding on the machine, one prompt — wherever another binding is held. Uninstalling restores them all (§9.2) |
+| R3 | Control transfer console | bmRequestType from direction, type and recipient, bRequest, wValue, wIndex, wLength, and data for an OUT request, whose wLength is its data's; the standard reads ready-made. Every OUT request asks first; class and vendor requests carry a warning |
+| R4 | Endpoint reader | A bulk or interrupt IN endpoint read as data arrives, into the session list with times; pause, clear, save. Shutting the tile stops it |
+| R5 | Endpoint writer | Hex, or text as UTF-8 with escapes, to a bulk or interrupt OUT endpoint, once or repeated with a gap; asks once for the run, which carries on with the tile shut |
+| R6 | Session log | Every transfer — time, direction, request or endpoint, length, data, result, duration — in the tile, newest first, and saved whole as text; one session spans every time the function was opened. The Diagnostics tab logs each control transfer, each write and each read run |
+| R7 | Isochronous | Out of scope; isochronous endpoints are listed, and the transport leaves room for them |
 
-Both appear on the device page as live tools: take-over and restore on any interface the policy allows, the console,
-reader and writer on any interface on a generic driver (including WCID devices, which need no take-over).
+The function is opened on the first transfer and held — WinUSB lets one program in at a time — until "Let go", the
+page closes or the device goes. When another program already holds it (a WCID device's own app), opening fails and
+the tile says another program has it open.
 
 ### 8.1 Binding lifecycle
 
@@ -281,19 +286,30 @@ public interface IUsbDeviceBroker
 strategy (`InboxWinUsb`), whether the class was changed, the state, and a log. `BridgeUsbDeviceBroker` runs the bind
 and restore through `PrivilegeBridge`; `UsbBindingPolicy` decides what may never be taken over (§9.1).
 
-### 8.4 Raw transport (planned)
+### 8.4 Raw transport (built)
 
 ```csharp
+public interface IRawUsbAccess                         // a backend: WinUsbRawAccess
+{
+    string? UnreachableReason(UsbFunctionNode function);
+    IRawUsbTransport Open(UsbFunctionNode function);
+}
+
 public interface IRawUsbTransport : IAsyncDisposable
 {
-    Task<byte[]> ControlInAsync(ControlSetup setup, CancellationToken ct);
-    Task ControlOutAsync(ControlSetup setup, ReadOnlyMemory<byte> data, CancellationToken ct);
+    IReadOnlyList<UsbPipe> Pipes { get; }
+    Task<byte[]> ControlInAsync(UsbControlSetup setup, CancellationToken ct);
+    Task ControlOutAsync(UsbControlSetup setup, ReadOnlyMemory<byte> data, CancellationToken ct);
     IAsyncEnumerable<ReadOnlyMemory<byte>> ReadEndpointAsync(byte endpoint, int packetSize, CancellationToken ct);
     Task WriteEndpointAsync(byte endpoint, ReadOnlyMemory<byte> data, CancellationToken ct);
 }
 ```
 
-Implemented on WinUSB P/Invoke, thin enough that a libusb-1.0 backend or a Nexaflow-native stack can stand beside it.
+`WinUsbRawAccess` opens the device interface WinUSB registered for the function, and its associated interfaces with
+it, so an association's endpoints all answer. Every transfer is overlapped, completing on the thread pool through the
+handle's completion port; a read or write is cancelled by aborting its pipe. `RawUsbSession.Record` wraps a transport
+so every transfer through it lands in the session log. A libusb-1.0 backend for libusbK and libusb0 devices would be a
+second `IRawUsbAccess`.
 
 ---
 
@@ -306,7 +322,7 @@ Implemented on WinUSB P/Invoke, thin enough that a libusb-1.0 backend or a Nexaf
   interface Windows made a keyboard, mouse, disk, volume or optical drive of; and anything already on a generic
   driver, which needs no take-over.
 - **Every write asks first**: files copied onto a device, HID feature and output reports, serial sends (once per
-  connection), and — in Phase 3 — OUT transfers and class or vendor OUT requests. The agent's writes go through the
+  connection), OUT control requests and endpoint writes, and every driver take-over and restore. The agent's writes go through the
   same approval: `usb_tool_run` decides its safety per call from the operation it names.
 - **No vendor request is ever sent on its own.** Discovery uses only standard GET_DESCRIPTOR requests, and the USB page
   sends those only when asked to read a device again.
@@ -319,8 +335,9 @@ Implemented on WinUSB P/Invoke, thin enough that a libusb-1.0 backend or a Nexaf
 - Inputs are device instance ids that must exist, be present, be USB, and pass the policy.
 - Each request has its own pipe and one-time token.
 - Every operation is written to the ledger before the change and updated after, so a crash is recoverable.
-- Uninstalling Nexaflow is to run "Restore all" first. The broker offers it; the installer does not call it yet, and
-  that lands with the Phase 3 UI.
+- Uninstalling Nexaflow runs the bridge's restore-all (`--usb-restore-all`) as SYSTEM before its files go. An upgrade
+  skips it, keeping the bindings, and a failed restore never stops the uninstall.
+- The debug details take the tools through a broker that refuses every change, so taking them never raises a prompt.
 
 ---
 
@@ -332,7 +349,9 @@ Pages give the agent context and tools; nothing is exported to it.
   `usb_reread`.
 - **Device page**: the device, each live tool's state and operations, and what no tool covers, in `GetContext`;
   `usb_device_tools` lists every tool and its operations, and `usb_tool_run` runs one — at once when it only reads,
-  with the user's approval when it writes.
+  with the user's approval when it writes. Raw access's standard reads, endpoint reads and session log run at once;
+  any control transfer and any endpoint write are approved, and so is every take-over and restore, which Windows then
+  asks permission for too.
 - **Serial page**: the port, its settings and the end of the transcript; `serial_ports` and `serial_read` run at once,
   `serial_connect` and `serial_send` (which can wait for the reply) with the user's approval.
 
@@ -355,8 +374,7 @@ Nexaflow is released under the Unlicense.
 
 1. Strategy A on configuration W3 (standard user with admin consent), on replug, on reboot, and with a crash mid-bind:
    ADR-001 records these as not yet run.
-2. How a WCID device behaves when its vendor's app already holds it: the device page must expect the open to fail.
-3. Whether Nexaflow, and so the bridge, will be code-signed — which decides how Smart App Control treats the bridge.
+2. Whether Nexaflow, and so the bridge, will be code-signed — which decides how Smart App Control treats the bridge.
 
 ---
 
@@ -370,8 +388,8 @@ Not in scope, and nothing here should block them:
   script — the step from poking to a user-mode driver.
 - **Agent-assisted probing.** The agent already explores the device; with raw access it can propose transfers, each
   shown for approval before it runs.
-- **More tools.** MTP/PTP through Windows Portable Devices, printers, UVC preview through Media Foundation, smart cards
-  through PC/SC, DFU readout — each a new `IUsbToolProvider`.
+- **More tools.** Printers, UVC preview through Media Foundation, smart cards through PC/SC, DFU readout — each a new
+  `IUsbToolProvider`.
 - **Traffic capture.** USBPcap, to watch Windows talk to a device under its own driver.
 - **Other buses.** The inventory, tool and broker pattern carries over to Bluetooth LE and network devices; nothing
   genuinely generic carries `Usb` in its name.
@@ -384,8 +402,8 @@ Not in scope, and nothing here should block them:
 
 ## 14. Out of scope
 
-Firmware flashing, isochronous streaming, USB-C Power Delivery and alt-mode inspection, traffic sniffing, MTP file
-transfer, driver development, and any binding strategy that needs test-signing mode or Secure Boot off.
+Firmware flashing, isochronous streaming, USB-C Power Delivery and alt-mode inspection, traffic sniffing, driver
+development, and any binding strategy that needs test-signing mode or Secure Boot off.
 
 ---
 

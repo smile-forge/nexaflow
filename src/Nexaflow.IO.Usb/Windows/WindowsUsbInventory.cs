@@ -144,16 +144,12 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
     {
         var diagnostics = new List<string>();
         var scans = UsbHubTopology.Scan();
-
-        var byDriverKey = new Dictionary<string, (string Id, uint DevInst)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var id in DevNodes.PresentDeviceIds("USB"))
-            if (DevNodes.Locate(id) is { } devInst && DevNodes.String(devInst, DevPropKeys.DriverKey) is { } key)
-                byDriverKey[key] = (id, devInst);
+        var occupants = Occupants(scans);
 
         var placement = new Dictionary<string, (string Hub, int Port)>(StringComparer.OrdinalIgnoreCase);
         foreach (var scan in scans)
             foreach (var port in scan.Ports)
-                if (port.DriverKey is { } key && byDriverKey.TryGetValue(key, out var node))
+                if (occupants.TryGetValue((scan.InstanceId, port.Port), out var node))
                     placement[node.Id] = (scan.InstanceId, port.Port);
         var buses = BusNumbers(scans);
 
@@ -164,7 +160,7 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
             if (scan.OpenError is not null) diagnostics.Add($"{scan.InstanceId}: {scan.OpenError}");
             foreach (var port in scan.Ports)
             {
-                if (port.DriverKey is null || !byDriverKey.TryGetValue(port.DriverKey, out var node))
+                if (!occupants.TryGetValue((scan.InstanceId, port.Port), out var node))
                 {
                     diagnostics.Add($"{scan.InstanceId} port {port.Port}: a device is connected but has no devnode yet");
                     continue;
@@ -187,6 +183,34 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
             StringComparer.OrdinalIgnoreCase);
         devices.Sort((a, b) => string.CompareOrdinal(a.Location.PortPath, b.Location.PortPath));
         return new UsbInventorySnapshot(DateTimeOffset.Now, devices, Hubs(scans, placement, buses), diagnostics);
+    }
+
+    /// <summary>
+    /// The devnode in each occupied port, by hub and port. A hub's children carry their port number as their address,
+    /// which the hub driver sets when it enumerates them — before Windows looks for a driver — so a device with no driver
+    /// is found as surely as one with. The port's driver-key name exists only once a driver is installed; it places a
+    /// device whose hub driver gave it no address.
+    /// </summary>
+    static Dictionary<(string Hub, int Port), (string Id, uint DevInst)> Occupants(List<UsbHubScan> scans)
+    {
+        var byDriverKey = new Dictionary<string, (string Id, uint DevInst)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in DevNodes.PresentDeviceIds("USB"))
+            if (DevNodes.Locate(id) is { } devInst && DevNodes.String(devInst, DevPropKeys.DriverKey) is { } key)
+                byDriverKey[key] = (id, devInst);
+
+        var occupants = new Dictionary<(string Hub, int Port), (string Id, uint DevInst)>();
+        foreach (var scan in scans)
+        {
+            var byAddress = new Dictionary<int, (string Id, uint DevInst)>();
+            if (DevNodes.Locate(scan.InstanceId) is { } hub)
+                foreach (var childId in DevNodes.Strings(hub, DevPropKeys.Children))
+                    if (DevNodes.Locate(childId) is { } child && DevNodes.UInt32(child, DevPropKeys.Address) is { } address)
+                        byAddress[(int)address] = (childId, child);
+            foreach (var port in scan.Ports)
+                if (byAddress.TryGetValue(port.Port, out var node) || (port.DriverKey is { } key && byDriverKey.TryGetValue(key, out node)))
+                    occupants[(scan.InstanceId, port.Port)] = node;
+        }
+        return occupants;
     }
 
     /// <summary>
@@ -292,7 +316,7 @@ public sealed class WindowsUsbInventory : IUsbDeviceInventory
         return new UsbFunctionNode(instanceId, UsbFunctionLayout.InterfacesOf(mi, active),
             DevNodes.String(devInst, DevPropKeys.BusReportedDeviceDesc) ?? DevNodes.String(devInst, DevPropKeys.FriendlyName),
             driver, UsbFunctionLayout.Classify(driver.Service, driver.InfPath), DevNodes.Power(devInst), guids,
-            parameters?.GetValue("PortName") as string, children)
+            UsbFunctionLayout.ComPortOf(driver.ClassName, parameters?.GetValue("PortName") as string), children)
         { FunctionInterface = mi };
     }
 

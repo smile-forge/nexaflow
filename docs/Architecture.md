@@ -651,6 +651,9 @@ operations are thin adapters over `Nexaflow.IO.Usb`'s `InboxWinUsbBinder`, so th
 checks before prompting is the same code the bridge enforces. Such a leaf must stay free of WPF and of anything
 that would widen what the elevated process loads.
 
+The bridge has one way in besides its pipe: `--usb-restore-all`, which the uninstaller runs as SYSTEM before the
+app's files go. It takes no other input and restores only what the admin-owned machine ledger holds.
+
 ---
 
 ## Core Flows

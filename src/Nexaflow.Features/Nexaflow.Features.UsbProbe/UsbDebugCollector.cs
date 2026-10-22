@@ -3,6 +3,7 @@ using System.Reflection;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
 using Nexaflow.IO.Common.Stores;
+using Nexaflow.IO.Usb.Binding;
 using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
@@ -65,7 +66,7 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
             var answered = new List<UsbDebugTool>();
             foreach (var tool in tools) answered.Add(await DetailsOf(tool, mask, ct));
             var hid = await Task.Run(() => UsbHidReportReader.Read(device), ct);
-            var notCovered = UsbDeviceViewModel.Uncovered(device, tools.Select(t => t.FunctionInstanceId))
+            var notCovered = UsbDeviceViewModel.Uncovered(device, tools)
                 .Select(u => $"{u.Name} ({u.ClassName}): {u.Guidance}").ToList();
             List<string> logged;
             lock (notes) logged = [.. notes];
@@ -105,6 +106,7 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
     sealed class QuietHost(IShellServices shell, UsbIdsStore names, List<string> notes) : IUsbToolHost
     {
         public UsbIdsDatabase? Names => names.Current;
+        public IUsbDeviceBroker DriverBroker { get; } = ReadOnlyUsbDeviceBroker.ForMachine();
         public Task RunOnUiAsync(Action action) => shell.RunOnUiAsync(action);
         public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct, string? confirmLabel = null) => Task.FromResult(false);
         public Task<string?> PromptAsync(string title, string label, string initialValue) => Task.FromResult<string?>(null);
