@@ -217,6 +217,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownDocumentWorkTests.cs",
             "class": "MarkdownDocumentWorkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownDocumentWorkJourneyTests.cs",
+            "class": "MarkdownDocumentWorkJourneyTests"
           }
         ]
       }
@@ -236,6 +241,16 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownDocumentWorkTests.cs",
             "class": "MarkdownDocumentWorkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownDocumentWorkJourneyTests.cs",
+            "class": "MarkdownDocumentWorkJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownDocumentWorkJourneyTests.cs",
+            "class": "MarkdownDocumentWorkJourneyTests"
           }
         ]
       }
@@ -255,6 +270,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownDocumentWorkTests.cs",
             "class": "MarkdownDocumentWorkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownDocumentWorkJourneyTests.cs",
+            "class": "MarkdownDocumentWorkJourneyTests"
           }
         ]
       }
