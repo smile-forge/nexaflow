@@ -6,7 +6,7 @@ Nexaflow replaces the scattered pile of apps you juggle every day — file explo
 
 The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
-![Version 1.8.0](https://img.shields.io/badge/version-1.8.0-brightgreen)
+![Version 1.8.5](https://img.shields.io/badge/version-1.8.5-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
