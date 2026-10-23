@@ -46,6 +46,11 @@ public class PdfJourneyTests : UiJourneyTestBase
     /// </summary>
     private const string PanelProxy = "Pdf_Tab_Properties";
 
+    private readonly EmptyModelStore _store = new();
+
+    /// <summary>Without page reading, a conversion waits on its download on every machine.</summary>
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment => _store.LaunchEnvironment;
+
     /// <summary>
     /// Closes the reader so the file browser is the front tab again.
     /// <para>
@@ -197,44 +202,27 @@ public class PdfJourneyTests : UiJourneyTestBase
         // ── A scanned document: the notice above it, where this machine can read pages ─────────
         Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open for image-only.pdf.");
 
-        if (WaitForId("Pdf_ConvertScans", 10) is not null)
-        {
-            // Converting says how it is getting on — reading, or page reading's download — or, read before, opens the
-            // Markdown; while its banner speaks, the notice offering it is put away.
-            CheckDoes("Convert the scanned pages to Markdown", "Pdf_ConvertScans",
-                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
-            if (WaitForId("PageConversion_Status", 1) is not null)
-                Check("The notice gives way to the conversion's banner", () => WaitForGone("Pdf_ConvertScans", 3));
-            if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
-            if (WaitForId("PageConversion_Stop", 1) is not null)
-            {
-                // Stop asks first, the reading going on while it does; kept, it goes on, and let go, the banner goes.
-                CheckDoes("Ask to stop reading the scanned pages", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
-                CheckDoes("Keep converting", "PageConversion_KeepReading", () => WaitForId("PageConversion_Stop", 3) is not null);
-                CheckDoes("Ask to stop again", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
-                CheckDoes("Discard what was read", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
-            }
-            if (WaitForId("Pdf_ConvertScans", 3) is not null)
-                CheckDoes("Hide the scans notice", "Pdf_ScansNoticeDismiss", () => WaitForGone("Pdf_ConvertScans", 3));
-        }
-
-        // Any document converts to Markdown, every page of it read, where this machine can read pages; stopped part-way,
-        // what was read so far can open as a draft.
-if (WaitForId("Pdf_ConvertDocument", 2) is not null)
+if (WaitForId("Pdf_ConvertScans", 10) is not null)
 {
-    // A stopped reading lets go of the page it was on before the conversion is free again — until then both convert
-    // buttons stand disabled, so a stop above is waited out here rather than taken for a button that does nothing.
-    WaitForFs(() => WaitForId("Pdf_ConvertDocument", 1)?.IsEnabled == true, 30);
+    // Page reading is not in this run's model folder, so a conversion — of the scans, or of the whole document — waits
+    // on its download, which the conversion's banner offers. A reading under way, and its Stop, are not driven here: a
+    // real reading ends once its pages are read, sooner than a journey can be sure to press Stop, so PageConversionTests
+    // holds one open to prove them.
+    CheckDoes("Hide the scans notice", "Pdf_ScansNoticeDismiss", () => WaitForGone("Pdf_ConvertScans", 3));
     CheckDoes("Convert the whole document to Markdown", "Pdf_ConvertDocument",
-              () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
-    if (WaitForId("PageConversion_Stop", 1) is not null)
-    {
-        CheckDoes("Ask to stop reading the document", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
-        if (WaitForId("PageConversion_ShowSoFar", 1) is not null)
-            CheckDoes("Show what is converted so far", "PageConversion_ShowSoFar", () => WaitForId("Markdown_Save", 8) is not null);
-        else
-            CheckDoes("Discard the reading", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
-    }
+              () => WaitForId("PageConversion_Status", 5) is not null && WaitForId("PageConversion_Download", 5) is not null);
+
+    // Asked for, the download stops at once, saying why, and is offered again.
+    var offered = WaitForId("PageConversion_Status", 2)?.Name;
+    CheckDoes("Page reading's download stops, saying why, and is offered again", "PageConversion_Download",
+              () => WaitForFs(() => WaitForId("PageConversion_Status", 1)?.Name is { Length: > 0 } said && said != offered
+                                    && WaitForId("PageConversion_Download", 1) is not null, 10));
+
+    // A tab of its own has the notice again, and converting from it, the notice gives way to the conversion's banner.
+    Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open image-only.pdf again.");
+    CheckDoes("Convert the scanned pages to Markdown", "Pdf_ConvertScans",
+              () => WaitForId("PageConversion_Download", 5) is not null, seconds: 10);
+    Check("The notice gives way to the conversion's banner", () => WaitForGone("Pdf_ConvertScans", 3));
 }
 
         // ── Editing the pages: a copy of the outlined document, so the sample stays as it is ──

@@ -395,7 +395,11 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     the journey's workspace assigns. `NEXAFLOW_TEST_AI_DIR` names an AI folder holding those models as the app keeps them,
     each file verified, which the app is started on as its `NEXAFLOW_AI_DIR`; seeded into the journey's own config, the
     workspace's grid names them. Unset, they are **inconclusive**. They run in Windows Sandbox like any journey — it forwards
-    the variable and maps the folder in read-only — and assert the shape of what a model made, never its wording.
+    the variable and maps the folder in read-only — and assert the shape of what a model made, never its wording. A
+    journey that meets a model without being about one — Convert to Markdown in the PDF and image viewers — starts its app
+    on an `EmptyModelStore` instead: a model folder and a temp folder of its own, empty, so it meets the same app on every
+    machine whatever that machine's store holds. A reading under way is not driven there: a real one ends sooner than a
+    journey can be sure to press Stop, so `PageConversionTests` holds one open.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
   graphs: `NEXAFLOW_TEST_IMAGE` names a folder holding the published build (`encoder\`, `denoiser\`, `decoder\`) and
   `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack — the model is built for the GPU only. They assert a drawing's shape: its
