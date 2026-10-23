@@ -204,6 +204,16 @@ Console_SidePanelTabs
 # src/Nexaflow.Visuals.Text/Editor/FileTextEditorView.xaml
 Editor_ChangeBanner
 Editor_ReadOnlyBanner
+
+# src/Nexaflow.Visuals.Text/Pages/PageConversionBar.xaml
+# These show only while page reading reads, and a real reading ends once its pages are read — on a fast GPU a page in
+# about a second, sooner than a journey can be sure to press Stop. Holding one open takes a page reading that waits,
+# which only a test double can be, and the app carries none; PageConversionTests drives all five on one instead.
+PageConversion_Stop
+PageConversion_StopAsk
+PageConversion_KeepReading
+PageConversion_Discard
+PageConversion_ShowSoFar
 Editor_ReadOnlyIndicator
 Editor_UnsavedIndicator
 TextEditorView

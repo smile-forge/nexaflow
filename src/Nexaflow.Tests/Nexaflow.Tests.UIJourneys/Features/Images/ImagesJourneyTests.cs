@@ -22,6 +22,11 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images")]
 public class ImagesJourneyTests : UiJourneyTestBase
 {
+    private readonly EmptyModelStore _store = new();
+
+    /// <summary>Without page reading, Convert to Markdown is offered for every picture and waits on its download.</summary>
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment => _store.LaunchEnvironment;
+
     [TestMethod]
     [CoversNode("images-ui")]
     public void Image_Controls_RespondInOnePass()
@@ -44,19 +49,12 @@ public class ImagesJourneyTests : UiJourneyTestBase
         // Full-screen — present for every image; invoking it opens a separate window, so only check presence.
         CheckPresent("Full screen", "Image_FullScreen");
 
-        // Convert to Markdown — offered for every picture until page reading is here to tell a page, then only for a page.
-        // It says how it is getting on — reading, or page reading's download — or, read before, opens the Markdown.
+        // Convert to Markdown — offered, where this machine can read pages, for every picture until page reading is here to tell
+        // a page. Page reading is not in this run's model folder, so converting waits on its download, which the conversion's
+        // banner offers; a reading under way, and its Stop, are left to PageConversionTests, which can hold one open.
         if (WaitForId("Image_ConvertToMarkdown", 3) is not null)
-        {
             CheckDoes("Convert to Markdown", "Image_ConvertToMarkdown",
-                      () => WaitForId("PageConversion_Status", 5) is not null || WaitForId("Markdown_Save", 5) is not null);
-            if (WaitForId("PageConversion_Download", 1) is not null) CheckPresent("Page reading's download", "PageConversion_Download");
-            if (WaitForId("PageConversion_Stop", 1) is not null)
-            {
-                CheckDoes("Ask to stop reading the page", "PageConversion_Stop", () => WaitForId("PageConversion_StopAsk", 3) is not null);
-                CheckDoes("Discard what was read", "PageConversion_Discard", () => WaitForGone("PageConversion_Status", 5));
-            }
-        }
+                      () => WaitForId("PageConversion_Status", 5) is not null && WaitForId("PageConversion_Download", 5) is not null);
 
         AssertJourney();
     }
