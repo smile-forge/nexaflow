@@ -71,21 +71,27 @@ public sealed class HostModelSetup(IAiHost host)
     /// <summary>The plan as it stands; null before any model is held.</summary>
     public Placement? Current { get; private set; }
 
+    /// <summary>Whether any holder has models held in the host.</summary>
+    public bool HoldsModels => Volatile.Read(ref _holders) > 0;
+
+    private int _holders;
+
     /// <summary>Takes on <paramref name="holder"/>'s models in place of any it held, plans the whole set again, and
     /// has each holder whose models moved apply the new plan.</summary>
     public async Task<Placement> HoldAsync(IModelHolder holder, IReadOnlyList<PlacementNeed> needs, CancellationToken ct)
     {
-        await _planning.WaitAsync(ct);
+        await _planning.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var gpus = (await DescribeAsync(ct)).Gpus;
+            var described = await DescribeAsync(ct).ConfigureAwait(false);
             _held[holder] = needs;
+            Volatile.Write(ref _holders, _held.Count);
             var before = Current;
-            var after = ModelPlacement.Plan(gpus, [.. _held.Values.SelectMany(n => n)]);
+            var after = ModelPlacement.Plan(described.Gpus, [.. _held.Values.SelectMany(n => n)], (described.Memory ?? HostMemory.Unbounded).BudgetBytes);
             Current = after;
             foreach (var (other, theirs) in _held.ToList())
                 if (other == holder || theirs.Any(n => Moved(before, after, n.Id)))
-                    await other.ApplyAsync(after, ct);
+                    await other.ApplyAsync(after, ct).ConfigureAwait(false);
             return after;
         }
         finally { _planning.Release(); }
@@ -94,15 +100,16 @@ public sealed class HostModelSetup(IAiHost host)
     /// <summary>Lets <paramref name="holder"/>'s models go: the host unloads them, and the rest stay where they are.</summary>
     public async Task LetGoAsync(IModelHolder holder, CancellationToken ct)
     {
-        await _planning.WaitAsync(ct);
+        await _planning.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!_held.Remove(holder, out var needs)) return;
+            Volatile.Write(ref _holders, _held.Count);
             var ids = needs.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
             if (Current is { } current)
                 Current = current with { Placed = [.. current.Placed.Where(s => !ids.Contains(s.Id))], Unplaced = [.. current.Unplaced.Where(id => !ids.Contains(id))] };
             foreach (var id in ids)
-                await foreach (var _ in host.SendAsync(r => new UnloadModel(r, id), RequestLimit, ct)) { }
+                await foreach (var _ in host.SendAsync(r => new UnloadModel(r, id), RequestLimit, ct).ConfigureAwait(false)) { }
         }
         finally { _planning.Release(); }
     }
@@ -111,10 +118,10 @@ public sealed class HostModelSetup(IAiHost host)
     /// ever hold it and it has no CPU build.</summary>
     public async Task<ModelSpec?> PlaceOnDemandAsync(PlacementNeed need, CancellationToken ct)
     {
-        await _planning.WaitAsync(ct);
+        await _planning.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var residents = Current ?? ModelPlacement.Plan((await DescribeAsync(ct)).Gpus, []);
+            var residents = Current ?? ModelPlacement.Plan((await DescribeAsync(ct).ConfigureAwait(false)).Gpus, []);
             return ModelPlacement.PlaceOnDemand(residents, need);
         }
         finally { _planning.Release(); }
@@ -123,7 +130,7 @@ public sealed class HostModelSetup(IAiHost host)
     /// <summary>What the host is and the GPUs it found, starting it if it is not running.</summary>
     public async Task<HostDescription> DescribeAsync(CancellationToken ct)
     {
-        await foreach (var reply in host.SendAsync(id => new DescribeHost(id), RequestLimit, ct))
+        await foreach (var reply in host.SendAsync(id => new DescribeHost(id), RequestLimit, ct).ConfigureAwait(false))
             if (reply is HostDescription description) return description;
         throw new AiHostException(AiHostFailure.Request, "The host did not describe itself.", HostErrorKind.Invalid);
     }

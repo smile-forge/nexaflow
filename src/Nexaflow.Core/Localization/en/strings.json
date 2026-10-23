@@ -343,6 +343,15 @@
   "Shell.Config.Security.AllowWindowAccess.No": "No",
   "Shell.Config.Security.AllowWindowAccess.Prompt": "Prompt",
 
+  "Shell.Config.ModelPreload": "Local models",
+  "Shell.Config.ModelPreload.Mode": "Load models ahead",
+  "Shell.Config.ModelPreload.Mode.Adaptive": "Those used most days",
+  "Shell.Config.ModelPreload.Mode.OnDemand": "None — load each with its first use",
+  "Shell.Config.ModelPreload.Mode.Always": "Every assigned model",
+  "Shell.Config.ModelPreload.DaysToPreload": "Days of the last 7 a model must be used on to load ahead",
+  "Shell.Config.ModelPreload.IdleMinutes": "Unload a model idle for (minutes, 0 = never)",
+  "Shell.Config.ModelPreload.MemoryForModelsPercent": "Memory models running on the CPU may use (% of this PC's)",
+
   "Shell.Config.Workspaces": "Workspaces",
   "Shell.Config.About": "About",
   "Shell.Config.Ai": "AI",

@@ -9,7 +9,7 @@ using System.Text.Json.Nodes;
 
 namespace Nexaflow.Providers.Ollama;
 
-public sealed class OllamaLlmProvider : ILlmProvider
+public sealed class OllamaLlmProvider : ILlmProvider, ITracksModelUse
 {
     public const  string ProviderName = "Ollama";
     public string Name => ProviderName;
@@ -31,6 +31,9 @@ public sealed class OllamaLlmProvider : ILlmProvider
     /// <summary>Whether the bound model calls tools, once its details are read.</summary>
     private bool? _toolCalls;
 
+    /// <summary>The read of the bound model's details, begun when the instance is made.</summary>
+    private readonly Task _details = Task.CompletedTask;
+
     public string? LastModelListError { get; private set; }
 
     public OllamaLlmProvider(IBackgroundActivityManager activityManager, OllamaConfig config, ProviderModel model)
@@ -38,6 +41,9 @@ public sealed class OllamaLlmProvider : ILlmProvider
         _activityManager = activityManager;
         _config          = config;
         _model           = model.Model;
+        // The model's details — its context, whether it calls tools — are read now, off the caller's thread; loading the
+        // model itself waits for its first request, or for the app to load it ahead.
+        if (!string.IsNullOrWhiteSpace(_model)) _details = Task.Run(() => ReadModelAsync(CancellationToken.None));
     }
 
     // The pooled instance is long-lived with a fixed config payload — build the SDK client once.
@@ -51,7 +57,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
         => Stream(messages, [], ct);
 
     /// <summary>Whether the bound model's template calls tools — Ollama names it among the model's capabilities, read with
-    /// its details at warm-up. Until they are read, its tools are described in the conversation instead.</summary>
+    /// its details when the instance is made. Until they are read, its tools are described in the conversation instead.</summary>
     public bool SupportsToolCalls => _toolCalls == true;
 
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(
@@ -73,8 +79,8 @@ public sealed class OllamaLlmProvider : ILlmProvider
             Tools     = tools.Count > 0 ? [.. tools.Select(Declare)] : null,
         };
 
-        return LlmStreamRunner.RunAsync(_activityManager, $"Ollama ({_model})…", ProviderName,
-            ct => Events(Client.ChatAsync(request, ct)), ct);
+        return ModelUse.During(LlmStreamRunner.RunAsync(_activityManager, $"Ollama ({_model})…", ProviderName,
+            ct => Events(Client.ChatAsync(request, ct)), ct), ct);
     }
 
     /// <summary>A tool as Ollama declares it: a function, its parameters' JSON Schema as given.</summary>
@@ -173,6 +179,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
     public async Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(_model)) return null;
+        await _details.WaitAsync(ct);
         if (_contextLength is null) await ReadModelAsync(ct);
         return _contextLength > 0 ? new ModelInfo(_contextLength.Value, _model) : null;
     }
@@ -185,7 +192,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
     {
         if (string.IsNullOrWhiteSpace(_model)) return;
 
-        await ReadModelAsync(ct);
+        await _details;
 
         try
         {
@@ -196,6 +203,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
                 KeepAlive = _config.KeepAliveValue
             };
             await foreach (var _ in Client.GenerateAsync(request, ct)) { /* drain to completion */ }
+            ModelUse.Loaded();
         }
         catch { /* Ollama not running / model unavailable — best-effort */ }
     }
@@ -220,6 +228,12 @@ public sealed class OllamaLlmProvider : ILlmProvider
         }
         catch { /* best-effort */ }
     }
+
+    /// <summary>Each chat streamed is one use, counted toward loading the model ahead.</summary>
+    public ModelUseTracker ModelUse { get; } = new();
+
+    /// <summary>Ollama unloads the model itself once its keep-alive runs out.</summary>
+    public bool ReleasesItself => true;
 
     /// <summary>Reads the bound model's details from /api/show: its context length (0 on failure) and whether it calls
     /// tools.</summary>

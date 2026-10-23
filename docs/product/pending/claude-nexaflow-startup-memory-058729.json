@@ -1,0 +1,68 @@
+{
+  "branch": "claude/nexaflow-startup-memory-058729",
+  "nodes": {
+    "model-residency": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/ModelResidency.cs",
+          "class": "ModelResidency"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/ModelUseHistory.cs",
+          "class": "ModelUseHistory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ModelPreloadConfig.cs",
+          "class": "ModelPreloadConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ModelUseTracker.cs",
+          "class": "ModelUseTracker"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ITracksModelUse.cs",
+          "class": "ITracksModelUse"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/AiHostClient.cs",
+          "class": "AiHostClient",
+          "method": "RetireWhenIdle"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md",
+          "title_path": [
+            "Local AI \u2014 voice conversation, on-device models, media generation",
+            "Architecture",
+            "What stays loaded"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ModelResidencyTests.cs",
+            "class": "ModelResidencyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelUseTrackerTests.cs",
+            "class": "ModelUseTrackerTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "model-residency"
+  ]
+}

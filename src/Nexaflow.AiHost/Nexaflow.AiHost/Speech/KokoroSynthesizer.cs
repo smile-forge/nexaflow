@@ -103,10 +103,12 @@ internal sealed class KokoroSynthesizerRunner : IModelRunner
         var vocabulary = vocab.RootElement.GetProperty("model").GetProperty("vocab").EnumerateObject()
                               .ToDictionary(p => p.Name, p => p.Value.GetInt64(), StringComparer.Ordinal);
 
+        // No memory pattern: every sentence is a shape of its own, so a pattern planned for one is never reused, only held.
         using var options = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             LogSeverityLevel       = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
+            EnableMemoryPattern    = false,
         };
         if (spec.Device is { } device) CudaSessions.Append(options, device);
         else options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2);

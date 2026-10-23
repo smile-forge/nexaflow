@@ -21,7 +21,7 @@ internal static unsafe partial class LlamaNative
         public IntPtr TensorBufferTypeOverrides;
         public int GpuLayers;
         public SplitMode Split;
-        public int LoadMode;
+        public LoadMode LoadMode;
         public int LazyMode;
         public int MainGpu;
         public float* TensorSplit;
@@ -42,6 +42,20 @@ internal static unsafe partial class LlamaNative
         Layer = 1,
         Row = 2,
         Tensor = 3,
+    }
+
+    /// <summary>How llama.cpp reads a model's file (llama_load_mode).</summary>
+    public enum LoadMode
+    {
+        /// <summary>Mapped, where every device the model runs on can read a mapping.</summary>
+        Auto = -1,
+        /// <summary>Read through the page cache into each tensor's buffer; no mapping outlives the load.</summary>
+        None = 0,
+        Mmap = 1,
+        Mlock = 2,
+        MmapMlock = 3,
+        /// <summary>Read past the page cache, where the drive allows it.</summary>
+        DirectIo = 4,
     }
 
     public enum FlashAttention

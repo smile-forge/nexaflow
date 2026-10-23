@@ -20,8 +20,10 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
 
     private readonly OgaHandle _genai = new();
 
-    public ExecutionRuntime(HostLog log)
+    /// <param name="memoryShare">The share of this machine's memory, in percent, models on the CPU may hold.</param>
+    public ExecutionRuntime(HostLog log, int memoryShare = AiHostProtocol.DefaultMemoryShare)
     {
+        Memory = HostMemory.Of(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, memoryShare);
         // The runtime's own warnings (node placement, shape merges) are expected on these exports; errors only.
         var options = new EnvironmentCreationOptions { logId = "aihost", logLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR };
         var env = OrtEnv.CreateInstanceWithOptions(ref options);
@@ -30,7 +32,8 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
         LlamaBackends.Load(NativeRuntime.Pack, log);
         Gpus = [.. LlamaBackends.Gpus.Select(g => new HostGpu(g.Number, g.Name, g.BusId, g.TotalBytes, BudgetOf(g.FreeBytes), g.FreeBytes))];
         log.Write($"ONNX Runtime {Version} from {NativeRuntime.Pack ?? "the install"}; models run on "
-                  + (Gpus.Count == 0 ? Cpu : string.Join(", ", Gpus.Select(g => $"GPU {g.Device} ({g.Name}, within {g.BudgetBytes >> 20} MiB)"))));
+                  + (Gpus.Count == 0 ? Cpu : string.Join(", ", Gpus.Select(g => $"GPU {g.Device} ({g.Name}, within {g.BudgetBytes >> 20} MiB)")))
+                            + $"; models on the CPU within {Memory.BudgetBytes >> 20} of {Memory.TotalBytes >> 20} MiB");
     }
 
     public string Version { get; }
@@ -41,6 +44,9 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
     /// <summary>The GPUs models may run on, each with its budget and what was free when the host started — none when
     /// they run on the CPU.</summary>
     public IReadOnlyList<HostGpu> Gpus { get; }
+
+    /// <summary>This machine's memory, and the share of it models on the CPU may hold.</summary>
+    public HostMemory Memory { get; }
 
     /// <summary>The GPUs as they are now: each with what is free on it.</summary>
     public IReadOnlyList<HostGpu> GpusNow() => [.. Gpus.Select(g => g with { FreeBytes = LlamaBackends.FreeBytes(g.Device) })];

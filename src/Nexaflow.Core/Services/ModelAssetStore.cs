@@ -4,6 +4,7 @@ using Nexaflow.IO.Common.Downloads;
 using Nexaflow.Providers.Common;
 using System.IO.Compression;
 using Nexaflow.IO.Common;
+using System.Collections.Concurrent;
 
 namespace Nexaflow.Core.Services;
 
@@ -34,6 +35,11 @@ public sealed class ModelAssetStore : IModelAssetStore
     /// from it — so fetches running side by side are weighed together, and a file two of them want counts once.</summary>
     private readonly Dictionary<string, Claim> _claims = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The files whose verified mark has been read, by path, with the size and write time they had then: a file is
+    /// verified once per version, and every <see cref="Locate"/> after that costs one look at its attributes — so one deleted
+    /// or replaced behind the store's back is still never located.</summary>
+    private readonly ConcurrentDictionary<string, (long Length, DateTime Written)> _verified = new(StringComparer.OrdinalIgnoreCase);
+
     /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
     /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
     /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
@@ -59,7 +65,13 @@ public sealed class ModelAssetStore : IModelAssetStore
     public string? Locate(ModelAsset asset)
     {
         var path = PathOf(asset);
-        return IsVerified(path, asset) ? path : null;
+        var file = new FileInfo(path);
+        if (!file.Exists || file.Length != asset.Size) return null;
+        var version = (file.Length, file.LastWriteTimeUtc);
+        if (_verified.TryGetValue(path, out var seen) && seen == version) return path;
+        if (!IsVerified(path, asset)) return null;
+        _verified[path] = version;
+        return path;
     }
 
     public async Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
@@ -301,6 +313,7 @@ public sealed class ModelAssetStore : IModelAssetStore
         await gate.WaitAsync(ct);
         try
         {
+            _verified.TryRemove(path, out _);
             foreach (var file in new[] { path, VerifiedMark(path), path + ".partial" })
                 if (File.Exists(file)) File.Delete(file);
         }

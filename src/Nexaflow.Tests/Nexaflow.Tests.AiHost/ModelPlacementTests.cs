@@ -72,9 +72,44 @@ public class ModelPlacementTests
     {
         var placement = ModelPlacement.Plan([Gpu(0, 4)], [Gemma(), Part("transcriber", 3.75, onCpu: true), Part("encoder", 5)]);
 
-        Assert.AreEqual((null, 0L), (Placed(placement, "gemma").Device, Placed(placement, "gemma").MemoryBytes), "too large for the card: the CPU");
+        var gemma = Placed(placement, "gemma");
+        Assert.AreEqual((null, 32768, 6 * GB + 18432L * 32768), (gemma.Device, gemma.ContextTokens, gemma.MemoryBytes),
+                        "too large for the card: the CPU, with all its context where no memory share is set");
         Assert.AreEqual(0, Placed(placement, "transcriber").Device);
         CollectionAssert.AreEqual(new[] { "encoder" }, placement.Unplaced.ToArray());
+    }
+
+    /// <summary>A part that runs on a GPU or the CPU, holding <paramref name="gpuGb"/> on one and <paramref name="cpuGb"/>
+    /// on the other.</summary>
+    private static PlacementNeed OnEither(string id, double gpuGb, double cpuGb) => new(Spec(id, (long)(gpuGb * GB)), Spec(id, (long)(cpuGb * GB)));
+
+    [TestMethod]
+    public void OnTheCpu_EachPartHoldsWhatItsBuildHolds_AndTheLanguageModelIsGivenWhatTheShareLeaves()
+    {
+        long share = 6 * GB + 2 * GB + 18432L * 16384;
+
+        var placement = ModelPlacement.Plan([], [Gemma(), OnEither("transcriber", 3.75, 2)], share);
+
+        Assert.AreEqual(2 * GB, Placed(placement, "transcriber").MemoryBytes, "its CPU build's footprint, not its GPU's");
+        var gemma = Placed(placement, "gemma");
+        Assert.AreEqual((16384, 6 * GB + 18432L * 16384), (gemma.ContextTokens, gemma.MemoryBytes), "what the share leaves beside the transcriber");
+    }
+
+    [TestMethod]
+    public void OnTheCpu_ALanguageModelIsNeverGivenLessThanItsShortestContext()
+    {
+        var placement = ModelPlacement.Plan([], [Gemma()], memoryBudget: 1 * GB);
+
+        Assert.AreEqual(8192, Placed(placement, "gemma").ContextTokens, "the share is a share of the machine, not a wall");
+    }
+
+    [TestMethod]
+    public void APartBuiltForTheCpu_HoldsWhatItsBuildHolds()
+    {
+        var vad = new PlacementNeed(Spec("vad", 0), Spec("vad", 2L << 20));
+
+        Assert.AreEqual(2L << 20, Placed(ModelPlacement.Plan([Gpu(0, 22)], [vad]), "vad").MemoryBytes);
+        Assert.AreEqual(2L << 20, ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 22)], []), vad)!.MemoryBytes);
     }
 
     [TestMethod]

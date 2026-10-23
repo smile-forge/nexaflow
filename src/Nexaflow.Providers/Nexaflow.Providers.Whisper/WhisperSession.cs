@@ -26,10 +26,14 @@ internal sealed class WhisperSession : ISpeechToTextSession
     private readonly CancellationTokenSource _closing = new();
     private readonly Task _partials;
 
-    public WhisperSession(WhisperFactory factory, string language)
+    private readonly IDisposable _use;
+
+    /// <param name="use">The provider's use of its model, ended once this session has stopped transcribing.</param>
+    public WhisperSession(WhisperFactory factory, string language, IDisposable use)
     {
         _factory  = factory;
         _language = language;
+        _use      = use;
         _partials = Task.Run(PartialsAsync);
     }
 
@@ -102,5 +106,6 @@ internal sealed class WhisperSession : ISpeechToTextSession
         _events.Writer.TryComplete();
         _closing.Dispose();
         _pass.Dispose();
+        _use.Dispose();
     }
 }

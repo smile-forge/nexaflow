@@ -35,7 +35,7 @@ internal sealed class HostStream(HostConnection.OpenRequest request, TimeSpan st
     {
         while (true)
         {
-            var reply = await request.NextAsync(stallLimit, ct);
+            var reply = await request.NextAsync(stallLimit, ct).ConfigureAwait(false);
             switch (reply)
             {
                 case Completed:

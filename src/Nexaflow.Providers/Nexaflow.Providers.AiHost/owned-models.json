@@ -948,6 +948,7 @@
           "role": "synthesizer",
           "name": "german",
           "runner": "kokoro",
+          "loadsOnDemand": true,
           "folder": "models/kokoro-82m-german",
           "file": "onnx/model.onnx",
           "memoryBytes": 1073741824

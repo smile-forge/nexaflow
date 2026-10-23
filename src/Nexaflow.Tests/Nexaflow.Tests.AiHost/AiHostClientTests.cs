@@ -47,6 +47,40 @@ public class AiHostClientTests
     }
 
     [TestMethod]
+    public async Task AHostIdleWithNothingHeld_IsClosed_AndTheNextRequestStartsAnother()
+    {
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast);
+        int exits = 0;
+        client.HostExited += (_, _) => Interlocked.Increment(ref exits);
+        client.RetireWhenIdle(TimeSpan.FromMilliseconds(100), holding: () => false);
+
+        await Describe(client);
+        var first = host.Last!;
+        await first.Exited.WaitAsync(Generous);
+
+        Assert.IsFalse(first.WasKilled, "closed, not killed");
+        Assert.IsFalse(client.IsRunning);
+        Assert.AreEqual(0, exits, "a host closed for standing idle is no crash");
+        await Describe(client);
+        Assert.AreEqual(2, host.Starts);
+    }
+
+    [TestMethod]
+    public async Task AHostHoldingModels_IsNeverClosedForStandingIdle()
+    {
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast);
+        client.RetireWhenIdle(TimeSpan.FromMilliseconds(100), holding: () => true);
+
+        await Describe(client);
+        await Task.Delay(500);
+
+        Assert.IsTrue(client.IsRunning);
+        Assert.AreEqual(1, host.Starts);
+    }
+
+    [TestMethod]
     public async Task AHostWithTheWrongToken_IsRefused()
     {
         var host = new FakeHost { WrongToken = new string('0', 64) };

@@ -284,17 +284,24 @@ public partial class App : Application
         // The AI host — the process models Nexaflow runs itself are loaded in — starts on the first request for one.
         // Where the host's models run is planned once for the machine, across every workspace's models.
         // Models on this machine are downloaded once each, app-wide, whichever workspace asks.
-        var aiHost = StartAiHost();
+        // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
+        var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
+        var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
         var assets = new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
                                          downloadsAllowed: !UiTest);
         // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
         var hostSetup = new HostModelSetup(aiHost);
+        _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(ModelAssetStore.DefaultRoot(), "model-use.json")));
+        // A host with nothing held in it closes after the same idle time a model is let go after.
+        if (preloadConfig.IdleRelease is { } idle) aiHost.RetireWhenIdle(idle, () => hostSetup.HoldsModels);
+        StartupTimings.Mark("Init.ModelStore");
         var hardware = ComputeHardware.Probe();
+        StartupTimings.Mark("Init.HardwareProbe");
         var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
-        ProviderManager.Instance.Initialize(activityManager, assets,
+        ProviderManager.Instance.Initialize(activityManager, assets, _residency,
             aiHost, hostSetup, hardware,
             new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools, pictureSelection, pageReading,
             pictureErasing);
@@ -302,6 +309,7 @@ public partial class App : Application
         FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
         FeatureManager.Instance.ProvideTool<IPageReading>(pageReading);
         FeatureManager.Instance.ProvideTool<IPictureErasing>(pictureErasing);
+        StartupTimings.Mark("Init.LocalTools");
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -405,13 +413,15 @@ public partial class App : Application
     }
 
     private static AiHostClient? _aiHost;
+    private static ModelResidency? _residency;
 
     /// <summary>The app's one AI host client. A host that dies unasked is recorded like any crash: the next request
     /// starts another, but the reason is worth keeping.</summary>
-    private static AiHostClient StartAiHost()
+    /// <param name="memoryShare">The share of this machine's memory, in percent, models on the host's CPU may hold.</param>
+    private static AiHostClient StartAiHost(int memoryShare)
     {
         _aiHost = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                             ModelAssetStore.DefaultRoot()));
+                                                             ModelAssetStore.DefaultRoot(), memoryShare));
         _aiHost.HostExited += (_, e) => CrashLog.Instance.Record(new AiHostException(AiHostFailure.Lost, e.Reason));
         return _aiHost;
     }
@@ -444,6 +454,7 @@ public partial class App : Application
     {
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
 
+        _residency?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         // Closing the pipe ends the host; it is killed if it lingers. The job object is the backstop for a crash.
         _aiHost?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(6));
         _singleInstance.Dispose();
@@ -571,6 +582,8 @@ public partial class App : Application
         CenterOnMonitor(win, wizardMonitor);
         win.Show();
         StartupTimings.Mark("WindowShown");
+        // Models load ahead only once a window has drawn, so none of their loading competes with it.
+        win.ContentRendered += (_, _) => _residency?.Open();
         if (activate) win.Activate();
         return win;
     }

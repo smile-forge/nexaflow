@@ -309,6 +309,15 @@
   "Shell.Config.Security.AllowWindowAccess.No": "Non",
   "Shell.Config.Security.AllowWindowAccess.Prompt": "Demander",
 
+  "Shell.Config.ModelPreload": "Modèles locaux",
+  "Shell.Config.ModelPreload.Mode": "Charger les modèles à l'avance",
+  "Shell.Config.ModelPreload.Mode.Adaptive": "Ceux utilisés la plupart des jours",
+  "Shell.Config.ModelPreload.Mode.OnDemand": "Aucun — chacun se charge à sa première utilisation",
+  "Shell.Config.ModelPreload.Mode.Always": "Tous les modèles attribués",
+  "Shell.Config.ModelPreload.DaysToPreload": "Jours sur les 7 derniers où un modèle doit servir pour être chargé à l'avance",
+  "Shell.Config.ModelPreload.IdleMinutes": "Décharger un modèle inactif depuis (minutes, 0 = jamais)",
+  "Shell.Config.ModelPreload.MemoryForModelsPercent": "Mémoire que les modèles exécutés sur le processeur peuvent utiliser (% de ce PC)",
+
   "Shell.Config.Workspaces": "Espaces de travail",
   "Shell.Config.About": "À propos",
   "Shell.Config.Ai": "IA",

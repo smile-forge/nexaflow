@@ -77,8 +77,8 @@ own modules and holds them to the makers' paths on their own sample pictures; th
 page holds one while it is open on the picture, and ends it when it closes or moves on. The host reads the picture
 once as it arrives, then answers each `SelectByPoints` and `SelectByPhrase` written to the request from that reading,
 so a click costs the decoder alone: 4 ms on a GPU, 11 on a CPU, against 45 ms (7 s on a CPU) to read the picture. Each
-part is taken from the registry for an answer and given back after it, so an open page holds no GPU memory between
-asks. Masks go back by file, at the size each ask names: the picture's own for a cut-out, smaller for showing one.
+part is taken from the registry for an answer and given back after it, so an open page holds nothing between asks: a
+part stays loaded only until another model needs its room, or the host closes for having stood idle. Masks go back by file, at the size each ask names: the picture's own for a cut-out, smaller for showing one.
 
 **The port.** `SelectHandler` and `PictureSelecting` run the makers' paths around the graphs: the picture squashed to
 1008 square by PIL's bilinear resize, as SAM 3.1's predictor prepares a frame (`PictureResampling.ResizeBilinearAsPil`,

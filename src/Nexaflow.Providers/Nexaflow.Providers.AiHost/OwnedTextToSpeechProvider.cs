@@ -10,7 +10,7 @@ namespace Nexaflow.Providers.AiHost;
 /// Text to speech Nexaflow runs itself, in its AI host: Kokoro, with a voice for each language the model's catalog
 /// entry names. Nothing leaves this machine.
 /// </summary>
-public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
+public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalModelCatalog, IHostModelCatalog, ITracksModelUse, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
@@ -56,29 +56,39 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
 
     public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
+    public ModelUseTracker ModelUse => _runtime.ModelUse;
+
     /// <summary>Opens a stretch of speaking in the host, at the voice priority: a reply being spoken is what someone is
     /// waiting on.</summary>
     public async Task<ITextToSpeechSession> StartSessionAsync(TextToSpeechOptions options, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no voice model of that name.");
-        var voices = new List<VoiceSpec>();
-        foreach (var v in _model.Voices)
-        {
-            var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
-            voices.Add(new VoiceSpec(v.Language, await _runtime.PlacedAsync(_model, part.Name, ct), v.File,
-                                     v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null));
-        }
-
-        var host = _runtime.Host;
-        host.Environment = _runtime.Environment;
+        var use = await _runtime.ModelUse.BeginAsync(ct);   // the session's whole stretch is one use, ended with it
         try
         {
+            var voices = new List<VoiceSpec>();
+            foreach (var v in _model.Voices)
+            {
+                var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
+                // A voice loaded on demand is only placed here: the host loads it with the first sentence in its language.
+                var placed = part.LoadsOnDemand ? await _runtime.PlacedOnDemandAsync(_model, part.Name, ct) : await _runtime.PlacedAsync(_model, part.Name, ct);
+                voices.Add(new VoiceSpec(v.Language, placed, v.File, v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null));
+            }
+
+            var host = _runtime.Host;
+            host.Environment = _runtime.Environment;
             var stream = await host.OpenStreamAsync(id => new Speak(id, voices, options.Speed, RequestPriority.Voice), OwnedModelRuntime.StallLimit, ct);
-            return new OwnedSpeakingSession(stream);
+            return new OwnedSpeakingSession(stream, use);
         }
         catch (AiHostException ex)
         {
+            use.Dispose();
             throw new LlmProviderException($"{Name} could not start speaking: {ex.Message}", ex);
+        }
+        catch
+        {
+            use.Dispose();
+            throw;
         }
     }
 
@@ -90,7 +100,7 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
 }
 
 /// <summary>A stretch of speaking in the host: segments streamed in, their audio streamed back.</summary>
-internal sealed class OwnedSpeakingSession(IHostStream stream) : ITextToSpeechSession
+internal sealed class OwnedSpeakingSession(IHostStream stream, IDisposable use) : ITextToSpeechSession
 {
     private int _segments;
 
@@ -129,5 +139,9 @@ internal sealed class OwnedSpeakingSession(IHostStream stream) : ITextToSpeechSe
         }
     }
 
-    public ValueTask DisposeAsync() => stream.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        try { await stream.DisposeAsync(); }
+        finally { use.Dispose(); }
+    }
 }

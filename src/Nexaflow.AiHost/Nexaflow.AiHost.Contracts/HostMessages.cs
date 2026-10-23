@@ -104,7 +104,7 @@ public sealed record DescribeHost(long RequestId) : HostRequest(RequestId);
 /// <param name="RuntimePack">The pack the runtime was loaded from, or null for the install's CPU runtime.</param>
 /// <param name="Gpus">The GPUs models can run on — none without the pack.</param>
 public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders,
-                                     string? RuntimePack, IReadOnlyList<HostGpu> Gpus) : HostReply(RequestId);
+                                     string? RuntimePack, IReadOnlyList<HostGpu> Gpus, HostMemory? Memory = null) : HostReply(RequestId);
 
 /// <summary>A GPU the host runs models on.</summary>
 /// <param name="Device">Its number — CUDA's own order, which llama.cpp and ONNX Runtime both count in.</param>
@@ -122,6 +122,19 @@ public sealed record HostGpu(int Device, string Name, string? BusId, long TotalB
 
     /// <summary>What the host's own work holds on it now: what was free when it started, less what is free now.</summary>
     public long HeldBytes => BudgetBytes + ReservedBytes - FreeBytes;
+}
+
+/// <summary>This machine's memory as the host weighs models on its CPU against it: all of it, and the share models may
+/// hold. The share is kept by letting idle models go, never by refusing one — past it, the system pages.</summary>
+public sealed record HostMemory(long TotalBytes, long BudgetBytes)
+{
+    /// <summary>The budget of a host that has not said: none.</summary>
+    public static HostMemory Unbounded { get; } = new(long.MaxValue, long.MaxValue);
+
+    /// <summary>The share of <paramref name="totalBytes"/> models may hold at <paramref name="percent"/>, kept within
+    /// <see cref="AiHostProtocol.MemoryShares"/>.</summary>
+    public static HostMemory Of(long totalBytes, int percent)
+        => new(totalBytes, totalBytes / 100 * Math.Clamp(percent, AiHostProtocol.MemoryShares.Start.Value, AiHostProtocol.MemoryShares.End.Value));
 }
 
 public enum HostErrorKind

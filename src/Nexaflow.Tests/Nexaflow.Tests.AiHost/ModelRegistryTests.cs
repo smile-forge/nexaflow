@@ -41,11 +41,11 @@ public class ModelRegistryTests
 
     private static readonly Func<string, Task> Quiet = _ => Task.CompletedTask;
 
-    private static (ModelRegistry Registry, Runner Runner) Registry()
+    private static (ModelRegistry Registry, Runner Runner) Registry(HostMemory? memory = null)
     {
         var runner = new Runner();
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-registry-").FullName);
-        return (new ModelRegistry(new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log), runner);
+        return (new ModelRegistry(new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, memory), runner);
     }
 
     [TestMethod]
@@ -127,6 +127,29 @@ public class ModelRegistryTests
 
         var refused = await Assert.ThrowsExactlyAsync<HostRequestException>(() => registry.AcquireAsync(Spec("chat", 1, device: 2), resident: true, Quiet, default));
         Assert.AreEqual(HostErrorKind.Invalid, refused.Kind);
+    }
+
+    [TestMethod]
+    public async Task OnTheCpu_IdleModelsMakeWayToKeepTheMemoryShare_LeastRecentlyUsedFirst()
+    {
+        var (registry, runner) = Registry(new HostMemory(16 * GB, 5 * GB));
+
+        foreach (var id in new[] { "first", "second", "third", "second", "first" })
+            using (await registry.AcquireAsync(Spec(id, 2, device: null), resident: false, Quiet, default)) { }
+
+        CollectionAssert.AreEqual(new[] { "first", "second", "third", "first" }, runner.Loads.ToArray(),
+                                  "first, the least recently used, made way for third; second stayed");
+    }
+
+    [TestMethod]
+    public async Task OnTheCpu_AModelPastTheShareBesideModelsInUse_LoadsAnyway()
+    {
+        var (registry, runner) = Registry(new HostMemory(16 * GB, 3 * GB));
+
+        using var busy = await registry.AcquireAsync(Spec("busy", 2, device: null), resident: false, Quiet, default);
+        using var more = await registry.AcquireAsync(Spec("more", 2, device: null), resident: false, Quiet, default);
+
+        CollectionAssert.AreEqual(new[] { "busy", "more" }, runner.Loads.ToArray(), "the share is kept by letting idle models go, never by refusing one");
     }
 
     private static async Task WaitFor(Func<bool> condition)

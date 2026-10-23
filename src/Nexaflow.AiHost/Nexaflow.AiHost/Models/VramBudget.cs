@@ -1,7 +1,8 @@
 namespace Nexaflow.AiHost.Models;
 
 /// <summary>
-/// Admission against a GPU's budget: whether a model fits, and which loaded models must go first. Only models nothing
+/// Admission against a budget — a GPU's, or the share of this machine's memory models on the CPU may hold: whether a
+/// model fits, and which loaded models must go first. Only models nothing
 /// is using may go, least recently used first, and only as many as the room needs — those outside the resident set,
 /// and for a picture, residents after them. When models in use stand in the way, it can wait until they are not;
 /// when even all that may go would not make room, nothing goes and the model is refused — a load that would

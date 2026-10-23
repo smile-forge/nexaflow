@@ -24,6 +24,9 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     private readonly Dictionary<string, string> _failed = new(StringComparer.Ordinal);
     private OwnedModel? _held;
 
+    /// <summary>When the provider's model is in use, for the app to load it ahead or let it go.</summary>
+    public ModelUseTracker ModelUse { get; } = new();
+
     public IAiHost Host => host;
 
     public IModelAssetStore Assets => assets;
@@ -72,12 +75,18 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         }
         var placement = ModelPlacement.Plan(gpus, needs);
         if (placement.Unplaced.Count > 0) return false;
+        if (model.PartsFor(ExecutionProvider).Where(p => p.LoadsOnDemand).Any(p => ModelPlacement.PlaceOnDemand(placement, Need(model, p)) is null))
+            return false;
         return model is not OwnedModel { Kind: ModelKind.Language } language || language == OwnedModels.OfKind(ModelKind.Language).First()
                || needs.All(n => n.CpuOnly || placement.Of(n.Id)!.Device is not null);
     }
 
-    /// <summary>What the setup needs to place each of <paramref name="model"/>'s parts on this machine.</summary>
-    public IReadOnlyList<PlacementNeed> NeedsOf(OwnedEntry model) => [.. model.PartsFor(ExecutionProvider).Select(p => Need(model, p))];
+    /// <summary>What the setup needs to place each of <paramref name="model"/>'s parts held with it on this machine — all
+    /// but those it loads on demand.</summary>
+    public IReadOnlyList<PlacementNeed> NeedsOf(OwnedEntry model) => [.. Held(model).Select(p => Need(model, p))];
+
+    /// <summary>The parts of <paramref name="model"/> the host holds with it: all but those it loads on demand.</summary>
+    private IEnumerable<OwnedPart> Held(OwnedEntry model) => model.PartsFor(ExecutionProvider).Where(p => !p.LoadsOnDemand);
 
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
     public bool IsHere(OwnedEntry model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(f => assets.Locate(f) is not null);
@@ -139,6 +148,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         try
         {
             await HoldAsync(model, ct);
+            ModelUse.Loaded();
         }
         catch (Exception ex) when (ex is AiHostException or OperationCanceledException or LlmProviderException) { }
     }
@@ -172,7 +182,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     public async Task ApplyAsync(Placement placement, CancellationToken ct)
     {
         if (_held is not { } model) return;
-        foreach (var id in model.PartsFor(ExecutionProvider).Select(p => PartId(model, p)).Distinct())
+        foreach (var id in Held(model).Select(p => PartId(model, p)).Distinct())
         {
             try
             {
@@ -244,9 +254,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     {
         var onCpu = part.ExecutionProvider is null ? part
                   : model.Parts.FirstOrDefault(p => p.Name == part.Name && p.ExecutionProvider == OwnedModels.Cpu);
-        return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu),
+        return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
                                  part.BytesPerToken, part.BytesPerToken > 0 ? OwnedModels.ShortestContext : 0);
     }
+
+    /// <summary>What <paramref name="part"/> holds in memory on the CPU, with no context: its files, read whole — the
+    /// catalog's footprints are its GPU's.</summary>
+    private static long FilesBytes(OwnedEntry model, OwnedPart part)
+        => model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).Sum(f => f.Size);
 
     /// <summary>A part as the setup plans it: its folder still the catalog's, relative to the asset store.</summary>
     private static ModelSpec Unresolved(OwnedEntry model, OwnedPart part)

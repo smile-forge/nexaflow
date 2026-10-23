@@ -1,5 +1,6 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
@@ -18,10 +19,11 @@ namespace Nexaflow.Core;
 /// <item><b>Capability</b> — one per (provider type + config payload), model-agnostic, used only to
 /// enumerate models for the options UI.</item>
 /// <item><b>Execution</b> — one per (provider type + config payload + model), bound to that model via
-/// an injected <see cref="ProviderModel"/>. Each ability-grid assignment maps to one of these. An
-/// execution instance is <see cref="IAiProvider.WarmupAsync">warmed</see> when first created (first
-/// owner) and <see cref="IAiProvider.CooldownAsync">cooled</see> when its last ref drops — so model
-/// lifetime and instance lifetime are one and the same.</item>
+/// an injected <see cref="ProviderModel"/>. Each ability-grid assignment maps to one of these. Creating
+/// one loads nothing: an instance whose model stays loaded is followed by the <see cref="ModelResidency"/>,
+/// which loads it ahead when its policy says so and lets it go once it stands idle. An execution instance
+/// is <see cref="IAiProvider.CooldownAsync">cooled</see> when its last ref drops, so a model never outlives
+/// its instance.</item>
 /// </list>
 /// </para>
 /// Provider <em>configs</em> live on the owning <see cref="Models.Workspace"/>.
@@ -32,6 +34,8 @@ public sealed class ProviderManager
 
     private IBackgroundActivityManager? _activityManager;
     private ModelAssetStore?            _assets;
+
+    private ModelResidency? _residency;
     private IReadOnlyList<object>       _services = [];
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
@@ -61,12 +65,16 @@ public sealed class ProviderManager
     /// <summary>Must be called once at startup before any Load method.</summary>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
-    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets, params object[] services)
+    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets, ModelResidency residency, params object[] services)
     {
         _activityManager = activityManager;
         _assets          = assets;
+        _residency       = residency;
         _services        = services;
     }
+
+    /// <summary>Which of the pool's models stay loaded — null until <see cref="Initialize"/>.</summary>
+    public ModelResidency? Residency => _residency;
 
     /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
     public ModelAssetStore? Assets => _assets;
@@ -148,7 +156,6 @@ public sealed class ProviderManager
         var execution   = new Dictionary<string, IAiProvider>();
         var assemblyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var poolKeys    = new List<string>();
-        var toWarm      = new List<IAiProvider>();
 
         // (provider Name, kind) → the type/ctor that produced its capability instance, so columns can be mapped
         // to the right provider type to build an execution instance from — one backend ships a type per kind.
@@ -164,7 +171,7 @@ public sealed class ProviderManager
                 {
                     var cfgKey = ConfigKey(ctor, workspaceConfigs);
                     var key    = $"{type.FullName}|cap|{cfgKey}";
-                    var entry  = Acquire(key, ctor, workspaceConfigs, model: "", desc.FileName, toWarm);
+                    var entry  = Acquire(key, ctor, workspaceConfigs, model: "", desc.FileName);
 
                     capability.Add(entry.Provider);
                     assemblyMap[entry.Provider.Name] = desc.FileName;
@@ -180,14 +187,12 @@ public sealed class ProviderManager
                 if (!byName.TryGetValue(NameKind(col.ProviderName, col.Kind), out var t)) continue;   // provider not available
 
                 var key   = $"{t.Ctor.DeclaringType!.FullName}|exec|{col.Model}|{t.ConfigKey}";
-                var entry = Acquire(key, t.Ctor, workspaceConfigs, col.Model, t.AssemblyFile, toWarm);
+                var entry = Acquire(key, t.Ctor, workspaceConfigs, col.Model, t.AssemblyFile);
 
                 execution[col.Id] = entry.Provider;
                 poolKeys.Add(key);
             }
         }
-
-        foreach (var p in toWarm) _ = WarmCoolSafe(p.WarmupAsync());
 
         return new ProviderSet(capability, execution, workspaceConfigs, assemblyMap, poolKeys);
     }
@@ -196,7 +201,7 @@ public sealed class ProviderManager
     /// A newly-created model-bound (execution) instance is queued for warm-up. Caller holds the lock.</summary>
     private PoolEntry Acquire(
         string key, ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs,
-        string model, string assemblyFile, List<IAiProvider> toWarm)
+        string model, string assemblyFile)
     {
         if (!_pool.TryGetValue(key, out var entry))
         {
@@ -207,7 +212,7 @@ public sealed class ProviderManager
                 Model        = model
             };
             _pool[key] = entry;
-            if (!string.IsNullOrEmpty(model)) toWarm.Add(entry.Provider);
+            if (!string.IsNullOrEmpty(model)) _residency?.Track(entry.Provider, $"{entry.Provider.Name}/{model}");
         }
         entry.RefCount++;
         return entry;
@@ -262,8 +267,9 @@ public sealed class ProviderManager
     }
 
     /// <summary>Cool-then-dispose for an instance leaving the pool. Best-effort; never throws.</summary>
-    private static async Task TearDownSafe(PoolEntry entry)
+    private async Task TearDownSafe(PoolEntry entry)
     {
+        _residency?.Forget(entry.Provider);
         try
         {
             if (!string.IsNullOrEmpty(entry.Model)) await entry.Provider.CooldownAsync();
@@ -275,11 +281,6 @@ public sealed class ProviderManager
             else (entry.Provider as IDisposable)?.Dispose();
         }
         catch { /* dispose is best-effort */ }
-    }
-
-    private static async Task WarmCoolSafe(Task t)
-    {
-        try { await t; } catch { /* warm/cool are best-effort; providers must not throw */ }
     }
 
     private void LoadAssembly(string assemblyPath)

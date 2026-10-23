@@ -287,14 +287,24 @@ The host owns:
   with a budget of its own: what was free on it when the host started, less 1.5 GB the runtime keeps for itself
   (cuBLAS workspaces, ONNX Runtime's arenas, transients past each model's estimate). Every model runs on the one GPU
   its spec names, or on the CPU; a description of the host reports each GPU, its budget, and what is free on it now.
-- **A resident set** — the models an owned workspace uses, loaded at warm-up where the machine's setup places them,
-  and kept (4–6 s to reload is too slow between turns). A model asked for in another place or at another size is
-  loaded again there, the old one going once nothing uses it.
-- **Models loaded on demand** — image, music or a second LLM a request names: kept loaded after the request, and the
-  first to go, least recently used, when another needs the room.
+- **A resident set** — the models the app holds, where the machine's setup places them, kept between turns (4–6 s to
+  reload is too slow between them). The app holds a model from its first request until it has stood idle, or from the
+  first window on for one its preload policy loads ahead (see *What stays loaded*). A model asked for in another place
+  or at another size is loaded again there, the old one going once nothing uses it. A part its catalog marks
+  `loadsOnDemand` — Kokoro's German voice — is not held with its model: the host loads it with the first request that
+  uses it.
+- **Models loaded on demand** — image, music, a tool's parts, a second LLM a request names: kept loaded after the
+  request, and the first to go, least recently used, when another needs the room.
 - **Admission per GPU**: each model sized from its spec against its own GPU's budget; unload what may go, or refuse
   rather than over-commit — and when even that would not make room, nothing is unloaded. Generators always run with
   `chunk_size` set, an explicit `max_length`, and `arena_extend_strategy` = 1 (grow only by what is requested).
+- **Admission on the CPU**: against a share of this machine's memory (`HostMemory`; 50% by default, Options → Local
+  models), each CPU build counted as its files read whole plus a language model's context. Idle models go, least
+  recently used, to stay within it; a model past it beside models in use loads anyway, the share being a share of the
+  machine, not a wall.
+- **No mapping outlives a load.** A GGUF wholly on a GPU is read into it (`LLAMA_LOAD_MODE_NONE`); mapped, the file
+  would stay in the host's working set after its weights are on the device — 14 GB of RAM for Gemma 4 26B. On the CPU
+  the mapping is the weights, and stays.
 - **Room for a picture.** A picture's parts load one at a time, so it needs room for the largest. While a picture is
   drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
   reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
@@ -316,6 +326,24 @@ The host owns:
   written, an utterance being heard and transcribed, speech being made. After that it stops taking turns and runs
   alongside, the card time-slicing the two: a reply at about half speed instead of a token a pass.
 
+### What stays loaded
+
+Nothing about a model is loaded before the first window has drawn. Creating a workspace's providers loads nothing:
+the app's `ModelResidency` follows each execution instance whose model stays loaded (`ITracksModelUse` — Nexaflow's own
+chat, speech in and speech out, Whisper, Ollama), and once the first window has drawn it loads ahead — one at a time,
+each while no model is in use — those its policy picks (`ModelPreloadConfig`, Options → Local models):
+
+- **Adaptive**, the default: a model used on at least 3 of the last 7 days. With no history, nothing.
+- **On demand**: none.
+- **Always**: every model a workspace's grid assigns.
+
+Every use counts its day in `model-use.json`, beside the models in the AI folder: what is worth loading ahead is this
+machine's, and the models are loaded once for every workspace. A model that was not loaded ahead is let go once it has
+stood idle 15 minutes (`ModelUseTracker`, Options → Local models; 0 keeps it). A use and its release never overlap: a
+request begun while its model is let go waits for that, then loads it again. Ollama's model is left to Ollama's own
+keep-alive. With nothing held, the host itself closes after the same idle time (`AiHostClient.RetireWhenIdle`) — its
+runtimes and any tool's parts with it — and the next request starts a fresh one.
+
 ### The machine's setup
 
 The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
@@ -324,7 +352,8 @@ so a GPU stays as whole as it can for a picture. A language model gets its catal
 read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
-its CPU build, and one with no CPU build is left out. When a workspace takes models on, the plan is redone and each
+its CPU build, and one with no CPU build is left out. On the CPU, the other models hold what their builds' files hold,
+and a language model is given the longest context the host's memory share leaves it, never under 8k. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
 time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
 

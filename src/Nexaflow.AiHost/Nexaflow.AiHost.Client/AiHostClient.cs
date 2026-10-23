@@ -7,7 +7,9 @@ namespace Nexaflow.AiHost.Client;
 /// The app's one connection to the AI host. Nothing is started until the first request; the host then stays up for
 /// the models it holds, and is replaced by a fresh one on the next request after it dies, stops answering its
 /// heartbeat, or leaves a request silent past that request's stall limit. A host that keeps dying is not restarted
-/// until it has stayed down a while, so a broken install fails fast instead of looping.
+/// until it has stayed down a while, so a broken install fails fast instead of looping. Nothing here resumes on the
+/// caller's context: the host is started, and its pipe read and pinged, on the thread pool, so a request made from the
+/// UI thread never puts the host's traffic on it.
 /// </summary>
 public sealed class AiHostClient : IAiHost, IAsyncDisposable
 {
@@ -19,6 +21,8 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     private HostConnection? _connection;
     private AiHostEnvironment _environment = AiHostEnvironment.Cpu;
     private bool _disposed;
+    private readonly CancellationTokenSource _life = new();
+    private Task _retiring = Task.CompletedTask;
 
     public AiHostClient(IAiHostLauncher launcher, AiHostTimings? timings = null, TimeProvider? time = null)
     {
@@ -51,8 +55,9 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     public async IAsyncEnumerable<HostReply> SendAsync(Func<long, HostRequest> create, TimeSpan stallLimit,
                                                        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var stream = await OpenStreamAsync(create, stallLimit, ct);
-        await foreach (var reply in stream.ReadAsync(ct)) yield return reply;
+        var stream = await OpenStreamAsync(create, stallLimit, ct).ConfigureAwait(false);
+        await using (stream.ConfigureAwait(false))
+            await foreach (var reply in stream.ReadAsync(ct).ConfigureAwait(false)) yield return reply;
     }
 
     /// <summary>
@@ -63,8 +68,12 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     /// <exception cref="AiHostException">No host could be started.</exception>
     public async Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default)
     {
-        var connection = await ConnectAsync(ct);
-        return new HostStream(await connection.BeginAsync(create, ct), stallLimit);
+        while (true)
+        {
+            var connection = await ConnectAsync(ct).ConfigureAwait(false);
+            // A host retiring between the two goes on closing; the request starts the next one.
+            if (await connection.BeginAsync(create, ct).ConfigureAwait(false) is { } request) return new HostStream(request, stallLimit);
+        }
     }
 
     /// <summary>The live connection, starting a host first when there is none — or when the one running was started
@@ -73,16 +82,16 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var environment = Environment;
-        if (_connection is { IsAlive: true } live && live.Environment == environment) return live;
+        if (_connection is { IsServing: true } live && live.Environment == environment) return live;
 
-        await _starting.WaitAsync(ct);
+        await _starting.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_connection is { IsAlive: true } started && started.Environment == environment) return started;
+            if (_connection is { IsServing: true } started && started.Environment == environment) return started;
             if (_connection is { } previous)
             {
-                await previous.WhenIdle.WaitAsync(ct);
-                await previous.DisposeAsync();
+                await previous.WhenIdle.WaitAsync(ct).ConfigureAwait(false);
+                await previous.DisposeAsync().ConfigureAwait(false);
             }
             _connection = null;
 
@@ -91,11 +100,46 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
                 throw new AiHostException(AiHostFailure.Unavailable,
                     $"The AI host stopped unexpectedly {recent} times in {_timings.CrashWindow.TotalMinutes:0.#} minutes; it is not restarted until that eases.");
 
-            _connection = await HostConnection.StartAsync(_launcher, environment, _timings, _time, OnEnded, ct);
+            // Started off the caller's thread: launching the process and waiting on its handshake is no work for a UI thread.
+            _connection = await Task.Run(() => HostConnection.StartAsync(_launcher, environment, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
             return _connection;
         }
         finally { _starting.Release(); }
     }
+
+    /// <summary>
+    /// Closes the host once it has served no request for <paramref name="idleFor"/> while <paramref name="holding"/> says
+    /// nothing is held in it. A host with no model to keep still holds its runtimes — the CUDA context, cuBLAS, ONNX
+    /// Runtime — and any model a tool loaded with its last use; the next request starts a fresh one.
+    /// </summary>
+    public void RetireWhenIdle(TimeSpan idleFor, Func<bool> holding)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _retiring = Task.Run(() => RetireAsync(idleFor, holding));
+    }
+
+    private async Task RetireAsync(TimeSpan idleFor, Func<bool> holding)
+    {
+        using var timer = new PeriodicTimer(idleFor < RetireCheck ? idleFor : RetireCheck, _time);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_life.Token).ConfigureAwait(false))
+            {
+                if (_connection is not { IsServing: true } live || holding() || !live.TryRetire(idleFor)) continue;
+                await _starting.WaitAsync(_life.Token).ConfigureAwait(false);
+                try
+                {
+                    if (_connection == live) _connection = null;
+                }
+                finally { _starting.Release(); }
+                await live.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_life.IsCancellationRequested) { }
+    }
+
+    /// <summary>How often an idle host is looked at for closing.</summary>
+    private static readonly TimeSpan RetireCheck = TimeSpan.FromMinutes(1);
 
     private void OnEnded(object? sender, AiHostExitedEventArgs e)
     {
@@ -118,8 +162,11 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (_connection is { } connection) await connection.DisposeAsync();
+        _life.Cancel();
+        await _retiring.ConfigureAwait(false);
+        if (_connection is { } connection) await connection.DisposeAsync().ConfigureAwait(false);
         _starting.Dispose();
+        _life.Dispose();
     }
 }
 

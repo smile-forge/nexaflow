@@ -11,7 +11,8 @@ namespace Nexaflow.AiHost.Models;
 /// residents nothing is using may make way for its parts — or the picture waits until they are idle — and they are
 /// loaded again once the last picture is done, or as soon as a request needs one.
 /// </summary>
-internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log) : IDisposable
+/// <param name="memory">The share of this machine's memory models on the CPU may hold; none when unset.</param>
+internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log, HostMemory? memory = null) : IDisposable
 {
     /// <summary>How often a request waiting for room says so, so the app's watchdog keeps hearing from it.</summary>
     private static readonly TimeSpan WaitingReport = TimeSpan.FromSeconds(20);
@@ -134,20 +135,29 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     private bool MakeRoomFor(ModelSpec spec, Room? room, out IReadOnlyList<string> madeWay)
     {
         madeWay = [];
-        if (spec.Device is not { } device) return true;
-        var gpu = gpus.Gpu(device);
+        // A GPU's budget is a wall: past it a load fails in the middle of somebody's reply. The CPU's is a share of this
+        // machine's memory, kept by letting idle models go — never by refusing a model, or making it wait, for it.
+        long budget = spec.Device is { } device ? gpus.Gpu(device).BudgetBytes : (memory ?? HostMemory.Unbounded).BudgetBytes;
 
         lock (_gate)
         {
-            var held = _loaded.Values.Concat(_replaced).Where(e => e.Model.Spec.Device == device)
+            var held = _loaded.Values.Concat(_replaced).Where(e => e.Model.Spec.Device == spec.Device)
                               .Select(e => new VramBudget.Loaded(e.Model.Spec.Id, e.Model.Spec.MemoryBytes, e.Resident, e.Users > 0, e.LastUsed))
                               .ToList();
-            var admission = VramBudget.Plan(gpu.BudgetBytes, held, spec.MemoryBytes, displaceResidents: room is not null);
-            if (admission is null || admission.Waits && room is null && !_displaced.ContainsKey(spec.Id))
-                throw new HostRequestException(HostErrorKind.Refused,
-                    $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of GPU {device}, and its {gpu.BudgetBytes >> 20} MiB budget cannot make that room beside "
-                    + string.Join(", ", held.Select(m => m.Id)) + ".");
-            if (admission.Waits) return false;
+            var admission = VramBudget.Plan(budget, held, spec.MemoryBytes, displaceResidents: room is not null);
+            if (admission is null || admission.Waits)
+            {
+                if (spec.Device is { } gpu)
+                {
+                    if (admission is null || room is null && !_displaced.ContainsKey(spec.Id))
+                        throw new HostRequestException(HostErrorKind.Refused,
+                            $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of GPU {gpu}, and its {budget >> 20} MiB budget cannot make that room beside "
+                            + string.Join(", ", held.Select(m => m.Id)) + ".");
+                    return false;
+                }
+                admission = new VramBudget.Admission([.. held.Where(m => !m.InUse && (!m.Resident || room is not null)).Select(m => m.Id)], Waits: false);
+                log.Write($"{spec.Id} needs {spec.MemoryBytes >> 20} MiB on the CPU, past its {budget >> 20} MiB share beside the models in use; it loads past it");
+            }
 
             var residents = new List<string>();
             foreach (var id in admission.Unload)

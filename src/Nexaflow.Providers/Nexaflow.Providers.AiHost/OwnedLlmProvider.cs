@@ -13,7 +13,7 @@ namespace Nexaflow.Providers.AiHost;
 /// on a machine the CUDA pack suits, the pack with them; the model is available once its files are here, and is held
 /// loaded while an ability uses it.
 /// </summary>
-public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
+public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostModelCatalog, ITracksModelUse, IAsyncDisposable
 {
     public const string ProviderName = "Nexaflow";
 
@@ -75,6 +75,8 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// <summary>Unloads the model from the host; the host itself stays for any other.</summary>
     public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
+    public ModelUseTracker ModelUse => _runtime.ModelUse;
+
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         => StreamAsync(messages, LlmUrgency.Interactive, ct);
 
@@ -107,6 +109,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
                                                           RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
     {
+        using var use = await _runtime.ModelUse.BeginAsync(ct);
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
         var spec = await _runtime.PlacedAsync(model, OwnedRoles.Chat, ct);
