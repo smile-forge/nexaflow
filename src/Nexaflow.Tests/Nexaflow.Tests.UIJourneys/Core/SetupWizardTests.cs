@@ -212,12 +212,12 @@ public class SetupWizardTests
         ClickNext(wizard);   // Nexaflow's own models, as chosen
 
         var later = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardDownloads_Later"))?.AsButton());
-        Assert.IsFalse(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled,
+        Assert.IsFalse(WizardButton(wizard, "WizardNextButton").IsEnabled,
                        "the step waits on a choice: download now, or later");
         later.Invoke();
-        WaitUntil(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled);
+        WaitUntil(() => WizardButton(wizard, "WizardNextButton").IsEnabled);
 
-        wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardSkipButton")).AsButton().Invoke();
+        WizardButton(wizard, "WizardSkipButton").Invoke();
         WaitUntil(() => GetWindow("Nexaflow Setup") is null);
         Thread.Sleep(3000);
         Assert.AreEqual(0, Directory.EnumerateFiles(_aiDir, "*", SearchOption.AllDirectories).Count(), "Later downloads nothing");
@@ -244,7 +244,7 @@ public class SetupWizardTests
 
         // The models download into the store's folder — the run's own — and the wizard can be finished meanwhile.
         WaitUntil(() => Directory.EnumerateFiles(_aiDir, "*", SearchOption.AllDirectories).Any());
-        Assert.IsTrue(wizard.FindFirstDescendant(cf => cf.ByAutomationId("WizardNextButton")).AsButton().IsEnabled,
+        Assert.IsTrue(WizardButton(wizard, "WizardNextButton").IsEnabled,
                       "the wizard can be finished while the downloads go on");
     }
 
@@ -283,6 +283,10 @@ public class SetupWizardTests
         });
         next.Invoke();
     }
+
+    /// <summary>The wizard's button <paramref name="automationId"/>, waited for, so a missing one fails as a timeout rather than a null.</summary>
+    private static Button WizardButton(Window wizard, string automationId) =>
+        WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsButton());
 
     private Window WaitForWindow(string title)
     {

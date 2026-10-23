@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace Nexaflow.IO.Common.Cloud;
 
@@ -20,6 +21,7 @@ public static class CloudProviderStatus
     /// The provider's word on <paramref name="path"/>, or null where the shell has none (no provider owns it, or it is gone).
     /// Call from a COM-initialised thread; the provider's handler may be apartment-threaded.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public static CloudFileStatus? Read(string path)
     {
         IShellItem2? item = null;
