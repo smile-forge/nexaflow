@@ -320,6 +320,33 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   user is an administrator with UAC off, so an elevation never prompts.
 - It needs the Windows Sandbox feature and its app's `wsb` command.
 
+### Flaky tests in CI
+
+CI runs the suites through `tools/ci/Invoke-UnitTests.ps1`, which reads each suite's TRX report rather than its
+console, and gives every failed test one re-run, by name, in the same job:
+
+- **Failed twice** — an `::error` annotation titled with the test's fully qualified name and carrying its message,
+  so the PR check names the test. The job fails.
+- **Failed, then passed** — a `Flaky test` `::warning` naming it, and the job stays green. The test is added to
+  `flakes.json` (test, project, commit, run id, message) in the run's `test-results` artifact, beside the TRX
+  reports. The run's summary page lists both kinds.
+- **A suite exits non-zero with no failed test in its report** — a crash, an abort, a filter that matched
+  nothing — fails the job on the suite's exit code, with nothing re-run.
+
+The runner has 4 cores to a developer machine's 32, so a test that leans on real time — a file watcher's or a shell
+notification's debounce window, a `Thread.Sleep` waiting for something to settle — can pass every time at a desk and
+fail there. The re-run keeps it off pull requests that never touched it; it is not the fix. A flake is fixed one at a
+time by making the test deterministic: give the code under test a `TimeProvider` and let the test move the clock
+itself (`GpuSchedulerTests.ManualClock` fires its timers on `Advance`), or wait on the event the code raises rather
+than on a duration. Never by a retry attribute, a longer sleep or a wider timeout — those only move the threshold the
+slower machine falls over.
+
+To run it locally against your own Release build:
+
+```powershell
+./tools/ci/Invoke-UnitTests.ps1 -Suites ([ordered]@{ 'Nexaflow.Tests.IO' = 'net10.0-windows' }) -ResultsDirectory "$env:TEMP\test-results"
+```
+
 ### Files a test writes (`TestTemp`)
 
 A test never writes into the machine's `%TEMP%` itself. `TestTemp` (`Nexaflow.Tests.Fixtures`) gives each test host one
@@ -1065,3 +1092,4 @@ feature projects, and the desktop-heap hazard above is worst there. Mutation tes
 | Per-file viewer UI tests | `Nexaflow.Tests.UIJourneys/Features/Fixtures/SampleFileViewerTests.cs` |
 | Tabular detection over samples | `Nexaflow.Tests.Features.Viewers/Tabular/SampleFileDetectionTests.cs` |
 | Non-tabular fixture smoke (BOM/binary) | `Nexaflow.Tests.Features.Viewers/Fixtures/GeneratedSampleFilesTests.cs` |
+| CI test run: failures named, one re-run, flakes recorded | `tools/ci/Invoke-UnitTests.ps1` (repo root) |
