@@ -62,9 +62,10 @@ public partial class App : Application
 
     /// <summary>
     /// True once an update install has been kicked off and this process is committed to exiting so the
-    /// installer can replace its (otherwise locked) files. Overrides the resident keep-alive in
-    /// <see cref="ShellServices.UnregisterWindow"/> — a <c>--prestart</c> daemon must actually die for
-    /// the installer's wait-for-exit script to proceed, instead of lingering windowless.
+    /// installer can replace its (otherwise locked) files. From then the updater ends the process itself, once
+    /// the script that runs the installer has started, so <see cref="ShellServices.UnregisterWindow"/> does not
+    /// shut down when the last window closes: shutting down then would end the process before the updater starts
+    /// that script. The resident keep-alive is moot too — the process ends either way.
     /// </summary>
     public static bool IsUpdating { get; private set; }
 
@@ -741,20 +742,27 @@ public partial class App : Application
             var asset = await AppUpdater.DownloadUpdateAsync();
             if (asset is null) return;
 
-            // 2. Commit to exiting. The installer's script waits for this process to die before it can
-            //    replace the in-use binaries; the resident keep-alive would otherwise leave us running
-            //    windowless and stall (or corrupt) the install. IsUpdating lifts that keep-alive.
+            // 2. Commit to exiting. From here the updater ends this process itself, once the script that runs the
+            //    installer has started; IsUpdating stops the last window closing from ending it any sooner.
             IsUpdating = true;
 
             // 3. Drop the single-instance mutex so the relaunched/new version can claim it, and close
-            //    every window so nothing holds a lock on the install directory.
+            //    every window so each saves its state and nothing holds a lock on the install directory.
             _singleInstance.Dispose();
             foreach (var window in Current.Windows.Cast<Window>().ToList())
                 window.Close();
 
-            // 4. Launch the installer and terminate this process so msiexec /qb can replace the now
-            //    unlocked files, then relaunch. forceTerminate ⇒ this call does not return.
-            await AppUpdater.InstallUpdateAsync(asset, forceTerminate: true, runArguments: null);
+            // 4. Start the installer's script and terminate (forceTerminate), so msiexec can replace the now
+            //    unlocked files, then relaunch. It returns only when the script could not be started.
+            if (!await AppUpdater.InstallUpdateAsync(asset, forceTerminate: true, runArguments: null))
+                throw new InvalidOperationException($"The installer for {asset.TagVersionStr} could not be started.");
+        }
+        catch (Exception ex) when (IsUpdating)
+        {
+            // Every window is closed and nothing else will end the process: record why, then exit.
+            CrashLog.Instance.Record(ex);
+            CrashLog.Instance.Flush();
+            Current.Shutdown();
         }
         catch { }
     }

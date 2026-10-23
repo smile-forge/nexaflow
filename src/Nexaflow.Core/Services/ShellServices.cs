@@ -162,8 +162,9 @@ public sealed class ShellServices : IShellServices
 
         // Shut down only when no windows remain across all live workspaces.
         // In --prestart daemon mode, stay alive windowless so the next click can show a window
-        // instantly. During an update the daemon must exit so the installer can replace its files.
-        if (!WorkspaceManager.Instance.AnyWindowsOpen && (!App.IsResident || App.IsUpdating))
+        // instantly. During an update the updater ends the process once its installer script is
+        // running; shutting down here would end it before the script starts.
+        if (!WorkspaceManager.Instance.AnyWindowsOpen && !App.IsResident && !App.IsUpdating)
             Application.Current.Shutdown();
     }
 
