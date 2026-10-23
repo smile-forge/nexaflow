@@ -785,17 +785,10 @@ internal static class TexTypesetter
         var delta = 0d;
         double shiftUp, shiftDown;
 
-        if (on?.Glyph is { SymbolName: { } symbolName, Type: TexAtomType.BigOperator })
+        if (on?.Glyph is { Type: TexAtomType.BigOperator } sign)
         {
-            var charInfo = texFont.GetCharInfo(symbolName, style).Value;
-            if (style < TexStyle.Text && texFont.HasNextLarger(charInfo))
-                charInfo = texFont.GetNextLargerCharInfo(charInfo, style);
-
-            var glyph = Set.Glyph(environment, charInfo);
-            glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
+            (var glyph, delta) = OperatorGlyph(sign, environment);
             result = [glyph];
-
-            delta = charInfo.Metrics.Italic;
             if (delta > TexUtilities.FloatPrecision && subscript is null)
                 result.Add(Strut(delta, 0, 0));
 
@@ -967,27 +960,39 @@ internal static class TexTypesetter
     /// <summary>A big operator's sign at the size its style asks for, centred on the axis, and how far it leans.</summary>
     private static (Set Set, double Delta) OperatorSign(Item? sign, TexEnvironment environment)
     {
-        if (sign?.Glyph is { SymbolName: { } name, Type: TexAtomType.BigOperator } symbol)
+        if (sign?.Glyph is { Type: TexAtomType.BigOperator } symbol)
         {
-            var texFont = environment.MathFont;
-            var style = environment.Style;
-
-            var character = texFont.GetCharInfo(name, style).Value;
-            if (style < TexStyle.Text && texFont.HasNextLarger(character))
-                character = texFont.GetNextLargerCharInfo(character, style);
-
             // The sign is the operator's own drawing of itself, and says which part it was set from.
-            var glyph = Set.Glyph(environment, character) with { Part = symbol.Origin };
-            glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
+            var (glyph, delta) = OperatorGlyph(symbol, environment);
 
-            var delta = character.Metrics.Italic;
-            List<Set> row = [glyph];
+            List<Set> row = [glyph with { Part = symbol.Origin }];
             if (delta > TexUtilities.FloatPrecision) row.Add(Strut(delta, 0, 0));
 
             return (Horizontal(row, null, null), delta);
         }
 
         return (Horizontal([sign is null ? Strut(0, 0, 0) : sign.Make(environment, null)], null, null), 0);
+    }
+
+    /// <summary>
+    /// An operator's sign where it is one character, as TeX sets it (Appendix G, rule 13): the font's next larger form in
+    /// display style where it has one, centred on the axis — whatever the character is, which is what lets <c>\mathop{:}</c>
+    /// lift a colon level with the bars of an equals sign. Its italic correction comes with it, because that is where a
+    /// limit or a script beside it is set from.
+    /// </summary>
+    private static (Set Glyph, double Italic) OperatorGlyph(Glyph sign, TexEnvironment environment)
+    {
+        var font = sign.FontFor(environment);
+        var style = environment.Style;
+
+        var character = sign.Info(font, style).Value;
+        if (style < TexStyle.Text && font.HasNextLarger(character))
+            character = font.GetNextLargerCharInfo(character, style);
+
+        // Half the difference of height and depth, less the axis: a big operator's glyph in the extension font hangs
+        // wholly below the baseline and a colon stands wholly on it, and both come out with their middle on the axis.
+        var glyph = Set.Glyph(environment, character);
+        return (glyph with { Shift = (glyph.Height - glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(style) }, character.Metrics.Italic);
     }
 
     /// <summary>
@@ -1424,6 +1429,12 @@ internal static class TexTypesetter
                     return Layered([set, stroke]);
                 });
             }
+
+            // One character typed as an operator is set as an operator's own sign is: grown in display style and centred on the
+            // axis. Anything longer keeps its shape — which is why amsmath's \operatorname puts a \kern0pt beside a one-letter
+            // name, so that it is never this.
+            case TexRetyped { Class: TexAtomType.BigOperator } when arguments is [{ Glyph: { } sign }]:
+                return Operator(GlyphItem(sign with { Type = TexAtomType.BigOperator }), null, null, null, origin);
 
             case TexRetyped retyped when arguments.Count == 1:
                 return Typed(arguments[0], retyped.Class, origin);

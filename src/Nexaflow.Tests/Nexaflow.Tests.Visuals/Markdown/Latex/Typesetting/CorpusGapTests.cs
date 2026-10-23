@@ -3,6 +3,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -80,6 +81,53 @@ public class CorpusGapTests
     public void MathopTakesALimitRatherThanAScript() => UiThread.Run(() =>
         // \mathop{argmax}_x is the reason a paper writes it: the x becomes a limit under the name.
         Assert.AreNotEqual(Width(@"\mathord{argmax}_{x}"), Width(@"\mathop{argmax}_{x}")));
+
+    // ── colons ───────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void AnOperatorsLoneCharacterHasItsMiddleOnTheAxis() => UiThread.Run(() =>
+    {
+        // TeX's rule 13, and the whole of what \vcentcolon is: a colon standing on the baseline, lifted until its middle
+        // is the axis — and the same rule still hangs a big operator from the extension font about it.
+        var axis = Environment().MathFont.GetAxisHeight(TexStyle.Display);
+
+        // Lifted clear of the baseline, its box keeps no depth — TeX's never goes below zero — so it is measured from the top.
+        foreach (var (operated, plain) in new[] { (@"\mathop{:}", ":"), (@"\vcentcolon", ":"), (@"\mathop{x}", "x") })
+            Assert.AreEqual(axis, Height(operated) - TotalHeight(plain) / 2, 1e-6, operated);
+
+        // The extension font's own operators straddle the axis, so their box shows it either way.
+        Assert.AreEqual(axis, (Height(@"\sum") - Depth(@"\sum")) / 2, 1e-6);
+    });
+
+    [TestMethod]
+    [DataRow(@"\vcentcolon")]
+    [DataRow(@"\dblcolon")]
+    [DataRow(@"\coloneqq")]
+    [DataRow(@"\Coloneqq")]
+    [DataRow(@"\eqqcolon")]
+    [DataRow(@"\Eqqcolon")]
+    [DataRow(@"\colonapprox")]
+    [DataRow(@"\Approxcolon")]
+    [DataRow(@"\colonsim")]
+    [DataRow(@"\Simcolon")]
+    [DataRow(@"\colondash")]
+    [DataRow(@"\Dashcolon")]
+    [DataRow(@"a_n \coloneqq \inf \left\{a_k \mid k \geq n\right\}")]
+    public void TheMathtoolsColonsRender(string markup) => UiThread.Run(() => Renders(markup));
+
+    [TestMethod]
+    public void AColonIsButtedAgainstTheRelationBesideIt() => UiThread.Run(() =>
+    {
+        // mathtools pulls the pair 1.2mu closer than two relations side by side would stand, and the colons of a double one 0.9mu.
+        static double Mu(double amount) => Width(@"a\mspace{" + amount.ToString(System.Globalization.CultureInfo.InvariantCulture) + "mu}b") - Width("ab");
+
+        Assert.AreEqual(Mu(1.2), Width(@"\vcentcolon=") - Width(@"\coloneqq"), 1e-6);
+        Assert.AreEqual(Mu(0.9), Width(@"\vcentcolon\vcentcolon") - Width(@"\dblcolon"), 1e-6);
+
+        // The pairs are each other's mirror, and mathtools' default branch makes \coloneq the same sign as \coloneqq.
+        Assert.AreEqual(Width(@"\coloneqq"), Width(@"\eqqcolon"), 1e-6);
+        Assert.AreEqual(Width(@"\coloneqq"), Width(@"\coloneq"), 1e-6);
+    });
 
     // ── escaped literals ─────────────────────────────────────────────────────────
 

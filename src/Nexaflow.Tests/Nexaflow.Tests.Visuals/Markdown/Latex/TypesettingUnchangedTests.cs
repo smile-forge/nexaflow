@@ -66,7 +66,12 @@ public class TypesettingUnchangedTests
         // Moved 2026-08-30. A script on something typed as a big operator is a limit, set over and under
         // the sign rather than beside it. Only an atom that *was* a BigOperatorAtom got that, so \sum did
         // and \mathop{X} did not — and \mathop is how a paper writes an operator of its own.
-        ["scripts, primes and big operators"] = "FDF8D818212AC094",
+        //
+        // Moved again 2026-10-23, and both moves are TeX's rule 13. An operator's sign is shifted by half its height less
+        // its depth, less the axis; it had been shifted by half its height *plus* its depth, which is the same thing only
+        // for a glyph with no height. The display \sum, \prod and their family stand 0.1em above the baseline in cmex, so
+        // they had been set 0.1em high; \int and \oint have none and did not move.
+        ["scripts, primes and big operators"] = "FD5A7089EE5B42CF",
         ["accents and arrows"] = "2A255E3A539DA8D9",
         ["fences and delimiters"] = "C86116062C9363D2",
         ["matrices and environments"] = "27CBEAB5C83474E3",
@@ -100,7 +105,9 @@ public class TypesettingUnchangedTests
         // text rather than as maths, where a backslash and a brace have no glyph worth the name.
         ["spacing, dots and modular arithmetic"] = "7AE4CF9BC2F64409",
         ["colour, phantoms and overlap"] = "5EBB82F1708AB4AD",
-        ["styles and sizes"] = "B25AB0726B456C03",
+        // Moved 2026-10-23: \mathop{l} is one character typed as an operator, which TeX centres on the axis (rule 13) —
+        // the rule mathtools' \vcentcolon is built on.
+        ["styles and sizes"] = "D601A05242EB42A9",
         // Moved 2026-08-29, and for the reason this guard exists to make somebody give: \mapsto is now
         // set as TeX sets it. Computer Modern has a \mapstochar — zero width, on the axis, made for
         // exactly this — sitting beside \not in cmsy and never named in our symbol table, so the bar had
