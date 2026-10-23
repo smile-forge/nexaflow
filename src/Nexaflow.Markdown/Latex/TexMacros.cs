@@ -178,6 +178,37 @@ public static class TexMacros
         Add(@"\notin", @"\mathrel{\not\in}");
         Add(@"\bmod", @"\mathbin{\mathrm{mod}}");
 
+        // ── mathtools' colons ───────────────────────────────────────────────
+        //
+        // A colon centred on the axis, so that it lines up with the bars of the equals sign beside it: `:=` written with a
+        // plain colon sits low, which is why the package has these at all. mathtools says it as a colon typed as an operator,
+        // since TeX centres an operator's lone character on the axis, and that typed again as a relation so that it is spaced
+        // as one. Every other name is that colon, or two of them, butted against a relation by a kern — mathtools' own
+        // definitions, from its default branch rather than `legacycolonsymbols`, where \coloneq is \coloneqq and the
+        // colon-and-dash pairs have names of their own.
+        Add(@"\ordinarycolon", ":");
+        Add(@"\vcentcolon", @"\mathrel{\mathop{:}}");
+        Add(@"\dblcolon", @"\vcentcolon\mathrel{\mspace{-0.9mu}}\vcentcolon");
+
+        string Butted(string left, string right) => left + @"\mathrel{\mspace{-1.2mu}}" + right;
+
+        All([@"\coloneqq", @"\coloneq"], Butted(@"\vcentcolon", "="));
+        All([@"\Coloneqq", @"\Coloneq"], Butted(@"\dblcolon", "="));
+        All([@"\eqqcolon", @"\eqcolon"], Butted("=", @"\vcentcolon"));
+        All([@"\Eqqcolon", @"\Eqcolon"], Butted("=", @"\dblcolon"));
+        Add(@"\colonapprox", Butted(@"\vcentcolon", @"\approx"));
+        Add(@"\Colonapprox", Butted(@"\dblcolon", @"\approx"));
+        Add(@"\approxcolon", Butted(@"\approx", @"\vcentcolon"));
+        Add(@"\Approxcolon", Butted(@"\approx", @"\dblcolon"));
+        Add(@"\colonsim", Butted(@"\vcentcolon", @"\sim"));
+        Add(@"\Colonsim", Butted(@"\dblcolon", @"\sim"));
+        Add(@"\simcolon", Butted(@"\sim", @"\vcentcolon"));
+        Add(@"\Simcolon", Butted(@"\sim", @"\dblcolon"));
+        Add(@"\colondash", Butted(@"\vcentcolon", @"\mathrel{-}"));
+        Add(@"\Colondash", Butted(@"\dblcolon", @"\mathrel{-}"));
+        Add(@"\dashcolon", Butted(@"\mathrel{-}", @"\vcentcolon"));
+        Add(@"\Dashcolon", Butted(@"\mathrel{-}", @"\dblcolon"));
+
         return table;
 
     }

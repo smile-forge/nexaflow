@@ -474,6 +474,15 @@ asks is whether the row fires at all. A row for a name the command table already
 otherwise: nothing breaks, nothing complains, and the sweep reports a clean pass. That happened once
 already, to `\mod`.
 
+### A colon on the axis is a macro too
+
+mathtools' colons — `\coloneqq`, `\eqqcolon`, `\dblcolon` and the rest — are rows in the table, written as
+mathtools writes them. Each is built from `\vcentcolon`, which is `\mathrel{\mathop{:}}`: a colon typed as an
+operator and then as a relation. That spelling works because the typesetter follows TeX's rule 13. An operator
+whose argument is a single character is set as an operator's own sign, grown in display style and shifted by half
+its height less its depth, less the axis, so its middle sits on the axis. That is the same rule that hangs a `\sum`
+about the axis. A colon stands on the baseline, and the rule lifts it level with the bars of an equals sign.
+
 ## What every name means is the reading's too
 
 A macro is not the only name whose meaning is a fact about what was written. Which construct `\frac` is,

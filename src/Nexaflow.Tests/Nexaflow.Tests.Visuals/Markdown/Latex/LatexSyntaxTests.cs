@@ -45,6 +45,7 @@ public class LatexSyntaxTests
     [DataRow(@"\frac{1}{2}")]
     [DataRow(@"\sqrt{x}")]
     [DataRow(@"a \not= b")]
+    [DataRow(@"a \coloneqq b")]
     public void WhatTheBuilderDrawsItselfIsFinished(string latex) => UiThread.Run(() =>
         Assert.IsTrue(LatexSyntax.IsWellFormed(latex),
             $"{latex}: {string.Join("; ", LatexSyntax.Check(latex).Select(Said))}"));
