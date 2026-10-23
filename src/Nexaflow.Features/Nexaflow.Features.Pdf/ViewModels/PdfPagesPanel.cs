@@ -457,8 +457,9 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     }
 
     /// <summary>A size of its own keeps its size when its unit changes: the figures given are said again in the new unit.</summary>
-    partial void OnSizeUnitChanged(PdfSplitChoice<double> oldValue, PdfSplitChoice<double> newValue)
+    partial void OnSizeUnitChanged(PdfSplitChoice<double>? oldValue, PdfSplitChoice<double> newValue)
     {
+        if (oldValue is null) return;
         if (Points(CustomWidth, oldValue.Value) is { } width) CustomWidth = Measure(width);
         if (Points(CustomHeight, oldValue.Value) is { } height) CustomHeight = Measure(height);
     }
@@ -497,7 +498,7 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     /// <summary><paramref name="points"/> said in the unit chosen, to a tenth.</summary>
     private string Measure(double points) =>
-        Math.Round(points * (_sizeUnit?.Value ?? MillimetresPerPoint), 1).ToString(System.Globalization.CultureInfo.CurrentCulture);
+        Math.Round(points * SizeUnit.Value, 1).ToString(System.Globalization.CultureInfo.CurrentCulture);
 
     /// <summary>The pages the bar is for, in order: every one, or those selected.</summary>
     private List<int> Targets() => AppliesToAll ? Enumerable.Range(0, Pages.Count).ToList() : SelectedIndices();
