@@ -251,6 +251,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         Moved?.Invoke(target);
     }
 
+    /// <summary>Says printing the document failed, and why — the printer would not take it, or went away.</summary>
+    public void PrintFailed(string why) => _shell.ShowError(Str.Format("Markdown.Error.PrintFormat", why));
+
     /// <summary>The files the document shows or links to from its folder, copied to the same places under <paramref name="to"/>.</summary>
     private void CarryAttachments(string to)
     {

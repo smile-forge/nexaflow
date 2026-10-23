@@ -68,6 +68,15 @@ public partial class MarkdownView : UserControl, IPageView
             }
         };
 
+        // Ctrl+P → print, likewise in either mode: both surfaces hold the one document.
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.P || Keyboard.Modifiers != ModifierKeys.Control) return;
+
+            Print();
+            e.Handled = true;
+        };
+
         // Ctrl+Shift+S → save as, likewise in either mode.
         InputBindings.Add(new KeyBinding(viewModel.SaveAsCommand, Key.S, ModifierKeys.Control | ModifierKeys.Shift));
 
@@ -134,6 +143,27 @@ public partial class MarkdownView : UserControl, IPageView
         using var png = new MemoryStream();
         encoder.Save(png);
         return png.ToArray();
+    }
+
+    private void Print_Click(object sender, RoutedEventArgs e) => Print();
+
+    /// <summary>
+    /// The document on paper: the printer and its sheet are asked for, then the whole document is laid out for that sheet and
+    /// printed as it is drawn here — whichever surface is showing, since both hold the one document.
+    /// </summary>
+    private void Print()
+    {
+        var dialog = new PrintDialog { UserPageRangeEnabled = false };
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            dialog.PrintDocument(Editor.Paginator(new Size(dialog.PrintableAreaWidth, dialog.PrintableAreaHeight)), ViewModel.FileName);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            ViewModel.PrintFailed(ex.Message);
+        }
     }
 
     /// <summary>

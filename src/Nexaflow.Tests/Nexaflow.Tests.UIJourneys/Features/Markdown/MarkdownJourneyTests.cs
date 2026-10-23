@@ -87,6 +87,10 @@ public class MarkdownJourneyTests : UiJourneyTestBase
         Check("The picker offers what to save it as", () => FindInAppWindows("FileBrowser_SaveType") is not null);
         Check("Cancel closes the file picker", () => PressInDialog("FileBrowser_Cancel"));
 
+        // Print — what it opens is the printer's own dialog, the system's rather than the app's, so it is seen offered and not pressed.
+        var print = CheckPresent("Print", "Markdown_Print");
+        Check("Print is offered whatever the document's state", () => print is not null && print.IsEnabled);
+
         AssertJourney();
     }
 
