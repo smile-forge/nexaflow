@@ -23,28 +23,36 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
 
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         var leases = new Dictionary<string, ModelRegistry.Lease>(StringComparer.Ordinal);
+
+        // A voice's model is taken on with the first segment it reads: a language never spoken never loads its voice.
+        async Task<KokoroSynthesizer> SynthesizerOf(VoiceSpec voice)
+        {
+            if (!leases.TryGetValue(voice.Model.Id, out var lease))
+                leases[voice.Model.Id] = lease = await models.AcquireAsync(voice.Model, resident: false, Stage, ct);
+            return lease.As<KokoroSynthesizer>();
+        }
+
         try
         {
-            foreach (var spec in request.Voices.Select(v => v.Model).DistinctBy(m => m.Id))
-                leases[spec.Id] = await models.AcquireAsync(spec, resident: false, Stage, ct);
-            var voices = request.Voices.Select(v => new Voice(v.Language, leases[v.Model.Id].As<KokoroSynthesizer>(), v.VoiceFile, v.Lexicon)).ToList();
+            await SynthesizerOf(request.Voices[0]);   // the first voice reads every language without one: ready before the first segment
 
             int spokenSamples = 0;
             Task Alive() => reply(new Progress(request.RequestId, "speaking", spokenSamples * 1000L / KokoroSynthesizer.SampleRate, 0));
             await foreach (var item in HostStreamInput.ReadAsync(input, Alive, ct))
             {
                 if (item is not TextToSpeak text) continue;
-                var voice = voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? voices[0];
+                var voice = request.Voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? request.Voices[0];
+                var synthesizer = await SynthesizerOf(voice);
                 string phonemes = phonemizers.For(voice.Language, voice.Lexicon).Phonemize(text.Text);
-                int? device = voice.Synthesizer.Spec.Device;
+                int? device = synthesizer.Spec.Device;
                 using var speaking = gpu.Engage(request.Priority, device);   // a young job on its card waits while this is said
-                foreach (var piece in voice.Synthesizer.Tokenize(phonemes))
+                foreach (var piece in synthesizer.Tokenize(phonemes))
                 {
                     float[] wave;
                     using (await gpu.NextAsync(request.Priority, device, ct))
                     {
                         ct.ThrowIfCancellationRequested();
-                        wave = voice.Synthesizer.Synthesize(piece, voice.Synthesizer.Voice(voice.File), request.Speed);
+                        wave = synthesizer.Synthesize(piece, synthesizer.Voice(voice.VoiceFile), request.Speed);
                     }
                     for (int at = 0; at < wave.Length; at += ChunkSamples)
                         await reply(new SpokenAudio(request.RequestId, text.Segment, Pcm16.FromSamples(wave.AsSpan(at, Math.Min(ChunkSamples, wave.Length - at)))));
@@ -58,6 +66,4 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
             foreach (var lease in leases.Values) lease.Dispose();
         }
     }
-
-    private sealed record Voice(string Language, KokoroSynthesizer Synthesizer, string File, string? Lexicon);
 }

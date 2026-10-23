@@ -63,17 +63,18 @@ public interface IAiProvider
     string? LastModelListError => null;
 
     /// <summary>
-    /// Called when this instance is created because its (config, model) became referenced by the first
-    /// active workspace. Lets the provider pre-load / cache anything it needs — e.g. a local backend can
-    /// load the model into memory. Best-effort and fire-and-forget: implementations must never throw.
-    /// Default implementation is a no-op (remote providers need no warm-up).
+    /// Called when the app loads this instance's model ahead of its first request — after the first window is up, for
+    /// a model its preload policy says is used most days, or by a check of the local models. Lets a local backend load
+    /// the model into memory. Best-effort: implementations must never throw. A model never warmed loads with its first
+    /// request. Default implementation is a no-op (remote providers need no warm-up).
     /// </summary>
     Task WarmupAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     /// <summary>
     /// Called when this instance is being released because its (config, model) is no longer referenced
-    /// by ANY active workspace. Lets the provider release resources — e.g. a local backend can unload
-    /// the model from memory. Best-effort and fire-and-forget: implementations must never throw.
+    /// by ANY active workspace, or — for an <see cref="ITracksModelUse"/> provider — when its model has stood idle
+    /// and was not loaded ahead. Lets the provider release resources — e.g. a local backend can unload the model
+    /// from memory; its next request loads it again. Best-effort: implementations must never throw.
     /// Default implementation is a no-op.
     /// </summary>
     Task CooldownAsync(CancellationToken ct = default) => Task.CompletedTask;

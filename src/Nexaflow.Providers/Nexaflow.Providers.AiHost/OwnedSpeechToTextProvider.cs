@@ -11,7 +11,7 @@ namespace Nexaflow.Providers.AiHost;
 /// as they are spoken, a transcriber for the text that counts once an utterance ends, and a turn detector that tells a
 /// finished turn from a thinking pause. Nothing leaves this machine.
 /// </summary>
-public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IHostModelCatalog, IAsyncDisposable
+public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IHostModelCatalog, ITracksModelUse, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
     private readonly OwnedModel?       _model;
@@ -55,30 +55,39 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
 
     public Task CooldownAsync(CancellationToken ct = default) => _model is null ? Task.CompletedTask : _runtime.CooldownAsync(_model, ct);
 
+    public ModelUseTracker ModelUse => _runtime.ModelUse;
+
     /// <summary>Opens a stretch of listening in the host. Phrases end at each pause, as dictation wants; turns end when
     /// the speaker has finished, and are heard at the voice priority, ahead of everything else on the GPU.</summary>
     public async Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no speech model of that name.");
-        var models = new ListenModels(
-            await _runtime.PlacedAsync(_model, OwnedRoles.VoiceActivity, ct),
-            await _runtime.PlacedAsync(_model, OwnedRoles.Recognizer, ct),
-            await _runtime.PlacedAsync(_model, OwnedRoles.Transcriber, ct),
-            await _runtime.PlacedAsync(_model, OwnedRoles.TurnDetector, ct));
-        var (end, priority) = options.Segmentation == SpeechSegmentation.Turns
-            ? (UtteranceEnd.Turn, RequestPriority.Voice)
-            : (UtteranceEnd.Pause, RequestPriority.Interactive);
-
-        var host = _runtime.Host;
-        host.Environment = _runtime.Environment;
+        var use = await _runtime.ModelUse.BeginAsync(ct);   // the session's whole stretch is one use, ended with it
         try
         {
+            var models = new ListenModels(
+                await _runtime.PlacedAsync(_model, OwnedRoles.VoiceActivity, ct),
+                await _runtime.PlacedAsync(_model, OwnedRoles.Recognizer, ct),
+                await _runtime.PlacedAsync(_model, OwnedRoles.Transcriber, ct),
+                await _runtime.PlacedAsync(_model, OwnedRoles.TurnDetector, ct));
+            var (end, priority) = options.Segmentation == SpeechSegmentation.Turns
+                ? (UtteranceEnd.Turn, RequestPriority.Voice)
+                : (UtteranceEnd.Pause, RequestPriority.Interactive);
+
+            var host = _runtime.Host;
+            host.Environment = _runtime.Environment;
             var stream = await host.OpenStreamAsync(id => new Listen(id, models, options.Language, end, priority), OwnedModelRuntime.StallLimit, ct);
-            return new OwnedListeningSession(stream);
+            return new OwnedListeningSession(stream, use);
         }
         catch (AiHostException ex)
         {
+            use.Dispose();
             throw new LlmProviderException($"{Name} could not start listening: {ex.Message}", ex);
+        }
+        catch
+        {
+            use.Dispose();
+            throw;
         }
     }
 
@@ -90,7 +99,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
 }
 
 /// <summary>A stretch of listening in the host: captured audio streamed in, what is heard streamed back.</summary>
-internal sealed class OwnedListeningSession(IHostStream stream) : ISpeechToTextSession
+internal sealed class OwnedListeningSession(IHostStream stream, IDisposable use) : ISpeechToTextSession
 {
     public async ValueTask AppendAudioAsync(ReadOnlyMemory<byte> pcm, CancellationToken ct = default)
     {
@@ -126,5 +135,9 @@ internal sealed class OwnedListeningSession(IHostStream stream) : ISpeechToTextS
         }
     }
 
-    public ValueTask DisposeAsync() => stream.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        try { await stream.DisposeAsync(); }
+        finally { use.Dispose(); }
+    }
 }

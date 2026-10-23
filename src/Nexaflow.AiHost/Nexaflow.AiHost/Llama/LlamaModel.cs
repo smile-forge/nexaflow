@@ -52,6 +52,9 @@ internal sealed unsafe class LlamaModel : IDisposable
         parameters.GpuLayers = device is null ? 0 : -1;
         parameters.Split = LlamaNative.SplitMode.None;
         parameters.MainGpu = 0;
+        // A model wholly on a GPU is read into it: mapped, its file would stay in this process's working set long after its
+        // weights are on the device, every gigabyte counted as the host's memory. On the CPU the mapping is the weights.
+        parameters.LoadMode = device is null ? LlamaNative.LoadMode.Auto : LlamaNative.LoadMode.None;
         IntPtr model = LlamaNative.ModelLoad(path, parameters);
         return model == IntPtr.Zero
             ? throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not load {path}; see the host's log.")

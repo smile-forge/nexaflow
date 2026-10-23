@@ -20,12 +20,14 @@ namespace Nexaflow.Providers.AiHost;
 /// <param name="BytesPerToken">What each token of a language model's context holds on the GPU.</param>
 /// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
 /// <param name="ExecutionProvider">The one runtime it is built for (<c>cuda</c> or <c>cpu</c>), or null for either.</param>
+/// <param name="LoadsOnDemand">A part of a model kept loaded that is not kept with it, but loaded by the host the first
+/// time a request uses it — a voice for a language seldom spoken.</param>
 /// <param name="Name">What it is called in its model: its role, unless the model has several parts in that role.</param>
 /// <param name="Projector">A language model's multimodal projector, in its folder: what it sees and hears through.</param>
 
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
-                                 long BytesPerToken = 0);
+                                 long BytesPerToken = 0, bool LoadsOnDemand = false);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -225,7 +227,7 @@ internal static class OwnedModels
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
-                                                              bool RunsOnCpu);
+                                                              bool RunsOnCpu, bool LoadsOnDemand);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
@@ -394,8 +396,11 @@ internal static class OwnedModels
         if (onDemand && p.ExecutionProvider != Cpu && !p.RunsOnCpu && p.MemoryBytes <= 0)
             throw new InvalidDataException($"{what} '{id}' does not say how much its {p.Role} holds.");
 
+        if (p.LoadsOnDemand && (language || onDemand))
+            throw new InvalidDataException($"{what} '{id}' loads its {p.Role} on demand, which only a part of a model kept loaded can.");
+
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
-                             p.Name ?? p.Role, p.Projector, p.BytesPerToken);
+                             p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

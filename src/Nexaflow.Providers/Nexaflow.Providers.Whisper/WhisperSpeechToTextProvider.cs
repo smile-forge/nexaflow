@@ -10,7 +10,7 @@ namespace Nexaflow.Providers.Whisper;
 /// has finished, so the mic only dictates with it. The model's file comes from the asset store, described by the catalog
 /// this assembly ships; the provider is available once it is on disk.
 /// </summary>
-public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IDisposable
+public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, ITracksModelUse, IDisposable
 {
     public const string ProviderName = "Whisper";
     public string Name => ProviderName;
@@ -69,6 +69,7 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalM
         try
         {
             await Task.Run(() => Factory(path), ct);
+            ModelUse.Loaded();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -92,15 +93,28 @@ public sealed class WhisperSpeechToTextProvider : ISpeechToTextProvider, ILocalM
         return Task.CompletedTask;
     }
 
-    public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default)
+    /// <summary>When the model is in use: every session is one use, from its start to its disposal.</summary>
+    public ModelUseTracker ModelUse { get; } = new();
+
+    /// <summary>Opens a session on the loaded model, loading it first — off the caller's thread — when it is not.</summary>
+    public async Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default)
     {
         var path = ModelPath ?? throw new LlmProviderException($"The Whisper model '{_model?.Id}' is not downloaded.");
 
-        var factory = Factory(path);
+        var use = await ModelUse.BeginAsync(ct);
+        try
+        {
+            var factory = await Task.Run(() => Factory(path), ct);
 
-        // An English-only model knows one language; otherwise say the one being spoken, or let it listen for it.
-        var language = _model!.Id.EndsWith(".en", StringComparison.Ordinal) ? "en" : options.Language ?? "auto";
-        return Task.FromResult<ISpeechToTextSession>(new WhisperSession(factory, language));
+            // An English-only model knows one language; otherwise say the one being spoken, or let it listen for it.
+            var language = _model!.Id.EndsWith(".en", StringComparison.Ordinal) ? "en" : options.Language ?? "auto";
+            return new WhisperSession(factory, language, use);
+        }
+        catch
+        {
+            use.Dispose();
+            throw;
+        }
     }
 
     public void Dispose()

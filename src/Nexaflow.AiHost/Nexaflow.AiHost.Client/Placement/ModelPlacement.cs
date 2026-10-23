@@ -7,9 +7,10 @@ namespace Nexaflow.AiHost.Client;
 /// <param name="OnGpu">How it runs on a GPU: <see cref="ModelSpec.MemoryBytes"/> is what it holds there with no
 /// context, and <see cref="ModelSpec.ContextTokens"/> the context it is given where there is room. A spec that holds
 /// nothing on a GPU runs on the CPU, whatever the machine.</param>
-/// <param name="OnCpu">How it runs on the CPU when no GPU has room for it — the same model, or a build of its own; null
-/// for a model that runs on a GPU or not at all.</param>
-/// <param name="BytesPerToken">What each token of context holds on the GPU; 0 for a model with no context.</param>
+/// <param name="OnCpu">How it runs on the CPU when no GPU has room for it — the same model, or a build of its own — its
+/// <see cref="ModelSpec.MemoryBytes"/> what it holds there with no context; null for a model that runs on a GPU or not
+/// at all.</param>
+/// <param name="BytesPerToken">What each token of context holds, wherever it runs; 0 for a model with no context.</param>
 /// <param name="ShortestContext">The shortest context a language model is any use with.</param>
 public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, long BytesPerToken = 0, int ShortestContext = 0)
 {
@@ -29,6 +30,11 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
     internal int LongestIn(long room)
         => room < OnGpu.MemoryBytes ? 0
            : (int)Math.Min(OnGpu.ContextTokens, (room - OnGpu.MemoryBytes) / BytesPerToken / ModelPlacement.ContextStep * ModelPlacement.ContextStep);
+
+    /// <summary>As <see cref="LongestIn"/>, for its CPU build.</summary>
+    internal int LongestOnCpuIn(long room, ModelSpec onCpu)
+        => room < onCpu.MemoryBytes ? 0
+           : (int)Math.Min(onCpu.ContextTokens, (room - onCpu.MemoryBytes) / BytesPerToken / ModelPlacement.ContextStep * ModelPlacement.ContextStep);
 }
 
 /// <summary>Where the resident models run: each one's spec as placed — its GPU, or the CPU, and a language model's
@@ -50,7 +56,9 @@ public sealed record Placement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<ModelS
 /// rest from the largest down, each on the GPU it fills most nearly — so a GPU is left as whole as can be for a
 /// picture. A language model is given its own context where there is room for it, and a shorter one where there is
 /// not; a model that finds no room takes it from the contexts of the language models on a GPU, down to their
-/// shortest, before it runs on the CPU — and only a model with no CPU build is left out.
+/// shortest, before it runs on the CPU — and only a model with no CPU build is left out. On the CPU the other models
+/// hold what their builds hold, and a language model is given the longest context the memory budget has left for it,
+/// never shorter than its shortest: the budget is a share of the machine, not a wall.
 /// </summary>
 public static class ModelPlacement
 {
@@ -70,20 +78,22 @@ public static class ModelPlacement
         public long Spare => Need.HasContext ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
     }
 
-    public static Placement Plan(IReadOnlyList<HostGpu> gpus, IReadOnlyList<PlacementNeed> needs)
+    /// <param name="memoryBudget">What models on the CPU may hold — <see cref="HostMemory.BudgetBytes"/>.</param>
+    public static Placement Plan(IReadOnlyList<HostGpu> gpus, IReadOnlyList<PlacementNeed> needs, long memoryBudget = long.MaxValue)
     {
         var seats = new List<Seat>();
-        var placed = new List<ModelSpec>();
+        var onCpu = new List<PlacementNeed>();
         var unplaced = new List<string>();
         long Free(HostGpu gpu) => gpu.BudgetBytes - seats.Where(s => s.Device == gpu.Device).Sum(s => s.Bytes);
 
         foreach (var need in needs.OrderByDescending(n => n.HasContext).ThenByDescending(n => n.OnGpu.MemoryBytes).ThenBy(n => n.Id, StringComparer.Ordinal))
         {
-            if (need.CpuOnly) placed.Add(need.OnGpu with { Device = null });
-            else if (Seated(need) is { } seat) seats.Add(seat);
-            else if (need.OnCpu is { } cpu) placed.Add(cpu with { Device = null, MemoryBytes = 0 });
+            var seat = need.CpuOnly ? null : Seated(need);
+            if (seat is not null) seats.Add(seat);
+            else if (need.CpuOnly || need.OnCpu is not null) onCpu.Add(need);
             else unplaced.Add(need.Id);
         }
+        var placed = CpuPlaced(onCpu, memoryBudget);
         placed.AddRange(seats.Select(s => s.Need.OnGpu with { Device = s.Device, ContextTokens = s.Context, MemoryBytes = s.Bytes }));
         return new Placement(gpus, placed, unplaced);
 
@@ -119,12 +129,34 @@ public static class ModelPlacement
         long Spare(HostGpu gpu) => seats.Where(s => s.Device == gpu.Device).Sum(s => s.Spare);
     }
 
+    /// <summary>The models that run on the CPU, each as its CPU build: the others holding what they hold, the language
+    /// models — in the order planned — each given what is left of <paramref name="memoryBudget"/>, down to its shortest
+    /// context.</summary>
+    private static List<ModelSpec> CpuPlaced(IReadOnlyList<PlacementNeed> onCpu, long memoryBudget)
+    {
+        static ModelSpec Build(PlacementNeed need) => (need.OnCpu ?? need.OnGpu) with { Device = null };
+        long left = memoryBudget - onCpu.Where(n => !n.HasContext).Sum(n => Build(n).MemoryBytes);
+        var placed = new List<ModelSpec>();
+        foreach (var need in onCpu)
+        {
+            var build = Build(need);
+            if (need.HasContext)
+            {
+                int context = Math.Max(need.ShortestContext, need.LongestOnCpuIn(left, build));
+                build = build with { ContextTokens = context, MemoryBytes = build.MemoryBytes + need.BytesPerToken * context };
+                left -= build.MemoryBytes;
+            }
+            placed.Add(build);
+        }
+        return placed;
+    }
+
     /// <summary>Where a model loaded on demand — a picture's part — runs: on a GPU it fits beside the resident models
     /// if one has the room, else on the GPU with the most room once residents make way for it; on the CPU, or nowhere,
     /// when no GPU's whole budget is enough.</summary>
     public static ModelSpec? PlaceOnDemand(Placement residents, PlacementNeed need)
     {
-        if (need.CpuOnly) return need.OnGpu with { Device = null };
+        if (need.CpuOnly) return (need.OnCpu ?? need.OnGpu) with { Device = null };
         long bytes = need.OnGpu.MemoryBytes;
         var gpu = residents.Gpus.Where(g => g.BudgetBytes >= bytes)
                                 .OrderByDescending(g => residents.FreeOn(g) >= bytes)
@@ -132,7 +164,7 @@ public static class ModelPlacement
                                 .ThenBy(g => g.Device)
                                 .FirstOrDefault();
         return gpu is not null ? need.OnGpu with { Device = gpu.Device }
-             : need.OnCpu is { } cpu ? cpu with { Device = null, MemoryBytes = 0 }
+             : need.OnCpu is { } cpu ? cpu with { Device = null }
              : null;
     }
 

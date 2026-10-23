@@ -26,7 +26,8 @@ public interface IAiHostProcess : IDisposable
 
 /// <summary>Starts <c>Nexaflow.AiHost.exe</c>, hands it the token on standard input, and binds it to the
 /// kill-on-close job so it can never outlive the app.</summary>
-public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHostLauncher
+/// <param name="memoryShare">The share of this machine's memory, in percent, models on the host's CPU may hold.</param>
+public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int memoryShare = AiHostProtocol.DefaultMemoryShare) : IAiHostLauncher
 {
     public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
     {
@@ -45,6 +46,8 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir) : IAiHo
         info.ArgumentList.Add(pipeName);
         info.ArgumentList.Add(AiHostProtocol.AiDirArgument);
         info.ArgumentList.Add(aiDir);
+        info.ArgumentList.Add(AiHostProtocol.MemoryShareArgument);
+        info.ArgumentList.Add(memoryShare.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (environment.RuntimePack is { } pack)
         {
             info.ArgumentList.Add(AiHostProtocol.RuntimePackArgument);

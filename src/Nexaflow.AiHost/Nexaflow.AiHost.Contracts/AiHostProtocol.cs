@@ -21,6 +21,15 @@ public static class AiHostProtocol
 
     /// <summary>A runtime pack to load ONNX Runtime and onnxruntime-genai from instead of the install's CPU runtime.</summary>
     public const string RuntimePackArgument = "--runtime-pack";
+
+    /// <summary>The share of this machine's memory, in percent, models on the host's CPU may hold.</summary>
+    public const string MemoryShareArgument = "--memory-share";
+
+    /// <summary>The share of memory models on the CPU hold unless the app says otherwise.</summary>
+    public const int DefaultMemoryShare = 50;
+
+    /// <summary>The shares, in percent, a host accepts: never so little a CPU model cannot run, never all of the machine.</summary>
+    public static readonly Range MemoryShares = 10..90;
 }
 
 /// <summary>The serializer for <see cref="HostMessage"/>, generated at build time.</summary>

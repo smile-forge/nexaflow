@@ -48,6 +48,19 @@ public class OwnedTextToSpeechProviderTests
     }
 
     [TestMethod]
+    public async Task TheGermanVoice_IsLeftToTheHost_ToLoadWithTheFirstGermanSentence()
+    {
+        var host = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Files), host);
+
+        await using var session = await provider.StartSessionAsync(new TextToSpeechOptions(Speed: 1f));
+
+        CollectionAssert.AreEqual(new[] { $"{ModelId}/synthesizer" }, host.Requests.OfType<LoadModel>().Select(l => l.Model.Id).ToArray(),
+                                  "only the voice every language falls back on is held");
+        Assert.AreEqual($"{ModelId}/german", host.Requests.OfType<Speak>().Single().Voices.Single(v => v.Language == "de").Model.Id);
+    }
+
+    [TestMethod]
     public async Task Segments_AreNumberedInOrder_AndTheirAudioComesBack()
     {
         var host = new FakeAiHost

@@ -10,8 +10,9 @@ namespace Nexaflow.AiHost.Contracts;
 /// <param name="Folder">Where its files were downloaded.</param>
 /// <param name="File">The file it is — a language model's GGUF, a single graph; null for a folder onnxruntime-genai reads.</param>
 /// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
-/// <param name="MemoryBytes">GPU memory it holds loaded on <see cref="Device"/>, with its context — what admission
-/// counts; 0 for a model on the CPU.</param>
+/// <param name="MemoryBytes">Memory it holds loaded where <see cref="Device"/> places it, with its context — what
+/// admission counts: on a GPU against that GPU's budget, on the CPU against the host's share of this machine's
+/// memory (<see cref="HostMemory"/>).</param>
 /// <param name="ContextTokens">The longest context a conversation may grow to, for a language model; 0 otherwise.</param>
 /// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
 /// <param name="Projector">A language model's multimodal projector, beside its GGUF in <see cref="Folder"/>: what it

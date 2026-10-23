@@ -31,6 +31,12 @@ internal sealed class HostConnection : IAsyncDisposable
     private readonly object _idleGate = new();
     private int _inFlight;
     private TaskCompletionSource _idle = Idle();
+    /// <summary>When the last request ended — or the host started, before any.</summary>
+    private long _idleSince;
+    /// <summary>Being closed for having stood idle: no request may begin on it.</summary>
+    private bool _retiring;
+
+    private Task? _closed;
 
     private HostConnection(IAiHostProcess process, AiHostEnvironment environment, HostChannel channel, AiHostTimings timings,
                            TimeProvider time)
@@ -41,6 +47,7 @@ internal sealed class HostConnection : IAsyncDisposable
         _timings     = timings;
         _time        = time;
         _lastPong    = time.GetTimestamp();
+        _idleSince   = _lastPong;
     }
 
     public AiHostEnvironment Environment { get; }
@@ -58,21 +65,48 @@ internal sealed class HostConnection : IAsyncDisposable
         return idle;
     }
 
-    private void Opened()
+    /// <summary>Counts a request in, unless the connection is retiring.</summary>
+    private bool TryOpen()
     {
         lock (_idleGate)
+        {
+            if (_retiring) return false;
             if (_inFlight++ == 0) _idle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return true;
+        }
     }
 
     private void Closed()
     {
         lock (_idleGate)
-            if (--_inFlight == 0) _idle.TrySetResult();
+            if (--_inFlight == 0)
+            {
+                _idleSince = _time.GetTimestamp();
+                _idle.TrySetResult();
+            }
     }
 
     public event EventHandler<AiHostExitedEventArgs>? Ended;
 
     public bool IsAlive => Volatile.Read(ref _ended) == 0;
+
+    /// <summary>Alive and not being closed for having stood idle: a request may begin on it.</summary>
+    public bool IsServing
+    {
+        get { lock (_idleGate) return IsAlive && !_retiring; }
+    }
+
+    /// <summary>Marks the connection for closing when no request is in flight and none has been for
+    /// <paramref name="idleFor"/>; from then on <see cref="BeginAsync"/> refuses, and its caller starts another host.</summary>
+    public bool TryRetire(TimeSpan idleFor)
+    {
+        lock (_idleGate)
+        {
+            if (_retiring || _inFlight > 0 || _time.GetElapsedTime(_idleSince) < idleFor) return false;
+            _retiring = true;
+            return true;
+        }
+    }
 
     /// <summary>Opens a pipe only this user can reach, starts a host on it and waits for its token.</summary>
     /// <param name="onEnded">Attached before anything can end the connection: a host that dies straight after the
@@ -92,36 +126,37 @@ internal sealed class HostConnection : IAsyncDisposable
             timeout.CancelAfter(AiHostProtocol.ConnectTimeout);
 
             var connected = pipe.WaitForConnectionAsync(timeout.Token);
-            if (await Task.WhenAny(connected, process.Exited) != connected)
+            if (await Task.WhenAny(connected, process.Exited).ConfigureAwait(false) != connected)
             {
                 timeout.Cancel();
-                try { await connected; } catch (OperationCanceledException) { }
-                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting (exit code {await process.Exited}).");
+                try { await connected.ConfigureAwait(false); } catch (OperationCanceledException) { }
+                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting (exit code {await process.Exited.ConfigureAwait(false)}).");
             }
-            await connected;
+            await connected.ConfigureAwait(false);
 
             var channel = new HostChannel(pipe);
-            if (await channel.ReceiveAsync(timeout.Token) is not Hello hello
+            if (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false) is not Hello hello
                 || hello.ProtocolVersion != AiHostProtocol.Version
                 || !TokensMatch(hello.Token, token))
             {
-                await channel.DisposeAsync();
+                await channel.DisposeAsync().ConfigureAwait(false);
                 throw new AiHostException(AiHostFailure.Unavailable, "The AI host did not identify itself.");
             }
-            await channel.SendAsync(new Welcome(), timeout.Token);
+            await channel.SendAsync(new Welcome(), timeout.Token).ConfigureAwait(false);
 
             var connection = new HostConnection(process, environment, channel, timings, time);
             connection.Ended += onEnded;
-            connection._reading = connection.ReadAsync();
-            connection._beating = connection.BeatAsync();
-            _ = connection.WatchExitAsync();
+            // The loops live as long as the host: on the thread pool, never on whatever context started it.
+            connection._reading = Task.Run(connection.ReadAsync);
+            connection._beating = Task.Run(connection.BeatAsync);
+            _ = Task.Run(connection.WatchExitAsync);
             return connection;
         }
         catch (Exception ex)
         {
             process?.Kill();
             process?.Dispose();
-            await pipe.DisposeAsync();
+            await pipe.DisposeAsync().ConfigureAwait(false);
             if (ex is AiHostException || ct.IsCancellationRequested) throw;
             throw new AiHostException(AiHostFailure.Unavailable, $"The AI host could not be reached: {ex.Message}");
         }
@@ -143,16 +178,18 @@ internal sealed class HostConnection : IAsyncDisposable
 
     private const int PipeBuffer = 64 * 1024;
 
-    public async Task<OpenRequest> BeginAsync(Func<long, HostRequest> create, CancellationToken ct)
+    /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request
+    /// belongs on the next host.</summary>
+    public async Task<OpenRequest?> BeginAsync(Func<long, HostRequest> create, CancellationToken ct)
     {
+        if (!TryOpen()) return null;
         var request = create(Interlocked.Increment(ref _nextId));
         var replies = Channel.CreateUnbounded<HostReply>(new UnboundedChannelOptions { SingleReader = true });
         _open[request.RequestId] = replies;
-        Opened();
         if (!IsAlive) replies.Writer.TryComplete(Lost("The AI host has stopped."));
         try
         {
-            await _channel.SendAsync(request, ct);
+            await _channel.SendAsync(request, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
@@ -255,15 +292,23 @@ internal sealed class HostConnection : IAsyncDisposable
 
     private Task SendCancelAsync(long requestId) => _channel.SendAsync(new CancelRequest(requestId));
 
-    public async ValueTask DisposeAsync()
+    /// <summary>Closes the pipe, which ends the host — once, however many ask: a host retiring for having stood idle can be
+    /// closed by the request that found it retiring too.</summary>
+    public ValueTask DisposeAsync()
+    {
+        lock (_idleGate) _closed ??= Task.Run(CloseAsync);
+        return new ValueTask(_closed);
+    }
+
+    private async Task CloseAsync()
     {
         _closing = true;
         End(null, "closed");
-        await _channel.DisposeAsync();   // the host sees its pipe close and exits
+        await _channel.DisposeAsync().ConfigureAwait(false);   // the host sees its pipe close and exits
         using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await _process.Exited.WaitAsync(grace.Token); }
+        try { await _process.Exited.WaitAsync(grace.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { _process.Kill(); }
-        await Task.WhenAll(_reading, _beating);
+        await Task.WhenAll(_reading, _beating).ConfigureAwait(false);
         _process.Dispose();
         _life.Dispose();
     }
@@ -282,7 +327,7 @@ internal sealed class HostConnection : IAsyncDisposable
             if (!connection.IsAlive) throw Lost("The AI host has stopped.");
             try
             {
-                await connection._channel.SendAsync(input, ct);
+                await connection._channel.SendAsync(input, ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
@@ -298,7 +343,7 @@ internal sealed class HostConnection : IAsyncDisposable
             stall.CancelAfter(stallLimit);
             try
             {
-                var reply = await replies.ReadAsync(stall.Token);
+                var reply = await replies.ReadAsync(stall.Token).ConfigureAwait(false);
                 _ended = reply is Completed or Failed;
                 return reply;
             }
@@ -323,9 +368,9 @@ internal sealed class HostConnection : IAsyncDisposable
             {
                 try
                 {
-                    await connection.SendCancelAsync(id);
+                    await connection.SendCancelAsync(id).ConfigureAwait(false);
                     using var grace = new CancellationTokenSource(connection._timings.CancelGrace);
-                    while (await replies.ReadAsync(grace.Token) is not (Completed or Failed)) { }
+                    while (await replies.ReadAsync(grace.Token).ConfigureAwait(false) is not (Completed or Failed)) { }
                 }
                 catch (OperationCanceledException)
                 {

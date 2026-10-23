@@ -170,7 +170,10 @@ public class OwnedLlmProviderTests
         await provider.WarmupAsync();
 
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
-        Assert.AreEqual((null, 0L), (((LoadModel)host.Requests.Single()).Model.Device, ((LoadModel)host.Requests.Single()).Model.MemoryBytes));
+        var model = ((LoadModel)host.Requests.Single()).Model;
+        var part = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == Gemma.Id).PartsFor(OwnedModels.Cpu).Single();
+        Assert.AreEqual((null, Gemma.Files.Sum(f => f.Size) + part.BytesPerToken * model.ContextTokens), (model.Device, model.MemoryBytes),
+                        "on the CPU it holds its files, read whole, and its context");
     }
 
     [TestMethod]

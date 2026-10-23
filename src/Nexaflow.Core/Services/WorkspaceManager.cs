@@ -252,9 +252,9 @@ public sealed class WorkspaceManager
         service.LoadAbilityConfig(workspace.AiConfig);
         ws.AiService = service;
 
-        // 4. Re-acquire providers (pool reuses unchanged ones; warms newly-assigned models, cools
-        //    now-unused ones — acquire before release so unchanged instances never drop to zero refs)
-        //    and register the execution instances into the new AIService.
+        // 4. Re-acquire providers (pool reuses unchanged ones; weighs newly-assigned models for loading
+        //    ahead, cools now-unused ones — acquire before release so unchanged instances never drop to
+        //    zero refs) and register the execution instances into the new AIService.
         AcquireAndRegister(ws);
 
         // 5. Reopen the workspace's saved startup tabs so the windows aren't left empty.
@@ -291,7 +291,7 @@ public sealed class WorkspaceManager
     /// <summary>
     /// Re-acquires <paramref name="ws"/>'s provider set for its current ability-grid columns (without
     /// touching tabs) and re-registers the execution instances. Called after the ability grid is edited
-    /// so newly-assigned models get an execution instance (and are warmed) and dropped ones are cooled.
+    /// so newly-assigned models get an execution instance (weighed for loading ahead) and dropped ones are cooled.
     /// </summary>
     public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
 
@@ -550,8 +550,9 @@ public sealed class WorkspaceManager
 
     /// <summary>
     /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
-    /// columns, swaps it in (acquire-before-release, so the pool warms newly-needed models and cools
-    /// dropped ones), and re-registers the execution instances into the AIService keyed by column id.
+    /// columns, swaps it in (acquire-before-release, so unchanged instances stay and dropped ones are
+    /// cooled), re-registers the execution instances into the AIService keyed by column id, and has the
+    /// residency weigh each for loading ahead.
     /// </summary>
     private static void AcquireAndRegister(WorkspaceRuntime ws)
     {
@@ -560,16 +561,20 @@ public sealed class WorkspaceManager
         var fresh = ProviderManager.Instance.AcquireProviderSet(
             workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
 
+        StartupTimings.Mark("Workspace.ProvidersAcquired");
         if (FoldInLocalColumns(workspace, fresh))
         {
             var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
             ProviderManager.Instance.ReleaseProviderSet(fresh);
             fresh = again;
         }
+        StartupTimings.Mark("Workspace.LocalColumnsFolded");
         var old   = ws.Providers;
         ws.Providers               = fresh;
         workspace.AiConfig.Providers = fresh;
         ProviderManager.Instance.ReleaseProviderSet(old);
+        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up.
+        ProviderManager.Instance.Residency?.Preload(fresh.Execution.Values);
 
         if (ws.AiService is { } svc)
         {

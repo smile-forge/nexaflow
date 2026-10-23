@@ -44,8 +44,10 @@ internal static class HostProgram
 
             log.Write($"connected (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
             NativeRuntime.Load(Argument(args, AiHostProtocol.RuntimePackArgument));
-            using var runtime = new ExecutionRuntime(log);
-            using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log);
+            int memoryShare = int.TryParse(Argument(args, AiHostProtocol.MemoryShareArgument), System.Globalization.CultureInfo.InvariantCulture, out var share)
+                ? share : AiHostProtocol.DefaultMemoryShare;
+            using var runtime = new ExecutionRuntime(log, memoryShare);
+            using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log, runtime.Memory);
             var scheduler = new GpuScheduler();
             var server = new HostServer(channel, log,
             [
