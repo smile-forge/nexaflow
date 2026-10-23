@@ -89,7 +89,7 @@ public class PdfPagesPanelTests
         await panel.InsertPdfsAtCommand.ExecuteAsync(1);
 
         Assert.AreEqual(4, panel.Pages.Count);
-        Assert.AreNotEqual(session.Arrangement[0].Source, session.Arrangement[1].Source);
+        Assert.AreNotEqual(session.Arrangement[0].Sheet.Pieces[0].Source, session.Arrangement[1].Sheet.Pieces[0].Source);
     }
 
     [TestMethod]
@@ -133,11 +133,49 @@ public class PdfPagesPanelTests
 
         panel.SplitCount = panel.SplitCounts[0];
         panel.SplitBooklet = true;
-        panel.ApplySplitCommand.Execute(null);
+        panel.ApplySheetEditCommand.Execute(null);
 
-        Assert.IsFalse(panel.IsSplitting);
-        Assert.AreEqual("1 2 2 1", string.Join(" ", session.Arrangement.Pages.Select(page => page.Number)), "unfolded: one, two, three, four");
+        Assert.IsFalse(panel.IsEditingSheets);
+        Assert.AreEqual("1 2 2 1", string.Join(" ", session.Arrangement.Pages.Select(page => page.Sheet.Pieces[0].Number)), "unfolded: one, two, three, four");
         Assert.IsTrue(panel.Pages.All(page => page.Cuts.Count == 0));
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-merge")]
+    [CoversNode("pdf-page-size")]
+    public async Task AMerge_IsForTwoPagesOrMore_AndTheBarFromTheToolbar_IsForEveryPage()
+    {
+        var (session, panel) = await Opened(sample: "two-up.pdf");
+        using var _ = session;
+        panel.Pages[0].IsSelected = true;
+        Assert.IsFalse(panel.BeginMergeCommand.CanExecute(null), "one page is no merge");
+        Assert.IsTrue(panel.BeginResizeCommand.CanExecute(null));
+        panel.Pages[1].IsSelected = true;
+
+        panel.BeginMergeCommand.Execute(null);
+        Assert.IsTrue(panel.IsMergeShown);
+        Assert.IsFalse(panel.AppliesToAll);
+        Assert.AreEqual(Str.Format("Pdf.Merge.SummaryFormat", 2, 1), panel.MergeSummary);
+        Assert.IsTrue(panel.Pages.All(page => page.Cuts.Count == 0), "a merge cuts nothing");
+        panel.ApplySheetEditCommand.Execute(null);
+
+        Assert.AreEqual(1, panel.Pages.Count);
+        Assert.AreEqual(new System.Windows.Size(792, 1224), session.PageSize(0), "two wide sheets, one above the other");
+
+        panel.BeginSheetEditCommand.Execute(null);
+        Assert.IsTrue(panel.AppliesToAll);
+        panel.SheetEdit = panel.SheetEdits.Single(choice => choice.Value == PdfSheetEdit.Size);
+        Assert.IsTrue(panel.IsSizeShown);
+        panel.SizePaper = panel.SizePapers.Single(choice => choice.Value is null);
+        panel.CustomWidth = "wide";
+        Assert.IsFalse(panel.ApplySheetEditCommand.CanExecute(null), "a size of its own that is no size");
+        panel.CustomWidth = 100.ToString(System.Globalization.CultureInfo.CurrentCulture);
+        panel.CustomHeight = 200.ToString(System.Globalization.CultureInfo.CurrentCulture);
+        panel.ApplySheetEditCommand.Execute(null);
+
+        Assert.IsFalse(panel.IsEditingSheets);
+        Assert.AreEqual(100 * 72 / 25.4, session.PageSize(0).Width, 0.01, "set on paper 100 by 200 millimetres, upright as the sheet is");
     }
 
     /// <summary>

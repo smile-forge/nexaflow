@@ -176,7 +176,7 @@ public class PdfPageSplitTests
         using var session = await Opened();
         session.Split([0], 2, PdfSplitDirection.Across, booklet: false);
         var pages = new PdfPageSource(session.Arrangement, session.Opened(), Brushes.White);
-        var source = session.Arrangement[0].Source;
+        var source = session.Arrangement[0].Sheet.Pieces[0].Source;
 
         Assert.AreEqual(1, pages.Locate(source, new PdfPageTarget(1, Top: 300, Left: 500))?.Index);
         Assert.AreEqual(0, pages.Locate(source, new PdfPageTarget(1, Top: 300, Left: 100))?.Index);
@@ -241,5 +241,6 @@ public class PdfPageSplitTests
         return path;
     }
 
-    private static string Numbers(PdfPageArrangement pages) => string.Join(" ", pages.Pages.Select(page => page.Number));
+    private static string Numbers(PdfPageArrangement pages) =>
+        string.Join(" ", pages.Pages.Select(page => string.Join("|", page.Sheet.Pieces.Select(piece => piece.Number))));
 }

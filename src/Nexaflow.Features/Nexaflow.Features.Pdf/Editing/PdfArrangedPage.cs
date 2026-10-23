@@ -14,7 +14,14 @@ internal readonly record struct PdfSourceId(int Value);
 internal readonly record struct PdfPageId(int Value);
 
 /// <summary>
-/// A page of the edited document: which page of which source it is — or which part of it, for a page split from a sheet
-/// printed several to a page.
+/// A page of the edited document: the sheet it shows — a page of a source as it is, a part of one split from a sheet
+/// printed several to a page, or pages merged onto one sheet.
 /// </summary>
-internal readonly record struct PdfArrangedPage(PdfPageId Id, PdfSourceId Source, int Number, PdfPagePart? Part = null);
+internal readonly record struct PdfArrangedPage(PdfPageId Id, PdfSheet Sheet)
+{
+    /// <summary>Page <paramref name="number"/> of <paramref name="source"/>, or the <paramref name="part"/> of it, as it is.</summary>
+    public PdfArrangedPage(PdfPageId id, PdfSourceId source, int number, PdfPagePart? part = null)
+        : this(id, PdfSheet.Page(source, number, part))
+    {
+    }
+}

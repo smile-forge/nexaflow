@@ -652,7 +652,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     internal bool GoToTarget(int fromPage, PdfPageTarget target) =>
         _source is { } source && fromPage >= 0 && fromPage < source.PageCount
-        && source.Locate(source.Arrangement[fromPage].Source, target) is { } at
+        && source.Arrangement[fromPage].Sheet.Pieces is var pieces && target.Piece >= 0 && target.Piece < pieces.Length
+        && source.Locate(pieces[target.Piece].Source, target) is { } at
         && GoToPage(at.Index + 1, at.Offset);
 
     [RelayCommand]

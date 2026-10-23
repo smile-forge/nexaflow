@@ -36,10 +36,10 @@ internal sealed class PdfReadingCaches
     public System.Threading.CancellationToken Cancellation { get; set; }
 
     /// <summary>
-    /// The part of the page being read, while it is read — one page of several printed to a sheet; null for the whole
-    /// page. The page is read as though the part were its crop box.
+    /// How the page being read is read, while it is: as itself, or as a part of it — read as though the part were its crop
+    /// box — put on a sheet. Null between pages.
     /// </summary>
-    public PdfPagePart? ReadingPart { get; set; }
+    public PdfReadingPlacement? Reading { get; set; }
 
     /// <summary>
     /// The picture the image XObject at <paramref name="reference"/> decodes to, decoding it with <paramref name="decode"/>

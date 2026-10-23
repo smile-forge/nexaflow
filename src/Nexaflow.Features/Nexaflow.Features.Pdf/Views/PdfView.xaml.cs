@@ -350,8 +350,9 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     /// <summary>
-    /// Fills the menu for where it opened: on a page, deleting the pages selected — the page itself, unless it is one of
-    /// them — and inserting before or after it; between two pages, inserting there, the gap marked while the menu is open.
+    /// Fills the menu for where it opened: on a page, deleting, splitting, merging or resizing the pages selected — the
+    /// page itself, unless it is one of them — and inserting before or after it; between two pages, inserting there, the
+    /// gap marked while the menu is open.
     /// </summary>
     private void Thumbnails_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -378,6 +379,8 @@ public partial class PdfView : UserControl, IPageView, IDisposable
                 selected == 1 ? Str.Get("Pdf.Menu.DeletePage") : Str.Format("Pdf.Menu.DeletePagesFormat", selected),
             "Pdf_Thumb_Delete", panel.DeleteSelectedCommand, null));
         menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
+        if (selected >= 2) menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.MergePages"), "Pdf_Thumb_Merge", panel.BeginMergeCommand, null));
+        menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SetPageSize"), "Pdf_Thumb_SetSize", panel.BeginResizeCommand, null));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageBefore"), "Pdf_Thumb_InsertImageBefore", panel.InsertImagesAtCommand, index));
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageAfter"), "Pdf_Thumb_InsertImageAfter", panel.InsertImagesAtCommand, index + 1));
@@ -393,6 +396,15 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     private void ThumbnailsMenu_Closed(object sender, RoutedEventArgs e) => _gapMarker.Clear();
+
+    /// <summary>
+    /// The toolbar's sheets button shows the Pages tab, where its command sets up a split, merge or new size for every page.
+    /// </summary>
+    private void SheetEdit_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsPanelOpen = true;
+        PagesTab.IsSelected = true;
+    }
 
     /// <summary>Delete deletes the pages selected; Alt+Up and Alt+Down move them a place, together.</summary>
     private void Thumbnails_PreviewKeyDown(object sender, KeyEventArgs e)

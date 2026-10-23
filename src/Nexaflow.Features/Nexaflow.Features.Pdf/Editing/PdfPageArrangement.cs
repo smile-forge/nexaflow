@@ -87,12 +87,14 @@ internal sealed class PdfPageArrangement : IEquatable<PdfPageArrangement>
     }
 
     /// <summary>
-    /// Where page <paramref name="number"/> of <paramref name="source"/> now is, or -1 when it is no longer in the document.
+    /// Where page <paramref name="number"/> of <paramref name="source"/> now is — the first page showing any of it — or -1
+    /// when it is no longer in the document.
     /// </summary>
     public int IndexOf(PdfSourceId source, int number)
     {
         for (var i = 0; i < _pages.Length; i++)
-            if (_pages[i].Source == source && _pages[i].Number == number) return i;
+            foreach (var piece in _pages[i].Sheet.Pieces)
+                if (piece.Source == source && piece.Number == number) return i;
         return -1;
     }
 
@@ -111,25 +113,35 @@ internal sealed class PdfPageArrangement : IEquatable<PdfPageArrangement>
 
     /// <summary>
     /// For each page of <paramref name="next"/>, by its index, the pages here whose content it shows some of without being
-    /// one of them — the page a part was split from, or the parts a page was joined back from by an undo: the same page
-    /// of the same source, their parts overlapping. Empty for a page that is here, and for one made from nothing here.
+    /// one of them — the page a part was split from, the pages merged onto a sheet, the parts a page was joined back from:
+    /// a piece of the same page of the same source, their parts overlapping. Empty for a page that is here, and for one made
+    /// from nothing here.
     /// </summary>
     public IReadOnlyList<IReadOnlyList<int>> MadeFrom(PdfPageArrangement next)
     {
         var here = new HashSet<PdfPageId>(_pages.Length);
-        var bySourcePage = new Dictionary<(PdfSourceId, int), List<int>>();
+        var bySourcePage = new Dictionary<(PdfSourceId, int), List<(int Index, PdfPagePart Part)>>();
         for (var i = 0; i < _pages.Length; i++)
         {
             here.Add(_pages[i].Id);
-            var key = (_pages[i].Source, _pages[i].Number);
-            if (!bySourcePage.TryGetValue(key, out var indices)) bySourcePage[key] = indices = [];
-            indices.Add(i);
+            foreach (var piece in _pages[i].Sheet.Pieces)
+            {
+                var key = (piece.Source, piece.Number);
+                if (!bySourcePage.TryGetValue(key, out var kin)) bySourcePage[key] = kin = [];
+                kin.Add((i, piece.Part));
+            }
         }
 
         return next._pages
-            .Select(page => here.Contains(page.Id) || !bySourcePage.TryGetValue((page.Source, page.Number), out var kin)
+            .Select(page => here.Contains(page.Id)
                 ? []
-                : (IReadOnlyList<int>)kin.Where(i => (_pages[i].Part ?? PdfPagePart.Whole).Overlaps(page.Part ?? PdfPagePart.Whole)).ToList())
+                : (IReadOnlyList<int>)page.Sheet.Pieces
+                    .SelectMany(piece => bySourcePage.TryGetValue((piece.Source, piece.Number), out var kin)
+                        ? kin.Where(was => was.Part.Overlaps(piece.Part)).Select(was => was.Index)
+                        : [])
+                    .Distinct()
+                    .Order()
+                    .ToList())
             .ToList();
     }
 

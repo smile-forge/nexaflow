@@ -56,7 +56,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     protected override CropBox GetCropBox(DictionaryToken dictionary, PageTreeMembers pageTreeMembers, MediaBox mediaBox)
     {
         var own = base.GetCropBox(dictionary, pageTreeMembers, mediaBox);
-        if (_caches.ReadingPart is not { } part || part == PdfPagePart.Whole) return own;
+        if (_caches.Reading?.Part is not { } part || part == PdfPagePart.Whole) return own;
 
         var rotation = dictionary.TryGet(NameToken.Rotate, PdfScanner, out NumericToken? rotate) ? rotate.Int : pageTreeMembers.Rotation;
         return new CropBox(part.InUserSpace(own.Bounds, rotation));
@@ -68,7 +68,8 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
         IReadOnlyList<IGraphicsStateOperation> operations)
     {
         var visible = cropBox.GetVisibleBounds(rotation);
-        var flip = PdfSpace.Flip(visible.Height);
+        // Read onto a sheet, the page comes out where it lies on the sheet: shown space, then the sheet's.
+        var flip = PdfSpace.Flip(visible.Height) * (_caches.Reading?.ToSheet ?? Matrix.Identity);
         var unsupported = new List<PdfUnsupported>();
         var text = new StringBuilder();
 
@@ -104,7 +105,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
 
         var toPage = PdfSpace.ToMatrix(initialMatrix) * flip;
         var visible = cropBox.GetVisibleBounds(rotation);
-        var shown = new Rect(0, 0, visible.Width, visible.Height);
+        var shown = Rect.Transform(new Rect(0, 0, visible.Width, visible.Height), _caches.Reading?.ToSheet ?? Matrix.Identity);
         var annotations = new List<PdfAnnotationNode>();
         foreach (var annotation in read)
         {

@@ -124,7 +124,7 @@ public class PdfDocumentSessionTests
 
         Assert.AreEqual(4, session.Arrangement.Count);
         Assert.AreEqual(session.PageSize(0), session.PageSize(1));
-        Assert.AreNotEqual(session.Arrangement[0].Source, session.Arrangement[1].Source);
+        Assert.AreNotEqual(session.Arrangement[0].Sheet.Pieces[0].Source, session.Arrangement[1].Sheet.Pieces[0].Source);
     }
 
     [TestMethod]
@@ -169,14 +169,14 @@ public class PdfDocumentSessionTests
         var picture = TestTemp.CreateFile(".png");
         File.WriteAllBytes(picture, Png());
         await session.InsertImagesAsync(0, [picture], CancellationToken.None);
-        var draft = session.Source(session.Arrangement[0].Source).Path;
+        var draft = session.Source(session.Arrangement[0].Sheet.Pieces[0].Source).Path;
         Assert.IsTrue(File.Exists(draft));
 
         await session.SaveAsync(null, CancellationToken.None);
         Assert.IsFalse(File.Exists(draft), "saved: the picture's page is in the file, its draft gone");
 
         await session.InsertImagesAsync(0, [picture], CancellationToken.None);
-        draft = session.Source(session.Arrangement[0].Source).Path;
+        draft = session.Source(session.Arrangement[0].Sheet.Pieces[0].Source).Path;
         session.Dispose();
         Assert.IsFalse(File.Exists(draft), "closed: the draft goes with the tab");
     }
@@ -195,7 +195,9 @@ public class PdfDocumentSessionTests
         return path;
     }
 
-    private static string Numbers(PdfDocumentSession session) => string.Join(" ", session.Arrangement.Pages.Select(page => page.Number));
+    /// <summary>Each page's source page numbers, a sheet's pieces joined by bars: "12|1 2|11".</summary>
+    private static string Numbers(PdfDocumentSession session) =>
+        string.Join(" ", session.Arrangement.Pages.Select(page => string.Join("|", page.Sheet.Pieces.Select(piece => piece.Number))));
 
     private static byte[] Png()
     {

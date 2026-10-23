@@ -48,7 +48,7 @@ public class PdfPageArrangementTests
         var result = pages.Insert(1, inserted);
 
         Assert.AreEqual("1 1 2 2", Numbers(result));
-        Assert.AreEqual(new PdfSourceId(1), result[1].Source);
+        Assert.AreEqual(new PdfSourceId(1), result[1].Sheet.Pieces[0].Source);
         Assert.AreEqual(2, result.IndexOf(new PdfSourceId(1), 2));
         Assert.AreEqual(-1, result.IndexOf(new PdfSourceId(1), 3));
     }
@@ -90,5 +90,6 @@ public class PdfPageArrangementTests
     private static PdfPageArrangement Arrangement(int count) =>
         PdfPageArrangement.Of(Enumerable.Range(1, count).Select(number => new PdfArrangedPage(new PdfPageId(number), Base, number)));
 
-    private static string Numbers(PdfPageArrangement pages) => string.Join(" ", pages.Pages.Select(page => page.Number));
+    private static string Numbers(PdfPageArrangement pages) =>
+        string.Join(" ", pages.Pages.Select(page => string.Join("|", page.Sheet.Pieces.Select(piece => piece.Number))));
 }

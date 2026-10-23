@@ -22,7 +22,7 @@ internal readonly record struct PdfPagePart(double Left, double Top, double Widt
 
         var share = 1.0 / count;
         return Enumerable.Range(0, count)
-            .Select(i => across ? new PdfPagePart(i * share, 0, share, 1) : new PdfPagePart(0, i * share, 1, share))
+            .Select(i => (across ? new PdfPagePart(i * share, 0, share, 1) : new PdfPagePart(0, i * share, 1, share)).Snapped())
             .ToList();
     }
 
@@ -41,6 +41,14 @@ internal readonly record struct PdfPagePart(double Left, double Top, double Widt
     public bool Overlaps(PdfPagePart other) =>
         Left < other.Left + other.Width && other.Left < Left + Width
         && Top < other.Top + other.Height && other.Top < Top + Height;
+
+    /// <summary>
+    /// The part with its fractions rounded to a trillionth, so parts that cutting a page different ways reaches are equal.
+    /// </summary>
+    public PdfPagePart Snapped() => new(Round(Left), Round(Top), Round(Width), Round(Height));
+
+    // Adding nothing turns a negative zero into zero, which hashes as zero does.
+    private static double Round(double fraction) => Math.Round(fraction, 12) + 0.0;
 
     /// <summary>
     /// The part in the page's default user space, for a page whose crop box is <paramref name="crop"/> and which is
