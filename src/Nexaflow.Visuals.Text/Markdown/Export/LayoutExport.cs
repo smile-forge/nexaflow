@@ -59,6 +59,19 @@ public static class LayoutExport
     public static ExportDocument Exported(Laid laid, ExportOccasion occasion) =>
         laid.Root.Part is ContentPart document ? new Walk(laid, occasion).Document(document) : new ExportDocument([]);
 
+    /// <summary>
+    /// Whether <paramref name="drawn"/>, laid from <paramref name="part"/>, is a picture another language drew of what was written
+    /// there rather than the characters written — what an export puts in as a picture where its format cannot draw the
+    /// language, and what a sheet of paper holds all of or none of.
+    /// </summary>
+    internal static bool IsPicture(ContentPart part, Piece drawn) =>
+        ContentNested.Language(part) is { } named && part.Part(Roles.Body) is not null
+        && ContentLanguages.For(named) is { } language && !language.Editing.ShowsWhatWasWritten && !Shown(drawn);
+
+    /// <summary>Whether what was laid shows the characters written — code, or source shown because nothing could draw it.</summary>
+    private static bool Shown(Piece drawn) =>
+        drawn.SelfAndDescendants().Any(piece => piece.Kind is MarkdownPieces.Verbatim or LayoutText.SourceKind or SourceShown.Block);
+
     /// <summary>One walk over one layout: the reading in order, and for each part, the pieces laid from it.</summary>
     private sealed class Walk
     {
@@ -164,16 +177,11 @@ public static class LayoutExport
         /// </summary>
         private ExportDrawing? Drawing(ContentPart part)
         {
-            if (ContentNested.Language(part) is not { } named || part.Part(Roles.Body) is not { } body) return null;
-            if (ContentLanguages.For(named) is not { } language || language.Editing.ShowsWhatWasWritten) return null;
-            if (this.Laid(part) is not { } drawn || Shown(drawn)) return null;
+            if (this.Laid(part) is not { } drawn || !IsPicture(part, drawn)) return null;
 
-            return new ExportDrawing(named, ContentNested.Own(body.Node), _occasion.Pictures ? this.Picture(drawn) : null);
+            return new ExportDrawing(ContentNested.Language(part)!, ContentNested.Own(part.Part(Roles.Body)!.Node),
+                                     _occasion.Pictures ? this.Picture(drawn) : null);
         }
-
-        /// <summary>Whether a piece shows the characters it was laid from rather than a picture of what they meant.</summary>
-        private static bool Shown(Piece drawn) =>
-            drawn.SelfAndDescendants().Any(piece => piece.Kind is MarkdownPieces.Verbatim or LayoutText.SourceKind or SourceShown.Block);
 
         /// <summary>What a piece paints, as a picture of its own: as much of the page as it was laid over.</summary>
         private ExportPicture? Picture(Piece drawn)

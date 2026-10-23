@@ -24,6 +24,10 @@ Markdown opens in its own tab — there's nothing to configure.
   **Markdown Package** (`*.mdz`), offered first, keeps the document and the pictures and files it links to in one
   file, as a Word document keeps its pictures, so it reads the same wherever it goes. A **Markdown** file (`*.md`)
   has them copied beside it instead. [Show me](locate:Markdown_SaveAs)
+- **Print** — `Ctrl`+`P` prints the whole document as it is drawn here, diagrams and formulas included, on white
+  paper whatever the theme. Every section is printed, folded or not. A sheet ends between two lines, never through a
+  diagram, and never just after a heading; anything wider or taller than a sheet is drawn smaller to fit it. Each
+  sheet is numbered at its foot. [Show me](locate:Markdown_Print)
 - **Markdown Packages** open in the editor like any Markdown file — from a folder, or from inside a zip or a disc
   image — and save back into themselves. One inside a disc image can't be written to: save it as a file elsewhere.
 - **Drafts** — a document made for you, such as a page of writing converted to Markdown, opens as a draft. Its first
