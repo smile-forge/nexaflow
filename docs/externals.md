@@ -175,16 +175,47 @@ safety nets fix this so "create a worktree, open VS, hit F5" just works:
 
 - **`.githooks/post-checkout`** runs after `git worktree add` (and any checkout) and initialises
   any *uninitialised* submodule via `tools/ensure-submodules.ps1` — before the IDE opens. It only
-  touches submodules that aren't checked out, so it never resets one you're editing. Install it
+  touches submodules whose checkout never completed, so it never resets one you're editing. Install it
   **once per clone** with `pwsh tools/install-hooks.ps1` (it copies the committed hooks into the
   shared `.git/hooks` that every worktree uses, and clears any stale `core.hooksPath`). A relative
   `core.hooksPath` is deliberately *not* used — git resolves it against the invoking checkout, so it
   wouldn't fire for a freshly-added worktree.
-- **`EnsureSubmodulesInitialized`** in `Directory.Build.targets` is a build-time self-heal: if a
-  submodule `.csproj` is still missing when a build starts, it runs the same helper before project
-  references are resolved. Covers clones where the hook path wasn't set, and CI. (Opt out with
-  `-p:NexaflowSkipSubmoduleInit=true`.) The submodule projects have their own `Directory.Build.*`,
-  so this target never runs inside them — only for Nexaflow's own projects.
+- **`EnsureSubmodulesInitialized`** in `tools/ensure-submodules.targets` is a build-time self-heal:
+  if any submodule `.gitmodules` declares, or the runtime or a grammar `tools/tree-sitter-grammars.props`
+  builds, has no `.git` when a build starts — or `external/.submodules-populated` is missing — it runs
+  the same helper. It is an initial target, so it runs before restore: `Directory.Build.targets`
+  imports it for each project (and Visual Studio), `Directory.Solution.targets` for
+  `dotnet build Nexaflow.slnx`, whose restore reads every project the solution lists — the
+  `external/` ones too — before any project's own targets run. Covers clones where the hook path
+  wasn't set, CI, and a hook that was stopped part-way. (Opt out with
+  `-p:NexaflowSkipSubmoduleInit=true`.)
+
+What the helper does, and why each part is there:
+
+- **A linked worktree clones from the main checkout, not from GitHub.** Whatever creates a worktree
+  gives its post-checkout hook only half a minute or so, and cloning every submodule and grammar from
+  the network takes over a minute — so the ones last in line (`usbids`, `tree-sitter-xml`, the grammars)
+  would be left empty, a different one each time. Each submodule is cloned from the main checkout's
+  copy under `.git/modules/<path>` — by path where that copy has its whole history, which hard-links
+  its objects; over `file://` at depth 1 where it is shallow, as the grammars are — then `git submodule
+  sync` points its `origin` back at the `.gitmodules` URL. Nothing borrows from the main checkout
+  afterwards (no alternates), so a `gc` there cannot reach into a worktree. Only a pin the main
+  checkout does not hold yet is fetched from the network. A fresh worktree populates in about 15
+  seconds; the main checkout itself has no other copy, so it fetches.
+- **A submodule counts as checked out only when it has an index.** A clone from the main checkout
+  starts with its HEAD already at the pin, so a run stopped between a clone and its checkout leaves a
+  submodule `git submodule status` reports as fine, with no files. The helper finds those by their
+  missing index, clears the `index.lock` a stopped checkout leaves, discards a clone stopped before
+  its HEAD named a commit, and checks them out with `--force` — safe, because a submodule that never
+  completed a checkout holds no work. One with an index is never touched, whatever its state.
+- **`external/.submodules-populated`** (gitignored) is written by a run that leaves every submodule
+  checked out, and removed first by any run with work to do — so its absence is how the build knows
+  a run stopped, even when every `.git` is in place.
+- **One run per checkout at a time**, by a named mutex: the hook and every project of a parallel
+  build can arrive together, and two `git submodule update`s in one checkout fail on each other's
+  locks. The rest wait, then find nothing to do.
+- **A failure says so.** It exits 1 naming each submodule still not at its pin, with git's reason
+  above; the build target shows that and carries on with a warning.
 
 `tools/ensure-submodules.ps1` is safe to run by hand anytime; it's a no-op once submodules exist.
 

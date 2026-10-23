@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- Imported into the solution's own build (`dotnet build Nexaflow.slnx`). Restoring the solution reads
+       every project it lists - the external/ submodule projects included - before any project's own
+       targets run, so the submodule self-heal has to run here as well as in each project. -->
+  <Import Project="tools\ensure-submodules.targets" />
+
+</Project>

@@ -5,8 +5,9 @@
 
     This is the single source of truth for the set: Nexaflow.Syntax.csproj imports it (to declare the
     Content items that flow each DLL to the output root), tools/build-tree-sitter-natives.ps1 reads it
-    to know what to compile, and tools/ensure-submodules.ps1 reads it to know which nested submodules a
-    fresh worktree has to populate. Adding a language means adding one row here.
+    to know what to compile, tools/ensure-submodules.ps1 reads it to know which nested submodules a
+    fresh worktree has to populate, and tools/ensure-submodules.targets reads it to know which to check
+    for. Adding a language means adding one row here.
 
     Why build them at all, when TreeSitter.DotNet ships ~30 prebuilt natives: the package's grammars are
     pinned to whatever its own submodules pointed at when it was published, and they go stale. Its C#

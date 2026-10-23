@@ -459,3 +459,6 @@ tools/graph-cli.old-*/
 # ignored above); this catches a bare `dotnet stryker` run, which defaults to StrykerOutput/ next to the
 # test project it was launched from.
 StrykerOutput/
+
+# Left by tools/ensure-submodules.ps1 when every submodule the build needs is checked out (docs/externals.md).
+external/.submodules-populated
