@@ -406,6 +406,13 @@
       { "Type": "Extension", "Value": "*.tar.br" },
       { "Type": "Extension", "Value": "*.tbz2" },
       { "Type": "Extension", "Value": "*.txz" },
+      { "Type": "Extension", "Value": "*.z" },
+      { "Type": "Extension", "Value": "*.tar.z" },
+      { "Type": "Extension", "Value": "*.taz" },
+      { "Type": "Extension", "Value": "*.lz" },
+      { "Type": "Extension", "Value": "*.tar.lz" },
+      { "Type": "Extension", "Value": "*.lzma" },
+      { "Type": "Extension", "Value": "*.tar.lzma" },
       { "Type": "Extension", "Value": "*.7z" },
       { "Type": "Extension", "Value": "*.rar" }
     ]

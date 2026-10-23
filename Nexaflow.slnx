@@ -411,7 +411,7 @@
     both trees get built and every reference is satisfied. Visual Studio builds one side only, and the
     other side's reference dangles:
 
-        Metadata file '...\external\DiscUtils\Library\Release\netstandard2.1\DiscUtils.Xfs.dll'
+        Metadata file '...\external\DiscUtils\Library\Release\net10.0\DiscUtils.Xfs.dll'
         could not be found
 
     Listing all 27 gives every one of them the solution's configuration, so the unset-$(Configuration)

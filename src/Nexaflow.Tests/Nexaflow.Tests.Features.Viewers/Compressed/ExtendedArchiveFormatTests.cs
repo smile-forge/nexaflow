@@ -12,10 +12,11 @@ using SharpCompressNs = Nexaflow.Features.Compressed.SharpCompress;
 namespace Nexaflow.Tests.Features.Compressed;
 
 /// <summary>
-/// Materialises sample files for the formats that need a library or external tool — bz2 / xz / zst / lz4 /
-/// br (with and without tar), 7z and rar — into <c>test-samples/archive/</c>, then reads each back through
-/// the VFS. The lib-based formats are written in-process via Convert; 7z / xz / tar.xz come from 7-Zip and
-/// rar from WinRAR when those are installed (skipped, not failed, when they are not).
+/// Materialises sample files for the formats that need a library or external tool — gz / bz2 / xz / zst /
+/// lz4 / br / lz / lzma / Z (with and without tar), 7z and rar — into <c>test-samples/archive/</c>, then
+/// reads each back through the VFS. The lib-based formats are written in-process via Convert, lzip and a
+/// sized lzma with SharpCompress; 7z / xz / tar.xz come from 7-Zip, rar from WinRAR, and .Z and unsized
+/// lzma from Windows' tar when those are installed (skipped, not failed, when they are not).
 /// </summary>
 [TestClass]
 [CoversNode("compressed-backends")]
@@ -29,6 +30,8 @@ public class ExtendedArchiveFormatTests
     private static readonly string WinRar = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinRAR", "Rar.exe");
 
+    private static readonly string WindowsTar = Path.Combine(Environment.SystemDirectory, "tar.exe");   // libarchive
+
     private static string _dir = "";
 
     [ClassInitialize]
@@ -39,7 +42,7 @@ public class ExtendedArchiveFormatTests
         var vfs = MakeVfs();
 
         // In-process (Convert / codec composition) from the multi-file sample.zip.
-        foreach (var name in new[] { "formats.tar.zst", "formats.tar.lz4", "formats.tar.br", "formats.tar.bz2" })
+        foreach (var name in new[] { "formats.tar.zst", "formats.tar.lz4", "formats.tar.br", "formats.tar.bz2", "formats.tar.gz" })
             Ensure(Path.Combine(_dir, name), dest => vfs.Repackage(sampleZip, dest, null));
 
         // Single-stream codecs from a one-file zip.
@@ -57,6 +60,17 @@ public class ExtendedArchiveFormatTests
         File.WriteAllText(Path.Combine(stage, "readme.txt"), ArchiveText);
         File.WriteAllText(Path.Combine(stage, "docs", "data.json"), "{ \"name\": \"sample\", \"values\": [1, 2, 3] }\n");
 
+        // lzip: nothing in the app writes it, but SharpCompress can.
+        Ensure(Path.Combine(_dir, "note.lz"), d => Lzip(Path.Combine(stage, "readme.txt"), d));
+        Ensure(Path.Combine(_dir, "formats.tar.lz"), d =>
+        {
+            var tar = Path.Combine(_dir, "_lz.tar");
+            System.Formats.Tar.TarFile.CreateFromDirectory(stage, tar, includeBaseDirectory: false);
+            Lzip(tar, d);
+            TryDelete(tar);
+        });
+        Ensure(Path.Combine(_dir, "sized.lzma"), d => LzmaAlone(Path.Combine(stage, "readme.txt"), d));
+
         if (File.Exists(SevenZip))
         {
             Ensure(Path.Combine(_dir, "formats.7z"), d => Tool(SevenZip, stage, "a", "-t7z", "-y", d, "readme.txt", "docs"));
@@ -71,6 +85,17 @@ public class ExtendedArchiveFormatTests
         if (File.Exists(WinRar))
             Ensure(Path.Combine(_dir, "formats.rar"), d => Tool(WinRar, stage, "a", "-ep1", "-r", d, "readme.txt", "docs"));
 
+        // Unix compress (.Z) and lzma: 7-Zip only reads them, but Windows' own tar writes them (lzma with its
+        // length unknown, so ending in an end marker).
+        if (File.Exists(WindowsTar))
+        {
+            Ensure(Path.Combine(_dir, "note.Z"), d => Tool(WindowsTar, stage, "--format", "raw", "-cZf", d, "readme.txt"));
+            foreach (var name in new[] { "formats.tar.Z", "formats.taz" })
+                Ensure(Path.Combine(_dir, name), d => Tool(WindowsTar, stage, "-cZf", d, "readme.txt", "docs"));
+            Ensure(Path.Combine(_dir, "note.lzma"), d => Tool(WindowsTar, stage, "--format", "raw", "--lzma", "-cf", d, "readme.txt"));
+            Ensure(Path.Combine(_dir, "formats.tar.lzma"), d => Tool(WindowsTar, stage, "--lzma", "-cf", d, "readme.txt", "docs"));
+        }
+
         // Drop the scratch inputs; keep only the format samples.
         TryDelete(oneZip);
         try { Directory.Delete(stage, recursive: true); } catch { /* best effort */ }
@@ -81,21 +106,30 @@ public class ExtendedArchiveFormatTests
     [DataRow("formats.tar.lz4", "formats.tar/readme.txt", ArchiveText, false)]
     [DataRow("formats.tar.br",  "formats.tar/readme.txt", ArchiveText, false)]
     [DataRow("formats.tar.bz2", "formats.tar/readme.txt", ArchiveText, false)]
+    [DataRow("formats.tar.gz",  "formats.tar/readme.txt", ArchiveText, false)]
+    [DataRow("formats.tar.lz",  "formats.tar/readme.txt", ArchiveText, false)]
     [DataRow("note.zst", "note", SoloText, false)]
     [DataRow("note.lz4", "note", SoloText, false)]
     [DataRow("note.br",  "note", SoloText, false)]
     [DataRow("note.bz2", "note", SoloText, false)]
     [DataRow("note.gz",  "note", SoloText, false)]
+    [DataRow("note.lz",  "note", ArchiveText, false)]   // lzip of readme.txt
+    [DataRow("sized.lzma", "sized", ArchiveText, false)]   // lzma of readme.txt, its length recorded
     [DataRow("formats.7z",     "readme.txt",            ArchiveText, true)]
     [DataRow("note.xz",        "note",                  ArchiveText, true)]   // xz of readme.txt
     [DataRow("formats.tar.xz", "formats.tar/readme.txt", ArchiveText, true)]
     [DataRow("formats.rar",    "readme.txt",            ArchiveText, true)]
+    [DataRow("note.Z",         "note",                  ArchiveText, true)]   // compress of readme.txt
+    [DataRow("formats.tar.Z",  "formats.tar/readme.txt", ArchiveText, true)]
+    [DataRow("formats.taz",    "formats.tar/readme.txt", ArchiveText, true)]
+    [DataRow("note.lzma",      "note",                  ArchiveText, true)]   // its length unknown
+    [DataRow("formats.tar.lzma", "formats.tar/readme.txt", ArchiveText, true)]
     public void Sample_ReadsThroughVfs(string fileName, string innerPath, string expected, bool requiresTool)
     {
         var path = Path.Combine(_dir, fileName);
         if (requiresTool && !File.Exists(path))
         {
-            Assert.Inconclusive($"{fileName} not generated — 7-Zip / WinRAR not installed.");
+            Assert.Inconclusive($"{fileName} not generated — the tool that writes it (7-Zip / WinRAR / tar) is not installed.");
             return;
         }
         Assert.IsTrue(File.Exists(path), $"Sample '{fileName}' was not generated.");
@@ -126,6 +160,36 @@ public class ExtendedArchiveFormatTests
         p.StandardOutput.ReadToEnd();
         p.StandardError.ReadToEnd();
         p.WaitForExit(30_000);
+    }
+
+    private static void Lzip(string source, string dest)
+    {
+        using var input = File.OpenRead(source);
+        using var output = File.Create(dest);
+        using var lz = global::SharpCompress.Compressors.LZMA.LZipStream.Create(
+            output, global::SharpCompress.Compressors.CompressionMode.Compress, leaveOpen: true);
+        input.CopyTo(lz);
+    }
+
+    /// <summary>Writes an .lzma that records its decoded length, as 7-Zip's and xz's writers do; Windows' tar
+    /// writes the other form, length unknown and an end marker instead.</summary>
+    private static void LzmaAlone(string source, string dest)
+    {
+        var data = File.ReadAllBytes(source);
+        using var packed = new MemoryStream();
+        byte[] properties;
+        using (var lz = global::SharpCompress.Compressors.LZMA.LzmaStream.Create(
+                   new global::SharpCompress.Compressors.LZMA.LzmaEncoderProperties(eos: false), isLzma2: false, packed))
+        {
+            lz.Write(data);
+            properties = lz.Properties;
+        }
+        using var output = File.Create(dest);
+        output.Write(properties);
+        Span<byte> length = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(length, data.Length);
+        output.Write(length);
+        output.Write(packed.ToArray());
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { } }

@@ -1,38 +1,36 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.8** 🎉
+Welcome to **Nexaflow 1.8.5** 🎉
 
-This release is about *AI on your own machine* — Nexaflow now runs its own models, on your graphics card, for the assistant and for the tools you reach for yourself. Nothing has to leave the PC unless you choose a model that sends it.
+This release rounds out 1.8: PDF pages you can rearrange and combine, whole documents summarised and translated on your own machine, French throughout, and a lighter start.
 
-### 🧠 Local Models run natively
-*   Supports several popular local models according to the capability of your graphics card.
-*   **Local and cloud share the work.** You can even mix local and cloud models to reduce your token burn.
-*   Pages that hold sensitive data — Processes, Services, environment variables, HKLM — **ask before their contents leave the machine**.
+### 📄 PDF pages
+*   A **Pages** tab with a thumbnail of every page: drag to reorder, delete, insert a picture or another PDF, or split a page — saved with the document's bookmarks, links and form fields kept.
+*   **Merge pages** two, three or four to a sheet, **fold a booklet** in reading order, or set pages on paper of another size.
+*   **Save As** works, and **Extract images** takes every picture out of a PDF.
 
-### 🎙️ Talk to it
-*   A **voice conversation** with the assistant, run on this PC, in English, French and German: interrupt it, add to what it is doing, or say "stop" before an action it has announced.
+### 📚 Whole documents, on this PC
+*   **Summarise** or **translate** a whole Markdown document — `.md` or a Markdown Package (`.mdz`) — with a local model. Long documents are worked through a piece at a time, keeping their tone and their terms.
+*   A translation that stops picks up where it left off when you run it again.
 
-### 🖼️ Pictures, speech and clips
-*   Local support for image and video generation.
+### 🗂️ Files and folders
+*   **Explorer's own file icons** in every file list, **cloud status** for OneDrive files, and a folder view that updates when something changes outside Nexaflow.
+*   **Open in Nexaflow** on Explorer's right-click menu for files, folders and drives (under "Show more options" on Windows 11).
+*   **`.Z`**, **`.lz`** and **`.lzma`** archives open, with or without a tar inside.
+*   AV Scan works on OneDrive files and on files inside archives.
 
-### ✂️ Edit your photos
-*   A **non-destructive editor** in the image viewer
-*   Edits follow the photo when you copy, move or rename it.
+### 🔌 USB
+*   A device with **no driver** now shows on the USB page, and can be taken over with Windows' WinUSB driver, talked to directly, and given its driver back.
 
-### 📄 Documents, drawn here
-*   **PDFs are drawn by Nexaflow itself**:
-*   **Convert to Markdown**, scans included, with page reading on this PC.
-*   A picture of a page — a scan, a receipt, a form — converts to Markdown too.
-*   **`.rtf` files** open in their own viewer.
-*   Long markdown and RTF documents **open at once**, read and laid a stretch at a time.
-*   Markdown is read by Nexaflow's own reader, held to the CommonMark specification.
-
-### 🔌 USB and serial
-*   A **USB** page shows the machine's USB tree live, with each device's descriptors, and live tools on a device: its drives, a phone's files, audio out and in, HID reports, and a serial link.
-*   A **Serial** page — a terminal for any COM port.
+### 🌍 French throughout
+*   Every feature now speaks **French** as well as English.
 
 ### ⚡ Smaller things you'll notice
-*   Deleting a file while scrolled down a large folder keeps your place, with no gaps in the list.
-*   The ribbon stays intact at the smallest window width.
+*   Local models load **only when they are first needed**, and no longer hold their files in memory.
+*   Long, formula-heavy Markdown documents scroll and select smoothly.
+*   Select and copy part of a **code block** in Markdown.
+*   **Copy** a photo, edits included, from the image viewer's right-click menu.
+*   Options asks about saving only when you have changed something.
+*   Updates are checked against their published SHA-256 before they install.
 
 Thank you for being part of the journey. Press **Next** to continue.

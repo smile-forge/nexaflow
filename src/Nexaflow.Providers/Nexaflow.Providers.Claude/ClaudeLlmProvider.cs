@@ -137,26 +137,24 @@ public sealed class ClaudeLlmProvider : ILlmProvider
             if (results is not null)
             {
                 if (msg.Role == LlmRole.User) results.AddRange(UserBlocks(msg.Text, msg.Attachments));
-                msgParams.Add(new MessageParam { Role = Role.User, Content = results });
+                msgParams.Add(new UserMessageParam(results));
                 results = null;
                 if (msg.Role == LlmRole.User) continue;
             }
 
-            msgParams.Add(new MessageParam
-            {
-                Role    = msg.Role == LlmRole.User ? Role.User : Role.Assistant,
-                Content = msg.Role == LlmRole.User ? BuildUserContent(msg.Text, msg.Attachments) : AssistantContent(msg),
-            });
+            msgParams.Add(msg.Role == LlmRole.User
+                ? new UserMessageParam(BuildUserContent(msg.Text, msg.Attachments))
+                : new AssistantMessageParam(AssistantContent(msg)));
         }
         if (results is not null)
-            msgParams.Add(new MessageParam { Role = Role.User, Content = results });
+            msgParams.Add(new UserMessageParam(results));
         return (systemPrompt, msgParams);
     }
 
     /// <summary>A reply: its text, then each tool it called.</summary>
-    private static MessageParamContent AssistantContent(LlmMessage msg)
+    private static MessageContentParam AssistantContent(LlmMessage msg)
     {
-        if (msg.ToolCalls is not { Count: > 0 } calls) return new MessageParamContent(msg.Text);
+        if (msg.ToolCalls is not { Count: > 0 } calls) return new MessageContentParam(msg.Text);
 
         var blocks = new List<ContentBlockParam>();
         if (!string.IsNullOrWhiteSpace(msg.Text)) blocks.Add(new TextBlockParam(msg.Text));
@@ -221,12 +219,12 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     /// Builds the final user turn. Image attachments become native vision blocks (base64); non-image
     /// attachments keep the path-as-text behaviour. With no images, returns a plain string content.
     /// </summary>
-    internal static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    internal static MessageContentParam BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         var (images, files) = PromptComposer.PartitionAttachments(attachments);
         return images.Count == 0
-            ? new MessageParamContent(PromptComposer.AppendFileList(prompt, files))
-            : UserBlocks(prompt, attachments);   // implicit List<ContentBlockParam> -> MessageParamContent
+            ? new MessageContentParam(PromptComposer.AppendFileList(prompt, files))
+            : UserBlocks(prompt, attachments);   // implicit List<ContentBlockParam> -> MessageContentParam
     }
 
     /// <summary>What the user says as blocks: the text, unless there is none, then each image as a vision block.</summary>

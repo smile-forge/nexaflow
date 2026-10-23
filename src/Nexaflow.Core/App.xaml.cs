@@ -23,7 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
-using Updatum;
+using StageKit.Updatum;
 using StageKit.Runtime;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Core.Localization;

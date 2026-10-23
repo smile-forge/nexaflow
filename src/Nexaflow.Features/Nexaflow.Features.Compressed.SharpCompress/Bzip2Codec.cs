@@ -12,6 +12,6 @@ public sealed class Bzip2Codec : IStreamCodec
     public string Extension => ".bz2";
     public string Name => "bzip2";
     public bool CanCompress => true;
-    public Stream Compress(Stream output) => new BZip2Stream(output, CompressionMode.Compress, decompressConcatenated: false);
-    public Stream Decompress(Stream input) => new BZip2Stream(input, CompressionMode.Decompress, decompressConcatenated: false);
+    public Stream Compress(Stream output) => BZip2Stream.Create(output, CompressionMode.Compress, decompressConcatenated: false, leaveOpen: true, tolerateTruncatedStream: false);
+    public Stream Decompress(Stream input) => BZip2Stream.Create(input, CompressionMode.Decompress, decompressConcatenated: false, leaveOpen: true, tolerateTruncatedStream: false);
 }

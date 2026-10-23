@@ -42,7 +42,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
 | [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) (via Google APIs) | MIT |
 | [NVorbis](https://github.com/NVorbis/NVorbis) | MIT |
-| [Octokit](https://github.com/octokit/octokit.net) (via Updatum) | MIT |
+| [Octokit](https://github.com/octokit/octokit.net) (via StageKit.Updatum) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [ONNX Runtime](https://github.com/microsoft/onnxruntime) | MIT |
 | [onnxruntime-genai](https://github.com/microsoft/onnxruntime-genai) | MIT |
@@ -56,12 +56,11 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [SharpVectors](https://github.com/ElinamLLC/SharpVectors) | BSD-3-Clause |
 | [SharpZipLib](https://github.com/icsharpcode/SharpZipLib) | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) (+ SkiaSharp.HarfBuzz) | MIT (bundled native Skia: BSD-3-Clause) |
-| [StageKit](https://github.com/sn4k3/StageKit) (StageKit.Runtime, via Updatum) | MIT |
+| [StageKit](https://github.com/sn4k3/StageKit) (StageKit.Updatum, with StageKit.Runtime and StageKit.Primitives) | MIT |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | LGPL-2.1 |
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
 | [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [tree-sitter-xml](https://github.com/tree-sitter-grammars/tree-sitter-xml) (built from source) | MIT |
-| [Updatum](https://github.com/sn4k3/Updatum) | MIT |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net), with native [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | MIT |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
