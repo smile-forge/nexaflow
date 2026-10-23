@@ -27,4 +27,23 @@ internal static class PdfBooklet
 
         return read;
     }
+
+    /// <summary>
+    /// <paramref name="read"/> — a booklet's pages in reading order — folded into its sides, each side's first half then its
+    /// second, side after side: <see cref="Unfold{T}"/> undone. A booklet is printed on whole sheets, two sides each, so the
+    /// pages are padded to a multiple of four with blank halves — <c>null</c> — at the end, before the back cover.
+    /// </summary>
+    public static IReadOnlyList<T?> Fold<T>(IReadOnlyList<T> read) where T : class
+    {
+        var pages = (read.Count + 3) / 4 * 4;
+        var halves = new T?[pages];
+        for (var side = 0; side < pages / 2; side++)
+        {
+            var (first, second) = side % 2 == 0 ? (pages - side, side + 1) : (side + 1, pages - side);
+            halves[2 * side] = first <= read.Count ? read[first - 1] : null;
+            halves[2 * side + 1] = second <= read.Count ? read[second - 1] : null;
+        }
+
+        return halves;
+    }
 }

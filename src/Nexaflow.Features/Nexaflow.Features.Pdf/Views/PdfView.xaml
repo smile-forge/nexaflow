@@ -248,63 +248,164 @@
                                      Text="{Binding NotEditableMessage, Mode=OneWay}"
                                      Visibility="{Binding NotEditableMessage, Converter={StaticResource StringVis}}"/>
 
-                                     <!-- Split: the selected pages cut into the pages printed on them. While it is set up, the lines they would be
-                                          cut along are drawn on their thumbnails, and a line crossing a page's artwork is marked and the page named. -->
+                                     <!-- Sheets: the pages split into the pages printed on them, merged several to a sheet, or set on paper of another
+                                          size — the pages selected, from the right-click menu, or every page, from the toolbar, which chooses the edit
+                                          here. While a split is set up, the lines the pages would be cut along are drawn on their thumbnails, and a line
+                                          crossing a page's artwork is marked and the page named. -->
                                      <Border Grid.Row="1"
                                              Margin="8,8,8,0"
                                              Padding="10,8"
                                              CornerRadius="4"
                                              Background="{DynamicResource Surface2Brush}"
-                                             Visibility="{Binding IsSplitting, Converter={StaticResource BoolToVis}}">
+                                             Visibility="{Binding IsEditingSheets, Converter={StaticResource BoolToVis}}">
                                          <StackPanel>
-                                             <TextBlock Text="{loc:Str Pdf.Split.Heading}"
+                                             <TextBlock Text="{Binding SheetHeading}"
                                                         FontWeight="SemiBold"
                                                         Foreground="{DynamicResource TextBrush}"/>
                                              <ComboBox Margin="0,8,0,0"
                                                        Style="{StaticResource DarkComboBox}"
-                                                       ItemsSource="{Binding SplitCounts}"
-                                                       SelectedItem="{Binding SplitCount, Mode=TwoWay}"
+                                                       ItemsSource="{Binding SheetEdits}"
+                                                       SelectedItem="{Binding SheetEdit, Mode=TwoWay}"
                                                        DisplayMemberPath="Label"
-                                                       ToolTip="{loc:Str Pdf.Split.PartsTip}"
-                                                       AutomationProperties.AutomationId="Pdf_Split_Parts"/>
-                                             <ComboBox Margin="0,6,0,0"
-                                                       Style="{StaticResource DarkComboBox}"
-                                                       ItemsSource="{Binding SplitDirections}"
-                                                       SelectedItem="{Binding SplitDirection, Mode=TwoWay}"
-                                                       DisplayMemberPath="Label"
-                                                       ToolTip="{loc:Str Pdf.Split.DirectionTip}"
-                                                       AutomationProperties.AutomationId="Pdf_Split_Direction"/>
-                                             <CheckBox Margin="0,8,0,0"
-                                                       Content="{loc:Str Pdf.Split.Booklet}"
-                                                       ToolTip="{loc:Str Pdf.Split.BookletTip}"
-                                                       Foreground="{DynamicResource TextBrush}"
-                                                       IsChecked="{Binding SplitBooklet, Mode=TwoWay}"
-                                                       IsEnabled="{Binding CanUnfoldBooklet}"
-                                                       AutomationProperties.AutomationId="Pdf_Split_Booklet"/>
-                                             <TextBlock Margin="0,8,0,0"
-                                                        FontSize="12"
-                                                        TextWrapping="Wrap"
-                                                        Foreground="{DynamicResource TextMutedBrush}"
-                                                        Text="{loc:Str Pdf.Split.Checking}"
-                                                        Visibility="{Binding IsCheckingCuts, Converter={StaticResource BoolToVis}}"/>
-                                             <TextBlock Margin="0,8,0,0"
-                                                        FontSize="12"
-                                                        TextWrapping="Wrap"
-                                                        Foreground="{DynamicResource WarningBrush}"
-                                                        Text="{Binding SplitWarning}"
-                                                        Visibility="{Binding SplitWarning, Converter={StaticResource StringVis}}"/>
+                                                       ToolTip="{loc:Str Pdf.Sheet.EditTip}"
+                                                       Visibility="{Binding AppliesToAll, Converter={StaticResource BoolToVis}}"
+                                                       AutomationProperties.AutomationId="Pdf_Sheet_Edit"/>
+                                             <StackPanel Visibility="{Binding IsSplitShown, Converter={StaticResource BoolToVis}}">
+                                                 <ComboBox Margin="0,8,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SplitCounts}"
+                                                           SelectedItem="{Binding SplitCount, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Split.PartsTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Split_Parts"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SplitDirections}"
+                                                           SelectedItem="{Binding SplitDirection, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Split.DirectionTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Split_Direction"/>
+                                                 <CheckBox Margin="0,8,0,0"
+                                                           Content="{loc:Str Pdf.Split.Booklet}"
+                                                           ToolTip="{loc:Str Pdf.Split.BookletTip}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           IsChecked="{Binding SplitBooklet, Mode=TwoWay}"
+                                                           IsEnabled="{Binding CanUnfoldBooklet}"
+                                                           AutomationProperties.AutomationId="Pdf_Split_Booklet"/>
+                                                 <TextBlock Margin="0,8,0,0"
+                                                            FontSize="12"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{DynamicResource TextMutedBrush}"
+                                                            Text="{loc:Str Pdf.Split.Checking}"
+                                                            Visibility="{Binding IsCheckingCuts, Converter={StaticResource BoolToVis}}"/>
+                                                 <TextBlock Margin="0,8,0,0"
+                                                            FontSize="12"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{DynamicResource WarningBrush}"
+                                                            Text="{Binding SplitWarning}"
+                                                            Visibility="{Binding SplitWarning, Converter={StaticResource StringVis}}"/>
+                                             </StackPanel>
+                                             <StackPanel Visibility="{Binding IsMergeShown, Converter={StaticResource BoolToVis}}">
+                                                 <ComboBox Margin="0,8,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MergeCounts}"
+                                                           SelectedItem="{Binding MergeCount, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Merge.PartsTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Merge_Parts"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MergeDirections}"
+                                                           SelectedItem="{Binding MergeDirection, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Merge.DirectionTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Merge_Direction"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MergePapers}"
+                                                           SelectedItem="{Binding MergePaper, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Merge.PaperTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Merge_Paper"/>
+                                                 <CheckBox Margin="0,8,0,0"
+                                                           Content="{loc:Str Pdf.Merge.Booklet}"
+                                                           ToolTip="{loc:Str Pdf.Merge.BookletTip}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           IsChecked="{Binding MergeBooklet, Mode=TwoWay}"
+                                                           IsEnabled="{Binding CanFoldBooklet}"
+                                                           AutomationProperties.AutomationId="Pdf_Merge_Booklet"/>
+                                                 <TextBlock Margin="0,8,0,0"
+                                                            FontSize="12"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{DynamicResource TextMutedBrush}"
+                                                            Text="{Binding MergeSummary}"/>
+                                             </StackPanel>
+                                             <StackPanel Visibility="{Binding IsSizeShown, Converter={StaticResource BoolToVis}}">
+                                                 <ComboBox Margin="0,8,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SizePapers}"
+                                                           SelectedItem="{Binding SizePaper, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Size.PaperTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Size_Paper"/>
+                                                 <Grid Margin="0,6,0,0" Visibility="{Binding IsCustomSize, Converter={StaticResource BoolToVis}}">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="*"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBox Grid.Column="0"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding CustomWidth, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Size.WidthTip}"
+                                                              AutomationProperties.AutomationId="Pdf_Size_Width"/>
+                                                     <TextBlock Grid.Column="1"
+                                                                Margin="6,0"
+                                                                VerticalAlignment="Center"
+                                                                Text="×"
+                                                                Foreground="{DynamicResource TextMutedBrush}"/>
+                                                     <TextBox Grid.Column="2"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding CustomHeight, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Size.HeightTip}"
+                                                              AutomationProperties.AutomationId="Pdf_Size_Height"/>
+                                                     <ComboBox Grid.Column="3"
+                                                               Margin="6,0,0,0"
+                                                               Style="{StaticResource DarkComboBox}"
+                                                               ItemsSource="{Binding SizeUnits}"
+                                                               SelectedItem="{Binding SizeUnit, Mode=TwoWay}"
+                                                               DisplayMemberPath="Label"
+                                                               ToolTip="{loc:Str Pdf.Size.UnitTip}"
+                                                               AutomationProperties.AutomationId="Pdf_Size_Unit"/>
+                                                 </Grid>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SizeOrientations}"
+                                                           SelectedItem="{Binding SizeOrientation, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Size.OrientationTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Size_Orientation"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SizeFits}"
+                                                           SelectedItem="{Binding SizeFit, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Size.FitTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Size_Fit"/>
+                                             </StackPanel>
                                              <StackPanel Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
                                                  <Button Style="{StaticResource PdfToolbarBtn}"
-                                                         Content="{loc:Str Pdf.Split.Cancel}"
-                                                         Command="{Binding CancelSplitCommand}"
-                                                         AutomationProperties.AutomationId="Pdf_Split_Cancel"/>
+                                                         Content="{loc:Str Pdf.Sheet.Cancel}"
+                                                         Command="{Binding CancelSheetEditCommand}"
+                                                         AutomationProperties.AutomationId="Pdf_Sheet_Cancel"/>
                                                  <Button Style="{StaticResource PdfAccentBtn}"
                                                          Margin="8,0,0,0"
                                                          Padding="14,5"
                                                          FontSize="12"
-                                                         Content="{loc:Str Pdf.Split.Apply}"
-                                                         Command="{Binding ApplySplitCommand}"
-                                                         AutomationProperties.AutomationId="Pdf_Split_Apply"/>
+                                                         Content="{Binding ApplyLabel}"
+                                                         Command="{Binding ApplySheetEditCommand}"
+                                                         AutomationProperties.AutomationId="Pdf_Sheet_Apply"/>
                                              </StackPanel>
                                          </StackPanel>
                                      </Border>
@@ -643,6 +744,14 @@
                                 Command="{Binding RedoCommand}"
                                 ToolTip="{loc:Str Pdf.Toolbar.RedoTip}">
                             <TextBlock Text="&#xE7A6;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                        <!-- Every page at once: split, merged several to a sheet, or set on paper of another size, set up on the Pages tab. -->
+                        <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
+                                AutomationProperties.AutomationId="Pdf_SheetEdit"
+                                Click="SheetEdit_Click"
+                                Command="{Binding PagesPanel.BeginSheetEditCommand}"
+                                ToolTip="{loc:Str Pdf.Toolbar.SheetsTip}">
+                            <TextBlock Text="&#xE89A;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
                         </Button>
                         <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
                                 AutomationProperties.AutomationId="Pdf_Save"

@@ -79,6 +79,10 @@ internal sealed class PdfDocumentScope : IDisposable
                 // keeps clips as groups of its own, so clipping PdfPig's paths is pure cost.
                 ClipPaths = false,
 
+                // But the text it extracts is the text a page shows: not what its crop box or a clip leaves out — the
+                // other half of a sheet split in two, the rest of a page merged onto a sheet beside others.
+                ClipLetters = true,
+
                 FilterProvider = PdfFilterProvider.Instance,
                 Logger         = SilentLog.Instance,
             };

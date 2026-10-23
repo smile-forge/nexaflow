@@ -13,7 +13,12 @@ internal abstract record PdfLinkTarget;
 /// The height on that page the link opens at, in the page's default user space (y up), when the link says; null for the
 /// page's top. <see cref="PdfPageNode.FromUser"/> takes it to page space once the page is read.
 /// </param>
-internal sealed record PdfPageTarget(int PageNumber, double? Top, double? Left = null) : PdfLinkTarget;
+/// <param name="Left">Where across that page the link opens at, in the same space, when the link says.</param>
+/// <param name="Piece">
+/// Which piece of its sheet the link is on — what says which document <paramref name="PageNumber"/> is a page of, on a
+/// sheet of pages merged from several.
+/// </param>
+internal sealed record PdfPageTarget(int PageNumber, double? Top, double? Left = null, int Piece = 0) : PdfLinkTarget;
 
 /// <summary>A link out of the document.</summary>
 /// <param name="Uri">The address, as the document wrote it.</param>

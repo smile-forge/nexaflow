@@ -55,6 +55,18 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
 
     /// <summary>The page as shown, in page space: what its crop box leaves in.</summary>
     private readonly Rect _shown;
+
+    /// <summary>How much of the sheet's text comes before this page's: where a run's stretch of the page's text starts in it.</summary>
+    private readonly int _textBase;
+
+    /// <summary>
+    /// What of the page the clips in force leave showing, as a box in page space: the page shown, narrowed by each clip, and
+    /// saved and restored with the graphics state. Text wholly outside it is drawn nowhere, so is no part of the page's text.
+    /// </summary>
+    private Rect _visible;
+
+    /// <summary><see cref="_visible"/> as each graphics state saved left it.</summary>
+    private readonly Stack<Rect> _savedVisible = new();
     private readonly HashSet<string> _reported = [];
 
     private readonly GroupBuilder _root = new(PdfGroupRole.Root);
@@ -102,7 +114,9 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         _onPage      = onPage;
         _cropBox     = cropBox;
         var visible  = cropBox.GetVisibleBounds(rotation);
-        _shown       = new Rect(0, 0, visible.Width, visible.Height);
+        _shown       = Rect.Transform(new Rect(0, 0, visible.Width, visible.Height), caches.Reading?.ToSheet ?? Matrix.Identity);
+        _textBase    = text is null ? 0 : caches.Reading?.TextStart ?? 0;
+        _visible     = _shown;
         _streamBases.Push(initialMatrix);
         _frames.Push(_root);
     }
@@ -186,6 +200,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         if (_glyphProcedures == 0) FlushRun();
         base.PushState();
         _frames.Push(_nextFrame ?? Open);
+        _savedVisible.Push(_visible);
         _nextFrame = null;
     }
 
@@ -195,6 +210,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         if (_glyphProcedures == 0) FlushRun();
         base.PopState();
         _frames.Pop();
+        _visible = _savedVisible.Pop();
         _path.Clear();
         _pendingClip = null;
     }
@@ -324,6 +340,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         var writer = new PdfShape.Writer();
         writer.Append(shape, toOutput);
         var clip = new GroupBuilder(PdfGroupRole.Clip) { Clip = writer.Take(), ClipRule = Rule(rule) };
+        _visible = Rect.Intersect(_visible, clip.Clip.Bounds(Matrix.Identity));
         Open.Items.Add(clip);
         _frames.Pop();
         _frames.Push(clip);
@@ -827,16 +844,17 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         _run = null;
         if (run is null || run.Glyphs.Count == 0) return;
 
-        // Text the page's crop box leaves out is no part of the page shown: it is neither drawn on it, found on it nor
-        // selected on it — on a sheet read one part at a time, it is the other part's.
-        if (_onPage && !run.Glyphs.Any(glyph => glyph.Box.IntersectsWith(_shown))) return;
+        // Text the page's crop box or a clip leaves out is no part of the page shown: it is neither drawn on it, found
+        // on it nor selected on it — on a sheet read one part at a time, it is the other part's; on a sheet of pages
+        // each placed whole and clipped to its part, it is under another's.
+        if (_onPage && !run.Glyphs.Any(glyph => glyph.Box.IntersectsWith(_visible))) return;
 
         var said = string.Concat(run.Glyphs.Select(static g => g.Text));
         var start = 0;
         if (_text is not null && said.Length > 0)
         {
             if (_lastBox is { } before) _text.Append(Separator(before, run.Glyphs[0].Box, said, _text));
-            start = _text.Length;
+            start = _textBase + _text.Length;
             _text.Append(said);
         }
 

@@ -57,11 +57,18 @@ internal sealed class PdfPageReader
     /// Page <paramref name="number"/> (1-based) read in full — or only its <paramref name="part"/>, read as though the
     /// part were the page's crop box: its size, its place, and what lies outside it all follow.
     /// </summary>
-    public PdfPageNode ReadPage(int number, CancellationToken ct, PdfPagePart? part = null)
+    public PdfPageNode ReadPage(int number, CancellationToken ct, PdfPagePart? part = null) =>
+        ReadPage(number, PdfReadingPlacement.Alone(part), ct);
+
+    /// <summary>
+    /// Page <paramref name="number"/> (1-based) read as <paramref name="placement"/> says: its part, read as though it were
+    /// the page's crop box, onto a sheet — everything read of it in the sheet's space, its glyphs naming the sheet's text.
+    /// </summary>
+    public PdfPageNode ReadPage(int number, PdfReadingPlacement placement, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         _caches.Cancellation = ct;
-        _caches.ReadingPart = part;
+        _caches.Reading = placement;
         try
         {
             return _document.GetPage<PdfPageNode>(number);
@@ -69,7 +76,7 @@ internal sealed class PdfPageReader
         finally
         {
             _caches.Cancellation = CancellationToken.None;
-            _caches.ReadingPart = null;
+            _caches.Reading = null;
         }
     }
 

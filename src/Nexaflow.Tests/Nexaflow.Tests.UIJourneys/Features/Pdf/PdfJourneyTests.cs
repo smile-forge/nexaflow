@@ -288,14 +288,66 @@ if (WaitForId("Pdf_ConvertDocument", 2) is not null)
             CheckPresent("How many pages each sheet holds", "Pdf_Split_Parts", 3);
             CheckPresent("How the pages sit on the sheet", "Pdf_Split_Direction", 2);
             CheckPresent("Unfold a booklet", "Pdf_Split_Booklet", 2);
-            CheckDoes("Cancel the split", "Pdf_Split_Cancel", () => WaitForId("Pdf_Split_Apply", 1) is null);
+            CheckDoes("Cancel the split", "Pdf_Sheet_Cancel", () => WaitForId("Pdf_Sheet_Apply", 1) is null);
 
             rows[1].RightClick();
             Wait.UntilInputIsProcessed();
             CheckPresent("Split the page again", "Pdf_Thumb_Split", 3)?.Click();
             Wait.UntilInputIsProcessed();
-            CheckDoes("Split it into halves", "Pdf_Split_Apply", () => PageCountIs('4', 4));
+            CheckDoes("Split it into halves", "Pdf_Sheet_Apply", () => PageCountIs('4', 4));
             CheckDoes("Undo the split", "Pdf_Undo", () => PageCountIs('3', 4));
+
+            // Merge two pages onto one sheet, and undo it. The split undone gave the page a new row, so the rows are
+            // found again; Ctrl selects without going to the page.
+            if (Thumbnails(thumbnails) is { Length: 3 } pages)
+            {
+                pages[0].Click();
+                using (Keyboard.Pressing(FlaUI.Core.WindowsAPI.VirtualKeyShort.CONTROL))
+                    pages[1].Click();
+                Wait.UntilInputIsProcessed();
+                pages[1].RightClick();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("Merge the pages", "Pdf_Thumb_Merge", 3)?.Click();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("How many pages go on each sheet", "Pdf_Merge_Parts", 3);
+                CheckPresent("How the pages sit on the sheet", "Pdf_Merge_Direction", 2);
+                CheckPresent("How large each sheet is made", "Pdf_Merge_Paper", 2);
+                CheckPresent("Fold into a booklet", "Pdf_Merge_Booklet", 2);
+                CheckDoes("Merge them onto one sheet", "Pdf_Sheet_Apply", () => PageCountIs('2', 4));
+                CheckDoes("Undo the merge", "Pdf_Undo", () => PageCountIs('3', 4));
+            }
+
+            // Set a page on paper of its own size, and undo it.
+            if (Thumbnails(thumbnails) is { Length: 3 } sized)
+            {
+                sized[1].Click();
+                Wait.UntilInputIsProcessed();
+                sized[1].RightClick();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("Set the page's size", "Pdf_Thumb_SetSize", 3)?.Click();
+                Wait.UntilInputIsProcessed();
+                if (CheckPresent("The paper it is set on", "Pdf_Size_Paper", 3) is { } paper)
+                {
+                    paper.Click();
+                    Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.END);
+                    Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+                    Wait.UntilInputIsProcessed();
+                }
+
+                CheckPresent("A width of its own", "Pdf_Size_Width", 2);
+                CheckPresent("A height of its own", "Pdf_Size_Height", 2);
+                CheckPresent("The unit they are in", "Pdf_Size_Unit", 2);
+                CheckPresent("Which way up", "Pdf_Size_Orientation", 2);
+                CheckPresent("What its content does", "Pdf_Size_Fit", 2);
+                CheckDoes("Set its size", "Pdf_Sheet_Apply", () => WaitForId("Pdf_Sheet_Apply", 1) is null && PageCountIs('3', 2));
+                CheckDoes("Undo the new size", "Pdf_Undo", () => WaitForId("Pdf_Undo", 2)?.IsEnabled == false);
+            }
+
+            // Every page at once, from the toolbar: the edit chosen in the bar; cancelled.
+            CheckPresent("Split, merge or resize every page", "Pdf_SheetEdit")?.Click();
+            Wait.UntilInputIsProcessed();
+            CheckPresent("What to do to every page", "Pdf_Sheet_Edit", 3);
+            CheckDoes("Cancel it", "Pdf_Sheet_Cancel", () => WaitForId("Pdf_Sheet_Apply", 1) is null);
 
             // Delete the page selected, undo it, redo it: the page count follows each. The split undone gave the
             // page a new row, so the rows are found again.

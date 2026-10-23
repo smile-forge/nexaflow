@@ -15,11 +15,14 @@ internal static class PdfLinks
     private const string TopKey = "top=";
     private const string LeftKey = "left=";
 
+    private const string PieceKey = "piece=";
+
     public static string ToPage(PdfPageTarget target)
     {
         var href = new StringBuilder(Prefix).Append(target.PageNumber.ToString(CultureInfo.InvariantCulture));
         if (target.Top is { } top) href.Append('&').Append(TopKey).Append(top.ToString("R", CultureInfo.InvariantCulture));
         if (target.Left is { } left) href.Append('&').Append(LeftKey).Append(left.ToString("R", CultureInfo.InvariantCulture));
+        if (target.Piece != 0) href.Append('&').Append(PieceKey).Append(target.Piece.ToString(CultureInfo.InvariantCulture));
         return href.ToString();
     }
 
@@ -33,13 +36,16 @@ internal static class PdfLinks
         if (!int.TryParse(pieces[0], NumberStyles.None, CultureInfo.InvariantCulture, out var page) || page < 1) return false;
 
         double? top = null, left = null;
+        var on = 0;
         foreach (var piece in pieces.Skip(1))
         {
             if (piece.StartsWith(TopKey, System.StringComparison.Ordinal)) top = Coordinate(piece[TopKey.Length..]);
             else if (piece.StartsWith(LeftKey, System.StringComparison.Ordinal)) left = Coordinate(piece[LeftKey.Length..]);
+            else if (piece.StartsWith(PieceKey, System.StringComparison.Ordinal)
+                     && int.TryParse(piece[PieceKey.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var index)) on = index;
         }
 
-        target = new PdfPageTarget(page, top, left);
+        target = new PdfPageTarget(page, top, left, on);
         return true;
     }
 

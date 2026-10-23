@@ -110,17 +110,19 @@ internal sealed class PdfDocumentSession : IDisposable
     }
 
     /// <summary>
-    /// The size, in points, of the page at <paramref name="index"/> as it is shown — of its part, for a part of a page.
+    /// The size, in points, of the page at <paramref name="index"/> as it is shown — of its part, for a part of a page; of
+    /// its sheet, for pages merged.
     /// </summary>
-    public Size PageSize(int index)
+    public Size PageSize(int index) => Arrangement[index].Sheet.ShownSize(ShownSize);
+
+    /// <summary>How large page <paramref name="number"/> of <paramref name="source"/> is shown, in points.</summary>
+    private Size ShownSize(PdfSourceId source, int number)
     {
-        var page = Arrangement[index];
-        var slots = Source(page.Source).Slots!.Pages;
-        var at = page.Number - 1;
-        var shown = at >= 0 && at < slots.Count && slots[at].Number == page.Number
+        var slots = Source(source).Slots!.Pages;
+        var at = number - 1;
+        return at >= 0 && at < slots.Count && slots[at].Number == number
             ? slots[at].Size
-            : slots.First(slot => slot.Number == page.Number).Size;
-        return page.Part is { } part ? part.Of(shown) : shown;
+            : slots.First(slot => slot.Number == number).Size;
     }
 
     // ── Edits ─────────────────────────────────────────────────────────────
@@ -144,8 +146,11 @@ internal sealed class PdfDocumentSession : IDisposable
         var sheets = indices.Distinct().Order().ToList();
         if (booklet)
         {
-            var halves = sheets.SelectMany(index => PartsOf(index, count, direction)).ToList();
-            Commit(Arrangement.Replace(sheets, PdfBooklet.Unfold(halves)));
+            // A blank half — of a booklet's last sheet, padded out — stays in its place until the halves are in
+            // reading order, and is no page after.
+            var halves = sheets.SelectMany(index => Arrangement[index].Sheet.Split(count, SplitsAcross(index, direction), ShownSize)).ToList();
+            var read = PdfBooklet.Unfold(halves).OfType<PdfSheet>().Select(sheet => new PdfArrangedPage(NewPageId(), sheet)).ToList();
+            Commit(Arrangement.Replace(sheets, read));
             return;
         }
 
@@ -167,14 +172,97 @@ internal sealed class PdfDocumentSession : IDisposable
         _                        => PageSize(index) is var size && size.Width >= size.Height,
     };
 
-    /// <summary>The page at <paramref name="index"/> cut into <paramref name="count"/> parts, each a page of its own.</summary>
-    private IReadOnlyList<PdfArrangedPage> PartsOf(int index, int count, PdfSplitDirection direction)
+    /// <summary>
+    /// The pages at <paramref name="indices"/>, in order, put <paramref name="count"/> to a sheet — each sheet where the
+    /// first of its pages was, a last one short of pages leaving its cells empty; or, with <paramref name="booklet"/>, taken
+    /// as a booklet's pages in reading order and folded into its sides, two to a sheet, where the first of them was. Each
+    /// page is centred in a cell the size of the largest; the sheet is then set on <paramref name="paper"/>. One edit.
+    /// </summary>
+    public void Merge(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, bool booklet, PdfMergePaper paper)
     {
-        var page = Arrangement[index];
-        return PdfPagePart.Split(count, SplitsAcross(index, direction))
-            .Select(part => new PdfArrangedPage(NewPageId(), page.Source, page.Number, part.Of(page.Part ?? PdfPagePart.Whole)))
-            .ToList();
+        if (count < 2)
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Pages are merged two to a sheet or more.");
+        if (booklet && count != 2)
+            throw new ArgumentException("A booklet is folded into sheets of two pages.", nameof(booklet));
+
+        var pages = indices.Distinct().Order().ToList();
+        if (booklet)
+        {
+            var halves = PdfBooklet.Fold(pages.Select(index => Arrangement[index].Sheet).ToList());
+            var cell = Largest(halves);
+            var across = PutsSideBySide(cell, direction);
+            var sides = halves.Chunk(2)
+                .Select(side => new PdfArrangedPage(NewPageId(), OnPaper(PdfSheet.Merged(side, across, cell, ShownSize), paper, cell)))
+                .ToList();
+            Commit(Arrangement.Replace(pages, sides));
+            return;
+        }
+
+        // Last first, so the pages before each group replaced are still where the indices say.
+        var groups = pages.Chunk(count).ToList();
+        var merged = Arrangement;
+        for (var at = groups.Count - 1; at >= 0; at--)
+        {
+            var sheets = groups[at].Select(index => (PdfSheet?)Arrangement[index].Sheet)
+                .Concat(Enumerable.Repeat<PdfSheet?>(null, count - groups[at].Length))
+                .ToList();
+            var cell = Largest(sheets);
+            var sheet = OnPaper(PdfSheet.Merged(sheets, PutsSideBySide(cell, direction), cell, ShownSize), paper, cell);
+            merged = merged.Replace(groups[at], [new PdfArrangedPage(NewPageId(), sheet)]);
+        }
+
+        Commit(merged);
     }
+
+    /// <summary>The pages at <paramref name="indices"/> each set on paper as <paramref name="sizing"/> says. One edit.</summary>
+    public void Resize(IReadOnlyCollection<int> indices, PdfPageSizing sizing)
+    {
+        var pages = indices.Distinct().Order().ToList();
+        var resized = Arrangement;
+        foreach (var index in pages)
+        {
+            var sheet = Arrangement[index].Sheet;
+            var (place, paper) = sizing.SetOnPaper(sheet.ShownSize(ShownSize));
+            resized = resized.Replace([index], [new PdfArrangedPage(NewPageId(), sheet.Transformed(place, paper, ShownSize))]);
+        }
+
+        Commit(resized);
+    }
+
+    /// <summary>
+    /// Whether pages in cells <paramref name="cell"/> large are merged <paramref name="direction"/> side by side — for
+    /// <see cref="PdfSplitDirection.Auto"/>, when they are taller than they are wide, so a sheet of them splits back the
+    /// way they were put — rather than one above another.
+    /// </summary>
+    public static bool PutsSideBySide(Size cell, PdfSplitDirection direction) => direction switch
+    {
+        PdfSplitDirection.Across => true,
+        PdfSplitDirection.Down   => false,
+        _                        => cell.Height >= cell.Width,
+    };
+
+    /// <summary>The cell every one of <paramref name="sheets"/> fits in: the widest one's width, the tallest one's height.</summary>
+    private Size Largest(IEnumerable<PdfSheet?> sheets)
+    {
+        var sizes = sheets.OfType<PdfSheet>().Select(sheet => sheet.ShownSize(ShownSize)).ToList();
+        return new Size(sizes.Max(size => size.Width), sizes.Max(size => size.Height));
+    }
+
+    /// <summary><paramref name="sheet"/> set on the paper asked for — the pages' own being one <paramref name="cell"/> large.</summary>
+    private PdfSheet OnPaper(PdfSheet sheet, PdfMergePaper paper, Size cell)
+    {
+        if ((paper.OfThePages ? cell : paper.Paper) is not { } on) return sheet;
+
+        var (place, size) = new PdfPageSizing(on, PdfOrientation.Auto, PdfContentFit.Scale).SetOnPaper(sheet.ShownSize(ShownSize));
+        return sheet.Transformed(place, size, ShownSize);
+    }
+
+    /// <summary>The page at <paramref name="index"/> cut into <paramref name="count"/> parts, each a page of its own.</summary>
+    private IReadOnlyList<PdfArrangedPage> PartsOf(int index, int count, PdfSplitDirection direction) =>
+        Arrangement[index].Sheet.Split(count, SplitsAcross(index, direction), ShownSize)
+            .OfType<PdfSheet>()
+            .Select(sheet => new PdfArrangedPage(NewPageId(), sheet))
+            .ToList();
 
     /// <summary>
     /// Every page of each PDF at <paramref name="paths"/>, in order, inserted into <paramref name="gap"/> — one edit.
@@ -288,7 +376,7 @@ internal sealed class PdfDocumentSession : IDisposable
     public async Task<PdfSaveWarnings> WarningsAsync(CancellationToken ct)
     {
         var warnings = PdfSaveWarnings.None;
-        var used = Arrangement.Pages.Select(page => page.Source).Prepend(Base.Id).Distinct().ToList();
+        var used = Arrangement.Pages.SelectMany(page => page.Sheet.Pieces).Select(piece => piece.Source).Prepend(Base.Id).Distinct().ToList();
         foreach (var id in used)
         {
             var source = Source(id);

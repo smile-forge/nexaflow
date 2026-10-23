@@ -1,0 +1,199 @@
+{
+  "branch": "claude/pdf-merge-pages",
+  "nodes": {
+    "pdf-page-merge": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfDocumentSession.cs",
+          "class": "PdfDocumentSession",
+          "method": "Merge"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfSheet.cs",
+          "class": "PdfSheet",
+          "method": "Merged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBooklet.cs",
+          "class": "PdfBooklet",
+          "method": "Fold"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPaper.cs",
+          "class": "PdfMergePaper"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfPagesPanel.cs",
+          "class": "PdfPagesPanel",
+          "method": "BeginMerge"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageMergeTests.cs",
+            "class": "PdfPageMergeTests"
+          }
+        ]
+      }
+    },
+    "pdf-page-size": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfDocumentSession.cs",
+          "class": "PdfDocumentSession",
+          "method": "Resize"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPaper.cs",
+          "class": "PdfPageSizing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPaper.cs",
+          "class": "PdfPaper"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfPagesPanel.cs",
+          "class": "PdfPagesPanel",
+          "method": "BeginResize"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageMergeTests.cs",
+            "class": "PdfPageMergeTests",
+            "method": "APage_IsSetOnPaperOfAnotherSize_AsOneEdit"
+          }
+        ]
+      }
+    },
+    "pdf-page-transform": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPageTransform.cs",
+          "class": "PdfPageTransform"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfSheet.cs",
+          "class": "PdfSheet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfSheet.cs",
+          "class": "PdfSheetPiece"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfReadingPlacement.cs",
+          "class": "PdfReadingPlacement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfSheetComposer.cs",
+          "class": "PdfSheetComposer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfPageMergeTests.cs",
+            "class": "PdfPageMergeTests",
+            "method": "ASheetOfPages_SplitsBackIntoThem_AndSplitAcrossThemIntoPiecesOfEach"
+          }
+        ]
+      }
+    },
+    "pdf-page-split": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfDocumentSession.cs",
+          "class": "PdfDocumentSession",
+          "method": "Split"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPagePart.cs",
+          "class": "PdfPagePart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBooklet.cs",
+          "class": "PdfBooklet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Rendering/PdfInk.cs",
+          "class": "PdfInk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPageArrangement.cs",
+          "class": "PdfPageArrangement",
+          "method": "Replace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Document/PdfPageFactory.cs",
+          "class": "PdfPageFactory",
+          "method": "GetCropBox"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfPagesPanel.cs",
+          "class": "PdfPagesPanel",
+          "method": "ApplySheetEdit"
+        }
+      ]
+    },
+    "pdf-document-assembly": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfArrangementWriter.cs",
+          "class": "PdfArrangementWriter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfWorkingCopy.cs",
+          "class": "PdfWorkingCopy"
+        },
+        {
+          "type": "code",
+          "doc": "external/PdfPig/src/UglyToad.PdfPig/Writer/PdfDocumentAssembler.cs",
+          "class": "PdfDocumentAssembler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfArrangementWriter.cs",
+          "class": "PdfArrangementWriter",
+          "method": "Assembled"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "pdf-document-assembly",
+    "pdf-page-merge",
+    "pdf-page-size",
+    "pdf-page-split",
+    "pdf-page-transform"
+  ]
+}
