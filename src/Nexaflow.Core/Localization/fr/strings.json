@@ -480,6 +480,7 @@
   "Shell.Notifications.RestoreTitle": "Restaurer la dernière session ?",
   "Shell.Notifications.RestoreBody": "Rouvrir les onglets qui étaient ouverts lors de la dernière fermeture de cet espace de travail.",
   "Shell.Notifications.Restore": "Restaurer",
+  "Shell.OpenFromOutside.CannotOpenFormat": "Nexaflow ne peut pas ouvrir {0} : rien ne s'y trouve, ou ce n'est ni un fichier ni un dossier.",
   "Shell.Workspace.DefaultTabs.RightPane": "Volet droit",
   "Shell.Workspace.DefaultTabs.LeftPane": "Volet gauche",
   "Shell.Workspace.DefaultTabs.RowFormat": "{0}  ·  {1}",

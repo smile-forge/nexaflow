@@ -59,11 +59,19 @@
     -->
     <Property Id="INSTALLTOOLS" Secure="yes" />
 
+    <!--
+      Switch for the ExplorerMenu feature, on unless something says otherwise: the bundle's checkbox (InstallExplorerMenu
+      in Bundle.wxs, which carries the choice across an upgrade) or INSTALLEXPLORERMENU=0 on an msiexec command line.
+      Secure for the same reason as INSTALLTOOLS.
+    -->
+    <Property Id="INSTALLEXPLORERMENU" Value="1" Secure="yes" />
+
     <Feature Id="Main" Title="!(loc.FeatureMainTitle)" Description="!(loc.FeatureMainDescription)"
              Level="1" AllowAbsent="no" AllowAdvertise="no">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
       <ComponentGroupRef Id="CleanupComponents" />
+      <ComponentGroupRef Id="ExplorerMenuOfferedComponents" />
     </Feature>
 
     <!--
@@ -77,6 +85,17 @@
       <Level Value="1" Condition="INSTALLTOOLS = &quot;1&quot;" />
       <ComponentGroupRef Id="ToolsComponents" />
       <ComponentGroupRef Id="ToolsPathComponents" />
+    </Feature>
+
+    <!--
+      "Open in Nexaflow" on Explorer's right-click menu (ExplorerMenu.wxs). Level="2" lowered to 1 by INSTALLEXPLORERMENU,
+      as Tools is by INSTALLTOOLS, so the switch alone decides it and the feature stays listed and selectable in the
+      feature tree either way; the switch's own default is what makes it on.
+    -->
+    <Feature Id="ExplorerMenu" Title="!(loc.FeatureExplorerMenuTitle)" Description="!(loc.FeatureExplorerMenuDescription)"
+             Level="2" AllowAdvertise="no">
+      <Level Value="1" Condition="INSTALLEXPLORERMENU = &quot;1&quot;" />
+      <ComponentGroupRef Id="ExplorerMenuComponents" />
     </Feature>
   </Package>
 </Wix>

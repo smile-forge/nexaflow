@@ -137,11 +137,11 @@ public partial class App : Application
         // daemon still acquires it, so a later launch routes its open-window request here (daemon timing).
         if (!(StartupTimings.Enabled && !prestart) && !_singleInstance.TryAcquire())
         {
-            // A daemon (or an existing window) already owns the instance. A normal launch forwards a
-            // new-window request (honouring --context "Name" from a taskbar JumpList); a --prestart
-            // launch must never spawn a window, so it just exits.
+            // A daemon (or an existing window) already owns the instance. A normal launch forwards what it
+            // asked for (a --context "Name" from a taskbar JumpList, an --open "path" from Explorer's menu); a
+            // --prestart launch must never spawn a window, so it just exits.
             if (!prestart)
-                SingleInstanceService.SignalNewWindow(ParseContextArg(e.Args));
+                SingleInstanceService.ForwardLaunch(LaunchRequest.Parse(e.Args));
             Shutdown();
             return;
         }
@@ -162,13 +162,11 @@ public partial class App : Application
 
             // ── Main window — skipped in --prestart mode (windowless login daemon) ──
             // A --prestart daemon shows nothing now; the wizard runs the first time a window is actually
-            // due (OpenNewWindow), so EnsureConfiguredThenCreateWindow gates both paths.
+            // due (OpenForwardedLaunch), so EnsureConfiguredThenCreateWindow gates both paths.
             if (!prestart)
             {
-                // Honour --context "Name" from a taskbar JumpList.
-                var startupWorkspace = ResolveWorkspace(ParseContextArg(e.Args))
-                                     ?? WorkspaceManager.Instance.Workspaces[0];
-                EnsureConfiguredThenCreateWindow(activityManager, startupWorkspace, activate: false);
+                // Honour --context "Name" from a taskbar JumpList and --open "path" from Explorer's menu.
+                ActOnLaunch(activityManager, LaunchRequest.Parse(e.Args), activate: false);
             }
         }
         catch (Exception ex)
@@ -399,8 +397,8 @@ public partial class App : Application
         // ── 8. Taskbar JumpList — one entry per Workspace ───────────────────
         JumpListService.Initialize();
 
-        // ── 9. Single-instance IPC listener — a later click signals us to open a window ──
-        _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
+        // ── 9. Single-instance IPC listener — a later launch hands us what it asked for ──
+        _singleInstance.StartListening(launch => OpenForwardedLaunch(activityManager, launch));
         StartupTimings.Mark("Init.JumpListAndIpc");
     }
 
@@ -509,15 +507,35 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Opens a new shell window. When <paramref name="contextName"/> names a known config
-    /// (e.g. forwarded from a taskbar JumpList launch) the window opens in a fresh context
-    /// built from that config; otherwise the first config is used.
+    /// Acts on a later launch that <see cref="SingleInstanceService"/> handed over, as this process acts on its own,
+    /// bringing the window it opens or opens into forward.
     /// </summary>
-    private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
+    private static void OpenForwardedLaunch(BackgroundActivityManager activityManager, LaunchRequest launch)
     {
         StartupTimings.MarkWindowRequested();   // daemon click→window timing (no-op unless --timing)
-        var workspace = ResolveWorkspace(contextName) ?? WorkspaceManager.Instance.Workspaces[0];
-        EnsureConfiguredThenCreateWindow(activityManager, workspace, activate: true);
+        ActOnLaunch(activityManager, launch, activate: true);
+    }
+
+    /// <summary>
+    /// Acts on <paramref name="launch"/>. Without an item it opens a new window in the workspace it names (a taskbar
+    /// JumpList entry), or the first one. An item goes to the workspace it names, or else to the one
+    /// <see cref="WorkspaceManager.WorkspaceForOpenedPath"/> picks, and opens in that workspace's window — a new window
+    /// only when it has none.
+    /// </summary>
+    private static void ActOnLaunch(BackgroundActivityManager activityManager, LaunchRequest launch, bool activate)
+    {
+        var named = ResolveWorkspace(launch.WorkspaceName);
+        if (launch.OpenPath is not { } path)
+        {
+            EnsureConfiguredThenCreateWindow(activityManager, named ?? WorkspaceManager.Instance.Workspaces[0], activate);
+            return;
+        }
+
+        var workspace = named ?? WorkspaceManager.Instance.WorkspaceForOpenedPath();
+        if (WorkspaceManager.Instance.FindLiveWorkspace(workspace)?.ShellServices is { HasWindows: true } shell)
+            shell.OpenFromOutside(path);
+        else
+            EnsureConfiguredThenCreateWindow(activityManager, workspace, activate, path);
     }
 
     /// <summary>Tracks whether the first window of this process has already run the setup check.</summary>
@@ -527,10 +545,11 @@ public partial class App : Application
     /// Creates a shell window for <paramref name="workspace"/>, running the first-run / post-update
     /// wizard first the very first time a window is due (so a <c>--prestart</c> daemon shows nothing
     /// until its first real window). Skipping or finishing the wizard always proceeds to the window;
-    /// committed steps persist either way.
+    /// committed steps persist either way. The window opens <paramref name="openPath"/> when one is given,
+    /// and its workspace's default tabs otherwise.
     /// </summary>
     private static MainWindow EnsureConfiguredThenCreateWindow(
-        BackgroundActivityManager activityManager, Workspace workspace, bool activate)
+        BackgroundActivityManager activityManager, Workspace workspace, bool activate, string? openPath = null)
     {
         // The wizard honours CenterScreen and lands on the active monitor; capture that monitor's work
         // area so the main window opens on the SAME monitor (it otherwise takes the OS default
@@ -566,7 +585,7 @@ public partial class App : Application
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
         StartupTimings.Mark("WorkspaceBootstrapped");
 
-        var win = new MainWindow(activityManager, ws);
+        var win = new MainWindow(activityManager, ws, openPath: openPath);
         StartupTimings.Mark("MainWindowBuilt");
         CenterOnMonitor(win, wizardMonitor);
         win.Show();
@@ -664,15 +683,6 @@ public partial class App : Application
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
         var win = new MainWindow(activityManager, ws, openDefaultTabs: false);
         return (IWindowHost)win.ViewModel;
-    }
-
-    /// <summary>Reads a <c>--context "Name"</c> argument, or null if absent.</summary>
-    private static string? ParseContextArg(string[] args)
-    {
-        for (int i = 0; i < args.Length - 1; i++)
-            if (string.Equals(args[i], JumpListService.ContextSwitch, StringComparison.OrdinalIgnoreCase))
-                return args[i + 1];
-        return null;
     }
 
     /// <summary>Resolves a workspace name to a saved <see cref="Workspace"/>, or null.</summary>

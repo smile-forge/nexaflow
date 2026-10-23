@@ -156,7 +156,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon and single-instance / new-window IPC (each IPC launch = a new runtime) |
+| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon, the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |

@@ -1,0 +1,61 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    "Open in Nexaflow" on Explorer's right-click menu: one static verb on every file (*), folder (Directory), the empty
+    space inside a folder (Directory\Background) and drive (Drive), each running Nexaflow.exe with an open request
+    naming the item (LaunchRequest in Nexaflow.Core). A running Nexaflow takes that request over its single-instance
+    pipe and opens the item in the workspace that is open; otherwise it opens in a new window on the first workspace.
+
+    Static verbs under HKMU - HKLM\Software\Classes in this per-machine package - so every user gets them and Windows
+    Installer takes them away with the feature: no shell-extension DLL, nothing loaded into Explorer. Windows 11 lists
+    a static verb under "Show more options"; its first-level menu holds only packaged IExplorerCommand handlers.
+
+    %1 is the item clicked. Directory\Background has none and names the folder it stands in with %V. A drive root,
+    quoted as "C:\", escapes its own closing quote; LaunchRequest.AbsolutePath undoes that.
+
+    ExplorerMenu, the key path, is what the bundle reads to keep this feature's state across an upgrade.
+  -->
+  <Fragment>
+    <ComponentGroup Id="ExplorerMenuComponents" Directory="INSTALLFOLDER">
+      <Component Id="ExplorerMenuVerbs">
+        <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="ExplorerMenu" Type="integer" Value="1" KeyPath="yes" />
+
+        <RegistryKey Root="HKMU" Key="Software\Classes\*\shell\Nexaflow">
+          <RegistryValue Name="MUIVerb" Type="string" Value="!(loc.ExplorerMenuVerb)" />
+          <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Nexaflow.exe,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Nexaflow.exe&quot; --open &quot;%1&quot;" />
+        </RegistryKey>
+
+        <RegistryKey Root="HKMU" Key="Software\Classes\Directory\shell\Nexaflow">
+          <RegistryValue Name="MUIVerb" Type="string" Value="!(loc.ExplorerMenuVerb)" />
+          <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Nexaflow.exe,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Nexaflow.exe&quot; --open &quot;%1&quot;" />
+        </RegistryKey>
+
+        <RegistryKey Root="HKMU" Key="Software\Classes\Directory\Background\shell\Nexaflow">
+          <RegistryValue Name="MUIVerb" Type="string" Value="!(loc.ExplorerMenuVerb)" />
+          <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Nexaflow.exe,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Nexaflow.exe&quot; --open &quot;%V&quot;" />
+        </RegistryKey>
+
+        <RegistryKey Root="HKMU" Key="Software\Classes\Drive\shell\Nexaflow">
+          <RegistryValue Name="MUIVerb" Type="string" Value="!(loc.ExplorerMenuVerb)" />
+          <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Nexaflow.exe,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Nexaflow.exe&quot; --open &quot;%1&quot;" />
+        </RegistryKey>
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!--
+    Says the installed version offers the menu, chosen or not. It belongs to Main, so it is there exactly when Nexaflow
+    is. The bundle reads it beside ExplorerMenu: offered but absent means someone turned the menu off, and an upgrade
+    keeps it off; never offered is a fresh install, or one from a version without the menu, and the menu comes on.
+  -->
+  <Fragment>
+    <ComponentGroup Id="ExplorerMenuOfferedComponents" Directory="INSTALLFOLDER">
+      <Component Id="ExplorerMenuOffered">
+        <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="ExplorerMenuOffered" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

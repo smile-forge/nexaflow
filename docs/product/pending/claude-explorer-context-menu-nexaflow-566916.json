@@ -1,0 +1,69 @@
+{
+  "branch": "claude/explorer-context-menu-nexaflow-566916",
+  "nodes": {
+    "ws-open-path": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LaunchRequest.cs",
+          "class": "LaunchRequest"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "method": "ActOnLaunch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceManager.cs",
+          "class": "WorkspaceManager",
+          "method": "WorkspaceForOpenedPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellServices.cs",
+          "class": "ShellServices",
+          "method": "OpenFromOutside"
+        },
+        {
+          "type": "code",
+          "doc": "nexaflowSetup/ExplorerMenu.wxs"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LaunchRequestTests.cs",
+            "class": "LaunchRequestTests"
+          }
+        ]
+      }
+    },
+    "ws-single-instance-ipc": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "method": "OnStartup"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "method": "OpenForwardedLaunch"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "ws-open-path",
+    "ws-single-instance-ipc"
+  ]
+}

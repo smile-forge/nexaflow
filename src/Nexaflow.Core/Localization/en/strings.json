@@ -480,6 +480,7 @@
   "Shell.Notifications.RestoreTitle": "Restore last session?",
   "Shell.Notifications.RestoreBody": "Reopen the tabs you had open when you last closed this workspace.",
   "Shell.Notifications.Restore": "Restore",
+  "Shell.OpenFromOutside.CannotOpenFormat": "Nexaflow cannot open {0}: nothing is there, or it is neither a file nor a folder.",
   "Shell.Workspace.DefaultTabs.RightPane": "Right pane",
   "Shell.Workspace.DefaultTabs.LeftPane": "Left pane",
   "Shell.Workspace.DefaultTabs.RowFormat": "{0}  ·  {1}",
