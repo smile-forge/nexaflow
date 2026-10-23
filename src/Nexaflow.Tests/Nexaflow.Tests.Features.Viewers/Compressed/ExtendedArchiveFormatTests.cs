@@ -13,10 +13,10 @@ namespace Nexaflow.Tests.Features.Compressed;
 
 /// <summary>
 /// Materialises sample files for the formats that need a library or external tool — gz / bz2 / xz / zst /
-/// lz4 / br / lz / Z (with and without tar), 7z and rar — into <c>test-samples/archive/</c>, then reads each
-/// back through the VFS. The lib-based formats are written in-process via Convert, lzip with SharpCompress;
-/// 7z / xz / tar.xz come from 7-Zip, rar from WinRAR and .Z from Windows' tar when those are installed
-/// (skipped, not failed, when they are not).
+/// lz4 / br / lz / lzma / Z (with and without tar), 7z and rar — into <c>test-samples/archive/</c>, then
+/// reads each back through the VFS. The lib-based formats are written in-process via Convert, lzip and a
+/// sized lzma with SharpCompress; 7z / xz / tar.xz come from 7-Zip, rar from WinRAR, and .Z and unsized
+/// lzma from Windows' tar when those are installed (skipped, not failed, when they are not).
 /// </summary>
 [TestClass]
 [CoversNode("compressed-backends")]
@@ -69,6 +69,7 @@ public class ExtendedArchiveFormatTests
             Lzip(tar, d);
             TryDelete(tar);
         });
+        Ensure(Path.Combine(_dir, "sized.lzma"), d => LzmaAlone(Path.Combine(stage, "readme.txt"), d));
 
         if (File.Exists(SevenZip))
         {
@@ -84,12 +85,15 @@ public class ExtendedArchiveFormatTests
         if (File.Exists(WinRar))
             Ensure(Path.Combine(_dir, "formats.rar"), d => Tool(WinRar, stage, "a", "-ep1", "-r", d, "readme.txt", "docs"));
 
-        // Unix compress (.Z): 7-Zip only reads it, but Windows' own tar writes it.
+        // Unix compress (.Z) and lzma: 7-Zip only reads them, but Windows' own tar writes them (lzma with its
+        // length unknown, so ending in an end marker).
         if (File.Exists(WindowsTar))
         {
             Ensure(Path.Combine(_dir, "note.Z"), d => Tool(WindowsTar, stage, "--format", "raw", "-cZf", d, "readme.txt"));
             foreach (var name in new[] { "formats.tar.Z", "formats.taz" })
                 Ensure(Path.Combine(_dir, name), d => Tool(WindowsTar, stage, "-cZf", d, "readme.txt", "docs"));
+            Ensure(Path.Combine(_dir, "note.lzma"), d => Tool(WindowsTar, stage, "--format", "raw", "--lzma", "-cf", d, "readme.txt"));
+            Ensure(Path.Combine(_dir, "formats.tar.lzma"), d => Tool(WindowsTar, stage, "--lzma", "-cf", d, "readme.txt", "docs"));
         }
 
         // Drop the scratch inputs; keep only the format samples.
@@ -110,6 +114,7 @@ public class ExtendedArchiveFormatTests
     [DataRow("note.bz2", "note", SoloText, false)]
     [DataRow("note.gz",  "note", SoloText, false)]
     [DataRow("note.lz",  "note", ArchiveText, false)]   // lzip of readme.txt
+    [DataRow("sized.lzma", "sized", ArchiveText, false)]   // lzma of readme.txt, its length recorded
     [DataRow("formats.7z",     "readme.txt",            ArchiveText, true)]
     [DataRow("note.xz",        "note",                  ArchiveText, true)]   // xz of readme.txt
     [DataRow("formats.tar.xz", "formats.tar/readme.txt", ArchiveText, true)]
@@ -117,6 +122,8 @@ public class ExtendedArchiveFormatTests
     [DataRow("note.Z",         "note",                  ArchiveText, true)]   // compress of readme.txt
     [DataRow("formats.tar.Z",  "formats.tar/readme.txt", ArchiveText, true)]
     [DataRow("formats.taz",    "formats.tar/readme.txt", ArchiveText, true)]
+    [DataRow("note.lzma",      "note",                  ArchiveText, true)]   // its length unknown
+    [DataRow("formats.tar.lzma", "formats.tar/readme.txt", ArchiveText, true)]
     public void Sample_ReadsThroughVfs(string fileName, string innerPath, string expected, bool requiresTool)
     {
         var path = Path.Combine(_dir, fileName);
@@ -162,6 +169,27 @@ public class ExtendedArchiveFormatTests
         using var lz = global::SharpCompress.Compressors.LZMA.LZipStream.Create(
             output, global::SharpCompress.Compressors.CompressionMode.Compress, leaveOpen: true);
         input.CopyTo(lz);
+    }
+
+    /// <summary>Writes an .lzma that records its decoded length, as 7-Zip's and xz's writers do; Windows' tar
+    /// writes the other form, length unknown and an end marker instead.</summary>
+    private static void LzmaAlone(string source, string dest)
+    {
+        var data = File.ReadAllBytes(source);
+        using var packed = new MemoryStream();
+        byte[] properties;
+        using (var lz = global::SharpCompress.Compressors.LZMA.LzmaStream.Create(
+                   new global::SharpCompress.Compressors.LZMA.LzmaEncoderProperties(eos: false), isLzma2: false, packed))
+        {
+            lz.Write(data);
+            properties = lz.Properties;
+        }
+        using var output = File.Create(dest);
+        output.Write(properties);
+        Span<byte> length = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(length, data.Length);
+        output.Write(length);
+        output.Write(packed.ToArray());
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { } }

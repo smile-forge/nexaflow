@@ -114,7 +114,7 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
     /// <summary>Strips the archive extension, including compound forms (<c>.tar.gz</c> → name).</summary>
     private static string StripArchiveExtension(string fileName)
     {
-        foreach (var compound in new[] { ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tar.z" })
+        foreach (var compound in new[] { ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tar.z", ".tar.lz", ".tar.lzma" })
             if (fileName.EndsWith(compound, StringComparison.OrdinalIgnoreCase))
                 return fileName[..^compound.Length];
         return Path.GetFileNameWithoutExtension(fileName);

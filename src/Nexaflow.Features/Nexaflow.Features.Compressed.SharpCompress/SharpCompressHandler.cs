@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -24,7 +25,7 @@ namespace Nexaflow.Features.Compressed.SharpCompress;
 public sealed class SharpCompressHandler : IArchiveHandler
 {
     private static readonly string[] Compound =
-        [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.lz", ".tar.z", ".tgz", ".tbz2", ".tbz", ".txz", ".taz"];
+        [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.lz", ".tar.lzma", ".tar.z", ".tgz", ".tbz2", ".tbz", ".txz", ".taz"];
 
     private static readonly string[] Simple =
         [".tar", ".7z", ".rar", ".gz", ".bz2", ".xz", ".z", ".lz", ".lzma"];
@@ -35,7 +36,7 @@ public sealed class SharpCompressHandler : IArchiveHandler
     public ArchiveCapabilities Capabilities =>
         ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create;
 
-    // ArchiveFactory can't open these: it has no archive for bzip2 / xz / lzip / Unix compress (.Z), and a
+    // ArchiveFactory can't open these: it has no archive for bzip2 / xz / lzip / lzma / Unix compress (.Z), and a
     // gzipped tar it recognises as a tar, then cannot read compressed. So they are decompressed explicitly
     // into a single inner stream that the VFS nests into. A plain .gz still goes through ArchiveFactory,
     // whose gzip archive carries the original size and time.
@@ -47,12 +48,24 @@ public sealed class SharpCompressHandler : IArchiveHandler
             s => new System.IO.Compression.GZipStream(s, System.IO.Compression.CompressionMode.Decompress, leaveOpen: true)),
         new("xz", [".tar.xz", ".txz", ".xz"], s => new XZStream(s)),
         new("lzip", [".tar.lz", ".lz"], s => LZipStream.Create(s, CompressionMode.Decompress, leaveOpen: true)),
+        new("lzma", [".tar.lzma", ".lzma"], LzmaAloneStream),
         new("lzw", [".tar.z", ".taz", ".z"], s => new LzwStream(s) { IsStreamOwner = false }),
     ];
 
     /// <summary>The raw codec whose extension ends <paramref name="lowerFileName"/>, or null.</summary>
     private static RawCodec? RawCodecFor(string lowerFileName)
         => RawCodecs.FirstOrDefault(c => c.Extensions.Any(e => lowerFileName.EndsWith(e, StringComparison.Ordinal)));
+
+    /// <summary>Decodes an <c>.lzma</c> ("LZMA alone") stream: five bytes of coder properties, the decoded
+    /// length as eight little-endian bytes (all ones when the writer did not know it, the data then ending in
+    /// an end marker), then the LZMA data. Leaves <paramref name="input"/> open.</summary>
+    private static Stream LzmaAloneStream(Stream input)
+    {
+        Span<byte> header = stackalloc byte[13];
+        input.ReadExactly(header);
+        long decodedLength = BinaryPrimitives.ReadInt64LittleEndian(header[5..]);
+        return LzmaStream.Create(header[..5].ToArray(), input, inputSize: -1, outputSize: decodedLength, leaveOpen: true);
+    }
     public bool CanHandle(string fileName)
     {
         var lower = (fileName ?? string.Empty).ToLowerInvariant();

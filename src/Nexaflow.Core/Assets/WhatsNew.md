@@ -16,7 +16,7 @@ This release rounds out 1.8: PDF pages you can rearrange and combine, whole docu
 ### 🗂️ Files and folders
 *   **Explorer's own file icons** in every file list, **cloud status** for OneDrive files, and a folder view that updates when something changes outside Nexaflow.
 *   **Open in Nexaflow** on Explorer's right-click menu for files, folders and drives (under "Show more options" on Windows 11).
-*   **`.Z`** and **`.lz`** archives open, with or without a tar inside.
+*   **`.Z`**, **`.lz`** and **`.lzma`** archives open, with or without a tar inside.
 *   AV Scan works on OneDrive files and on files inside archives.
 
 ### 🔌 USB
