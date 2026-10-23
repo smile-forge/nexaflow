@@ -1,0 +1,66 @@
+<Project InitialTargets="EnsureSubmodulesInitialized">
+
+  <!-- A fresh `git worktree` starts with EMPTY submodule directories, so the ProjectReferences into
+       external/ point at .csproj files that don't exist yet, usb.ids is not there to embed and the
+       grammars have no C to compile. Populate whatever is missing before anything else runs, so creating
+       a new worktree and hitting Build/F5 "just works". This is a build-time SELF-HEAL: normally the
+       committed .githooks/post-checkout hook does this at worktree-creation time (see docs/externals.md);
+       this target is the safety net for when the hook hasn't run (hooks not yet configured on a clone, a
+       CI checkout) or was stopped part-way, as whatever creates the worktree may do. A run the helper
+       completes leaves external/.submodules-populated, and one with work to do removes it first, so a
+       missing stamp is a run that stopped - possibly between a clone and its checkout, which leaves a
+       .git with no files beside it.
+
+       Imported twice: by Directory.Build.targets, for a project's build and Visual Studio's, and by
+       Directory.Solution.targets, for the solution's - whose restore reads every project the solution
+       lists, external/ ones included, before any project's own targets run. An initial target, because
+       restore comes first either way: it runs before whatever target was asked for, Restore included.
+
+       What is checked is read from where the helper reads it: every submodule .gitmodules declares,
+       and the runtime plus every grammar tools/tree-sitter-grammars.props builds inside the bindings -
+       so a new submodule or language needs nothing here. A checked-out submodule has a .git; one git
+       has not populated has an empty directory. Both reads are a few hundred bytes, so a build with
+       everything present pays next to nothing. The helper only initialises submodules whose checkout
+       never completed, so it never clobbers in-progress submodule work, and it takes one checkout at a
+       time, so the projects of a parallel build wait for the first rather than collide. Set
+       NexaflowSkipSubmoduleInit=true to opt out. -->
+  <PropertyGroup>
+    <_NexaflowRepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</_NexaflowRepoRoot>
+  </PropertyGroup>
+
+  <Target Name="EnsureSubmodulesInitialized"
+          Condition="'$(NexaflowSkipSubmoduleInit)' != 'true' And Exists('$(_NexaflowRepoRoot).gitmodules')">
+    <PropertyGroup>
+      <_NexaflowGrammarDir>external/tree-sitter-dotnet-bindings/tree-sitter-native</_NexaflowGrammarDir>
+      <_NexaflowSubmodulesStamp>$(_NexaflowRepoRoot)external\.submodules-populated</_NexaflowSubmodulesStamp>
+    </PropertyGroup>
+    <ReadLinesFromFile File="$(_NexaflowRepoRoot).gitmodules">
+      <Output TaskParameter="Lines" ItemName="_NexaflowGitmodulesLine" />
+    </ReadLinesFromFile>
+    <!-- A grammar with its own Root is a submodule of its own (xml), already declared in .gitmodules. -->
+    <XmlPeek XmlInputPath="$(MSBuildThisFileDirectory)tree-sitter-grammars.props"
+             Query="/Project/ItemGroup/TreeSitterGrammar[not(@Root)]/@Include"
+             Condition="Exists('$(MSBuildThisFileDirectory)tree-sitter-grammars.props')">
+      <Output TaskParameter="Result" ItemName="_NexaflowGrammar" />
+    </XmlPeek>
+    <ItemGroup>
+      <_NexaflowSubmodule Include="$([System.String]::Copy('%(_NexaflowGitmodulesLine.Identity)').Split('=')[1].Trim())"
+                          Condition="$([System.String]::Copy('%(_NexaflowGitmodulesLine.Identity)').Trim().StartsWith('path'))" />
+      <_NexaflowSubmodule Include="$(_NexaflowGrammarDir)/tree-sitter" />
+      <_NexaflowSubmodule Include="@(_NexaflowGrammar->'$(_NexaflowGrammarDir)/tree-sitter-%(Identity)')" />
+      <_NexaflowMissingSubmodule Include="@(_NexaflowSubmodule)"
+                                 Condition="!Exists('$(_NexaflowRepoRoot)%(Identity)/.git')" />
+    </ItemGroup>
+    <Message Importance="high" Condition="'@(_NexaflowMissingSubmodule)' != ''"
+             Text="Nexaflow: submodules not checked out — populating them: @(_NexaflowMissingSubmodule, ', ')" />
+    <Message Importance="high" Condition="'@(_NexaflowMissingSubmodule)' == '' And !Exists('$(_NexaflowSubmodulesStamp)')"
+             Text="Nexaflow: the last submodule population did not complete — finishing it…" />
+    <Exec Condition="'@(_NexaflowMissingSubmodule)' != '' Or !Exists('$(_NexaflowSubmodulesStamp)')"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)ensure-submodules.ps1&quot;"
+          WorkingDirectory="$(_NexaflowRepoRoot)"
+          StandardOutputImportance="high"
+          StandardErrorImportance="high"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>
