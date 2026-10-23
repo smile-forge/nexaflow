@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.8.0** · 2026-10-20_
+_Version **v1.8.5** · 2026-10-23_
 
-**94% shipping** — 1642/1756 components done (108 should · 0 faulted · 6 shouldn't)
+**93% shipping** — 1672/1802 components done (124 should · 0 faulted · 6 shouldn't)
 
 ## Tree
 
@@ -231,6 +231,7 @@ _Version **v1.8.0** · 2026-10-20_
         - **Full-Screen Navigation** — _done_
       - **Image Context Menu** — _done_
         - **Delete Image** — _done_
+        - **Copy Image** — _done_
       - **Image Tools** — _done_
         - **Rotate Left / Right** — _done_
         - **Fit / Actual Size** — _done_
@@ -397,6 +398,8 @@ _Version **v1.8.0** · 2026-10-20_
         - **File name label** — _done_
         - **View-mode slider** — _done_
         - **Save button** — _done_
+        - **Summarise button** — _should_
+        - **Translate button** — _should_
       - **Formatting** — _done_
         - **Outline buttons (P/H1-H6)** — _done_
         - **Inline formatting (emphasis/strong/strike/sub/sup/marked/inserted)** — _done_
@@ -420,6 +423,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **Links out of the document** — _done_
       - **Save as, and drafts** — _done_
       - **Markdown Package (*.mdz)** — _done_
+      - **Links into a document at a place** — _should_
   - **Processes** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -882,6 +886,9 @@ _Version **v1.8.0** · 2026-10-20_
           - **Drive rows** — _done_
         - **Marquee Selection** — _done_
         - **Reload in place** — _done_
+        - **File Icons & Type Names** — _done_
+        - **Cloud Sync Status Column** — _done_
+        - **Live Folder Updates** — _done_
       - **Breadcrumb / Address Bar** — _done_ — The segments are rebuilt from the current path and each navigates on click - a projection with no rule of its own beyond the path itself. The path-driving half is asserted on winfs-path-query, and the segments' presence by the journey.
       - **File Action Strip** — _done_
         - **Copy** — _done_ — Putting a CF_HDROP on the Windows clipboard is a native call with no rule between the selection and the clipboard, and a test that takes the clipboard interferes with whatever else the machine is doing. What Copy is for is asserted on the other end: winfs-act-paste, which is where a clipboard drop can actually go wrong.
@@ -1415,6 +1422,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **Reading order (layout analysis)** — _done_
       - **Scanned pages read** — _done_
       - **Pages as objects** — _done_
+      - **Document assembly** — _done_
     - **UI** — _should_
       - **Rendered page surface** — _done_
         - **Page navigation** — _done_
@@ -1428,9 +1436,21 @@ _Version **v1.8.0** · 2026-10-20_
       - **Document panel** — _should_
         - **Properties tab** — _done_
         - **Contents tab** — _done_
+        - **Pages tab** — _done_
       - **As Pdf file action** — _done_
       - **Scans notice** — _done_
       - **Convert to Markdown** — _done_
+      - **Page editing** — _should_
+        - **Reorder pages** — _done_
+        - **Delete pages** — _done_
+        - **Insert an image** — _done_
+        - **Insert a PDF** — _done_
+        - **Undo and redo** — _done_
+        - **Save and Save As** — _done_
+        - **Split pages** — _done_
+        - **Merge pages** — _done_
+        - **Set page size** — _done_
+        - **Pages as sheets** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
       - **Act - client tools** — _should_
@@ -1563,6 +1583,8 @@ _Version **v1.8.0** · 2026-10-20_
     - **Phone files tool** — _done_
     - **Debug details** — _done_
     - **Preview - IContextPreview** — _should_
+    - **Take-over tool** — _done_
+    - **Raw access tool** — _done_
   - **Serial** — _done_
     - **Terminal** — _done_
     - **Agent** — _done_
@@ -1579,6 +1601,7 @@ _Version **v1.8.0** · 2026-10-20_
   - **Whisper** — _done_
   - **AI host** — _done_
     - **Machine setup** — _done_
+    - **Model residency** — _done_
   - **Nexaflow (owned models)** — _done_
   - **Text to speech** — _done_
   - **Nexaflow speech (owned)** — _done_
@@ -1601,6 +1624,7 @@ _Version **v1.8.0** · 2026-10-20_
         - **Indented Code Blocks** — _done_
         - **Fenced Code Blocks** — _done_
           - **Syntax-highlighted code** — _done_
+          - **Selecting and copying code** — _done_
         - **Inline Code** — _done_
         - **Emphasis** — _done_
         - **Strong** — _done_
@@ -1841,6 +1865,9 @@ _Version **v1.8.0** · 2026-10-20_
         - **The document surfaces read from it** — _done_
         - **A block that reads as it did is laid as it was** — _done_
         - **A document written out in another format** — _done_
+        - **Sections** — _should_
+        - **Fold a section** — _should_
+        - **A long document reads as quickly as a short one** — _done_
       - **Background Reading** — _done_
       - **Moving what is picked out** — _done_
       - **Rich Text (RTF)** — _done_
@@ -1908,6 +1935,8 @@ _Version **v1.8.0** · 2026-10-20_
     - **Audio endpoints and test signals** — _done_
     - **COM port catalog** — _done_
     - **File stores** — _done_
+    - **Directory Listing & Cloud State** — _done_
+    - **Tree Change Watcher** — _done_
   - **Visuals.Common** — _done_
     - **Shared Controls** — _done_
       - **Text Zoom** — _done_
@@ -1922,9 +1951,13 @@ _Version **v1.8.0** · 2026-10-20_
       - **Pointer menus** — _done_
       - **Drafts: files made for you, with Save as** — _done_
       - **Reader's place held** — _done_
+      - **Insertion marker** — _done_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
+    - **Snapshot History** — _done_
+    - **Shell File Icons** — _done_
+    - **Cloud Sync Status** — _done_
   - **Visuals.Web** — _done_
   - **Maths** — _should_
     - **LaTeX Parse Tree** — _should_
@@ -1968,6 +2001,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **Entry points as a first-class kind** — _should_
       - **Visibility on nodes** — _should_
       - **Event wiring edges** — _should_
+      - **Git anchoring** — _done_
     - **Hosting and daemon** — _should_
       - **Resident host** — _done_
       - **Daemon IPC** — _done_
@@ -2003,6 +2037,7 @@ _Version **v1.8.0** · 2026-10-20_
     - **Disks and volumes** — _done_
     - **HID access** — _done_
     - **Debug details** — _done_
+    - **Raw transport** — _done_
   - **Visuals.Stores** — _done_
   - **Media codecs (Nexaflow.Media)** — _should_
     - **JPEG 2000 decoder** — _should_
@@ -2024,6 +2059,16 @@ _Version **v1.8.0** · 2026-10-20_
       - **Text regions and symbol dictionaries** — _done_
       - **Halftone regions** — _done_
       - **Damaged data and limits** — _done_
+  - **IO.Documents (whole documents)** — _should_
+    - **The model a job is held to** — _should_
+    - **What a job keeps** — _should_
+    - **What the document is, said first** — _should_
+    - **Summary, section by section** — _should_
+    - **Words with the markup held back** — _should_
+    - **Names and terms given one way** — _should_
+    - **Translation, passage by passage** — _should_
+    - **Section by section, the deepest first** — _should_
+    - **Questions answered from the parts that bear on them** — _should_
 - **Core UX** — _should_
   - **Themes** — _done_
     - **Dark** — _done_
@@ -2126,6 +2171,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **AI Ability Grid** — _done_
         - **Add Provider / Model Column** — _done_
         - **Local models** — _done_
+        - **Documents row** — _should_
       - **AI Persona** — _done_
       - **Provider Config / API Keys** — _done_
       - **Workspace Identity Page** — _done_
@@ -2153,6 +2199,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **Taskbar JumpList** — _done_
       - **Single-Instance IPC** — _done_
       - **Resident Daemon (--prestart)** — _done_
+      - **Open an Item from Explorer (--open)** — _done_
     - **Profile Selector** — _done_
       - **Switch Profile** — _done_
       - **Modal Switch Block** — _done_
@@ -2208,6 +2255,8 @@ _Version **v1.8.0** · 2026-10-20_
     - **Background tasks pill** — _done_
     - **Answers in the bar** — _done_
     - **Tools reach only what the tabs show** — _done_
+    - **Whole-document tools** — _should_
+      - **Work under way on each document** — _should_
   - **Window Handling** — _done_
     - **Tear Off Tab** — _done_
     - **Split View (Dual Pane)** — _done_
@@ -2249,7 +2298,7 @@ _Version **v1.8.0** · 2026-10-20_
       - **Clear Input Button** — _done_
       - **AI Bar Resize Splitter** — _done_
   - **Taskbar Jump List** — _done_
-  - **Crash Log** — _done_
+  - **Crash Log** — _done_ — i18n: the startup-failure message stays English. It can be shown before, or because of, the language load, when a translated message would show its key instead.
   - **Languages** — _should_
     - **Language Packs** — _done_
     - **String Tables** — _done_
@@ -2290,8 +2339,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 7/1756 |
-| theming | 740/1756 |
-| tests | 1423/1756 |
-| docs | 9/1756 |
-| Expanded | 25/1756 |
+| i18n | 7/1802 |
+| theming | 754/1802 |
+| tests | 1473/1802 |
+| docs | 9/1802 |
+| Expanded | 25/1802 |
