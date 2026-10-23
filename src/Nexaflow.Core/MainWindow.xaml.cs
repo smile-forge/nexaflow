@@ -26,7 +26,7 @@ public partial class MainWindow : Window
     public ShellViewModel ViewModel => _vm;
 
     public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace,
-                      bool openDefaultTabs = true)
+                      bool openDefaultTabs = true, string? openPath = null)
     {
         Services.StartupTimings.Mark("MainWindow.ctor enter");
         InitializeComponent();
@@ -50,11 +50,16 @@ public partial class MainWindow : Window
             // launches straight into that page (used by
             // UI tests to reach views off the default ribbon, and by jump-list / file-association launches).
             // When deep-linking we open ONLY that tab — the default tabs would otherwise open (deferred) on
-            // top and bury it — otherwise open the workspace's saved default tabs.
-            if (App.OpenTabKind is { Length: > 0 } openKind)
-                _shellServices.OpenTab(openKind, new Dictionary<string, string>(App.OpenTabParams));
-            else
-                _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
+            // top and bury it — otherwise open the workspace's saved default tabs. An item handed in from
+            // outside (--open, Explorer's "Open in Nexaflow") opens alone the same way; one that cannot be
+            // opened leaves the default tabs, beside the error saying so.
+            if (openPath is null || !_shellServices.OpenFromOutside(openPath))
+            {
+                if (App.OpenTabKind is { Length: > 0 } openKind)
+                    _shellServices.OpenTab(openKind, new Dictionary<string, string>(App.OpenTabParams));
+                else
+                    _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
+            }
 
             // Startup profiling: the first window's first render is "time to first window". In timing mode
             // we report and then shut down so a harness can cold-start the process repeatedly.

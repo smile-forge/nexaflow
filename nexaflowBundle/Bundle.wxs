@@ -83,6 +83,44 @@
         Bitness="always64" />
 
     <!--
+      The choice of the MSI's ExplorerMenu feature ("Open in Nexaflow" on Explorer's right-click menu), the checkbox
+      under InstallTools and passed through as INSTALLEXPLORERMENU below. Overridable like InstallTools:
+      nexaflowBundle.exe /quiet InstallExplorerMenu=0
+
+      Left alone it is on, except over an install where someone turned it off. The two searches tell those apart:
+      ExplorerMenuOffered is written by every version that has the menu, ExplorerMenu only while the menu is installed
+      (ExplorerMenu.wxs), so offered-and-absent is the one case that reads 0. Never offered - a fresh install, or one
+      from before the menu - is left "auto", which the SetVariable turns on. A value from the command line replaces
+      "auto", so neither search nor default overrides it.
+    -->
+    <Variable Name="InstallExplorerMenu" bal:Overridable="yes" Type="string" Value="auto" />
+
+    <util:RegistrySearch
+        Id="ExplorerMenuOfferedSearch"
+        Variable="ExplorerMenuOffered"
+        Root="HKLM"
+        Key="SOFTWARE\Smile-forge\Nexaflow"
+        Value="ExplorerMenuOffered"
+        Result="exists"
+        Bitness="always64" />
+    <util:RegistrySearch
+        Id="ExplorerMenuInstalledSearch"
+        After="ExplorerMenuOfferedSearch"
+        Variable="InstallExplorerMenu"
+        Condition="InstallExplorerMenu = &quot;auto&quot; AND ExplorerMenuOffered"
+        Root="HKLM"
+        Key="SOFTWARE\Smile-forge\Nexaflow"
+        Value="ExplorerMenu"
+        Result="exists"
+        Bitness="always64" />
+    <SetVariable
+        Id="ExplorerMenuByDefault"
+        After="ExplorerMenuInstalledSearch"
+        Variable="InstallExplorerMenu"
+        Condition="InstallExplorerMenu = &quot;auto&quot;"
+        Value="1" />
+
+    <!--
       Backs the Options page's "Install location" box. It was never declared, so the box opened EMPTY
       and the page could not be completed without typing a path by hand — and since the Tools checkbox
       shares that page, opting into nfi.exe meant inventing an install path first.
@@ -148,6 +186,8 @@
              does not migrate feature states on upgrade. The MSI declares INSTALLTOOLS Secure="yes" so it
              survives the handoff to the elevated execute sequence. -->
         <MsiProperty Name="INSTALLTOOLS" Value="[InstallTools]" />
+        <!-- Drives the ExplorerMenu feature's Level the same way. -->
+        <MsiProperty Name="INSTALLEXPLORERMENU" Value="[InstallExplorerMenu]" />
         <!-- Hands the Options page's location to the MSI. Without it the path was collected and then
              ignored — the MSI fell back to its own default, so the box was decorative as well as blank. -->
         <MsiProperty Name="INSTALLFOLDER" Value="[InstallFolder]" />

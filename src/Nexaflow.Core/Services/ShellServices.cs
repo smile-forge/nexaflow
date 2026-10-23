@@ -1101,6 +1101,24 @@ public sealed class ShellServices : IShellServices
         return false;
     }
 
+    /// <summary>
+    /// Opens <paramref name="path"/>, handed to the app from outside it (Explorer's "Open in Nexaflow"), the way a
+    /// double-click in the file explorer does: a folder in an explorer tab, a file by its default action. The window it
+    /// opens in is restored first when minimised, so the item is seen; a path nothing can open is reported there
+    /// instead. False when it was not opened.
+    /// </summary>
+    internal bool OpenFromOutside(string path)
+    {
+        if (FocusedWindow?.Window is { WindowState: WindowState.Minimized } minimised)
+            SystemCommands.RestoreWindow(minimised);
+
+        if (HandleObject(path)) return true;
+
+        ShowError(Str.Format("Shell.OpenFromOutside.CannotOpenFormat", path));
+        try { FocusedWindow?.Window.Activate(); } catch { /* window closing / not realised */ }
+        return false;
+    }
+
     // Index-backed (FeatureCatalog): returns every implementation regardless of whether the owning feature
     // assembly has been warmed up yet — resolving each one loads + activates its assembly on demand. This is
     // what keeps the first FileSystem page's action set complete before the background warm-up finishes.

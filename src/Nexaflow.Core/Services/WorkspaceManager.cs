@@ -436,6 +436,24 @@ public sealed class WorkspaceManager
         => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Workspace, workspace));
 
     /// <summary>
+    /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace with
+    /// windows open, or the first saved workspace when none or several are.
+    /// </summary>
+    public Workspace WorkspaceForOpenedPath()
+        => ChooseWorkspaceForOpenedPath(
+            Workspaces, _workspaces.Where(w => w.ShellServices is { HasWindows: true }).Select(w => w.Workspace));
+
+    /// <summary>
+    /// The rule <see cref="WorkspaceForOpenedPath"/> applies to the <paramref name="saved"/> workspaces and those
+    /// <paramref name="withWindows"/>. Several live runtimes on one workspace are still that one workspace.
+    /// </summary>
+    internal static Workspace ChooseWorkspaceForOpenedPath(IReadOnlyList<Workspace> saved, IEnumerable<Workspace> withWindows)
+    {
+        var open = withWindows.Distinct<Workspace>(ReferenceEqualityComparer.Instance).Take(2).ToList();
+        return open is [var only] ? only : saved[0];
+    }
+
+    /// <summary>
     /// Rebuilds <paramref name="old"/> as a brand-new workspace on the same workspace and swaps its
     /// window: snapshots the focused window's tabs, creates a fresh workspace (fresh ShellServices /
     /// AIService / providers / file-system registry that pick up the just-saved per-workspace config),
