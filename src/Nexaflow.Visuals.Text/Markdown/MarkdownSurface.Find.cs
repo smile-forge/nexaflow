@@ -173,7 +173,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>How to find what is in the middle of the page again later, after the document has been written in.</summary>
     public ContentPath Reference() =>
-        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle()).Part as ContentPart);
+        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle()).Part.TreePart());
 
     /// <summary>
     /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path,

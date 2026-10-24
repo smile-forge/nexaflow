@@ -53,7 +53,7 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
         if (over.Count == 0) return null;
 
         var act = new LayoutAct(LayoutGesture.ContextMenu, under?.Intent ?? default, over[0],
-                                over[0].Naming(), over[0].Naming() as ContentPart, over, where);
+                                over[0].Naming(), over[0].Naming().TreePart(), over, where);
 
         var asked = Asked(where);
         var offers = Shared(over).Concat(asked).Concat(Offering(act)).Concat(Hosted(act))
@@ -109,13 +109,13 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
             if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
             {
                 var part = piece.Naming();
-                Answered(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part as ContentPart, over, where));
+                Answered(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part.TreePart(), over, where));
                 told = true;
             }
 
         if (told || over.Count == 0) return;
 
         var named = over[0].Naming();
-        Answered(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));
+        Answered(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named.TreePart(), over, where));
     }
 }

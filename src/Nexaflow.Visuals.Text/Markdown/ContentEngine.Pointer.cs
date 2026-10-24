@@ -423,7 +423,7 @@ public sealed partial class ContentEngine
         if (Answering(_laid, at, gesture) is not var (found, meant)) return null;
 
         var part = found.Naming();
-        return new LayoutAct(gesture, meant, found, part, part as ContentPart, [found], at);
+        return new LayoutAct(gesture, meant, found, part, part.TreePart(), [found], at);
     }
 
     /// <summary>The innermost piece of <paramref name="laid"/> under a point that means something by <paramref name="gesture"/>, and what.</summary>
@@ -452,7 +452,7 @@ public sealed partial class ContentEngine
     private bool Ticked(LayoutAct act)
     {
         if (_readOnly || act.Intent.Verb != MarkdownVerbs.Tick) return false;
-        if (act.Part is not ContentPart box
+        if (act.Node is not { } box
             || (box.Part(MarkdownRoles.Done) ?? box.Part(MarkdownRoles.Todo)) is not { Length: 1 } mark) return false;
 
         WriteOver(mark.Start, mark.Length, act.Intent.Target == "on" ? "x" : " ");

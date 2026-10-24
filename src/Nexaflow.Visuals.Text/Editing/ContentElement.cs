@@ -490,7 +490,7 @@ public class ContentElement : FrameworkElement
     /// </summary>
     private static string? Says(Piece piece)
     {
-        if (!piece.Exists || piece.Naming() is not ContentPart named) return null;
+        if (!piece.Exists || piece.Naming().TreePart() is not { } named) return null;
 
         for (var part = named; part is not null; part = part.Parent)
             foreach (var child in part.Node.Children)

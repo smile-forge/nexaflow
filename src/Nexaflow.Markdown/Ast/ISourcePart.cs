@@ -112,4 +112,16 @@ public static class SourcePartExtensions
     /// <summary>Whether this part's stretch of source wholly contains another's.</summary>
     public static bool Covers(this ISourcePart part, ISourcePart other) =>
         other.Start >= part.Start && other.End() <= part.End();
+
+    /// <summary>
+    /// The part of the syntax tree this stretch is drawn from: itself where it is one, and what it stands for where it is a slice
+    /// cut from one or one narrowed to the characters an editor is told it is named by (<see cref="IStandsFor"/>). Null for a run
+    /// of several parts (<see cref="PartRun"/>), which is no one of them, and for a stretch no part names.
+    /// </summary>
+    public static ContentPart? TreePart(this ISourcePart? part) => part switch
+    {
+        ContentPart tree => tree,
+        IStandsFor standing => standing.Of.TreePart(),
+        _ => null,
+    };
 }

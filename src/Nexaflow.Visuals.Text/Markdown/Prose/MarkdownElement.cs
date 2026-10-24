@@ -99,7 +99,7 @@ public sealed class MarkdownElement : LinkedElement
             var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
 
             foreach (var run in runs)
-                dc.DrawRectangle(at == _showing.At ? Palette.Marked : Palette.QuoteBg, Edge(at == _showing.At), run);
+                dc.DrawRectangle(Palette.Marked, Edge(at == _showing.At), run);
         }
     }
 
@@ -167,7 +167,7 @@ public sealed class MarkdownElement : LinkedElement
              piece.Exists;
              piece = piece.Parent)
         {
-            if (piece.Part is not ContentPart part) continue;
+            if (piece.Part.TreePart() is not { } part) continue;
             if (ContentLanguages.Held(part) is null) continue;
 
             return piece.Bounds;
@@ -187,7 +187,7 @@ public sealed class MarkdownElement : LinkedElement
     /// </summary>
     protected override IEnumerable<LayoutIntent> Offering(LayoutAct act)
     {
-        if (act.Part is not ContentPart part) return [];
+        if (act.Node is not { } part) return [];
 
         for (var at = part; at is not null; at = at.Parent)
         {

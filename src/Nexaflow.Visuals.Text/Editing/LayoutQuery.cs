@@ -1030,15 +1030,22 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Every piece standing for a place wholly inside a stretch of source — and, where <paramref name="near"/> says, reaching
-    /// into that part of the page.
+    /// What a stretch of source takes: every piece standing wholly inside it, and every piece drawn as something other than
+    /// what was written whose edge it runs across. Such a piece — an escape, an entity, a numbered marker — cannot be measured
+    /// inside, since nothing it draws stands for one character of its source rather than another; so a stretch that begins
+    /// part way into one and runs on past it, or the other way round, takes the whole of what it draws. A stretch lying
+    /// wholly inside one says nothing about which of what it draws is meant, and takes none of it. Where
+    /// <paramref name="near"/> says, only what reaches into that part of the page.
     /// </summary>
     private static HashSet<Piece> Covered(Piece root, int start, int length, Rect? near = null)
     {
         var end = start + length;
 
         return SittingIn(root, start, end, near)
-            .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
+            .Where(piece => piece.Stands() && piece.Sits() is var sits
+                            && (sits.Start >= start && sits.End <= end
+                                || piece is { Words.Maps: false } && sits.Start < end && sits.End > start
+                                   && (sits.Start < start && sits.End < end || sits.Start > start && sits.End > end)))
             .ToHashSet();
     }
 

@@ -111,7 +111,7 @@ public sealed partial class MarkdownBuilder
 
     private readonly List<Run> _runs = [];
     private readonly List<(int Run, int Start, int End)> _line = [];
-    private readonly List<(Run Run, FormattedText? Glyphs)> _groups = [];
+    private readonly List<(Run Run, ISourcePart Part, FormattedText? Glyphs)> _groups = [];
     private readonly List<double> _tops = [];
 
     // ── What each construct is set as ───────────────────────────────────────
@@ -608,7 +608,7 @@ public sealed partial class MarkdownBuilder
 
             if (run.Inset is not null)
             {
-                groups.Add((run, null));
+                groups.Add((run, run.Part, null));
 
                 continue;
             }
@@ -619,15 +619,15 @@ public sealed partial class MarkdownBuilder
             var cut = start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end];
 
             // Justified, each word is a piece of its own, so the space between two of them can be widened.
-            if (align == ParagraphAlign.Justified && !closes) Worded(run, cut, groups);
-            else groups.Add((run, Glyphs(cut, run.Face)));
+            if (align == ParagraphAlign.Justified && !closes) Worded(run, start, cut, groups);
+            else groups.Add((run, LineShare(run, start, end - start), Glyphs(cut, run.Face)));
         }
 
         line.Clear();
 
         var words = Space;
         var baseline = double.NegativeInfinity;
-        foreach (var (_, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
+        foreach (var (_, _, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
 
         var middle = baseline - words.Baseline + (words.Height / 2);
 
@@ -637,7 +637,7 @@ public sealed partial class MarkdownBuilder
 
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, part, glyphs) = groups[index];
 
             tops.Add(glyphs is not null
                 ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
@@ -655,10 +655,10 @@ public sealed partial class MarkdownBuilder
 
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, part, glyphs) = groups[index];
             var top = tops[index] - over;
 
-            Set(into, run, glyphs, cursor, _y + top);
+            Set(into, run, part, glyphs, cursor, _y + top);
 
             // What follows starts past a run's trailing space — "The " then a code span is a word, a space and the
             // code — but the line reaches only as far as its last letter.
@@ -675,7 +675,7 @@ public sealed partial class MarkdownBuilder
     }
 
     /// <summary>A line's share of a run, a word to a piece — each word with the space after it.</summary>
-    private void Worded(Run run, string cut, List<(Run Run, FormattedText? Glyphs)> groups)
+    private void Worded(Run run, int from, string cut, List<(Run Run, ISourcePart Part, FormattedText? Glyphs)> groups)
     {
         var at = 0;
 
@@ -686,17 +686,26 @@ public sealed partial class MarkdownBuilder
             while (end < cut.Length && char.IsWhiteSpace(cut[end])) end++;
             if (end == at) end++;
 
-            groups.Add((run, Glyphs(at == 0 && end == cut.Length ? cut : cut[at..end], run.Face)));
+            groups.Add((run, LineShare(run, from + at, end - at), Glyphs(at == 0 && end == cut.Length ? cut : cut[at..end], run.Face)));
             at = end;
         }
     }
+
+    /// <summary>
+    /// What the stretch of a run set on one line — the whole of it, or one word of a justified line — is drawn from. Where what
+    /// is drawn is what was written, a run broken over several lines is that many stretches of its source, each line its own: the
+    /// letters on the second line are not the first line's, and a press among them means one of them. Anything else stands for
+    /// the whole of what it was written as, however it is broken, since none of what it draws stands for one character of that.
+    /// </summary>
+    private static ISourcePart LineShare(Run run, int from, int length) =>
+        !run.Maps || (from == 0 && length == run.Text.Length) ? run.Part : new PartSlice(run.Part, from, length);
 
     /// <summary>
     /// How far along its room a line is moved, and how much wider each space between its words is made: nothing at all set
     /// against the start, the room it leaves split either side centred or all before it against the end, and justified the
     /// room it leaves shared between its spaces.
     /// </summary>
-    private static (double Shift, double Widen) Aligned(List<(Run Run, FormattedText? Glyphs)> groups, double room,
+    private static (double Shift, double Widen) Aligned(List<(Run Run, ISourcePart Part, FormattedText? Glyphs)> groups, double room,
                                                         ParagraphAlign align, bool closes)
     {
         if (align == ParagraphAlign.Start || groups.Count == 0) return (0, 0);
@@ -705,7 +714,7 @@ public sealed partial class MarkdownBuilder
         var wide = 0.0;
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, _, glyphs) = groups[index];
             wide += index < groups.Count - 1
                 ? glyphs?.WidthIncludingTrailingWhitespace ?? run.Inset!.Width
                 : glyphs?.Width ?? run.Inset!.Width;
@@ -733,12 +742,12 @@ public sealed partial class MarkdownBuilder
         glyphs is { Text.Length: > 0 } words && char.IsWhiteSpace(words.Text[^1]);
 
     /// <summary>One run of one line, with whatever is washed behind it and whatever a press on it means.</summary>
-    private void Set(LayoutBuilder into, Run run, FormattedText? glyphs, double x, double top)
+    private void Set(LayoutBuilder into, Run run, ISourcePart part, FormattedText? glyphs, double x, double top)
     {
         // Another language's content is grafted whole, so every piece it was laid out as is a piece of this tree.
         if (run.Inset is { } inset)
         {
-            into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
+            into.Open(MarkdownPieces.Block, part, new Point(x, top));
             inset.Set(into, default, MarkdownPieces.Block);
             into.Close();
 
@@ -751,7 +760,7 @@ public sealed partial class MarkdownBuilder
         {
             var pad = Style.TextSize * 0.12;
 
-            into.Open(MarkdownPieces.Block, run.Part, new Point(x - pad, top));
+            into.Open(MarkdownPieces.Block, part, new Point(x - pad, top));
             into.Draw(new WashMark(new Rect(0, 0, glyphs.Width + (pad * 2), glyphs.Height), wash));
             into.Close();
         }
@@ -759,7 +768,7 @@ public sealed partial class MarkdownBuilder
         if (run.Act is not { } act)
         {
             LayoutText.Words(into, glyphs, new Point(x, top), double.PositiveInfinity, TextAlignment.Left,
-                             run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
+                             part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
                              ink: run.Face.Ink ?? Style.Text);
 
             return;
@@ -767,11 +776,11 @@ public sealed partial class MarkdownBuilder
 
         // What answers a press is the piece round the words rather than the words, so what was pressed and what was
         // read are the same question asked of the same piece.
-        into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
+        into.Open(MarkdownPieces.Block, part, new Point(x, top));
         into.Acts(new LayoutActions { Click = act });
 
         LayoutText.Words(into, glyphs, default, double.PositiveInfinity, TextAlignment.Left,
-                         run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
+                         part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
                          ink: run.Face.Ink ?? Style.Text);
 
         into.Close();
