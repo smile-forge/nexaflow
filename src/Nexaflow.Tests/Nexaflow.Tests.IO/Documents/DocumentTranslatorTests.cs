@@ -275,6 +275,43 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
+    public async Task TheGlossaryIsReadFromTheWords_SoNoFormulaIsEverAnEntry()
+    {
+        var model = new ScriptedModel((instructions, _) => new(
+            instructions.StartsWith(ScriptedModel.Glossary, StringComparison.Ordinal) ? "- $f$\n- Funktion"
+          : instructions.StartsWith(ScriptedModel.GlossaryTranslation, StringComparison.Ordinal) ? "Funktion => function\n$f$ => $f$"
+          : string.Empty, DocumentReplyEnd.Finished));
+
+        var glossary = await new DocumentGlossaryPass(model, new MemoryNotes())
+            .GatherAsync(DocumentReading.Of("Sei $f$ eine Funktion. Dann ist $f$ stetig, wie jede Funktion hier.\n"), Gist, "English", CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { ("Funktion", "function") }, glossary.Entries.ToArray(), "a formula is never translated, so never given one way");
+        Assert.IsFalse(model.Of(ScriptedModel.Glossary).Any(asked => asked.Contains('$')), "and the model was never shown one to list");
+    }
+
+    [TestMethod]
+    public async Task ATermTheModelWrapsInATagOfItsOwn_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
+    {
+        var tagged = true;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? ScriptedModel.Translated(asked, piece =>
+                {
+                    var said = ScriptedModel.Shout(piece);
+                    if (!tagged) return said;
+
+                    tagged = false;
+                    return said.Replace("GDG", "<GDG>GDG</GDG>", StringComparison.Ordinal);
+                })
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: "Eine GDG ist eine Gleichung.\n");
+
+        Assert.AreEqual("EINE GDG IST EINE GLEICHUNG.", translated.Trim(), "the tag it made up went back to it, and only its words came out");
+        Assert.IsTrue(model.Of(ScriptedModel.Translation).Count > 1, "asked again");
+    }
+
+    [TestMethod]
     public async Task ALinkIntoTheDocument_LeadsToItsHeadingByTheNameItHasNow()
     {
         const string Source = "# Pets\n\nSee [the cats](#cats), and [them][c].\n\n## Cats\n\nThey purr.\n\n[c]: #cats\n";

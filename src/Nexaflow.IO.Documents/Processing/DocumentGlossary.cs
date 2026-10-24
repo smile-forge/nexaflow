@@ -22,9 +22,15 @@ public sealed record DocumentGlossary(IReadOnlyList<(string Source, string Targe
 
 /// <summary>
 /// Finds the names and terms a translation of a document has to give the same way every time, and how it gives them: read
-/// from the whole document a stretch at a time, each stretch sized to the model, and kept to those used more than once —
+/// from the whole document's words a stretch at a time, each stretch sized to the model, and kept to those used more than once —
 /// as many as fit beside what each translated passage is handed. Kept, both what was found and how it was translated, so
 /// translating again asks only about what changed.
+///
+/// <para>
+/// <strong>Only words are read.</strong> Code and formulas are never translated — a passage hands them over held back — so
+/// nothing written in one is a term a translation gives one way or another, and an entry for one tells the model to do
+/// something to what it may not touch.
+/// </para>
 /// </summary>
 public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
@@ -35,13 +41,14 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
     private const int MostPerStretch = 30;
 
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "glossary-1";
+    private const string Version = "glossary-2";
 
     /// <summary>The glossary for translating <paramref name="reading"/>, which is <paramref name="gist"/>, into <paramref name="language"/>.</summary>
     public async Task<DocumentGlossary> GatherAsync(DocumentReading reading, DocumentGist gist, string language, CancellationToken ct)
     {
         var budget = DocumentBudget.Of(model);
-        var stretches = reading.Stretches(budget.Share(0.5));
+        var stretches = reading.WordStretches(budget.Share(0.5));
+        var words = string.Join('\n', stretches);
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         for (var at = 0; at < stretches.Count; at++)
@@ -55,7 +62,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
         var kept = new List<string>();
         var length = 0;
 
-        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(reading.Source, term)))
+        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(words, term)))
                                          .Where(entry => entry.Used > 1)
                                          .OrderByDescending(entry => entry.Used).ThenBy(entry => entry.term, StringComparer.Ordinal))
         {

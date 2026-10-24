@@ -38,7 +38,7 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "translation-4";
+    private const string Version = "translation-5";
 
     /// <summary>What a kept answer's pieces are kept apart by.</summary>
     private const char Apart = '\u0002';
@@ -460,7 +460,8 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                    .Append($"those words, wherever they go in natural {job.Language}, one inside another as they were. Each ⟦n …⟧ is code or a ")
                    .Append("formula, shown after its number: do not translate it, and place it where it belongs in the sentence. Each ⟦n⟧ alone ")
                    .Append("stands for something you cannot see — a picture, longer code: keep it with the words it belongs to. Keep every tag ")
-                   .Append("and every ⟦n⟧ exactly once, and add none. Translate everything else. Add nothing, explain nothing.")
+                   .Append("and every ⟦n⟧ exactly once, and add none: a tag is only ever a number, so put none of your own round a name, a ")
+                   .Append("term or a formula. Translate everything else. Add nothing, explain nothing.")
                    .ToString();
     }
 

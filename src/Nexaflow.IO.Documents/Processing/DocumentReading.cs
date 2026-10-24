@@ -74,6 +74,13 @@ public sealed class DocumentReading
     public IReadOnlyList<string> Stretches(int room) => DocumentCuts.Pack(Blocks(0, Root.Children.Count).Select(Written), room);
 
     /// <summary>
+    /// The document's words cut into stretches the same way: each block's words alone (<see cref="Words"/>), without the markup round
+    /// them, the code or the formulas among them — what a reader reads as words, and so all that a translation of it translates.
+    /// </summary>
+    public IReadOnlyList<string> WordStretches(int room) =>
+        DocumentCuts.Pack(Blocks(0, Root.Children.Count).Select(Words).Where(words => words.Length > 0), room);
+
+    /// <summary>
     /// The document's headings as an indented outline in at most <paramref name="room"/> characters: the deepest are left out
     /// first, and where even the outermost do not fit, the outline is cut short and says so.
     /// </summary>
