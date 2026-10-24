@@ -61,8 +61,8 @@ public sealed partial class MarkdownViewModel : ISearchable
     /// like <see cref="SourceSelectionRequested"/>).</summary>
     public Func<TextSearchMatcher, int, IReadOnlyList<RenderedMatch>>? FindInRendered { get; set; }
 
-    /// <summary>Where in the source the match the rendered surface is showing starts, or null where it shows none.</summary>
-    public Func<int?>? RenderedAt { get; set; }
+    /// <summary>Every place the rendered surface found, as the source each stands for, and which is being looked at (-1 for none).</summary>
+    public Func<(IReadOnlyList<(int Start, int Length)> Places, int At)>? RenderedFound { get; set; }
     public Action<int>? StepRendered { get; set; }
     public Action?      ClearRendered { get; set; }
 
@@ -77,6 +77,13 @@ public sealed partial class MarkdownViewModel : ISearchable
         get => _miniMapMarks;
         private set { _miniMapMarks = value; OnPropertyChanged(); }
     }
+
+    /// <summary>
+    /// The places the raw box washes, and which of them is being looked at (-1 for none): its own matches where it has the search,
+    /// and in the split the rendered half's — every place that found, as the source it stands for — so both halves show the one
+    /// search, and stepping through it moves the one being looked at in both.
+    /// </summary>
+    [ObservableProperty] private (IReadOnlyList<(int Offset, int Length)> Places, int At) _sourceSearch = ([], -1);
 
     /// <summary>Asks the source box to select and reveal a span of the raw markdown.</summary>
     public event Action<int, int>? SourceSelectionRequested;
@@ -162,7 +169,25 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     /// <summary>Where in the source the match being looked at starts, on whichever surface is showing the search.</summary>
     private int? LookedAt() =>
-        _renderedActive ? RenderedAt?.Invoke() : _currentSource >= 0 ? _sourceMatches[_currentSource].Offset : null;
+        _renderedActive
+            ? RenderedFound?.Invoke() is { At: >= 0 } found ? found.Places[found.At].Start : null
+            : _currentSource >= 0 ? _sourceMatches[_currentSource].Offset : null;
+
+    /// <summary>
+    /// The rendered surface has been laid out again — a section folded or opened, more of a long document laid, a word written —
+    /// so where its matches stand on the page, and the places the raw half washes, are read again. Called by the view.
+    /// </summary>
+    public void RenderedLaidOut()
+    {
+        if (!_renderedActive) return;
+
+        if (RenderedMarkPositions?.Invoke() is { } marks && !marks.SequenceEqual(MiniMapMarks)) MiniMapMarks = marks;
+        ShowRenderedInSource();
+    }
+
+    /// <summary>In the split, what the rendered half found washed in the raw half too; anywhere else the raw half has none of it.</summary>
+    private void ShowRenderedInSource() =>
+        SourceSearch = IsSplit && RenderedFound?.Invoke() is { } found ? (found.Places, found.At) : ([], -1);
 
     private SearchOutcome ShowInSource(TextSearchMatcher matcher, int from, CancellationToken ct)
     {
@@ -188,6 +213,7 @@ public sealed partial class MarkdownViewModel : ISearchable
         _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= from)) : -1;
         SearchMatchCount = matches.Count;
         MiniMapMarks     = SourceMarks(matches);
+        SourceSearch     = (_sourceMatches, _currentSource);
         if (_currentSource >= 0) Reveal(matches[_currentSource]);
         return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }
@@ -198,6 +224,7 @@ public sealed partial class MarkdownViewModel : ISearchable
         var matches = FindInRendered?.Invoke(matcher, from) ?? [];
         SearchMatchCount = matches.Count;
         MiniMapMarks     = RenderedMarkPositions?.Invoke() ?? [];
+        ShowRenderedInSource();
 
         var hits = matches.Take(SearchHitCap)
             .Select(m => new SearchHit(m.Ordinal.ToString(CultureInfo.InvariantCulture), Str.Format("Markdown.Search.MatchFormat", m.Ordinal + 1), m.Preview))
@@ -236,9 +263,16 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     private void Step(int delta)
     {
-        if (_renderedActive) { StepRendered?.Invoke(delta); return; }
+        if (_renderedActive)
+        {
+            StepRendered?.Invoke(delta);
+            ShowRenderedInSource();
+            return;
+        }
+
         if (_sourceMatches.Length == 0) return;
         _currentSource = (_currentSource + delta + _sourceMatches.Length) % _sourceMatches.Length;
+        SourceSearch = (_sourceMatches, _currentSource);
         Reveal(_sourceMatches[_currentSource]);
     }
 
@@ -260,5 +294,6 @@ public sealed partial class MarkdownViewModel : ISearchable
         _sourceMatches  = [];
         _currentSource  = -1;
         MiniMapMarks    = [];
+        SourceSearch    = ([], -1);
     }
 }

@@ -117,18 +117,39 @@ public sealed partial class MarkdownSurface
 
     /// <summary>
     /// How far down the document each place found is, from nought at the top to one at the bottom — for a strip beside the
-    /// scrollbar marking where they are. A place a long document has not laid yet is marked where it would come, going by what
-    /// is laid.
+    /// scrollbar marking where they are. Every place has its mark, since the reader is told how many were found and each of them
+    /// is somewhere (<see cref="Standing"/>).
     /// </summary>
     public IReadOnlyList<double> SearchMarkPositions()
     {
-        var height = _shown.Laid.Size.Height;
+        var laid = _shown.Laid;
+        var height = laid.Size.Height;
         if (height <= 0) return [];
 
-        return [.. Found
-            .Select(place => _shown.Laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects ? rects[0].Y : _engine.UnlaidTop(place.Start))
-            .OfType<double>()
-            .Select(top => Math.Clamp(top / height, 0, 1))];
+        return [.. Found.Select(place => Math.Clamp(Standing(laid, place) / height, 0, 1))];
+    }
+
+    /// <summary>
+    /// How far down the page <paramref name="place"/> stands: where it is drawn; where it would come, in a long document not laid
+    /// that far yet, going by what is laid; and where nothing on the page draws it — inside a section the reader folded — where
+    /// what holds it is drawn, at the last place a caret can stand before it.
+    /// </summary>
+    private double Standing(Laid laid, (int Start, int Length) place)
+    {
+        if (laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects) return rects[0].Y;
+        if (_engine.UnlaidTop(place.Start) is { } unlaid) return unlaid;
+
+        var stops = laid.Stops;
+        var (low, high, held) = (0, stops.Count - 1, -1);
+
+        while (low <= high)
+        {
+            var middle = (low + high) / 2;
+            if (stops[middle] <= place.Start) (held, low) = (stops[middle], middle + 1);
+            else high = middle - 1;
+        }
+
+        return held >= 0 && laid.Root.CaretRect(held) is { IsEmpty: false } at ? at.Y : 0;
     }
 
     /// <summary>The next place, coming back round to the first.</summary>

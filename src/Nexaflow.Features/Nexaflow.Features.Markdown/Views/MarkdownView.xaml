@@ -7,7 +7,8 @@
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit">
 
     <UserControl.InputBindings>
         <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
@@ -346,25 +347,23 @@
                     <ColumnDefinition x:Name="RenderedColumn" Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- The whole document as raw markdown -->
-                <TextBox x:Name="SourceBox"
-                         Grid.Column="0"
-                         AutomationProperties.AutomationId="Markdown_SourceBox"
-                         Visibility="{Binding ShowSource, Converter={StaticResource BoolVis}}"
-                         Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         AcceptsReturn="True"
-                         AcceptsTab="True"
-                         TextWrapping="Wrap"
-                         SpellCheck.IsEnabled="False"
-                         FontFamily="Consolas, Courier New"
-                         FontSize="{Binding Zoom.FontSize}"
-                         Foreground="{StaticResource TextBrush}"
-                         Background="{StaticResource DeepBgBrush}"
-                         CaretBrush="{StaticResource AccentBrush}"
-                         BorderThickness="0"
-                         Padding="40,24,40,48"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"/>
+                <!-- The whole document as raw markdown, in the shared text editor: it washes what a search found whether or not it
+                     has the keyboard. Its text is no property a binding can reach, so the code-behind keeps it in step with the
+                     document (TakeDocument / TakeSourceEdit). -->
+                <avalon:TextEditor x:Name="SourceBox"
+                                   Grid.Column="0"
+                                   AutomationProperties.AutomationId="Markdown_SourceBox"
+                                   Visibility="{Binding ShowSource, Converter={StaticResource BoolVis}}"
+                                   WordWrap="True"
+                                   ShowLineNumbers="False"
+                                   FontFamily="Consolas, Courier New"
+                                   FontSize="{Binding Zoom.FontSize}"
+                                   Foreground="{StaticResource TextBrush}"
+                                   Background="{StaticResource DeepBgBrush}"
+                                   BorderThickness="0"
+                                   Padding="40,24,40,48"
+                                   VerticalScrollBarVisibility="Auto"
+                                   HorizontalScrollBarVisibility="Disabled"/>
 
                 <!-- Only in the split: drag it to give either half more of the pane. -->
                 <GridSplitter Grid.Column="1"

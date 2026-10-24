@@ -161,7 +161,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
 
         var second = vm.Markdown.LastIndexOf(LiteralTermInContent, StringComparison.Ordinal);
         vm.FindInRendered = (_, _) => [new RenderedMatch(0, "a"), new RenderedMatch(1, "b")];
-        vm.RenderedAt = () => second;              // the reader stepped on to the second
+        vm.RenderedFound = () => ([(second, LiteralTermInContent.Length)], 0);   // the reader stepped on to the second
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
 
@@ -191,6 +191,76 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
 
         Assert.IsFalse(asked, "nothing is searched for");
         Assert.IsFalse(vm.IsSearchActive);
+    });
+
+    // ── Both halves of the split, and the marks beside them ──────────────────
+
+    [TestMethod]
+    public void InTheSourceView_EveryMatchIsWashed_AndSteppingMovesTheOneLookedAt() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Source;
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+
+        Assert.AreEqual(2, vm.SourceSearch.Places.Count, "every match, not only the one selected");
+        Assert.AreEqual(0, vm.SourceSearch.At);
+
+        vm.FindNextMatchCommand.Execute(null);
+        Assert.AreEqual(1, vm.SourceSearch.At, "the next one is the one looked at");
+    });
+
+    [TestMethod]
+    public void InTheSplit_TheRawHalfWashesWhatTheRenderedHalfFound_AndFollowsItsSteps() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Split;
+
+        IReadOnlyList<(int Start, int Length)> places = [(10, 7), (90, 7)];
+        var at = 0;
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "a"), new RenderedMatch(1, "b")];
+        vm.RenderedFound = () => (places, at);
+        vm.StepRendered = delta => at = (at + delta + places.Count) % places.Count;
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+
+        CollectionAssert.AreEqual(places.ToArray(), vm.SourceSearch.Places.ToArray(), "the one search, shown in both halves");
+        Assert.AreEqual(0, vm.SourceSearch.At);
+
+        vm.FindNextMatchCommand.Execute(null);
+        Assert.AreEqual(1, vm.SourceSearch.At, "a step in the rendered half moves the one looked at in the raw half too");
+    });
+
+    [TestMethod]
+    public void WithTheRenderedViewAlone_TheRawHalfWashesNothing() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Rendered;
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "a")];
+        vm.RenderedFound = () => ([(10, 7)], 0);
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+
+        Assert.AreEqual(0, vm.SourceSearch.Places.Count, "it is not showing");
+    });
+
+    [TestMethod]
+    public void TheMarks_AreReadAgain_WhenTheRenderedSurfaceIsLaidOutAgain() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Rendered;
+
+        IReadOnlyList<double> marks = [0.1];
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "a"), new RenderedMatch(1, "b")];
+        vm.RenderedMarkPositions = () => marks;
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        CollectionAssert.AreEqual(new[] { 0.1 }, vm.MiniMapMarks.ToArray());
+
+        marks = [0.1, 0.6];   // a section opened, and the second match is on the page now
+        vm.RenderedLaidOut();
+
+        CollectionAssert.AreEqual(new[] { 0.1, 0.6 }, vm.MiniMapMarks.ToArray(), "the strip follows the page");
     });
 
     [TestMethod]
