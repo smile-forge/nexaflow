@@ -95,6 +95,88 @@ public sealed class AIService : IAIService
         }, TaskScheduler.Default);
     }
 
+    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null
+        ? null
+        : new(PictureChoicesOf(ImageGenerator), PictureChoicesOf(HighQualityImageGenerator));
+
+    /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
+    private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model) => model?.Settings is not { } settings ? null : new([.. settings.Aspects.Select(a => a.ToString())])
+    {
+        Resolutions            = settings.Resolutions,
+        Details                = [.. settings.Details.Select(Generation.GenerateImageTool.DetailName)],
+        Seeds                  = settings.Seeds,
+        NegativePrompts        = settings.NegativePrompts,
+        TransparentBackgrounds = settings.TransparentBackgrounds,
+    };
+
+    public void MakePicture(PictureAsked picture)
+    {
+        if (ImageGenerator is null && HighQualityImageGenerator is null)
+            throw new InvalidOperationException("This workspace has no model that draws pictures.");
+        var (shell, jobs, target) = UsersJob(picture.Path);
+
+        // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
+        // It saves only where the user named, and opens the picture once it is there.
+        var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+        var arguments = new JsonObject
+        {
+            ["prompt"]  = picture.Prompt,
+            ["path"]    = target,
+            ["quality"] = picture.HighQuality ? "high" : "standard",
+        };
+        if (picture.Aspect is { } aspect)                    arguments["shape"]                  = aspect;
+        if (picture.Resolution is { } resolution)            arguments["resolution"]             = resolution;
+        if (picture.Detail is { } detail)                    arguments["detail"]                 = detail;
+        if (picture.Seed is { } seed)                        arguments["seed"]                   = seed;
+        if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
+        if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
+        jobs.Start(tool, arguments, origin: null);
+    }
+
+    public ClipChoices? MakesClips => Generation.GenerateVideoTool.FromDescriptionOf(VideoGenerator, HighQualityVideoGenerator) is not { } model
+        ? null
+        : new([.. model.Settings.Aspects.Select(a => a.ToString())], model.Lengths)
+        {
+            Resolutions     = [.. model.Settings.Resolutions.Select(r => new ClipResolution(r.Name, r.OnlyLengths))],
+            Seeds           = model.Settings.Seeds,
+            NegativePrompts = model.Settings.NegativePrompts,
+        };
+
+    public void MakeClip(ClipAsked clip)
+    {
+        if (Generation.GenerateVideoTool.FromDescriptionOf(VideoGenerator, HighQualityVideoGenerator) is null)
+            throw new InvalidOperationException("This workspace has no model that makes clips.");
+        var (shell, jobs, target) = UsersJob(clip.Path);
+
+        // The call generate_video would be given for a clip from a description, run as the user's: nothing is asked.
+        var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+        var arguments = new JsonObject
+        {
+            ["prompt"]  = clip.Prompt,
+            ["path"]    = target,
+            ["seconds"] = clip.Seconds,
+        };
+        if (clip.Aspect is { } aspect)                   arguments["shape"]           = aspect;
+        if (clip.Resolution is { } resolution)           arguments["resolution"]      = resolution;
+        if (clip.Seed is { } seed)                       arguments["seed"]            = seed;
+        if (clip.NegativePrompt is { Length: > 0 } keep) arguments["negative_prompt"] = keep;
+        jobs.Start(tool, arguments, origin: null);
+    }
+
+    /// <summary>What a job the user sets going to make a file at <paramref name="path"/> runs with, and the file's full path.</summary>
+    /// <exception cref="InvalidOperationException">The workspace runs no background jobs, or the file's folder is not there.</exception>
+    private (IShellServices Shell, BackgroundJobs Jobs, string Target) UsersJob(string path)
+    {
+        if (_workspace.ShellServices is not { } shell || _jobs is not { } jobs)
+            throw new InvalidOperationException("This workspace runs no background jobs.");
+        var target = Path.GetFullPath(path);
+        if (!Directory.Exists(Path.GetDirectoryName(target)))
+            throw new InvalidOperationException($"There is no folder to save '{Path.GetFileName(target)}' in.");
+        return (shell, jobs, target);
+    }
+
     // ── Whole documents ────────────────────────────────────────────────────
 
     public void SummarizeDocument(DocumentAsked document) => StartDocumentJob(document, tools => tools.Summary, []);

@@ -4,6 +4,8 @@ using OpenAI.Images;
 
 namespace Nexaflow.Providers.OpenAI;
 
+#pragma warning disable OPENAI001 // the gpt-image qualities and backgrounds are marked for evaluation in the SDK
+
 /// <summary>
 /// OpenAI's image models. The gpt-image family draws from a prompt or works from one source picture, redrawing only
 /// what a mask leaves transparent when one is given; dall-e-3 draws from a prompt only. Both answer in PNG.
@@ -35,6 +37,26 @@ public sealed class OpenAIImageGenerationProvider : IImageGenerationProvider
     public int MaxSources => DrawsOnly(_model) ? 0 : 1;
 
     public bool Masks => MaxSources > 0;
+
+    public ImageSettings Settings => SettingsOf(_model);
+
+    /// <summary>
+    /// What each model draws with: the gpt-image family at three levels of detail and on a transparent background when
+    /// asked; dall-e-3 at standard and hd, taken as medium and high. Each draws one size of each shape (<see cref="Size"/>).
+    /// </summary>
+    internal static ImageSettings SettingsOf(string model) => DrawsOnly(model)
+        ? new([new(1, 1), new(7, 4), new(4, 7)]) { Details = [ImageDetail.Medium, ImageDetail.High] }
+        : new([new(1, 1), new(3, 2), new(2, 3)]) { Details = [ImageDetail.Low, ImageDetail.Medium, ImageDetail.High], TransparentBackgrounds = true };
+
+    /// <summary>The quality each model is asked for at a level of detail.</summary>
+    internal static GeneratedImageQuality Quality(string model, ImageDetail detail) => (DrawsOnly(model), detail) switch
+    {
+        (true, ImageDetail.High) => GeneratedImageQuality.High,
+        (true, _)                => GeneratedImageQuality.Standard,
+        (false, ImageDetail.Low) => GeneratedImageQuality.LowQuality,
+        (false, ImageDetail.High) => GeneratedImageQuality.HighQuality,
+        (false, _)               => GeneratedImageQuality.MediumQuality,
+    };
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
     {
@@ -71,7 +93,8 @@ public sealed class OpenAIImageGenerationProvider : IImageGenerationProvider
     public async Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default)
     {
         if (request.Sources.Count > MaxSources)
-            throw new ArgumentException($"{_model} works from at most {MaxSources} picture(s).", nameof(request));
+                throw new ArgumentException($"{_model} works from at most {MaxSources} picture(s).", nameof(request));
+            if (Settings.Refusal(request) is { } refused) throw new ArgumentException($"{_model}: {refused}", nameof(request));
 
         var activity = _activityManager.StartActivity($"OpenAI image ({_model})…");
         try
@@ -96,14 +119,18 @@ public sealed class OpenAIImageGenerationProvider : IImageGenerationProvider
 
     private async Task<GeneratedImage> DrawAsync(ImageGenerationRequest request, CancellationToken ct)
     {
-        var options = new ImageGenerationOptions { Size = Size(_model, request.Shape) };
+        var options = new ImageGenerationOptions { Size = Size(_model, request.Aspect.Shape) };
+        if (request.Detail is { } detail) options.Quality = Quality(_model, detail);
+        if (request.TransparentBackground) options.Background = GeneratedImageBackground.Transparent;
         if (DrawsOnly(_model)) options.ResponseFormat = GeneratedImageFormat.Bytes;
         return (await Client.GetImageClient(_model).GenerateImageAsync(request.Prompt, options, ct)).Value;
     }
 
     private async Task<GeneratedImage> EditAsync(ImageGenerationRequest request, MediaBytes source, CancellationToken ct)
     {
-        var options = new ImageEditOptions { Size = Size(_model, request.Shape) };
+        var options = new ImageEditOptions { Size = Size(_model, request.Aspect.Shape) };
+        if (request.Detail is { } detail) options.Quality = Quality(_model, detail);
+        if (request.TransparentBackground) options.Background = GeneratedImageBackground.Transparent;
         var images  = Client.GetImageClient(_model);
         using var picture = new MemoryStream(source.Bytes, writable: false);
         if (request.Mask is not { } mask)

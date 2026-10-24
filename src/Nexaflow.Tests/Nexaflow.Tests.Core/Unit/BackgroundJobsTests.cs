@@ -178,7 +178,8 @@ public class BackgroundJobsTests
         public DataResidency Residency => DataResidency.StaysOnMachine;
         public IReadOnlyList<int> Lengths => [5];
         public bool StartsFromImages => true;
-        public (int Width, int Height)? FirstFrameSize(MediaShape shape) => null;
+        public VideoSettings Settings { get; } = new([new(16, 9), new(9, 16)]) { Seeds = true };
+        public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => null;
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
 
         public async Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default)
@@ -186,6 +187,24 @@ public class BackgroundJobsTests
             Asked.SetResult(request);
             await Task.Delay(Timeout.Infinite, ct);
             throw new OperationCanceledException(ct);
+        }
+    }
+
+    private sealed class Painting : IImageGenerationProvider
+    {
+        public static readonly byte[] Drawn = [0x89, 0x50, 0x4E, 0x47, 9, 9];
+        public readonly TaskCompletionSource<ImageGenerationRequest> Asked = new();
+        public string Name => "Painting";
+        public DataResidency Residency => DataResidency.StaysOnMachine;
+        public int MaxSources => 0;
+        public bool Masks => false;
+        public ImageSettings Settings { get; } = new([new(1, 1), new(3, 2), new(2, 3)]) { Details = [ImageDetail.Low, ImageDetail.High], Seeds = true };
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default)
+        {
+            Asked.TrySetResult(request);
+            return Task.FromResult(new GeneratedMedia(new MediaBytes(Drawn, "image/png")));
         }
     }
 
@@ -206,7 +225,7 @@ public class BackgroundJobsTests
         svc.MakeClipFromPicture(new ClipFromPicture(png, "The fox sits down.", 5, Portrait: true));
         var asked = await filming.Asked.Task;
 
-        Assert.AreEqual(("The fox sits down.", MediaShape.Portrait, 5), (asked.Prompt, asked.Shape, asked.Seconds));
+        Assert.AreEqual(("The fox sits down.", MediaShape.Portrait, 5), (asked.Prompt, asked.Aspect.Shape, asked.Seconds));
         CollectionAssert.AreEqual(png, asked.FirstFrame!.Bytes, "the picture as the user saw it");
         var job = tasks.Tasks.Single(t => t.Workspace == ws);
         Assert.IsTrue(job.CanStop, "listed with the workspace's jobs, and stoppable there");
@@ -215,6 +234,58 @@ public class BackgroundJobsTests
         await Until(() => job.Status != TaskStatus.Running);
         Assert.AreEqual(TaskStatus.Stopped, job.Status);
     });
+
+    [TestMethod]
+    public void APictureTheUserSetsUp_IsDrawnAsTheWorkspacesJob_WithWhatTheyChose_AndSavedWhereTheyNamedIt() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var (svc, _) = Assistant(tasks, [], new Model("unused"));
+        var painting = new Painting();
+        svc.Register("i1", painting);
+        var config = new AiConfig { Columns = [new ProviderModelPair { Id = "i1", ProviderName = "Painting", Model = "p", Kind = ModelKind.ImageGeneration }] };
+        config.Assignments["ImageGeneration"] = AbilityChain.Of("i1");
+        svc.LoadAbilityConfig(config);
+
+        var making = svc.MakesPictures!;
+        Assert.IsNull(making.HighQuality, "only the standard row has a model");
+        CollectionAssert.AreEqual(new[] { "1:1", "3:2", "2:3" }, making.Standard!.Aspects.ToArray());
+        CollectionAssert.AreEqual(new[] { "low", "high" }, making.Standard.Details.ToArray(), "as generate_image names them");
+        Assert.IsTrue(making.Standard.Seeds);
+
+        var folder = Path.Combine(TestTemp.Root, "nexaflow-gen-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, "fox.png");
+            svc.MakePicture(new PictureAsked("A fox in the snow", path, HighQuality: false) { Aspect = "3:2", Detail = "high", Seed = 7 });
+            var asked = await painting.Asked.Task;
+
+            Assert.AreEqual(("A fox in the snow", new MediaAspect(3, 2), ImageDetail.High, (int?)7), (asked.Prompt, asked.Aspect, asked.Detail, asked.Seed));
+            // Read once it is whole: the file is there from the moment it is opened to be written.
+            byte[] saved = [];
+            await Until(() =>
+            {
+                try { return (saved = File.ReadAllBytes(path)).Length == Painting.Drawn.Length; }
+                catch (IOException) { return false; }
+            });
+            CollectionAssert.AreEqual(Painting.Drawn, saved, "saved as the name the user gave it");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    });
+
+    [TestMethod]
+    public void APictureOrAClip_IsNotOffered_WhereNoModelMakesIt_AndOneAskedForAnywayIsRefused()
+    {
+        var (svc, _) = Assistant(new BackgroundActivityManager(), [], new Model("unused"));
+
+        Assert.IsNull(svc.MakesPictures);
+        Assert.IsNull(svc.MakesClips);
+        Assert.ThrowsExactly<InvalidOperationException>(() => svc.MakePicture(new PictureAsked("A fox", Path.Combine(TestTemp.Root, "fox.png"), false)));
+        Assert.ThrowsExactly<InvalidOperationException>(() => svc.MakeClip(new ClipAsked("Waves", Path.Combine(TestTemp.Root, "waves.mp4"), 5)));
+    }
 
     [TestMethod]
     public void WhereNoModelMakesAClipFromAPicture_NoneIsOffered_OrMade()

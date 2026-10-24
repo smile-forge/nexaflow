@@ -711,6 +711,16 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
   (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **Each model says what it is asked with.** Beside its prompt, a picture or a clip is asked for with what its model's
+  `ImageSettings` / `VideoSettings` declare: its exact proportions (`MediaAspect` — `shape` takes square, landscape or
+  portrait, drawn at the model's own proportions for each, or width:height), the sizes it makes at, its levels of
+  detail, a seed, what to keep out, a transparent background; a video size can make only some lengths (Veo's 1080p and
+  4k, eight seconds). The tools build their parameters from the settings — where the two qualities differ, the
+  description says which offers what — and `Refusal` turns away anything a model does not do before it is asked.
+- **The user asks the same way.** `IAIService.MakesPictures` / `MakesClips` give a page the same settings, and
+  `MakePicture` / `MakeClip` run the very call the tool would be given as one of the workspace's background jobs —
+  nothing asked first, the file saved as the name the user gave in a folder they chose. The file view's New picker
+  offers them as Gen Image and Gen Video (`IFileCreateWithOptions`).
 - **Two qualities of picture.** Every backend sells a fast image model and a better one — Z-Image Turbo and HiDream-O1
   here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
   Generation row and an Image Generation (HQ) row of the same kind. With a model in both, `generate_image` takes a

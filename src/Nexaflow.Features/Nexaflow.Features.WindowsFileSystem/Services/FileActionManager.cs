@@ -24,14 +24,16 @@ public sealed class FileActionManager
     private IReadOnlyList<IFolderAction> Folder => _registry.FolderActions;
 
     /// <summary>
-    /// All create-file actions offered by the "New" picker, aggregated live from every source:
-    /// code-defined (discovered, e.g. Folder / Text File), HKCR ShellNew entries (when registry
-    /// mapping is on), and user templates. Read each time the picker opens so an Options Save is
+    /// Every kind of new item offered by the "New" picker, aggregated live from every source:
+    /// code-defined (discovered, e.g. Folder / Text File), those that ask for options first and can be
+    /// made now (e.g. a generated picture), HKCR ShellNew entries (when registry mapping is on), and
+    /// user templates. Read each time the picker opens so an Options Save, or a model assigned, is
     /// reflected without rebuilding the tab.
     /// </summary>
-    public IReadOnlyList<IFileCreateAction> GetCreateActions()
+    public IReadOnlyList<IFileCreateEntry> GetCreateActions()
     {
-        var list = new List<IFileCreateAction>(_registry.FileCreateActions);
+        var list = new List<IFileCreateEntry>(_registry.FileCreateActions);
+        list.AddRange(_registry.FileCreateWithOptions.Where(kind => kind.IsOffered));
         list.AddRange(ShellNewRegistry.Instance.BuildCreateActions());
         list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions());
         return list;

@@ -56,5 +56,24 @@
   "Video.Info.Channels.Mono": "Mono",
   "Video.Info.Channels.Stereo": "Stéréo",
   "Video.Info.Channels.CountFormat": "{0} canaux",
-  "Video.Info.UnnamedSubtitleTrack": "sous-titres"
+  "Video.Info.UnnamedSubtitleTrack": "sous-titres",
+
+  "Video.Create.GenVideo": "Générer une vidéo",
+  "Video.Generate.WhatHappens": "Ce qui se passe",
+  "Video.Generate.Shape": "Format",
+  "Video.Generate.AspectFormat": "{0} · {1}",
+  "Video.Generate.Shape.Square": "Carré",
+  "Video.Generate.Shape.Landscape": "Paysage",
+  "Video.Generate.Shape.Portrait": "Portrait",
+  "Video.Generate.Size": "Taille",
+  "Video.Generate.Length": "Durée",
+  "Video.Generate.SecondsFormat": "{0} secondes",
+  "Video.Generate.ModelsOwn": "Celle du modèle",
+  "Video.Generate.Seed": "Graine",
+  "Video.Generate.SeedTip": "Laissez-la vide pour une nouvelle vidéo à chaque fois ; la même graine et la même description refont à peu près la même vidéo",
+  "Video.Generate.SeedInvalid": "Une graine est un nombre entier, 0 ou plus.",
+  "Video.Generate.KeepOut": "À éviter",
+  "Video.Generate.Note": "Elle prend quelques minutes et se fait en arrière-plan — dans les tâches en arrière-plan — puis s'ouvre une fois prête.",
+  "Video.Generate.NoModel": "Aucun modèle de cet espace de travail ne fait encore de vidéos. Attribuez-en un à Génération de vidéos dans les réglages de l'IA.",
+  "Video.Generate.Download": "Télécharger le modèle"
 }

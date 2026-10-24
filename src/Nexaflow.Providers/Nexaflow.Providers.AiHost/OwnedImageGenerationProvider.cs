@@ -53,6 +53,13 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
 
     public bool Masks => false;
 
+    /// <summary>Its model's shapes at the sizes it was trained on, from any seed; one of a name it does not have draws nothing,
+    /// so it offers a square alone.</summary>
+    public ImageSettings Settings => _model?.Sampler is { } sampler ? SettingsOf(sampler) : new([new(1, 1)]);
+
+    internal static ImageSettings SettingsOf(OwnedSampler sampler) =>
+        new([.. Enum.GetValues<MediaShape>().Select(shape => MediaAspect.Of(sampler.Sizes[shape].Width, sampler.Sizes[shape].Height))]) { Seeds = true };
+
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.ImageGeneration).Select(m => m.Id)]);
 
@@ -65,12 +72,14 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         if (request.Sources.Count > 0 || request.Mask is not null) throw new ArgumentException($"{_model.Catalog.DisplayName} draws from a prompt only.", nameof(request));
         if (_model.Sampler is not { } sampler) throw new LlmProviderException($"{_model.Id} does not say how it samples.");
 
-        var (width, height) = sampler.Sizes[request.Shape];
+        if (SettingsOf(sampler).Refusal(request) is { } refused) throw new ArgumentException($"{_model.Catalog.DisplayName}: {refused}", nameof(request));
+
+        var (width, height) = sampler.Sizes.Values.First(size => new MediaAspect(size.Width, size.Height) == request.Aspect);
         var parts = new Dictionary<string, ModelSpec>();
         foreach (var role in DrawingParts.Of(sampler.Method))
             parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
         var drawing = new DrawingModel(sampler.Method, parts, sampler.Steps, sampler.Shift, sampler.Guidance);
-        long seed = Random.Shared.NextInt64();
+        long seed = request.Seed ?? Random.Shared.NextInt64();
 
         var label    = $"Drawing with {_model.Catalog.DisplayName}";
         var activity = _runtime.Activities.StartActivity(label + "…");

@@ -31,6 +31,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 ## Creating things
 
 - New opens Create new, which makes a folder, a text file, any type Windows knows how to create, or one of your own templates, and says so before you commit if the name is taken. [Show me](locate:FileSystem_CreateConfirm)
+- Where the workspace has a model for it, Create new also offers Gen Image and Gen Video: say what to draw or what happens, pick from what the model offers — its shapes and sizes, a seed to draw the same thing again, what to keep out — and it is made in the background under the name you give, then opens.
 
 ## Extra views on a folder
 

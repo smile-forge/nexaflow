@@ -97,6 +97,7 @@ public class LocalModelsTests
         public LocalRuntime? RuntimeOf(string modelId) => Cuda;
         public int MaxSources => 0;
         public bool Masks => false;
+        public ImageSettings Settings { get; } = new([new(1, 1)]) { Seeds = true };
         public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["z"]);
     }
@@ -110,7 +111,8 @@ public class LocalModelsTests
         public IReadOnlyList<UnrunnableModel> Unrunnable => [];
         public IReadOnlyList<int> Lengths => [5];
         public bool StartsFromImages => true;
-        public (int Width, int Height)? FirstFrameSize(MediaShape shape) => (1280, 704);
+        public VideoSettings Settings { get; } = new([new(1280, 704), new(704, 1280)]) { Seeds = true };
+        public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => (1280, 704);
         public Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["fast", "full"]);
     }
