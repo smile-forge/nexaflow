@@ -57,11 +57,16 @@ public sealed class DocumentReading
     /// <summary>What a block says, as written, without the line break closing it.</summary>
     public static string Written(ContentPart block) => block.Print().TrimEnd('\r', '\n');
 
-    /// <summary>The words <paramref name="part"/> says, without its markup — a heading's title.</summary>
+    /// <summary>
+    /// The words of <paramref name="part"/>, on one line: what reads as words, with a break between lines read as the space it is
+    /// between two words — the lines a block was wrapped at are not the words', and two words either side of one are not one word.
+    /// </summary>
     public static string Words(ContentPart part) =>
         string.Concat(part.SelfAndDescendants()
-                          .Where(leaf => leaf.Children.Count == 0 && MarkdownParser.ReadsAsWords(leaf))
-                          .Select(leaf => leaf.Print()))
+                          .Where(leaf => leaf.Children.Count == 0)
+                          .Select(leaf => MarkdownParser.ReadsAsWords(leaf) ? leaf.Print()
+                                        : leaf.Print() is var said && said.Contains('\n') && string.IsNullOrWhiteSpace(said) ? " "
+                                        : string.Empty))
               .Trim();
 
     /// <summary>The words of the document's first heading of the first rank, or null where it has none.</summary>

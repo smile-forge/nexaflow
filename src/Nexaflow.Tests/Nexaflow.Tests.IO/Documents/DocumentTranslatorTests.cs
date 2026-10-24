@@ -290,6 +290,45 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
+    public async Task AnAbbreviationIsAskedAboutWithTheSentenceThatBringsItIn()
+    {
+        // Its first use is in the contents, which says nothing of what it stands for; the sentence that writes it in brackets does.
+        var model = new ScriptedModel((instructions, _) => new(
+            instructions.StartsWith(ScriptedModel.Glossary, StringComparison.Ordinal) ? "- GDG"
+          : instructions.StartsWith(ScriptedModel.GlossaryTranslation, StringComparison.Ordinal) ? "GDG => ODE"
+          : string.Empty, DocumentReplyEnd.Finished));
+
+        var glossary = await new DocumentGlossaryPass(model, new MemoryNotes()).GatherAsync(
+            DocumentReading.Of("# Inhalt\n\n7.2 Lineare GDG\n\nGrob gesagt ist eine gewöhnliche Differentialgleichung (GDG) eine Gleichung\nfür eine Funktion. Jede GDG hat Lösungen.\n"),
+            Gist, "English", CancellationToken.None);
+
+        var asked = model.Of(ScriptedModel.GlossaryTranslation).Single();
+        StringAssert.Contains(asked, "GDG\n  used in: Grob gesagt ist eine gewöhnliche Differentialgleichung (GDG) eine Gleichung für eine Funktion.",
+            $"handed over beside what it stands for, its lines run together: {asked}");
+        CollectionAssert.AreEqual(new[] { ("GDG", "ODE") }, glossary.Entries.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ManyTermsAreAskedAboutAsManyAtATimeAsFit_AndEveryOneIsGiven()
+    {
+        string[] trees = ["Ahorn", "Birke", "Buche", "Eiche", "Erle", "Esche", "Fichte", "Kiefer", "Linde", "Pappel", "Tanne", "Ulme"];
+        var document = string.Concat(trees.Select(tree =>
+            $"Die {tree} steht am Weg, und wer die {tree} sieht, erkennt sie an Rinde, Blatt und Wuchs, so wie es jedes Bestimmungsbuch für heimische Bäume lehrt.\n\n"));
+
+        var model = new ScriptedModel((instructions, _) => new(
+            instructions.StartsWith(ScriptedModel.Glossary, StringComparison.Ordinal) ? string.Join('\n', trees)
+          : instructions.StartsWith(ScriptedModel.GlossaryTranslation, StringComparison.Ordinal) ? string.Join('\n', trees.Select(tree => $"{tree} => {tree}-tree"))
+          : string.Empty, DocumentReplyEnd.Finished), context: 1024);
+
+        var glossary = await new DocumentGlossaryPass(model, new MemoryNotes()).GatherAsync(DocumentReading.Of(document), Gist, "English", CancellationToken.None);
+
+        var asks = model.Of(ScriptedModel.GlossaryTranslation);
+        Assert.IsTrue(asks.Count > 1, $"more than one ask fits: {asks.Count}");
+        CollectionAssert.AreEquivalent(trees.Select(tree => (tree, $"{tree}-tree")).ToArray(), glossary.Entries.ToArray(), "and each term given once");
+        Assert.IsTrue(trees.All(tree => asks.Count(asked => asked.Contains($"{tree}\n  used in: Die {tree} steht am Weg")) == 1), "each asked about once, with its sentence");
+    }
+
+    [TestMethod]
     public async Task ATermTheModelWrapsInATagOfItsOwn_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
     {
         var tagged = true;
