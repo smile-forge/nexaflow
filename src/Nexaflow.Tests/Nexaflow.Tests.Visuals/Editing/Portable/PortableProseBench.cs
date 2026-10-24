@@ -236,7 +236,7 @@ public class PortableProseBench
     }
 
     /// <summary>The style in the medium's handles — the same brushes and the same typefaces, so what is measured and drawn is the same.</summary>
-    private static PortableStyle Styled(StyleFormat style, WpfMedium medium)
+    internal static PortableStyle Styled(StyleFormat style, WpfMedium medium)
     {
         var families = new Dictionary<string, FontFamily>
         {

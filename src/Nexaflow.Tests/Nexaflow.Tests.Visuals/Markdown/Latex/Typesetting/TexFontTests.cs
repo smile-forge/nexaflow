@@ -2,13 +2,16 @@ using System;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
+using Nexaflow.Markdown.Typesetting.Tex;
+using Nexaflow.Markdown.Typesetting.Tex.Exceptions;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering.Transformations;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Fonts;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 

@@ -211,6 +211,29 @@ public sealed class PortableTree
 
     internal int RunCount => _runs.Count;
 
+    /// <summary>
+    /// Declares that these pieces read together, in this order — a row of a matrix, a column of one. Callable after the tree is
+    /// sealed: a formula only learns which piece is a cell once its grids are matched against what was drawn.
+    /// </summary>
+    public void Runs(IReadOnlyList<PortablePiece> members, bool vertical)
+    {
+        if (members.Count < 2) return;
+
+        var run = _runs.Count;
+        var indices = new int[members.Count];
+
+        for (var member = 0; member < members.Count; member++)
+        {
+            var at = indices[member] = members[member].At;
+            if (at < 0 || at >= _pieces.Length) continue;
+
+            if (vertical) { _down[at] = run; _downAt[at] = member; }
+            else { _across[at] = run; _acrossAt[at] = member; }
+        }
+
+        _runs.Add(indices);
+    }
+
     /// <summary>Moves the whole tree by moving the one anchor nothing is measured from.</summary>
     public void Settle(LayoutVector by)
     {

@@ -103,6 +103,44 @@ internal sealed class WpfMedium : ILayoutMedium
         return new WpfGlyphs(glyphs, size, new Point(origin.X, origin.Y), indices, advances, shifted);
     }
 
+    /// <summary>The maths faces, opened from the resources the WPF font provider opens them from, once each.</summary>
+    public LayoutFace Font(string file)
+    {
+        if (_fonts.TryGetValue(file, out var known)) return known;
+
+        var opened = ((Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts.WpfGlyphTypeface)
+            Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts.WpfMathFontProvider.Instance.ReadFontFile(file)).Typeface;
+
+        return _fonts[file] = new WpfFace(opened);
+    }
+
+    private readonly Dictionary<string, LayoutFace> _fonts = [];
+
+    public IShapedGlyphs? Character(LayoutFace face, char character, double size, LayoutPoint origin)
+    {
+        var glyphs = ((WpfFace)face).Glyphs;
+        if (glyphs is null || !glyphs.CharacterToGlyphMap.TryGetValue(character, out var index)) return null;
+
+        return new WpfGlyphs(glyphs, size, origin.ToWpf(), [index], [glyphs.AdvanceWidths[index] * size], null);
+    }
+
+    /// <summary>
+    /// Where one letter's ink reaches, as WPF's type engine sets it at a size of one — the box a formatted letter takes, less the
+    /// room above its ink, scaled by the family's line spacing against its baseline as WPF reports both.
+    /// </summary>
+    public LetterInk Letter(LayoutFace face, char character)
+    {
+        var typeface = ((WpfFace)face).Typeface;
+        var set = new FormattedText(character.ToString(), CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, 1.0,
+                                    Brushes.Black, 1);
+
+        var depth = set.Height - set.Baseline + set.OverhangAfter;
+        var above = set.Height + set.OverhangAfter - set.Extent;
+        var height = (set.Baseline - above) / (typeface.FontFamily.LineSpacing / typeface.FontFamily.Baseline);
+
+        return new LetterInk(set.Width, height, depth);
+    }
+
     public ShapeBuilder Outline(bool evenOdd = true) => new WpfShapeBuilder(evenOdd);
 
     public LayoutShape Rectangle(LayoutRect box, double radiusX = 0, double radiusY = 0) =>
@@ -135,6 +173,8 @@ internal sealed class WpfMedium : ILayoutMedium
         new WpfStroke((WpfInk?)ink, thickness, dashes.IsEmpty ? null : new DoubleCollection(dashes.ToArray()), ends);
 
     public LayoutTurn Turn(LayoutMatrix matrix) => new WpfTurn(matrix);
+
+    public LayoutTurn Rotation(double degrees, LayoutPoint about) => new WpfTurn(new RotateTransform(degrees, about.X, about.Y));
 
     /// <summary>A turn a theme or a typesetter already holds as WPF's own.</summary>
     public WpfTurn Turn(Transform transform) => new(transform);

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using WpfPoint = System.Windows.Point;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 

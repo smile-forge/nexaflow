@@ -49,6 +49,21 @@ public interface ILayoutMedium
     IShapedGlyphs Glyphs(LayoutFace face, double size, LayoutPoint origin, ushort[] indices, double[] advances,
                          LayoutVector[]? offsets = null);
 
+    /// <summary>
+    /// A face from a font file that content's own data names — the maths faces a typesetter's tables describe — opened from
+    /// wherever this medium keeps such files.
+    /// </summary>
+    LayoutFace Font(string file);
+
+    /// <summary>
+    /// The glyph <paramref name="character"/> is drawn with in <paramref name="face"/>, set at <paramref name="size"/> with the left
+    /// end of its baseline at <paramref name="origin"/> — or null where the face has no glyph for it.
+    /// </summary>
+    IShapedGlyphs? Character(LayoutFace face, char character, double size, LayoutPoint origin);
+
+    /// <summary>How far one letter set in <paramref name="face"/> at a size of one reaches: across, above its baseline, and below it.</summary>
+    LetterInk Letter(LayoutFace face, char character);
+
     /// <summary>An outline made figure by figure — see <see cref="ShapeBuilder"/>.</summary>
     ShapeBuilder Outline(bool evenOdd = true);
 
@@ -77,6 +92,12 @@ public interface ILayoutMedium
     /// <summary>A turn a piece is drawn in, about its own anchor.</summary>
     LayoutTurn Turn(LayoutMatrix matrix);
 
+    /// <summary>
+    /// A turn of <paramref name="degrees"/> clockwise about <paramref name="about"/> — what nearly every turn is, said as itself so a
+    /// medium can make the rotation it has rather than one worked out from a matrix.
+    /// </summary>
+    LayoutTurn Rotation(double degrees, LayoutPoint about);
+
     /// <summary>The pixel grid a piece's edges land on, across and down, in its own frame. The arrays are handed over.</summary>
     LayoutGuides Guides(double[] across, double[] down);
 }
@@ -94,6 +115,9 @@ public abstract class LayoutTurn
 public abstract class LayoutGuides
 {
 }
+
+/// <summary>How far one letter's ink reaches, set at a size of one: across, above its baseline, and below it.</summary>
+public readonly record struct LetterInk(double Width, double Height, double Depth);
 
 /// <summary>A colour, straight alpha.</summary>
 public readonly record struct LayoutColor(byte A, byte R, byte G, byte B)

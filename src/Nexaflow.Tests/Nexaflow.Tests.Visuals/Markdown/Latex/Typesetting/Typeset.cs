@@ -7,8 +7,10 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
-using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
+using Nexaflow.Markdown.Typesetting.Tex;
+using TexEnvironment = Nexaflow.Markdown.Typesetting.Tex.TexEnvironment;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 

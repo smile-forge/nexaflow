@@ -6,11 +6,13 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Markdown.Typesetting.Tex;
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

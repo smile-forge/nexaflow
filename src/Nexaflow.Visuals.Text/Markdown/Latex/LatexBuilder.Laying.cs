@@ -4,10 +4,10 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Markdown.Typesetting.Tex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering.Transformations;
 
 using GuidelineSet = System.Windows.Media.GuidelineSet;
 using Point = System.Windows.Point;
@@ -16,6 +16,9 @@ using RotateTransform = System.Windows.Media.RotateTransform;
 using Size = System.Windows.Size;
 using Transform = System.Windows.Media.Transform;
 using Vector = System.Windows.Vector;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+using Brush = System.Windows.Media.Brush;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -28,7 +31,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// setting's origin where it was applied. Coordinates arrive in the setting's units with <c>y</c> on the piece's
 /// baseline, and are scaled here to the pixels the element is painted in.
 /// </summary>
-public sealed partial class LatexBuilder
+public sealed partial class LatexBuilder : ITexLayer
 {
     /// <summary>What laying one formula made: its tree, how big it came out, where its baseline is, and what in it was set as its characters because nothing draws it.</summary>
     internal sealed record Placed(LayoutTree? Tree, Size Size, double Baseline, IReadOnlyList<ContentPart> Undrawn);
@@ -135,7 +138,7 @@ public sealed partial class LatexBuilder
         _laying.Covers(new Rect(0, 0, size.Width, size.Height));
 
         // A \colorbox, which goes under every glyph of the formula rather than only its own.
-        if (piece.Background is { } wash)
+        if (Brushed(piece.Background) is { } wash)
             _laying.Draw(new WashMark(new Rect(0, 0, size.Width, size.Height), wash));
 
         _placedAny = true;
@@ -240,12 +243,12 @@ public sealed partial class LatexBuilder
         // afterwards.
         _laying.Draw(new GlyphMark(
             info.GetGlyphRun(x - (raw.X / _scale), y - (raw.Y / _scale), _scale),
-            (foreground as WpfBrush)?.Value));
+            Brushed(foreground)));
     }
 
     /// <summary>A stroke, into the piece being placed.</summary>
-    internal void DrawLine(Tex.Rendering.Point point0, Tex.Rendering.Point point1, IBrush? foreground) =>
-        _laying.Draw(new LineMark(Local(point0.X, point0.Y), Local(point1.X, point1.Y), (foreground as WpfBrush)?.Value));
+    internal void DrawLine(Nexaflow.Markdown.Typesetting.Tex.Rendering.Point point0, Nexaflow.Markdown.Typesetting.Tex.Rendering.Point point1, IBrush? foreground) =>
+        _laying.Draw(new LineMark(Local(point0.X, point0.Y), Local(point1.X, point1.Y), Brushed(foreground)));
 
     /// <summary>A filled rectangle, into the piece being placed.</summary>
     internal void DrawRule(Rectangle rectangle, IBrush? foreground)
@@ -253,8 +256,47 @@ public sealed partial class LatexBuilder
         var at = Local(rectangle.X, rectangle.Y);
         _laying.Draw(new RuleMark(
             new Rect(at.X, at.Y, _scale * rectangle.Width, _scale * rectangle.Height),
-            (foreground as WpfBrush)?.Value));
+            Brushed(foreground)));
     }
+
+    void ITexLayer.Place(Set piece, double x, double y) => Place(piece, x, y);
+
+    void ITexLayer.PlaceTransformed(Set piece, IEnumerable<Transformation> transforms, double x, double y) =>
+        PlaceTransformed(piece, transforms, x, y);
+
+    void ITexLayer.DrawGlyph(CharInfo info, double x, double y, IBrush? foreground) => DrawGlyph(info, x, y, foreground);
+
+    void ITexLayer.DrawLine(Nexaflow.Markdown.Typesetting.Tex.Rendering.Point from, Nexaflow.Markdown.Typesetting.Tex.Rendering.Point to,
+                            IBrush? foreground) => DrawLine(from, to, foreground);
+
+    void ITexLayer.DrawRule(Rectangle rectangle, IBrush? foreground) => DrawRule(rectangle, foreground);
+
+    /// <summary>
+    /// The brush an ink the typesetter carries is drawn with: a theme's own as it is, and a colour the formula named — <c>\color</c>,
+    /// <c>\colorbox</c> — made once and frozen, rather than once for every piece set in it.
+    /// </summary>
+    private static Brush? Brushed(IBrush? ink) => ink switch
+    {
+        null => null,
+        WpfBrush theirs => theirs.Value,
+        TexInk named => Named(named),
+        _ => throw new NotSupportedException($"an ink the WPF layout cannot draw: {ink.GetType().Name}"),
+    };
+
+    private static Brush Named(TexInk ink)
+    {
+        if (Inks.TryGetValue(ink, out var made)) return made;
+        if (Inks.Count > MostInks) Inks.Clear();
+
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(ink.A, ink.R, ink.G, ink.B));
+        brush.Freeze();
+        return Inks[ink] = brush;
+    }
+
+    /// <summary>How many named colours are kept made before starting again — a page names a handful.</summary>
+    private const int MostInks = 1024;
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<TexInk, Brush> Inks = new();
 
     /// <summary>A coordinate in the setting's units, in the frame of the piece being placed.</summary>
     private Point Local(double x, double y)

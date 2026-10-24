@@ -1,9 +1,12 @@
 using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Markdown.Typesetting.Tex;
 using Nexaflow.Markdown.Latex;
 using System;
+using Nexaflow.Markdown.Typesetting.Tex.Fonts;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+using TexEnvironment = Nexaflow.Markdown.Typesetting.Tex.TexEnvironment;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 

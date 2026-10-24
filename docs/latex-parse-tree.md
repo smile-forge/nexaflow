@@ -163,8 +163,10 @@ builder turned the reading into atoms, and the atoms made boxes. The typesetter 
 each construct itself, straight from the reading — the rules the atoms carried moved into it, and what was
 left of them went where it belongs: what a name means (the symbol table, which command is which construct,
 how a matrix is arranged) to the reading, and how each glyph is measured to the engine's fonts, which live
-beside the typesetter under `src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/`. `LatexBuilder` sets a formula
-with it and lays out what comes back.
+beside the typesetter under `src/Nexaflow.Markdown/Typesetting/Tex/`, free of any renderer. The typesetter
+lays what it set through `ITexLayer` — a piece placed, a glyph, a stroke, a rule — and the faces are opened
+by whoever lays it: `LatexBuilder` sets a formula with it, opens the faces through WPF
+(`src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/Fonts/`), and lays out what comes back.
 Its F# approval suite recorded atom and box trees that no longer exist; the TeX rules it pinned are
 measured on what the builder sets, in `Nexaflow.Tests.Visuals` under `Markdown/Latex/Typesetting/`.
 

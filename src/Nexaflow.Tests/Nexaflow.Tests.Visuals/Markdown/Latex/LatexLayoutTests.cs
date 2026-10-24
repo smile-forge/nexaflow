@@ -7,6 +7,8 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
@@ -310,7 +312,7 @@ public class LatexLayoutTests
         }
     });
 
-    private static Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment Environment() =>
+    private static Nexaflow.Markdown.Typesetting.Tex.TexEnvironment Environment() =>
         WpfTeXEnvironment.Create(scale: Scale);
 
     [TestMethod]

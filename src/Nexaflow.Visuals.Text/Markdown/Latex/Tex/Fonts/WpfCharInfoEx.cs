@@ -2,8 +2,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Markdown.Typesetting.Tex;
+using Nexaflow.Markdown.Typesetting.Tex.Exceptions;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 

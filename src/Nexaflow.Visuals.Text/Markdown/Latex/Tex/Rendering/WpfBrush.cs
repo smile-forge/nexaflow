@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
