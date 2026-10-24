@@ -1,0 +1,135 @@
+{
+  "branch": "claude/1-9-0-release-planning-7ebffd",
+  "nodes": {
+    "io-vfs-async": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/VirtualFileSystem.Async.cs",
+          "class": "VirtualFileSystem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/FileLocationWrite.cs",
+          "class": "FileLocationWrite"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFailures.cs",
+          "class": "LocationFailures"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/VirtualFileSystemAsyncTests.cs",
+            "class": "VirtualFileSystemAsyncTests"
+          }
+        ]
+      }
+    },
+    "io-locations-contract": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ILocationProvider.cs",
+          "class": "ILocationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ILocationSession.cs",
+          "class": "ILocationSession"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ConnectionProfile.cs",
+          "class": "ConnectionProfile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Terminal/ITerminalTransport.cs",
+          "class": "ITerminalTransport"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationSessionContract.cs",
+            "class": "LocationSessionContract"
+          }
+        ]
+      }
+    },
+    "io-locations-paths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationPath.cs",
+          "class": "LocationPath"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationPathTests.cs",
+            "class": "LocationPathTests"
+          }
+        ]
+      }
+    },
+    "io-locations-routing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WorkspaceRuntime.cs",
+          "class": "WorkspaceRuntime"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationFileSystemTests.cs",
+            "class": "LocationFileSystemTests"
+          }
+        ]
+      }
+    },
+    "io-vfs-mounts": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/VirtualMount.cs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/VirtualFileSystem.cs",
+          "class": "VirtualFileSystem",
+          "method": "RegisterMount"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/VirtualMount.cs",
+          "class": "VirtualBackings"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 9,
+  "touched_nodes": [
+    "io-locations-contract",
+    "io-locations-paths",
+    "io-locations-routing",
+    "io-vfs-async",
+    "io-vfs-mounts"
+  ]
+}

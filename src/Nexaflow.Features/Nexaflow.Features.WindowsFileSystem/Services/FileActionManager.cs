@@ -92,10 +92,10 @@ public sealed class FileActionManager
 
         // An action that launches the file in another program may need its neighbours — a dependency,
         // a sidecar, an installer payload. Inside an archive only the one file can be produced, so such
-        // an action is withheld rather than offered and left to fail confusingly. A mount is fine: the
-        // whole subtree is on disk behind it.
+        // an action is withheld rather than offered and left to fail confusingly; on a remote location
+        // not even that file is on disk. A mount is fine: the whole subtree is on disk behind it.
         bool fullyBacked = selected.All(e =>
-            VirtualFileSystem.Instance.GetBacking(e.FullPath) != VirtualBacking.Materialized);
+            VirtualFileSystem.Instance.GetBacking(e.FullPath).IsFullyOnDisk());
 
         var filtered = new List<IFileAction>();
         for (int i = 0; i < file.Count; i++)

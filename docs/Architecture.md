@@ -28,7 +28,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
-| Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the archive `VirtualFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
+| Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
 | Providers | `Nexaflow.Providers.Common` + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
@@ -132,8 +132,9 @@ A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) points at one `Workspac
 | `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this runtime (deduped by config process-wide); released when the runtime is reconfigured/disposed |
 | `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through the workspace's assignments + this runtime's providers; reads/writes the workspace's conversations |
 | `ShellServices : ShellServices` | This runtime's **window + tab registry** (every window in the runtime). Stable for the runtime's life — a workspace switch reconfigures internals, not this object |
+| `Vfs : LocationFileSystem` | This runtime's **file system**: the shared `VirtualFileSystem` plus the remote locations this runtime has connected ([remote-locations.md](remote-locations.md)). Stable for the runtime's life |
 
-The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab" and "ask the AI" always act within exactly one runtime.
+The `IShellServices` / `IAIService` / `IVirtualFileSystem` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab", "ask the AI" and "read that file" always act within exactly one runtime — and only the runtime's file system can see the locations it connected, which `VirtualFileSystem.Instance` cannot.
 
 The Options and Manage-AI overlays are **modal** — they block switching. A live workspace can't be deleted, and there
 is always at least one workspace.
@@ -159,7 +160,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 |------|----------------|
 | `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon, the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
-| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`) |
+| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
 | `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
 | `Services/WorkspaceManager.cs` | Singleton: the `Workspaces` list + live `WorkspaceRuntime`s; `Initialize`/`CreateWorkspace`/`SwitchWorkspace`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
@@ -358,7 +359,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
+Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, `IAIService`, and the runtime's `IVirtualFileSystem`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
 `CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 

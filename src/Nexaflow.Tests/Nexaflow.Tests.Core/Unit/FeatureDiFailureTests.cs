@@ -101,6 +101,17 @@ public class FeatureDiFailureTests
         Assert.IsNotNull(FeatureManager.Instance.Instantiate(typeof(NeedsAiService), WiredRuntime()));
     }
 
+    [TestMethod]
+    public void AFileSystemParameter_GetsTheRuntimesOwn_NotTheSharedInstance()
+    {
+        // The shared VirtualFileSystem.Instance cannot see the locations a runtime connected; a feature handed it
+        // would find every remote path missing.
+        var ws    = WiredRuntime();
+        var built = (NeedsFileSystem)FeatureManager.Instance.Instantiate(typeof(NeedsFileSystem), ws);
+
+        Assert.AreSame(ws.Vfs, built.Vfs);
+    }
+
     // ── The change is safe against the real feature set ───────────────────────
 
     [TestMethod]
@@ -179,5 +190,10 @@ public class FeatureDiFailureTests
     {
         public TwoCtorsOneViable(IShellServices shell, string nonsense) { _ = shell; _ = nonsense; }
         public TwoCtorsOneViable(IShellServices shell) => _ = shell;
+    }
+
+    private sealed class NeedsFileSystem(Nexaflow.IO.Common.IVirtualFileSystem vfs)
+    {
+        public Nexaflow.IO.Common.IVirtualFileSystem Vfs { get; } = vfs;
     }
 }

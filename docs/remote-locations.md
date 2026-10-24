@@ -31,9 +31,9 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 
 | Piece | Where | What it gives | What stops it carrying remote |
 | --- | --- | --- | --- |
-| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives and `::{id}` mounts; streams, breadcrumbs, parent paths, display names | Every member is synchronous with no `CancellationToken`; a mount is only a string substitution onto a real directory |
-| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process | `Real`, `PassThrough`, `Materialized` — nothing for a remote |
-| `VirtualEntry` | `IO.Common/VirtualEntry.cs` | Name, size, modified, archive extras | No permissions, owner, symlink target or attributes |
+| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Most callers still use the sync members, which serve local paths only |
+| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
+| `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
 | WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers | Much of it calls `File.*` / `Directory.*` directly rather than the VFS |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel | Assumes both ends are Windows paths |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | How OneDrive puts a row on This PC; connections use the same | — |
@@ -50,21 +50,23 @@ carry it unchanged; what changes is that a mount can be backed by a provider rat
   Its `Id` is stable and path-segment-safe and never changes on rename, exactly like `VirtualMount.Id`.
 - **Internal path.** `::{connectionId}\home\adam\notes.md`. The `::` prefix guarantees no real Windows path can collide
   and that `File.Exists` answers false without touching the disk.
-- **Segment escaping.** POSIX names may hold `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` or end in a dot or space. The
-  location layer percent-encodes exactly those characters in a segment and decodes them at the provider boundary, so the
-  round trip is lossless and no feature sees either form.
+- **Segment escaping.** POSIX names may hold `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` or control characters, or end in a
+  dot or space. `LocationPath` percent-encodes exactly those characters in a segment — and `%` itself, so decoding is
+  never ambiguous — and decodes them at the provider boundary, so the round trip is lossless. A listing through the VFS
+  names each entry by its segment, so it combines into a path with `\`; `GetDisplayName` gives the name back as people
+  read it.
 - **Case.** Each provider declares whether its names are case-sensitive. Comparisons (selection, `PathScope`, dedup of
   open tabs) ask the location, never `StringComparison.OrdinalIgnoreCase` directly.
 - **Display form.** People and the assistant see a URI: `sftp://adam@nas/home/adam/notes.md`, `wsl://Ubuntu/home/adam`,
-  `smb://nas/share/docs`. It is produced by `GetDisplayName` / `GetBreadcrumbs` and parsed back by the address bar, so
-  typing or pasting one opens it.
+  `smb://nas/share/docs`. `IVirtualFileSystem.GetDisplayPath` produces it, `TryParseDisplayPath` reads it back for the
+  address bar, so typing or pasting one opens it, and `GetDisplayName` / `GetBreadcrumbs` label each segment by its name.
 - **WSL and SMB need no escaping when Windows can already reach them.** `\\wsl.localhost\Ubuntu\…` and `\\nas\share\…`
   are real paths; their providers add what Windows lacks (POSIX metadata, a native shell, faster listing), not a new name.
 
 ## The provider contract
 
-A backend implements one async contract in `Nexaflow.IO.Common`, and `IVirtualFileSystem` gains async members that route
-a `::{id}` path to it; features keep talking to the VFS only.
+A backend implements one async contract in `Nexaflow.IO.Common.Locations`, and `IVirtualFileSystem`'s async members
+route a `::{id}` path to it; features keep talking to the VFS only.
 
 ```csharp
 public interface ILocationProvider            // one per protocol, discovered by reflection
@@ -75,39 +77,57 @@ public interface ILocationProvider            // one per protocol, discovered by
         ICredentialSource credentials, CancellationToken ct);
 }
 
-public interface ILocationSession : IAsyncDisposable
+public interface ILocationSession : IAsyncDisposable          // paths are the provider's: /home/adam/notes.md
 {
     IAsyncEnumerable<LocationEntry> EnumerateAsync(string path, CancellationToken ct);
     ValueTask<LocationEntry?> GetEntryAsync(string path, CancellationToken ct);
     ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct);
-    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, CancellationToken ct);
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode,
+        LocationEntry? expected, CancellationToken ct);       // expected: the version read, checked at commit
     ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct);
     ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct);
     ValueTask CreateDirectoryAsync(string path, CancellationToken ct);
     ILocationWatch? Watch(string path, bool recursive);          // null when Capabilities lacks Watch
     ILocationShell? Shell { get; }                               // a shell on the same host, if any
 }
+
+public interface ILocationSessionSource                          // the pool, per connection
+{
+    ValueTask<ILocationSession> GetSessionAsync(CancellationToken ct);
+}
 ```
+
+- **One file system per runtime.** Sessions belong to a `WorkspaceRuntime`, so each runtime has its own
+  `LocationFileSystem` (`WorkspaceRuntime.Vfs`): the shared `VirtualFileSystem` for real, archive and mounted paths,
+  plus a `LocationMount` per connected location that routes `::{connectionId}` to its `ILocationSessionSource`.
+  `FeatureManager` injects it for an `IVirtualFileSystem` constructor parameter; `VirtualFileSystem.Instance` cannot
+  see a runtime's locations, so a feature never reaches for it.
 
 - **Async first, all the way down.** Every member takes a `CancellationToken`. Listing is an `IAsyncEnumerable` so a
   50,000-entry folder paints its first rows at once, as Windows Search hits stream.
-- **Sync members refuse a remote path.** `IVirtualFileSystem`'s sync members keep serving real, mounted and archive
-  paths and throw a typed `LocationRequiresAsyncException` on a remote one. A new analyzer flags a sync VFS or
-  `System.IO` call in a feature, following the `NXUI001` pattern, and the existing call sites move to the async members
-  in phase 0.
+- **Sync members refuse a remote path.** `IVirtualFileSystem`'s sync IO members keep serving real, mounted and archive
+  paths and throw a typed `LocationRequiresAsyncException`, naming the member, on a remote one. The pure path members
+  (`GetParentPath`, `GetBreadcrumbs`, `GetBacking`, …) stay sync and serve every path. A new analyzer flags a sync VFS
+  or `System.IO` call in a feature, following the `NXUI001` pattern, and the existing call sites move to the async
+  members in phase 0; code that only touches the app's own state is exempted by an attribute that names its reason.
 - **Reads say what they need.** `ReadIntent` is `Sequential`, `Random` or `Whole`. A provider with ranged reads (SFTP,
   SMB, FTP `REST`) returns a seekable stream that fetches blocks on demand, so a 4 GB log or a PDF opens at its first
   page. One without spools to the cache and returns the cached file.
 - **Writes are atomic where the protocol allows.** `BeginWriteAsync` writes to a sibling temp name and renames on
   commit, so a dropped connection never leaves half a file; without a rename it commits as one whole upload. `WriteMode`
-  distinguishes create, replace and append.
+  distinguishes create, replace and append. A write given the entry it read refuses to commit with `Conflict` when the
+  target is no longer that version — the check behind conflict-checked saves. Inside an archive the bytes are gathered
+  and the archive rewritten in one piece at commit.
 - **`LocationEntry` carries more than `VirtualEntry`:** POSIX mode, owner and group, symlink target, hidden and read-only
-  flags, and an optional content hash when the server offers one. `VirtualEntry` stays for archives.
+  flags, and an optional content hash when the server offers one. `VirtualEntry` stays the archive model; an archive
+  entry listed through the async VFS carries its archive facts in `LocationEntry.Archive`.
 - **Capabilities are flags the UI reads, not errors it discovers:** `RandomRead`, `AtomicRename`, `Watch`, `Symlinks`,
   `Permissions`, `ServerSideCopy`, `CaseSensitive`, `Shell`. A file action whose need is missing is hidden, as
   `VirtualBacking` hides actions for archive entries.
-- **`VirtualBacking` gains `Remote`.** An action that would hand the path to an external process gets a materialised copy
-  or is suppressed — the rule that protects archive entries.
+- **`VirtualBacking.Remote`.** An action that would hand the path to an external process gets a materialised copy
+  or is suppressed — the rule that protects archive entries, read through `IsFullyOnDisk`. Until the content cache
+  lands such an action is suppressed, and a remote file is not browsed as an archive: archive work runs over local
+  bytes, so the archive members refuse a remote path.
 - **Errors are one typed family** (`LocationException` with `NotFound`, `AccessDenied`, `Disconnected`, `AuthFailed`,
   `HostKeyChanged`, `Conflict`), so every page reports a dropped share the same way.
 
@@ -118,7 +138,7 @@ Manager; none of this needs admin rights.
 
 | Thing | Scope | Stored |
 | --- | --- | --- |
-| `ConnectionProfile` (kind, host, port, user, root, options) | per `Workspace`, beside provider configs | `Contexts\<name>\connections.json` |
+| `ConnectionProfile` (kind, host, port, user, root, options) | per `Workspace`, beside provider configs | `Contexts\<name>\connections\config_<version>.json`, through `ConfigManager` like every per-workspace config, so it migrates the same way |
 | Secret (password, key passphrase) | per user | Credential Manager, target `nexaflow:{connectionId}`, via `CredWrite` / `CredRead` |
 | SSH host keys | per user | `%USERPROFILE%\.ssh\known_hosts`, read and appended, so OpenSSH and Nexaflow agree |
 | Live `ILocationSession` | per `WorkspaceRuntime` | memory only, pooled and ref-counted like provider instances |
@@ -158,7 +178,8 @@ rows without a new protocol. SFTP is the headline and lands second.
 The terminal opens a shell on whatever host the current folder lives on, through one transport contract, and draws
 full-screen programs, because over SSH that is half of what people run.
 
-- **`ITerminalTransport`** sits under the terminal view-model: bytes in, bytes out, resize, exit.
+- **`ITerminalTransport`** (`IO.Common/Terminal`, beside the location contracts that hand one out) sits under the
+  terminal view-model: bytes in, bytes out, resize, interrupt, exit.
   `PseudoConsoleHostService` becomes the ConPTY transport; an SSH channel with a `pty-req` is the second.
   `ILocationSession.Shell` hands out the right one for its host.
 - **Shell profiles are discovered, not configured.** cmd, Windows PowerShell, `pwsh` if installed, each WSL distro from
@@ -241,9 +262,11 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
 - **Journeys** for connect, browse, open, edit and save, open terminal here, and a dropped connection, so every new
   AutomationId is named by one.
 
-**Product tree.** A `locations` node under `features` with one child per backend, plus concerns for the async VFS,
-connections, the terminal transport and the grid view, each snaplinked to its code as it lands and committed in the
-branch's pending file.
+**Product tree.** The capability lives under Common / Shared: `io-vfs-async` and `io-locations` (the provider contract,
+location paths and the runtime file system) beneath `iocommon-vfs`, with a node per backend, the connections, the
+terminal transport and the grid view added as each lands. The use cases — connect, browse, open terminal here — get a
+`locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
+and committed in the branch's pending file.
 
 ## Decisions
 

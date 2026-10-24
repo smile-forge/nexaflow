@@ -319,6 +319,12 @@ public sealed class FeatureManager
                         + "or after its last window closed");
                 args[i] = workspace.AiService;
             }
+            else if (pt == typeof(IVirtualFileSystem))
+            {
+                // The runtime's own face of the file system — it routes the locations this runtime connected,
+                // which the process-wide VirtualFileSystem.Instance cannot see.
+                args[i] = workspace.Vfs;
+            }
             else if (_tools.TryGetValue(pt, out var tool))
             {
                 args[i] = tool;
@@ -368,7 +374,7 @@ public sealed class FeatureManager
             else
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
-                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
+                    + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
                     + "IFeatureConfig, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
                     + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
                     + "carrying [Subfeature] implements that contract and shipped as a scanned "

@@ -13,7 +13,7 @@ namespace Nexaflow.IO.Common;
 /// entry by materialising it (and every container above it) to a cached temp file, so callers always
 /// see an ordinary seekable file. Thread-safe.
 /// </summary>
-public sealed class VirtualFileSystem : IVirtualFileSystem
+public sealed partial class VirtualFileSystem : IVirtualFileSystem
 {
     public static VirtualFileSystem Instance { get; } = new();
 
@@ -493,13 +493,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     public void WriteAllText(string path, string contents, Encoding? encoding = null)
-    {
-        // Match File.WriteAllText: emit the encoding's preamble (BOM) when it has one.
-        var enc      = encoding ?? new UTF8Encoding(false);
-        var preamble = enc.GetPreamble();
-        var body     = enc.GetBytes(contents);
-        WriteAllBytes(path, preamble.Length == 0 ? body : [.. preamble, .. body]);
-    }
+    => WriteAllBytes(path, EncodeText(contents, encoding));
 
     public void Replace(string path, byte[] newContent)
     {

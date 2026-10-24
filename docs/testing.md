@@ -853,6 +853,11 @@ least able to fail for a reason that is not about its subject.
   before the read-back). `Common/Audio/` holds the test signals and the meter's arithmetic, sample by sample, and the
   float WAV round trip. `AudioEndpointCatalogTests` and `SerialPortCatalogTests` list this machine's audio endpoints
   and COM ports without opening any.
+- **`Location/`** — the location provider contract, written once as `LocationSessionContract` and inherited per
+  backend (listing, ranged reads, atomic and conflict-checked writes, rename, delete, cancellation, reconnect), run
+  against an in-memory host at 0, 80 and 250 ms of latency so a change that adds round trips shows as time; plus the
+  path escaping and display form, and the runtime file system's routing. The async VFS over local paths is in
+  `Common/` beside the sync tests.
 - **`Protocol/`** — the DynamicProtocol engine, plus the ten-protocol corpus (`Protocol/Corpus/*.json`)
   and the protocol graphs authored against it (`Protocol/Definitions/*.json`), both copied to the output
   by the csproj. See [dynamic-protocol.md](dynamic-protocol.md) → *Reading the tests*.

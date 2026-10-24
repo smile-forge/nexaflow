@@ -22,7 +22,7 @@ public static class FolderViewletRegistry
         // the right answer for an action operating ON the archive — but browsing it means looking at its
         // entries, and those are no more a folder than the ones a level deeper.
         var vfs = VirtualFileSystem.Instance;
-        bool fullyBacked = vfs.GetBacking(folderPath) != VirtualBacking.Materialized
+        bool fullyBacked = vfs.GetBacking(folderPath).IsFullyOnDisk()
                            && !vfs.IsContainer(folderPath);
 
         var result = new List<IFolderViewlet>();
