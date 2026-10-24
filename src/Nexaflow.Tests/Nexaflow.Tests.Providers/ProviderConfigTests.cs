@@ -5,6 +5,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Gemini;
 using Nexaflow.Providers.Ollama;
 using Nexaflow.Providers.OpenAI;
+using Nexaflow.Providers.XAI;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -53,6 +54,37 @@ public class ProviderConfigTests
         var c = RoundTrip(new OpenAIConfig { ApiKey = "sk-oai", BaseUrl = "http://localhost:1234/v1" });
         Assert.AreEqual("sk-oai", c.ApiKey);
         Assert.AreEqual("http://localhost:1234/v1", c.BaseUrl);
+    }
+
+    // ── xAI ──────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void XAI_Defaults()
+    {
+        var c = new XAIConfig();
+        Assert.AreEqual("xai", c.ConfigName);
+        Assert.AreEqual("xAI", c.FriendlyName);
+        Assert.AreEqual("", c.ApiKey);
+        Assert.AreEqual("", c.BaseUrl);
+    }
+
+    [TestMethod]
+    public void XAI_ABlankBaseUrl_GoesToXAI_NeverToTheSdksOwnDefault()
+    {
+        Assert.AreEqual(new Uri("https://api.x.ai/v1"), new XAIConfig().Endpoint);
+        Assert.AreEqual(new Uri("https://api.x.ai/v1"), new XAIConfig { BaseUrl = "  " }.Endpoint);
+        Assert.AreEqual(new Uri("https://gateway.example/xai/v1"), new XAIConfig { BaseUrl = "https://gateway.example/xai/v1" }.Endpoint);
+    }
+
+    [TestMethod]
+    public void XAI_RoundTrips_WithoutItsEndpoint()
+    {
+        var json = JsonSerializer.Serialize(new XAIConfig { ApiKey = "xai-key", BaseUrl = "https://gateway.example/v1" });
+        StringAssert.DoesNotMatch(json, new System.Text.RegularExpressions.Regex("Endpoint"));   // [JsonIgnore] — read from BaseUrl
+
+        var c = JsonSerializer.Deserialize<XAIConfig>(json)!;
+        Assert.AreEqual("xai-key", c.ApiKey);
+        Assert.AreEqual("https://gateway.example/v1", c.BaseUrl);
     }
 
     // ── Gemini ───────────────────────────────────────────────────────────────
