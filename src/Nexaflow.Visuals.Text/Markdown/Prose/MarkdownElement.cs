@@ -99,7 +99,7 @@ public sealed class MarkdownElement : LinkedElement
             var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
 
             foreach (var run in runs)
-                dc.DrawRectangle(at == _showing.At ? Palette.Marked : Palette.QuoteBg, Edge(at == _showing.At), run);
+                dc.DrawRectangle(Palette.Marked, Edge(at == _showing.At), run);
         }
     }
 
@@ -127,6 +127,9 @@ public sealed class MarkdownElement : LinkedElement
     /// on the page.
     /// </para>
     /// <para>
+    /// In a long document shown a stretch at a time, a place not laid yet is laid to first, and comes onto the page once it is.
+    /// </para>
+    /// <para>
     /// <strong>What is scrolled to is not always what was found.</strong> A word inside a diagram is a few
     /// pixels of a picture, and putting those few pixels at the top of the view shows a reader the middle of a
     /// chart with no idea what they are looking at. So where the hit sits inside content another language laid
@@ -140,7 +143,17 @@ public sealed class MarkdownElement : LinkedElement
 
         // A place inside a section the reader folded away is opened before it is shown.
         if (found.Count == 0 && Unfold(what.Start)) found = Laid.Root.RangeRects(what.Start, what.Length);
-        if (found.Count == 0) return false;
+
+        // One a long document has not laid yet is laid to, and brought onto the page once it is; it is picked out now, so the
+        // caret is there when it arrives.
+        if (found.Count == 0)
+        {
+            if (!Uncover(what.Start)) return false;
+
+            if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
+
+            return true;
+        }
 
         var shown = Whole(what);
 
@@ -167,7 +180,7 @@ public sealed class MarkdownElement : LinkedElement
              piece.Exists;
              piece = piece.Parent)
         {
-            if (piece.Part is not ContentPart part) continue;
+            if (piece.Part.TreePart() is not { } part) continue;
             if (ContentLanguages.Held(part) is null) continue;
 
             return piece.Bounds;
@@ -187,7 +200,7 @@ public sealed class MarkdownElement : LinkedElement
     /// </summary>
     protected override IEnumerable<LayoutIntent> Offering(LayoutAct act)
     {
-        if (act.Part is not ContentPart part) return [];
+        if (act.Node is not { } part) return [];
 
         for (var at = part; at is not null; at = at.Parent)
         {

@@ -22,9 +22,15 @@ public sealed record DocumentGlossary(IReadOnlyList<(string Source, string Targe
 
 /// <summary>
 /// Finds the names and terms a translation of a document has to give the same way every time, and how it gives them: read
-/// from the whole document a stretch at a time, each stretch sized to the model, and kept to those used more than once —
+/// from the whole document's words a stretch at a time, each stretch sized to the model, and kept to those used more than once —
 /// as many as fit beside what each translated passage is handed. Kept, both what was found and how it was translated, so
 /// translating again asks only about what changed.
+///
+/// <para>
+/// <strong>Only words are read.</strong> Code and formulas are never translated — a passage hands them over held back — so
+/// nothing written in one is a term a translation gives one way or another, and an entry for one tells the model to do
+/// something to what it may not touch.
+/// </para>
 /// </summary>
 public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
@@ -34,14 +40,18 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
     /// <summary>The most names and terms asked for from one stretch.</summary>
     private const int MostPerStretch = 30;
 
+    /// <summary>The most of a sentence a term is handed with: a long one is cut to this much round the term.</summary>
+    private const int MostSaid = 240;
+
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "glossary-1";
+    private const string Version = "glossary-3";
 
     /// <summary>The glossary for translating <paramref name="reading"/>, which is <paramref name="gist"/>, into <paramref name="language"/>.</summary>
     public async Task<DocumentGlossary> GatherAsync(DocumentReading reading, DocumentGist gist, string language, CancellationToken ct)
     {
         var budget = DocumentBudget.Of(model);
-        var stretches = reading.Stretches(budget.Share(0.5));
+        var stretches = reading.WordStretches(budget.Share(0.5));
+        var words = string.Join('\n', stretches);
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         for (var at = 0; at < stretches.Count; at++)
@@ -55,7 +65,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
         var kept = new List<string>();
         var length = 0;
 
-        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(reading.Source, term)))
+        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(words, term)))
                                          .Where(entry => entry.Used > 1)
                                          .OrderByDescending(entry => entry.Used).ThenBy(entry => entry.term, StringComparer.Ordinal))
         {
@@ -64,7 +74,10 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             length += (term.Length * 2) + 5;
         }
 
-        var glossary = kept.Count == 0 ? DocumentGlossary.None : await TranslatedAsync(gist, kept, language, ct);
+        var ends = DocumentCuts.SentenceEnds(words).ToArray();
+        var glossary = kept.Count == 0
+            ? DocumentGlossary.None
+            : await TranslatedAsync(gist, [.. kept.Select(term => (term, SentenceUsing(words, ends, term)))], language, budget, ct);
         progress?.Report(new(DocumentStep.Glossary, stretches.Count + 1, stretches.Count + 1));
         return glossary;
     }
@@ -97,19 +110,54 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
                          .Take(MostPerStretch)];
     }
 
-    /// <summary>How each of <paramref name="terms"/> is given in <paramref name="language"/>.</summary>
-    private async Task<DocumentGlossary> TranslatedAsync(DocumentGist gist, IReadOnlyList<string> terms, string language, CancellationToken ct)
+    /// <summary>
+    /// How each of <paramref name="terms"/> is given in <paramref name="language"/>, each handed over with a sentence the document uses
+    /// it in (<see cref="SentenceUsing"/>). A term out of its sentence is only its letters, and an abbreviation's letters say nothing of
+    /// what they stand for — asked alone, one is kept as it is where the language abbreviates the same thing another way. As many are
+    /// asked at once as fit the model, so a document of many terms is asked about every one of them.
+    /// </summary>
+    private async Task<DocumentGlossary> TranslatedAsync(DocumentGist gist, IReadOnlyList<(string Term, string Sentence)> terms, string language,
+                                                         DocumentBudget budget, CancellationToken ct)
     {
-        var key = DocumentKeys.Of(Version, "translated", model.Key, gist.Key, language, string.Join('\n', terms));
+        var room = budget.Share(0.4);
+        var entries = new List<(string Source, string Target)>();
+        var together = new List<(string Term, string Sentence)>();
+        var length = 0;
+
+        foreach (var term in terms)
+        {
+            var said = term.Term.Length + term.Sentence.Length + 12;
+            if (together.Count > 0 && length + said > room)
+            {
+                entries.AddRange(await AskedTogetherAsync(gist, together, language, ct));
+                (together, length) = ([], 0);
+            }
+
+            together.Add(term);
+            length += said;
+        }
+
+        if (together.Count > 0) entries.AddRange(await AskedTogetherAsync(gist, together, language, ct));
+        return new DocumentGlossary(entries);
+    }
+
+    /// <summary>How each of <paramref name="terms"/>, asked about at once, is given in <paramref name="language"/>.</summary>
+    private async Task<IReadOnlyList<(string Source, string Target)>> AskedTogetherAsync(DocumentGist gist, IReadOnlyList<(string Term, string Sentence)> terms,
+                                                                                          string language, CancellationToken ct)
+    {
+        var listed = string.Join('\n', terms.Select(term => $"{term.Term}\n  used in: {term.Sentence}"));
+        var key = DocumentKeys.Of(Version, "translated", model.Key, gist.Key, language, listed);
         var answer = await notes.ReadAsync(Shelf, key, ct);
 
         if (answer is null)
         {
             var reply = await model.AnswerAsync(
                 $"You translate the glossary of a document being translated into {language}, so its names and terms are given the " +
-                $"same way all through it. A name stays as it is unless {language} writes it another way.",
-                $"The whole document is:\n{gist.Said}\n\nIts names and terms:\n{string.Join('\n', terms)}\n\n" +
-                "Answer with one line for each, as `term => translation`, and nothing else.",
+                "same way all through it. Each comes with a sentence the document uses it in, which says what it means there. A name " +
+                $"stays as it is unless {language} writes it another way; an abbreviation becomes the one {language} uses for what it " +
+                "stands for.",
+                $"The whole document is:\n{gist.Said}\n\nIts names and terms, each with a sentence it is used in:\n{listed}\n\n" +
+                "Answer with one line for each term, as `term => translation`, and nothing else.",
                 ct);
 
             if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked("how to translate the document's names and terms", reply);
@@ -118,7 +166,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             await notes.WriteAsync(Shelf, key, answer, ct);
         }
 
-        var asked = new HashSet<string>(terms, StringComparer.OrdinalIgnoreCase);
+        var asked = new HashSet<string>(terms.Select(term => term.Term), StringComparer.OrdinalIgnoreCase);
         var entries = new List<(string Source, string Target)>();
 
         foreach (var line in answer.Split('\n'))
@@ -131,7 +179,47 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             if (target.Length > 0 && asked.Remove(source)) entries.Add((source, target));
         }
 
-        return new DocumentGlossary(entries);
+        return entries;
+    }
+
+    /// <summary>
+    /// The sentence of <paramref name="words"/> that says most plainly what <paramref name="term"/> is: the first writing it in brackets
+    /// after other words — how an abbreviation or a name is brought in beside what it stands for — or else the first using it
+    /// at all, which in a book may be its table of contents. Cut to <see cref="MostSaid"/> characters round the term where it is longer.
+    /// <paramref name="ends"/> are where the sentences of <paramref name="words"/> end, in order (<see cref="DocumentCuts.SentenceEnds"/>).
+    /// </summary>
+    private static string SentenceUsing(string words, int[] ends, string term)
+    {
+        var first = -1;
+        var used = -1;
+
+        for (var at = words.IndexOf(term, StringComparison.OrdinalIgnoreCase); at >= 0 && used < 0;
+             at = words.IndexOf(term, at + term.Length, StringComparison.OrdinalIgnoreCase))
+        {
+            if (first < 0) first = at;
+
+            var end = at + term.Length;
+            if (at > 1 && words[at - 1] is '(' or '[' && end < words.Length && words[end] is ')' or ']')
+                used = at;
+        }
+
+        if (first < 0) return term;
+        if (used < 0) used = first;
+
+        // The first end past the term closes its sentence, and the one before it opens it.
+        var next = Array.BinarySearch(ends, used + 1);
+        if (next < 0) next = ~next;
+
+        var (opens, closes) = (next > 0 ? ends[next - 1] : 0, next < ends.Length ? ends[next] : words.Length);
+        var (from, to) = (opens, closes);
+
+        if (to - from > MostSaid)
+        {
+            from = Math.Clamp(used + (term.Length / 2) - (MostSaid / 2), opens, closes - MostSaid);
+            to = from + MostSaid;
+        }
+
+        return (from > opens ? "…" : string.Empty) + words[from..to].Trim() + (to < closes ? "…" : string.Empty);
     }
 
     /// <summary>A name or term as a model listed it, without what it listed it with.</summary>
