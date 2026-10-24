@@ -201,6 +201,9 @@ public class ContentElement : FrameworkElement
     /// <summary>Opens whatever of the document is folded away over <paramref name="offset"/> (<see cref="ContentEngine.Unfolded"/>).</summary>
     protected bool Unfold(int offset) => _engine.Unfolded(offset);
 
+    /// <summary>Lays a long document as far as <paramref name="offset"/> and brings it onto the page once it is (<see cref="ContentEngine.Uncover"/>).</summary>
+    protected bool Uncover(int offset) => _engine.Uncover(offset);
+
     /// <summary>What lays the content out and holds it as it is being written — see <see cref="ContentEngine"/>.</summary>
     private readonly ContentEngine _engine;
 

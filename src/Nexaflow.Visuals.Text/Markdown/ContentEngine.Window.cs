@@ -200,6 +200,20 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
+    /// Lays a long document as far as <paramref name="offset"/> where it is not laid that far yet, and brings what stands there
+    /// onto the page once it is — for a place found, or gone to, that the reader has not scrolled anywhere near. False where
+    /// there is nothing to lay: the content is laid past it already, or is not shown a stretch at a time.
+    /// </summary>
+    internal bool Uncover(int offset)
+    {
+        if (_window is not { } window || offset < window.LaidTo || offset > window.Source.Length) return false;
+
+        Uncovering(offset);
+
+        return true;
+    }
+
+    /// <summary>
     /// How far down the content has to be laid: a screen past the bottom of what is on screen, or two widths of room where
     /// nothing has said what is on screen yet.
     /// </summary>
