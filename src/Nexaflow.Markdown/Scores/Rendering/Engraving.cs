@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using static Nexaflow.Markdown.Scores.Rendering.ScoreMetrics;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+namespace Nexaflow.Markdown.Scores.Rendering;
 
 /// <summary>
 /// The judgement calls of engraving, separated from the drawing so they can be reasoned about (and asserted)

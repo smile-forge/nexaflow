@@ -6,13 +6,13 @@ using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+namespace Nexaflow.Markdown.Scores.LilyPond;
 
 /// <summary>
 /// The words around the music: the lyrics sung under it, the chord names over it, and the header above it —
 /// each naming the characters it was written with, so each can be selected where it is drawn.
 /// </summary>
-internal sealed partial class LilyPondBuilder
+internal sealed partial class LilyPondEngraver
 {
     // ── Lyrics ──────────────────────────────────────────────────────────────
 

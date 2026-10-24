@@ -291,6 +291,8 @@ public class PortableTexBench
                 into.Append(" kept ").Append(paint.Kept is not null).Append(" scale ").Append(N(paint.Scale));
             }
 
+            if (tree.RegionOf(at) is WpfShape { Geometry: var region }) into.Append(" region ").Append(N(region.Bounds));
+
             into.AppendLine();
 
             foreach (var mark in tree.MarksOf(at))
@@ -298,6 +300,15 @@ public class PortableTexBench
                 into.Append("  ");
                 switch (mark)
                 {
+                    case PortableGeometryMark { Shape: WpfShape { Geometry: var outline } } shape:
+                        into.Append("outline ").Append(N(outline.Bounds)).Append(' ').Append(Ink(((WpfInk?)shape.Fill)?.Brush)).Append(' ')
+                            .Append(Ink(((WpfInk?)shape.Stroke?.Ink)?.Brush)).Append(' ').Append(N(shape.Stroke?.Thickness ?? 0))
+                            .Append(" dashes - path ").Append(PathHash(outline));
+                        break;
+                    case PortableTextMark text:
+                        into.Append("text ").Append(text.Glyphs.Text).Append(" at ").Append(N(text.At.X)).Append(',').Append(N(text.At.Y))
+                            .Append(' ').Append(N(text.Glyphs.Width)).Append(' ').Append(Ink(((WpfInk?)text.Ink)?.Brush));
+                        break;
                     case PortableGlyphMark { Run: GlyphRun run } glyphs:
                         into.Append("glyphs ").Append(Path.GetFileName(run.GlyphTypeface.FontUri.ToString())).Append(' ').Append(N(run.FontRenderingEmSize))
                             .Append(" at ").Append(N(run.BaselineOrigin.X)).Append(',').Append(N(run.BaselineOrigin.Y))
@@ -398,6 +409,8 @@ public class PortableTexBench
                 into.Append(" kept ").Append(paint.Kept is not null).Append(" scale ").Append(N(paint.Scale));
             }
 
+            if (tree.RegionOf(at) is { } region) into.Append(" region ").Append(N(region.Bounds));
+
             into.AppendLine();
 
             foreach (var mark in tree.MarksOf(at))
@@ -427,6 +440,11 @@ public class PortableTexBench
                     case WashMark wash:
                         into.Append("wash ").Append(N(wash.Bounds)).Append(' ').Append(Ink(wash.Fill));
                         break;
+                    case GeometryMark shape:
+                        into.Append("outline ").Append(N(shape.Shape.Bounds)).Append(' ').Append(Ink(shape.Fill)).Append(' ').Append(Ink(shape.Stroke))
+                            .Append(' ').Append(N(shape.Thickness)).Append(" dashes ").Append(shape.Dashes is null ? "-" : string.Join(";", shape.Dashes.Select(N)))
+                            .Append(" path ").Append(PathHash(shape.Shape));
+                        break;
                     default:
                         into.Append(mark.GetType().Name).Append(' ').Append(N(mark.Covers));
                         break;
@@ -435,6 +453,13 @@ public class PortableTexBench
                 into.AppendLine();
             }
         }
+    }
+
+    /// <summary>An outline's exact path, as a short stable hash: the same figures and points to the last digit give the same.</summary>
+    internal static string PathHash(Geometry shape)
+    {
+        var path = PathGeometry.CreateFromGeometry(shape).ToString(CultureInfo.InvariantCulture);
+        return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(path)))[..12];
     }
 
     internal static byte[] Pixels(Action<DrawingContext> paint, Size size)

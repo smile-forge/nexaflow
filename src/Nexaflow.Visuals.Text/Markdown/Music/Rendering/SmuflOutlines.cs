@@ -9,8 +9,8 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
 /// <summary>
-/// SMuFL (Standard Music Font Layout) glyph codepoints for the bundled Bravura font, plus the drawing helper
-/// every glyph goes through. The font is loaded once from disk (copied beside the assembly as
+/// The bundled Bravura font's glyphs as WPF draws them — filled outlines, their advances and their ink — for the codepoints
+/// <see cref="Nexaflow.Markdown.Scores.Rendering.Smufl"/> names. The font is loaded once from disk (copied beside the assembly as
 /// <c>MusicFonts\</c>); if it can't be found <see cref="Available"/> is false and the engraver falls back to
 /// plain geometry, so rendering degrades instead of crashing.
 ///
@@ -24,63 +24,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 /// outline reproduces the designed weight exactly. Outlines are cached per (glyph, em size) because a score
 /// repaints on every selection change.
 /// </summary>
-internal static class Smufl
+internal static class SmuflOutlines
 {
-    // ── Codepoints ──────────────────────────────────────────────────────────
-    public const int GClef = 0xE050;
-    public const int FClef = 0xE062;
-    public const int CClef = 0xE05C;
-
-    public const int NoteheadDoubleWhole = 0xE0A0;
-    public const int NoteheadWhole       = 0xE0A2;
-    public const int NoteheadHalf        = 0xE0A3;
-    public const int NoteheadBlack       = 0xE0A4;
-
-    public const int Flag8thUp    = 0xE240, Flag8thDown  = 0xE241;
-    public const int Flag16thUp   = 0xE242, Flag16thDown = 0xE243;
-    public const int Flag32ndUp   = 0xE244, Flag32ndDown = 0xE245;
-    public const int Flag64thUp   = 0xE246, Flag64thDown = 0xE247;
-
-    public const int AccidentalFlat        = 0xE260;
-    public const int AccidentalNatural     = 0xE261;
-    public const int AccidentalSharp       = 0xE262;
-    public const int AccidentalDoubleSharp = 0xE263;
-    public const int AccidentalDoubleFlat  = 0xE264;
-
-    public const int RestDoubleWhole = 0xE4E2;
-    public const int RestWhole       = 0xE4E3;
-    public const int RestHalf        = 0xE4E4;
-    public const int RestQuarter     = 0xE4E5;
-    public const int Rest8th         = 0xE4E6;
-    public const int Rest16th        = 0xE4E7;
-    public const int Rest32nd        = 0xE4E8;
-
-    public const int TimeSig0 = 0xE080;          // 0..9 are contiguous: TimeSig0 + digit
-    public const int TimeSigCommon    = 0xE08A;  // the C of common time…
-    public const int TimeSigCutCommon = 0xE08B;  // …and the struck C of cut time
-    public const int AugmentationDot = 0xE1E7;
-
-    // Articulations. Each has an "Above" and a "Below" form; the Below glyph is the next codepoint up.
-    public const int ArticAccentAbove   = 0xE4A0;
-    public const int ArticStaccatoAbove = 0xE4A2;
-    public const int ArticTenutoAbove   = 0xE4A4;
-    public const int ArticMarcatoAbove  = 0xE4AC;
-
-    public const int FermataAbove         = 0xE4C0;
-    public const int OrnamentTrill        = 0xE566;
-    public const int OrnamentTurn         = 0xE567;
-    public const int OrnamentMordent      = 0xE56C;
-    public const int OrnamentLowerMordent = 0xE56D;
-
-    public const int StringsDownBow = 0xE610;
-    public const int StringsUpBow   = 0xE612;
-
-    public const int Segno = 0xE047;
-    public const int Coda  = 0xE048;
-
-    /// <summary>Tuplet digits — a dedicated set, narrower than the time-signature figures.</summary>
-    public const int TupletDigit0 = 0xE880;
-
     // ── Font loading ────────────────────────────────────────────────────────
 
     private static readonly FontFamily? _font = LoadFont();
@@ -120,7 +65,8 @@ internal static class Smufl
         ? null
         : new Typeface(_font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
 
-    private static Typeface? Face => _face;
+    /// <summary>The Bravura face the outlines are cut from, or null where the font could not be found.</summary>
+    internal static Typeface? Face => _face;
 
     // ── Outline cache ───────────────────────────────────────────────────────
 

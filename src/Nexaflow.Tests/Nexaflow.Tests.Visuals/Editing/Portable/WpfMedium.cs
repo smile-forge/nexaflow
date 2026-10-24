@@ -38,8 +38,15 @@ internal sealed class WpfMedium : ILayoutMedium
     /// <summary>A face for a typeface a theme already holds.</summary>
     public WpfFace Face(Typeface typeface) => new(typeface);
 
-    public IShapedText Shape(string text, LayoutFace face, double size, LayoutInk ink, TextLines lines = TextLines.None, LayoutInk? dots = null) =>
-        Shape(text, ((WpfFace)face).Typeface, size, ((WpfInk)ink).Brush, Decorations(lines, ((WpfInk?)dots)?.Brush), CultureInfo.CurrentCulture);
+    public IShapedText Shape(string text, LayoutFace face, double size, LayoutInk ink, TextLines lines = TextLines.None, LayoutInk? dots = null,
+                             IReadOnlyList<(int Start, int Length, LayoutFace Face)>? faces = null)
+    {
+        var set = Shape(text, ((WpfFace)face).Typeface, size, ((WpfInk)ink).Brush, Decorations(lines, ((WpfInk?)dots)?.Brush), CultureInfo.CurrentCulture);
+        if (faces is not null)
+            foreach (var (start, length, own) in faces) set.SetFontTypeface(((WpfFace)own).Typeface, start, length);
+
+        return set;
+    }
 
     public TextMeasure Measuring(LayoutFace face, double size) => new WpfMeasure(TextWidths.Set(((WpfFace)face).Typeface, size));
 
@@ -108,6 +115,11 @@ internal sealed class WpfMedium : ILayoutMedium
     {
         if (_fonts.TryGetValue(file, out var known)) return known;
 
+        // The music font is loaded from beside the assembly by the outlines that draw it, and its face is that one.
+        if (file == "Bravura.otf")
+            return _fonts[file] = new WpfFace(Nexaflow.Visuals.Text.Markdown.Music.Rendering.SmuflOutlines.Face
+                                              ?? throw new InvalidOperationException("Bravura could not be found"));
+
         var opened = ((Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts.WpfGlyphTypeface)
             Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts.WpfMathFontProvider.Instance.ReadFontFile(file)).Typeface;
 
@@ -140,6 +152,38 @@ internal sealed class WpfMedium : ILayoutMedium
 
         return new LetterInk(set.Width, height, depth);
     }
+
+    /// <summary>
+    /// A glyph's outline, cut once for each face, glyph and size by laying it out from the top of its line and moving it up by its
+    /// ascent so its origin is its baseline — then placed by a transform of its own, the cut shared by every copy.
+    /// </summary>
+    public LayoutShape? GlyphOutline(LayoutFace face, int codepoint, double size, LayoutPoint baseline)
+    {
+        if (Cut(face, codepoint, size) is not { } cut) return null;
+
+        var placed = cut.Outline.Clone();
+        placed.Transform = new TranslateTransform(baseline.X, baseline.Y);
+        placed.Freeze();
+        return WpfShape.Of(placed);
+    }
+
+    public double GlyphAdvance(LayoutFace face, int codepoint, double size) => Cut(face, codepoint, size)?.Advance ?? 0;
+
+    private (Geometry Outline, double Advance)? Cut(LayoutFace face, int codepoint, double size)
+    {
+        var typeface = ((WpfFace)face).Typeface;
+        if (_cuts.TryGetValue((typeface, codepoint, size), out var known)) return known;
+        if (size <= 0) return null;
+
+        var set = new FormattedText(char.ConvertFromUtf32(codepoint), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface,
+                                    size, Brushes.Black, 1.0);
+        var outline = set.BuildGeometry(new Point(0, -set.Baseline));
+        outline.Freeze();
+
+        return _cuts[(typeface, codepoint, size)] = (outline, set.WidthIncludingTrailingWhitespace);
+    }
+
+    private readonly Dictionary<(Typeface Face, int Codepoint, double Size), (Geometry Outline, double Advance)?> _cuts = [];
 
     public ShapeBuilder Outline(bool evenOdd = true) => new WpfShapeBuilder(evenOdd);
 
@@ -240,6 +284,8 @@ internal sealed class WpfText(string text, CultureInfo culture, Typeface face, d
     : FormattedText(text, culture, FlowDirection.LeftToRight, face, size, ink, LayoutText.Density), IShapedText
 {
     public double WidthWithSpace => WidthIncludingTrailingWhitespace;
+
+    public double Overhang => OverhangAfter;
 
     public double Room => MaxTextWidth;
 

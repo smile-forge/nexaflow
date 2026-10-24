@@ -13,7 +13,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Scores.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;

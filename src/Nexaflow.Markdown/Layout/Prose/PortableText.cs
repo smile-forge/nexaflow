@@ -30,15 +30,20 @@ public static class PortableText
     /// Places one run of text with a piece per character standing for <paramref name="letters"/>, so it can be selected through
     /// — each line set once by <paramref name="medium"/> and every letter on it read off that setting, where the run holds lines.
     /// </summary>
+    /// <param name="lined">
+    /// Whether a run of several lines has each line set once and its letters read off that, rather than every letter found in the
+    /// whole run — false for words that hold no line breaks to speak of, a title over a score.
+    /// </param>
     public static int Place(PortableBuilder into, IShapedText text, LayoutPoint at, double room, LayoutAlign align, ISourcePart? part,
-                            string kind, IReadOnlyList<ISourcePart>? letters, ILayoutMedium medium, LayoutFace face, double size)
+                            string kind, IReadOnlyList<ISourcePart>? letters, ILayoutMedium medium, LayoutFace face, double size,
+                            bool lined = true)
     {
         text.Bound(room, align);
 
         var piece = into.Open(kind, part, at);
         into.Draw(new PortableTextMark(text, default, null));
 
-        if (align == LayoutAlign.Left && text.Text.Contains('\n')) Lined(into, text.Text, letters, kind, medium, face, size);
+        if (lined && align == LayoutAlign.Left && text.Text.Contains('\n')) Lined(into, text.Text, letters, kind, medium, face, size);
         else Letters(into, text, letters, kind);
 
         into.Close();

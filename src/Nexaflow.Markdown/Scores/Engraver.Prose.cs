@@ -1,15 +1,13 @@
+using Nexaflow.Markdown.Layout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
-using System.Windows.Media;
 using Nexaflow.Markdown.Music;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using Nexaflow.Visuals.Text.Editing;
-using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Markdown.Scores.Rendering;
+using static Nexaflow.Markdown.Scores.Rendering.ScoreMetrics;
 using Nexaflow.Markdown.Ast;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music;
+namespace Nexaflow.Markdown.Scores;
 
 /// <summary>
 /// The prose around a tune — its title, who wrote it, and the verses under it — engraved into the same
@@ -28,7 +26,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music;
 /// TextBlock ever was, and one drag can run from the heading through the music to the last verse.
 /// </para>
 /// </summary>
-internal abstract partial class MusicBuilder
+internal abstract partial class Engraver
 {
     /// <summary>Between two lines of the heading, and between two lines of the verses.</summary>
     private const double ProseLine = 0.2 * S;
@@ -53,11 +51,10 @@ internal abstract partial class MusicBuilder
         var room = Inside(width);
 
         if (header.Title is { } title)
-            y = Written(title, "title", y, room, TitleSize, TextAlignment.Center,
-                        weight: FontWeights.SemiBold);
+            y = Written(title, "title", y, room, TitleSize, LayoutAlign.Centre, semibold: true);
 
         foreach (var subtitle in header.Subtitles)
-            y = Written(subtitle, "subtitle", y, room, SubtitleSize, TextAlignment.Center);
+            y = Written(subtitle, "subtitle", y, room, SubtitleSize, LayoutAlign.Centre);
 
         // The rhythm at the left and the composer at the right, on one line — which is where an engraver
         // puts them, and why they share a y rather than being stacked.
@@ -66,11 +63,10 @@ internal abstract partial class MusicBuilder
             var row = y;
 
             if (header.Rhythm is { } left)
-                y = Math.Max(y, Written(left, "rhythm", row, room, CreditSize, TextAlignment.Left,
-                                        style: FontStyles.Italic));
+                y = Math.Max(y, Written(left, "rhythm", row, room, CreditSize, LayoutAlign.Left, italic: true));
 
             if (header.Credit is { } right)
-                y = Math.Max(y, Written(right, "credit", row, room, CreditSize, TextAlignment.Right));
+                y = Math.Max(y, Written(right, "credit", row, room, CreditSize, LayoutAlign.Right));
         }
 
         return y > 0 ? y + ProseGap : 0;
@@ -111,7 +107,7 @@ internal abstract partial class MusicBuilder
     private double Verse(MusicHeader.Prose line, double y, double x, double room) =>
         line.Text.Trim().Length == 0
             ? y + (FooterSize * 0.7)
-            : Written(line, "verse", y, room, FooterSize, TextAlignment.Left, at: x);
+            : Written(line, "verse", y, room, FooterSize, LayoutAlign.Left, at: x);
 
     /// <summary>The width prose is set in: the page, less the margins the music keeps either side.</summary>
     private static double Inside(double width) => Math.Max(4 * S, width - LeftMargin - RightMargin);
@@ -155,19 +151,17 @@ internal abstract partial class MusicBuilder
     /// <para>
     /// Where it goes is the only part of this that is about music — a title is centred over the first
     /// system, a composer is right against the margin, a verse is set in from the staff. That the words
-    /// become pieces of the tree naming what they were written as is not, and is done by
-    /// <see cref="LayoutText.Place"/> for anything that draws words at all.
+    /// become pieces of the tree naming what they were written as is not, and is the layer's to do, as it is
+    /// for anything that draws words at all.
     /// </para>
     /// </summary>
     /// <returns>The y the next line starts at.</returns>
     private double Written(MusicHeader.Prose prose, string kind, double y, double room,
-                           double size, TextAlignment align, double? at = null,
-                           FontWeight? weight = null, FontStyle? style = null)
+                           double size, LayoutAlign align, double? at = null, bool semibold = false, bool italic = false)
     {
-        var glyphs = ScoreText.Build(prose.Text, size, weight, style);
+        var glyphs = _layer.Words(prose.Text, size, semibold, italic);
 
-        LayoutText.Place(_build, glyphs, new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
-                         prose.Letters);
+        _layer.Prose(glyphs, new LayoutPoint(at ?? LeftMargin, y), room, align, prose.Part, kind, prose.Letters);
 
         // Asked of the type engine after it has been given its room, because that is when it knows: a title
         // too wide for its page is a paragraph, and how tall it is depends on where it broke.

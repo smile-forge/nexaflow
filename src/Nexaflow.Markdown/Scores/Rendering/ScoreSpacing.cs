@@ -1,6 +1,6 @@
-using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using static Nexaflow.Markdown.Scores.Rendering.ScoreMetrics;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+namespace Nexaflow.Markdown.Scores.Rendering;
 
 /// <summary>
 /// How much air an engraving puts between things — the numbers that are taste rather than notation.

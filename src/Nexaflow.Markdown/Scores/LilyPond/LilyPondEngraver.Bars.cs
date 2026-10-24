@@ -3,18 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Scores.Rendering;
 
-using KeySignature = Nexaflow.Visuals.Text.Markdown.Music.Model.KeySignature;
+using KeySignature = Nexaflow.Markdown.Scores.Model.KeySignature;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+namespace Nexaflow.Markdown.Scores.LilyPond;
 
 /// <summary>
 /// The three things LilyPond leaves to whoever engraves it: where the bars fall, which notes beam together, and
 /// which accidentals print. All three follow from the meter and the key where a note is played, which is only
 /// known once a staff has been played through.
 /// </summary>
-internal sealed partial class LilyPondBuilder
+internal sealed partial class LilyPondEngraver
 {
     /// <summary>One bar as it closed, with what beaming and accidentals need beside it.</summary>
     private sealed record Closed(Bar Bar, List<Sounded> Events, (int Beats, int Unit) Meter);

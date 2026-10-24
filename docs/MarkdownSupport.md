@@ -1713,11 +1713,12 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
   lasts and sounds, what each field or command sets, what each mark and each run of words written against a note
   is, and — ABC — which syllable is sung on which note or — LilyPond — how a chord's name is spelled, in the
   notation's own nodes and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
-- **How it is drawn.** A builder per notation —
-  [`AbcBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs),
-  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — walks that tree,
-  each its own way, into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
-  the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
+- **How it is drawn.** A reading per notation —
+  [`AbcEngraver`](../src/Nexaflow.Markdown/Scores/Abc/AbcEngraver.cs),
+  [`LilyPondEngraver`](../src/Nexaflow.Markdown/Scores/LilyPond/LilyPondEngraver.cs) — walks that tree,
+  each its own way, into rows of bars, and both are an [`Engraver`](../src/Nexaflow.Markdown/Scores/Engraver.cs),
+  the one engraver, which lays the rows through a layer onto the layout tree the formulas and barcodes already use —
+  [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs) draws it with WPF. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
   of it — a page decision, made by the builder round the score (`MusicBuilder`) rather than by the engraving, which fills
@@ -1853,7 +1854,7 @@ Three things LilyPond leaves to whoever engraves it have **no ABC counterpart**,
 engraving can be wrong in a way an ABC one cannot. All three follow from the meter and the key in force where a
 note is *played* — and a definition's notes are played wherever the definition is used, each time in that
 place's meter — so the builder works them out by playing the music through, not by reading them off the tree
-([`LilyPondBuilder.Bars`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.Bars.cs)):
+([`LilyPondEngraver.Bars`](../src/Nexaflow.Markdown/Scores/LilyPond/LilyPondEngraver.Bars.cs)):
 
 - **Bar lines come from the meter.** A `|` is a bar *check*, not a bar line: a tune with none in it still bars
   itself, and a check names the line the meter implies there, so a reader can point at it — a line nobody
@@ -1891,7 +1892,7 @@ place's meter — so the builder works them out by playing the music through, no
 | Structure | `\score`, `\book`, `name = { … }` + `\name`, `%` and `%{ … %}` | Definitions played where they are used, in that place's meter (so `\global` flows into a voice); Scheme `#( … )` read and skipped |
 
 **Engraving rules.** The judgement calls live in
-[`Engraving`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/Engraving.cs), separate from the
+[`Engraving`](../src/Nexaflow.Markdown/Scores/Rendering/Engraving.cs), separate from the
 drawing so they can be asserted rather than eyeballed:
 
 - **Stems** point away from the middle line, and in a beam group or a chord the note reaching furthest from it

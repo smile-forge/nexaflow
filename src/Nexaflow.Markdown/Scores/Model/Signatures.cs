@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Music.Model;
+namespace Nexaflow.Markdown.Scores.Model;
 
 /// <summary>
 /// A key signature expressed as a position on the circle of fifths: positive = that many sharps,

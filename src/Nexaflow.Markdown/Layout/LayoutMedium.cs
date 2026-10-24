@@ -28,7 +28,12 @@ public interface ILayoutMedium
     /// density — unbroken until it is given room.
     /// </summary>
     /// <param name="dots">The ink a <see cref="TextLines.Dotted"/> rule is drawn in, where it has one of its own.</param>
-    IShapedText Shape(string text, LayoutFace face, double size, LayoutInk ink, TextLines lines = TextLines.None, LayoutInk? dots = null);
+    /// <param name="faces">
+    /// Stretches set in a face of their own, from where each starts and for how many characters — a chord's flat at a lighter
+    /// weight than its letter — so the run is still one run, shaped and kerned as a whole.
+    /// </param>
+    IShapedText Shape(string text, LayoutFace face, double size, LayoutInk ink, TextLines lines = TextLines.None, LayoutInk? dots = null,
+                      IReadOnlyList<(int Start, int Length, LayoutFace Face)>? faces = null);
 
     /// <summary>
     /// What measures words set in <paramref name="face"/> at <paramref name="size"/> without setting a run of them — found once
@@ -63,6 +68,16 @@ public interface ILayoutMedium
 
     /// <summary>How far one letter set in <paramref name="face"/> at a size of one reaches: across, above its baseline, and below it.</summary>
     LetterInk Letter(LayoutFace face, char character);
+
+    /// <summary>
+    /// The outline of the glyph <paramref name="codepoint"/> names in <paramref name="face"/>, set at <paramref name="size"/> with its
+    /// baseline at <paramref name="baseline"/>, to be filled rather than set as text — a music glyph, whose thin strokes a text
+    /// renderer's contrast would thicken — or null where the face has none.
+    /// </summary>
+    LayoutShape? GlyphOutline(LayoutFace face, int codepoint, double size, LayoutPoint baseline);
+
+    /// <summary>How far the glyph <paramref name="codepoint"/> names in <paramref name="face"/>, set at <paramref name="size"/>, moves what follows it.</summary>
+    double GlyphAdvance(LayoutFace face, int codepoint, double size);
 
     /// <summary>An outline made figure by figure — see <see cref="ShapeBuilder"/>.</summary>
     ShapeBuilder Outline(bool evenOdd = true);
@@ -205,6 +220,9 @@ public interface IShapedText
 
     /// <summary>How far its ink reaches, top to bottom.</summary>
     double Extent { get; }
+
+    /// <summary>How far its ink reaches past the bottom of its box — less than nothing where it stops short of it.</summary>
+    double Overhang { get; }
 
     /// <summary>The room it is broken into lines to fit, or infinity where it is not broken.</summary>
     double Room { get; }

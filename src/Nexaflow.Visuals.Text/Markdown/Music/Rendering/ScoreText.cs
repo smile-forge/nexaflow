@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Scores.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
@@ -46,28 +47,9 @@ internal static class ScoreText
     /// </summary>
     public static FormattedText Chord(string text, double size, Brush? brush = null)
     {
-        var written = new System.Text.StringBuilder(text.Length);
-        var signs = new List<int>();
+        var (written, signs) = ChordSpelling.Spelled(text);
 
-        for (var at = 0; at < text.Length; at++)
-        {
-            // An accidental is one that follows a note letter, or another accidental — so `Bb` is B flat
-            // and `Bbm` is B flat minor, while the b of a word is left alone.
-            var after = written.Length > 0 ? written[^1] : '\0';
-            var isNote = after is >= 'A' and <= 'G' or '♭' or '♯';
-
-            if (isNote && text[at] is 'b' or '#')
-            {
-                signs.Add(written.Length);
-                written.Append(text[at] == 'b' ? '♭' : '♯');
-                continue;
-            }
-
-            written.Append(text[at]);
-        }
-
-        var glyphs = Build(written.ToString(), size, FontWeights.SemiBold, brush: brush,
-                           family: ChordFont);
+        var glyphs = Build(written, size, FontWeights.SemiBold, brush: brush, family: ChordFont);
 
         foreach (var at in signs) glyphs.SetFontWeight(FontWeights.Normal, at, 1);
 

@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+namespace Nexaflow.Markdown.Scores.Rendering;
 
 /// <summary>
 /// Every dimension the engraver uses, in one place, expressed as a multiple of the staff space — the unit

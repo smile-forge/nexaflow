@@ -5,16 +5,16 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Scores.Rendering;
 
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+namespace Nexaflow.Markdown.Scores.LilyPond;
 
 /// <summary>
 /// Playing a staff's music through: every event in the order it sounds, with what is written after it hung on
 /// it, and every change of key, meter and clef in the place it happens.
 /// </summary>
-internal sealed partial class LilyPondBuilder
+internal sealed partial class LilyPondEngraver
 {
     /// <summary>How a staff is being played, at the point the walk has reached.</summary>
     private sealed class Playing(Stave stave)

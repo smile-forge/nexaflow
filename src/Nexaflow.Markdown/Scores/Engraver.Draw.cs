@@ -1,17 +1,15 @@
+using Nexaflow.Markdown.Layout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
-using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 
-using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Markdown.Scores.Model;
+using Nexaflow.Markdown.Scores.Rendering;
+using static Nexaflow.Markdown.Scores.Rendering.ScoreMetrics;
 using Nexaflow.Markdown.Music;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music;
+namespace Nexaflow.Markdown.Scores;
 
 /// <summary>
 /// The half of the engraver that puts pieces into the tree: what each thing is drawn as, what holds it,
@@ -29,9 +27,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Music;
 /// output afterwards.
 /// </para>
 /// </summary>
-internal abstract partial class MusicBuilder
+internal abstract partial class Engraver
 {
-    private readonly LayoutBuilder _build = new();
+    private IScoreLayer _layer = null!;
 
     /// <summary>
     /// What was drawn where, kept while a tune is engraved so the orderings can be declared once it is.
@@ -53,29 +51,31 @@ internal abstract partial class MusicBuilder
     // ── Page coordinates in, frames out ─────────────────────────────────────
 
     /// <summary>Opens a piece at a page point; null <paramref name="at"/> starts it where its holder begins.</summary>
-    private int Open(string kind, ISourcePart? part = null, Point? at = null) =>
-        _build.Open(kind, part, at is { } page ? In(page) : default);
+    private int Open(string kind, ISourcePart? part = null, LayoutPoint? at = null) =>
+        _layer.Open(kind, part, at is { } page ? In(page) : default);
 
-    private void Close() => _build.Close();
+    private void Close() => _layer.Close();
 
     /// <summary>A point on the page, in the frame of the piece being built.</summary>
-    private Point In(Point at)
+    private LayoutPoint In(LayoutPoint at)
     {
-        var anchor = _build.Anchor;
-        return new Point(at.X - anchor.X, at.Y - anchor.Y);
+        var anchor = _layer.Anchor;
+        return new LayoutPoint(at.X - anchor.X, at.Y - anchor.Y);
     }
 
-    private Rect In(Rect what)
+    private LayoutRect In(LayoutRect what)
     {
-        var anchor = _build.Anchor;
-        return new Rect(what.X - anchor.X, what.Y - anchor.Y, what.Width, what.Height);
+        var anchor = _layer.Anchor;
+        return new LayoutRect(what.X - anchor.X, what.Y - anchor.Y, what.Width, what.Height);
     }
 
     // ── The whole of it ─────────────────────────────────────────────────────
 
-    private (LayoutTree Tree, Size Size) Engrave(Tune tune, double width)
+    /// <summary>The tune engraved at <paramref name="width"/> into <paramref name="layer"/>, and how much room it took.</summary>
+    internal (double Width, double Height) Engrave(Tune tune, double width, IScoreLayer layer)
     {
-        _noteHead = Smufl.Advance(Smufl.NoteheadBlack, S);
+        _layer = layer;
+        _noteHead = _layer.Advance(Smufl.NoteheadBlack, S);
         if (_noteHead <= 0) _noteHead = 1.18 * S;
 
         var rows = tune.Rows;
@@ -90,14 +90,14 @@ internal abstract partial class MusicBuilder
         var header = tune.Header;
         var paper = systems.Count == 0 ? width : systems.Max(s => s.Right) + RightMargin;
 
-        _build.Open("score");
+        _layer.Open("score", null, default);
 
         var top = Heading(header, paper);
 
         // Music is stacked below the heading rather than laid out then moved down; `Stack` takes the offset directly.
         if (systems.Count > 0) Stack(systems, top);
 
-        _build.Open("music");
+        _layer.Open("music", null, default);
 
         if (systems.Count > 0)
         {
@@ -108,19 +108,18 @@ internal abstract partial class MusicBuilder
             Brackets(systems);
         }
 
-        _build.Close();
+        _layer.Close();
 
-        Verses(header, paper, _build.Reached.IsEmpty ? 0 : _build.Reached.Bottom);
+        Verses(header, paper, _layer.Reached.IsEmpty ? 0 : _layer.Reached.Bottom);
 
-        _build.Close();
+        _layer.Close();
 
         Order();
-        var tree = _build.Seal();
 
-        var extent = tree.Root.Box;
-        if (extent.IsEmpty || (extent.Width <= 0 && extent.Height <= 0)) return (tree, new Size(0, 0));
+        var extent = _layer.Seal();
+        if (extent.IsEmpty || (extent.Width <= 0 && extent.Height <= 0)) return (0, 0);
 
-        return (tree, new Size(Math.Ceiling(extent.Right + RightMargin), Math.Ceiling(extent.Bottom + S)));
+        return (Math.Ceiling(extent.Right + RightMargin), Math.Ceiling(extent.Bottom + S));
     }
 
     // ── Drawing it ──────────────────────────────────────────────────────────
@@ -129,15 +128,15 @@ internal abstract partial class MusicBuilder
     {
         var geometry = StaffGeometry.For(system.Row.Clef);
 
-        Open("system", at: new Point(0, system.StaffTop));
+        Open("system", at: new LayoutPoint(0, system.StaffTop));
 
         Staff(system);
         Head(system, geometry);
 
         foreach (var bars in Sections(system.Bars))
         {
-            _sections.Add(Open("section", Spanning(bars), new Point(bars[0].X, system.StaffTop)));
-            _build.Reserves(0, StaffHeight);
+            _sections.Add(Open("section", Spanning(bars), new LayoutPoint(bars[0].X, system.StaffTop)));
+            _layer.Reserves(0, StaffHeight);
             foreach (var bar in bars) Draw(system, geometry, bar);
             Close();
         }
@@ -167,19 +166,19 @@ internal abstract partial class MusicBuilder
 
         if (system.ShowName && system.Row.Name is { Length: > 0 } name)
         {
-            var glyphs = ScoreText.Build(name, CreditSize);
-            var at = new Point(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
+            var glyphs = _layer.Words(name, CreditSize);
+            var at = new LayoutPoint(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
 
             Open("voice", at: at);
-            _build.Draw(new TextMark(glyphs, default, null));
+            _layer.Text(glyphs, default);
             Close();
 
             x += glyphs.Width + (0.6 * S);
         }
 
         var clefY = Y(system, geometry.ClefRefHalfSpaces);
-        Glyph("clef", geometry.ClefGlyph, new Point(x, clefY));
-        x += Smufl.Advance(geometry.ClefGlyph, S) + (0.6 * S);
+        Glyph("clef", geometry.ClefGlyph, new LayoutPoint(x, clefY));
+        x += _layer.Advance(geometry.ClefGlyph, S) + (0.6 * S);
 
         x = DrawKeySignature(system, geometry, x, system.Row.Fifths);
         if (system.ShowMeter && system.Row.Meter is { } meter) Meter(system, x, meter.Beats, meter.Unit, meter.Sign);
@@ -196,8 +195,8 @@ internal abstract partial class MusicBuilder
         for (var i = 0; i < count; i++)
         {
             var half = geometry.HalfSpacesAbove(geometry.KeyAccidentalIndex(i, sharp));
-            Glyph("key", glyph, new Point(x, Y(system, half)));
-            x += Smufl.Advance(glyph, S) + (0.08 * S);
+            Glyph("key", glyph, new LayoutPoint(x, Y(system, half)));
+            x += _layer.Advance(glyph, S) + (0.08 * S);
         }
 
         return x + (0.4 * S);
@@ -208,7 +207,7 @@ internal abstract partial class MusicBuilder
         // `M:C` / `M:C|` ask for the symbol, not the figures they happen to count as.
         if (sign is { } symbol)
         {
-            Glyph("meter", symbol, new Point(x, Y(system, 4)));
+            Glyph("meter", symbol, new LayoutPoint(x, Y(system, 4)));
             return;
         }
 
@@ -226,12 +225,12 @@ internal abstract partial class MusicBuilder
             foreach (var digit in digits)
             {
                 var glyph = Smufl.TimeSig0 + (digit - '0');
-                Glyph("meter", glyph, new Point(at, y));
-                at += Smufl.Advance(glyph, S);
+                Glyph("meter", glyph, new LayoutPoint(at, y));
+                at += _layer.Advance(glyph, S);
             }
         }
 
-        double Width(string digits) => digits.Sum(d => Smufl.Advance(Smufl.TimeSig0 + (d - '0'), S));
+        double Width(string digits) => digits.Sum(d => _layer.Advance(Smufl.TimeSig0 + (d - '0'), S));
         static string Digits(int value) => value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);
     }
 
@@ -255,8 +254,8 @@ internal abstract partial class MusicBuilder
 
     private void Draw(System system, StaffGeometry geometry, Bar bar)
     {
-        Open("measure", bar.Part, new Point(bar.X, system.StaffTop));
-        _build.Reserves(0, StaffHeight);
+        Open("measure", bar.Part, new LayoutPoint(bar.X, system.StaffTop));
+        _layer.Reserves(0, StaffHeight);
 
         var x = bar.X;
         if (bar.Opened is not null) x = DrawBarline(system, bar.Opened, x);
@@ -277,8 +276,8 @@ internal abstract partial class MusicBuilder
             // Beamed runs are pieces of their own — the beam is drawn on the group, notes hang under it.
             if (beam is not null)
             {
-                Open("beam", Notes(events) ?? beam, new Point(events[0].X, system.StaffTop));
-                _build.Reserves(0, StaffHeight);
+                Open("beam", Notes(events) ?? beam, new LayoutPoint(events[0].X, system.StaffTop));
+                _layer.Reserves(0, StaffHeight);
                 Beamed(system, geometry, bar, beam, events);
                 Close();
             }
@@ -310,8 +309,8 @@ internal abstract partial class MusicBuilder
         Tuplets(system, geometry, bar);
         DrawBarline(system, bar);
 
-        if (_build.Reached.IsEmpty)
-            _build.Covers(In(new Rect(bar.X, system.StaffTop, bar.Width, StaffHeight)));
+        if (_layer.Reached.IsEmpty)
+            _layer.Covers(In(new LayoutRect(bar.X, system.StaffTop, bar.Width, StaffHeight)));
 
         Close();
     }
@@ -407,20 +406,12 @@ internal abstract partial class MusicBuilder
                 var y0 = plan.Reach + (plan.Slope * (x0 - plan.Xs[0])) + offset;
                 var y1 = plan.Reach + (plan.Slope * (x1 - plan.Xs[0])) + offset;
 
-                Open("beam-bar", at: new Point(Math.Min(x0, x1), Math.Min(y0, y1)));
+                Open("beam-bar", at: new LayoutPoint(Math.Min(x0, x1), Math.Min(y0, y1)));
 
-                var one = In(new Point(x0, y0));
-                var other = In(new Point(x1, y1));
+                var one = In(new LayoutPoint(x0, y0));
+                var other = In(new LayoutPoint(x1, y1));
 
-                var bar = new PathGeometry();
-                var figure = new PathFigure { StartPoint = one, IsClosed = true, IsFilled = true };
-                figure.Segments.Add(new LineSegment(other, false));
-                figure.Segments.Add(new LineSegment(new Point(other.X, other.Y + BeamThick), false));
-                figure.Segments.Add(new LineSegment(new Point(one.X, one.Y + BeamThick), false));
-                bar.Figures.Add(figure);
-                bar.Freeze();
-
-                _build.Draw(GeometryMark.Filled(bar));
+                _layer.Polygon(one, other, new LayoutPoint(other.X, other.Y + BeamThick), new LayoutPoint(one.X, one.Y + BeamThick));
                 Close();
             }
         }
@@ -458,12 +449,12 @@ internal abstract partial class MusicBuilder
     private void Note(System system, StaffGeometry geometry, Event ev, bool flags,
                       double? toY = null, bool? stemsDown = null)
     {
-        var at = Open(ev.IsRest ? "rest" : "note", ev.Part, new Point(ev.X, system.StaffTop));
-        _build.Reserves(0, StaffHeight);   // a caret against a note is the height of the staff it stands on
+        var at = Open(ev.IsRest ? "rest" : "note", ev.Part, new LayoutPoint(ev.X, system.StaffTop));
+        _layer.Reserves(0, StaffHeight);   // a caret against a note is the height of the staff it stands on
 
         if (ev.Invisible)
         {
-            _build.Covers(In(new Rect(ev.X, system.StaffTop, Math.Max(ev.SlotWidth, 1), StaffHeight)));
+            _layer.Covers(In(new LayoutRect(ev.X, system.StaffTop, Math.Max(ev.SlotWidth, 1), StaffHeight)));
             Close();
             return;
         }
@@ -472,10 +463,10 @@ internal abstract partial class MusicBuilder
         {
             var half = ev.BaseValue == 1 ? 6 : 4;
             var glyph = RestGlyph(ev.WholeBar ? 1 : ev.BaseValue);
-            var x = ev.WholeBar ? ev.X + ((ev.SlotWidth - Smufl.Advance(glyph, S)) / 2) : ev.X;
+            var x = ev.WholeBar ? ev.X + ((ev.SlotWidth - _layer.Advance(glyph, S)) / 2) : ev.X;
 
-            Glyph("rest-glyph", glyph, new Point(x, Y(system, half)));
-            Dots(system, x + Smufl.Advance(glyph, S), 4, ev.Dots);
+            Glyph("rest-glyph", glyph, new LayoutPoint(x, Y(system, half)));
+            Dots(system, x + _layer.Advance(glyph, S), 4, ev.Dots);
             Close();
 
             _staff.Add(at);   // on the staff as much as a note is; in no stack, since nothing is sung on a rest
@@ -489,13 +480,13 @@ internal abstract partial class MusicBuilder
         {
             if (ev.Accidentals.Length <= i || ev.Accidentals[i] is not { } alter) continue;
             Glyph("accidental", Glyph(alter),
-                  new Point(ev.X - ev.AccidentalWidth, Y(system, geometry.HalfSpacesAbove(ev.Heads[i]))));
+                  new LayoutPoint(ev.X - ev.AccidentalWidth, Y(system, geometry.HalfSpacesAbove(ev.Heads[i]))));
         }
 
         foreach (var pitch in ev.Heads)
         {
             var half = geometry.HalfSpacesAbove(pitch);
-            Glyph("head", head, new Point(ev.X, Y(system, half)));
+            Glyph("head", head, new LayoutPoint(ev.X, Y(system, half)));
             Ledgers(system, ev.X, half);
         }
 
@@ -544,7 +535,7 @@ internal abstract partial class MusicBuilder
 
         foreach (var (half, y) in heads)
         {
-            Mark(Smufl.NoteheadBlack, new Point(x, y), GraceScale);
+            Mark(Smufl.NoteheadBlack, new LayoutPoint(x, y), GraceScale);
             for (var line = 10; line <= half; line += 2) Ledger(system, x, line, width);
             for (var line = -2; line >= half; line -= 2) Ledger(system, x, line, width);
 
@@ -571,12 +562,10 @@ internal abstract partial class MusicBuilder
         if (ev.GraceSlashed && firstStem is { } slashAt)
         {
             // The acciaccatura slash, through the first grace note's stem.
-            var one = In(new Point(slashAt - (0.5 * S), top + (0.9 * S)));
-            var other = In(new Point(slashAt + (0.5 * S), top - (0.2 * S)));
+            var one = In(new LayoutPoint(slashAt - (0.5 * S), top + (0.9 * S)));
+            var other = In(new LayoutPoint(slashAt + (0.5 * S), top - (0.2 * S)));
 
-            var slash = new LineGeometry(one, other);
-            slash.Freeze();
-            _build.Draw(new GeometryMark(slash, null, null, StemThick * 1.6));
+            _layer.Stroke(one, other, StemThick * 1.6);
         }
 
         Close();
@@ -600,7 +589,7 @@ internal abstract partial class MusicBuilder
         foreach (var glyph in ev.HeadMarks)
         {
             Glyph("articulation", glyph,
-                  new Point(ev.X + ((_noteHead - Smufl.Advance(glyph, S, MarkScale)) / 2), Y(system, at)),
+                  new LayoutPoint(ev.X + ((_noteHead - _layer.Advance(glyph, S, MarkScale)) / 2), Y(system, at)),
                   MarkScale);
 
             at += down ? 2 : -2;
@@ -622,7 +611,7 @@ internal abstract partial class MusicBuilder
         foreach (var glyph in ev.StaffMarks)
         {
             Glyph("articulation", glyph,
-                  new Point(ev.X + ((_noteHead - Smufl.Advance(glyph, S, MarkScale)) / 2), y),
+                  new LayoutPoint(ev.X + ((_noteHead - _layer.Advance(glyph, S, MarkScale)) / 2), y),
                   MarkScale);
 
             y += MarkRow;
@@ -638,20 +627,20 @@ internal abstract partial class MusicBuilder
         {
             if (text.Length == 0) continue;
 
-            var glyphs = ScoreText.Build(text, ChordSize);
+            var glyphs = _layer.Words(text, ChordSize);
 
             var at = where switch
             {
-                AnnotationPlacement.Above => new Point(ev.X, system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)),
-                AnnotationPlacement.Below => new Point(
+                AnnotationPlacement.Above => new LayoutPoint(ev.X, system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)),
+                AnnotationPlacement.Below => new LayoutPoint(
                     ev.X,
                     system.StaffTop + StaffHeight + system.Below - (system.TextBelow * TextRow) + (below++ * TextRow)),
-                AnnotationPlacement.Left => new Point(ev.X - glyphs.Width - (0.3 * S), system.StaffTop + S),
-                _ => new Point(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
+                AnnotationPlacement.Left => new LayoutPoint(ev.X - glyphs.Width - (0.3 * S), system.StaffTop + S),
+                _ => new LayoutPoint(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
             };
 
             Open("annotation", at: at);
-            _build.Draw(new TextMark(glyphs, default, null));
+            _layer.Text(glyphs, default);
             Close();
         }
     }
@@ -677,20 +666,18 @@ internal abstract partial class MusicBuilder
         var endY = toY ?? (down ? Y(system, halves.Min()) + StemLen : Y(system, halves.Max()) - StemLen);
         var x = down ? ev.X + (StemThick / 2) : ev.X + _noteHead - (StemThick / 2);
 
-        var bounds = new Rect(x - (StemThick / 2), Math.Min(fromY, endY), StemThick, Math.Abs(endY - fromY));
+        var bounds = new LayoutRect(x - (StemThick / 2), Math.Min(fromY, endY), StemThick, Math.Abs(endY - fromY));
 
         Open("stem", at: bounds.TopLeft);
 
-        var stem = new RectangleGeometry(In(bounds));
-        stem.Freeze();
-        _build.Draw(GeometryMark.Filled(stem));
+        _layer.Box(In(bounds));
 
         Close();
 
         if (!flags || ev.BaseValue < 8) return;
 
         var flag = FlagGlyph(ev.BaseValue, down);
-        if (flag != 0) Glyph("flag", flag, new Point(x, endY));
+        if (flag != 0) Glyph("flag", flag, new LayoutPoint(x, endY));
     }
 
     // ── The small pieces ────────────────────────────────────────────────────
@@ -710,12 +697,12 @@ internal abstract partial class MusicBuilder
 
     /// <summary>A filled rectangle on the piece being built — a staff line, a stem, a beam, a ledger.</summary>
     private void Rule(double x, double y, double width, double height) =>
-        _build.Draw(new RuleMark(In(new Rect(x, y, Math.Max(width, 0), Math.Max(height, 0))), null));
+        _layer.Rule(In(new LayoutRect(x, y, Math.Max(width, 0), Math.Max(height, 0))));
 
     /// <summary>…and the same on a piece of its own.</summary>
     private void Ruled(string kind, double x, double y, double width, double height)
     {
-        Open(kind, at: new Point(x, y));
+        Open(kind, at: new LayoutPoint(x, y));
         Rule(x, y, width, height);
         Close();
     }
@@ -728,8 +715,8 @@ internal abstract partial class MusicBuilder
 
         for (var i = 0; i < dots; i++)
         {
-            Glyph("dot", Smufl.AugmentationDot, new Point(cursor, Y(system, at)));
-            cursor += Smufl.Advance(Smufl.AugmentationDot, S) + DotSpacing;
+            Glyph("dot", Smufl.AugmentationDot, new LayoutPoint(cursor, Y(system, at)));
+            cursor += _layer.Advance(Smufl.AugmentationDot, S) + DotSpacing;
         }
     }
 
@@ -737,14 +724,14 @@ internal abstract partial class MusicBuilder
     {
         if (ev.ChordSymbol is not { Length: > 0 } text) return;
 
-        var glyphs = ScoreText.Chord(text, ChordSize);
-        var at = new Point(ev.X, system.StaffTop - system.Above);
+        var glyphs = _layer.Chord(text, ChordSize);
+        var at = new LayoutPoint(ev.X, system.StaffTop - system.Above);
 
         // Its own piece rather than a mark on the note, since a chord symbol is something a reader picks out on its own.
         var chord = Open("chord", ev.ChordPart, at);
-        var (top, height) = Letters(ScoreText.Chord("Hg", ChordSize));
-        _build.Reserves(top, height);
-        _build.Draw(new TextMark(glyphs, default, null));
+        var (top, height) = _layer.Chord("Hg", ChordSize).Letters;
+        _layer.Reserves(top, height);
+        _layer.Text(glyphs, default);
         Close();
 
         _chords.Add((ev, chord));
@@ -769,15 +756,15 @@ internal abstract partial class MusicBuilder
 
             if (text.Length == 0) continue;
 
-            var glyphs = ScoreText.Build(hyphen ? text + "-" : text, LyricSize);
-            var at = new Point(ev.X + (_noteHead / 2) - (glyphs.Width / 2), y);
+            var glyphs = _layer.Words(hyphen ? text + "-" : text, LyricSize);
+            var at = new LayoutPoint(ev.X + (_noteHead / 2) - (glyphs.Width / 2), y);
 
             // Layout position (under the note) and source part (written a line away) deliberately diverge —
             // that's what lets a syllable be picked out of a verse without the note coming with it.
             var sung = Open("syllable", part, at);
-            var (top, height) = Letters(ScoreText.Build("Hg", LyricSize));
-            _build.Reserves(top, height);
-            _build.Draw(new TextMark(glyphs, default, null));
+            var (top, height) = _layer.Words("Hg", LyricSize).Letters;
+            _layer.Reserves(top, height);
+            _layer.Text(glyphs, default);
             Close();
 
             _sung.Add((ev, verse, sung));
@@ -793,15 +780,15 @@ internal abstract partial class MusicBuilder
         // break has nothing before it on this line, so it starts at the head instead.
         var from = before is null ? ev.X : (before.X + (_noteHead / 2));
         if (before?.Lyrics.FirstOrDefault(l => l.Verse == verse) is { Text.Length: > 0 } sung)
-            from += (ScoreText.Width(sung.Text, LyricSize) / 2) + (0.3 * S);
+            from += (_layer.Width(sung.Text, LyricSize) / 2) + (0.3 * S);
 
         if (to - from < 0.2 * S) return;
 
         var at = y + (LyricSize * 0.78);
-        var rule = new Rect(from, at - (MelismaThick / 2), to - from, MelismaThick);
+        var rule = new LayoutRect(from, at - (MelismaThick / 2), to - from, MelismaThick);
 
         Open("melisma", at: rule.TopLeft);
-        _build.Draw(new GeometryMark(new RectangleGeometry(In(rule)), _ink, null, 0));
+        _layer.Inked(In(rule));
         Close();
     }
 
@@ -818,7 +805,7 @@ internal abstract partial class MusicBuilder
 
         // The lowest head at each end, since the curve hangs under both.
         var toY = Y(system, geometry.HalfSpacesAbove(ev.Heads.Min())) + CurveClear;
-        Arc(new Point(from, fromY + CurveClear), new Point(to, toY), above: false, "grace-slur");
+        Arc(new LayoutPoint(from, fromY + CurveClear), new LayoutPoint(to, toY), above: false, "grace-slur");
     }
 
     /// <summary>
@@ -843,9 +830,9 @@ internal abstract partial class MusicBuilder
             if (halves.Count > 0 && bar.Events[at].TupletNumber > 1)
             {
                 var down = Engraving.StemDown(halves);
-                var glyphs = ScoreText.Build(
+                var glyphs = _layer.Words(
                     bar.Events[at].TupletNumber.ToString(global::System.Globalization.CultureInfo.InvariantCulture),
-                    VoltaSize, style: FontStyles.Italic);
+                    VoltaSize, italic: true);
 
                 var left = events[0].X;
                 var right = events[^1].X + _noteHead;
@@ -853,10 +840,10 @@ internal abstract partial class MusicBuilder
                     ? Y(system, halves.Min()) + StemLen
                     : Y(system, halves.Max()) - StemLen - glyphs.Height;
 
-                var where = new Point(((left + right) / 2) - (glyphs.Width / 2), y);
+                var where = new LayoutPoint(((left + right) / 2) - (glyphs.Width / 2), y);
 
                 Open("tuplet", at: where);
-                _build.Draw(new TextMark(glyphs, default, null));
+                _layer.Text(glyphs, default);
                 Close();
             }
 
@@ -879,7 +866,7 @@ internal abstract partial class MusicBuilder
         var top = system.StaffTop;
         var height = StaffHeight;
 
-        var piece = Open("barline", line.Part, new Point(from, top));
+        var piece = Open("barline", line.Part, new LayoutPoint(from, top));
 
         // Only on the staff's run where somebody wrote it — a meter-implied line names nothing.
         if (line.Part is not null) _staff.Add(piece);
@@ -908,7 +895,7 @@ internal abstract partial class MusicBuilder
             }
         }
 
-        if (_build.Reached.IsEmpty) _build.Covers(In(new Rect(x, top, ThinBarline, height)));
+        if (_layer.Reached.IsEmpty) _layer.Covers(In(new LayoutRect(x, top, ThinBarline, height)));
 
         Close();
         return x;
@@ -916,9 +903,7 @@ internal abstract partial class MusicBuilder
         void Dot(double at, double y)
         {
             var size = 0.32 * S;
-            var dot = new EllipseGeometry(In(new Rect(at, y - (size / 2), size, size)));
-            dot.Freeze();
-            _build.Draw(GeometryMark.Filled(dot));
+            _layer.Dot(In(new LayoutRect(at, y - (size / 2), size, size)));
         }
     }
 
@@ -949,7 +934,7 @@ internal abstract partial class MusicBuilder
             // Clamped to the left edge: the margin is only two pixels, so a correctly-placed bracket would be half off the page.
             var x = Math.Max(0, LeftMargin - BracketWidth);
 
-            Open("bracket", at: new Point(x, top));
+            Open("bracket", at: new LayoutPoint(x, top));
 
             Rule(x, top, BracketWidth, bottom - top);
 
@@ -1000,7 +985,7 @@ internal abstract partial class MusicBuilder
             var right = system.Bars[last].X + system.Bars[last].Width;
             var y = system.StaffTop - system.Above;
 
-            Open("volta", part, new Point(left, y));
+            Open("volta", part, new LayoutPoint(left, y));
 
             Rule(left, y, right - left, StaffLineThick * 1.6);
             Rule(left, y, StaffLineThick * 1.6, VoltaTick);
@@ -1011,9 +996,9 @@ internal abstract partial class MusicBuilder
 
             if (system.Bars[at].VoltaLabel is { Length: > 0 } label)
             {
-                var glyphs = ScoreText.Build(label + ".", VoltaSize);
-                var where = In(new Point(left + (0.45 * S), y + (0.28 * S)));
-                _build.Draw(new TextMark(glyphs, where, null));
+                var glyphs = _layer.Words(label + ".", VoltaSize);
+                var where = In(new LayoutPoint(left + (0.45 * S), y + (0.28 * S)));
+                _layer.Text(glyphs, where);
             }
 
             Close();
@@ -1023,7 +1008,7 @@ internal abstract partial class MusicBuilder
     // ── Glyphs ──────────────────────────────────────────────────────────────
 
     /// <summary>A glyph on a piece of its own — the ordinary case, since each is part of a thing's drawing.</summary>
-    private void Glyph(string kind, int codepoint, Point baseline, double scale = 1.0)
+    private void Glyph(string kind, int codepoint, LayoutPoint baseline, double scale = 1.0)
     {
         Open(kind, at: baseline);
         Mark(codepoint, baseline, scale);
@@ -1031,21 +1016,13 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>Records a glyph as a filled outline, not text — WPF's text pipeline gamma-corrects glyph coverage and visibly fattens a music font's thin strokes.</summary>
-    private void Mark(int codepoint, Point baseline, double scale = 1.0)
+    private void Mark(int codepoint, LayoutPoint baseline, double scale = 1.0)
     {
         var at = In(baseline);
 
-        if (Smufl.Outline(codepoint, at, S, scale) is not { } outline)
-        {
-            // No font: a hollow head of about the right size keeps the tune readable rather than blank.
-            var fallback = new EllipseGeometry(new Point(at.X + (_noteHead / 2), at.Y),
-                                               _noteHead / 2, S * 0.35);
-            fallback.Freeze();
-            _build.Draw(new GeometryMark(fallback, null, null, 0.12 * S));
-            return;
-        }
-
-        _build.Draw(GeometryMark.Filled(outline));
+        // No font: a hollow head of about the right size keeps the tune readable rather than blank.
+        if (!_layer.Glyph(codepoint, at, S, scale))
+            _layer.Ring(new LayoutPoint(at.X + (_noteHead / 2), at.Y), _noteHead / 2, S * 0.35, 0.12 * S);
     }
 
     // ── Ties and slurs ──────────────────────────────────────────────────────
@@ -1249,8 +1226,8 @@ internal abstract partial class MusicBuilder
     {
         var clear = curve.Nesting * CurveNest;
 
-        Arc(new Point(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, curve.Above, clear)),
-            new Point(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, curve.Above, clear)),
+        Arc(new LayoutPoint(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, curve.Above, clear)),
+            new LayoutPoint(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, curve.Above, clear)),
             curve.Above, curve.Kind, clear);
     }
 
@@ -1267,8 +1244,8 @@ internal abstract partial class MusicBuilder
 
             var above = curve.Above;
 
-            var start = new Point(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, above));
-            var end = new Point(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, above));
+            var start = new LayoutPoint(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, above));
+            var end = new LayoutPoint(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, above));
 
             if (ReferenceEquals(curve.FromSystem, curve.ToSystem))
             {
@@ -1283,13 +1260,13 @@ internal abstract partial class MusicBuilder
             if (ReferenceEquals(curve.FromSystem, system))
             {
                 Open(curve.Kind + "-set", at: start);
-                Arc(start, new Point(system.Right - (0.5 * S), start.Y), above, curve.Kind);
+                Arc(start, new LayoutPoint(system.Right - (0.5 * S), start.Y), above, curve.Kind);
                 Close();
             }
             else if (ReferenceEquals(curve.ToSystem, system))
             {
                 Open(curve.Kind + "-set", at: end);
-                Arc(new Point(system.HeadWidth - (0.5 * S), end.Y), end, above, curve.Kind);
+                Arc(new LayoutPoint(system.HeadWidth - (0.5 * S), end.Y), end, above, curve.Kind);
                 Close();
             }
         }
@@ -1319,28 +1296,21 @@ internal abstract partial class MusicBuilder
     /// <strong>It carries no part.</strong> Nobody typed it directly; giving it one would offer a shallow
     /// caret stop spanning both notes that wins over the actual notes wherever a tie begins.
     /// </summary>
-    private void Arc(Point from, Point to, bool above, string kind, double clear = 0)
+    private void Arc(LayoutPoint from, LayoutPoint to, bool above, string kind, double clear = 0)
     {
         var span = Math.Abs(to.X - from.X);
         if (span < 1) return;
 
-        Open(kind, at: new Point(Math.Min(from.X, to.X), Math.Min(from.Y, to.Y)));
+        Open(kind, at: new LayoutPoint(Math.Min(from.X, to.X), Math.Min(from.Y, to.Y)));
 
         var one = In(from);
         var other = In(to);
 
         var rise = (Math.Clamp(CurveRise + (span * 0.06), CurveRise, CurveMaxRise) + clear) * (above ? -1 : 1);
-        var middle = new Point((one.X + other.X) / 2, ((one.Y + other.Y) / 2) + rise);
-        var inner = new Point(middle.X, middle.Y - (CurveThick * (above ? -1 : 1)));
+        var middle = new LayoutPoint((one.X + other.X) / 2, ((one.Y + other.Y) / 2) + rise);
+        var inner = new LayoutPoint(middle.X, middle.Y - (CurveThick * (above ? -1 : 1)));
 
-        var path = new PathGeometry();
-        var figure = new PathFigure { StartPoint = one, IsClosed = true, IsFilled = true };
-        figure.Segments.Add(new QuadraticBezierSegment(middle, other, false));
-        figure.Segments.Add(new QuadraticBezierSegment(inner, one, false));
-        path.Figures.Add(figure);
-        path.Freeze();
-
-        _build.Draw(GeometryMark.Filled(path));
+        _layer.Crescent(one, middle, other, inner);
 
         Close();
     }
@@ -1366,12 +1336,12 @@ internal abstract partial class MusicBuilder
         // Along each layer, in engraved (= read) order. A run adds what containment can't say: that the
         // last note of a line and the first of the next are neighbours, since a line break is a fact about
         // the paper, not the tune. The staff's run keeps its rests and bar lines too, since a drag along it passes over them.
-        _build.Runs(_sections, vertical: false);
-        _build.Runs(_staff, vertical: false);
-        _build.Runs([.. _chords.Select(c => c.At)], vertical: false);
+        _layer.Runs(_sections, vertical: false);
+        _layer.Runs(_staff, vertical: false);
+        _layer.Runs([.. _chords.Select(c => c.At)], vertical: false);
 
         foreach (var verse in _sung.GroupBy(s => s.Verse).OrderBy(g => g.Key))
-            _build.Runs([.. verse.Select(v => v.At)], vertical: false);
+            _layer.Runs([.. verse.Select(v => v.At)], vertical: false);
 
         // Down through everything that sounds at one moment.
         var chords = _chords.ToDictionary(c => c.Event, c => c.At);
@@ -1384,20 +1354,11 @@ internal abstract partial class MusicBuilder
             stack.Add(head);
             if (sung.TryGetValue(ev, out var verses)) stack.AddRange(verses.Select(v => v.At));
 
-            _build.Runs(stack, vertical: true);
+            _layer.Runs(stack, vertical: true);
         }
     }
 
-    /// <summary>
-    /// Where a text line's letters actually sit inside its layout box — top of a capital to bottom of a
-    /// descender, excluding leading. Needed because a wash or caret using the whole box reaches into the
-    /// line above/below given how tightly lyrics are set.
-    /// </summary>
-    private static (double Top, double Height) Letters(FormattedText sample)
-    {
-        var bottom = sample.Height + sample.OverhangAfter;
-        return (bottom - sample.Extent, sample.Extent);
-    }
+    
 
     /// <summary>
     /// What a beamed run names: its notes, first to last — not the group as read, which can begin at a

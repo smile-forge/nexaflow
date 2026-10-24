@@ -1,7 +1,7 @@
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
+using Nexaflow.Markdown.Scores.Model;
 using Nexaflow.Markdown.Music;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+namespace Nexaflow.Markdown.Scores.Rendering;
 
 /// <summary>
 /// Vertical placement maths for one clef. A staff's bottom line is "half-space 0"; every diatonic step

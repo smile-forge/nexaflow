@@ -6,8 +6,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Scores.Model;
+using Nexaflow.Markdown.Scores.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 

@@ -1,23 +1,21 @@
+using Nexaflow.Markdown.Layout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
-using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 
-using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Markdown.Scores.Model;
+using Nexaflow.Markdown.Scores.Rendering;
+using static Nexaflow.Markdown.Scores.Rendering.ScoreMetrics;
 using Nexaflow.Markdown.Music;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music;
+namespace Nexaflow.Markdown.Scores;
 
 /// <summary>
 /// The half of the engraver that knows about a page: how much room each event takes, where the systems
 /// break, how they are justified, and where every glyph lands.
 /// </summary>
-internal abstract partial class MusicBuilder
+internal abstract partial class Engraver
 {
     /// <summary>A run of bars set on one line, with the room its notation actually needs above and below.</summary>
     private sealed class System
@@ -69,7 +67,7 @@ internal abstract partial class MusicBuilder
     private void Measure(Event ev, bool grouped)
     {
         ev.AccidentalWidth = ev.Accidentals.Any(a => a is not null)
-            ? Smufl.Advance(Glyph(ev.Accidentals.First(a => a is not null)!.Value), S) + AccGap
+            ? _layer.Advance(Glyph(ev.Accidentals.First(a => a is not null)!.Value), S) + AccGap
             : 0;
 
         // Grace notes take no time but still take space — the one place notation and arithmetic disagree.
@@ -82,7 +80,7 @@ internal abstract partial class MusicBuilder
         var rate = grouped ? _spacing.GroupRate : _spacing.SlotRate;
 
         var natural = space + (rate * Math.Sqrt(Math.Max(ev.Quarters, 0.03125)));
-        var dots = ev.Dots > 0 ? DotGap + (ev.Dots * (Smufl.Advance(Smufl.AugmentationDot, S) + DotSpacing)) : 0;
+        var dots = ev.Dots > 0 ? DotGap + (ev.Dots * (_layer.Advance(Smufl.AugmentationDot, S) + DotSpacing)) : 0;
 
         // What must physically fit: the head, and whatever is crushed in beside it.
         var fits = _noteHead + SlotFloor + ev.AccidentalWidth + ev.GraceWidth + dots;
@@ -95,19 +93,19 @@ internal abstract partial class MusicBuilder
         foreach (var (text, where) in ev.Annotations)
         {
             if (where is not (AnnotationPlacement.Left or AnnotationPlacement.Right)) continue;
-            ev.SlotWidth = Math.Max(ev.SlotWidth, fits + ScoreText.Width(text, ChordSize) + (0.4 * S));
+            ev.SlotWidth = Math.Max(ev.SlotWidth, fits + _layer.Width(text, ChordSize) + (0.4 * S));
         }
 
         // A wide chord name over a short note must still clear the next note along.
         if (ev.ChordSymbol is { Length: > 0 } chord)
             ev.SlotWidth = Math.Max(ev.SlotWidth,
-                                    ScoreText.Chord(chord, ChordSize).Width + (0.5 * S));
+                                    _layer.Chord(chord, ChordSize).Width + (0.5 * S));
 
         // Centred under its head, so it charges the note only half its width — full width made lines of long/short words lurch.
         foreach (var (_, text, _, _, _) in ev.Lyrics)
         {
             if (text.Length == 0) continue;
-            var wanted = (ScoreText.Width(text, LyricSize) / 2) + LyricGap;
+            var wanted = (_layer.Width(text, LyricSize) / 2) + LyricGap;
             ev.SlotWidth = Math.Max(ev.SlotWidth, wanted + (_noteHead / 2));
         }
     }
@@ -165,10 +163,10 @@ internal abstract partial class MusicBuilder
         Math.Abs(key.Fifths) == 0
             ? 0
             : Math.Min(Math.Abs(key.Fifths), 7)
-              * (Smufl.Advance(key.Fifths > 0 ? Smufl.AccidentalSharp : Smufl.AccidentalFlat, S) + (0.08 * S));
+              * (_layer.Advance(key.Fifths > 0 ? Smufl.AccidentalSharp : Smufl.AccidentalFlat, S) + (0.08 * S));
 
-    private static double MeterWidth(int? sign) =>
-        sign is { } drawn ? Smufl.Advance(drawn, S) + (0.2 * S) : 2.2 * S;
+    private double MeterWidth(int? sign) =>
+        sign is { } drawn ? _layer.Advance(drawn, S) + (0.2 * S) : 2.2 * S;
 
     /// <summary>How far a stem reaches past its head, in half-spaces.</summary>
     private const int StemHalfSpaces = 7;
@@ -214,10 +212,10 @@ internal abstract partial class MusicBuilder
     {
         // Paid for before the clef is placed, or every staff in a part song starts at a different x.
         var named = row is { Index: 0, Name: { Length: > 0 } name }
-            ? ScoreText.Width(name, CreditSize) + (0.6 * S)
+            ? _layer.Width(name, CreditSize) + (0.6 * S)
             : 0;
 
-        var width = LeftMargin + named + Smufl.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
+        var width = LeftMargin + named + _layer.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
         width += KeyWidth(KeySignature.FromFifths(row.Fifths), row.Clef);
         if (width > 0) width += 0.4 * S;
         if (meter && row.Meter is { } shown) width += MeterWidth(shown.Sign);
@@ -656,7 +654,7 @@ internal abstract partial class MusicBuilder
 
     /// <summary>One row of words above/below the staff, tall enough for either face plus air — a fixed height had text sitting on the staff's top line.</summary>
     private double TextRow => _textRow ??= Math.Max(ChordRow,
-        Math.Max(ScoreText.Build("Hg", ChordSize).Height, ScoreText.Chord("Hg", ChordSize).Height) + (0.5 * S));
+        Math.Max(_layer.Words("Hg", ChordSize).Height, _layer.Chord("Hg", ChordSize).Height) + (0.5 * S));
 
     private double? _textRow;
 }
