@@ -38,6 +38,30 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!-- Nexaflow.Analyzers.Io holds how a feature reaches a file (NXIO001-003): through the awaitable members of the file
+       system, not a blocking one and not System.IO, because a path a person opened may be on another machine. Keyed on
+       where the project lives rather than on UseWPF, because the rule is about features and the shared visuals, and the
+       codec backends under src\Nexaflow.Features\ are not WPF projects. Test projects are left out (a test makes its own
+       files on this disk, which is what it is for), and so are external/ and the _wpftmp pass, for the reasons above. -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'
+                        And '$(IsTestProject)' != 'true'
+                        And '$(_TargetAssemblyProjectName)' == ''
+                        And ($([System.String]::new('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src\Nexaflow.Features\'))
+                             Or $([System.String]::new('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src\Nexaflow.Visuals.')))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Nexaflow.Analyzers\Nexaflow.Analyzers.Io\Nexaflow.Analyzers.Io.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- The guards above keep the references out of the _wpftmp pass, but not the analyzers themselves: the markup pass is
+       handed the outer project's resolved Analyzer items, so an analyzer reading C# (NXIO, NXCB) would run over the same
+       sources a second time and report every finding twice under two project names. NXUI001 escapes only because the
+       pass is given no views. So the markup pass runs none of ours. -->
+  <Target Name="NexaflowAnalyzersStayOutOfTheMarkupPass" BeforeTargets="CoreCompile" Condition="'$(_TargetAssemblyProjectName)' != ''">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::new('%(Filename)').StartsWith('Nexaflow.Analyzers.'))" />
+    </ItemGroup>
+  </Target>
+
   <!-- `dotnet build Nexaflow.slnx -t:Rebuild` failed with 278 errors in external/AngouriMath, every one of
        them a missing polyfill type (IsExternalInit, NotNullWhen) in its netstandard2.0 pass. Nothing had
        changed there: a plain `dotnet build` is green, and Rebuild is simply what nobody had run.

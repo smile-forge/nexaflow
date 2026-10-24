@@ -31,10 +31,10 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 
 | Piece | Where | What it gives | What stops it carrying remote |
 | --- | --- | --- | --- |
-| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Most callers still use the sync members, which serve local paths only |
+| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Most callers still use the sync members, which serve local paths only; `NXIO001` reports each |
 | `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers | Much of it calls `File.*` / `Directory.*` directly rather than the VFS |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers | Much of it calls `File.*` / `Directory.*` directly rather than the VFS; `NXIO002` reports each |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel | Assumes both ends are Windows paths |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | How OneDrive puts a row on This PC; connections use the same | — |
 | `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
@@ -107,9 +107,13 @@ public interface ILocationSessionSource                          // the pool, pe
   50,000-entry folder paints its first rows at once, as Windows Search hits stream.
 - **Sync members refuse a remote path.** `IVirtualFileSystem`'s sync IO members keep serving real, mounted and archive
   paths and throw a typed `LocationRequiresAsyncException`, naming the member, on a remote one. The pure path members
-  (`GetParentPath`, `GetBreadcrumbs`, `GetBacking`, …) stay sync and serve every path. A new analyzer flags a sync VFS
-  or `System.IO` call in a feature, following the `NXUI001` pattern, and the existing call sites move to the async
-  members in phase 0; code that only touches the app's own state is exempted by an attribute that names its reason.
+  (`GetParentPath`, `GetBreadcrumbs`, `GetBacking`, …) stay sync and serve every path. Each blocking member carries
+  `[BlocksOnIo(nameof(…Async))]`, and `Nexaflow.Analyzers.Io` reports a call to one from a feature or the shared
+  visuals (`NXIO001`, naming the member to await) and any `System.IO` that reaches the disk itself (`NXIO002`). Code
+  that only ever touches this machine's own disk — settings, caches and stores under the app's data folders — is
+  marked `[LocalDiskOnly("where its files are")]`, and a mark with no reason is an error (`NXIO003`). The existing
+  call sites move to the async members, or take the mark, in phase 0. [testing.md](testing.md#how-a-feature-reaches-a-file-nxio001nxio003)
+  has the detail.
 - **Reads say what they need.** `ReadIntent` is `Sequential`, `Random` or `Whole`. A provider with ranged reads (SFTP,
   SMB, FTP `REST`) returns a seekable stream that fetches blocks on demand, so a 4 GB log or a PDF opens at its first
   page. One without spools to the cache and returns the cached file.
@@ -257,8 +261,9 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
   delete, conflict, cancel, reconnect), run against each backend, so a new protocol is proven by the same bar.
 - **Real servers in containers** — OpenSSH, vsftpd, Samba and an NFS server, with latency injected — in a
   `Tests.IO.Locations` suite. They are the fixtures; WSL is the dogfood location. WSL tests run on Windows runners only.
-- **`ArchitectureRulesTests`** gains the rule that a `Nexaflow.IO.Location.*` assembly references `IO.Common` only, and
-  the new analyzer joins the build.
+- **`ArchitectureRulesTests.Location_backends_reference_only_IO_Common`** holds every `Nexaflow.IO.Location.*`
+  assembly to `IO.Common` and its own packages. A backend in the tree that the architecture suite does not reference
+  fails the rule, and with no backend at all it reports that nothing was checked.
 - **Journeys** for connect, browse, open, edit and save, open terminal here, and a dropped connection, so every new
   AutomationId is named by one.
 

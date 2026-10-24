@@ -78,4 +78,40 @@ public class ArchitectureRulesTests
             "Features must not touch the UI dispatcher singletons — use IShellServices.RunOnUiAsync / " +
             $"WatchFile. Offenders: {string.Join("; ", offenders)}");
     }
+
+    /// <summary>
+    /// A location backend (<c>Nexaflow.IO.Location.&lt;Kind&gt;</c>) is a leaf over <c>IO.Common</c>, as the codec backends
+    /// are: the registry loads it, and nothing of the app's — Core, a feature, the visuals, another backend — is anything it
+    /// may know. Its packages (an SSH client, an SMB one) are its own business. A backend joins the check by being referenced
+    /// from this project; one in the tree that is not is itself a failure, so the rule cannot narrow by being forgotten, and
+    /// with none in the tree it says that nothing was checked rather than passing.
+    /// </summary>
+    [TestMethod]
+    public void Location_backends_reference_only_IO_Common()
+    {
+        var inTree = Directory.GetDirectories(Path.Combine(RepoRoot.Locate(), "src"), "Nexaflow.IO.Location.*")
+                              .Select(Path.GetFileName)
+                              .ToList();
+        var backends = Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.IO.Location.*.dll")
+                                .Select(p => Assembly.Load(Path.GetFileNameWithoutExtension(p)))
+                                .ToList();
+
+        var unseen = inTree.Except(backends.Select(a => a.GetName().Name)).ToList();
+        Assert.AreEqual(0, unseen.Count,
+            "Every location backend is referenced from Tests.Features.Architecture, so this rule sees it. " +
+            $"Not referenced: {string.Join(", ", unseen)}");
+
+        if (backends.Count == 0)
+            Assert.Inconclusive("No Nexaflow.IO.Location.* backend exists yet, so nothing was checked.");
+
+        var offenders = backends
+            .SelectMany(a => a.GetReferencedAssemblies()
+                              .Where(r => r.Name!.StartsWith("Nexaflow.", StringComparison.Ordinal) && r.Name != "Nexaflow.IO.Common")
+                              .Select(r => $"{a.GetName().Name} → {r.Name}"))
+            .ToList();
+
+        Assert.AreEqual(0, offenders.Count,
+            "A location backend references IO.Common and its own packages, nothing else of Nexaflow's. " +
+            $"Offenders: {string.Join(", ", offenders)}");
+    }
 }

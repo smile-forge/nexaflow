@@ -35,13 +35,16 @@ public sealed record ArchiveSummary(
 public interface IVirtualFileSystem
 {
     /// <summary>True if the path resolves to an existing real or in-archive file or directory.</summary>
+    [BlocksOnIo(nameof(ExistsAsync))]
     bool Exists(string path);
 
     /// <summary>True if the path is a directory — a real directory, an archive file (browsable like a
     /// folder), or a directory inside an archive.</summary>
+    [BlocksOnIo(nameof(IsDirectoryAsync))]
     bool IsDirectory(string path);
 
     /// <summary>True if the path is an existing real file that a registered handler can open as a folder.</summary>
+    [BlocksOnIo(nameof(IsContainerAsync))]
     bool IsContainer(string path);
 
     /// <summary>True if a registered handler recognises <paramref name="fileName"/> by name alone (no
@@ -49,36 +52,47 @@ public interface IVirtualFileSystem
     bool IsContainerName(string fileName);
 
     /// <summary>Length in bytes of the (real or in-archive) file at the path.</summary>
+    [BlocksOnIo(nameof(GetEntryAsync))]
     long GetLength(string path);
 
     /// <summary>Metadata for the path, or null if it does not resolve.</summary>
+    [BlocksOnIo(nameof(GetEntryAsync))]
     VirtualEntry? GetEntryInfo(string path);
 
     /// <summary>Lists the children of a real or virtual directory (or an archive's top level).</summary>
+    [BlocksOnIo(nameof(EnumerateAsync))]
     IReadOnlyList<VirtualEntry> EnumerateEntries(string path);
 
     /// <summary>Opens the file for reading. The returned stream is seekable (real files directly;
     /// in-archive entries via a materialised temp copy).</summary>
+    [BlocksOnIo(nameof(OpenReadAsync))]
     Stream OpenRead(string path);
 
     /// <summary>As <see cref="OpenRead(string)"/>, with the <see cref="FileStream"/> tuning a reader that
     /// scans a huge file off the UI thread needs — a large buffer and overlapped IO. Read-only, so the
     /// materialised temp of an in-archive entry can never be written to behind the archive's back; writers
     /// go through <see cref="OpenReadWrite"/> or <see cref="Replace"/>.</summary>
+    [BlocksOnIo(nameof(OpenReadAsync))]
     Stream OpenRead(string path, int bufferSize, bool useAsync);
 
     /// <summary>Opens the file for read-write. Real paths map to a read-write <see cref="FileStream"/>;
     /// in-archive entries materialise to a temp copy whose changes are written back to the archive when
     /// the stream is closed.</summary>
+    [BlocksOnIo(null)]
     Stream OpenReadWrite(string path);
 
+    [BlocksOnIo(nameof(ReadAllBytesAsync))]
     byte[] ReadAllBytes(string path);
+    [BlocksOnIo(nameof(ReadAllTextAsync))]
     string ReadAllText(string path, Encoding? encoding = null);
+    [BlocksOnIo(nameof(WriteAllBytesAsync))]
     void WriteAllBytes(string path, byte[] bytes);
+    [BlocksOnIo(nameof(WriteAllTextAsync))]
     void WriteAllText(string path, string contents, Encoding? encoding = null);
 
     /// <summary>Replaces the file's whole content. Atomic for real paths; for in-archive entries the
     /// owning archive is rewritten with the entry's bytes swapped.</summary>
+    [BlocksOnIo(nameof(ReplaceAsync))]
     void Replace(string path, byte[] newContent);
 
     /// <summary>Splits a path at its <b>outermost</b> archive boundary: returns the real container file
@@ -88,16 +102,19 @@ public interface IVirtualFileSystem
 
     /// <summary>Top-level facts about the archive at <paramref name="containerPath"/> (a real archive
     /// file), or null if it is not a recognised container. Used by the Compressed inspector.</summary>
+    [BlocksOnIo(nameof(DescribeArchiveAsync))]
     ArchiveSummary? DescribeArchive(string containerPath);
 
     /// <summary>Extracts every file in the archive into <paramref name="destinationDir"/>, recreating its
     /// folder structure. Entries whose path would escape the destination (zip-slip) are skipped.</summary>
+    [BlocksOnIo(nameof(ExtractAllAsync))]
     void ExtractAll(string containerPath, string destinationDir,
                     IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
     /// <summary>Creates a new archive at <paramref name="archivePath"/> from the contents of
     /// <paramref name="sourceDir"/> (recursively). The format is chosen by the archive file's extension;
     /// throws if no registered handler can create it.</summary>
+    [BlocksOnIo(nameof(CreateArchiveAsync))]
     void CreateArchive(string archivePath, string sourceDir,
                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
@@ -106,6 +123,7 @@ public interface IVirtualFileSystem
     /// keeps its own name: a file is stored at the root under its file name, a directory recursively beneath
     /// a folder of that name, so same-named entries from two different folders cannot collide. The format is
     /// chosen by the archive file's extension; throws if no registered handler can create it.</summary>
+    [BlocksOnIo(nameof(CreateArchiveAsync))]
     void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths,
                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
@@ -115,10 +133,12 @@ public interface IVirtualFileSystem
     /// <summary>Rebuilds the archive's contents into <paramref name="targetPath"/> — a different
     /// extension to convert formats, or the same path with new <paramref name="options"/> (e.g. a
     /// compression level) to recompress.</summary>
+    [BlocksOnIo(nameof(RepackageAsync))]
     void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null);
 
     /// <summary>Adds files into the archive, rewriting it. Each item is a source file on disk and the
     /// entry path it should take inside the archive; an existing entry of that path is replaced.</summary>
+    [BlocksOnIo(nameof(AddFilesAsync))]
     void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files);
 
     /// <summary>Registers a compression backend. Called once per handler at startup.</summary>

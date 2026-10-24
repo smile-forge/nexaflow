@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    How a feature reaches a file (NXIO001-003): through the awaitable members of IVirtualFileSystem, never a blocking one
+    and never System.IO, unless the code is marked [LocalDiskOnly] with where its files are. Wired in
+    Directory.Build.targets to every project under src\Nexaflow.Features\ and src\Nexaflow.Visuals.*, WPF or not, that is
+    not a test project. Sibling of Nexaflow.Analyzers.Content; same netstandard2.0 AnyCPU shape, because analyzers load
+    into the compiler as MSIL despite the solution's x64 pin.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <!-- Internal analyzer, not a shipped package — skip the release-tracking ledger nag. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

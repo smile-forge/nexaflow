@@ -29,8 +29,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Referenced as a library, not run as an analyzer: its tests hand it compilations of their own. -->
+    <!-- Referenced as libraries, not run as analyzers: their tests hand them compilations of their own. -->
     <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Content\Nexaflow.Analyzers.Content.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Io\Nexaflow.Analyzers.Io.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -121,11 +121,40 @@
           "class": "VirtualBackings"
         }
       ]
+    },
+    "io-locations-blocking-guard": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Analyzers/Nexaflow.Analyzers.Io/BlockingIoAnalyzer.cs",
+          "class": "BlockingIoAnalyzer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/BlocksOnIoAttribute.cs",
+          "class": "BlocksOnIoAttribute"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/LocalDiskOnlyAttribute.cs",
+          "class": "LocalDiskOnlyAttribute"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/BlockingIoAnalyzerTests.cs",
+            "class": "BlockingIoAnalyzerTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 9,
+  "changed_sets": 11,
   "touched_nodes": [
+    "io-locations-blocking-guard",
     "io-locations-contract",
     "io-locations-paths",
     "io-locations-routing",

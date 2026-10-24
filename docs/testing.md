@@ -694,6 +694,31 @@ builder is made by hand — a fake of the base to hold it to what it promises �
 compilation that holds a `[TestClass]`. `ContentBuilderAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule
 to a compilation of its own.
 
+### How a feature reaches a file (`NXIO001`–`NXIO003`)
+
+A path a person opened may be on another machine ([remote-locations.md](remote-locations.md)), so a feature reaches it
+through the awaitable members of `IVirtualFileSystem`. `Nexaflow.Analyzers.Io` holds that:
+
+- **`NXIO001`** — a call to a file-system member marked `[BlocksOnIo]`, through the interface or a type implementing it.
+  The mark names the member to await, and so does the report; a member marked `[BlocksOnIo(null)]`
+  (`OpenReadWrite`) has none and serves local paths only.
+- **`NXIO002`** — `System.IO` reaching the disk itself: a static of `File`, `Directory` or `ZipFile`, `Path.Exists`, or
+  making a `FileInfo`, `DirectoryInfo`, `FileStream`, `FileSystemWatcher`, or a `StreamReader` / `StreamWriter` on a
+  path. `Path`'s string work and a reader over a stream are not the disk.
+- **`NXIO003`** — a `[LocalDiskOnly]` with an empty reason. An error from the start: there is nothing to shrink.
+
+`[LocalDiskOnly("…")]` (in `IO.Common`) exempts code that only ever touches this machine's own disk: settings, caches
+and stores under `%APPDATA%` / `%LOCALAPPDATA%`, or a path the file system has already resolved to a real local file.
+It goes on the type or the member and covers what is lexically inside it, lambdas, local functions and accessors
+included, never what it calls. Its reason says where the files are, because that is what review weighs.
+
+`Directory.Build.targets` hands the analyzer to every C# project under `src\Nexaflow.Features\` and
+`src\Nexaflow.Visuals.*` that is not a test project. It keys on where a project lives rather than `UseWPF`, so the
+codec backends are held too. The WPF markup pass (`_wpftmp`) runs none of the `Nexaflow.Analyzers.*` analyzers, or each
+finding would be reported twice. `NXIO001` and `NXIO002` are **warnings** while the existing call sites move, and
+become errors once none is left. `BlockingIoAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule to a
+compilation of its own.
+
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 
 A journey can only click what it can find, and on this shell that means an `AutomationProperties.AutomationId`
