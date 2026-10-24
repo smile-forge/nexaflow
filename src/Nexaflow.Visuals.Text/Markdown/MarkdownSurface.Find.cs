@@ -36,33 +36,51 @@ public sealed partial class MarkdownSurface
         ? MarkdownFind.Drawn(_engine.DrawnWords, term)
         : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
-    /// <summary>The same, for a question more complicated than a word — what a search box worked out.</summary>
-    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
+    /// <summary>
+    /// The same, for a question more complicated than a word — what a search box worked out — going to the first place at or
+    /// after <paramref name="from"/> in the source, and round to the first where none is.
+    /// </summary>
+    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
         Looked(_engine.ReadsAsDrawn
             ? _engine.DrawnWords.Every(occurrences)
-            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences));
+            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
 
     /// <summary>
     /// Shows every place <paramref name="matcher"/> finds and goes to the first, handing back what was found so the host
     /// can count them or say what each one reads.
     /// </summary>
-    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher)
+    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher) => FindInRendered(matcher, from: 0);
+
+    /// <summary>
+    /// The same, going to the first place at or after <paramref name="from"/> in the source — for a search taken up again, so it
+    /// goes on from the match the reader was on rather than starting over.
+    /// </summary>
+    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher, int from)
     {
-        Find(matcher.Occurrences);
+        Find(matcher.Occurrences, from);
 
         return [.. Enumerable.Range(0, Found.Count).Select(at => new RenderedMatch(at, Preview(at)))];
     }
 
-    private int Looked(IReadOnlyList<(int Start, int Length)> found)
+    private int Looked(IReadOnlyList<(int Start, int Length)> found, int from = 0)
     {
         Found = found;
         At = -1;
 
         _shown.Showing = (Found, At);
 
-        if (Found.Count > 0) Next();
+        if (Found.Count > 0) Goes(FirstAtOrAfter(from));
 
         return Found.Count;
+    }
+
+    /// <summary>The first place found at or after <paramref name="from"/> in the source, or the first of them all where none is.</summary>
+    private int FirstAtOrAfter(int from)
+    {
+        for (var at = 0; at < Found.Count; at++)
+            if (Found[at].Start >= from) return at;
+
+        return 0;
     }
 
     /// <summary>

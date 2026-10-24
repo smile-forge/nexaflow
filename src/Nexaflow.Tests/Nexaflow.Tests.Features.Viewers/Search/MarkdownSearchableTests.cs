@@ -107,7 +107,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     {
         var vm = (MarkdownViewModel)page;
         vm.ViewMode = MarkdownViewMode.Rendered;      // rendered
-        vm.FindInRendered = _ => [new RenderedMatch(0, "The alpha42 build fixes the importer.")];
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "The alpha42 build fixes the importer.")];
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
 
@@ -124,7 +124,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
         vm.ViewMode = MarkdownViewMode.Rendered;
 
         TextSearchMatcher? handed = null;
-        vm.FindInRendered = m => { handed = m; return [new RenderedMatch(0, "preview")]; };
+        vm.FindInRendered = (m, _) => { handed = m; return [new RenderedMatch(0, "preview")]; };
 
         var outcome = await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
 
@@ -133,18 +133,64 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     });
 
     [TestMethod]
-    public void SwitchingSurfaceWhileSearching_AbandonsTheSearch() => WithPage(async page =>
+    public void SwitchingToRendered_CarriesTheSearchOn_FromTheMatchTheReaderWasOn() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
         vm.ViewMode = MarkdownViewMode.Source;
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
-        Assert.IsTrue(vm.IsSearchActive);
+        vm.FindNextMatchCommand.Execute(null);   // on to the second of them
+
+        int? from = null;
+        vm.FindInRendered = (_, at) => { from = at; return [new RenderedMatch(0, "a"), new RenderedMatch(1, "b")]; };
 
         vm.ViewMode = MarkdownViewMode.Rendered;   // slid back to the rendered view
+        Assert.IsTrue(vm.IsSearchActive, "the search is the reader's, not the surface's");
 
-        Assert.IsFalse(vm.IsSearchActive, "the search belonged to the surface that is no longer showing");
-        Assert.AreEqual(0, vm.SearchMatchCount);
+        vm.CarrySearchToShownSurface();             // what the view does once the rendered surface is laid out
+
+        Assert.AreEqual(vm.Markdown.LastIndexOf(LiteralTermInContent, StringComparison.Ordinal), from, "taken up at the second match");
+        Assert.AreEqual(2, vm.SearchMatchCount, "and counted on the surface now showing");
+    });
+
+    [TestMethod]
+    public void SwitchingToSource_CarriesTheSearchOn_FromTheMatchTheReaderWasOn() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Rendered;
+
+        var second = vm.Markdown.LastIndexOf(LiteralTermInContent, StringComparison.Ordinal);
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "a"), new RenderedMatch(1, "b")];
+        vm.RenderedAt = () => second;              // the reader stepped on to the second
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+
+        (int Offset, int Length)? selected = null;
+        vm.SourceSelectionRequested += (offset, length) => selected = (offset, length);
+
+        vm.ViewMode = MarkdownViewMode.Source;
+        vm.CarrySearchToShownSurface();
+
+        Assert.IsTrue(vm.IsSearchActive);
+        Assert.AreEqual((second, LiteralTermInContent.Length), selected, "the raw box selects the match the reader was on");
+    });
+
+    [TestMethod]
+    public void ASearchClearedBeforeTheNewSurfaceIsLaidOut_IsNotTakenUpOnIt() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Source;
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+
+        vm.ViewMode = MarkdownViewMode.Rendered;
+        vm.ClearSearchCommand.Execute(null);
+
+        var asked = false;
+        vm.FindInRendered = (_, _) => { asked = true; return []; };
+        vm.CarrySearchToShownSurface();
+
+        Assert.IsFalse(asked, "nothing is searched for");
+        Assert.IsFalse(vm.IsSearchActive);
     });
 
     [TestMethod]
@@ -152,7 +198,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     {
         var vm = (MarkdownViewModel)page;
         vm.ViewMode = MarkdownViewMode.Rendered;
-        vm.FindInRendered = _ => [new RenderedMatch(0, "x")];
+        vm.FindInRendered = (_, _) => [new RenderedMatch(0, "x")];
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
         vm.ClearSearchCommand.Execute(null);

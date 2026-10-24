@@ -17,7 +17,8 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 /// The markdown editor as a searchable page. It searches whatever the page is currently showing: the raw
 /// source when the source box has the tab to itself, the rendered text otherwise (in the split, where
 /// both are up, the rendered half takes it) — a "?" search lights up what the user
-/// is actually looking at, and never switches the view out from under them.
+/// is actually looking at, and never switches the view out from under them. Switching it themselves takes the
+/// search with them, on to the surface they switched to, at the match they were on.
 /// <para>
 /// The rendered highlight is done by the view (it owns the live <c>FlowDocument</c>); the source highlight
 /// is a selection in the source box, driven from here. An AI-invoked search (display: false) reads the
@@ -39,18 +40,29 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     partial void OnSearchMatchCountChanged(int value) => OnPropertyChanged(nameof(HasSearchMatches));
 
-    // A live search belongs to the surface it ran against; changing the view mode abandons it rather than
-    // leaving a stale chip over a view with no highlights.
-    partial void OnViewModeChanged(MarkdownViewMode value) { if (IsSearchActive) ClearSearch(); }
+    // A live search is the reader's, not the surface's: the surface that painted it lets go of it here, and the one now
+    // showing takes it up at the match the reader was on once the view has laid it out (CarrySearchToShownSurface). A second
+    // change before then carries the same search on from the same match.
+    partial void OnViewModeChanged(MarkdownViewMode value)
+    {
+        if (!IsSearchActive || _liveSearch is not { } live || _carriedSearch is not null) return;
+
+        _carriedSearch = (live.Matcher, live.Request, LookedAt() ?? 0);
+        ClearHighlights();
+    }
 
     // ── View collaboration ────────────────────────────────────────────────────
     // The rendered surface's highlighting lives in the view (it holds the FlowDocument); the source box's
     // selection is driven from here. Both are set by MarkdownView; absent in a headless test, where only
     // the source path and the non-display (agent) path are exercised.
 
-    /// <summary>Runs the matcher against the rendered surface, highlighting it, and returns the matches.
-    /// Set by the view (public because the search hooks are page surface, like <see cref="SourceSelectionRequested"/>).</summary>
-    public Func<TextSearchMatcher, IReadOnlyList<RenderedMatch>>? FindInRendered { get; set; }
+    /// <summary>Runs the matcher against the rendered surface, highlighting it, and returns the matches — going first to the
+    /// one at or after the given place in the source. Set by the view (public because the search hooks are page surface,
+    /// like <see cref="SourceSelectionRequested"/>).</summary>
+    public Func<TextSearchMatcher, int, IReadOnlyList<RenderedMatch>>? FindInRendered { get; set; }
+
+    /// <summary>Where in the source the match the rendered surface is showing starts, or null where it shows none.</summary>
+    public Func<int?>? RenderedAt { get; set; }
     public Action<int>? StepRendered { get; set; }
     public Action?      ClearRendered { get; set; }
 
@@ -72,6 +84,9 @@ public sealed partial class MarkdownViewModel : ISearchable
     private bool _renderedActive;                       // the live search is painting the rendered surface
     private (int Offset, int Length)[] _sourceMatches = [];
     private int _currentSource = -1;
+
+    private (TextSearchMatcher Matcher, SearchRequest Request)? _liveSearch;                    // what the chip is showing
+    private (TextSearchMatcher Matcher, SearchRequest Request, int From)? _carriedSearch;     // across a change of view
 
     // ── ISearchable ───────────────────────────────────────────────────────────
 
@@ -98,7 +113,7 @@ public sealed partial class MarkdownViewModel : ISearchable
         if (!display)
             return SourceOutcome(matcher, ct);
 
-        return await _shell.RunOnUiAsync(() => Task.FromResult(ShowInActiveSurface(matcher, request, ct)));
+        return await _shell.RunOnUiAsync(() => Task.FromResult(ShowInActiveSurface(matcher, request, from: 0, ct)));
     }
 
     /// <summary>Searches the raw source for the agent — line-numbered hits, no UI.</summary>
@@ -117,21 +132,39 @@ public sealed partial class MarkdownViewModel : ISearchable
         return total == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, total);
     }
 
-    // Highlights the matches in whichever surface is showing. Runs on the UI thread (the source box and the
-    // rendered FlowDocument are both view state).
-    private SearchOutcome ShowInActiveSurface(TextSearchMatcher matcher, SearchRequest request, CancellationToken ct)
+    // Highlights the matches in whichever surface is showing, going first to the one at or after `from` in the source. Runs on
+    // the UI thread (the source box and the rendered FlowDocument are both view state).
+    private SearchOutcome ShowInActiveSurface(TextSearchMatcher matcher, SearchRequest request, int from, CancellationToken ct)
     {
         ClearHighlights();
+        _liveSearch       = (matcher, request);
+        _carriedSearch    = null;
         CurrentSearchTerm = SearchSyntax.Format(request);
         IsSearchActive    = true;   // true at zero too: "no matches for X" is a result worth showing
 
         // In the split both surfaces are up, and the rendered one owns the highlight: it is the half that
         // can show a match in place, and the chip's next/previous still step through it.
-        if (ViewMode is MarkdownViewMode.Source) return ShowInSource(matcher, ct);
-        return ShowInRendered(matcher);
+        if (ViewMode is MarkdownViewMode.Source) return ShowInSource(matcher, from, ct);
+        return ShowInRendered(matcher, from);
     }
 
-    private SearchOutcome ShowInSource(TextSearchMatcher matcher, CancellationToken ct)
+    /// <summary>
+    /// Takes a search carried across a change of view up on the surface now showing, going on from the match the reader was
+    /// on. Called by the view once that surface has been laid out — before then there is nowhere on it to show a match.
+    /// </summary>
+    public void CarrySearchToShownSurface()
+    {
+        if (_carriedSearch is not { } carried) return;
+
+        _carriedSearch = null;
+        if (IsSearchActive) ShowInActiveSurface(carried.Matcher, carried.Request, carried.From, CancellationToken.None);
+    }
+
+    /// <summary>Where in the source the match being looked at starts, on whichever surface is showing the search.</summary>
+    private int? LookedAt() =>
+        _renderedActive ? RenderedAt?.Invoke() : _currentSource >= 0 ? _sourceMatches[_currentSource].Offset : null;
+
+    private SearchOutcome ShowInSource(TextSearchMatcher matcher, int from, CancellationToken ct)
     {
         var source  = Markdown ?? string.Empty;
         var matches = new List<(int Offset, int Length)>();
@@ -152,17 +185,17 @@ public sealed partial class MarkdownViewModel : ISearchable
 
         _renderedActive  = false;
         _sourceMatches   = [.. matches];
-        _currentSource   = matches.Count > 0 ? 0 : -1;
+        _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= from)) : -1;
         SearchMatchCount = matches.Count;
         MiniMapMarks     = SourceMarks(matches);
-        if (matches.Count > 0) Reveal(matches[0]);
+        if (_currentSource >= 0) Reveal(matches[_currentSource]);
         return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }
 
-    private SearchOutcome ShowInRendered(TextSearchMatcher matcher)
+    private SearchOutcome ShowInRendered(TextSearchMatcher matcher, int from)
     {
         _renderedActive = true;
-        var matches = FindInRendered?.Invoke(matcher) ?? [];
+        var matches = FindInRendered?.Invoke(matcher, from) ?? [];
         SearchMatchCount = matches.Count;
         MiniMapMarks     = RenderedMarkPositions?.Invoke() ?? [];
 
@@ -213,6 +246,8 @@ public sealed partial class MarkdownViewModel : ISearchable
     private void ClearSearch()
     {
         ClearHighlights();
+        _liveSearch       = null;
+        _carriedSearch    = null;
         SearchMatchCount  = 0;
         CurrentSearchTerm = string.Empty;
         IsSearchActive    = false;
