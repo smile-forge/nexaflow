@@ -211,6 +211,25 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     });
 
     [TestMethod]
+    public void InTheSourceView_TheSearchGoesOn_AsTheDocumentIsWrittenIn_WithoutPickingAnythingOut() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Source;
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        vm.FindNextMatchCommand.Execute(null);   // on to the second of them
+
+        var picked = 0;
+        vm.SourceSelectionRequested += (_, _) => picked++;
+
+        vm.Markdown = $"Also {LiteralTermInContent} here.\n\n" + vm.Markdown;
+
+        Assert.AreEqual(3, vm.SearchMatchCount, "the one written in is found too");
+        Assert.AreEqual(2, vm.SourceSearch.At, "and the one looked at is still the one it was, third now");
+        Assert.AreEqual(0, picked, "nothing is picked out under the reader while they write");
+    });
+
+    [TestMethod]
     public void InTheSplit_TheRawHalfWashesWhatTheRenderedHalfFound_AndFollowsItsSteps() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;

@@ -453,6 +453,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         IsDirty = value != _savedText;
         UpdateCounts(value);
+        RefoundInSource(value);
     }
 
     // ── AI surface helpers (used by the client tools) ─────────────────────

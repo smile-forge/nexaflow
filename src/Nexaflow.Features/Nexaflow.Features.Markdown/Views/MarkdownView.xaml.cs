@@ -298,18 +298,13 @@ public partial class MarkdownView : UserControl, IPageView
     private void TakeDocument(string markdown)
     {
         var document = SourceBox.Document;
-        var text = document.Text;
-        if (string.Equals(text, markdown, StringComparison.Ordinal)) return;
-
-        var same = text.AsSpan().CommonPrefixLength(markdown);
-        var room = Math.Min(text.Length, markdown.Length) - same;
-        var tail = 0;
-        while (tail < room && text[text.Length - 1 - tail] == markdown[markdown.Length - 1 - tail]) tail++;
+        var change = SourceDifference.Between(document.Text, markdown);
+        if (change.None) return;
 
         _takingDocument = true;
         try
         {
-            document.Replace(same, text.Length - same - tail, markdown.Substring(same, markdown.Length - same - tail));
+            document.Replace(change.Start, change.Removed, markdown.Substring(change.Start, change.Added));
         }
         finally
         {
@@ -317,12 +312,15 @@ public partial class MarkdownView : UserControl, IPageView
         }
     }
 
-    /// <summary>What the reader wrote in the raw half, said to the document — unless it is the raw half being given the document.</summary>
+    /// <summary>
+    /// What the reader wrote in the raw half, given to the rendered half as an edit of the same document — so what it can take back
+    /// and what it was finding go on — and from there to the document. Not when it is the raw half being given the document.
+    /// </summary>
     private void TakeSourceEdit()
     {
         if (_takingDocument) return;
 
-        ViewModel.Markdown = SourceBox.Text;
+        Editor.TakeEdit(SourceBox.Text);
     }
 
     /// <summary>Whether the raw half is being given what the document says, so its own report of that change is not taken for writing.</summary>

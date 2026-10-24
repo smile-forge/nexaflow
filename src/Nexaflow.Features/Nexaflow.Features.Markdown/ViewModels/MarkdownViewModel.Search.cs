@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using System;
 using System.Collections.Generic;
@@ -95,6 +96,8 @@ public sealed partial class MarkdownViewModel : ISearchable
     private (TextSearchMatcher Matcher, SearchRequest Request)? _liveSearch;                    // what the chip is showing
     private (TextSearchMatcher Matcher, SearchRequest Request, int From)? _carriedSearch;     // across a change of view
 
+    private string _searchedSource = string.Empty;                                            // what the raw half's matches are of
+
     // ── ISearchable ───────────────────────────────────────────────────────────
 
     public string SearchTargetDescription =>
@@ -175,11 +178,14 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     /// <summary>
     /// The rendered surface has been laid out again — a section folded or opened, more of a long document laid, a word written —
-    /// so where its matches stand on the page, and the places the raw half washes, are read again. Called by the view.
+    /// so how many it found, where they stand on the page, and the places the raw half washes, are read again. Called by the view.
     /// </summary>
     public void RenderedLaidOut()
     {
         if (!_renderedActive) return;
+
+        // Written in, it may have found more or fewer.
+        if (RenderedFound?.Invoke() is { } found && found.Places.Count != SearchMatchCount) SearchMatchCount = found.Places.Count;
 
         if (RenderedMarkPositions?.Invoke() is { } marks && !marks.SequenceEqual(MiniMapMarks)) MiniMapMarks = marks;
         ShowRenderedInSource();
@@ -191,7 +197,23 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     private SearchOutcome ShowInSource(TextSearchMatcher matcher, int from, CancellationToken ct)
     {
-        var source  = Markdown ?? string.Empty;
+        var source = Markdown ?? string.Empty;
+        var (matches, hits) = MatchedInSource(matcher, source, ct);
+
+        _renderedActive  = false;
+        _searchedSource  = source;
+        _sourceMatches   = [.. matches];
+        _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= from)) : -1;
+        SearchMatchCount = matches.Count;
+        MiniMapMarks     = SourceMarks(matches);
+        SourceSearch     = (_sourceMatches, _currentSource);
+        if (_currentSource >= 0) Reveal(matches[_currentSource]);
+        return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
+    }
+
+    /// <summary>Every match of <paramref name="matcher"/> in <paramref name="source"/>, and the hits a host lists for them.</summary>
+    private static (List<(int Offset, int Length)> Matches, List<SearchHit> Hits) MatchedInSource(TextSearchMatcher matcher, string source, CancellationToken ct)
+    {
         var matches = new List<(int Offset, int Length)>();
         var hits    = new List<SearchHit>();
 
@@ -208,14 +230,27 @@ public sealed partial class MarkdownViewModel : ISearchable
             }
         }
 
-        _renderedActive  = false;
+        return (matches, hits);
+    }
+
+    /// <summary>
+    /// The raw half's matches found again in what the document now says — written in either half, taken back — with the one being
+    /// looked at kept to where its place went. Nothing is selected: the reader is writing, not stepping through the search.
+    /// </summary>
+    private void RefoundInSource(string source)
+    {
+        if (_renderedActive || _liveSearch is not { } live || _carriedSearch is not null || !IsSearchActive) return;
+        if (ReferenceEquals(_searchedSource, source) || string.Equals(_searchedSource, source, StringComparison.Ordinal)) return;
+
+        var was = _currentSource >= 0 ? SourceDifference.Between(_searchedSource, source).Moved(_sourceMatches[_currentSource].Offset) : 0;
+        var (matches, _) = MatchedInSource(live.Matcher, source, CancellationToken.None);
+
+        _searchedSource  = source;
         _sourceMatches   = [.. matches];
-        _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= from)) : -1;
+        _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= was)) : -1;
         SearchMatchCount = matches.Count;
         MiniMapMarks     = SourceMarks(matches);
         SourceSearch     = (_sourceMatches, _currentSource);
-        if (_currentSource >= 0) Reveal(matches[_currentSource]);
-        return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }
 
     private SearchOutcome ShowInRendered(TextSearchMatcher matcher, int from)

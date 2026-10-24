@@ -115,8 +115,12 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(LinkNavigateEvent, value);
     }
 
-    /// <summary>Says to the page that the engine laid the content out.</summary>
-    private void Laid(object? sender, EventArgs args) => RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
+    /// <summary>Says to the page that the engine laid the content out — what was being looked for found again in it first.</summary>
+    private void Laid(object? sender, EventArgs args)
+    {
+        Refound();
+        RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
+    }
 
     /// <summary>
     /// Says to the page that a slower reading landed. Raised on this control's own thread, since the reading lands on

@@ -17,7 +17,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>Looking is done in the source and never in the drawing.</strong> The parser only ever copies, so the source is
 /// the one place the words are whole; the offsets come back out of it and the laid tree turns them into places on the
 /// page (<see cref="MarkdownFind"/>). Nothing in the tree is changed to mark what was found — it is washed at paint time —
-/// so a search survives the document being written in and stopping one is a repaint.
+/// so stopping a search is a repaint; and what was looked for is asked again of the document each time it is written in, so a
+/// search survives that too (<see cref="Refound"/>).
 /// </para>
 /// </summary>
 public sealed partial class MarkdownSurface
@@ -32,7 +33,7 @@ public sealed partial class MarkdownSurface
     /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only
     /// drawn, which is what a reader means by what the page says.
     /// </summary>
-    public int Find(string? term) => Looked(_engine.ReadsAsDrawn
+    public int Find(string? term) => Looked(() => _engine.ReadsAsDrawn
         ? MarkdownFind.Drawn(_engine.DrawnWords, term)
         : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
@@ -41,7 +42,7 @@ public sealed partial class MarkdownSurface
     /// after <paramref name="from"/> in the source, and round to the first where none is.
     /// </summary>
     public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
-        Looked(_engine.ReadsAsDrawn
+        Looked(() => _engine.ReadsAsDrawn
             ? _engine.DrawnWords.Every(occurrences)
             : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
 
@@ -62,9 +63,12 @@ public sealed partial class MarkdownSurface
         return [.. Enumerable.Range(0, Found.Count).Select(at => new RenderedMatch(at, Preview(at)))];
     }
 
-    private int Looked(IReadOnlyList<(int Start, int Length)> found, int from = 0)
+    private int Looked(Func<IReadOnlyList<(int Start, int Length)>> looking, int from = 0)
     {
-        Found = found;
+        _lookedFor = looking;
+        _foundIn = _shown.Markdown;
+
+        Found = looking();
         At = -1;
 
         _shown.Showing = (Found, At);
@@ -72,6 +76,37 @@ public sealed partial class MarkdownSurface
         if (Found.Count > 0) Goes(FirstAtOrAfter(from));
 
         return Found.Count;
+    }
+
+    /// <summary>
+    /// What was looked for, to be asked again of the document as it comes to read; null where nothing is being looked for, or a
+    /// host has narrowed what was found to a list of its own (<see cref="Restrict"/>), which asking again would undo.
+    /// </summary>
+    private Func<IReadOnlyList<(int Start, int Length)>>? _lookedFor;
+
+    /// <summary>The document as it read when <see cref="Found"/> was found in it.</summary>
+    private string _foundIn = string.Empty;
+
+    /// <summary>
+    /// What was found, found again in the document as it now reads — written in here, written in somewhere else, taken back — with
+    /// the one being looked at kept to where its place went. Nothing is scrolled to or picked out: the reader is writing, not
+    /// looking. Done before the page says it was laid out (<see cref="PreRender"/>), so whoever reads what was found then reads it
+    /// as it is.
+    /// </summary>
+    private void Refound()
+    {
+        if (_lookedFor is not { } looking) return;
+
+        var now = _shown.Markdown;
+        if (ReferenceEquals(_foundIn, now) || string.Equals(_foundIn, now, StringComparison.Ordinal)) return;
+
+        var was = At >= 0 ? SourceDifference.Between(_foundIn, now).Moved(Found[At].Start) : 0;
+
+        _foundIn = now;
+        Found = looking();
+        At = Found.Count == 0 ? -1 : FirstAtOrAfter(was);
+
+        _shown.Showing = (Found, At);
     }
 
     /// <summary>The first place found at or after <paramref name="from"/> in the source, or the first of them all where none is.</summary>
@@ -91,6 +126,7 @@ public sealed partial class MarkdownSurface
     {
         var kept = Found.Where((_, at) => keep.Contains(at)).ToList();
 
+        _lookedFor = null;
         Found = kept;
         At = kept.Count > 0 ? 0 : -1;
 
@@ -168,6 +204,7 @@ public sealed partial class MarkdownSurface
     /// <summary>Stops looking, which is a repaint and nothing else.</summary>
     public void Stop()
     {
+        _lookedFor = null;
         Found = [];
         At = -1;
 
