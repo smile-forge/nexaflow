@@ -382,9 +382,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 /// </summary>
 public sealed class Nesting
 {
-    private readonly ContentEngine _engine;
+    private readonly Func<ContentPart, double, StyleFormat, RawZone?, bool, ContentInset?> _lay;
 
-    internal Nesting(ContentEngine engine) => _engine = engine;
+    internal Nesting(ContentEngine engine) : this(engine.Nested)
+    {
+    }
+
+    /// <summary>
+    /// Nesting answered by <paramref name="lay"/> rather than by an engine — content in another language laid by whatever holds it,
+    /// set down as it was laid: what lets one language's builder be measured against another way of building it on the same
+    /// nested content, without either paying for laying that content again.
+    /// </summary>
+    internal Nesting(Func<ContentPart, double, StyleFormat, RawZone?, bool, ContentInset?> lay) => _lay = lay;
 
     /// <summary>
     /// What <paramref name="holder"/> holds in another language, laid out at <paramref name="room"/> in
@@ -393,5 +402,5 @@ public sealed class Nesting
     /// <param name="shown">The stretch the content holding it is showing as typed, which is the other language's to show where it falls inside it.</param>
     /// <param name="writing">Whether somebody is writing in it.</param>
     internal ContentInset? Lay(ContentPart holder, double room, StyleFormat style, RawZone? shown, bool writing) =>
-        _engine.Nested(holder, room, style, shown, writing);
+        _lay(holder, room, style, shown, writing);
 }

@@ -1,0 +1,420 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.TextFormatting;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
+
+namespace Nexaflow.Tests.Visuals.Editing.Portable;
+
+/// <summary>
+/// WPF as a medium a renderer-free layout is made in: every handle a builder holds is WPF's own object, or wraps one made
+/// once, so measuring and drawing share one shaping and painting converts nothing.
+/// </summary>
+internal sealed class WpfMedium : ILayoutMedium
+{
+    private readonly Dictionary<Color, WpfInk> _inks = [];
+
+    public LayoutInk Ink(LayoutColor color)
+    {
+        var wpf = Color.FromArgb(color.A, color.R, color.G, color.B);
+        if (_inks.TryGetValue(wpf, out var known)) return known;
+
+        var brush = new SolidColorBrush(wpf);
+        brush.Freeze();
+        return _inks[wpf] = new WpfInk(brush);
+    }
+
+    /// <summary>An ink for a brush a theme already holds — a gradient, a picture, or a colour made elsewhere.</summary>
+    public WpfInk Ink(Brush brush) => new(brush.IsFrozen ? brush : (Brush)brush.GetAsFrozen());
+
+    public LayoutFace Face(string family, int weight = 400, bool italic = false) =>
+        new WpfFace(new Typeface(new FontFamily(family), italic ? FontStyles.Italic : FontStyles.Normal,
+                                 FontWeight.FromOpenTypeWeight(weight), FontStretches.Normal));
+
+    /// <summary>A face for a typeface a theme already holds.</summary>
+    public WpfFace Face(Typeface typeface) => new(typeface);
+
+    public IShapedText Shape(string text, LayoutFace face, double size, LayoutInk ink, TextLines lines = TextLines.None, LayoutInk? dots = null) =>
+        Shape(text, ((WpfFace)face).Typeface, size, ((WpfInk)ink).Brush, Decorations(lines, ((WpfInk?)dots)?.Brush), CultureInfo.CurrentCulture);
+
+    public TextMeasure Measuring(LayoutFace face, double size) => new WpfMeasure(TextWidths.Set(((WpfFace)face).Typeface, size));
+
+    public ShapedLine Line(string line, LayoutFace face, double size) =>
+        new WpfLine(new CharacterSetting(((WpfFace)face).Typeface, size, Brushes.Black).Line(_formatter, line));
+
+    private readonly TextFormatter _formatter = TextFormatter.Create(TextFormattingMode.Ideal);
+
+    /// <summary>The same, said in WPF's own terms by something that already holds them.</summary>
+    public WpfText Shape(string text, Typeface face, double size, Brush ink, TextDecorationCollection? decorations, CultureInfo culture)
+    {
+        var set = new WpfText(text, culture, face, size, ink);
+        if (decorations is not null) set.SetTextDecorations(decorations);
+
+        return set;
+    }
+
+    /// <summary>
+    /// The rules drawn through or under words, made once for each way of ruling — strike, underline, then dots, as a document's
+    /// builder makes them — rather than once for every run ruled.
+    /// </summary>
+    private TextDecorationCollection? Decorations(TextLines lines, Brush? dots)
+    {
+        if (lines == TextLines.None) return null;
+
+        var key = (lines, lines.HasFlag(TextLines.Dotted) ? dots : null);
+        if (_decorations.TryGetValue(key, out var made)) return made;
+
+        made = [];
+        if (lines.HasFlag(TextLines.Through)) made.Add(TextDecorations.Strikethrough);
+        if (lines.HasFlag(TextLines.Under)) made.Add(TextDecorations.Underline);
+        if (key.Item2 is { } ink) made.Add(Dots(ink));
+
+        made.Freeze();
+        return _decorations[key] = made;
+    }
+
+    private readonly Dictionary<(TextLines, Brush?), TextDecorationCollection> _decorations = [];
+
+    /// <summary>A rule of dots, set a little below the letters so it reads as a hint rather than as a link.</summary>
+    private static TextDecoration Dots(Brush ink)
+    {
+        var pen = new Pen(ink, 1) { DashStyle = new DashStyle([1, 2], 0) };
+        pen.Freeze();
+
+        return new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen, PenOffset = 2 };
+    }
+
+    public IShapedGlyphs Glyphs(LayoutFace face, double size, LayoutPoint origin, ushort[] indices, double[] advances,
+                                LayoutVector[]? offsets = null)
+    {
+        var glyphs = ((WpfFace)face).Glyphs ?? throw new InvalidOperationException("a face with no font to place glyphs from");
+
+        Point[]? shifted = null;
+        if (offsets is { Length: > 0 })
+        {
+            shifted = new Point[offsets.Length];
+            for (var at = 0; at < offsets.Length; at++) shifted[at] = new Point(offsets[at].X, offsets[at].Y);
+        }
+
+        return new WpfGlyphs(glyphs, size, new Point(origin.X, origin.Y), indices, advances, shifted);
+    }
+
+    public ShapeBuilder Outline(bool evenOdd = true) => new WpfShapeBuilder(evenOdd);
+
+    public LayoutShape Rectangle(LayoutRect box, double radiusX = 0, double radiusY = 0) =>
+        WpfShape.Of(new RectangleGeometry(box.ToWpf(), radiusX, radiusY));
+
+    public LayoutShape Ellipse(LayoutPoint centre, double radiusX, double radiusY) =>
+        WpfShape.Of(new EllipseGeometry(new Point(centre.X, centre.Y), radiusX, radiusY));
+
+    public LayoutShape Combine(LayoutShape a, LayoutShape b, ShapeCombine combine) =>
+        WpfShape.Of(new CombinedGeometry(combine switch
+        {
+            ShapeCombine.Intersect => GeometryCombineMode.Intersect,
+            ShapeCombine.Exclude => GeometryCombineMode.Exclude,
+            ShapeCombine.Xor => GeometryCombineMode.Xor,
+            _ => GeometryCombineMode.Union,
+        }, ((WpfShape)a).Geometry, ((WpfShape)b).Geometry));
+
+    public LayoutShape Widen(LayoutShape shape, double thickness) =>
+        WpfShape.Of(((WpfShape)shape).Geometry.GetWidenedPathGeometry(new Pen(Brushes.Black, thickness)));
+
+    public LayoutShape Resolved(LayoutShape shape)
+    {
+        var geometry = ((WpfShape)shape).Geometry;
+        if (geometry is not (CombinedGeometry or GeometryGroup)) return shape;
+
+        return WpfShape.Of(PathGeometry.CreateFromGeometry(geometry));
+    }
+
+    public LayoutStroke Stroke(LayoutInk? ink, double thickness, ReadOnlySpan<double> dashes = default, StrokeEnds? ends = null) =>
+        new WpfStroke((WpfInk?)ink, thickness, dashes.IsEmpty ? null : new DoubleCollection(dashes.ToArray()), ends);
+
+    public LayoutTurn Turn(LayoutMatrix matrix) => new WpfTurn(matrix);
+
+    /// <summary>A turn a theme or a typesetter already holds as WPF's own.</summary>
+    public WpfTurn Turn(Transform transform) => new(transform);
+
+    public LayoutGuides Guides(double[] across, double[] down) => new WpfGuides(new GuidelineSet(across, down));
+
+    /// <summary>A picture a host handed over.</summary>
+    public LayoutPicture Picture(ImageSource picture) => new WpfPicture(picture);
+}
+
+internal static class WpfLayout
+{
+    public static Rect ToWpf(this LayoutRect rect) => rect.IsEmpty ? Rect.Empty : new Rect(rect.X, rect.Y, rect.Width, rect.Height);
+
+    public static LayoutRect ToLayout(this Rect rect) => rect.IsEmpty ? LayoutRect.Empty : new LayoutRect(rect.X, rect.Y, rect.Width, rect.Height);
+
+    public static Point ToWpf(this LayoutPoint point) => new(point.X, point.Y);
+
+    public static LayoutMatrix ToLayout(this Matrix matrix) =>
+        new(matrix.M11, matrix.M12, matrix.M21, matrix.M22, matrix.OffsetX, matrix.OffsetY);
+
+    public static Matrix ToWpf(this LayoutMatrix matrix) =>
+        new(matrix.M11, matrix.M12, matrix.M21, matrix.M22, matrix.OffsetX, matrix.OffsetY);
+}
+
+internal sealed class WpfInk(Brush brush) : LayoutInk
+{
+    public Brush Brush { get; } = brush;
+
+    public override LayoutColor Color => Brush is SolidColorBrush { Color: var color }
+        ? new LayoutColor(color.A, color.R, color.G, color.B)
+        : default;
+}
+
+internal sealed class WpfFace : LayoutFace
+{
+    public WpfFace(Typeface typeface)
+    {
+        Typeface = typeface;
+        Glyphs = typeface.TryGetGlyphTypeface(out var glyphs) ? glyphs : null;
+    }
+
+    /// <summary>A face for the font a typesetter's glyphs were already taken from.</summary>
+    public WpfFace(GlyphTypeface glyphs)
+    {
+        Typeface = new Typeface(new FontFamily(glyphs.FontUri.ToString()), glyphs.Style, glyphs.Weight, glyphs.Stretch);
+        Glyphs = glyphs;
+    }
+
+    public Typeface Typeface { get; }
+
+    public GlyphTypeface? Glyphs { get; }
+
+    public override string Family => Typeface.FontFamily.Source;
+
+    public override int Weight => Typeface.Weight.ToOpenTypeWeight();
+
+    public override bool Italic => Typeface.Style != FontStyles.Normal;
+}
+
+/// <summary>A run of words WPF set, and a run of words a renderer-free layout holds — one object, not two.</summary>
+internal sealed class WpfText(string text, CultureInfo culture, Typeface face, double size, Brush ink)
+    : FormattedText(text, culture, FlowDirection.LeftToRight, face, size, ink, LayoutText.Density), IShapedText
+{
+    public double WidthWithSpace => WidthIncludingTrailingWhitespace;
+
+    public double Room => MaxTextWidth;
+
+    public LayoutAlign Align => TextAlignment switch
+    {
+        TextAlignment.Right => LayoutAlign.Right,
+        TextAlignment.Center => LayoutAlign.Centre,
+        TextAlignment.Justify => LayoutAlign.Justify,
+        _ => LayoutAlign.Left,
+    };
+
+    public void Bound(double room, LayoutAlign align)
+    {
+        if (double.IsFinite(room))
+        {
+            var most = Math.Max(1, room);
+            if (MaxTextWidth != most) MaxTextWidth = most;
+        }
+
+        var wpf = align switch
+        {
+            LayoutAlign.Right => TextAlignment.Right,
+            LayoutAlign.Centre => TextAlignment.Center,
+            LayoutAlign.Justify => TextAlignment.Justify,
+            _ => TextAlignment.Left,
+        };
+
+        if (TextAlignment != wpf) TextAlignment = wpf;
+    }
+
+    public LayoutRect Covers(LayoutPoint at, int from, int count) =>
+        BuildHighlightGeometry(at.ToWpf(), from, count) is { } shape ? shape.Bounds.ToLayout() : LayoutRect.Empty;
+}
+
+/// <summary>Glyphs a typesetter placed, as WPF holds them and as a renderer-free layout does — one object.</summary>
+internal sealed class WpfGlyphs(GlyphTypeface face, double size, Point origin, IList<ushort> indices, IList<double> advances,
+                                IList<Point>? offsets)
+    : GlyphRun(face, 0, false, size, (float)LayoutText.Density, indices, origin, advances, offsets, null, null, null, null, null),
+      IShapedGlyphs
+{
+    public LayoutRect Covers => Rect.Offset(ComputeInkBoundingBox(), BaselineOrigin.X, BaselineOrigin.Y).ToLayout();
+}
+
+internal sealed class WpfShape : LayoutShape
+{
+    private WpfShape(Geometry geometry) => Geometry = geometry;
+
+    /// <summary>An outline the medium has just made, frozen where it stands — nobody else holds it, so there is nothing to copy.</summary>
+    public static WpfShape Of(Geometry geometry)
+    {
+        if (!geometry.IsFrozen) geometry.Freeze();
+        return new(geometry);
+    }
+
+    public Geometry Geometry { get; }
+
+    public override LayoutRect Bounds => Geometry.Bounds.ToLayout();
+
+    public override bool Contains(LayoutPoint point) => Geometry.FillContains(point.ToWpf());
+
+    public override bool Touches(LayoutRect area) =>
+        Geometry.FillContainsWithDetail(new RectangleGeometry(area.ToWpf())) != IntersectionDetail.Empty;
+}
+
+internal sealed class WpfShapeBuilder : ShapeBuilder
+{
+    private readonly StreamGeometry _geometry = new();
+    private readonly StreamGeometryContext _into;
+
+    public WpfShapeBuilder(bool evenOdd)
+    {
+        _geometry.FillRule = evenOdd ? FillRule.EvenOdd : FillRule.Nonzero;
+        _into = _geometry.Open();
+    }
+
+    public override void Begin(LayoutPoint at, bool filled = true, bool closed = true) => _into.BeginFigure(at.ToWpf(), filled, closed);
+
+    public override void LineTo(LayoutPoint to) => _into.LineTo(to.ToWpf(), true, false);
+
+    public override void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to) =>
+        _into.BezierTo(first.ToWpf(), second.ToWpf(), to.ToWpf(), true, false);
+
+    public override void QuadraticTo(LayoutPoint control, LayoutPoint to) => _into.QuadraticBezierTo(control.ToWpf(), to.ToWpf(), true, false);
+
+    public override void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise) =>
+        _into.ArcTo(to.ToWpf(), new Size(radiusX, radiusY), rotation, large,
+                    clockwise ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, true, false);
+
+    public override LayoutShape Close()
+    {
+        _into.Close();
+        _geometry.Freeze();
+        return WpfShape.Of(_geometry);
+    }
+}
+
+/// <summary>Words measured by the same cache every WPF builder measures words by.</summary>
+internal sealed class WpfMeasure(TextWidths.In widths) : TextMeasure
+{
+    public override (double Width, double Advance) Of(ReadOnlySpan<char> text) => widths.Of(text);
+}
+
+/// <summary>One line set by WPF's type engine, asked where its letters stand.</summary>
+internal sealed class WpfLine(System.Windows.Media.TextFormatting.TextLine line) : ShapedLine
+{
+    public override double Height => line.Height;
+
+    public override LayoutRect Letter(int index)
+    {
+        var bounds = Rect.Empty;
+        foreach (var piece in line.GetTextBounds(index, 1))
+        {
+            var box = piece.Rectangle;
+            if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) continue;
+            bounds = bounds.IsEmpty ? box : Rect.Union(bounds, box);
+        }
+
+        return bounds.ToLayout();
+    }
+
+    public override void Dispose() => line.Dispose();
+}
+
+internal sealed class WpfPicture(ImageSource picture) : LayoutPicture
+{
+    public ImageSource Source { get; } = picture;
+
+    public override double Width => Source.Width;
+
+    public override double Height => Source.Height;
+}
+
+/// <summary>
+/// A pen, built and frozen the first time it is painted — not when it is laid, since most of what is laid is never on screen —
+/// with its own ink where it has one, and otherwise for the last ink it was handed, which is the theme's and hardly ever changes.
+/// </summary>
+internal sealed class WpfStroke : LayoutStroke
+{
+    private readonly WpfInk? _ink;
+    private readonly double _thickness;
+    private readonly DoubleCollection? _dashes;
+    private readonly StrokeEnds? _ends;
+    private (Brush Ink, Pen Pen)? _built;
+
+    public WpfStroke(WpfInk? ink, double thickness, DoubleCollection? dashes, StrokeEnds? ends)
+    {
+        _ink = ink;
+        _thickness = thickness;
+        _dashes = dashes;
+        _ends = ends;
+    }
+
+    public override LayoutInk? Ink => _ink;
+
+    public override double Thickness => _thickness;
+
+    /// <summary>The pen it strokes with where it is handed <paramref name="fallback"/> for an ink it has none of.</summary>
+    public Pen PenFor(Brush fallback)
+    {
+        var ink = _ink?.Brush ?? fallback;
+        if (_built is { } built && ReferenceEquals(built.Ink, ink)) return built.Pen;
+
+        var pen = Built(ink);
+        _built = (ink, pen);
+        return pen;
+    }
+
+    private Pen Built(Brush ink)
+    {
+        var pen = new Pen(ink, _thickness);
+
+        if (_ends is { } ends)
+        {
+            pen.StartLineCap = (PenLineCap)ends.StartCap;
+            pen.EndLineCap = (PenLineCap)ends.EndCap;
+            pen.DashCap = (PenLineCap)ends.DashCap;
+            pen.LineJoin = (PenLineJoin)ends.Join;
+            pen.MiterLimit = ends.MiterLimit;
+        }
+
+        if (_dashes is { Count: > 0 }) pen.DashStyle = new DashStyle(_dashes, _ends?.DashOffset ?? 0);
+        pen.Freeze();
+
+        return pen;
+    }
+}
+
+internal sealed class WpfTurn : LayoutTurn
+{
+    public WpfTurn(LayoutMatrix matrix)
+    {
+        var transform = new MatrixTransform(matrix.ToWpf());
+        transform.Freeze();
+        Transform = transform;
+        Matrix = matrix;
+    }
+
+    public WpfTurn(Transform transform)
+    {
+        Transform = transform.IsFrozen ? transform : (Transform)transform.GetAsFrozen();
+        Matrix = Transform.Value.ToLayout();
+    }
+
+    public Transform Transform { get; }
+
+    public override LayoutMatrix Matrix { get; }
+}
+
+internal sealed class WpfGuides(GuidelineSet guides) : LayoutGuides
+{
+    public GuidelineSet Set { get; } = Frozen(guides);
+
+    private static GuidelineSet Frozen(GuidelineSet guides)
+    {
+        if (!guides.IsFrozen) guides.Freeze();
+        return guides;
+    }
+}

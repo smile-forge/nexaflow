@@ -25,7 +25,7 @@ public partial class MarkdownLayoutBench
     /// How many sections the generated lecture script has: about a megabyte, with as many formulas in it as a term's notes —
     /// the shape of document that showed every one of those costs.
     /// </summary>
-    private const int LectureSections = 400;
+    internal const int LectureSections = 400;
 
     /// <summary>How many screens are read on down from the top, a screen at a time.</summary>
     private const int Pages = 60;
@@ -212,7 +212,7 @@ public partial class MarkdownLayoutBench
     /// it, so the waves under what could not be set are in what is measured, as they are in a real script. The same every run,
     /// so runs compare.
     /// </summary>
-    private static string LectureScript(int sections)
+    internal static string LectureScript(int sections)
     {
         string[] words = ["let", "the", "function", "be", "continuous", "on", "the", "closed", "interval", "and", "differentiable",
                           "in", "its", "interior", "then", "there", "exists", "a", "point", "such", "that", "it", "holds", "for",
